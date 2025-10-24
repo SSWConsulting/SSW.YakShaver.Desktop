@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
 import { app, BrowserWindow, session } from "electron";
 import tmp from "tmp";
+import { updateElectronApp } from "update-electron-app";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
@@ -12,6 +13,8 @@ import { VideoIPCHandlers } from "./ipc/video-handlers";
 import { createMcpOrchestrator } from "./services/mcp/mcp-orchestrator-factory";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
+
+updateElectronApp();
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -56,7 +59,7 @@ const createWindow = (): void => {
   } else {
     const indexPath = join(
       process.resourcesPath,
-      "app.asar.unpacked/src/ui/dist/index.html",
+      "app.asar.unpacked/src/ui/dist/index.html"
     );
     mainWindow.loadFile(indexPath).catch((err) => {
       console.error("Failed to load index.html:", err);
@@ -83,9 +86,9 @@ app.whenReady().then(async () => {
           "clipboard-read",
           "clipboard-sanitized-write",
           "fullscreen",
-        ].includes(permission),
+        ].includes(permission)
       );
-    },
+    }
   );
 
   _authHandlers = new AuthIPCHandlers();
