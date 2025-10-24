@@ -54,7 +54,7 @@ module.exports = {
           owner: "SSWConsulting",
           name: "SSW.YakShaver.Desktop",
         },
-        prerelease: true,
+        prerelease: false,
       },
     },
   ],
