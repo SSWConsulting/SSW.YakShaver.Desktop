@@ -1,0 +1,150 @@
+name: Release Electron App
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: SSW.YakShaver
+  APP_FOLDER: desktop-electron
+  NODE_VERSION: 20
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    outputs:
+      is-desktop: ${{ steps.check.outputs.is-desktop }}
+      version: ${{ steps.check.outputs.version }}
+      target: ${{ steps.check.outputs.target }}
+    steps:
+      - id: check
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          TARGET="${{ github.event.release.target_commitish }}"
+
+          if [[ "$TAG" == desktop-v* ]]; then
+            echo "is-desktop=true" >> $GITHUB_OUTPUT
+            echo "version=${TAG#desktop-v}" >> $GITHUB_OUTPUT
+            echo "target=$TARGET" >> $GITHUB_OUTPUT
+          else
+            echo "is-desktop=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-windows:
+    needs: check-release
+    if: needs.check-release.outputs.is-desktop == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check-release.outputs.target }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.APP_FOLDER }}/package-lock.json
+
+      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
+      - name: Create .env from secrets
+        working-directory: ${{ env.APP_FOLDER }}
+        shell: pwsh
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: |
+          "YOUTUBE_CLIENT_ID=$env:YOUTUBE_CLIENT_ID" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
+          Add-Content -Path ".env" -Value "`nYOUTUBE_CLIENT_SECRET=$env:YOUTUBE_CLIENT_SECRET"
+
+      - name: Build Windows app
+        working-directory: ${{ env.APP_FOLDER }}
+        run: |
+          npm ci --prefer-offline
+          cd src/ui && npm ci --prefer-offline
+          cd ../.. && npm run make
+        env:
+          NODE_ENV: production
+          CI: true
+
+      - name: Prepare release assets
+        working-directory: ${{ env.APP_FOLDER }}
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "out/make/squirrel.windows/x64" -Filter "*.exe" -Recurse |
+                       Where-Object { $_.Name -notlike "*-full.nupkg" } | Select-Object -First 1
+          if (-not $installer) { throw "Windows installer not found" }
+
+          New-Item -ItemType Directory -Force -Path "out/release-assets" | Out-Null
+          Copy-Item $installer.FullName "out/release-assets/${{ env.APP_NAME }}-Windows-v${{ needs.check-release.outputs.version }}.exe"
+
+          $releases = Get-ChildItem "out/make/squirrel.windows/x64" -Filter "RELEASES" -Recurse | Select-Object -First 1
+          if ($releases) { Copy-Item $releases.FullName "out/release-assets/RELEASES" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: ${{ env.APP_FOLDER }}/out/release-assets/
+          retention-days: 5
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APP_FOLDER }}/out/release-assets/*
+
+  build-macos:
+    needs: check-release
+    if: needs.check-release.outputs.is-desktop == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check-release.outputs.target }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.APP_FOLDER }}/package-lock.json
+
+      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
+      - name: Create .env from secrets
+        working-directory: ${{ env.APP_FOLDER }}
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: |
+          printf "YOUTUBE_CLIENT_ID=%s\nYOUTUBE_CLIENT_SECRET=%s\n" "$YOUTUBE_CLIENT_ID" "$YOUTUBE_CLIENT_SECRET" > .env
+
+      - name: Build macOS app
+        working-directory: ${{ env.APP_FOLDER }}
+        run: |
+          npm ci --prefer-offline
+          cd src/ui && npm ci --prefer-offline
+          cd ../.. && npm run make
+        env:
+          NODE_ENV: production
+          CI: true
+
+      - name: Prepare release assets
+        working-directory: ${{ env.APP_FOLDER }}
+        run: |
+          PACKAGE=$(find out/make/zip/darwin -name "*.zip" -type f | head -n 1)
+          [ -z "$PACKAGE" ] && { echo "macOS package not found"; exit 1; }
+
+          mkdir -p out/release-assets
+          cp "$PACKAGE" "out/release-assets/${{ env.APP_NAME }}-macOS-v${{ needs.check-release.outputs.version }}.zip"
+
+          LATEST=$(find out/make -name "latest-mac.yml" -type f | head -n 1)
+          [ -n "$LATEST" ] && cp "$LATEST" out/release-assets/latest-mac.yml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-installers
+          path: ${{ env.APP_FOLDER }}/out/release-assets/
+          retention-days: 5
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APP_FOLDER }}/out/release-assets/*
