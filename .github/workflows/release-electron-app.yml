@@ -50,11 +50,15 @@ jobs:
           "YOUTUBE_CLIENT_ID=$env:YOUTUBE_CLIENT_ID" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
           Add-Content -Path ".env" -Value "`nYOUTUBE_CLIENT_SECRET=$env:YOUTUBE_CLIENT_SECRET"
 
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
       - name: Build Windows app
-        run: |
-          npm ci --prefer-offline
-          cd src/ui && npm ci --prefer-offline
-          cd ../.. && npm run make
+        run: npm run make
         env:
           NODE_ENV: production
           CI: true
@@ -104,11 +108,15 @@ jobs:
         run: |
           printf "YOUTUBE_CLIENT_ID=%s\nYOUTUBE_CLIENT_SECRET=%s\n" "$YOUTUBE_CLIENT_ID" "$YOUTUBE_CLIENT_SECRET" > .env
 
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
       - name: Build macOS app
-        run: |
-          npm ci --prefer-offline
-          cd src/ui && npm ci --prefer-offline
-          cd ../.. && npm run make
+        run: npm run make
         env:
           NODE_ENV: production
           CI: true
