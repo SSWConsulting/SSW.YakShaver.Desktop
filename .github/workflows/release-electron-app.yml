@@ -121,11 +121,26 @@ jobs:
           NODE_ENV: production
           CI: true
 
+      - name: Debug output structure
+        run: |
+          echo "=== Output directory structure ==="
+          find out -type f -name "*.zip" || echo "No zip files found"
+          echo "=== Full out/make structure ==="
+          ls -R out/make || echo "out/make not found"
+
       - name: Prepare release assets
         run: |
-          PACKAGE=$(find out/make/zip/darwin -name "*.zip" -type f | head -n 1)
-          [ -z "$PACKAGE" ] && { echo "macOS package not found"; exit 1; }
+          # Try to find the zip file in various possible locations
+          PACKAGE=$(find out/make -name "*.zip" -type f | head -n 1)
 
+          if [ -z "$PACKAGE" ]; then
+            echo "ERROR: macOS package not found"
+            echo "Searched in out/make for .zip files"
+            find out -type f
+            exit 1
+          fi
+
+          echo "Found package: $PACKAGE"
           mkdir -p out/release-assets
           cp "$PACKAGE" "out/release-assets/${{ env.APP_NAME }}-macOS-v${{ needs.check-release.outputs.version }}.zip"
 
