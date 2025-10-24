@@ -1,7 +1,7 @@
 {
   "name": "yakshaver",
   "productName": "YakShaver",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "YakShaver, an AI agent to help you trim the fluff and get straight to the point",
   "main": "dist/index.js",
   "scripts": {
@@ -11,6 +11,7 @@
     "dev": "concurrently \"cd src/ui && npm run dev\" \"wait-on http://localhost:3000 && npm run build && cross-env NODE_ENV=development electron .\"",
     "package": "npm run build && cd src/ui && npm run build && cd ../.. && electron-forge package",
     "make": "npm run build && cd src/ui && npm run build && cd ../.. && electron-forge make",
+    "publish": "npm run build && cd src/ui && npm run build && cd ../.. && electron-forge publish",
     "lint": "biome check --write .",
     "format": "biome format --write ."
   },
@@ -21,7 +22,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SSWConsulting/SSW.YakShaver.Desktop"
+    "url": "https://github.com/SSWConsulting/SSW.YakShaver.Desktop.git"
   },
   "dependencies": {
     "@azure/openai": "^2.0.0",
