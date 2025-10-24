@@ -121,13 +121,6 @@ jobs:
           NODE_ENV: production
           CI: true
 
-      - name: Debug output structure
-        run: |
-          echo "=== Output directory structure ==="
-          find out -type f -name "*.zip" || echo "No zip files found"
-          echo "=== Full out/make structure ==="
-          ls -R out/make || echo "out/make not found"
-
       - name: Prepare release assets
         run: |
           # Try to find the zip file in various possible locations
@@ -144,8 +137,17 @@ jobs:
           mkdir -p out/release-assets
           cp "$PACKAGE" "out/release-assets/${{ env.APP_NAME }}-macOS-v${{ needs.check-release.outputs.version }}.zip"
 
+          # Copy update metadata files if they exist (needed for auto-updates)
           LATEST=$(find out/make -name "latest-mac.yml" -type f | head -n 1)
-          [ -n "$LATEST" ] && cp "$LATEST" out/release-assets/latest-mac.yml
+          if [ -n "$LATEST" ]; then
+            echo "Found latest-mac.yml: $LATEST"
+            cp "$LATEST" out/release-assets/latest-mac.yml
+          else
+            echo "Warning: latest-mac.yml not found - auto-updates may not work"
+          fi
+
+          echo "Release assets prepared successfully"
+          ls -la out/release-assets/
 
       - uses: actions/upload-artifact@v4
         with:
