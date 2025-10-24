@@ -19,6 +19,10 @@
     "name": "SSW"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SSWConsulting/SSW.YakShaver.Desktop"
+  },
   "dependencies": {
     "@azure/openai": "^2.0.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
@@ -29,7 +33,8 @@
     "google-auth-library": "^10.3.0",
     "googleapis": "^160.0.0",
     "openai": "^6.3.0",
-    "tmp": "^0.2.5"
+    "tmp": "^0.2.5",
+    "update-electron-app": "^3.1.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
@@ -40,6 +45,7 @@
     "@electron-forge/maker-zip": "^7.8.3",
     "@electron-forge/plugin-auto-unpack-natives": "^7.8.3",
     "@electron-forge/plugin-fuses": "^7.8.3",
+    "@electron-forge/publisher-github": "^7.10.2",
     "@electron/fuses": "^1.8.0",
     "@types/node": "^22.18.6",
     "@types/tmp": "^0.2.6",
