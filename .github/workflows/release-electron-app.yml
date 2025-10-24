@@ -9,7 +9,6 @@ permissions:
 
 env:
   APP_NAME: SSW.YakShaver
-  APP_FOLDER: desktop-electron
   NODE_VERSION: 20
 
 jobs:
@@ -39,11 +38,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: ${{ env.APP_FOLDER }}/package-lock.json
+          cache-dependency-path: package-lock.json
 
       # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
-        working-directory: ${{ env.APP_FOLDER }}
         shell: pwsh
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
@@ -53,7 +51,6 @@ jobs:
           Add-Content -Path ".env" -Value "`nYOUTUBE_CLIENT_SECRET=$env:YOUTUBE_CLIENT_SECRET"
 
       - name: Build Windows app
-        working-directory: ${{ env.APP_FOLDER }}
         run: |
           npm ci --prefer-offline
           cd src/ui && npm ci --prefer-offline
@@ -63,7 +60,6 @@ jobs:
           CI: true
 
       - name: Prepare release assets
-        working-directory: ${{ env.APP_FOLDER }}
         shell: pwsh
         run: |
           $installer = Get-ChildItem "out/make/squirrel.windows/x64" -Filter "*.exe" -Recurse |
@@ -79,12 +75,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installers
-          path: ${{ env.APP_FOLDER }}/out/release-assets/
+          path: out/release-assets/
           retention-days: 5
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.APP_FOLDER }}/out/release-assets/*
+          files: out/release-assets/*
 
   build-macos:
     needs: check-release
@@ -98,11 +94,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: ${{ env.APP_FOLDER }}/package-lock.json
+          cache-dependency-path: package-lock.json
 
       # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
-        working-directory: ${{ env.APP_FOLDER }}
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
@@ -110,7 +105,6 @@ jobs:
           printf "YOUTUBE_CLIENT_ID=%s\nYOUTUBE_CLIENT_SECRET=%s\n" "$YOUTUBE_CLIENT_ID" "$YOUTUBE_CLIENT_SECRET" > .env
 
       - name: Build macOS app
-        working-directory: ${{ env.APP_FOLDER }}
         run: |
           npm ci --prefer-offline
           cd src/ui && npm ci --prefer-offline
@@ -120,7 +114,6 @@ jobs:
           CI: true
 
       - name: Prepare release assets
-        working-directory: ${{ env.APP_FOLDER }}
         run: |
           PACKAGE=$(find out/make/zip/darwin -name "*.zip" -type f | head -n 1)
           [ -z "$PACKAGE" ] && { echo "macOS package not found"; exit 1; }
@@ -134,9 +127,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: macos-installers
-          path: ${{ env.APP_FOLDER }}/out/release-assets/
+          path: out/release-assets/
           retention-days: 5
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.APP_FOLDER }}/out/release-assets/*
+          files: out/release-assets/*
