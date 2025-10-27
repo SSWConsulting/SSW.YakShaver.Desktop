@@ -1,7 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "../ui/accordion";
 import { Button } from "../ui/button";
 import {
   Form,
@@ -13,14 +18,23 @@ import {
   FormMessage,
 } from "../ui/form";
 import { Textarea } from "../ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 import { Input } from "../ui/input";
 
 const mcpServerSchema = z.object({
-  name: z.string().min(1, "Name is required").regex(
-    /^[a-zA-Z0-9 _-]+$/,
-    "Only letters, numbers, spaces, underscores, and hyphens allowed"
-  ),
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .regex(
+      /^[a-zA-Z0-9 _-]+$/,
+      "Only letters, numbers, spaces, underscores, and hyphens allowed"
+    ),
   description: z.string().optional(),
   transport: z.enum(["streamableHttp", "stdio"]),
   url: z.string().url("Must be a valid URL"),
@@ -63,7 +77,9 @@ export function McpServerForm({
       description: initialData?.description || "",
       transport: initialData?.transport || "streamableHttp",
       url: initialData?.url || "",
-      headers: initialData?.headers ? JSON.stringify(initialData.headers, null, 2) : "{}",
+      headers: initialData?.headers
+        ? JSON.stringify(initialData.headers, null, 2)
+        : "{}",
       version: initialData?.version || "",
       timeoutMs: initialData?.timeoutMs || undefined,
     },
@@ -88,7 +104,8 @@ export function McpServerForm({
       description: data.description?.trim() || undefined,
       headers,
       version: data.version?.trim() || undefined,
-      timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
+      timeoutMs:
+        typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
     };
 
     await onSubmit(config);
@@ -96,7 +113,10 @@ export function McpServerForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
+      <form
+        onSubmit={form.handleSubmit(handleSubmit)}
+        className="flex flex-col gap-4"
+      >
         <h3 className="text-white text-xl font-semibold">
           {isEditing ? "Edit Server" : "Add New Server"}
         </h3>
@@ -179,7 +199,9 @@ export function McpServerForm({
                     <SelectValue placeholder="Transport" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="streamableHttp">HTTP (streamableHttp)</SelectItem>
+                    <SelectItem value="streamableHttp">
+                      HTTP (streamableHttp)
+                    </SelectItem>
                     <SelectItem value="stdio">Stdio (local process)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -241,13 +263,17 @@ export function McpServerForm({
                 name="timeoutMs"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/90">Timeout (ms)</FormLabel>
+                    <FormLabel className="text-white/90">
+                      Timeout (ms)
+                    </FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         value={field.value ?? ""}
                         onChange={(e) =>
-                          field.onChange(e.target.value ? Number(e.target.value) : "")
+                          field.onChange(
+                            e.target.value ? Number(e.target.value) : ""
+                          )
                         }
                         type="number"
                         placeholder="60000"
@@ -263,10 +289,16 @@ export function McpServerForm({
         </Accordion>
 
         <div className="flex gap-3 justify-end">
-          <Button type="button" variant="secondary" onClick={onCancel} disabled={loading}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={loading}
+            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-800/80 hover:text-white/80"
+          >
             Cancel
           </Button>
-          <Button type="submit" disabled={loading} size="lg">
+          <Button variant="secondary" type="submit" disabled={loading}>
             {loading ? "Saving..." : "Save Server"}
           </Button>
         </div>

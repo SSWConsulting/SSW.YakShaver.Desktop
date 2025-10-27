@@ -48,6 +48,7 @@ const IPC_CHANNELS = {
   MCP_ADD_SERVER: "mcp:add-server",
   MCP_UPDATE_SERVER: "mcp:update-server",
   MCP_REMOVE_SERVER: "mcp:remove-server",
+  MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   TRANSCRIPTION_STARTED: "transcription-started",
   TRANSCRIPTION_COMPLETED: "transcription-completed",
   TRANSCRIPTION_ERROR: "transcription-error",
@@ -95,7 +96,7 @@ const electronAPI = {
       ipcRenderer.invoke(
         IPC_CHANNELS.CONVERT_VIDEO_TO_MP3,
         inputPath,
-        outputPath,
+        outputPath
       ),
   },
   screenRecording: {
@@ -143,11 +144,11 @@ const electronAPI = {
     retryTaskExecution: (intermediateOutput: string) =>
       ipcRenderer.invoke(
         IPC_CHANNELS.WORKFLOW_RETRY_TASK_EXECUTION,
-        intermediateOutput,
+        intermediateOutput
       ),
     onTranscriptionError: (callback: (error: string) => void) =>
       onIpcEvent<string>(IPC_CHANNELS.TRANSCRIPTION_ERROR, (error) =>
-        callback(error),
+        callback(error)
       ),
   },
   llm: {
@@ -169,7 +170,7 @@ const electronAPI = {
         message?: string;
         toolName?: string;
         serverName?: string;
-      }) => void,
+      }) => void
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
     addServer: (config: MCPServerConfig) =>
@@ -178,6 +179,8 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, name, config),
     removeServer: (name: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),
+    checkServerHealth: (name: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, name),
   },
   settings: {
     getCustomPrompt: () =>

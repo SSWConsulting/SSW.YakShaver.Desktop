@@ -39,7 +39,7 @@ declare global {
         selectOutputDirectory: () => Promise<string | null>;
         convertVideoToMp3: (
           inputPath: string,
-          outputPath: string,
+          outputPath: string
         ) => Promise<ConvertVideoToMp3Result>;
       };
       screenRecording: {
@@ -61,7 +61,7 @@ declare global {
         processTranscript: (transcript: string) => Promise<string>;
         onTranscriptionStarted: (callback: () => void) => () => void;
         onTranscriptionCompleted: (
-          callback: (transcript: string) => void,
+          callback: (transcript: string) => void
         ) => () => void;
         onTranscriptionError: (callback: (error: string) => void) => () => void;
       };
@@ -76,7 +76,7 @@ declare global {
       mcp: {
         processMessage: (
           prompt: string,
-          options?: { serverFilter?: string[] },
+          options?: { serverFilter?: string[] }
         ) => Promise<{
           final: string | null;
           transcript: TranscriptEntry[];
@@ -89,15 +89,20 @@ declare global {
             message?: string;
             toolName?: string;
             serverName?: string;
-          }) => void,
+          }) => void
         ) => () => void;
         listServers: () => Promise<MCPServerConfig[]>;
         addServer: (config: MCPServerConfig) => Promise<{ success: boolean }>;
         updateServer: (
           name: string,
-          config: MCPServerConfig,
+          config: MCPServerConfig
         ) => Promise<{ success: boolean }>;
         removeServer: (name: string) => Promise<{ success: boolean }>;
+        checkServerHealth: (name: string) => Promise<{
+          healthy: boolean;
+          error?: string;
+          toolCount?: number;
+        }>;
       };
       settings: {
         getCustomPrompt: () => Promise<string>;

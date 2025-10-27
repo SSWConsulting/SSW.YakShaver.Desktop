@@ -1,5 +1,4 @@
-import type { ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
-import { app, BrowserWindow } from "electron";
+import { BrowserWindow } from "electron";
 import type OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/index.js";
 import { OpenAIService } from "../openai/openai-service.js";
@@ -39,7 +38,7 @@ export class MCPOrchestrator {
     if (!name?.trim()) throw new Error("Server name cannot be empty");
     if (!/^[a-zA-Z0-9 _-]+$/.test(name)) {
       throw new Error(
-        `Server name '${name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
+        `Server name '${name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`
       );
     }
   }
@@ -50,7 +49,7 @@ export class MCPOrchestrator {
 
   constructor(
     opts: MCPOrchestratorOptions = {},
-    llmClient: OpenAIService = OpenAIService.getInstance(),
+    llmClient: OpenAIService = OpenAIService.getInstance()
   ) {
     this.llmClient = llmClient;
     this.mcpStorage = McpStorage.getInstance();
@@ -65,7 +64,7 @@ export class MCPOrchestrator {
     if (this.opts.eagerConnect) {
       // Fire and forget; caller can also await connectAll()
       void this.connectAll().catch((e) =>
-        console.error("[MCPOrchestrator] eagerConnect failed:", e),
+        console.error("[MCPOrchestrator] eagerConnect failed:", e)
       );
     }
   }
@@ -76,12 +75,12 @@ export class MCPOrchestrator {
       this.servers.splice(0, this.servers.length, ...servers);
       this.initialized = true;
       console.log(
-        `[MCPOrchestrator] Loaded ${this.servers.length} MCP server configuration(s) from secure storage`,
+        `[MCPOrchestrator] Loaded ${this.servers.length} MCP server configuration(s) from secure storage`
       );
     } catch (err) {
       console.error(
         "[MCPOrchestrator] Failed to load config from secure storage:",
-        err,
+        err
       );
       // Initialize with empty array on error
       this.servers.splice(0, this.servers.length);
@@ -103,12 +102,12 @@ export class MCPOrchestrator {
     try {
       await this.mcpStorage.storeMcpServers(this.servers);
       console.log(
-        `[MCPOrchestrator] Saved ${this.servers.length} server(s) to secure storage`,
+        `[MCPOrchestrator] Saved ${this.servers.length} server(s) to secure storage`
       );
     } catch (err) {
       console.error(
         "[MCPOrchestrator] Failed to save config to secure storage:",
-        err,
+        err
       );
       throw err;
     }
@@ -132,6 +131,11 @@ export class MCPOrchestrator {
       }
       this.clients.get(name)?.disconnect();
       this.clients.delete(name);
+    } else {
+      // Even if name didn't change, the config (URL, headers, etc) might have
+      // So we need to disconnect and remove the old client to force recreation
+      this.clients.get(name)?.disconnect();
+      this.clients.delete(name);
     }
     this.servers[index] = config;
     await this.saveConfig();
@@ -144,6 +148,27 @@ export class MCPOrchestrator {
     this.clients.get(name)?.disconnect();
     this.clients.delete(name);
     await this.saveConfig();
+  }
+
+  async checkServerHealth(name: string): Promise<{
+    healthy: boolean;
+    error?: string;
+    toolCount?: number;
+  }> {
+    try {
+      const client = this.getMcpClient(name);
+      await client.connect();
+      const toolList = await client.listTools();
+      return {
+        healthy: true,
+        toolCount: toolList.tools?.length ?? 0,
+      };
+    } catch (err) {
+      return {
+        healthy: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
   }
 
   private ensureClient(name: string): MCPClientWrapper {
@@ -176,7 +201,7 @@ export class MCPOrchestrator {
       } catch (e) {
         console.error(
           `[MCPOrchestrator] Failed to connect to '${client.name}':`,
-          e,
+          e
         );
       }
     }
@@ -201,7 +226,7 @@ export class MCPOrchestrator {
       serverFilter?: string[]; // if provided, only include tools from these servers
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
-    } = {},
+    } = {}
   ): Promise<{
     final: string | null;
     transcript: ChatCompletionMessageParam[];
@@ -209,7 +234,7 @@ export class MCPOrchestrator {
     // Check if LLM client is configured
     if (!this.llmClient.isConfigured()) {
       throw new Error(
-        "OpenAI is not configured. MCP features require OpenAI API key or Azure OpenAI configuration.",
+        "OpenAI is not configured. MCP features require OpenAI API key or Azure OpenAI configuration."
       );
     }
 
@@ -227,12 +252,12 @@ export class MCPOrchestrator {
         await client.connect();
         const toolList = await client.listTools();
         const sanitizedServerName = MCPOrchestrator.sanitizeServerName(
-          server.name,
+          server.name
         );
 
         toolList.tools?.forEach((tool) => {
           const sanitizedToolName = MCPOrchestrator.sanitizeServerName(
-            tool.name,
+            tool.name
           );
           toolDefs.push({
             type: "function",
@@ -250,7 +275,7 @@ export class MCPOrchestrator {
       } catch (e) {
         console.warn(
           `[MCPOrchestrator] Failed to load server ${server.name}`,
-          e,
+          e
         );
       }
     }
@@ -288,7 +313,7 @@ export class MCPOrchestrator {
       const toolCalls = assistantMessage?.tool_calls;
       if (!toolCalls?.length) {
         console.warn(
-          "[MCPOrchestrator] No tool calls and not finished; aborting loop.",
+          "[MCPOrchestrator] No tool calls and not finished; aborting loop."
         );
         break;
       }
@@ -308,7 +333,7 @@ export class MCPOrchestrator {
 
         const originalServerName =
           this.servers.find(
-            (s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName,
+            (s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName
           )?.name ?? serverName;
 
         this.sendStepEvent({

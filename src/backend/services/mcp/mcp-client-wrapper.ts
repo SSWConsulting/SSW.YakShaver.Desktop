@@ -21,7 +21,9 @@ export class MCPClientWrapper {
     this.transport = this.buildTransport();
   }
 
-  private buildTransport(): StreamableHTTPClientTransport | StdioClientTransport {
+  private buildTransport():
+    | StreamableHTTPClientTransport
+    | StdioClientTransport {
     if (this.serverConfig.transport === "streamableHttp") {
       const headers: Record<string, string> = {};
       if (this.serverConfig.headers) {
@@ -32,7 +34,10 @@ export class MCPClientWrapper {
       const options: StreamableHTTPClientTransportOptions = {
         requestInit: { headers },
       };
-      return new StreamableHTTPClientTransport(new URL(this.serverConfig.url), options);
+      return new StreamableHTTPClientTransport(
+        new URL(this.serverConfig.url),
+        options
+      );
     } else if (this.serverConfig.transport === "stdio") {
       // Don't worry stdio for now, this is local MCP server, supported later
       // TODO: Support local MCP servers via stdio transport https://github.com/SSWConsulting/SSW.YakShaver/issues/3008
@@ -46,10 +51,17 @@ export class MCPClientWrapper {
 
   async connect(): Promise<void> {
     if (this.isConnected) return;
-    console.log(`[MCP] Connecting to '${this.serverConfig.name}' at ${this.serverConfig.url}...`);
-    await this.client.connect(this.transport);
-    this.isConnected = true;
-    console.log("[MCP] Connected.");
+    try {
+      await this.client.connect(this.transport);
+      this.isConnected = true;
+      return;
+    } catch (error) {
+      console.error(
+        `[MCP] Failed to connect to '${this.serverConfig.name}':`,
+        error
+      );
+      return;
+    }
   }
 
   async disconnect(): Promise<void> {
@@ -57,7 +69,10 @@ export class MCPClientWrapper {
     try {
       await this.client.close();
     } catch (e) {
-      console.warn(`[MCP] Error while closing client '${this.serverConfig.name}':`, e);
+      console.warn(
+        `[MCP] Error while closing client '${this.serverConfig.name}':`,
+        e
+      );
     } finally {
       this.isConnected = false;
     }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../../services/ipc-client";
+import { McpServerHealthStatus } from "./McpServerHealthStatus";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,24 +26,75 @@ import { type MCPServerConfig, McpServerForm } from "./McpServerForm";
 
 type ViewMode = "list" | "add" | "edit";
 
+interface ServerHealthStatus {
+  [serverName: string]: {
+    healthy: boolean;
+    error?: string;
+    toolCount?: number;
+    checking: boolean;
+  };
+}
+
 export function McpServerManager() {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null);
+  const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(
+    null
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [serverToDelete, setServerToDelete] = useState<string | null>(null);
+  const [healthStatus, setHealthStatus] = useState<ServerHealthStatus>({});
+
+  const checkAllServersHealth = useCallback(
+    async (serverList: MCPServerConfig[]) => {
+      // Set all servers as "checking"
+      const checkingStatus: ServerHealthStatus = {};
+      for (const server of serverList) {
+        checkingStatus[server.name] = { healthy: false, checking: true };
+      }
+      setHealthStatus(checkingStatus);
+
+      // Check each server's health
+      for (const server of serverList) {
+        try {
+          const result = await ipcClient.mcp.checkServerHealth(server.name);
+          setHealthStatus((prev) => ({
+            ...prev,
+            [server.name]: {
+              healthy: result.healthy,
+              error: result.error,
+              toolCount: result.toolCount,
+              checking: false,
+            },
+          }));
+        } catch (e) {
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          setHealthStatus((prev) => ({
+            ...prev,
+            [server.name]: {
+              healthy: false,
+              error: errorMessage,
+              checking: false,
+            },
+          }));
+        }
+      }
+    },
+    []
+  );
 
   const loadServers = useCallback(async () => {
     try {
       const list = await ipcClient.mcp.listServers();
       setServers(list);
+      await checkAllServersHealth(list);
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       toast.error(`Failed to load servers: ${errorMessage}`);
     }
-  }, []);
+  }, [checkAllServersHealth]);
 
   useEffect(() => {
     void loadServers();
@@ -75,6 +127,7 @@ export function McpServerManager() {
       }
 
       showList();
+      // Reload servers and re-check health status
       await loadServers();
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
@@ -118,64 +171,84 @@ export function McpServerManager() {
         className="max-w-5xl max-h-[90vh] overflow-y-auto bg-neutral-900 text-neutral-100 border-neutral-800"
       >
         <DialogHeader>
-          <DialogTitle className="text-white text-2xl">MCP Server Settings</DialogTitle>
+          <DialogTitle className="text-white text-2xl">
+            MCP Server Settings
+          </DialogTitle>
         </DialogHeader>
-        <DialogDescription>View and update your current MCP server settings</DialogDescription>
+        <DialogDescription>
+          View and update your current MCP server settings
+        </DialogDescription>
         <div className="w-full">
           {viewMode === "list" && (
             <div className="flex flex-col gap-6">
               <div className="flex justify-end">
-                <Button onClick={showAddForm} size="lg">
+                <Button variant="secondary" onClick={showAddForm} size="lg">
                   Add Server
                 </Button>
               </div>
 
               {servers.length === 0 && (
-                <p className="text-white/60 text-center py-8">No MCP servers configured</p>
+                <p className="text-white/60 text-center py-8">
+                  No MCP servers configured
+                </p>
               )}
 
               {servers.length > 0 && (
                 <div className="flex flex-col gap-4">
-                  {servers.map((server) => (
-                    <Card
-                      key={server.name}
-                      className="bg-black/40 border-white/20 hover:border-white/40 transition-colors"
-                    >
-                      <CardContent className="p-6">
-                        <div className="flex justify-between items-start gap-4">
-                          <div className="flex-1">
-                            <h3 className="text-white font-semibold text-lg">{server.name}</h3>
-                            {server.description && (
-                              <p className="text-white/70 text-sm mt-1">{server.description}</p>
-                            )}
-                            <p className="text-white/50 text-sm mt-2 font-mono break-all">
-                              {server.url}
-                            </p>
-                            <p className="text-white/40 text-xs mt-1">
-                              Transport: {server.transport}
-                            </p>
+                  {servers.map((server) => {
+                    const status = healthStatus[server.name];
+                    const isChecking = status?.checking ?? false;
+                    const isHealthy = status?.healthy ?? false;
+                    const hasError = status?.error;
+
+                    return (
+                      <Card
+                        key={server.name}
+                        className="bg-black/40 border-white/20 hover:border-white/40 transition-colors"
+                      >
+                        <CardContent className="p-6">
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="flex-1 flex items-start gap-3">
+                              <div className="mt-1 flex-shrink-0 group relative">
+                                <McpServerHealthStatus
+                                  isChecking={isChecking}
+                                  isHealthy={isHealthy}
+                                  toolCount={status?.toolCount}
+                                  error={hasError}
+                                />
+                              </div>
+
+                              <div className="flex-1">
+                                <h3 className="text-white font-semibold text-lg">
+                                  {server.name}
+                                </h3>
+                                <p className="text-white/50 text-sm mt-2 font-mono break-all">
+                                  {server.url}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => showEditForm(server)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => confirmDeleteServer(server.name)}
+                                disabled={loading}
+                              >
+                                Delete
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => showEditForm(server)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => confirmDeleteServer(server.name)}
-                              disabled={loading}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -196,10 +269,12 @@ export function McpServerManager() {
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent className="bg-neutral-900 text-neutral-100 border-neutral-800">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Delete {serverToDelete}</AlertDialogTitle>
+            <AlertDialogTitle className="text-white">
+              Delete {serverToDelete}
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-white/70 text-base pt-2">
-              Are you sure you want to remove server '{serverToDelete}'? This action cannot be
-              undone.
+              Are you sure you want to remove server '{serverToDelete}'? This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

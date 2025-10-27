@@ -25,7 +25,7 @@ export class McpIPCHandlers {
       async (_event: IpcMainInvokeEvent, config: MCPServerConfig) => {
         await this.orchestrator.addServer(config);
         return { success: true };
-      },
+      }
     );
 
     ipcMain.handle(
@@ -33,11 +33,11 @@ export class McpIPCHandlers {
       async (
         _event: IpcMainInvokeEvent,
         name: string,
-        config: MCPServerConfig,
+        config: MCPServerConfig
       ) => {
         await this.orchestrator.updateServer(name, config);
         return { success: true };
-      },
+      }
     );
 
     ipcMain.handle(
@@ -45,14 +45,22 @@ export class McpIPCHandlers {
       async (_event: IpcMainInvokeEvent, name: string) => {
         await this.orchestrator.removeServer(name);
         return { success: true };
-      },
+      }
     );
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH,
+      async (_event: IpcMainInvokeEvent, name: string) => {
+        return await this.orchestrator.checkServerHealth(name);
+      }
+    );
+
     ipcMain.handle(
       IPC_CHANNELS.MCP_PROCESS_MESSAGE,
       async (
         _event: IpcMainInvokeEvent,
         prompt: string,
-        options?: { serverFilter?: string[] },
+        options?: { serverFilter?: string[] }
       ) => {
         const customPrompt = this.settingsStore.getCustomPrompt();
         const systemPrompt = buildTaskExecutionPrompt(customPrompt);
@@ -61,7 +69,7 @@ export class McpIPCHandlers {
           ...options,
           systemPrompt,
         });
-      },
+      }
     );
 
     ipcMain.on(IPC_CHANNELS.MCP_PREFILL_PROMPT, (_event, text: string) => {
