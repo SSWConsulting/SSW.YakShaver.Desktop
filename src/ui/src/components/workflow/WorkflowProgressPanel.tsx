@@ -100,12 +100,28 @@ function StageWithContent({
                       </span>
                     </div>
                     {step.args && Object.keys(step.args).length > 0 && (
-                      <details className="ml-4 text-xs">
+                      <details
+                        className="ml-4 text-xs"
+                        onToggle={(e) => {
+                          const details = e.currentTarget;
+                          if (details.open) {
+                            const pre = details.querySelector("pre");
+                            if (pre && !pre.dataset.parsed) {
+                              pre.textContent = JSON.stringify(
+                                deepParseJson(step.args),
+                                null,
+                                2
+                              );
+                              pre.dataset.parsed = "true";
+                            }
+                          }
+                        }}
+                      >
                         <summary className="text-white/60 cursor-pointer hover:text-white/80">
                           Arguments
                         </summary>
                         <pre className="mt-1 p-2 bg-black/40 rounded text-cyan-300 overflow-x-auto">
-                          {JSON.stringify(deepParseJson(step.args), null, 2)}
+                          Loading...
                         </pre>
                       </details>
                     )}
@@ -119,16 +135,28 @@ function StageWithContent({
                       <div className="space-y-1">
                         <div className="text-green-400">✓ Result received</div>
                         {step.result !== undefined && step.result !== null && (
-                          <details className="text-xs">
+                          <details
+                            className="text-xs"
+                            onToggle={(e) => {
+                              const details = e.currentTarget;
+                              if (details.open) {
+                                const pre = details.querySelector("pre");
+                                if (pre && !pre.dataset.parsed) {
+                                  pre.textContent = JSON.stringify(
+                                    deepParseJson(step.result),
+                                    null,
+                                    2
+                                  );
+                                  pre.dataset.parsed = "true";
+                                }
+                              }
+                            }}
+                          >
                             <summary className="text-white/60 cursor-pointer hover:text-white/80">
                               View result
                             </summary>
                             <pre className="mt-1 p-2 bg-black/40 rounded text-green-300 overflow-x-auto max-h-[200px] overflow-y-auto">
-                              {JSON.stringify(
-                                deepParseJson(step.result),
-                                null,
-                                2
-                              )}
+                              Loading...
                             </pre>
                           </details>
                         )}
