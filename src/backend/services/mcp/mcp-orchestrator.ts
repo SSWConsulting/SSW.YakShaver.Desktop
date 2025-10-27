@@ -1,5 +1,4 @@
-import type { ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
-import { app, BrowserWindow } from "electron";
+import { BrowserWindow } from "electron";
 import type OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/index.js";
 import { OpenAIService } from "../openai/openai-service.js";
@@ -13,10 +12,14 @@ export interface MCPOrchestratorOptions {
 }
 
 export interface MCPStepEvent {
-  type: "start" | "tool_call" | "final_result";
+  type: "start" | "tool_call" | "tool_result" | "final_result";
   message?: string;
   toolName?: string;
   serverName?: string;
+  args?: Record<string, unknown>;
+  result?: unknown;
+  error?: string;
+  timestamp?: number;
 }
 
 export class MCPOrchestrator {
@@ -79,10 +82,7 @@ export class MCPOrchestrator {
         `[MCPOrchestrator] Loaded ${this.servers.length} MCP server configuration(s) from secure storage`,
       );
     } catch (err) {
-      console.error(
-        "[MCPOrchestrator] Failed to load config from secure storage:",
-        err,
-      );
+      console.error("[MCPOrchestrator] Failed to load config from secure storage:", err);
       // Initialize with empty array on error
       this.servers.splice(0, this.servers.length);
       this.initialized = true;
@@ -102,14 +102,9 @@ export class MCPOrchestrator {
   private async saveConfig(): Promise<void> {
     try {
       await this.mcpStorage.storeMcpServers(this.servers);
-      console.log(
-        `[MCPOrchestrator] Saved ${this.servers.length} server(s) to secure storage`,
-      );
+      console.log(`[MCPOrchestrator] Saved ${this.servers.length} server(s) to secure storage`);
     } catch (err) {
-      console.error(
-        "[MCPOrchestrator] Failed to save config to secure storage:",
-        err,
-      );
+      console.error("[MCPOrchestrator] Failed to save config to secure storage:", err);
       throw err;
     }
   }
@@ -174,10 +169,7 @@ export class MCPOrchestrator {
       try {
         await client.connect();
       } catch (e) {
-        console.error(
-          `[MCPOrchestrator] Failed to connect to '${client.name}':`,
-          e,
-        );
+        console.error(`[MCPOrchestrator] Failed to connect to '${client.name}':`, e);
       }
     }
   }
@@ -226,20 +218,15 @@ export class MCPOrchestrator {
       try {
         await client.connect();
         const toolList = await client.listTools();
-        const sanitizedServerName = MCPOrchestrator.sanitizeServerName(
-          server.name,
-        );
+        const sanitizedServerName = MCPOrchestrator.sanitizeServerName(server.name);
 
         toolList.tools?.forEach((tool) => {
-          const sanitizedToolName = MCPOrchestrator.sanitizeServerName(
-            tool.name,
-          );
+          const sanitizedToolName = MCPOrchestrator.sanitizeServerName(tool.name);
           toolDefs.push({
             type: "function",
             function: {
               name: `${sanitizedServerName}__${sanitizedToolName}`,
-              description:
-                tool.description || `Tool ${tool.name} from ${server.name}`,
+              description: tool.description || `Tool ${tool.name} from ${server.name}`,
               parameters: tool.inputSchema || {
                 type: "object",
                 properties: {},
@@ -248,10 +235,7 @@ export class MCPOrchestrator {
           });
         });
       } catch (e) {
-        console.warn(
-          `[MCPOrchestrator] Failed to load server ${server.name}`,
-          e,
-        );
+        console.warn(`[MCPOrchestrator] Failed to load server ${server.name}`, e);
       }
     }
 
@@ -287,9 +271,7 @@ export class MCPOrchestrator {
 
       const toolCalls = assistantMessage?.tool_calls;
       if (!toolCalls?.length) {
-        console.warn(
-          "[MCPOrchestrator] No tool calls and not finished; aborting loop.",
-        );
+        console.warn("[MCPOrchestrator] No tool calls and not finished; aborting loop.");
         break;
       }
 
@@ -307,28 +289,45 @@ export class MCPOrchestrator {
         }
 
         const originalServerName =
-          this.servers.find(
-            (s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName,
-          )?.name ?? serverName;
+          this.servers.find((s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName)
+            ?.name ?? serverName;
+
+        const args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
 
         this.sendStepEvent({
           type: "tool_call",
           toolName,
           serverName: originalServerName,
+          args,
+          timestamp: Date.now(),
         });
 
         try {
-          const args = tc.function.arguments
-            ? JSON.parse(tc.function.arguments)
-            : {};
           const client = this.getMcpClient(serverName);
           const result = await client.callTool(toolName, args);
+
+          this.sendStepEvent({
+            type: "tool_result",
+            toolName,
+            serverName: originalServerName,
+            result,
+            timestamp: Date.now(),
+          });
+
           messages.push({
             role: "tool",
             tool_call_id: tc.id,
             content: JSON.stringify(result),
           });
         } catch (err) {
+          this.sendStepEvent({
+            type: "tool_result",
+            toolName,
+            serverName: originalServerName,
+            error: String(err),
+            timestamp: Date.now(),
+          });
+
           messages.push({
             role: "tool",
             tool_call_id: tc.id,

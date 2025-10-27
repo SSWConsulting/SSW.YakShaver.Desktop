@@ -11,10 +11,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
 interface MCPStep {
-  type: "start" | "tool_call" | "final_result";
+  type: "start" | "tool_call" | "tool_result" | "final_result";
   message?: string;
   toolName?: string;
   serverName?: string;
+  args?: Record<string, unknown>;
+  result?: unknown;
+  error?: string;
   timestamp: number;
 }
 
@@ -41,7 +44,6 @@ interface StageWithContentProps {
   mcpSteps: MCPStep[];
   stepsRef: React.RefObject<HTMLDivElement | null>;
   getStageIcon: (stage: WorkflowStage) => React.ReactNode;
-  formatStep: (step: MCPStep, index: number) => string;
 }
 
 function StageWithContent({
@@ -50,7 +52,6 @@ function StageWithContent({
   mcpSteps,
   stepsRef,
   getStageIcon,
-  formatStep,
 }: StageWithContentProps) {
   return (
     <>
@@ -78,13 +79,67 @@ function StageWithContent({
         {stage === "executing_task" && mcpSteps.length > 0 && (
           <div
             ref={stepsRef}
-            className="bg-black/30 border border-white/10 rounded-md p-3 max-h-[200px] overflow-y-auto font-mono text-xs text-green-400"
+            className="bg-black/30 border border-white/10 rounded-md p-3 max-h-[400px] overflow-y-auto space-y-2"
           >
             {mcpSteps.map((step) => (
-              <div key={step.timestamp} className="mb-1 last:mb-0">
-                {formatStep(
-                  step,
-                  mcpSteps.findIndex((s) => s.timestamp === step.timestamp),
+              <div
+                key={step.timestamp}
+                className="border-l-2 border-green-400/30 pl-3 py-1"
+              >
+                {step.type === "start" && (
+                  <div className="text-blue-400 font-medium">
+                    ▶ {step.message || "Start task execution"}
+                  </div>
+                )}
+                {step.type === "tool_call" && (
+                  <div className="space-y-1">
+                    <div className="text-yellow-400 font-medium">
+                      🔧 Calling tool: {step.toolName}
+                      <span className="text-white/50 text-xs ml-2">
+                        (from {step.serverName})
+                      </span>
+                    </div>
+                    {step.args && Object.keys(step.args).length > 0 && (
+                      <details className="ml-4 text-xs">
+                        <summary className="text-white/60 cursor-pointer hover:text-white/80">
+                          Arguments
+                        </summary>
+                        <pre className="mt-1 p-2 bg-black/40 rounded text-cyan-300 overflow-x-auto">
+                          {JSON.stringify(deepParseJson(step.args), null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                )}
+                {step.type === "tool_result" && (
+                  <div className="ml-4 space-y-1">
+                    {step.error ? (
+                      <div className="text-red-400">✗ Error: {step.error}</div>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="text-green-400">✓ Result received</div>
+                        {step.result !== undefined && step.result !== null && (
+                          <details className="text-xs">
+                            <summary className="text-white/60 cursor-pointer hover:text-white/80">
+                              View result
+                            </summary>
+                            <pre className="mt-1 p-2 bg-black/40 rounded text-green-300 overflow-x-auto max-h-[200px] overflow-y-auto">
+                              {JSON.stringify(
+                                deepParseJson(step.result),
+                                null,
+                                2
+                              )}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {step.type === "final_result" && (
+                  <div className="text-green-400 font-medium">
+                    ✓ {step.message || "Generate final result"}
+                  </div>
                 )}
               </div>
             ))}
@@ -113,6 +168,29 @@ function StageWithoutContent({
     </div>
   );
 }
+
+// Recursively parse JSON strings within objects
+const deepParseJson = (obj: unknown): unknown => {
+  if (typeof obj === "string") {
+    try {
+      const parsed = JSON.parse(obj);
+      return deepParseJson(parsed);
+    } catch {
+      return obj;
+    }
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => deepParseJson(item));
+  }
+  if (obj !== null && typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = deepParseJson(value);
+    }
+    return result;
+  }
+  return obj;
+};
 
 export function WorkflowProgressPanel() {
   const [progress, setProgress] = useState<WorkflowProgress>({ stage: "idle" });
@@ -170,17 +248,6 @@ export function WorkflowProgressPanel() {
       return <Loader2 className="w-4 h-4 animate-spin text-zinc-300" />;
     }
     return <div className="w-4 h-4 rounded-full border-2 border-white/20" />;
-  };
-
-  const formatStep = (step: MCPStep, index: number): string => {
-    const num = index + 1;
-    if (step.type === "start")
-      return `${num}. ${step.message || "Start task execution"}`;
-    if (step.type === "tool_call")
-      return `${num}. Call tool "${step.toolName}" from server "${step.serverName}"`;
-    if (step.type === "final_result")
-      return `${num}. ${step.message || "Generate final result"}`;
-    return `${num}. Unknown step`;
   };
 
   const getStageClassName = (stage: WorkflowStage) => {
@@ -245,7 +312,6 @@ export function WorkflowProgressPanel() {
                       mcpSteps={mcpSteps}
                       stepsRef={stepsRef}
                       getStageIcon={getStageIcon}
-                      formatStep={formatStep}
                     />
                   ) : (
                     <StageWithoutContent
