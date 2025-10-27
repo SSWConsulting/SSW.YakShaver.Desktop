@@ -37,7 +37,7 @@ export class RecordingControlBarWindow {
       resizable: false,
       show: false,
       webPreferences: {
-        preload: join(__dirname, this.isDev ? "../../preload.js" : "../preload.js"),
+        preload: join(__dirname, "../../preload.js"),
         contextIsolation: true,
         nodeIntegration: false,
       },
@@ -46,10 +46,8 @@ export class RecordingControlBarWindow {
     this.window.on("closed", () => {
       this.window = null;
     });
-    await (this.isDev ? this.window.loadURL(url) : this.window.loadFile(url));
 
-    // Open DevTools for debugging
-    // this.window.webContents.openDevTools({ mode: "detach" });
+    await (this.isDev ? this.window.loadURL(url) : this.window.loadFile(url));
 
     this.window.showInactive();
   }
