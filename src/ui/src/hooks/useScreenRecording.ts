@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const VIDEO_MIME_TYPE = "video/mp4";
@@ -23,58 +23,61 @@ export function useScreenRecording() {
   const streamsRef = useRef<RecordingStreams>({});
 
   const cleanup = useCallback(() => {
-    mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
-    streamsRef.current.video?.getTracks().forEach(track => track.stop());
-    streamsRef.current.audio?.getTracks().forEach(track => track.stop());
+    mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+    streamsRef.current.video?.getTracks().forEach((track) => track.stop());
+    streamsRef.current.audio?.getTracks().forEach((track) => track.stop());
 
     mediaRecorderRef.current = null;
     chunksRef.current = [];
     streamsRef.current = {};
   }, []);
 
-  const start = useCallback(async (sourceId?: string) => {
-    setIsProcessing(true);
-    try {
-      const result = await window.electronAPI.screenRecording.start(sourceId);
-      if (!result.success) throw new Error("Failed to start recording");
+  const start = useCallback(
+    async (sourceId?: string) => {
+      setIsProcessing(true);
+      try {
+        const result = await window.electronAPI.screenRecording.start(sourceId);
+        if (!result.success) throw new Error("Failed to start recording");
 
-      const [videoStream, audioStream] = await Promise.all([
-        navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            mandatory: {
-              chromeMediaSource: "desktop",
-              chromeMediaSourceId: result.sourceId,
-            },
-          } as ElectronVideoConstraints,
-        }),
-        navigator.mediaDevices.getUserMedia({ audio: true, video: false }),
-      ]);
+        const [videoStream, audioStream] = await Promise.all([
+          navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              mandatory: {
+                chromeMediaSource: "desktop",
+                chromeMediaSourceId: result.sourceId,
+              },
+            } as ElectronVideoConstraints,
+          }),
+          navigator.mediaDevices.getUserMedia({ audio: true, video: false }),
+        ]);
 
-      streamsRef.current = { video: videoStream, audio: audioStream };
+        streamsRef.current = { video: videoStream, audio: audioStream };
 
-      const recorder = new MediaRecorder(
-        new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]),
-        { mimeType: VIDEO_MIME_TYPE }
-      );
+        const recorder = new MediaRecorder(
+          new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]),
+          { mimeType: VIDEO_MIME_TYPE },
+        );
 
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
-      recorder.start();
+        chunksRef.current = [];
+        recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
+        recorder.start();
 
-      mediaRecorderRef.current = recorder;
-      setIsRecording(true);
+        mediaRecorderRef.current = recorder;
+        setIsRecording(true);
 
-      await window.electronAPI.screenRecording.showControlBar();
-      toast.success("Recording started");
-    } catch (error) {
-      cleanup();
-      toast.error(`Failed to start recording: ${error}`);
-      throw error;
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [cleanup]);
+        await window.electronAPI.screenRecording.showControlBar();
+        toast.success("Recording started");
+      } catch (error) {
+        cleanup();
+        toast.error(`Failed to start recording: ${error}`);
+        throw error;
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [cleanup],
+  );
 
   const stop = useCallback(async (): Promise<{ blob: Blob; filePath: string } | null> => {
     if (!mediaRecorderRef.current) return null;
@@ -89,7 +92,7 @@ export function useScreenRecording() {
 
           const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
           const result = await window.electronAPI.screenRecording.stop(
-            new Uint8Array(await blob.arrayBuffer())
+            new Uint8Array(await blob.arrayBuffer()),
           );
 
           if (!result.success || !result.filePath) {
