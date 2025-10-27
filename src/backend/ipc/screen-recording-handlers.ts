@@ -23,6 +23,6 @@ export class ScreenRecordingIPCHandlers {
       [IPC_CHANNELS.HIDE_CONTROL_BAR]: () => this.controlBar.hideWithSuccess(),
       [IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR]: () =>
         this.controlBar.stopRecordingFromControlBar(),
-    }).map(([channel, handler]) => ipcMain.handle(channel, handler));
+    }).forEach(([channel, handler]) => ipcMain.handle(channel, handler));
   }
 }

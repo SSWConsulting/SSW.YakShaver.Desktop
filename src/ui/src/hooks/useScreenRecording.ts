@@ -23,9 +23,9 @@ export function useScreenRecording() {
   const streamsRef = useRef<RecordingStreams>({});
 
   const cleanup = useCallback(() => {
-    mediaRecorderRef.current?.stream.getTracks().map((track) => track.stop());
-    streamsRef.current.video?.getTracks().map((track) => track.stop());
-    streamsRef.current.audio?.getTracks().map((track) => track.stop());
+    mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+    streamsRef.current.video?.getTracks().forEach((track) => track.stop());
+    streamsRef.current.audio?.getTracks().forEach((track) => track.stop());
 
     mediaRecorderRef.current = null;
     chunksRef.current = [];
