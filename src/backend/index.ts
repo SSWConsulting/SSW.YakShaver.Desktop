@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, nativeImage, session } from "electron";
+import { app, BrowserWindow, session } from "electron";
 import tmp from "tmp";
 import { updateElectronApp } from "update-electron-app";
 import { registerEventForwarders } from "./events/event-forwarder";

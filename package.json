@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "build": {
     "mac": {
-      "icon": "/src/ui/public/icons/icon.icns"
+      "icon": "src/ui/public/icons/icon.icns"
     },
     "appId": "com.ssw.yakshaver",
     "directories": {

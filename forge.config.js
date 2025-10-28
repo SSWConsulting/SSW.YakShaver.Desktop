@@ -3,7 +3,7 @@ const { FuseV1Options, FuseVersion } = require("@electron/fuses");
 
 module.exports = {
   packagerConfig: {
-    icon: './src/ui/public/icons/icon', // no file extension required
+    icon: 'src/ui/public/icons/icon', // no file extension required
     asar: {
       unpack: "{**/src/ui/dist/**,**/@ffmpeg-installer/**}", // Unpack UI dist and ffmpeg binaries from asar
     },
