@@ -93,24 +93,6 @@ app.whenReady().then(async () => {
     }
   );
 
-
-  // app.whenReady().then(() => {
-  //   console.log("Icon path:************************************");
-  //   const image = nativeImage.createFromPath("/Users/qiang/Developer/SSW/SSW.YakShaver.Desktop/src/ui/public/icons/icon.icns");
-
-  //   if (app.dock == null || app.dock === undefined || typeof app.dock === "undefined") {
-  //     console.log("__________________________________ app.dock is undefined");
-  //     return;
-  //   }
-
-  //   if (app.dock) {
-  //     app.dock.setIcon(image);
-  //   }
-
-  //   // ... rest of your app initialization
-  // });
-
-
   _authHandlers = new AuthIPCHandlers();
   _videoHandlers = new VideoIPCHandlers();
 
