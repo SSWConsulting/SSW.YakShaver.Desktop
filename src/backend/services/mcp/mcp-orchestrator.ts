@@ -11,8 +11,10 @@ export interface MCPOrchestratorOptions {
   eagerConnect?: boolean; // connect immediately (implies eagerCreate)
 }
 
-export interface MCPStepEvent {
-  type: "start" | "tool_call" | "tool_result" | "final_result";
+type StepType = "start" | "tool_call" | "tool_result" | "final_result";
+
+interface MCPStep {
+  type: StepType;
   message?: string;
   toolName?: string;
   serverName?: string;
@@ -30,7 +32,7 @@ export class MCPOrchestrator {
   private mcpStorage: McpStorage;
   private opts: MCPOrchestratorOptions;
 
-  private sendStepEvent(event: MCPStepEvent): void {
+  private sendStepEvent(event: MCPStep): void {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) {
         win.webContents.send("mcp:step-update", event);

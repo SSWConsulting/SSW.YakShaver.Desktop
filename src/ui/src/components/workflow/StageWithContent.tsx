@@ -2,8 +2,10 @@ import type React from "react";
 import type { WorkflowProgress, WorkflowStage } from "../../types";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
 
+type StepType = "start" | "tool_call" | "tool_result" | "final_result";
+
 interface MCPStep {
-  type: "start" | "tool_call" | "tool_result" | "final_result";
+  type: StepType;
   message?: string;
   toolName?: string;
   serverName?: string;
