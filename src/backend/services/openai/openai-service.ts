@@ -52,12 +52,12 @@ export class OpenAIService {
 
   async sendMessage(
     message: ChatCompletionMessageParam[],
-    tools: ChatCompletionTool[] = [],
+    tools: ChatCompletionTool[] = []
   ): Promise<ChatCompletion> {
     await this.ensureClient();
     if (!this.configured || !this.client) {
       throw new Error(
-        "LLM is not configured. Please configure it via LLM Settings.",
+        "LLM is not configured. Please configure it via LLM Settings."
       );
     }
     const response = await this.client.chat.completions.create({
@@ -71,12 +71,12 @@ export class OpenAIService {
   async generateOutput(
     systemPrompt: string,
     userInput: string,
-    options?: { jsonMode?: boolean },
+    options?: { jsonMode?: boolean }
   ): Promise<string> {
     await this.ensureClient();
     if (!this.configured || !this.client) {
       throw new Error(
-        "LLM is not configured. Please configure it via LLM Settings.",
+        "LLM is not configured. Please configure it via LLM Settings."
       );
     }
 
@@ -96,7 +96,7 @@ export class OpenAIService {
     await this.ensureClient();
     if (!this.client) {
       throw new Error(
-        "LLM is not configured. Please configure it via LLM Settings.",
+        "LLM is not configured. Please configure it via LLM Settings."
       );
     }
     return this.client.audio.transcriptions.create({
@@ -122,7 +122,7 @@ export class OpenAIService {
     apiKey: string,
     endpoint: string,
     version: string,
-    deployment: string,
+    deployment: string
   ) {
     this.client = new AzureOpenAI({
       apiKey,
@@ -137,7 +137,7 @@ export class OpenAIService {
     const cfg = await this.storage.getLLMConfig();
     if (!cfg) {
       throw new Error(
-        "LLM is not configured. Please configure it via LLM Settings.",
+        "LLM is not configured. Please configure it via LLM Settings."
       );
     }
     if (cfg.provider === "openai") {
@@ -145,9 +145,42 @@ export class OpenAIService {
     }
     if (!cfg.deployment) {
       throw new Error(
-        "Azure OpenAI is configured but AZURE_OPENAI_DEPLOYMENT is missing. Please set the deployment name.",
+        "Azure OpenAI is configured but AZURE_OPENAI_DEPLOYMENT is missing. Please set the deployment name."
       );
     }
     return cfg.deployment;
+  }
+
+  async checkHealth(): Promise<{
+    healthy: boolean;
+    error?: string;
+    model?: string;
+  }> {
+    try {
+      await this.ensureClient();
+      if (!this.client) {
+        return {
+          healthy: false,
+          error: "LLM client not configured",
+        };
+      }
+
+      const model = await this.getModel();
+      await this.client.chat.completions.create({
+        model,
+        messages: [{ role: "user", content: "test" }],
+        max_tokens: 1,
+      });
+
+      return {
+        healthy: true,
+        model,
+      };
+    } catch (err) {
+      return {
+        healthy: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
   }
 }

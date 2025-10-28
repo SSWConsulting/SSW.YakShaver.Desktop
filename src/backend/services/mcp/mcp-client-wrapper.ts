@@ -50,17 +50,25 @@ export class MCPClientWrapper {
   }
 
   async connect(): Promise<void> {
-    if (this.isConnected) return;
+    if (this.isConnected) {
+      return;
+    }
+
+    this.transport = this.buildTransport();
+    this.client = new Client({
+      name: this.serverConfig.name,
+      version: this.serverConfig.version || "1.0.0",
+    });
+
     try {
       await this.client.connect(this.transport);
       this.isConnected = true;
-      return;
     } catch (error) {
       console.error(
         `[MCP] Failed to connect to '${this.serverConfig.name}':`,
         error
       );
-      return;
+      throw error;
     }
   }
 

@@ -29,6 +29,11 @@ declare global {
         setConfig: (config: LLMConfig) => Promise<{ success: boolean }>;
         getConfig: () => Promise<LLMConfig | null>;
         clearConfig: () => Promise<{ success: boolean }>;
+        checkHealth: () => Promise<{
+          healthy: boolean;
+          error?: string;
+          model?: string;
+        }>;
       };
       config: {
         hasYouTube: () => Promise<boolean>;

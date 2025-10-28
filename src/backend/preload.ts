@@ -39,6 +39,7 @@ const IPC_CHANNELS = {
   LLM_SET_CONFIG: "llm:set-config",
   LLM_GET_CONFIG: "llm:get-config",
   LLM_CLEAR_CONFIG: "llm:clear-config",
+  LLM_CHECK_HEALTH: "llm:check-health",
 
   // MCP
   MCP_PROCESS_MESSAGE: "mcp:process-message",
@@ -156,6 +157,7 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),
     getConfig: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_GET_CONFIG),
     clearConfig: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_CLEAR_CONFIG),
+    checkHealth: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_CHECK_HEALTH),
   },
   mcp: {
     processMessage: (prompt: string, options?: { serverFilter?: string[] }) =>

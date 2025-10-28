@@ -37,6 +37,7 @@ export const IPC_CHANNELS = {
   LLM_SET_CONFIG: "llm:set-config",
   LLM_GET_CONFIG: "llm:get-config",
   LLM_CLEAR_CONFIG: "llm:clear-config",
+  LLM_CHECK_HEALTH: "llm:check-health",
 
   // MCP
   MCP_PROCESS_MESSAGE: "mcp:process-message",
