@@ -2,31 +2,10 @@ import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import type { WorkflowProgress, WorkflowStage } from "../../types";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "../ui/accordion";
+import { Accordion, AccordionItem } from "../ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-
-interface MCPStep {
-  type: "start" | "tool_call" | "final_result";
-  message?: string;
-  toolName?: string;
-  serverName?: string;
-  timestamp: number;
-}
-
-const STAGE_CONFIG: Record<WorkflowStage, string> = {
-  idle: "Waiting for recording...",
-  converting_audio: "Converting audio",
-  transcribing: "Transcribing audio",
-  generating_task: "Analyzing transcript",
-  executing_task: "Executing task",
-  completed: "Completed",
-  error: "Error occurred",
-};
+import { type MCPStep, StageWithContent } from "./StageWithContent";
+import { StageWithoutContent } from "./StageWithoutContent";
 
 const WORKFLOW_STAGES: WorkflowStage[] = [
   "converting_audio",
@@ -34,85 +13,6 @@ const WORKFLOW_STAGES: WorkflowStage[] = [
   "generating_task",
   "executing_task",
 ];
-
-interface StageWithContentProps {
-  stage: WorkflowStage;
-  progress: WorkflowProgress;
-  mcpSteps: MCPStep[];
-  stepsRef: React.RefObject<HTMLDivElement | null>;
-  getStageIcon: (stage: WorkflowStage) => React.ReactNode;
-  formatStep: (step: MCPStep, index: number) => string;
-}
-
-function StageWithContent({
-  stage,
-  progress,
-  mcpSteps,
-  stepsRef,
-  getStageIcon,
-  formatStep,
-}: StageWithContentProps) {
-  return (
-    <>
-      <AccordionTrigger className="px-4 hover:no-underline">
-        <div className="flex items-center gap-3">
-          {getStageIcon(stage)}
-          <span className="text-white/90 font-medium">
-            {STAGE_CONFIG[stage]}
-          </span>
-        </div>
-      </AccordionTrigger>
-      <AccordionContent className="px-4 pb-2">
-        {stage === "transcribing" && progress.transcript && (
-          <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm whitespace-pre-wrap">
-            {progress.transcript}
-          </div>
-        )}
-        {stage === "generating_task" &&
-          progress.intermediateOutput &&
-          progress.stage !== "generating_task" && (
-            <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-xs font-mono whitespace-pre-wrap">
-              {progress.intermediateOutput}
-            </div>
-          )}
-        {stage === "executing_task" && mcpSteps.length > 0 && (
-          <div
-            ref={stepsRef}
-            className="bg-black/30 border border-white/10 rounded-md p-3 max-h-[200px] overflow-y-auto font-mono text-xs text-green-400"
-          >
-            {mcpSteps.map((step) => (
-              <div key={step.timestamp} className="mb-1 last:mb-0">
-                {formatStep(
-                  step,
-                  mcpSteps.findIndex((s) => s.timestamp === step.timestamp),
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </AccordionContent>
-    </>
-  );
-}
-
-interface StageWithoutContentProps {
-  stage: WorkflowStage;
-  getStageIcon: (stage: WorkflowStage) => React.ReactNode;
-}
-
-function StageWithoutContent({
-  stage,
-  getStageIcon,
-}: StageWithoutContentProps) {
-  return (
-    <div className="px-4 py-3">
-      <div className="flex items-center gap-3">
-        {getStageIcon(stage)}
-        <span className="text-white/90 font-medium">{STAGE_CONFIG[stage]}</span>
-      </div>
-    </div>
-  );
-}
 
 export function WorkflowProgressPanel() {
   const [progress, setProgress] = useState<WorkflowProgress>({ stage: "idle" });
@@ -170,17 +70,6 @@ export function WorkflowProgressPanel() {
       return <Loader2 className="w-4 h-4 animate-spin text-zinc-300" />;
     }
     return <div className="w-4 h-4 rounded-full border-2 border-white/20" />;
-  };
-
-  const formatStep = (step: MCPStep, index: number): string => {
-    const num = index + 1;
-    if (step.type === "start")
-      return `${num}. ${step.message || "Start task execution"}`;
-    if (step.type === "tool_call")
-      return `${num}. Call tool "${step.toolName}" from server "${step.serverName}"`;
-    if (step.type === "final_result")
-      return `${num}. ${step.message || "Generate final result"}`;
-    return `${num}. Unknown step`;
   };
 
   const getStageClassName = (stage: WorkflowStage) => {
@@ -245,7 +134,6 @@ export function WorkflowProgressPanel() {
                       mcpSteps={mcpSteps}
                       stepsRef={stepsRef}
                       getStageIcon={getStageIcon}
-                      formatStep={formatStep}
                     />
                   ) : (
                     <StageWithoutContent

@@ -1,5 +1,4 @@
-import type { ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
-import { app, BrowserWindow } from "electron";
+import { BrowserWindow } from "electron";
 import type OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/index.js";
 import { OpenAIService } from "../openai/openai-service.js";
@@ -12,11 +11,17 @@ export interface MCPOrchestratorOptions {
   eagerConnect?: boolean; // connect immediately (implies eagerCreate)
 }
 
-export interface MCPStepEvent {
-  type: "start" | "tool_call" | "final_result";
+type StepType = "start" | "tool_call" | "tool_result" | "final_result";
+
+interface MCPStep {
+  type: StepType;
   message?: string;
   toolName?: string;
   serverName?: string;
+  args?: Record<string, unknown>;
+  result?: unknown;
+  error?: string;
+  timestamp?: number;
 }
 
 export class MCPOrchestrator {
@@ -27,7 +32,7 @@ export class MCPOrchestrator {
   private mcpStorage: McpStorage;
   private opts: MCPOrchestratorOptions;
 
-  private sendStepEvent(event: MCPStepEvent): void {
+  private sendStepEvent(event: MCPStep): void {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) {
         win.webContents.send("mcp:step-update", event);
@@ -39,7 +44,7 @@ export class MCPOrchestrator {
     if (!name?.trim()) throw new Error("Server name cannot be empty");
     if (!/^[a-zA-Z0-9 _-]+$/.test(name)) {
       throw new Error(
-        `Server name '${name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
+        `Server name '${name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`
       );
     }
   }
@@ -50,7 +55,7 @@ export class MCPOrchestrator {
 
   constructor(
     opts: MCPOrchestratorOptions = {},
-    llmClient: OpenAIService = OpenAIService.getInstance(),
+    llmClient: OpenAIService = OpenAIService.getInstance()
   ) {
     this.llmClient = llmClient;
     this.mcpStorage = McpStorage.getInstance();
@@ -65,7 +70,7 @@ export class MCPOrchestrator {
     if (this.opts.eagerConnect) {
       // Fire and forget; caller can also await connectAll()
       void this.connectAll().catch((e) =>
-        console.error("[MCPOrchestrator] eagerConnect failed:", e),
+        console.error("[MCPOrchestrator] eagerConnect failed:", e)
       );
     }
   }
@@ -75,13 +80,10 @@ export class MCPOrchestrator {
       const servers = await this.mcpStorage.getMcpServers();
       this.servers.splice(0, this.servers.length, ...servers);
       this.initialized = true;
-      console.log(
-        `[MCPOrchestrator] Loaded ${this.servers.length} MCP server configuration(s) from secure storage`,
-      );
     } catch (err) {
       console.error(
         "[MCPOrchestrator] Failed to load config from secure storage:",
-        err,
+        err
       );
       // Initialize with empty array on error
       this.servers.splice(0, this.servers.length);
@@ -102,13 +104,10 @@ export class MCPOrchestrator {
   private async saveConfig(): Promise<void> {
     try {
       await this.mcpStorage.storeMcpServers(this.servers);
-      console.log(
-        `[MCPOrchestrator] Saved ${this.servers.length} server(s) to secure storage`,
-      );
     } catch (err) {
       console.error(
         "[MCPOrchestrator] Failed to save config to secure storage:",
-        err,
+        err
       );
       throw err;
     }
@@ -176,7 +175,7 @@ export class MCPOrchestrator {
       } catch (e) {
         console.error(
           `[MCPOrchestrator] Failed to connect to '${client.name}':`,
-          e,
+          e
         );
       }
     }
@@ -201,7 +200,7 @@ export class MCPOrchestrator {
       serverFilter?: string[]; // if provided, only include tools from these servers
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
-    } = {},
+    } = {}
   ): Promise<{
     final: string | null;
     transcript: ChatCompletionMessageParam[];
@@ -209,7 +208,7 @@ export class MCPOrchestrator {
     // Check if LLM client is configured
     if (!this.llmClient.isConfigured()) {
       throw new Error(
-        "OpenAI is not configured. MCP features require OpenAI API key or Azure OpenAI configuration.",
+        "OpenAI is not configured. MCP features require OpenAI API key or Azure OpenAI configuration."
       );
     }
 
@@ -227,12 +226,12 @@ export class MCPOrchestrator {
         await client.connect();
         const toolList = await client.listTools();
         const sanitizedServerName = MCPOrchestrator.sanitizeServerName(
-          server.name,
+          server.name
         );
 
         toolList.tools?.forEach((tool) => {
           const sanitizedToolName = MCPOrchestrator.sanitizeServerName(
-            tool.name,
+            tool.name
           );
           toolDefs.push({
             type: "function",
@@ -250,7 +249,7 @@ export class MCPOrchestrator {
       } catch (e) {
         console.warn(
           `[MCPOrchestrator] Failed to load server ${server.name}`,
-          e,
+          e
         );
       }
     }
@@ -288,7 +287,7 @@ export class MCPOrchestrator {
       const toolCalls = assistantMessage?.tool_calls;
       if (!toolCalls?.length) {
         console.warn(
-          "[MCPOrchestrator] No tool calls and not finished; aborting loop.",
+          "[MCPOrchestrator] No tool calls and not finished; aborting loop."
         );
         break;
       }
@@ -308,27 +307,47 @@ export class MCPOrchestrator {
 
         const originalServerName =
           this.servers.find(
-            (s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName,
+            (s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName
           )?.name ?? serverName;
+
+        const args = tc.function.arguments
+          ? JSON.parse(tc.function.arguments)
+          : {};
 
         this.sendStepEvent({
           type: "tool_call",
           toolName,
           serverName: originalServerName,
+          args,
+          timestamp: Date.now(),
         });
 
         try {
-          const args = tc.function.arguments
-            ? JSON.parse(tc.function.arguments)
-            : {};
           const client = this.getMcpClient(serverName);
           const result = await client.callTool(toolName, args);
+
+          this.sendStepEvent({
+            type: "tool_result",
+            toolName,
+            serverName: originalServerName,
+            result,
+            timestamp: Date.now(),
+          });
+
           messages.push({
             role: "tool",
             tool_call_id: tc.id,
             content: JSON.stringify(result),
           });
         } catch (err) {
+          this.sendStepEvent({
+            type: "tool_result",
+            toolName,
+            serverName: originalServerName,
+            error: String(err),
+            timestamp: Date.now(),
+          });
+
           messages.push({
             role: "tool",
             tool_call_id: tc.id,
