@@ -42,3 +42,7 @@ The MCP server configuration is automatically stored in the platform-appropriate
 - **Linux**: `~/.config/SSW.YakShaver/mcp-servers.json`
 
 The configuration file is automatically created when you add your first MCP server through the Settings UI. The configuration persists across app restarts and updates.
+
+#### Template
+
+The template used for this repo is from the [SSW.GitHub.Template](https://github.com/SSWConsulting/SSW.GitHub.Template) repo.
