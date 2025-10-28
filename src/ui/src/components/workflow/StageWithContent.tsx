@@ -1,5 +1,6 @@
 import type React from "react";
 import type { WorkflowProgress, WorkflowStage } from "../../types";
+import { deepParseJson } from "../../utils/json-utils";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
 
 type StepType = "start" | "tool_call" | "tool_result" | "final_result";
@@ -32,29 +33,6 @@ interface StageWithContentProps {
   stepsRef: React.RefObject<HTMLDivElement | null>;
   getStageIcon: (stage: WorkflowStage) => React.ReactNode;
 }
-
-// Recursively parse JSON strings within objects
-const deepParseJson = (obj: unknown): unknown => {
-  if (typeof obj === "string") {
-    try {
-      const parsed = JSON.parse(obj);
-      return deepParseJson(parsed);
-    } catch {
-      return obj;
-    }
-  }
-  if (Array.isArray(obj)) {
-    return obj.map((item) => deepParseJson(item));
-  }
-  if (obj !== null && typeof obj === "object") {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      result[key] = deepParseJson(value);
-    }
-    return result;
-  }
-  return obj;
-};
 
 const handleDetailsToggle =
   (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
