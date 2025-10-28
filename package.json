@@ -10,7 +10,7 @@
     },
     "appId": "com.ssw.yakshaver",
     "directories": {
-      "buildResources": "/src/ui/public/icons",
+      "buildResources": "src/ui/public/icons",
       "output": "dist"
     }
   },
