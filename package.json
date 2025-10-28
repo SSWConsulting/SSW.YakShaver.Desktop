@@ -4,6 +4,16 @@
   "version": "0.2.4",
   "description": "YakShaver, an AI agent to help you trim the fluff and get straight to the point",
   "main": "dist/index.js",
+  "build": {
+    "mac": {
+      "icon": "src/ui/public/icons/icon.icns"
+    },
+    "appId": "com.ssw.yakshaver",
+    "directories": {
+      "buildResources": "src/ui/public/icons",
+      "output": "dist"
+    }
+  },
   "scripts": {
     "setup": "concurrently \"npm install\"  \"cd src/ui && npm install\"",
     "build": "tsc",

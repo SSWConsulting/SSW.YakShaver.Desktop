@@ -3,6 +3,7 @@ const { FuseV1Options, FuseVersion } = require("@electron/fuses");
 
 module.exports = {
   packagerConfig: {
+    icon: 'src/ui/public/icons/icon', // no file extension required
     asar: {
       unpack: "{**/src/ui/dist/**,**/@ffmpeg-installer/**}", // Unpack UI dist and ffmpeg binaries from asar
     },
@@ -21,12 +22,26 @@ module.exports = {
   rebuildConfig: {},
   makers: [
     {
+      name: '@electron-forge/maker-deb',
+      config: {
+        options: {
+          icon: 'src/ui/public/icons/icon.png'
+        }
+      }
+    },
+    {
       name: "@electron-forge/maker-squirrel",
-      config: {},
+      config: {
+        setupIcon: 'src/ui/public/icons/icon.ico',
+        iconUrl: 'src/ui/public/icons/icon.ico'
+      },
     },
     {
       name: "@electron-forge/maker-zip",
       platforms: ["darwin"],
+      config: {
+        icon: 'src/ui/public/icons/icon.icns'
+      }
     },
   ],
   plugins: [
