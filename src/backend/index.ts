@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, session } from "electron";
+import { app, BrowserWindow, nativeImage, session } from "electron";
 import tmp from "tmp";
 import { updateElectronApp } from "update-electron-app";
 import { registerEventForwarders } from "./events/event-forwarder";
@@ -41,7 +41,9 @@ const createWindow = (): void => {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: join(__dirname, "../ui/public/icons/icon.png"),
     show: false,
+
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -90,6 +92,24 @@ app.whenReady().then(async () => {
       );
     }
   );
+
+
+  // app.whenReady().then(() => {
+  //   console.log("Icon path:************************************");
+  //   const image = nativeImage.createFromPath("/Users/qiang/Developer/SSW/SSW.YakShaver.Desktop/src/ui/public/icons/icon.icns");
+
+  //   if (app.dock == null || app.dock === undefined || typeof app.dock === "undefined") {
+  //     console.log("__________________________________ app.dock is undefined");
+  //     return;
+  //   }
+
+  //   if (app.dock) {
+  //     app.dock.setIcon(image);
+  //   }
+
+  //   // ... rest of your app initialization
+  // });
+
 
   _authHandlers = new AuthIPCHandlers();
   _videoHandlers = new VideoIPCHandlers();
