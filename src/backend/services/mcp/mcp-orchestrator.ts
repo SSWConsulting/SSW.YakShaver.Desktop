@@ -11,11 +11,17 @@ export interface MCPOrchestratorOptions {
   eagerConnect?: boolean; // connect immediately (implies eagerCreate)
 }
 
-export interface MCPStepEvent {
-  type: "start" | "tool_call" | "final_result";
+type StepType = "start" | "tool_call" | "tool_result" | "final_result";
+
+interface MCPStep {
+  type: StepType;
   message?: string;
   toolName?: string;
   serverName?: string;
+  args?: Record<string, unknown>;
+  result?: unknown;
+  error?: string;
+  timestamp?: number;
 }
 
 export class MCPOrchestrator {
@@ -26,7 +32,7 @@ export class MCPOrchestrator {
   private mcpStorage: McpStorage;
   private opts: MCPOrchestratorOptions;
 
-  private sendStepEvent(event: MCPStepEvent): void {
+  private sendStepEvent(event: MCPStep): void {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) {
         win.webContents.send("mcp:step-update", event);
@@ -74,9 +80,6 @@ export class MCPOrchestrator {
       const servers = await this.mcpStorage.getMcpServers();
       this.servers.splice(0, this.servers.length, ...servers);
       this.initialized = true;
-      console.log(
-        `[MCPOrchestrator] Loaded ${this.servers.length} MCP server configuration(s) from secure storage`
-      );
     } catch (err) {
       console.error(
         "[MCPOrchestrator] Failed to load config from secure storage:",
@@ -336,24 +339,44 @@ export class MCPOrchestrator {
             (s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName
           )?.name ?? serverName;
 
+        const args = tc.function.arguments
+          ? JSON.parse(tc.function.arguments)
+          : {};
+
         this.sendStepEvent({
           type: "tool_call",
           toolName,
           serverName: originalServerName,
+          args,
+          timestamp: Date.now(),
         });
 
         try {
-          const args = tc.function.arguments
-            ? JSON.parse(tc.function.arguments)
-            : {};
           const client = this.getMcpClient(serverName);
           const result = await client.callTool(toolName, args);
+
+          this.sendStepEvent({
+            type: "tool_result",
+            toolName,
+            serverName: originalServerName,
+            result,
+            timestamp: Date.now(),
+          });
+
           messages.push({
             role: "tool",
             tool_call_id: tc.id,
             content: JSON.stringify(result),
           });
         } catch (err) {
+          this.sendStepEvent({
+            type: "tool_result",
+            toolName,
+            serverName: originalServerName,
+            error: String(err),
+            timestamp: Date.now(),
+          });
+
           messages.push({
             role: "tool",
             tool_call_id: tc.id,
