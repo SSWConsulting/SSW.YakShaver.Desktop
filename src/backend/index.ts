@@ -43,7 +43,6 @@ const createWindow = (): void => {
     height: 800,
     icon: join(__dirname, "../ui/public/icons/icon.png"),
     show: false,
-
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
