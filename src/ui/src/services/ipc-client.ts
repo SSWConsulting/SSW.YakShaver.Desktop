@@ -51,6 +51,8 @@ declare global {
         showControlBar: () => Promise<{ success: boolean }>;
         hideControlBar: () => Promise<{ success: boolean }>;
         stopFromControlBar: () => Promise<{ success: boolean }>;
+        minimizeMainWindow: () => Promise<{ success: boolean }>;
+        restoreMainWindow: () => Promise<{ success: boolean }>;
         onStopRequest: (callback: () => void) => () => void;
       };
       controlBar: {
@@ -60,9 +62,7 @@ declare global {
         getTranscription: (audioFilePath: string) => Promise<string>;
         processTranscript: (transcript: string) => Promise<string>;
         onTranscriptionStarted: (callback: () => void) => () => void;
-        onTranscriptionCompleted: (
-          callback: (transcript: string) => void,
-        ) => () => void;
+        onTranscriptionCompleted: (callback: (transcript: string) => void) => () => void;
         onTranscriptionError: (callback: (error: string) => void) => () => void;
       };
       workflow: {
@@ -93,10 +93,7 @@ declare global {
         ) => () => void;
         listServers: () => Promise<MCPServerConfig[]>;
         addServer: (config: MCPServerConfig) => Promise<{ success: boolean }>;
-        updateServer: (
-          name: string,
-          config: MCPServerConfig,
-        ) => Promise<{ success: boolean }>;
+        updateServer: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
         removeServer: (name: string) => Promise<{ success: boolean }>;
       };
       settings: {
