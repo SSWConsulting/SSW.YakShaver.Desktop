@@ -1,10 +1,11 @@
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { FaYoutube } from "react-icons/fa";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
+import { useCountdown } from "../../hooks/useCountdown";
 import { AuthStatus } from "../../types";
 
 interface PlatformSelectorProps {
@@ -14,34 +15,38 @@ interface PlatformSelectorProps {
 
 export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelectorProps) => {
   const { authState, startAuth, disconnect } = useYouTubeAuth();
-  const [countdown, setCountdown] = useState<number>(0);
+  const {
+    countdown,
+    isActive: isConnecting,
+    start: startCountdown,
+    reset: resetCountdown,
+  } = useCountdown({
+    initialSeconds: 60,
+  });
 
   const { status, userInfo } = authState;
   const isConnected = status === AuthStatus.AUTHENTICATED;
-  const isConnecting = countdown > 0;
 
+  // Reset countdown when user successfully connects
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
+    if (isConnected) {
+      resetCountdown();
     }
-  }, [countdown]);
+  }, [isConnected, resetCountdown]);
 
   const handleAction = async () => {
     if (isConnected) {
       await disconnect();
       onClose();
     } else {
-      setCountdown(30);
+      startCountdown();
       await startAuth();
     }
   };
 
   const getButtonText = () => {
-    if (isConnecting) return `Connecting... (${countdown}s)`;
     if (isConnected) return "Disconnect";
+    if (isConnecting) return `Connecting... (${countdown}s)`;
     return "Connect";
   };
 
@@ -87,7 +92,7 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
                 variant={isConnected ? "outline" : "secondary"}
                 size="sm"
                 onClick={handleAction}
-                disabled={isConnecting}
+                disabled={isConnecting && !isConnected}
                 className={buttonStyle}
               >
                 {buttonText}
