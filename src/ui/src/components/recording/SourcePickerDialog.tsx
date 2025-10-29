@@ -89,10 +89,20 @@ function SourceSection({
 
 function ImageTile({ source, onClick }: { source: ScreenSource; onClick: () => void }) {
   const preview = source.thumbnailDataURL ?? source.appIconDataURL;
+
+  const handleClick = async () => {
+    // Only minimize if we're not recording the main app window itself
+    if (!source.isMainWindow) {
+      await window.electronAPI.screenRecording.minimizeMainWindow();
+    }
+
+    onClick();
+  };
+
   return (
     <Button
       variant="ghost"
-      onClick={onClick}
+      onClick={handleClick}
       title={source.name}
       className="group relative block aspect-video w-full h-auto overflow-hidden rounded-lg bg-neutral-800 p-0 ring-offset-neutral-900 transition-all hover:ring-2 hover:ring-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 hover:bg-neutral-800"
     >
