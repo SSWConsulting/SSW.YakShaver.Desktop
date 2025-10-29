@@ -48,9 +48,7 @@ export class YouTubeAuthService {
 
       await shell.openExternal(authUrl);
       const { code } = await this.startCallbackServer();
-      console.log(code);
       const { tokens } = await client.getToken(code);
-      console.log(tokens);
 
       if (!tokens.access_token) throw new Error("No access token received");
 
