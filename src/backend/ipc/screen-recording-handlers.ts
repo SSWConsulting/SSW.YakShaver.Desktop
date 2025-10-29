@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { ipcMain } from "electron";
+import { getMainWindow } from "../index";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { RecordingService } from "../services/recording/recording-service";
 import { IPC_CHANNELS } from "./channels";
@@ -33,7 +34,7 @@ export class ScreenRecordingIPCHandlers {
   }
 
   private minimizeMainWindow() {
-    const mainWindow = BrowserWindow.getAllWindows()[0];
+    const mainWindow = getMainWindow();
     if (mainWindow && !mainWindow.isMinimized()) {
       mainWindow.minimize();
     }
@@ -41,7 +42,7 @@ export class ScreenRecordingIPCHandlers {
   }
 
   private restoreMainWindow() {
-    const mainWindow = BrowserWindow.getAllWindows()[0];
+    const mainWindow = getMainWindow();
     if (mainWindow?.isMinimized()) {
       mainWindow.restore();
     }

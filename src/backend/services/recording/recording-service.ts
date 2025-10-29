@@ -1,7 +1,8 @@
 import EventEmitter from "node:events";
 import { unlink, writeFile } from "node:fs/promises";
-import { BrowserWindow, desktopCapturer } from "electron";
+import { desktopCapturer } from "electron";
 import tmp from "tmp";
+import { getMainWindow } from "../../index";
 import { formatErrorMessage } from "../../utils/error-utils";
 import type { ScreenSource, StartRecordingResult, StopRecordingResult } from "./types";
 
@@ -85,7 +86,7 @@ export class RecordingService extends EventEmitter {
       fetchWindowIcons: true,
     });
 
-    const mainWindow = BrowserWindow.getAllWindows()[0];
+    const mainWindowId = getMainWindow()?.getMediaSourceId();
 
     return sources.map(({ id, name, display_id, appIcon, thumbnail }) => ({
       id,
@@ -94,7 +95,7 @@ export class RecordingService extends EventEmitter {
       appIconDataURL: appIcon?.toDataURL(),
       thumbnailDataURL: thumbnail?.toDataURL(),
       type: display_id ? "screen" : "window",
-      isMainWindow: id === mainWindow?.getMediaSourceId(),
+      isMainWindow: id === mainWindowId,
     }));
   }
 
