@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { FaYoutube } from "react-icons/fa";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,19 +13,39 @@ interface PlatformSelectorProps {
 }
 
 export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelectorProps) => {
-  const { authState, isLoading, startAuth, disconnect } = useYouTubeAuth();
+  const { authState, startAuth, disconnect } = useYouTubeAuth();
+  const [countdown, setCountdown] = useState<number>(0);
 
   const { status, userInfo } = authState;
   const isConnected = status === AuthStatus.AUTHENTICATED;
-  const isAuthenticating = status === AuthStatus.AUTHENTICATING;
-  const isDisabled = isLoading || isAuthenticating;
+  const isConnecting = countdown > 0;
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
 
   const handleAction = async () => {
-    await (isConnected ? disconnect() : startAuth());
-    onClose();
+    if (isConnected) {
+      await disconnect();
+      onClose();
+    } else {
+      setCountdown(30);
+      await startAuth();
+    }
   };
 
-  const buttonText = isAuthenticating ? "Connecting..." : isConnected ? "Disconnect" : "Connect";
+  const getButtonText = () => {
+    if (isConnecting) return `Connecting... (${countdown}s)`;
+    if (isConnected) return "Disconnect";
+    return "Connect";
+  };
+
+  const buttonText = getButtonText();
   const buttonStyle = isConnected
     ? "bg-white/10 text-white border border-white/20 hover:bg-white/20"
     : "bg-white text-black hover:bg-gray-200";
@@ -66,7 +87,7 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
                 variant={isConnected ? "outline" : "secondary"}
                 size="sm"
                 onClick={handleAction}
-                disabled={isDisabled}
+                disabled={isConnecting}
                 className={buttonStyle}
               >
                 {buttonText}
