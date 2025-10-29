@@ -8,17 +8,11 @@ import { google } from "googleapis";
 import { config } from "../../config/env";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { YoutubeStorage } from "../storage/youtube-storage";
-import type {
-  AuthResult,
-  TokenData,
-  UserInfo,
-  VideoUploadResult,
-} from "./types";
+import type { AuthResult, TokenData, UserInfo, VideoUploadResult } from "./types";
 
 const REDIRECT_URI = "http://localhost:8080/oauth/callback";
 const SCOPES = [
-  "https://www.googleapis.com/auth/youtube.upload",
-  "https://www.googleapis.com/auth/youtube.readonly",
+  "https://www.googleapis.com/auth/youtube.force-ssl",
   "https://www.googleapis.com/auth/userinfo.profile",
   "https://www.googleapis.com/auth/userinfo.email",
 ];
@@ -38,11 +32,7 @@ export class YouTubeAuthService {
     if (!this.client) {
       const cfg = config.youtube();
       if (!cfg) throw new Error("YouTube configuration missing");
-      this.client = new OAuth2Client(
-        cfg.clientId,
-        cfg.clientSecret,
-        REDIRECT_URI,
-      );
+      this.client = new OAuth2Client(cfg.clientId, cfg.clientSecret, REDIRECT_URI);
     }
     return this.client;
   }
@@ -58,7 +48,9 @@ export class YouTubeAuthService {
 
       await shell.openExternal(authUrl);
       const { code } = await this.startCallbackServer();
+      console.log(code);
       const { tokens } = await client.getToken(code);
+      console.log(tokens);
 
       if (!tokens.access_token) throw new Error("No access token received");
 
@@ -127,9 +119,7 @@ export class YouTubeAuthService {
 
   async isAuthenticated(): Promise<boolean> {
     const tokens = await this.storage.getYouTubeTokens();
-    return tokens
-      ? tokens.expiresAt > Date.now() || (await this.refreshTokens())
-      : false;
+    return tokens ? tokens.expiresAt > Date.now() || (await this.refreshTokens()) : false;
   }
 
   async getCurrentUser(): Promise<UserInfo | null> {
@@ -231,12 +221,7 @@ export class YouTubeAuthService {
           res.end(this.renderPage("Authentication Failed", error as string));
           reject(new Error(error as string));
         } else if (code) {
-          res.end(
-            this.renderPage(
-              "Authentication Successful",
-              "You can close this window.",
-            ),
-          );
+          res.end(this.renderPage("Authentication Successful", "You can close this window."));
           resolve({ code: code as string });
         } else {
           res.end(this.renderPage("Invalid Response", "Please try again."));
