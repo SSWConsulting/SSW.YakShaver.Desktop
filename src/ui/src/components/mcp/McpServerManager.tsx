@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../../services/ipc-client";
-import { HealthStatus } from "../ui/health-status";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +21,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
+import { HealthStatus } from "../ui/health-status";
 import { type MCPServerConfig, McpServerForm } from "./McpServerForm";
 
 type ViewMode = "list" | "add" | "edit";
@@ -188,9 +189,15 @@ export function McpServerManager() {
               </div>
 
               {servers.length === 0 && (
-                <p className="text-white/60 text-center py-8">
-                  No MCP servers configured
-                </p>
+                <Empty className="bg-black/20">
+                  <EmptyHeader>
+                    <EmptyTitle>No MCP servers configured</EmptyTitle>
+                    <EmptyDescription>
+                      You don't have any MCP servers configured. Click "Add
+                      Server" to configure one.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               )}
 
               {servers.length > 0 && (
