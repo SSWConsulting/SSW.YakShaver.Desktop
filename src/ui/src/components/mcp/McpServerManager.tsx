@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../../services/ipc-client";
-import { McpServerHealthStatus } from "./McpServerHealthStatus";
+import { HealthStatus } from "../ui/health-status";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -210,7 +210,7 @@ export function McpServerManager() {
                           <div className="flex justify-between items-start gap-4">
                             <div className="flex-1 flex items-start gap-3">
                               <div className="mt-1 flex-shrink-0 group relative">
-                                <McpServerHealthStatus
+                                <HealthStatus
                                   isChecking={isChecking}
                                   isHealthy={isHealthy}
                                   toolCount={status?.toolCount}

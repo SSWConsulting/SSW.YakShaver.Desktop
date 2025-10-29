@@ -18,7 +18,7 @@ import {
 } from "../ui/select";
 import type { LLMConfig } from "../../types";
 import { AzureOpenAIProviderForm, OpenAIProviderForm } from "./OpenAIForm";
-import { HealthStatusIndicator } from "./HealthStatusIndicator";
+import { HealthStatus } from "../ui/health-status";
 
 export function OpenAIKeyManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -154,7 +154,7 @@ export function OpenAIKeyManager() {
               <span className="text-green-400 text-sm font-mono">
                 Saved{llmForm?.apiKey ? ` (${maskKey(llmForm.apiKey)})` : ""}
               </span>
-              <HealthStatusIndicator
+              <HealthStatus
                 isChecking={isCheckingHealth}
                 isHealthy={healthStatus?.healthy ?? false}
                 successMessage={
