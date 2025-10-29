@@ -7,6 +7,8 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/index";
 import { LlmStorage, type LLMConfig } from "../storage/llm-storage";
+import { formatErrorMessage } from "../../utils/error-utils";
+import { HealthStatusInfo } from "../../types";
 
 export class OpenAIService {
   private static instance: OpenAIService;
@@ -151,16 +153,12 @@ export class OpenAIService {
     return cfg.deployment;
   }
 
-  async checkHealth(): Promise<{
-    healthy: boolean;
-    error?: string;
-    model?: string;
-  }> {
+  async checkHealth(): Promise<HealthStatusInfo> {
     try {
       await this.ensureClient();
       if (!this.client) {
         return {
-          healthy: false,
+          isHealthy: false,
           error: "LLM client not configured",
         };
       }
@@ -173,13 +171,13 @@ export class OpenAIService {
       });
 
       return {
-        healthy: true,
-        model,
+        isHealthy: true,
+        successMessage: `Healthy - Model: ${model}`,
       };
     } catch (err) {
       return {
-        healthy: false,
-        error: err instanceof Error ? err.message : String(err),
+        isHealthy: false,
+        error: formatErrorMessage(err),
       };
     }
   }

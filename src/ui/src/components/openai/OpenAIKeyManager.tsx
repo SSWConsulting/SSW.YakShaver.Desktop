@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../../services/ipc-client";
+import type { HealthStatusInfo, LLMConfig } from "../../types";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -9,6 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
+import { HealthStatus } from "../ui/health-status";
 import {
   Select,
   SelectContent,
@@ -16,9 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import type { LLMConfig } from "../../types";
 import { AzureOpenAIProviderForm, OpenAIProviderForm } from "./OpenAIForm";
-import { HealthStatus } from "../ui/health-status";
 
 export function OpenAIKeyManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -27,37 +27,40 @@ export function OpenAIKeyManager() {
     provider: "openai",
     apiKey: "",
   });
-  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<{
-    healthy: boolean;
-    error?: string;
-    model?: string;
-  } | null>(null);
+  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(
+    null
+  );
 
   // Mask API key for display (show first 4 and last 4 chars with ellipsis)
   const maskKey = (key?: string) => {
     if (!key) return "";
     try {
       if (key.length <= 8) return "•".repeat(key.length);
-      return `${key.slice(0, 4)}${key.slice(-4)}`.replace("\u0006", "…");
+      return `${key.slice(0, 4)}…${key.slice(-4)}`;
     } catch (_) {
       return "****";
     }
   };
 
   async function checkHealth() {
-    setIsCheckingHealth(true);
+    setHealthStatus((prev) => ({
+      isHealthy: prev?.isHealthy ?? false,
+      error: prev?.error,
+      successMessage: prev?.successMessage,
+      isChecking: true,
+    }));
+
     try {
-      const result = await ipcClient.llm.checkHealth();
+      const result = (await ipcClient.llm.checkHealth()) as HealthStatusInfo;
+      result.isChecking = false;
       setHealthStatus(result);
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       setHealthStatus({
-        healthy: false,
+        isHealthy: false,
         error: errorMessage,
+        isChecking: false,
       });
-    } finally {
-      setIsCheckingHealth(false);
     }
   }
 
@@ -66,7 +69,7 @@ export function OpenAIKeyManager() {
       const cfg = await ipcClient.llm.getConfig();
       setHasConfig(!!cfg);
       if (cfg) {
-        setLlmForm(cfg);
+        setLlmForm(cfg as LLMConfig);
       } else {
         setLlmForm({ provider: "openai", apiKey: "" });
       }
@@ -87,17 +90,19 @@ export function OpenAIKeyManager() {
   }, [dialogOpen, hasConfig]);
 
   async function onSave() {
-    if (llmForm.provider === "openai" && !llmForm.apiKey.trim()) {
+    const apiKey = (llmForm.apiKey ?? "").trim();
+
+    if (llmForm.provider === "openai" && !apiKey) {
       toast.error("Please enter a valid OpenAI API key");
       return;
     }
 
     if (llmForm.provider === "azure") {
       if (
-        !llmForm.apiKey.trim() ||
-        !llmForm.endpoint?.trim() ||
-        !llmForm.version?.trim() ||
-        !llmForm.deployment?.trim()
+        apiKey === "" ||
+        !(llmForm.endpoint ?? "").trim() ||
+        !(llmForm.version ?? "").trim() ||
+        !(llmForm.deployment ?? "").trim()
       ) {
         toast.error("Please fill in all Azure OpenAI fields");
         return;
@@ -105,13 +110,12 @@ export function OpenAIKeyManager() {
     }
 
     try {
-      if (llmForm.provider === "openai") {
-        await ipcClient.llm.setConfig(llmForm);
-        toast.success("OpenAI configuration saved");
-      } else {
-        await ipcClient.llm.setConfig(llmForm);
-        toast.success("Azure OpenAI configuration saved");
-      }
+      await ipcClient.llm.setConfig(llmForm);
+      toast.success(
+        llmForm.provider === "openai"
+          ? "OpenAI configuration saved"
+          : "Azure OpenAI configuration saved"
+      );
       await refreshStatus();
       await checkHealth();
     } catch (e) {
@@ -155,15 +159,10 @@ export function OpenAIKeyManager() {
                 Saved{llmForm?.apiKey ? ` (${maskKey(llmForm.apiKey)})` : ""}
               </span>
               <HealthStatus
-                isChecking={isCheckingHealth}
-                isHealthy={healthStatus?.healthy ?? false}
-                successMessage={
-                  healthStatus?.model
-                    ? `Healthy - Using ${healthStatus.model}`
-                    : "Healthy"
-                }
+                isChecking={healthStatus?.isChecking ?? false}
+                isHealthy={healthStatus?.isHealthy ?? false}
+                successMessage={healthStatus?.successMessage}
                 error={healthStatus?.error}
-                checkingMessage="Checking API key..."
               />
             </div>
           )}

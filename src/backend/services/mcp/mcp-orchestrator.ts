@@ -6,6 +6,7 @@ import { OpenAIService } from "../openai/openai-service.js";
 import { McpStorage } from "../storage/mcp-storage.js";
 import { MCPClientWrapper } from "./mcp-client-wrapper.js";
 import type { MCPServerConfig } from "./types.js";
+import { HealthStatusInfo } from "../../types/index.js";
 
 export interface MCPOrchestratorOptions {
   eagerCreate?: boolean; // create all client wrappers at construction
@@ -157,22 +158,21 @@ export class MCPOrchestrator {
     await this.saveConfig();
   }
 
-  async checkServerHealth(name: string): Promise<{
-    healthy: boolean;
-    error?: string;
-    toolCount?: number;
-  }> {
+  async checkServerHealth(name: string): Promise<HealthStatusInfo> {
     try {
       const client = this.getMcpClient(name);
       await client.connect();
       const toolList = await client.listTools();
       return {
-        healthy: true,
-        toolCount: toolList.tools?.length ?? 0,
+        isHealthy: true,
+        successMessage:
+          toolList.tools.length > 0
+            ? `Healthy - ${toolList.tools.length} tools available`
+            : "Healthy",
       };
     } catch (err) {
       return {
-        healthy: false,
+        isHealthy: false,
         error: formatErrorMessage(err),
       };
     }

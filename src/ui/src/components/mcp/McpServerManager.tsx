@@ -24,17 +24,14 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
 import { HealthStatus } from "../ui/health-status";
 import { type MCPServerConfig, McpServerForm } from "./McpServerForm";
+import { HealthStatusInfo } from "@/types";
 
 type ViewMode = "list" | "add" | "edit";
 
-interface ServerHealthStatus {
-  [serverName: string]: {
-    healthy: boolean;
-    error?: string;
-    toolCount?: number;
-    checking: boolean;
-  };
-}
+type ServerHealthStatus<T extends string = string> = Record<
+  T,
+  HealthStatusInfo
+>;
 
 export function McpServerManager() {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
@@ -46,38 +43,35 @@ export function McpServerManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [serverToDelete, setServerToDelete] = useState<string | null>(null);
-  const [healthStatus, setHealthStatus] = useState<ServerHealthStatus>({});
+  const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>(
+    {}
+  );
 
   const checkAllServersHealth = useCallback(
     async (serverList: MCPServerConfig[]) => {
-      // Set all servers as "checking"
-      const checkingStatus: ServerHealthStatus = {};
-      for (const server of serverList) {
-        checkingStatus[server.name] = { healthy: false, checking: true };
-      }
-      setHealthStatus(checkingStatus);
+      const initialStatus: ServerHealthStatus<string> = {};
+      serverList.forEach((server) => {
+        initialStatus[server.name] = { isHealthy: false, isChecking: true };
+      });
+      setHealthStatus(initialStatus);
 
-      // Check each server's health
       for (const server of serverList) {
         try {
-          const result = await ipcClient.mcp.checkServerHealth(server.name);
+          const result = (await ipcClient.mcp.checkServerHealth(
+            server.name
+          )) as HealthStatusInfo;
+          result.isChecking = false;
           setHealthStatus((prev) => ({
             ...prev,
-            [server.name]: {
-              healthy: result.healthy,
-              error: result.error,
-              toolCount: result.toolCount,
-              checking: false,
-            },
+            [server.name]: result,
           }));
         } catch (e) {
-          const errorMessage = e instanceof Error ? e.message : String(e);
           setHealthStatus((prev) => ({
             ...prev,
             [server.name]: {
-              healthy: false,
-              error: errorMessage,
-              checking: false,
+              isHealthy: false,
+              error: e instanceof Error ? e.message : String(e),
+              isChecking: false,
             },
           }));
         }
@@ -126,9 +120,7 @@ export function McpServerManager() {
         await ipcClient.mcp.updateServer(editingServer.name, config);
         toast.success(`Server '${config.name}' updated`);
       }
-
       showList();
-      // Reload servers and re-check health status
       await loadServers();
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
@@ -203,11 +195,7 @@ export function McpServerManager() {
               {servers.length > 0 && (
                 <div className="flex flex-col gap-4">
                   {servers.map((server) => {
-                    const status = healthStatus[server.name];
-                    const isChecking = status?.checking ?? false;
-                    const isHealthy = status?.healthy ?? false;
-                    const hasError = status?.error;
-
+                    const status = healthStatus[server.name] || {};
                     return (
                       <Card
                         key={server.name}
@@ -218,10 +206,10 @@ export function McpServerManager() {
                             <div className="flex-1 flex items-start gap-3">
                               <div className="mt-1 flex-shrink-0 group relative">
                                 <HealthStatus
-                                  isChecking={isChecking}
-                                  isHealthy={isHealthy}
-                                  toolCount={status?.toolCount}
-                                  error={hasError}
+                                  isHealthy={!!status.isHealthy}
+                                  isChecking={!!status.isChecking}
+                                  successMessage={status.successMessage}
+                                  error={status.error}
                                 />
                               </div>
 

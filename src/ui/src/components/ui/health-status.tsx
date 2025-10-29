@@ -7,22 +7,11 @@ interface HealthStatusProps extends React.HTMLAttributes<HTMLDivElement> {
   isHealthy: boolean;
   successMessage?: string;
   error?: string;
-  checkingMessage?: string;
-  toolCount?: number;
 }
 
 export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
   (
-    {
-      className,
-      isChecking,
-      isHealthy,
-      successMessage = "Healthy",
-      error,
-      checkingMessage = "Checking...",
-      toolCount,
-      ...props
-    },
+    { className, isChecking, isHealthy, successMessage, error, ...props },
     ref
   ) => {
     if (isChecking) {
@@ -34,7 +23,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
         >
           <Loader2 className="h-5 w-5 text-white/50 animate-spin" />
           <span className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-1 text-xs text-white shadow-lg">
-            {checkingMessage}
+            Checking...
           </span>
         </div>
       );
@@ -49,9 +38,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
         >
           <CheckCircle2 className="h-5 w-5 text-green-400" />
           <span className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-1 text-xs text-white shadow-lg break-words whitespace-normal">
-            {toolCount !== undefined
-              ? `Healthy - ${toolCount} tools available`
-              : successMessage}
+            {successMessage}
           </span>
         </div>
       );

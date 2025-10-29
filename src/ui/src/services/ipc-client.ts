@@ -3,6 +3,7 @@ import type {
   AuthResult,
   AuthState,
   ConvertVideoToMp3Result,
+  HealthStatusInfo,
   LLMConfig,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
@@ -29,11 +30,7 @@ declare global {
         setConfig: (config: LLMConfig) => Promise<{ success: boolean }>;
         getConfig: () => Promise<LLMConfig | null>;
         clearConfig: () => Promise<{ success: boolean }>;
-        checkHealth: () => Promise<{
-          healthy: boolean;
-          error?: string;
-          model?: string;
-        }>;
+        checkHealth: () => Promise<HealthStatusInfo>;
       };
       config: {
         hasYouTube: () => Promise<boolean>;
@@ -103,11 +100,7 @@ declare global {
           config: MCPServerConfig
         ) => Promise<{ success: boolean }>;
         removeServer: (name: string) => Promise<{ success: boolean }>;
-        checkServerHealth: (name: string) => Promise<{
-          healthy: boolean;
-          error?: string;
-          toolCount?: number;
-        }>;
+        checkServerHealth: (name: string) => Promise<HealthStatusInfo>;
       };
       settings: {
         getCustomPrompt: () => Promise<string>;
