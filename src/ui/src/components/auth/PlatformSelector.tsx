@@ -1,5 +1,5 @@
-import { FaYoutube } from "react-icons/fa";
 import { X } from "lucide-react";
+import { FaYoutube } from "react-icons/fa";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
