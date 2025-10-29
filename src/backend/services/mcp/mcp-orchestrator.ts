@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import type OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/index.js";
+import { formatErrorMessage } from "../../utils/error-utils.js";
 import { OpenAIService } from "../openai/openai-service.js";
 import { McpStorage } from "../storage/mcp-storage.js";
 import { MCPClientWrapper } from "./mcp-client-wrapper.js";
@@ -90,6 +91,7 @@ export class MCPOrchestrator {
       this.initialized = true;
     }
   }
+
   async reloadConfig(): Promise<void> {
     await this.loadConfig();
   }
@@ -104,9 +106,6 @@ export class MCPOrchestrator {
   private async saveConfig(): Promise<void> {
     try {
       await this.mcpStorage.storeMcpServers(this.servers);
-      console.log(
-        `[MCPOrchestrator] Saved ${this.servers.length} server(s) to secure storage`
-      );
     } catch (err) {
       console.error(
         "[MCPOrchestrator] Failed to save config to secure storage:",
@@ -128,18 +127,23 @@ export class MCPOrchestrator {
     MCPOrchestrator.validateServerName(config.name);
     const index = this.servers.findIndex((s) => s.name === name);
     if (index === -1) throw new Error(`Server '${name}' not found`);
-    if (config.name !== name) {
-      if (this.servers.some((s) => s.name === config.name)) {
-        throw new Error(`Server with name '${config.name}' already exists`);
-      }
-      this.clients.get(name)?.disconnect();
-      this.clients.delete(name);
-    } else {
-      // Even if name didn't change, the config (URL, headers, etc) might have
-      // So we need to disconnect and remove the old client to force recreation
+    const existing = this.servers[index];
+
+    // If the name is changing, ensure the new name isn't already used
+    if (
+      config.name !== name &&
+      this.servers.some((s) => s.name === config.name)
+    ) {
+      throw new Error(`Server with name '${config.name}' already exists`);
+    }
+
+    // If the name changed OR the config has changed (URL/headers/etc), recreate client
+    const configChanged = JSON.stringify(existing) !== JSON.stringify(config);
+    if (configChanged) {
       this.clients.get(name)?.disconnect();
       this.clients.delete(name);
     }
+
     this.servers[index] = config;
     await this.saveConfig();
   }
@@ -169,7 +173,7 @@ export class MCPOrchestrator {
     } catch (err) {
       return {
         healthy: false,
-        error: err instanceof Error ? err.message : String(err),
+        error: formatErrorMessage(err),
       };
     }
   }
