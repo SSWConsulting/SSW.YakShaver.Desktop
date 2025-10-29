@@ -30,6 +30,8 @@ const IPC_CHANNELS = {
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
   HIDE_CONTROL_BAR: "hide-control-bar",
+  MINIMIZE_MAIN_WINDOW: "minimize-main-window",
+  RESTORE_MAIN_WINDOW: "restore-main-window",
 
   // OpenAI
   OPENAI_GET_TRANSCRIPTION: "openai:get-transcription",
@@ -73,10 +75,8 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 const electronAPI = {
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),
-    getAuthStatus: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_GET_AUTH_STATUS),
-    getCurrentUser: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_GET_CURRENT_USER),
+    getAuthStatus: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_GET_AUTH_STATUS),
+    getCurrentUser: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_GET_CURRENT_USER),
     disconnect: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_DISCONNECT),
     refreshToken: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_REFRESH_TOKEN),
     uploadVideo: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_UPLOAD_VIDEO),
@@ -89,18 +89,12 @@ const electronAPI = {
   },
   video: {
     selectVideoFile: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_VIDEO_FILE),
-    selectOutputDirectory: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.SELECT_OUTPUT_DIRECTORY),
+    selectOutputDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_OUTPUT_DIRECTORY),
     convertVideoToMp3: (inputPath: string, outputPath: string) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.CONVERT_VIDEO_TO_MP3,
-        inputPath,
-        outputPath,
-      ),
+      ipcRenderer.invoke(IPC_CHANNELS.CONVERT_VIDEO_TO_MP3, inputPath, outputPath),
   },
   screenRecording: {
-    start: (sourceId?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.START_SCREEN_RECORDING, sourceId),
+    start: (sourceId?: string) => ipcRenderer.invoke(IPC_CHANNELS.START_SCREEN_RECORDING, sourceId),
     stop: (videoData: Uint8Array) =>
       ipcRenderer.invoke(IPC_CHANNELS.STOP_SCREEN_RECORDING, videoData),
     listSources: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_SCREEN_SOURCES),
@@ -110,21 +104,20 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.TRIGGER_TRANSCRIPTION, filePath),
     showControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.SHOW_CONTROL_BAR),
     hideControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.HIDE_CONTROL_BAR),
-    stopFromControlBar: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR),
+    stopFromControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR),
+    minimizeMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.MINIMIZE_MAIN_WINDOW),
+    restoreMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.RESTORE_MAIN_WINDOW),
     onStopRequest: (callback: () => void) => {
       const listener = () => callback();
       ipcRenderer.on("stop-recording-request", listener);
-      return () =>
-        ipcRenderer.removeListener("stop-recording-request", listener);
+      return () => ipcRenderer.removeListener("stop-recording-request", listener);
     },
   },
   controlBar: {
     onTimeUpdate: (callback: (time: string) => void) => {
       const listener = (_: unknown, time: string) => callback(time);
       ipcRenderer.on("update-recording-time", listener);
-      return () =>
-        ipcRenderer.removeListener("update-recording-time", listener);
+      return () => ipcRenderer.removeListener("update-recording-time", listener);
     },
   },
   openai: {
@@ -141,26 +134,19 @@ const electronAPI = {
     onProgress: (callback: (progress: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS, callback),
     retryTaskExecution: (intermediateOutput: string) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.WORKFLOW_RETRY_TASK_EXECUTION,
-        intermediateOutput,
-      ),
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_TASK_EXECUTION, intermediateOutput),
     onTranscriptionError: (callback: (error: string) => void) =>
-      onIpcEvent<string>(IPC_CHANNELS.TRANSCRIPTION_ERROR, (error) =>
-        callback(error),
-      ),
+      onIpcEvent<string>(IPC_CHANNELS.TRANSCRIPTION_ERROR, (error) => callback(error)),
   },
   llm: {
-    setConfig: (config: unknown) =>
-      ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),
+    setConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),
     getConfig: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_GET_CONFIG),
     clearConfig: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_CLEAR_CONFIG),
   },
   mcp: {
     processMessage: (prompt: string, options?: { serverFilter?: string[] }) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_PROCESS_MESSAGE, prompt, options),
-    prefillPrompt: (text: string) =>
-      ipcRenderer.send(IPC_CHANNELS.MCP_PREFILL_PROMPT, text),
+    prefillPrompt: (text: string) => ipcRenderer.send(IPC_CHANNELS.MCP_PREFILL_PROMPT, text),
     onPrefillPrompt: (callback: (text: string) => void) =>
       onIpcEvent<string>(IPC_CHANNELS.MCP_PREFILL_PROMPT, callback),
     onStepUpdate: (
@@ -172,16 +158,13 @@ const electronAPI = {
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
-    addServer: (config: MCPServerConfig) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
+    addServer: (config: MCPServerConfig) => ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
     updateServer: (name: string, config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, name, config),
-    removeServer: (name: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),
+    removeServer: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),
   },
   settings: {
-    getCustomPrompt: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_CUSTOM_PROMPT),
+    getCustomPrompt: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_CUSTOM_PROMPT),
     setCustomPrompt: (prompt: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_CUSTOM_PROMPT, prompt),
   },
