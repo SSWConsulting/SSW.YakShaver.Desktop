@@ -40,7 +40,11 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
       onClose();
     } else {
       startCountdown();
-      await startAuth();
+      try {
+        await startAuth();
+      } finally {
+        resetCountdown();
+      }
     }
   };
 
