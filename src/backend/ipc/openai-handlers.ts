@@ -12,6 +12,7 @@ import { RecordingService } from "../services/recording/recording-service";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { LlmStorage, type LLMConfig } from "../services/storage/llm-storage";
 import { formatErrorMessage } from "../utils/error-utils";
+import { VideoUploadResult } from "../services/auth/types";
 
 export class OpenAIIPCHandlers {
   private openAiService = OpenAIService.getInstance();
@@ -74,9 +75,11 @@ export class OpenAIIPCHandlers {
 
   private async executeGeneratedTaskViaMCP(
     intermediateOutput: string,
+    videoUploadResult: VideoUploadResult
   ): Promise<string | null> {
     const result = await this.mcpOrchestrator.processMessage(
       intermediateOutput,
+      videoUploadResult,
       {
         systemPrompt: TASK_EXECUTION_PROMPT,
       },
@@ -87,7 +90,7 @@ export class OpenAIIPCHandlers {
   private setupListeners(): void {
     this.recordingService.on(
       "recording-saved",
-      async (inputFilePath: string) => {
+      async (inputFilePath: string, videoUploadResult: VideoUploadResult) => {
         if (!inputFilePath) {
           this.emitProgress("error", { error: "Invalid file path" });
           return;
@@ -118,7 +121,7 @@ export class OpenAIIPCHandlers {
             intermediateOutput,
           });
           const finalOutput =
-            await this.executeGeneratedTaskViaMCP(intermediateOutput);
+            await this.executeGeneratedTaskViaMCP(intermediateOutput, videoUploadResult);
 
           this.emitProgress("completed", {
             transcript,
@@ -158,11 +161,11 @@ export class OpenAIIPCHandlers {
 
     ipcMain.handle(
       IPC_CHANNELS.WORKFLOW_RETRY_TASK_EXECUTION,
-      async (_event: IpcMainInvokeEvent, intermediateOutput: string) => {
+      async (_event: IpcMainInvokeEvent, intermediateOutput: string, videoUploadResult: VideoUploadResult) => {
         try {
           this.emitProgress("executing_task");
           const finalOutput =
-            await this.executeGeneratedTaskViaMCP(intermediateOutput);
+            await this.executeGeneratedTaskViaMCP(intermediateOutput, videoUploadResult);
           this.emitProgress("completed", { finalOutput });
           return { success: true, finalOutput };
         } catch (error) {
