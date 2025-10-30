@@ -1,12 +1,13 @@
 import { BrowserWindow } from "electron";
 import type OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/index.js";
+import { ERROR_MESSAGES } from "../../constants/error-messages.js";
+import type { HealthStatusInfo } from "../../types/index.js";
 import { formatErrorMessage } from "../../utils/error-utils.js";
 import { OpenAIService } from "../openai/openai-service.js";
 import { McpStorage } from "../storage/mcp-storage.js";
 import { MCPClientWrapper } from "./mcp-client-wrapper.js";
 import type { MCPServerConfig } from "./types.js";
-import { HealthStatusInfo } from "../../types/index.js";
 
 export interface MCPOrchestratorOptions {
   eagerCreate?: boolean; // create all client wrappers at construction
@@ -240,9 +241,7 @@ export class MCPOrchestrator {
   }> {
     // Check if LLM client is configured
     if (!this.llmClient.isConfigured()) {
-      throw new Error(
-        "OpenAI is not configured. MCP features require OpenAI API key or Azure OpenAI configuration."
-      );
+      throw new Error(ERROR_MESSAGES.OPENAI_IS_NOT_CONFIGURED);
     }
 
     // Ensure servers are created (and connect lazily when listing tools)

@@ -6,9 +6,10 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources/index";
-import { LlmStorage, type LLMConfig } from "../storage/llm-storage";
+import { ERROR_MESSAGES } from "../../constants/error-messages";
+import type { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
-import { HealthStatusInfo } from "../../types";
+import { type LLMConfig, LlmStorage } from "../storage/llm-storage";
 
 export class OpenAIService {
   private static instance: OpenAIService;
@@ -58,9 +59,7 @@ export class OpenAIService {
   ): Promise<ChatCompletion> {
     await this.ensureClient();
     if (!this.configured || !this.client) {
-      throw new Error(
-        "LLM is not configured. Please configure it via LLM Settings."
-      );
+      throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
     }
     const response = await this.client.chat.completions.create({
       model: await this.getModel(),
@@ -77,9 +76,7 @@ export class OpenAIService {
   ): Promise<string> {
     await this.ensureClient();
     if (!this.configured || !this.client) {
-      throw new Error(
-        "LLM is not configured. Please configure it via LLM Settings."
-      );
+      throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
     }
 
     const response = await this.client.chat.completions.create({
@@ -97,9 +94,7 @@ export class OpenAIService {
   async transcribeAudio(filePath: string) {
     await this.ensureClient();
     if (!this.client) {
-      throw new Error(
-        "LLM is not configured. Please configure it via LLM Settings."
-      );
+      throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
     }
     return this.client.audio.transcriptions.create({
       file: createReadStream(filePath),
@@ -138,17 +133,13 @@ export class OpenAIService {
   private async getModel(): Promise<string> {
     const cfg = await this.storage.getLLMConfig();
     if (!cfg) {
-      throw new Error(
-        "LLM is not configured. Please configure it via LLM Settings."
-      );
+      throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
     }
     if (cfg.provider === "openai") {
       return "gpt-4o";
     }
     if (!cfg.deployment) {
-      throw new Error(
-        "Azure OpenAI is configured but AZURE_OPENAI_DEPLOYMENT is missing. Please set the deployment name."
-      );
+      throw new Error(ERROR_MESSAGES.AZURE_DEPLOYMENT_MISSING);
     }
     return cfg.deployment;
   }

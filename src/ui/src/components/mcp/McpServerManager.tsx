@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import type { HealthStatusInfo } from "@/types";
 import { ipcClient } from "../../services/ipc-client";
 import {
   AlertDialog,
@@ -24,7 +25,6 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
 import { HealthStatus } from "../ui/health-status";
 import { type MCPServerConfig, McpServerForm } from "./McpServerForm";
-import { HealthStatusInfo } from "@/types";
 
 type ViewMode = "list" | "add" | "edit";
 
