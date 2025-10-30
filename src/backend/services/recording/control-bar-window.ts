@@ -32,7 +32,6 @@ export class RecordingControlBarWindow {
       y,
       frame: false,
       transparent: true,
-      alwaysOnTop: true,
       skipTaskbar: true,
       resizable: false,
       show: false,
@@ -46,6 +45,11 @@ export class RecordingControlBarWindow {
     this.window.on("closed", () => {
       this.window = null;
     });
+
+    this.window.setAlwaysOnTop(true, "screen-saver");
+
+    // Don't include this window in the recording
+    this.window.setContentProtection(true);
 
     await (this.isDev ? this.window.loadURL(url) : this.window.loadFile(url));
 
