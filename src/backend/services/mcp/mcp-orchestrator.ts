@@ -263,7 +263,7 @@ export class MCPOrchestrator {
       "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
 
     if (videoUrl) {
-      systemPrompt += `\n\nthis is the uploaded video URL: ${videoUrl},\n include this url in the task content that you created.`;
+      systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.\nPlease include this URL in the task content that you create.`;
     }
 
     const messages: ChatCompletionMessageParam[] = [
