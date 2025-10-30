@@ -162,12 +162,7 @@ export function McpServerManager() {
   }, [servers]);
 
   return (
-    <Dialog
-      open={dialogOpen}
-      onOpenChange={setDialogOpen}
-      aria-labelledby="dialog-title"
-      aria-describedby="dialog-description"
-    >
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>
         <Button variant="secondary">MCP Settings</Button>
       </DialogTrigger>

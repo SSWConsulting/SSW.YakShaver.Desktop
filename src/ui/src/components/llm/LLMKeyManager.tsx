@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
@@ -49,18 +49,6 @@ export function LLMKeyManager() {
     },
     mode: "onSubmit",
   });
-
-  // Mask API key for display
-  const maskKey = useCallback((key?: string) => {
-    if (!key) return "";
-    if (key.length <= 8) return "•".repeat(key.length);
-    return `${key.slice(0, 4)}…${key.slice(-4)}`;
-  }, []);
-
-  const maskedApiKey = useMemo(
-    () => maskKey(form.watch("apiKey")),
-    [form, maskKey]
-  );
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -157,20 +145,14 @@ export function LLMKeyManager() {
       <DialogTrigger asChild>
         <Button variant="secondary">LLM Settings</Button>
       </DialogTrigger>
-      <DialogContent
-        className="max-w-md bg-neutral-900 text-neutral-100 border-neutral-800"
-        aria-labelledby="dialog-title"
-        aria-describedby="dialog-description"
-      >
+      <DialogContent className="max-w-md bg-neutral-900 text-neutral-100 border-neutral-800">
         <DialogHeader>
           <DialogTitle className="text-white text-xl">LLM Settings</DialogTitle>
         </DialogHeader>
         {hasConfig && (
           <div className="flex items-center gap-3 mb-4">
             <p className="text-white/80 text-sm">API Key Status:</p>
-            <span className="text-green-400 text-sm font-mono">
-              Saved{maskedApiKey ? ` (${maskedApiKey})` : ""}
-            </span>
+            <span className="text-green-400 text-sm font-mono">Saved</span>
             <HealthStatus
               isChecking={healthStatus?.isChecking ?? false}
               isHealthy={healthStatus?.isHealthy ?? false}

@@ -52,6 +52,15 @@ export class MCPClientWrapper {
     throw new Error(`Unsupported transport: ${this.serverConfig.transport}`);
   }
 
+  private isTransportStarted(): boolean {
+    if (this.transport instanceof StreamableHTTPClientTransport) {
+      const transport = this.transport as any;
+      console.log("started");
+      return transport?.started === true;
+    }
+    return false;
+  }
+
   async connect(): Promise<void> {
     if (this.isConnected) {
       return;
@@ -64,6 +73,10 @@ export class MCPClientWrapper {
 
     this.connectPromise = (async () => {
       try {
+        if (this.isTransportStarted()) {
+          this.isConnected = true;
+          return;
+        }
         await this.client.connect(this.transport);
         this.isConnected = true;
         return;
@@ -74,8 +87,6 @@ export class MCPClientWrapper {
         );
         throw error;
       } finally {
-        // Clear the in-flight promise so future connect() calls either return early
-        // due to isConnected, or start a new connect attempt.
         this.connectPromise = null;
       }
     })();
