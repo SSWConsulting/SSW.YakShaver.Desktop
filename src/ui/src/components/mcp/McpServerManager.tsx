@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
@@ -25,7 +25,7 @@ import {
 } from "../ui/dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
 import { HealthStatus } from "../ui/health-status";
-import { type MCPServerConfig, McpServerForm } from "./McpServerForm";
+import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 
 type ViewMode = "list" | "add" | "edit";
 
@@ -36,7 +36,7 @@ type ServerHealthStatus<T extends string = string> = Record<
 
 export function McpServerManager() {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(
     null
@@ -81,12 +81,15 @@ export function McpServerManager() {
   );
 
   const loadServers = useCallback(async () => {
+    setIsLoading(true);
     try {
       const list = await ipcClient.mcp.listServers();
       setServers(list);
       await checkAllServersHealth(list);
     } catch (e) {
       toast.error(`Failed to load servers: ${formatErrorMessage(e)}`);
+    } finally {
+      setIsLoading(false);
     }
   }, [checkAllServersHealth]);
 
@@ -94,49 +97,52 @@ export function McpServerManager() {
     void loadServers();
   }, [loadServers]);
 
-  function showAddForm() {
+  const showAddForm = useCallback(() => {
     setViewMode("add");
     setEditingServer(null);
-  }
+  }, []);
 
-  function showEditForm(server: MCPServerConfig) {
+  const showEditForm = useCallback((server: MCPServerConfig) => {
     setViewMode("edit");
     setEditingServer(server);
-  }
+  }, []);
 
-  function showList() {
+  const showList = useCallback(() => {
     setViewMode("list");
     setEditingServer(null);
-  }
+  }, []);
 
-  async function handleSubmit(config: MCPServerConfig) {
-    setLoading(true);
-    try {
-      if (viewMode === "add") {
-        await ipcClient.mcp.addServer(config);
-        toast.success(`Server '${config.name}' added`);
-      } else if (viewMode === "edit" && editingServer) {
-        await ipcClient.mcp.updateServer(editingServer.name, config);
-        toast.success(`Server '${config.name}' updated`);
+  const handleSubmit = useCallback(
+    async (config: MCPServerConfig) => {
+      setIsLoading(true);
+      try {
+        if (viewMode === "add") {
+          await ipcClient.mcp.addServer(config);
+          toast.success(`Server '${config.name}' added`);
+        } else if (viewMode === "edit" && editingServer) {
+          await ipcClient.mcp.updateServer(editingServer.name, config);
+          toast.success(`Server '${config.name}' updated`);
+        }
+        showList();
+        await loadServers();
+      } catch (e) {
+        toast.error(`Failed to save: ${formatErrorMessage(e)}`);
+      } finally {
+        setIsLoading(false);
       }
-      showList();
-      await loadServers();
-    } catch (e) {
-      toast.error(`Failed to save: ${formatErrorMessage(e)}`);
-    } finally {
-      setLoading(false);
-    }
-  }
+    },
+    [viewMode, editingServer, showList, loadServers]
+  );
 
-  function confirmDeleteServer(name: string) {
+  const confirmDeleteServer = useCallback((name: string) => {
     setServerToDelete(name);
     setDeleteConfirmOpen(true);
-  }
+  }, []);
 
-  async function handleDeleteConfirm() {
+  const handleDeleteConfirm = useCallback(async () => {
     if (!serverToDelete) return;
 
-    setLoading(true);
+    setIsLoading(true);
     setDeleteConfirmOpen(false);
 
     try {
@@ -146,13 +152,22 @@ export function McpServerManager() {
     } catch (e) {
       toast.error(`Failed to remove: ${formatErrorMessage(e)}`);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
       setServerToDelete(null);
     }
-  }
+  }, [serverToDelete, loadServers]);
+
+  const sortedServers = useMemo(() => {
+    return [...servers].sort((a, b) => a.name.localeCompare(b.name));
+  }, [servers]);
 
   return (
-    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+    <Dialog
+      open={dialogOpen}
+      onOpenChange={setDialogOpen}
+      aria-labelledby="dialog-title"
+      aria-describedby="dialog-description"
+    >
       <DialogTrigger asChild>
         <Button variant="secondary">MCP Settings</Button>
       </DialogTrigger>
@@ -164,15 +179,20 @@ export function McpServerManager() {
           <DialogTitle className="text-white text-2xl">
             MCP Server Settings
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            View and update your current MCP server settings
+          </DialogDescription>
         </DialogHeader>
-        <DialogDescription>
-          View and update your current MCP server settings
-        </DialogDescription>
         <div className="w-full">
           {viewMode === "list" && (
             <div className="flex flex-col gap-6">
               <div className="flex justify-end">
-                <Button variant="secondary" onClick={showAddForm} size="lg">
+                <Button
+                  variant="secondary"
+                  onClick={showAddForm}
+                  size="lg"
+                  disabled={isLoading}
+                >
                   Add Server
                 </Button>
               </div>
@@ -191,7 +211,7 @@ export function McpServerManager() {
 
               {servers.length > 0 && (
                 <div className="flex flex-col gap-4">
-                  {servers.map((server) => {
+                  {sortedServers.map((server) => {
                     const status = healthStatus[server.name] || {};
                     return (
                       <Card
@@ -224,6 +244,7 @@ export function McpServerManager() {
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => showEditForm(server)}
+                                disabled={isLoading}
                               >
                                 Edit
                               </Button>
@@ -231,7 +252,7 @@ export function McpServerManager() {
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => confirmDeleteServer(server.name)}
-                                disabled={loading}
+                                disabled={isLoading}
                               >
                                 Delete
                               </Button>
@@ -247,12 +268,12 @@ export function McpServerManager() {
           )}
 
           {viewMode !== "list" && (
-            <McpServerForm
+            <McpServerFormWrapper
               initialData={editingServer ?? undefined}
               isEditing={viewMode === "edit"}
               onSubmit={handleSubmit}
               onCancel={showList}
-              loading={loading}
+              isLoading={isLoading}
             />
           )}
         </div>
@@ -276,6 +297,7 @@ export function McpServerManager() {
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-red-600 text-white hover:bg-red-700"
+              disabled={isLoading}
             >
               Delete Server
             </AlertDialogAction>
