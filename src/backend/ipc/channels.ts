@@ -57,6 +57,10 @@ export const IPC_CHANNELS = {
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
   // Settings
-  SETTINGS_GET_CUSTOM_PROMPT: "settings:get-custom-prompt",
-  SETTINGS_SET_CUSTOM_PROMPT: "settings:set-custom-prompt",
+  SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
+  SETTINGS_GET_ACTIVE_PROMPT: "settings:get-active-prompt",
+  SETTINGS_ADD_PROMPT: "settings:add-prompt",
+  SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
+  SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
+  SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
 } as const;

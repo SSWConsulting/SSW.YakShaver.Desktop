@@ -30,11 +30,7 @@ export class McpIPCHandlers {
 
     ipcMain.handle(
       IPC_CHANNELS.MCP_UPDATE_SERVER,
-      async (
-        _event: IpcMainInvokeEvent,
-        name: string,
-        config: MCPServerConfig,
-      ) => {
+      async (_event: IpcMainInvokeEvent, name: string, config: MCPServerConfig) => {
         await this.orchestrator.updateServer(name, config);
         return { success: true };
       },
@@ -49,13 +45,10 @@ export class McpIPCHandlers {
     );
     ipcMain.handle(
       IPC_CHANNELS.MCP_PROCESS_MESSAGE,
-      async (
-        _event: IpcMainInvokeEvent,
-        prompt: string,
-        options?: { serverFilter?: string[] },
-      ) => {
-        const customPrompt = this.settingsStore.getCustomPrompt();
-        const systemPrompt = buildTaskExecutionPrompt(customPrompt);
+      async (_event: IpcMainInvokeEvent, prompt: string, options?: { serverFilter?: string[] }) => {
+        const activePrompt = this.settingsStore.getActivePrompt();
+        const customPromptContent = activePrompt?.content || "";
+        const systemPrompt = buildTaskExecutionPrompt(customPromptContent);
 
         return await this.orchestrator.processMessage(prompt, {
           ...options,

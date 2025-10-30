@@ -97,8 +97,38 @@ declare global {
         removeServer: (name: string) => Promise<{ success: boolean }>;
       };
       settings: {
-        getCustomPrompt: () => Promise<string>;
-        setCustomPrompt: (prompt: string) => Promise<{ success: boolean }>;
+        getAllPrompts: () => Promise<
+          Array<{
+            id: string;
+            name: string;
+            content: string;
+            isDefault?: boolean;
+            createdAt: number;
+            updatedAt: number;
+          }>
+        >;
+        getActivePrompt: () => Promise<{
+          id: string;
+          name: string;
+          content: string;
+          isDefault?: boolean;
+          createdAt: number;
+          updatedAt: number;
+        } | null>;
+        addPrompt: (prompt: { name: string; content: string }) => Promise<{
+          id: string;
+          name: string;
+          content: string;
+          isDefault?: boolean;
+          createdAt: number;
+          updatedAt: number;
+        }>;
+        updatePrompt: (
+          id: string,
+          updates: { name?: string; content?: string },
+        ) => Promise<boolean>;
+        deletePrompt: (id: string) => Promise<boolean>;
+        setActivePrompt: (id: string) => Promise<boolean>;
       };
     };
   }

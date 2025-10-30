@@ -5,7 +5,7 @@ import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, UploadStatus } from "../../types";
 import { McpServerManager } from "../mcp/McpServerManager";
 import { OpenAIKeyManager } from "../openai/OpenAIKeyManager";
-import { CustomPromptDialog } from "../settings/CustomPromptDialog";
+import { CustomPromptManager } from "../settings/CustomPromptManager";
 import { Button } from "../ui/button";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
@@ -113,7 +113,7 @@ export function ScreenRecorder() {
                 : "Start Recording"}
           </Button>
           <McpServerManager />
-          <CustomPromptDialog />
+          <CustomPromptManager />
           <OpenAIKeyManager />
         </div>
         {!isAuthenticated && (
