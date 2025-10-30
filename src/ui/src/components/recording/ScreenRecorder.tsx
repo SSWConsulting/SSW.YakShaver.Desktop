@@ -72,7 +72,7 @@ export function ScreenRecorder() {
       // TODO: refactor - below logic should be moved to the backend, in a linear process pipeline, to avoid back and forth inter process communication
       // for the visual update we could use webContents.send() to notify the UI of progress updates
       // we need to refactor all the similar logic in other places as well
-      const videoUploadResult : VideoUploadResult = await window.electronAPI.youtube.uploadRecordedVideo(filePath);
+      const videoUploadResult: VideoUploadResult = await window.electronAPI.youtube.uploadRecordedVideo(filePath);
       await window.electronAPI.screenRecording.triggerTranscription(filePath, videoUploadResult);
 
       setUploadResult(videoUploadResult);
