@@ -67,8 +67,7 @@ export function OpenAIKeyManager() {
 
     try {
       const result = (await ipcClient.llm.checkHealth()) as HealthStatusInfo;
-      result.isChecking = false;
-      setHealthStatus(result);
+      setHealthStatus({ ...result, isChecking: false });
     } catch (e) {
       setHealthStatus({
         isHealthy: false,

@@ -61,10 +61,9 @@ export function McpServerManager() {
           const result = (await ipcClient.mcp.checkServerHealth(
             server.name
           )) as HealthStatusInfo;
-          result.isChecking = false;
           setHealthStatus((prev) => ({
             ...prev,
-            [server.name]: result,
+            [server.name]: { ...result, isChecking: false },
           }));
         } catch (e) {
           setHealthStatus((prev) => ({
