@@ -1,17 +1,18 @@
 import * as fs from "node:fs";
-import { type IpcMainInvokeEvent, ipcMain, BrowserWindow } from "electron";
+import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
+import type { VideoUploadResult } from "../services/auth/types";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
+import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import {
   INITIAL_SUMMARY_PROMPT,
   TASK_EXECUTION_PROMPT,
 } from "../services/openai/prompts";
-import { IPC_CHANNELS } from "./channels";
 import { RecordingService } from "../services/recording/recording-service";
-import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
-import { LlmStorage, type LLMConfig } from "../services/storage/llm-storage";
+import { type LLMConfig, LlmStorage } from "../services/storage/llm-storage";
 import { formatErrorMessage } from "../utils/error-utils";
+import { IPC_CHANNELS } from "./channels";
 
 export class OpenAIIPCHandlers {
   private openAiService = OpenAIService.getInstance();
@@ -73,10 +74,12 @@ export class OpenAIIPCHandlers {
   }
 
   private async executeGeneratedTaskViaMCP(
-    intermediateOutput: string
+    intermediateOutput: string,
+    videoUploadResult: VideoUploadResult
   ): Promise<string | null> {
     const result = await this.mcpOrchestrator.processMessage(
       intermediateOutput,
+      videoUploadResult,
       {
         systemPrompt: TASK_EXECUTION_PROMPT,
       }
@@ -87,7 +90,7 @@ export class OpenAIIPCHandlers {
   private setupListeners(): void {
     this.recordingService.on(
       "recording-saved",
-      async (inputFilePath: string) => {
+      async (inputFilePath: string, videoUploadResult: VideoUploadResult) => {
         if (!inputFilePath) {
           this.emitProgress("error", { error: "Invalid file path" });
           return;
@@ -117,8 +120,10 @@ export class OpenAIIPCHandlers {
             transcript,
             intermediateOutput,
           });
-          const finalOutput =
-            await this.executeGeneratedTaskViaMCP(intermediateOutput);
+          const finalOutput = await this.executeGeneratedTaskViaMCP(
+            intermediateOutput,
+            videoUploadResult
+          );
 
           this.emitProgress("completed", {
             transcript,
@@ -158,11 +163,17 @@ export class OpenAIIPCHandlers {
 
     ipcMain.handle(
       IPC_CHANNELS.WORKFLOW_RETRY_TASK_EXECUTION,
-      async (_event: IpcMainInvokeEvent, intermediateOutput: string) => {
+      async (
+        _event: IpcMainInvokeEvent,
+        intermediateOutput: string,
+        videoUploadResult: VideoUploadResult
+      ) => {
         try {
           this.emitProgress("executing_task");
-          const finalOutput =
-            await this.executeGeneratedTaskViaMCP(intermediateOutput);
+          const finalOutput = await this.executeGeneratedTaskViaMCP(
+            intermediateOutput,
+            videoUploadResult
+          );
           this.emitProgress("completed", { finalOutput });
           return { success: true, finalOutput };
         } catch (error) {

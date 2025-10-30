@@ -49,7 +49,10 @@ declare global {
         stop: (videoData: Uint8Array) => Promise<ScreenRecordingStopResult>;
         listSources: () => Promise<ScreenSource[]>;
         cleanupTempFile: (filePath: string) => Promise<void>;
-        triggerTranscription: (filePath: string) => Promise<void>;
+        triggerTranscription: (
+          filePath: string,
+          videoUploadResult: VideoUploadResult
+        ) => Promise<void>;
         showControlBar: () => Promise<{ success: boolean }>;
         hideControlBar: () => Promise<{ success: boolean }>;
         stopFromControlBar: () => Promise<{ success: boolean }>;
@@ -80,6 +83,7 @@ declare global {
       mcp: {
         processMessage: (
           prompt: string,
+          videoUrl?: string,
           options?: { serverFilter?: string[] }
         ) => Promise<{
           final: string | null;

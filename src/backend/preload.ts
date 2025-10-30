@@ -1,4 +1,5 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
+import type { VideoUploadResult } from "./services/auth/types";
 import type { MCPServerConfig } from "./services/mcp/types";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
@@ -110,8 +111,15 @@ const electronAPI = {
     listSources: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_SCREEN_SOURCES),
     cleanupTempFile: (filePath: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.CLEANUP_TEMP_FILE, filePath),
-    triggerTranscription: (filePath: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.TRIGGER_TRANSCRIPTION, filePath),
+    triggerTranscription: (
+      filePath: string,
+      videoUploadResult: VideoUploadResult
+    ) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.TRIGGER_TRANSCRIPTION,
+        filePath,
+        videoUploadResult
+      ),
     showControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.SHOW_CONTROL_BAR),
     hideControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.HIDE_CONTROL_BAR),
     stopFromControlBar: () =>
@@ -166,8 +174,17 @@ const electronAPI = {
     checkHealth: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_CHECK_HEALTH),
   },
   mcp: {
-    processMessage: (prompt: string, options?: { serverFilter?: string[] }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_PROCESS_MESSAGE, prompt, options),
+    processMessage: (
+      prompt: string,
+      videoUploadResult?: VideoUploadResult,
+      options?: { serverFilter?: string[] }
+    ) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.MCP_PROCESS_MESSAGE,
+        prompt,
+        videoUploadResult,
+        options
+      ),
     prefillPrompt: (text: string) =>
       ipcRenderer.send(IPC_CHANNELS.MCP_PREFILL_PROMPT, text),
     onPrefillPrompt: (callback: (text: string) => void) =>
