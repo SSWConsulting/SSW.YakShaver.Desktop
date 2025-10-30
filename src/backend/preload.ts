@@ -1,5 +1,6 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { MCPServerConfig } from "./services/mcp/types";
+import { VideoUploadResult } from "./services/auth/types";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
 // Need to make single source of truth
@@ -100,8 +101,8 @@ const electronAPI = {
     listSources: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_SCREEN_SOURCES),
     cleanupTempFile: (filePath: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.CLEANUP_TEMP_FILE, filePath),
-    triggerTranscription: (filePath: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.TRIGGER_TRANSCRIPTION, filePath),
+    triggerTranscription: (filePath: string, videoUploadResult: VideoUploadResult) =>
+      ipcRenderer.invoke(IPC_CHANNELS.TRIGGER_TRANSCRIPTION, filePath, videoUploadResult),
     showControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.SHOW_CONTROL_BAR),
     hideControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.HIDE_CONTROL_BAR),
     stopFromControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR),
@@ -144,9 +145,10 @@ const electronAPI = {
     clearConfig: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_CLEAR_CONFIG),
   },
   mcp: {
-    processMessage: (prompt: string, options?: { serverFilter?: string[] }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_PROCESS_MESSAGE, prompt, options),
-    prefillPrompt: (text: string) => ipcRenderer.send(IPC_CHANNELS.MCP_PREFILL_PROMPT, text),
+    processMessage: (prompt: string, videoUploadResult?: VideoUploadResult, options?: { serverFilter?: string[] }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_PROCESS_MESSAGE, prompt, videoUploadResult, options),
+    prefillPrompt: (text: string) =>
+      ipcRenderer.send(IPC_CHANNELS.MCP_PREFILL_PROMPT, text),
     onPrefillPrompt: (callback: (text: string) => void) =>
       onIpcEvent<string>(IPC_CHANNELS.MCP_PREFILL_PROMPT, callback),
     onStepUpdate: (

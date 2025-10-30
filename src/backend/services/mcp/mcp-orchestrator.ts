@@ -5,6 +5,7 @@ import { OpenAIService } from "../openai/openai-service.js";
 import { McpStorage } from "../storage/mcp-storage.js";
 import { MCPClientWrapper } from "./mcp-client-wrapper.js";
 import type { MCPServerConfig } from "./types.js";
+import { VideoUploadResult } from "../auth/types.js";
 
 export interface MCPOrchestratorOptions {
   eagerCreate?: boolean; // create all client wrappers at construction
@@ -196,6 +197,7 @@ export class MCPOrchestrator {
    */
   async processMessage(
     prompt: string,
+    videoUploadResult?: VideoUploadResult,
     options: {
       serverFilter?: string[]; // if provided, only include tools from these servers
       systemPrompt?: string;
@@ -211,6 +213,8 @@ export class MCPOrchestrator {
         "OpenAI is not configured. MCP features require OpenAI API key or Azure OpenAI configuration."
       );
     }
+
+    const videoUrl = videoUploadResult?.data?.url;
 
     // Ensure servers are created (and connect lazily when listing tools)
     const availableServers = await this.listAvailableServers();
@@ -254,9 +258,13 @@ export class MCPOrchestrator {
       }
     }
 
-    const systemPrompt =
+    let systemPrompt =
       options.systemPrompt ??
       "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
+
+    if (videoUrl) {
+      systemPrompt += `\n\nthis is the uploaded video URL: ${videoUrl},\n include this url in the task content that you created.`;
+    }
 
     const messages: ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },

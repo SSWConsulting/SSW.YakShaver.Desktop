@@ -4,6 +4,7 @@ import type { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import type { MCPServerConfig } from "../services/mcp/types";
 import { SettingsStore } from "../services/storage/settings-store";
 import { IPC_CHANNELS } from "./channels";
+import { VideoUploadResult } from "../services/auth/types";
 
 export class McpIPCHandlers {
   private orchestrator: MCPOrchestrator;
@@ -52,12 +53,13 @@ export class McpIPCHandlers {
       async (
         _event: IpcMainInvokeEvent,
         prompt: string,
+        videoUploadResult?: VideoUploadResult,
         options?: { serverFilter?: string[] },
       ) => {
         const customPrompt = this.settingsStore.getCustomPrompt();
         const systemPrompt = buildTaskExecutionPrompt(customPrompt);
 
-        return await this.orchestrator.processMessage(prompt, {
+        return await this.orchestrator.processMessage(prompt, videoUploadResult, {
           ...options,
           systemPrompt,
         });

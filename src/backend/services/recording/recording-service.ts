@@ -5,6 +5,7 @@ import tmp from "tmp";
 import { getMainWindow } from "../../index";
 import { formatErrorMessage } from "../../utils/error-utils";
 import type { ScreenSource, StartRecordingResult, StopRecordingResult } from "./types";
+import { VideoUploadResult } from "../auth/types";
 
 export class RecordingService extends EventEmitter {
   private static instance: RecordingService;
@@ -60,8 +61,8 @@ export class RecordingService extends EventEmitter {
     }
   }
 
-  triggerTranscription(filePath: string) {
-    this.emit("recording-saved", filePath);
+  triggerTranscription(filePath: string, videoUploadResult: VideoUploadResult) {
+    this.emit("recording-saved", filePath, videoUploadResult);
   }
 
   async cleanupTempFile(filePath: string) {
@@ -70,7 +71,7 @@ export class RecordingService extends EventEmitter {
       tempFile.removeCallback();
       this.tempFiles.delete(filePath);
     } else {
-      await unlink(filePath).catch(() => {});
+      await unlink(filePath).catch(() => { });
     }
   }
 

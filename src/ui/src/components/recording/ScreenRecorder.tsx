@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
-import { AuthStatus, UploadStatus } from "../../types";
+import { AuthStatus, UploadStatus, VideoUploadResult } from "../../types";
 import { McpServerManager } from "../mcp/McpServerManager";
 import { OpenAIKeyManager } from "../openai/OpenAIKeyManager";
 import { CustomPromptDialog } from "../settings/CustomPromptDialog";
@@ -69,31 +69,27 @@ export function ScreenRecorder() {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
 
-      const [uploadResult] = await Promise.allSettled([
-        window.electronAPI.youtube.uploadRecordedVideo(filePath),
-        window.electronAPI.screenRecording.triggerTranscription(filePath),
-      ]);
+      // TODO: refactor - below logic should be moved to the backend, in a linear process pipeline, to avoid back and forth inter process communication
+      // for the visual update we could use webContents.send() to notify the UI of progress updates
+      // we need to refactor all the similar logic in other places as well
+      const videoUploadResult : VideoUploadResult = await window.electronAPI.youtube.uploadRecordedVideo(filePath);
+      await window.electronAPI.screenRecording.triggerTranscription(filePath, videoUploadResult);
 
-      const result =
-        uploadResult.status === "fulfilled"
-          ? uploadResult.value
-          : {
-              success: false,
-              error: uploadResult.reason?.message || "Upload failed",
-            };
+      setUploadResult(videoUploadResult);
+      setUploadStatus(
+        videoUploadResult.success ? UploadStatus.SUCCESS : UploadStatus.ERROR,
+      );
 
-      setUploadResult(result);
-      setUploadStatus(result.success ? UploadStatus.SUCCESS : UploadStatus.ERROR);
-
-      if (result.success) {
+      if (videoUploadResult.success) {
         toast.success("Video uploaded successfully!");
       } else {
-        toast.error(`Upload failed: ${result.error}`);
+        toast.error(`Upload failed: ${videoUploadResult.error}`);
       }
     } catch (error) {
       toast.error(`Processing failed: ${error}`);
     } finally {
-      await window.electronAPI.screenRecording.cleanupTempFile(filePath);
+      //TODO: refactor - cleanup of temp files should also be handled in the backend
+      //await window.electronAPI.screenRecording.cleanupTempFile(filePath);
     }
   };
 
