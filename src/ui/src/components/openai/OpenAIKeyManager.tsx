@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../services/ipc-client";
 import type { HealthStatusInfo, LLMConfig } from "../../types";
 import { Button } from "../ui/button";
@@ -42,7 +43,21 @@ export function OpenAIKeyManager() {
     }
   };
 
-  async function checkHealth() {
+  const refreshStatus = useCallback(async () => {
+    try {
+      const cfg = await ipcClient.llm.getConfig();
+      setHasConfig(!!cfg);
+      if (cfg) {
+        setLlmForm(cfg as LLMConfig);
+      } else {
+        setLlmForm({ provider: "openai", apiKey: "" });
+      }
+    } catch (e) {
+      console.error(formatErrorMessage(e));
+    }
+  }, []);
+
+  const checkHealth = useCallback(async () => {
     setHealthStatus((prev) => ({
       isHealthy: prev?.isHealthy ?? false,
       error: prev?.error,
@@ -55,39 +70,24 @@ export function OpenAIKeyManager() {
       result.isChecking = false;
       setHealthStatus(result);
     } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
       setHealthStatus({
         isHealthy: false,
-        error: errorMessage,
+        error: formatErrorMessage(e),
         isChecking: false,
       });
     }
-  }
-
-  async function refreshStatus() {
-    try {
-      const cfg = await ipcClient.llm.getConfig();
-      setHasConfig(!!cfg);
-      if (cfg) {
-        setLlmForm(cfg as LLMConfig);
-      } else {
-        setLlmForm({ provider: "openai", apiKey: "" });
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }
+  }, []);
 
   useEffect(() => {
     void refreshStatus();
-  }, []);
+  }, [refreshStatus]);
 
   // Check health when dialog opens and config exists
   useEffect(() => {
     if (dialogOpen && hasConfig) {
       void checkHealth();
     }
-  }, [dialogOpen, hasConfig]);
+  }, [dialogOpen, hasConfig, checkHealth]);
 
   async function onSave() {
     const apiKey = (llmForm.apiKey ?? "").trim();
@@ -119,7 +119,7 @@ export function OpenAIKeyManager() {
       await refreshStatus();
       await checkHealth();
     } catch (e) {
-      toast.error("Failed to save configuration");
+      toast.error(`Failed to save configuration: ${formatErrorMessage(e)}`);
     }
   }
 
@@ -130,7 +130,7 @@ export function OpenAIKeyManager() {
       setHealthStatus(null);
       await refreshStatus();
     } catch (e) {
-      toast.error("Failed to clear configuration");
+      toast.error(`Failed to clear configuration: ${formatErrorMessage(e)}`);
     }
   }
 

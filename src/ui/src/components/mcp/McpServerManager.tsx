@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
+import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../services/ipc-client";
 import {
   AlertDialog,
@@ -70,7 +71,7 @@ export function McpServerManager() {
             ...prev,
             [server.name]: {
               isHealthy: false,
-              error: e instanceof Error ? e.message : String(e),
+              error: formatErrorMessage(e),
               isChecking: false,
             },
           }));
@@ -86,8 +87,7 @@ export function McpServerManager() {
       setServers(list);
       await checkAllServersHealth(list);
     } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      toast.error(`Failed to load servers: ${errorMessage}`);
+      toast.error(`Failed to load servers: ${formatErrorMessage(e)}`);
     }
   }, [checkAllServersHealth]);
 
@@ -123,8 +123,7 @@ export function McpServerManager() {
       showList();
       await loadServers();
     } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      toast.error(`Failed to save: ${errorMessage}`);
+      toast.error(`Failed to save: ${formatErrorMessage(e)}`);
     } finally {
       setLoading(false);
     }
@@ -146,8 +145,7 @@ export function McpServerManager() {
       toast.success(`Server '${serverToDelete}' removed`);
       await loadServers();
     } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      toast.error(`Failed to remove: ${errorMessage}`);
+      toast.error(`Failed to remove: ${formatErrorMessage(e)}`);
     } finally {
       setLoading(false);
       setServerToDelete(null);
