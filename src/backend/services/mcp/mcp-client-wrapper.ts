@@ -55,7 +55,6 @@ export class MCPClientWrapper {
   private isTransportStarted(): boolean {
     if (this.transport instanceof StreamableHTTPClientTransport) {
       const transport = this.transport as any;
-      console.log("started");
       return transport?.started === true;
     }
     return false;
