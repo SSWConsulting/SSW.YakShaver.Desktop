@@ -58,10 +58,7 @@ const createWindow = (): void => {
     mainWindow.loadURL("http://localhost:3000");
     mainWindow.webContents.openDevTools();
   } else {
-    const indexPath = join(
-      process.resourcesPath,
-      "app.asar.unpacked/src/ui/dist/index.html"
-    );
+    const indexPath = join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/index.html");
     mainWindow.loadFile(indexPath).catch((err) => {
       console.error("Failed to load index.html:", err);
     });
@@ -79,18 +76,11 @@ let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler(() => true);
-  session.defaultSession.setPermissionRequestHandler(
-    (_, permission, callback) => {
-      callback(
-        [
-          "media",
-          "clipboard-read",
-          "clipboard-sanitized-write",
-          "fullscreen",
-        ].includes(permission)
-      );
-    }
-  );
+  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
+    callback(
+      ["media", "clipboard-read", "clipboard-sanitized-write", "fullscreen"].includes(permission),
+    );
+  });
 
   _authHandlers = new AuthIPCHandlers();
   _videoHandlers = new VideoIPCHandlers();
@@ -147,3 +137,7 @@ app.on("before-quit", async (event) => {
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
+
+export function getMainWindow(): BrowserWindow | null {
+  return mainWindow;
+}

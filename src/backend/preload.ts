@@ -30,6 +30,8 @@ const IPC_CHANNELS = {
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
   HIDE_CONTROL_BAR: "hide-control-bar",
+  MINIMIZE_MAIN_WINDOW: "minimize-main-window",
+  RESTORE_MAIN_WINDOW: "restore-main-window",
 
   // OpenAI
   OPENAI_GET_TRANSCRIPTION: "openai:get-transcription",
@@ -114,6 +116,10 @@ const electronAPI = {
     hideControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.HIDE_CONTROL_BAR),
     stopFromControlBar: () =>
       ipcRenderer.invoke(IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR),
+    minimizeMainWindow: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.MINIMIZE_MAIN_WINDOW),
+    restoreMainWindow: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.RESTORE_MAIN_WINDOW),
     onStopRequest: (callback: () => void) => {
       const listener = () => callback();
       ipcRenderer.on("stop-recording-request", listener);

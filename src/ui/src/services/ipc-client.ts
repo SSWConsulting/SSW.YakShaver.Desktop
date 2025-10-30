@@ -53,6 +53,8 @@ declare global {
         showControlBar: () => Promise<{ success: boolean }>;
         hideControlBar: () => Promise<{ success: boolean }>;
         stopFromControlBar: () => Promise<{ success: boolean }>;
+        minimizeMainWindow: () => Promise<{ success: boolean }>;
+        restoreMainWindow: () => Promise<{ success: boolean }>;
         onStopRequest: (callback: () => void) => () => void;
       };
       controlBar: {

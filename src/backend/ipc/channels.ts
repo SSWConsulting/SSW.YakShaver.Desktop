@@ -25,6 +25,8 @@ export const IPC_CHANNELS = {
   SHOW_CONTROL_BAR: "show-control-bar",
   HIDE_CONTROL_BAR: "hide-control-bar",
   RECORDING_TIME_UPDATE: "recording-time-update",
+  MINIMIZE_MAIN_WINDOW: "minimize-main-window",
+  RESTORE_MAIN_WINDOW: "restore-main-window",
 
   // OpenAI
   OPENAI_GET_TRANSCRIPTION: "openai:get-transcription",

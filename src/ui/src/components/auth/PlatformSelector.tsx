@@ -1,9 +1,11 @@
-import { FaYoutube } from "react-icons/fa";
 import { X } from "lucide-react";
+import { useEffect } from "react";
+import { FaYoutube } from "react-icons/fa";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
+import { useCountdown } from "../../hooks/useCountdown";
 import { AuthStatus } from "../../types";
 
 interface PlatformSelectorProps {
@@ -12,19 +14,47 @@ interface PlatformSelectorProps {
 }
 
 export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelectorProps) => {
-  const { authState, isLoading, startAuth, disconnect } = useYouTubeAuth();
+  const { authState, startAuth, disconnect } = useYouTubeAuth();
+  const {
+    countdown,
+    isActive: isConnecting,
+    start: startCountdown,
+    reset: resetCountdown,
+  } = useCountdown({
+    initialSeconds: 60,
+  });
 
   const { status, userInfo } = authState;
   const isConnected = status === AuthStatus.AUTHENTICATED;
-  const isAuthenticating = status === AuthStatus.AUTHENTICATING;
-  const isDisabled = isLoading || isAuthenticating;
+
+  // Reset countdown when user successfully connects
+  useEffect(() => {
+    if (isConnected) {
+      resetCountdown();
+    }
+  }, [isConnected, resetCountdown]);
 
   const handleAction = async () => {
-    await (isConnected ? disconnect() : startAuth());
-    onClose();
+    if (isConnected) {
+      await disconnect();
+      onClose();
+    } else {
+      startCountdown();
+      try {
+        await startAuth();
+      } finally {
+        resetCountdown();
+      }
+    }
   };
 
-  const buttonText = isAuthenticating ? "Connecting..." : isConnected ? "Disconnect" : "Connect";
+  const getButtonText = () => {
+    if (isConnected) return "Disconnect";
+    if (isConnecting) return `Connecting... (${countdown}s)`;
+    return "Connect";
+  };
+
+  const buttonText = getButtonText();
   const buttonStyle = isConnected
     ? "bg-white/10 text-white border border-white/20 hover:bg-white/20"
     : "bg-white text-black hover:bg-gray-200";
@@ -66,7 +96,7 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
                 variant={isConnected ? "outline" : "secondary"}
                 size="sm"
                 onClick={handleAction}
-                disabled={isDisabled}
+                disabled={isConnecting && !isConnected}
                 className={buttonStyle}
               >
                 {buttonText}

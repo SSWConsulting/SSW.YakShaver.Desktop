@@ -4,8 +4,8 @@ import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, UploadStatus } from "../../types";
 import { McpServerManager } from "../mcp/McpServerManager";
-import { CustomPromptDialog } from "../settings/CustomPromptDialog";
 import { OpenAIKeyManager } from "../openai/OpenAIKeyManager";
+import { CustomPromptDialog } from "../settings/CustomPromptDialog";
 import { Button } from "../ui/button";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
@@ -22,9 +22,7 @@ export function ScreenRecorder() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(
-    null,
-  );
+  const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
@@ -33,6 +31,7 @@ export function ScreenRecorder() {
     if (result) {
       setRecordedVideo(result);
       setPreviewOpen(true);
+      await window.electronAPI.screenRecording.restoreMainWindow();
     }
   }, [stop]);
 
@@ -41,8 +40,7 @@ export function ScreenRecorder() {
   };
 
   useEffect(() => {
-    const cleanup =
-      window.electronAPI.screenRecording.onStopRequest(handleStopRecording);
+    const cleanup = window.electronAPI.screenRecording.onStopRequest(handleStopRecording);
     return cleanup;
   }, [handleStopRecording]);
 
@@ -85,9 +83,7 @@ export function ScreenRecorder() {
             };
 
       setUploadResult(result);
-      setUploadStatus(
-        result.success ? UploadStatus.SUCCESS : UploadStatus.ERROR,
-      );
+      setUploadStatus(result.success ? UploadStatus.SUCCESS : UploadStatus.ERROR);
 
       if (result.success) {
         toast.success("Video uploaded successfully!");
