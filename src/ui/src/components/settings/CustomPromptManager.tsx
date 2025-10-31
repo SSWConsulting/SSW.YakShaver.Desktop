@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { CustomPrompt } from "@/types";
 import { ipcClient } from "../../services/ipc-client";
@@ -27,14 +27,13 @@ import { Input } from "../ui/input";
 import { Separator } from "../ui/separator";
 import { Textarea } from "../ui/textarea";
 import { ScrollArea } from "../ui/scroll-area";
+import { Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { Label } from "../ui/label";
 
 type ViewMode = "list" | "edit" | "create";
 
 export function CustomPromptManager() {
-  const nameInputId = useId();
-  const contentInputId = useId();
   const [prompts, setPrompts] = useState<CustomPrompt[]>([]);
   const [activePromptId, setActivePromptId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -188,7 +187,7 @@ export function CustomPromptManager() {
                       </Badge>
                     )}
                     {prompt.id === activePromptId && (
-                      <Badge className="text-xs bg-green-600 hover:bg-green-700">Active</Badge>
+                      <Badge className="text-xs bg-green-400/10 text-green-400 border-green-400/30 hover:bg-green-400/20">Active</Badge>
                     )}
                   </div>
                   <p className="text-white/50 text-sm line-clamp-2">
@@ -231,15 +230,16 @@ export function CustomPromptManager() {
       </Button>
 
       <div className="flex flex-col gap-2 shrink-0">
-        <Label htmlFor={nameInputId} className="text-white text-sm font-medium">
+        <Label htmlFor="prompt-name" className="text-white/90 text-sm">
           Prompt Name *
         </Label>
         <Input
-          id={nameInputId}
+          id="prompt-name"
           value={formName}
           onChange={(e) => setFormName(e.target.value)}
           placeholder="e.g., Documentation Writer, Code Reviewer"
           disabled={editingPrompt?.isDefault}
+          className="bg-black/40 border-white/20"
         />
         {editingPrompt?.isDefault && (
           <p className="text-white/50 text-xs">Default prompt name cannot be changed</p>
@@ -247,52 +247,58 @@ export function CustomPromptManager() {
       </div>
 
       <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-hidden">
-        <Label htmlFor={contentInputId} className="text-white text-sm font-medium shrink-0">
+        <Label htmlFor="prompt-instructions" className="text-white/90 text-sm shrink-0">
           Prompt Instructions
         </Label>
         <Textarea
-          id={contentInputId}
+          id="prompt-instructions"
           value={formContent}
           onChange={(e) => setFormContent(e.target.value)}
           placeholder="Enter your custom instructions here..."
-          className="resize-none flex-1 max-h-50 overflow-y-auto font-mono text-sm"
+          className="resize-none flex-1 max-h-50 overflow-y-auto font-mono text-sm bg-black/40 border-white/20"
         />
         <p className="text-white/50 text-xs shrink-0">
           These instructions will be appended to the task execution system prompt
         </p>
       </div>
 
-      <div className="flex justify-between gap-3 pt-4 border-t border-white/10 shrink-0">
+      <div className="flex justify-between gap-2 pt-4 border-t border-white/10 shrink-0">
         {editingPrompt && !editingPrompt.isDefault && (
           <Button
             onClick={() => handleDelete(editingPrompt)}
-            variant="outline"
+            variant="destructive"
+            size="sm"
             disabled={loading}
-            className="bg-red-900/20 text-red-400 border-red-700 hover:bg-red-900/40"
+            className="cursor-pointer"
           >
+            <Trash2 className="w-4 h-4 mr-2" />
             Delete
           </Button>
         )}
-        <div className="flex gap-3 ml-auto">
+        <div className="flex gap-2 ml-auto">
           <Button
-            variant="outline"
+            variant="secondary"
+            size="sm"
             onClick={() => setViewMode("list")}
-            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
+            className="cursor-pointer"
           >
             Cancel
           </Button>
           <Button
             onClick={() => handleSave(false)}
             disabled={loading || !formName.trim()}
-            variant="outline"
-            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
+            variant="secondary"
+            size="sm"
+            className="cursor-pointer"
           >
             {loading ? "Saving..." : "Save"}
           </Button>
           <Button
             onClick={() => handleSave(true)}
             disabled={loading || !formName.trim()}
-            className="bg-white text-black hover:bg-gray-100"
+            variant="secondary"
+            size="sm"
+            className="cursor-pointer"
           >
             {loading ? "Saving..." : "Save & Use"}
           </Button>
@@ -312,14 +318,14 @@ export function CustomPromptManager() {
           className="flex flex-col max-w-4xl max-h-[90vh] bg-neutral-900 text-neutral-100 border-neutral-800"
         >
           <DialogHeader className="shrink-0">
-            <DialogTitle className="text-white text-2xl">
+            <DialogTitle className="text-white text-xl">
               {viewMode === "list"
                 ? "Custom Prompt Manager"
                 : viewMode === "create"
                   ? "Create New Prompt"
                   : "Edit Prompt"}
             </DialogTitle>
-            <DialogDescription className="text-white/70 text-base">
+            <DialogDescription className="text-white/80 text-sm">
               {viewMode === "list"
                 ? "Manage your custom prompts and select which one to use for task execution"
                 : "Configure your custom instructions for the AI agent"}
@@ -346,8 +352,9 @@ export function CustomPromptManager() {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              className="bg-red-600 text-white hover:bg-red-700"
+              className="bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
             >
+              <Trash2 className="w-4 h-4" />
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
