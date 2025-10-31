@@ -42,7 +42,7 @@
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^11.0.2",
     "google-auth-library": "^10.3.0",
-    "googleapis": "^160.0.0",
+    "googleapis": "^164.1.0",
     "openai": "^6.3.0",
     "tmp": "^0.2.5",
     "update-electron-app": "^3.1.1"
