@@ -13,7 +13,7 @@ interface ParsedResult {
 function JsonResultDisplay({ data }: { data: ParsedResult }) {
   const { copyToClipboard } = useClipboard();
   const entries = Object.entries(data).filter(
-    ([key]) => key !== "Status" && key !== "IssueNumber",
+    ([key]) => key !== "Status" && key !== "IssueNumber"
   );
 
   const renderValue = (value: unknown) => {
@@ -63,8 +63,10 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
       return (
         <ul className="space-y-1.5 list-disc list-inside text-white/90">
           {value.map((item, index) => (
-            <li key={`${String(item)}-${index}`} className="text-sm">
-              {String(item)}
+            <li key={`item-${index}`} className="text-sm">
+              {typeof item === "object" && item !== null
+                ? renderValue(item)
+                : String(item)}
             </li>
           ))}
         </ul>
@@ -128,8 +130,20 @@ export function FinalResultPanel() {
         ? finalOutput
         : JSON.stringify(finalOutput, null, 2);
     try {
-      const parsed =
-        typeof finalOutput === "string" ? JSON.parse(finalOutput) : finalOutput;
+      let stringToParse =
+        typeof finalOutput === "string"
+          ? finalOutput
+          : JSON.stringify(finalOutput);
+
+      // Strip markdown code fence if present
+      stringToParse = stringToParse
+        .replace(/^```json\s*\n?/i, "")
+        .replace(/\n?```\s*$/i, "");
+
+      // Clean up any remaining whitespace
+      stringToParse = stringToParse.trim();
+
+      const parsed = JSON.parse(stringToParse);
       return { parsed, raw, isJson: true };
     } catch {
       return { parsed: null, raw, isJson: false };
