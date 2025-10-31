@@ -16,7 +16,7 @@ export class SettingsIPCHandlers {
     );
     ipcMain.handle(
       IPC_CHANNELS.SETTINGS_UPDATE_PROMPT,
-      (_, id: string, updates: Partial<Pick<CustomPrompt, "name" | "content">>) =>
+      (_, id: string, updates: Partial<Pick<CustomPrompt, "name" | "description" | "content">>) =>
         this.store.updatePrompt(id, updates),
     );
     ipcMain.handle(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, (_, id: string) =>

@@ -3,6 +3,7 @@ import Store from "electron-store";
 export interface CustomPrompt {
   id: string;
   name: string;
+  description?: string;
   content: string;
   isDefault?: boolean;
   createdAt: number;

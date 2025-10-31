@@ -27,7 +27,7 @@ import { Input } from "../ui/input";
 import { Separator } from "../ui/separator";
 import { Textarea } from "../ui/textarea";
 import { ScrollArea } from "../ui/scroll-area";
-import { Trash2 } from "lucide-react";
+import { Trash2, Search } from "lucide-react";
 import clsx from "clsx";
 import { Label } from "../ui/label";
 
@@ -39,11 +39,15 @@ export function CustomPromptManager() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingPrompt, setEditingPrompt] = useState<CustomPrompt | null>(null);
   const [formName, setFormName] = useState("");
+  const [formDescription, setFormDescription] = useState("");
   const [formContent, setFormContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [promptToDelete, setPromptToDelete] = useState<CustomPrompt | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [unsavedChangesDialogOpen, setUnsavedChangesDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   const loadPrompts = useCallback(async () => {
     try {
@@ -65,15 +69,47 @@ export function CustomPromptManager() {
     }
   }, [open, loadPrompts]);
 
+  const hasUnsavedChanges = () => {
+    if (viewMode === "list") return false;
+    
+    if (viewMode === "create") {
+      return formName.trim() !== "" || formDescription.trim() !== "" || formContent.trim() !== "";
+    }
+    
+    if (editingPrompt) {
+      return (
+        formName !== editingPrompt.name ||
+        formDescription !== (editingPrompt.description || "") ||
+        formContent !== editingPrompt.content
+      );
+    }
+    
+    return false;
+  };
+
   const handleCreateNew = () => {
     setFormName("");
+    setFormDescription("");
     setFormContent("");
     setEditingPrompt(null);
     setViewMode("create");
   };
 
   const handleEdit = (prompt: CustomPrompt) => {
+    if (hasUnsavedChanges()) {
+      setPendingAction(() => () => {
+        setFormName(prompt.name);
+        setFormDescription(prompt.description || "");
+        setFormContent(prompt.content);
+        setEditingPrompt(prompt);
+        setViewMode("edit");
+      });
+      setUnsavedChangesDialogOpen(true);
+      return;
+    }
+    
     setFormName(prompt.name);
+    setFormDescription(prompt.description || "");
     setFormContent(prompt.content);
     setEditingPrompt(prompt);
     setViewMode("edit");
@@ -90,12 +126,17 @@ export function CustomPromptManager() {
       let savedPromptId: string;
       
       if (viewMode === "create") {
-        const newPrompt = await ipcClient.settings.addPrompt({ name: formName, content: formContent });
+        const newPrompt = await ipcClient.settings.addPrompt({ 
+          name: formName, 
+          description: formDescription,
+          content: formContent 
+        });
         savedPromptId = newPrompt.id;
         toast.success("Prompt created successfully");
       } else if (editingPrompt) {
         await ipcClient.settings.updatePrompt(editingPrompt.id, {
           name: formName,
+          description: formDescription,
           content: formContent,
         });
         savedPromptId = editingPrompt.id;
@@ -156,9 +197,41 @@ export function CustomPromptManager() {
     }
   };
 
+  const filteredPrompts = prompts.filter((prompt) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      prompt.name.toLowerCase().includes(query) ||
+      prompt.description?.toLowerCase().includes(query) ||
+      prompt.content.toLowerCase().includes(query)
+    );
+  });
+
+  const handleBackToList = () => {
+    if (hasUnsavedChanges()) {
+      setPendingAction(() => () => {
+        setViewMode("list");
+        setSearchQuery("");
+      });
+      setUnsavedChangesDialogOpen(true);
+      return;
+    }
+    setViewMode("list");
+    setSearchQuery("");
+  };
+
   const renderListView = () => (
     <div className="flex flex-col gap-4 h-full overflow-hidden">
-      <div className="flex justify-end shrink-0">
+      <div className="flex gap-2 shrink-0">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/40" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search prompts..."
+            className="pl-9 bg-black/40 border-white/20"
+          />
+        </div>
         <Button onClick={handleCreateNew} variant="secondary" size="sm">
           Add New Prompt
         </Button>
@@ -166,7 +239,12 @@ export function CustomPromptManager() {
       <Separator className="bg-white/10 shrink-0" />
       <ScrollArea className="h-[50vh]">
         <div className="flex flex-col space-y-4 pr-4">
-          {prompts.map((prompt) => (
+          {filteredPrompts.length === 0 ? (
+            <p className="text-white/50 text-center py-8">
+              {searchQuery ? "No prompts found matching your search" : "No prompts available"}
+            </p>
+          ) : (
+            filteredPrompts.map((prompt) => (
             <Card
               key={prompt.id}
               className={clsx(
@@ -190,9 +268,11 @@ export function CustomPromptManager() {
                       <Badge className="text-xs bg-green-400/10 text-green-400 border-green-400/30 hover:bg-green-400/20">Active</Badge>
                     )}
                   </div>
-                  <p className="text-white/50 text-sm line-clamp-2">
-                    {prompt.content || "No content"}
-                  </p>
+                  {prompt.description && (
+                    <p className="text-white/70 text-sm line-clamp-2">
+                      {prompt.description}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-2 shrink-0">
@@ -203,7 +283,7 @@ export function CustomPromptManager() {
                       size="sm"
                       className="cursor-pointer"
                     >
-                      Use
+                      Select
                     </Button>
                   )}
                   <Button
@@ -217,7 +297,8 @@ export function CustomPromptManager() {
                 </div>
               </div>
             </Card>
-          ))}
+            ))
+          )}
         </div>
       </ScrollArea>
     </div>
@@ -240,6 +321,22 @@ export function CustomPromptManager() {
         {editingPrompt?.isDefault && (
           <p className="text-white/50 text-xs">Default prompt name cannot be changed</p>
         )}
+      </div>
+
+      <div className="flex flex-col gap-2 shrink-0">
+        <Label htmlFor="prompt-description" className="text-white/90 text-sm">
+          Description
+        </Label>
+        <Input
+          id="prompt-description"
+          value={formDescription}
+          onChange={(e) => setFormDescription(e.target.value)}
+          placeholder="Brief description of what this prompt does"
+          className="bg-black/40 border-white/20"
+        />
+        <p className="text-white/50 text-xs">
+          This will be shown in the prompt card for quick reference
+        </p>
       </div>
 
       <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-hidden">
@@ -265,7 +362,7 @@ export function CustomPromptManager() {
             variant="destructive"
             size="sm"
             disabled={loading}
-            className="cursor-pointer"
+            className="cursor-pointer border-2 border-red-500 hover:border-red-600"
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Delete
@@ -275,7 +372,7 @@ export function CustomPromptManager() {
           <Button
             variant="default"
             size="sm"
-            onClick={() => setViewMode("list")}
+            onClick={handleBackToList}
             className="cursor-pointer"
           >
             Cancel
@@ -303,9 +400,39 @@ export function CustomPromptManager() {
     </div>
   );
 
+  const handleDialogClose = (isOpen: boolean) => {
+    if (!isOpen && hasUnsavedChanges()) {
+      setPendingAction(() => () => {
+        setOpen(false);
+        setViewMode("list");
+        setSearchQuery("");
+      });
+      setUnsavedChangesDialogOpen(true);
+      return;
+    }
+    setOpen(isOpen);
+    if (!isOpen) {
+      setViewMode("list");
+      setSearchQuery("");
+    }
+  };
+
+  const handleConfirmUnsavedChanges = () => {
+    setUnsavedChangesDialogOpen(false);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  };
+
+  const handleCancelUnsavedChanges = () => {
+    setUnsavedChangesDialogOpen(false);
+    setPendingAction(null);
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleDialogClose}>
         <DialogTrigger asChild>
           <Button variant="secondary">Custom Prompts</Button>
         </DialogTrigger>
@@ -332,6 +459,31 @@ export function CustomPromptManager() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={unsavedChangesDialogOpen} onOpenChange={setUnsavedChangesDialogOpen}>
+        <AlertDialogContent className="bg-neutral-900 text-neutral-100 border-neutral-800">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/70">
+              You have unsaved changes. Are you sure you want to discard them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={handleCancelUnsavedChanges}
+              className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
+            >
+              Keep Editing
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmUnsavedChanges}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Discard Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="bg-neutral-900 text-neutral-100 border-neutral-800">

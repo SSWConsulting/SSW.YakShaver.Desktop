@@ -100,10 +100,10 @@ declare global {
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;
         getActivePrompt: () => Promise<CustomPrompt | null>;
-        addPrompt: (prompt: { name: string; content: string }) => Promise<CustomPrompt>;
+        addPrompt: (prompt: { name: string; description?: string; content: string }) => Promise<CustomPrompt>;
         updatePrompt: (
           id: string,
-          updates: { name?: string; content?: string },
+          updates: { name?: string; description?: string; content?: string },
         ) => Promise<boolean>;
         deletePrompt: (id: string) => Promise<boolean>;
         setActivePrompt: (id: string) => Promise<boolean>;
