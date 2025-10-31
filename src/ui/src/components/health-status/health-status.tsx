@@ -1,5 +1,5 @@
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import * as React from "react";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface HealthStatusProps extends React.HTMLAttributes<HTMLDivElement> {

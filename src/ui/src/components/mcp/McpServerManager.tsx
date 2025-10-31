@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../services/ipc-client";
+import { HealthStatus } from "../health-status/health-status";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +25,6 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
-import { HealthStatus } from "../ui/health-status";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 
 type ViewMode = "list" | "add" | "edit";
