@@ -199,18 +199,18 @@ export function CustomPromptManager() {
                   {prompt.id !== activePromptId && (
                     <Button
                       onClick={() => handleSetActive(prompt.id)}
-                      variant="outline"
+                      variant="default"
                       size="sm"
-                      className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
+                      className="cursor-pointer"
                     >
                       Use
                     </Button>
                   )}
                   <Button
                     onClick={() => handleEdit(prompt)}
-                    variant="outline"
+                    variant="default"
                     size="sm"
-                    className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
+                    className="cursor-pointer"
                   >
                     Edit
                   </Button>
@@ -225,10 +225,6 @@ export function CustomPromptManager() {
 
   const renderFormView = () => (
     <div className="flex flex-col gap-4 h-full">
-      <Button onClick={() => setViewMode("list")} variant="ghost" className="self-start shrink-0">
-        ← Back to list
-      </Button>
-
       <div className="flex flex-col gap-2 shrink-0">
         <Label htmlFor="prompt-name" className="text-white/90 text-sm">
           Prompt Name *
@@ -277,7 +273,7 @@ export function CustomPromptManager() {
         )}
         <div className="flex gap-2 ml-auto">
           <Button
-            variant="secondary"
+            variant="default"
             size="sm"
             onClick={() => setViewMode("list")}
             className="cursor-pointer"
