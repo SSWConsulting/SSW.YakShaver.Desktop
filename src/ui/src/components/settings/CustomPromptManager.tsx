@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
+import type { CustomPrompt } from "@/types";
 import { ipcClient } from "../../services/ipc-client";
-import { Button } from "../ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,20 +12,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
-import { Input } from "../ui/input";
-import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
-import { Separator } from "../ui/separator";
+import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-
-interface CustomPrompt {
-  id: string;
-  name: string;
-  content: string;
-  isDefault?: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog";
+import { Input } from "../ui/input";
+import { Separator } from "../ui/separator";
+import { Textarea } from "../ui/textarea";
+import { ScrollArea } from "../ui/scroll-area";
+import clsx from "clsx";
+import { Label } from "../ui/label";
 
 type ViewMode = "list" | "edit" | "create";
 
@@ -153,125 +148,114 @@ export function CustomPromptManager() {
   };
 
   const renderListView = () => (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-between items-center">
-        <p className="text-white/70 text-sm">
-          Select an active prompt or create custom prompts for task execution
-        </p>
-        <Button
-          onClick={handleCreateNew}
-          className="bg-white text-black hover:bg-gray-100"
-          size="sm"
-        >
-          + New Prompt
+    <div className="flex flex-col gap-4 h-full">
+      <div className="flex justify-end shrink-0">
+        <Button onClick={handleCreateNew} variant="secondary" size="sm">
+          Add New Prompt
         </Button>
       </div>
-
-      <Separator className="bg-white/10" />
-
-      <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto">
-        {prompts.map((prompt) => (
-          <Card
-            key={prompt.id}
-            className={`p-4 bg-black/30 border transition-colors ${
-              prompt.id === activePromptId
-                ? "border-white/40 bg-white/5"
-                : "border-white/20 hover:border-white/30"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-white font-medium truncate">{prompt.name}</h3>
-                  {prompt.isDefault && (
-                    <Badge variant="secondary" className="text-xs">
-                      Default
-                    </Badge>
-                  )}
-                  {prompt.id === activePromptId && (
-                    <Badge className="text-xs bg-green-600 hover:bg-green-700">Active</Badge>
-                  )}
+      <Separator className="bg-white/10 shrink-0" />
+      <ScrollArea className="h-100">
+        <div className="flex flex-col space-y-4 pr-4">
+          {prompts.map((prompt) => (
+            <Card
+              key={prompt.id}
+              className={clsx(
+                `p-4 bg-black/30 border transition-colors ${
+                  prompt.id === activePromptId
+                    ? "border-white/40 bg-white/5"
+                    : "border-white/20 hover:border-white/30"
+                }`,
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-white font-medium truncate">{prompt.name}</h3>
+                    {prompt.isDefault && (
+                      <Badge variant="secondary" className="text-xs">
+                        Default
+                      </Badge>
+                    )}
+                    {prompt.id === activePromptId && (
+                      <Badge className="text-xs bg-green-600 hover:bg-green-700">Active</Badge>
+                    )}
+                  </div>
+                  <p className="text-white/50 text-sm line-clamp-2">
+                    {prompt.content || "No content"}
+                  </p>
                 </div>
-                <p className="text-white/50 text-sm line-clamp-2">
-                  {prompt.content || "No content"}
-                </p>
-              </div>
 
-              <div className="flex gap-2 shrink-0">
-                {prompt.id !== activePromptId && (
+                <div className="flex gap-2 shrink-0">
+                  {prompt.id !== activePromptId && (
+                    <Button
+                      onClick={() => handleSetActive(prompt.id)}
+                      variant="outline"
+                      size="sm"
+                      className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
+                    >
+                      Use
+                    </Button>
+                  )}
                   <Button
-                    onClick={() => handleSetActive(prompt.id)}
+                    onClick={() => handleEdit(prompt)}
                     variant="outline"
                     size="sm"
                     className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
                   >
-                    Use
+                    Edit
                   </Button>
-                )}
-                <Button
-                  onClick={() => handleEdit(prompt)}
-                  variant="outline"
-                  size="sm"
-                  className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
-                >
-                  Edit
-                </Button>
-                {!prompt.isDefault && (
-                  <Button
-                    onClick={() => handleDelete(prompt)}
-                    variant="outline"
-                    size="sm"
-                    className="bg-red-900/20 text-red-400 border-red-700 hover:bg-red-900/40"
-                  >
-                    Delete
-                  </Button>
-                )}
+                  {!prompt.isDefault && (
+                    <Button
+                      onClick={() => handleDelete(prompt)}
+                      variant="outline"
+                      size="sm"
+                      className="bg-red-900/20 text-red-400 border-red-700 hover:bg-red-900/40"
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </Card>
+          ))}
+        </div>
+      </ScrollArea>
     </div>
   );
 
   const renderFormView = () => (
-    <div className="flex flex-col gap-6">
-      <Button
-        onClick={() => setViewMode("list")}
-        variant="ghost"
-        className="self-start text-white/70 hover:text-white"
-      >
+    <div className="flex flex-col gap-4">
+      <Button onClick={() => setViewMode("list")} variant="ghost" className="self-start">
         ← Back to list
       </Button>
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <label htmlFor={nameInputId} className="text-white text-sm font-medium">
+          <Label htmlFor={nameInputId} className="text-white text-sm font-medium">
             Prompt Name *
-          </label>
+          </Label>
           <Input
             id={nameInputId}
             value={formName}
             onChange={(e) => setFormName(e.target.value)}
             placeholder="e.g., Documentation Writer, Code Reviewer"
-            className="bg-black/30 border-white/20 text-white placeholder:text-white/40"
             disabled={editingPrompt?.isDefault}
           />
           {editingPrompt?.isDefault && (
             <p className="text-white/50 text-xs">Default prompt name cannot be changed</p>
           )}
         </div>
-
         <div className="flex flex-col gap-2">
-          <label htmlFor={contentInputId} className="text-white text-sm font-medium">
+          <Label htmlFor={contentInputId} className="text-white text-sm font-medium">
             Prompt Instructions
-          </label>
+          </Label>
           <Textarea
             id={contentInputId}
             value={formContent}
             onChange={(e) => setFormContent(e.target.value)}
             placeholder="Enter your custom instructions here..."
-            className="min-h-[300px] bg-black/30 border-white/20 text-white placeholder:text-white/40 focus:border-white/40 font-mono text-sm"
+            className="resize-none h-full font-mono text-sm"
           />
           <p className="text-white/50 text-xs">
             These instructions will be appended to the task execution system prompt
@@ -292,7 +276,7 @@ export function CustomPromptManager() {
           disabled={loading || !formName.trim()}
           className="bg-white text-black hover:bg-gray-100"
         >
-          {loading ? "Saving..." : viewMode === "create" ? "Create" : "Save Changes"}
+          {loading ? "Saving..." : "Save"}
         </Button>
       </div>
     </div>
@@ -306,7 +290,7 @@ export function CustomPromptManager() {
         </DialogTrigger>
         <DialogContent
           showCloseButton
-          className="max-w-4xl max-h-[90vh] overflow-y-auto bg-neutral-900 text-neutral-100 border-neutral-800"
+          className="flex flex-col max-w-4xl max-h-[90vh] bg-neutral-900 text-neutral-100 border-neutral-800 overflow-hidden"
         >
           <DialogHeader>
             <DialogTitle className="text-white text-2xl">
@@ -322,8 +306,9 @@ export function CustomPromptManager() {
                 : "Configure your custom instructions for the AI agent"}
             </DialogDescription>
           </DialogHeader>
-
-          <div className="mt-4">{viewMode === "list" ? renderListView() : renderFormView()}</div>
+          <div className="flex-1 min-h-0">
+            {viewMode === "list" ? renderListView() : renderFormView()}
+          </div>
         </DialogContent>
       </Dialog>
 

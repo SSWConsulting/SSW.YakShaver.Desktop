@@ -3,6 +3,7 @@ import type {
   AuthResult,
   AuthState,
   ConvertVideoToMp3Result,
+  CustomPrompt,
   LLMConfig,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
@@ -97,32 +98,9 @@ declare global {
         removeServer: (name: string) => Promise<{ success: boolean }>;
       };
       settings: {
-        getAllPrompts: () => Promise<
-          Array<{
-            id: string;
-            name: string;
-            content: string;
-            isDefault?: boolean;
-            createdAt: number;
-            updatedAt: number;
-          }>
-        >;
-        getActivePrompt: () => Promise<{
-          id: string;
-          name: string;
-          content: string;
-          isDefault?: boolean;
-          createdAt: number;
-          updatedAt: number;
-        } | null>;
-        addPrompt: (prompt: { name: string; content: string }) => Promise<{
-          id: string;
-          name: string;
-          content: string;
-          isDefault?: boolean;
-          createdAt: number;
-          updatedAt: number;
-        }>;
+        getAllPrompts: () => Promise<Array<CustomPrompt>>;
+        getActivePrompt: () => Promise<CustomPrompt | null>;
+        addPrompt: (prompt: { name: string; content: string }) => Promise<CustomPrompt>;
         updatePrompt: (
           id: string,
           updates: { name?: string; content?: string },

@@ -114,3 +114,12 @@ export interface WorkflowProgress {
   finalOutput?: string;
   error?: string;
 }
+
+export interface CustomPrompt {
+  id: string;
+  name: string;
+  content: string;
+  isDefault?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
