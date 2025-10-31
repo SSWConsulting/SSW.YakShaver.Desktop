@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
-import { AuthStatus, UploadStatus, VideoUploadResult } from "../../types";
+import { AuthStatus, UploadStatus, type VideoUploadResult } from "../../types";
+import { LLMKeyManager } from "../llm/LLMKeyManager";
 import { McpServerManager } from "../mcp/McpServerManager";
-import { OpenAIKeyManager } from "../openai/OpenAIKeyManager";
 import { CustomPromptDialog } from "../settings/CustomPromptDialog";
 import { Button } from "../ui/button";
 import { SourcePickerDialog } from "./SourcePickerDialog";
@@ -22,7 +22,9 @@ export function ScreenRecorder() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
+  const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(
+    null
+  );
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
@@ -40,7 +42,8 @@ export function ScreenRecorder() {
   };
 
   useEffect(() => {
-    const cleanup = window.electronAPI.screenRecording.onStopRequest(handleStopRecording);
+    const cleanup =
+      window.electronAPI.screenRecording.onStopRequest(handleStopRecording);
     return cleanup;
   }, [handleStopRecording]);
 
@@ -72,12 +75,16 @@ export function ScreenRecorder() {
       // TODO: refactor - below logic should be moved to the backend, in a linear process pipeline, to avoid back and forth inter process communication
       // for the visual update we could use webContents.send() to notify the UI of progress updates
       // we need to refactor all the similar logic in other places as well
-      const videoUploadResult: VideoUploadResult = await window.electronAPI.youtube.uploadRecordedVideo(filePath);
-      await window.electronAPI.screenRecording.triggerTranscription(filePath, videoUploadResult);
+      const videoUploadResult: VideoUploadResult =
+        await window.electronAPI.youtube.uploadRecordedVideo(filePath);
+      await window.electronAPI.screenRecording.triggerTranscription(
+        filePath,
+        videoUploadResult
+      );
 
       setUploadResult(videoUploadResult);
       setUploadStatus(
-        videoUploadResult.success ? UploadStatus.SUCCESS : UploadStatus.ERROR,
+        videoUploadResult.success ? UploadStatus.SUCCESS : UploadStatus.ERROR
       );
 
       if (videoUploadResult.success) {
@@ -110,7 +117,7 @@ export function ScreenRecorder() {
           </Button>
           <McpServerManager />
           <CustomPromptDialog />
-          <OpenAIKeyManager />
+          <LLMKeyManager />
         </div>
         {!isAuthenticated && (
           <p className="text-sm text-white/60 text-center">

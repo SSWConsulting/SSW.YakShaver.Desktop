@@ -152,7 +152,9 @@ export function WorkflowProgressPanel() {
                 <XCircle className="w-5 h-5 text-red-400" />
                 <span className="text-red-400 font-medium">Error</span>
               </div>
-              <p className="text-white/70 text-sm">{progress.error}</p>
+              <p className="text-white/70 text-sm break-words whitespace-normal max-w-full">
+                {progress.error}
+              </p>
             </div>
           )}
         </CardContent>

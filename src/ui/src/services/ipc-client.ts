@@ -3,6 +3,7 @@ import type {
   AuthResult,
   AuthState,
   ConvertVideoToMp3Result,
+  HealthStatusInfo,
   LLMConfig,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
@@ -29,6 +30,7 @@ declare global {
         setConfig: (config: LLMConfig) => Promise<{ success: boolean }>;
         getConfig: () => Promise<LLMConfig | null>;
         clearConfig: () => Promise<{ success: boolean }>;
+        checkHealth: () => Promise<HealthStatusInfo>;
       };
       config: {
         hasYouTube: () => Promise<boolean>;
@@ -39,7 +41,7 @@ declare global {
         selectOutputDirectory: () => Promise<string | null>;
         convertVideoToMp3: (
           inputPath: string,
-          outputPath: string,
+          outputPath: string
         ) => Promise<ConvertVideoToMp3Result>;
       };
       screenRecording: {
@@ -47,7 +49,10 @@ declare global {
         stop: (videoData: Uint8Array) => Promise<ScreenRecordingStopResult>;
         listSources: () => Promise<ScreenSource[]>;
         cleanupTempFile: (filePath: string) => Promise<void>;
-        triggerTranscription: (filePath: string, videoUploadResult: VideoUploadResult) => Promise<void>;
+        triggerTranscription: (
+          filePath: string,
+          videoUploadResult: VideoUploadResult
+        ) => Promise<void>;
         showControlBar: () => Promise<{ success: boolean }>;
         hideControlBar: () => Promise<{ success: boolean }>;
         stopFromControlBar: () => Promise<{ success: boolean }>;
@@ -62,7 +67,9 @@ declare global {
         getTranscription: (audioFilePath: string) => Promise<string>;
         processTranscript: (transcript: string) => Promise<string>;
         onTranscriptionStarted: (callback: () => void) => () => void;
-        onTranscriptionCompleted: (callback: (transcript: string) => void) => () => void;
+        onTranscriptionCompleted: (
+          callback: (transcript: string) => void
+        ) => () => void;
         onTranscriptionError: (callback: (error: string) => void) => () => void;
       };
       workflow: {
@@ -77,7 +84,7 @@ declare global {
         processMessage: (
           prompt: string,
           videoUrl?: string,
-          options?: { serverFilter?: string[] },
+          options?: { serverFilter?: string[] }
         ) => Promise<{
           final: string | null;
           transcript: TranscriptEntry[];
@@ -90,12 +97,16 @@ declare global {
             message?: string;
             toolName?: string;
             serverName?: string;
-          }) => void,
+          }) => void
         ) => () => void;
         listServers: () => Promise<MCPServerConfig[]>;
         addServer: (config: MCPServerConfig) => Promise<{ success: boolean }>;
-        updateServer: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
+        updateServer: (
+          name: string,
+          config: MCPServerConfig
+        ) => Promise<{ success: boolean }>;
         removeServer: (name: string) => Promise<{ success: boolean }>;
+        checkServerHealth: (name: string) => Promise<HealthStatusInfo>;
       };
       settings: {
         getCustomPrompt: () => Promise<string>;

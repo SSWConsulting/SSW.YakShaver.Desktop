@@ -1,18 +1,18 @@
 import * as fs from "node:fs";
-import { type IpcMainInvokeEvent, ipcMain, BrowserWindow } from "electron";
+import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
+import type { VideoUploadResult } from "../services/auth/types";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
+import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import {
   INITIAL_SUMMARY_PROMPT,
   TASK_EXECUTION_PROMPT,
 } from "../services/openai/prompts";
-import { IPC_CHANNELS } from "./channels";
 import { RecordingService } from "../services/recording/recording-service";
-import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
-import { LlmStorage, type LLMConfig } from "../services/storage/llm-storage";
+import { type LLMConfig, LlmStorage } from "../services/storage/llm-storage";
 import { formatErrorMessage } from "../utils/error-utils";
-import { VideoUploadResult } from "../services/auth/types";
+import { IPC_CHANNELS } from "./channels";
 
 export class OpenAIIPCHandlers {
   private openAiService = OpenAIService.getInstance();
@@ -24,7 +24,7 @@ export class OpenAIIPCHandlers {
   constructor() {
     this.mcpOrchestrator = new MCPOrchestrator(
       { eagerCreate: true },
-      this.openAiService,
+      this.openAiService
     );
     this.registerHandlers();
     this.setupListeners();
@@ -42,7 +42,7 @@ export class OpenAIIPCHandlers {
             llmCfg.apiKey,
             llmCfg.endpoint,
             llmCfg.version,
-            llmCfg.deployment,
+            llmCfg.deployment
           );
         }
         return;
@@ -68,8 +68,8 @@ export class OpenAIIPCHandlers {
       files.map((file) =>
         fs.promises.unlink(file).catch((err) => {
           console.error(`Failed to delete ${file}: ${err}`);
-        }),
-      ),
+        })
+      )
     );
   }
 
@@ -82,7 +82,7 @@ export class OpenAIIPCHandlers {
       videoUploadResult,
       {
         systemPrompt: TASK_EXECUTION_PROMPT,
-      },
+      }
     );
     return result.final;
   }
@@ -102,7 +102,7 @@ export class OpenAIIPCHandlers {
           this.emitProgress("converting_audio");
           await this.ffmpegService.ConvertVideoToMp3(
             inputFilePath,
-            outputFilePath,
+            outputFilePath
           );
 
           this.emitProgress("transcribing");
@@ -113,15 +113,17 @@ export class OpenAIIPCHandlers {
           const intermediateOutput = await this.openAiService.generateOutput(
             INITIAL_SUMMARY_PROMPT,
             transcript,
-            { jsonMode: true },
+            { jsonMode: true }
           );
 
           this.emitProgress("executing_task", {
             transcript,
             intermediateOutput,
           });
-          const finalOutput =
-            await this.executeGeneratedTaskViaMCP(intermediateOutput, videoUploadResult);
+          const finalOutput = await this.executeGeneratedTaskViaMCP(
+            intermediateOutput,
+            videoUploadResult
+          );
 
           this.emitProgress("completed", {
             transcript,
@@ -133,7 +135,7 @@ export class OpenAIIPCHandlers {
         } finally {
           await this.cleanupTempFiles(inputFilePath, outputFilePath);
         }
-      },
+      }
     );
   }
 
@@ -143,7 +145,7 @@ export class OpenAIIPCHandlers {
       async (_event: IpcMainInvokeEvent, filePath: string) => {
         const transcript = await this.openAiService.transcribeAudio(filePath);
         return transcript;
-      },
+      }
     );
 
     ipcMain.handle(
@@ -154,18 +156,24 @@ export class OpenAIIPCHandlers {
           transcript,
           {
             jsonMode: true,
-          },
+          }
         );
-      },
+      }
     );
 
     ipcMain.handle(
       IPC_CHANNELS.WORKFLOW_RETRY_TASK_EXECUTION,
-      async (_event: IpcMainInvokeEvent, intermediateOutput: string, videoUploadResult: VideoUploadResult) => {
+      async (
+        _event: IpcMainInvokeEvent,
+        intermediateOutput: string,
+        videoUploadResult: VideoUploadResult
+      ) => {
         try {
           this.emitProgress("executing_task");
-          const finalOutput =
-            await this.executeGeneratedTaskViaMCP(intermediateOutput, videoUploadResult);
+          const finalOutput = await this.executeGeneratedTaskViaMCP(
+            intermediateOutput,
+            videoUploadResult
+          );
           this.emitProgress("completed", { finalOutput });
           return { success: true, finalOutput };
         } catch (error) {
@@ -173,7 +181,7 @@ export class OpenAIIPCHandlers {
           this.emitProgress("error", { error: errorMessage });
           return { success: false, error: errorMessage };
         }
-      },
+      }
     );
 
     ipcMain.handle(
@@ -190,11 +198,11 @@ export class OpenAIIPCHandlers {
             config.apiKey,
             config.endpoint,
             config.version,
-            config.deployment,
+            config.deployment
           );
         }
         return { success: true };
-      },
+      }
     );
 
     ipcMain.handle(IPC_CHANNELS.LLM_GET_CONFIG, async () => {
@@ -206,6 +214,10 @@ export class OpenAIIPCHandlers {
       await this.secureStorage.clearLLMConfig();
       this.openAiService.clearOpenAIClient();
       return { success: true };
+    });
+
+    ipcMain.handle(IPC_CHANNELS.LLM_CHECK_HEALTH, async () => {
+      return await this.openAiService.checkHealth();
     });
   }
 }
