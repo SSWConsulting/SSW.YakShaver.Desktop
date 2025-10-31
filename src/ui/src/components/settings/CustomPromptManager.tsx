@@ -225,59 +225,58 @@ export function CustomPromptManager() {
   );
 
   const renderFormView = () => (
-    <div className="flex flex-col gap-4 h-full overflow-hidden">
+    <div className="flex flex-col gap-4 h-full">
       <Button onClick={() => setViewMode("list")} variant="ghost" className="self-start shrink-0">
         ← Back to list
       </Button>
 
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor={nameInputId} className="text-white text-sm font-medium">
-            Prompt Name *
-          </Label>
-          <Input
-            id={nameInputId}
-            value={formName}
-            onChange={(e) => setFormName(e.target.value)}
-            placeholder="e.g., Documentation Writer, Code Reviewer"
-            disabled={editingPrompt?.isDefault}
-          />
-          {editingPrompt?.isDefault && (
-            <p className="text-white/50 text-xs">Default prompt name cannot be changed</p>
-          )}
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor={contentInputId} className="text-white text-sm font-medium">
-            Prompt Instructions
-          </Label>
-          <Textarea
-            id={contentInputId}
-            value={formContent}
-            onChange={(e) => setFormContent(e.target.value)}
-            placeholder="Enter your custom instructions here..."
-            className="resize-none h-80 font-mono text-sm"
-          />
-          <p className="text-white/50 text-xs">
-            These instructions will be appended to the task execution system prompt
-          </p>
-        </div>
+      <div className="flex flex-col gap-2 shrink-0">
+        <Label htmlFor={nameInputId} className="text-white text-sm font-medium">
+          Prompt Name *
+        </Label>
+        <Input
+          id={nameInputId}
+          value={formName}
+          onChange={(e) => setFormName(e.target.value)}
+          placeholder="e.g., Documentation Writer, Code Reviewer"
+          disabled={editingPrompt?.isDefault}
+        />
+        {editingPrompt?.isDefault && (
+          <p className="text-white/50 text-xs">Default prompt name cannot be changed</p>
+        )}
+      </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
-          <Button
-            variant="outline"
-            onClick={() => setViewMode("list")}
-            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={loading || !formName.trim()}
-            className="bg-white text-black hover:bg-gray-100"
-          >
-            {loading ? "Saving..." : "Save"}
-          </Button>
-        </div>
+      <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-hidden">
+        <Label htmlFor={contentInputId} className="text-white text-sm font-medium shrink-0">
+          Prompt Instructions
+        </Label>
+        <Textarea
+          id={contentInputId}
+          value={formContent}
+          onChange={(e) => setFormContent(e.target.value)}
+          placeholder="Enter your custom instructions here..."
+          className="resize-none flex-1 max-h-50 overflow-y-auto font-mono text-sm"
+        />
+        <p className="text-white/50 text-xs shrink-0">
+          These instructions will be appended to the task execution system prompt
+        </p>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-4 border-t border-white/10 shrink-0">
+        <Button
+          variant="outline"
+          onClick={() => setViewMode("list")}
+          className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSave}
+          disabled={loading || !formName.trim()}
+          className="bg-white text-black hover:bg-gray-100"
+        >
+          {loading ? "Saving..." : "Save"}
+        </Button>
       </div>
     </div>
   );
