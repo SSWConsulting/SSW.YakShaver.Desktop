@@ -80,7 +80,7 @@ export function CustomPromptManager() {
     setViewMode("edit");
   };
 
-  const handleSave = async () => {
+  const handleSave = async (andActivate = false) => {
     if (!formName.trim()) {
       toast.error("Please enter a prompt name");
       return;
@@ -88,16 +88,26 @@ export function CustomPromptManager() {
 
     setLoading(true);
     try {
+      let savedPromptId: string;
+      
       if (viewMode === "create") {
-        await ipcClient.settings.addPrompt({ name: formName, content: formContent });
+        const newPrompt = await ipcClient.settings.addPrompt({ name: formName, content: formContent });
+        savedPromptId = newPrompt.id;
         toast.success("Prompt created successfully");
       } else if (editingPrompt) {
         await ipcClient.settings.updatePrompt(editingPrompt.id, {
           name: formName,
           content: formContent,
         });
+        savedPromptId = editingPrompt.id;
         toast.success("Prompt updated successfully");
       }
+      
+      if (andActivate && savedPromptId!) {
+        await ipcClient.settings.setActivePrompt(savedPromptId);
+        toast.success("Prompt saved and activated");
+      }
+      
       await loadPrompts();
       setViewMode("list");
     } catch (e) {
@@ -205,16 +215,6 @@ export function CustomPromptManager() {
                   >
                     Edit
                   </Button>
-                  {!prompt.isDefault && (
-                    <Button
-                      onClick={() => handleDelete(prompt)}
-                      variant="outline"
-                      size="sm"
-                      className="bg-red-900/20 text-red-400 border-red-700 hover:bg-red-900/40"
-                    >
-                      Delete
-                    </Button>
-                  )}
                 </div>
               </div>
             </Card>
@@ -262,21 +262,41 @@ export function CustomPromptManager() {
         </p>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-white/10 shrink-0">
-        <Button
-          variant="outline"
-          onClick={() => setViewMode("list")}
-          className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSave}
-          disabled={loading || !formName.trim()}
-          className="bg-white text-black hover:bg-gray-100"
-        >
-          {loading ? "Saving..." : "Save"}
-        </Button>
+      <div className="flex justify-between gap-3 pt-4 border-t border-white/10 shrink-0">
+        {editingPrompt && !editingPrompt.isDefault && (
+          <Button
+            onClick={() => handleDelete(editingPrompt)}
+            variant="outline"
+            disabled={loading}
+            className="bg-red-900/20 text-red-400 border-red-700 hover:bg-red-900/40"
+          >
+            Delete
+          </Button>
+        )}
+        <div className="flex gap-3 ml-auto">
+          <Button
+            variant="outline"
+            onClick={() => setViewMode("list")}
+            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => handleSave(false)}
+            disabled={loading || !formName.trim()}
+            variant="outline"
+            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
+          >
+            {loading ? "Saving..." : "Save"}
+          </Button>
+          <Button
+            onClick={() => handleSave(true)}
+            disabled={loading || !formName.trim()}
+            className="bg-white text-black hover:bg-gray-100"
+          >
+            {loading ? "Saving..." : "Save & Use"}
+          </Button>
+        </div>
       </div>
     </div>
   );
