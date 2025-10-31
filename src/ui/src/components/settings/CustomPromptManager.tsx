@@ -148,14 +148,14 @@ export function CustomPromptManager() {
   };
 
   const renderListView = () => (
-    <div className="flex flex-col gap-4 h-full">
+    <div className="flex flex-col gap-4 h-full overflow-hidden">
       <div className="flex justify-end shrink-0">
         <Button onClick={handleCreateNew} variant="secondary" size="sm">
           Add New Prompt
         </Button>
       </div>
       <Separator className="bg-white/10 shrink-0" />
-      <ScrollArea className="h-100">
+      <ScrollArea className="h-[50vh]">
         <div className="flex flex-col space-y-4 pr-4">
           {prompts.map((prompt) => (
             <Card
@@ -225,8 +225,8 @@ export function CustomPromptManager() {
   );
 
   const renderFormView = () => (
-    <div className="flex flex-col gap-4">
-      <Button onClick={() => setViewMode("list")} variant="ghost" className="self-start">
+    <div className="flex flex-col gap-4 h-full overflow-hidden">
+      <Button onClick={() => setViewMode("list")} variant="ghost" className="self-start shrink-0">
         ← Back to list
       </Button>
 
@@ -255,29 +255,29 @@ export function CustomPromptManager() {
             value={formContent}
             onChange={(e) => setFormContent(e.target.value)}
             placeholder="Enter your custom instructions here..."
-            className="resize-none h-full font-mono text-sm"
+            className="resize-none h-80 font-mono text-sm"
           />
           <p className="text-white/50 text-xs">
             These instructions will be appended to the task execution system prompt
           </p>
         </div>
-      </div>
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
-        <Button
-          variant="outline"
-          onClick={() => setViewMode("list")}
-          className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSave}
-          disabled={loading || !formName.trim()}
-          className="bg-white text-black hover:bg-gray-100"
-        >
-          {loading ? "Saving..." : "Save"}
-        </Button>
+        <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+          <Button
+            variant="outline"
+            onClick={() => setViewMode("list")}
+            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={loading || !formName.trim()}
+            className="bg-white text-black hover:bg-gray-100"
+          >
+            {loading ? "Saving..." : "Save"}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -290,9 +290,9 @@ export function CustomPromptManager() {
         </DialogTrigger>
         <DialogContent
           showCloseButton
-          className="flex flex-col max-w-4xl max-h-[90vh] bg-neutral-900 text-neutral-100 border-neutral-800 overflow-hidden"
+          className="flex flex-col max-w-4xl max-h-[90vh] bg-neutral-900 text-neutral-100 border-neutral-800"
         >
-          <DialogHeader>
+          <DialogHeader className="shrink-0">
             <DialogTitle className="text-white text-2xl">
               {viewMode === "list"
                 ? "Custom Prompt Manager"
