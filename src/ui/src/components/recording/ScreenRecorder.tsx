@@ -72,24 +72,26 @@ export function ScreenRecorder() {
       // TODO: refactor - below logic should be moved to the backend, in a linear process pipeline, to avoid back and forth inter process communication
       // for the visual update we could use webContents.send() to notify the UI of progress updates
       // we need to refactor all the similar logic in other places as well
-      const videoUploadResult: VideoUploadResult = await window.electronAPI.youtube.uploadRecordedVideo(filePath);
-      await window.electronAPI.screenRecording.triggerTranscription(filePath, videoUploadResult);
+      // const videoUploadResult: VideoUploadResult = await window.electronAPI.youtube.uploadRecordedVideo(filePath);
+      // await window.electronAPI.screenRecording.triggerTranscription(filePath, videoUploadResult);
 
-      setUploadResult(videoUploadResult);
-      setUploadStatus(
-        videoUploadResult.success ? UploadStatus.SUCCESS : UploadStatus.ERROR,
-      );
+      await window.electronAPI.pipeline.videoProcess(filePath);
 
-      if (videoUploadResult.success) {
-        toast.success("Video uploaded successfully!");
-      } else {
-        toast.error(`Upload failed: ${videoUploadResult.error}`);
-      }
+      // setUploadResult(videoUploadResult);
+      // setUploadStatus(
+      //   videoUploadResult.success ? UploadStatus.SUCCESS : UploadStatus.ERROR,
+      // );
+
+      // if (videoUploadResult.success) {
+      //   toast.success("Video uploaded successfully!");
+      // } else {
+      //   toast.error(`Upload failed: ${videoUploadResult.error}`);
+      // }
     } catch (error) {
-      toast.error(`Processing failed: ${error}`);
-    } finally {
-      //TODO: refactor - cleanup of temp files should also be handled in the backend
-      //await window.electronAPI.screenRecording.cleanupTempFile(filePath);
+      setUploadStatus(UploadStatus.ERROR);
+      const message = error instanceof Error ? error.message : String(error);
+      setUploadResult({ success: false, error: message });
+      toast.error(`Processing failed: ${message}`);
     }
   };
 

@@ -62,6 +62,9 @@ const IPC_CHANNELS = {
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
+  // Video processing - the main process pipeline
+  PROCESS_VIDEO: "process-video",
+
   // Settings
   SETTINGS_GET_CUSTOM_PROMPT: "settings:get-custom-prompt",
   SETTINGS_SET_CUSTOM_PROMPT: "settings:set-custom-prompt",
@@ -74,6 +77,9 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 };
 
 const electronAPI = {
+  pipeline: {
+    videoProcess: (filePath?: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, filePath),
+  },
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),
     getAuthStatus: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_GET_AUTH_STATUS),

@@ -56,6 +56,9 @@ export const IPC_CHANNELS = {
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
+  // Video processing - the main process pipeline
+  PROCESS_VIDEO: "process-video",
+
   // Settings
   SETTINGS_GET_CUSTOM_PROMPT: "settings:get-custom-prompt",
   SETTINGS_SET_CUSTOM_PROMPT: "settings:set-custom-prompt",
