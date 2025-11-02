@@ -1,18 +1,17 @@
 import fs from "fs"
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, ipcMain, IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS } from "./channels";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
-import {
-    INITIAL_SUMMARY_PROMPT,
-    TASK_EXECUTION_PROMPT,
-} from "../services/openai/prompts";
+import { INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import tmp from "tmp";
+import { VideoUploadResult } from "../services/auth/types";
+import { formatErrorMessage } from "../utils/error-utils";
 
 
-export class VideoProcessIPCHandlers {
+export class ProcessVideoIPCHandlers {
     private readonly youtube = YouTubeAuthService.getInstance();
     private readonly llmClient = OpenAIService.getInstance(); // TODO: make generic interface for different LLMs https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
     private ffmpegService = FFmpegService.getInstance();
@@ -34,8 +33,6 @@ export class VideoProcessIPCHandlers {
                 throw new Error("video-process-handler: Video file does not exist");
             }
 
-            console.log("Starting video processing for file:", filePath);
-
             // upload to YouTube
             const youtubeResult = await this.youtube.uploadVideo(filePath);
 
@@ -46,6 +43,8 @@ export class VideoProcessIPCHandlers {
             // transcribe the video via MCP
             this.emitProgress("transcribing");
             const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
+            this.emitProgress("transcription_completed", { transcript });
+
             this.emitProgress("generating_task", { transcript });
 
             // generate intermediate summary
@@ -72,6 +71,23 @@ export class VideoProcessIPCHandlers {
 
             return { youtubeResult, mcpResult };
         });
+
+        // Retry video pipeline
+        ipcMain.handle(
+            IPC_CHANNELS.RETRY_VIDEO,
+            async (_event: IpcMainInvokeEvent, intermediateOutput: string, videoUploadResult: VideoUploadResult) => {
+                try {
+                    this.emitProgress("executing_task");
+                    const mcpResult = await this.mcpOrchestrator.processMessage(intermediateOutput, videoUploadResult);
+                    this.emitProgress("completed", { mcpResult });
+                    return { success: true, mcpResult };
+                } catch (error) {
+                    const errorMessage = formatErrorMessage(error);
+                    this.emitProgress("error", { error: errorMessage });
+                    return { success: false, error: errorMessage };
+                }
+            },
+        );
     }
 
     private async convertVideoToMp3(inputPath: string): Promise<string> {
