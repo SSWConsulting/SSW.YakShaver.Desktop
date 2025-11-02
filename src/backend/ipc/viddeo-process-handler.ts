@@ -38,20 +38,15 @@ export class VideoProcessIPCHandlers {
 
             // upload to YouTube
             const youtubeResult = await this.youtube.uploadVideo(filePath);
-            console.log("Uploaded video to YouTube:", youtubeResult);
 
             // convert video to mp3
             this.emitProgress("converting_audio");
             const mp3FilePath = await this.convertVideoToMp3(filePath);
-            console.log("*******************************************************************************************************************")
-            console.log("Converted video to mp3:", mp3FilePath);
 
             // transcribe the video via MCP
             this.emitProgress("transcribing");
             const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
             this.emitProgress("generating_task", { transcript });
-            console.log("*******************************************************************************************************************");
-            console.log("Transcription completed: ", transcript);
 
             // generate intermediate summary
             const intermediateOutput = await this.llmClient.generateOutput(
@@ -63,8 +58,6 @@ export class VideoProcessIPCHandlers {
                 transcript,
                 intermediateOutput,
             });
-            console.log("*******************************************************************************************************************");
-            console.log("Generated intermediate summary: ", intermediateOutput);
 
             // process transcribtion with MCP
             const mcpResult = await this.mcpOrchestrator.processMessage(intermediateOutput, youtubeResult);
@@ -73,8 +66,6 @@ export class VideoProcessIPCHandlers {
                 intermediateOutput,
                 mcpResult,
             });
-            console.log("*******************************************************************************************************************");
-            console.log("MCP processing completed: ", mcpResult);
 
             // delete the temporary video file
             fs.unlinkSync(filePath);
