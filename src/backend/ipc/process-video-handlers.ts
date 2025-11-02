@@ -1,4 +1,4 @@
-import fs from "fs"
+import fs from "fs";
 import { BrowserWindow, ipcMain, IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS } from "./channels";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
