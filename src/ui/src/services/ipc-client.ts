@@ -16,6 +16,14 @@ import type {
 declare global {
   interface Window {
     electronAPI: {
+      pipelines: {
+        processVideo: (filePath?: string) => Promise<void>;
+        retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) => Promise<{
+          success: boolean;
+          finalOutput?: string | null;
+          error?: string;
+        }>;
+      };
       youtube: {
         startAuth: () => Promise<AuthResult>;
         getAuthStatus: () => Promise<AuthState>;
@@ -47,7 +55,6 @@ declare global {
         stop: (videoData: Uint8Array) => Promise<ScreenRecordingStopResult>;
         listSources: () => Promise<ScreenSource[]>;
         cleanupTempFile: (filePath: string) => Promise<void>;
-        triggerTranscription: (filePath: string, videoUploadResult: VideoUploadResult) => Promise<void>;
         showControlBar: () => Promise<{ success: boolean }>;
         hideControlBar: () => Promise<{ success: boolean }>;
         stopFromControlBar: () => Promise<{ success: boolean }>;
@@ -58,20 +65,8 @@ declare global {
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;
       };
-      openai: {
-        getTranscription: (audioFilePath: string) => Promise<string>;
-        processTranscript: (transcript: string) => Promise<string>;
-        onTranscriptionStarted: (callback: () => void) => () => void;
-        onTranscriptionCompleted: (callback: (transcript: string) => void) => () => void;
-        onTranscriptionError: (callback: (error: string) => void) => () => void;
-      };
       workflow: {
         onProgress: (callback: (progress: unknown) => void) => () => void;
-        retryTaskExecution: (intermediateOutput: string) => Promise<{
-          success: boolean;
-          finalOutput?: string | null;
-          error?: string;
-        }>;
       };
       mcp: {
         processMessage: (

@@ -18,8 +18,6 @@ export class ScreenRecordingIPCHandlers {
       [IPC_CHANNELS.LIST_SCREEN_SOURCES]: () => this.service.listSources(),
       [IPC_CHANNELS.CLEANUP_TEMP_FILE]: (_: unknown, filePath: string) =>
         this.service.cleanupTempFile(filePath),
-      [IPC_CHANNELS.TRIGGER_TRANSCRIPTION]: (_: unknown, filePath: string, videoUploadResult: VideoUploadResult) =>
-        this.service.triggerTranscription(filePath, videoUploadResult),
       [IPC_CHANNELS.SHOW_CONTROL_BAR]: () =>
         this.controlBar.showForRecording(this.service.getCurrentRecordingDisplayId()),
       [IPC_CHANNELS.HIDE_CONTROL_BAR]: () => this.controlBar.hideWithSuccess(),

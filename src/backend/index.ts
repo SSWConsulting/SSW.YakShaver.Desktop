@@ -6,14 +6,14 @@ import { updateElectronApp } from "update-electron-app";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
-import { OpenAIIPCHandlers } from "./ipc/openai-handlers";
+import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { SettingsIPCHandlers } from "./ipc/settings-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
 import { createMcpOrchestrator } from "./services/mcp/mcp-orchestrator-factory";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
-import { VideoProcessIPCHandlers } from "./ipc/viddeo-process-handler";
+import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 
 updateElectronApp();
 
@@ -70,10 +70,10 @@ const createWindow = (): void => {
 let _screenRecordingHandlers: ScreenRecordingIPCHandlers;
 let _authHandlers: AuthIPCHandlers;
 let _videoHandlers: VideoIPCHandlers;
-let _openAIHandlers: OpenAIIPCHandlers;
+let _llmSettingsHandlers: LLMSettingsIPCHandlers;
 let _mcpHandlers: McpIPCHandlers;
 let _settingsHandlers: SettingsIPCHandlers;
-let _videoProceessHandlers: VideoProcessIPCHandlers;
+let _processVideoHandlers: ProcessVideoIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
@@ -86,12 +86,12 @@ app.whenReady().then(async () => {
 
   _authHandlers = new AuthIPCHandlers();
   _videoHandlers = new VideoIPCHandlers();
-  _videoProceessHandlers = new VideoProcessIPCHandlers();
+  _processVideoHandlers = new ProcessVideoIPCHandlers();
 
   try {
-    _openAIHandlers = new OpenAIIPCHandlers();
+    _llmSettingsHandlers = new LLMSettingsIPCHandlers();
   } catch (err) {
-    console.error("Error creating OpenAIIPCHandlers:", err);
+    console.error("Error creating LLMSettingsIPCHandlers:", err);
   }
 
   _screenRecordingHandlers = new ScreenRecordingIPCHandlers();
