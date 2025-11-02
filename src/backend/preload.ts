@@ -50,7 +50,6 @@ const IPC_CHANNELS = {
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
-  // WORKFLOW_RETRY_TASK_EXECUTION: "workflow:retry-task-execution",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
