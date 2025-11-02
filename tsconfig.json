@@ -9,6 +9,12 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["src/backend/**/*"],
-  "exclude": ["node_modules", "dist", "src/ui"]
+  "include": [
+    "src/backend/**/*",
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/ui"
+  ]
 }
