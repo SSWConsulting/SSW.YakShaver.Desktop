@@ -24,7 +24,6 @@ export function CustomPromptManager() {
   // UI State
   const [open, setOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [searchQuery, setSearchQuery] = useState("");
 
   // Form State
   const [editingPrompt, setEditingPrompt] = useState<CustomPrompt | null>(null);
@@ -160,14 +159,12 @@ export function CustomPromptManager() {
     if (hasUnsavedChanges()) {
       setPendingAction(() => () => {
         setViewMode("list");
-        setSearchQuery("");
         resetForm();
       });
       setUnsavedChangesDialogOpen(true);
       return;
     }
     setViewMode("list");
-    setSearchQuery("");
     resetForm();
   }, [hasUnsavedChanges, resetForm]);
 
@@ -178,7 +175,6 @@ export function CustomPromptManager() {
         setPendingAction(() => () => {
           setOpen(false);
           setViewMode("list");
-          setSearchQuery("");
           resetForm();
         });
         setUnsavedChangesDialogOpen(true);
@@ -187,7 +183,6 @@ export function CustomPromptManager() {
       setOpen(isOpen);
       if (!isOpen) {
         setViewMode("list");
-        setSearchQuery("");
         resetForm();
       }
     },
@@ -209,26 +204,13 @@ export function CustomPromptManager() {
     setPendingAction(null);
   }, []);
 
-  // Filter prompts based on search query
-  const filteredPrompts = promptManager.prompts.filter((prompt) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      prompt.name.toLowerCase().includes(query) ||
-      prompt.description?.toLowerCase().includes(query) ||
-      prompt.content.toLowerCase().includes(query)
-    );
-  });
-
   // Render views based on mode
   const renderContent = () => {
     if (viewMode === "list") {
       return (
         <PromptListView
-          prompts={filteredPrompts}
+          prompts={promptManager.prompts}
           activePromptId={promptManager.activePromptId}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
           onCreateNew={handleCreateNew}
           onEdit={handleEdit}
           onSetActive={promptManager.setActivePrompt}
@@ -288,7 +270,7 @@ export function CustomPromptManager() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         onConfirm={confirmDelete}
-        deleteTitle={"Delete Prompt"}
+        deleteTitle="Delete Prompt"
         deleteConfirmMessage={
           promptToDelete?.name &&
           `Are you sure you want to delete the prompt "${promptToDelete?.name}"?`
