@@ -58,7 +58,7 @@ export class ProcessVideoIPCHandlers {
                 intermediateOutput,
             });
 
-            // process transcribtion with MCP
+            // process transcription with MCP
             const mcpResult = await this.mcpOrchestrator.processMessage(intermediateOutput, youtubeResult);
             this.emitProgress("completed", {
                 transcript,
