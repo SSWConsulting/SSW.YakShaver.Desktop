@@ -233,8 +233,9 @@ export function CustomPromptManager() {
         onConfirm={confirmDelete}
         deleteTitle="Delete Prompt"
         deleteConfirmMessage={
-          promptToDelete?.name &&
-          `Are you sure you want to delete the prompt "${promptToDelete?.name}"?`
+          promptToDelete?.name
+            ? `Are you sure you want to delete the prompt "${promptToDelete.name}"?`
+            : undefined
         }
       />
     </>
