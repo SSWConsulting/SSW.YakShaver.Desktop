@@ -12,6 +12,9 @@ export class MCPClientWrapper {
   private readonly serverConfig: MCPServerConfig;
   private isConnected = false;
 
+  // Promise used to serialize concurrent connect() calls
+  private connectPromise: Promise<void> | null = null;
+
   constructor(opts: MCPServerConfig) {
     this.serverConfig = opts;
     this.client = new Client({
@@ -21,7 +24,9 @@ export class MCPClientWrapper {
     this.transport = this.buildTransport();
   }
 
-  private buildTransport(): StreamableHTTPClientTransport | StdioClientTransport {
+  private buildTransport():
+    | StreamableHTTPClientTransport
+    | StdioClientTransport {
     if (this.serverConfig.transport === "streamableHttp") {
       const headers: Record<string, string> = {};
       if (this.serverConfig.headers) {
@@ -32,7 +37,10 @@ export class MCPClientWrapper {
       const options: StreamableHTTPClientTransportOptions = {
         requestInit: { headers },
       };
-      return new StreamableHTTPClientTransport(new URL(this.serverConfig.url), options);
+      return new StreamableHTTPClientTransport(
+        new URL(this.serverConfig.url),
+        options
+      );
     } else if (this.serverConfig.transport === "stdio") {
       // Don't worry stdio for now, this is local MCP server, supported later
       // TODO: Support local MCP servers via stdio transport https://github.com/SSWConsulting/SSW.YakShaver/issues/3008
@@ -44,20 +52,60 @@ export class MCPClientWrapper {
     throw new Error(`Unsupported transport: ${this.serverConfig.transport}`);
   }
 
+  private isTransportStarted(): boolean {
+    if (this.transport instanceof StreamableHTTPClientTransport) {
+      const transport = this.transport as any;
+      return transport?.started === true;
+    }
+    return false;
+  }
+
   async connect(): Promise<void> {
-    if (this.isConnected) return;
-    console.log(`[MCP] Connecting to '${this.serverConfig.name}' at ${this.serverConfig.url}...`);
-    await this.client.connect(this.transport);
-    this.isConnected = true;
-    console.log("[MCP] Connected.");
+    if (this.isConnected) {
+      return;
+    }
+
+    // If a connect is already in progress, return the same promise
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
+
+    this.connectPromise = (async () => {
+      try {
+        if (this.isTransportStarted()) {
+          this.isConnected = true;
+          return;
+        }
+        await this.client.connect(this.transport);
+        this.isConnected = true;
+        return;
+      } catch (error) {
+        console.error(
+          `[MCP] Failed to connect to '${this.serverConfig.name}':`,
+          error
+        );
+        throw error;
+      } finally {
+        this.connectPromise = null;
+      }
+    })();
+
+    return this.connectPromise;
   }
 
   async disconnect(): Promise<void> {
+    // If a connect is in progress, await it first so we don't race with close
+    if (this.connectPromise) {
+      await this.connectPromise;
+    }
     if (!this.isConnected) return;
     try {
       await this.client.close();
-    } catch (e) {
-      console.warn(`[MCP] Error while closing client '${this.serverConfig.name}':`, e);
+    } catch (error) {
+      console.warn(
+        `[MCP] Error while closing client '${this.serverConfig.name}':`,
+        error
+      );
     } finally {
       this.isConnected = false;
     }

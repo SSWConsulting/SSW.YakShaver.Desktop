@@ -3,9 +3,9 @@ import { toast } from "sonner";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, UploadStatus } from "../../types";
+import { LLMKeyManager } from "../llm/LLMKeyManager";
 import { McpServerManager } from "../mcp/McpServerManager";
 import { CustomPromptDialog } from "../settings/CustomPromptDialog";
-import { OpenAIKeyManager } from "../openai/OpenAIKeyManager";
 import { Button } from "../ui/button";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
@@ -23,7 +23,7 @@ export function ScreenRecorder() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(
-    null,
+    null
   );
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
@@ -33,6 +33,7 @@ export function ScreenRecorder() {
     if (result) {
       setRecordedVideo(result);
       setPreviewOpen(true);
+      await window.electronAPI.screenRecording.restoreMainWindow();
     }
   }, [stop]);
 
@@ -71,33 +72,13 @@ export function ScreenRecorder() {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
 
-      const [uploadResult] = await Promise.allSettled([
-        window.electronAPI.youtube.uploadRecordedVideo(filePath),
-        window.electronAPI.screenRecording.triggerTranscription(filePath),
-      ]);
+      await window.electronAPI.pipelines.processVideo(filePath);
 
-      const result =
-        uploadResult.status === "fulfilled"
-          ? uploadResult.value
-          : {
-              success: false,
-              error: uploadResult.reason?.message || "Upload failed",
-            };
-
-      setUploadResult(result);
-      setUploadStatus(
-        result.success ? UploadStatus.SUCCESS : UploadStatus.ERROR,
-      );
-
-      if (result.success) {
-        toast.success("Video uploaded successfully!");
-      } else {
-        toast.error(`Upload failed: ${result.error}`);
-      }
     } catch (error) {
-      toast.error(`Processing failed: ${error}`);
-    } finally {
-      await window.electronAPI.screenRecording.cleanupTempFile(filePath);
+      setUploadStatus(UploadStatus.ERROR);
+      const message = error instanceof Error ? error.message : String(error);
+      setUploadResult({ success: false, error: message });
+      toast.error(`Processing failed: ${message}`);
     }
   };
 
@@ -118,7 +99,7 @@ export function ScreenRecorder() {
           </Button>
           <McpServerManager />
           <CustomPromptDialog />
-          <OpenAIKeyManager />
+          <LLMKeyManager />
         </div>
         {!isAuthenticated && (
           <p className="text-sm text-white/60 text-center">

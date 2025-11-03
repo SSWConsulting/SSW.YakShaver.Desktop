@@ -72,6 +72,7 @@ export interface ScreenSource {
   appIconDataURL?: string;
   thumbnailDataURL?: string;
   type: "screen" | "window";
+  isMainWindow?: boolean;
 }
 
 export interface TranscriptEntry {
@@ -112,4 +113,11 @@ export interface WorkflowProgress {
   intermediateOutput?: string;
   finalOutput?: string;
   error?: string;
+}
+
+export interface HealthStatusInfo {
+  isHealthy: boolean;
+  error?: string;
+  successMessage?: string;
+  isChecking?: boolean;
 }

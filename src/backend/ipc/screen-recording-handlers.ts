@@ -1,14 +1,16 @@
 import { ipcMain } from "electron";
+import { getMainWindow } from "../index";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { RecordingService } from "../services/recording/recording-service";
 import { IPC_CHANNELS } from "./channels";
+import { VideoUploadResult } from "../services/auth/types";
 
 export class ScreenRecordingIPCHandlers {
   private service = RecordingService.getInstance();
   private controlBar = RecordingControlBarWindow.getInstance();
 
   constructor() {
-    Object.entries({
+    const handlers = {
       [IPC_CHANNELS.START_SCREEN_RECORDING]: (_: unknown, sourceId?: string) =>
         this.service.handleStartRecording(sourceId),
       [IPC_CHANNELS.STOP_SCREEN_RECORDING]: (_: unknown, videoData: Uint8Array) =>
@@ -16,13 +18,33 @@ export class ScreenRecordingIPCHandlers {
       [IPC_CHANNELS.LIST_SCREEN_SOURCES]: () => this.service.listSources(),
       [IPC_CHANNELS.CLEANUP_TEMP_FILE]: (_: unknown, filePath: string) =>
         this.service.cleanupTempFile(filePath),
-      [IPC_CHANNELS.TRIGGER_TRANSCRIPTION]: (_: unknown, filePath: string) =>
-        this.service.triggerTranscription(filePath),
       [IPC_CHANNELS.SHOW_CONTROL_BAR]: () =>
         this.controlBar.showForRecording(this.service.getCurrentRecordingDisplayId()),
       [IPC_CHANNELS.HIDE_CONTROL_BAR]: () => this.controlBar.hideWithSuccess(),
       [IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR]: () =>
         this.controlBar.stopRecordingFromControlBar(),
-    }).forEach(([channel, handler]) => ipcMain.handle(channel, handler));
+      [IPC_CHANNELS.MINIMIZE_MAIN_WINDOW]: () => this.minimizeMainWindow(),
+      [IPC_CHANNELS.RESTORE_MAIN_WINDOW]: () => this.restoreMainWindow(),
+    };
+
+    for (const [channel, handler] of Object.entries(handlers)) {
+      ipcMain.handle(channel, handler);
+    }
+  }
+
+  private minimizeMainWindow() {
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isMinimized()) {
+      mainWindow.minimize();
+    }
+    return { success: true };
+  }
+
+  private restoreMainWindow() {
+    const mainWindow = getMainWindow();
+    if (mainWindow?.isMinimized()) {
+      mainWindow.restore();
+    }
+    return { success: true };
   }
 }

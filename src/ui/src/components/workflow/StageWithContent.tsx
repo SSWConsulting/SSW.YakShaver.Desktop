@@ -1,6 +1,6 @@
 import type React from "react";
 import type { WorkflowProgress, WorkflowStage } from "../../types";
-import { deepParseJson } from "../../utils/json-utils";
+import { deepParseJson } from "../../utils";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
 
 type StepType = "start" | "tool_call" | "tool_result" | "final_result";

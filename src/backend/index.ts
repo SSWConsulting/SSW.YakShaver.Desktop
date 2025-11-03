@@ -6,13 +6,14 @@ import { updateElectronApp } from "update-electron-app";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
-import { OpenAIIPCHandlers } from "./ipc/openai-handlers";
+import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { SettingsIPCHandlers } from "./ipc/settings-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
 import { createMcpOrchestrator } from "./services/mcp/mcp-orchestrator-factory";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 
 updateElectronApp();
 
@@ -58,10 +59,7 @@ const createWindow = (): void => {
     mainWindow.loadURL("http://localhost:3000");
     mainWindow.webContents.openDevTools();
   } else {
-    const indexPath = join(
-      process.resourcesPath,
-      "app.asar.unpacked/src/ui/dist/index.html"
-    );
+    const indexPath = join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/index.html");
     mainWindow.loadFile(indexPath).catch((err) => {
       console.error("Failed to load index.html:", err);
     });
@@ -72,33 +70,28 @@ const createWindow = (): void => {
 let _screenRecordingHandlers: ScreenRecordingIPCHandlers;
 let _authHandlers: AuthIPCHandlers;
 let _videoHandlers: VideoIPCHandlers;
-let _openAIHandlers: OpenAIIPCHandlers;
+let _llmSettingsHandlers: LLMSettingsIPCHandlers;
 let _mcpHandlers: McpIPCHandlers;
 let _settingsHandlers: SettingsIPCHandlers;
+let _processVideoHandlers: ProcessVideoIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler(() => true);
-  session.defaultSession.setPermissionRequestHandler(
-    (_, permission, callback) => {
-      callback(
-        [
-          "media",
-          "clipboard-read",
-          "clipboard-sanitized-write",
-          "fullscreen",
-        ].includes(permission)
-      );
-    }
-  );
+  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
+    callback(
+      ["media", "clipboard-read", "clipboard-sanitized-write", "fullscreen"].includes(permission),
+    );
+  });
 
   _authHandlers = new AuthIPCHandlers();
   _videoHandlers = new VideoIPCHandlers();
+  _processVideoHandlers = new ProcessVideoIPCHandlers();
 
   try {
-    _openAIHandlers = new OpenAIIPCHandlers();
+    _llmSettingsHandlers = new LLMSettingsIPCHandlers();
   } catch (err) {
-    console.error("Error creating OpenAIIPCHandlers:", err);
+    console.error("Error creating LLMSettingsIPCHandlers:", err);
   }
 
   _screenRecordingHandlers = new ScreenRecordingIPCHandlers();
@@ -147,3 +140,7 @@ app.on("before-quit", async (event) => {
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
+
+export function getMainWindow(): BrowserWindow | null {
+  return mainWindow;
+}

@@ -17,4 +17,5 @@ export interface ScreenSource {
   appIconDataURL?: string;
   thumbnailDataURL?: string;
   type: "screen" | "window";
+  isMainWindow?: boolean;
 }

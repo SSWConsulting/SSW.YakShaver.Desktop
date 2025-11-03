@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../services/ipc-client";
 import { Button } from "../ui/button";
 import {
@@ -23,7 +24,7 @@ export function CustomPromptDialog() {
       setPrompt(await ipcClient.settings.getCustomPrompt());
       setHasChanges(false);
     } catch (e) {
-      toast.error(`Failed to load: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Failed to load: ${formatErrorMessage(e)}`);
     }
   }, []);
 
@@ -38,7 +39,7 @@ export function CustomPromptDialog() {
       toast.success("Custom prompt saved successfully");
       setHasChanges(false);
     } catch (e) {
-      toast.error(`Failed to save: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Failed to save: ${formatErrorMessage(e)}`);
     } finally {
       setLoading(false);
     }
@@ -59,10 +60,13 @@ export function CustomPromptDialog() {
         className="max-w-4xl max-h-[90vh] overflow-y-auto bg-neutral-900 text-neutral-100 border-neutral-800"
       >
         <DialogHeader>
-          <DialogTitle className="text-white text-2xl">Custom Prompt Settings</DialogTitle>
+          <DialogTitle className="text-white text-2xl">
+            Custom Prompt Settings
+          </DialogTitle>
           <DialogDescription className="text-white/70 text-base">
-            Add your custom instructions that will be appended to the task execution prompt. This
-            allows you to customize how the AI agent behaves when executing tasks.
+            Add your custom instructions that will be appended to the task
+            execution prompt. This allows you to customize how the AI agent
+            behaves when executing tasks.
           </DialogDescription>
         </DialogHeader>
 
@@ -76,7 +80,8 @@ export function CustomPromptDialog() {
               className="min-h-[300px] bg-black/30 border-white/20 text-white placeholder:text-white/40 focus:border-white/40 font-mono text-sm"
             />
             <p className="text-white/50 text-xs">
-              Your custom prompt will be injected into the task execution system prompt.
+              Your custom prompt will be injected into the task execution system
+              prompt.
             </p>
           </div>
 
