@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import { PromptForm } from "./custom-prompt/PromptForm";
+import { PromptForm, type PromptFormRef } from "./custom-prompt/PromptForm";
 import { PromptListView } from "./custom-prompt/PromptListView";
 import type { PromptFormValues } from "./custom-prompt/schema";
 import type { ViewMode } from "./custom-prompt/types";
@@ -28,7 +28,7 @@ export function CustomPromptManager() {
   const [unsavedChangesDialogOpen, setUnsavedChangesDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
-  const formIsDirtyRef = useRef(false);
+  const formRef = useRef<PromptFormRef>(null);
 
   useEffect(() => {
     if (open) {
@@ -38,7 +38,7 @@ export function CustomPromptManager() {
   }, [open, promptManager.loadPrompts]);
 
   const hasUnsavedChanges = useCallback(() => {
-    return viewMode !== "list" && formIsDirtyRef.current;
+    return viewMode !== "list" && (formRef.current?.isDirty() ?? false);
   }, [viewMode]);
 
   const handleCreateNew = useCallback(() => {
@@ -46,7 +46,6 @@ export function CustomPromptManager() {
       setPendingAction(() => () => {
         setEditingPrompt(null);
         setViewMode("create");
-        formIsDirtyRef.current = false;
       });
       setUnsavedChangesDialogOpen(true);
       return;
@@ -61,7 +60,6 @@ export function CustomPromptManager() {
         setPendingAction(() => () => {
           setEditingPrompt(prompt);
           setViewMode("edit");
-          formIsDirtyRef.current = false;
         });
         setUnsavedChangesDialogOpen(true);
         return;
@@ -85,7 +83,6 @@ export function CustomPromptManager() {
       if (success) {
         setViewMode("list");
         setEditingPrompt(null);
-        formIsDirtyRef.current = false;
       }
     },
     [viewMode, editingPrompt, promptManager],
@@ -105,7 +102,6 @@ export function CustomPromptManager() {
     if (success) {
       setViewMode("list");
       setEditingPrompt(null);
-      formIsDirtyRef.current = false;
     }
 
     setDeleteDialogOpen(false);
@@ -117,7 +113,6 @@ export function CustomPromptManager() {
       setPendingAction(() => () => {
         setViewMode("list");
         setEditingPrompt(null);
-        formIsDirtyRef.current = false;
       });
       setUnsavedChangesDialogOpen(true);
       return;
@@ -133,7 +128,6 @@ export function CustomPromptManager() {
           setOpen(false);
           setViewMode("list");
           setEditingPrompt(null);
-          formIsDirtyRef.current = false;
         });
         setUnsavedChangesDialogOpen(true);
         return;
@@ -142,7 +136,6 @@ export function CustomPromptManager() {
       if (!isOpen) {
         setViewMode("list");
         setEditingPrompt(null);
-        formIsDirtyRef.current = false;
       }
     },
     [hasUnsavedChanges],
@@ -159,10 +152,8 @@ export function CustomPromptManager() {
   const handleCancelUnsavedChanges = useCallback(() => {
     setUnsavedChangesDialogOpen(false);
     setPendingAction(null);
-    // Don't reset formIsDirtyRef here - let the user continue editing
   }, []);
 
-  // Memoize defaultValues to prevent unnecessary re-renders and form resets
   const defaultValues = useMemo(
     () =>
       editingPrompt
@@ -190,15 +181,13 @@ export function CustomPromptManager() {
 
     return (
       <PromptForm
+        ref={formRef}
         defaultValues={defaultValues}
         onSubmit={handleFormSubmit}
         onCancel={handleBackToList}
         onDelete={editingPrompt && !editingPrompt.isDefault ? handleDelete : undefined}
         loading={promptManager.loading}
         isDefault={editingPrompt?.isDefault}
-        onFormStateChange={(isDirty) => {
-          formIsDirtyRef.current = isDirty;
-        }}
       />
     );
   };
