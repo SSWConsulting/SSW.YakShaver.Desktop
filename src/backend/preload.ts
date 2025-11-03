@@ -34,10 +34,6 @@ const IPC_CHANNELS = {
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
 
-  // OpenAI
-  OPENAI_GET_TRANSCRIPTION: "openai:get-transcription",
-  OPENAI_PROCESS_TRANSCRIPT: "openai:process-transcript",
-
   // LLM
   LLM_SET_CONFIG: "llm:set-config",
   LLM_GET_CONFIG: "llm:get-config",
@@ -53,16 +49,16 @@ const IPC_CHANNELS = {
   MCP_UPDATE_SERVER: "mcp:update-server",
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
-  TRANSCRIPTION_STARTED: "transcription-started",
-  TRANSCRIPTION_COMPLETED: "transcription-completed",
-  TRANSCRIPTION_ERROR: "transcription-error",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
-  WORKFLOW_RETRY_TASK_EXECUTION: "workflow:retry-task-execution",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
+
+  // Video processing - the main process pipeline
+  PROCESS_VIDEO: "process-video",
+  RETRY_VIDEO: "retry-video",
 
   // Settings
   SETTINGS_GET_CUSTOM_PROMPT: "settings:get-custom-prompt",
@@ -76,6 +72,10 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 };
 
 const electronAPI = {
+  pipelines: {
+    processVideo: (filePath?: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, filePath),
+    retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) => ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
+  },
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),
     getAuthStatus: () =>
@@ -111,15 +111,6 @@ const electronAPI = {
     listSources: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_SCREEN_SOURCES),
     cleanupTempFile: (filePath: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.CLEANUP_TEMP_FILE, filePath),
-    triggerTranscription: (
-      filePath: string,
-      videoUploadResult: VideoUploadResult
-    ) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.TRIGGER_TRANSCRIPTION,
-        filePath,
-        videoUploadResult
-      ),
     showControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.SHOW_CONTROL_BAR),
     hideControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.HIDE_CONTROL_BAR),
     stopFromControlBar: () =>
@@ -143,28 +134,9 @@ const electronAPI = {
         ipcRenderer.removeListener("update-recording-time", listener);
     },
   },
-  openai: {
-    getTranscription: (audioFilePath: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.OPENAI_GET_TRANSCRIPTION, audioFilePath),
-    processTranscript: (transcript: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.OPENAI_PROCESS_TRANSCRIPT, transcript),
-    onTranscriptionStarted: (callback: () => void) =>
-      onIpcEvent<void>(IPC_CHANNELS.TRANSCRIPTION_STARTED, callback),
-    onTranscriptionCompleted: (callback: (transcript: string) => void) =>
-      onIpcEvent<string>(IPC_CHANNELS.TRANSCRIPTION_COMPLETED, callback),
-  },
   workflow: {
     onProgress: (callback: (progress: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS, callback),
-    retryTaskExecution: (intermediateOutput: string) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.WORKFLOW_RETRY_TASK_EXECUTION,
-        intermediateOutput
-      ),
-    onTranscriptionError: (callback: (error: string) => void) =>
-      onIpcEvent<string>(IPC_CHANNELS.TRANSCRIPTION_ERROR, (error) =>
-        callback(error)
-      ),
   },
   llm: {
     setConfig: (config: unknown) =>

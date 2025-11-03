@@ -28,13 +28,6 @@ export const IPC_CHANNELS = {
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
 
-  // OpenAI
-  OPENAI_GET_TRANSCRIPTION: "openai:get-transcription",
-  OPENAI_PROCESS_TRANSCRIPT: "openai:process-transcript",
-  TRANSCRIPTION_STARTED: "transcription-started",
-  TRANSCRIPTION_COMPLETED: "transcription-completed",
-  TRANSCRIPTION_ERROR: "transcription-error",
-
   // LLM
   LLM_SET_CONFIG: "llm:set-config",
   LLM_GET_CONFIG: "llm:get-config",
@@ -53,10 +46,13 @@ export const IPC_CHANNELS = {
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
-  WORKFLOW_RETRY_TASK_EXECUTION: "workflow:retry-task-execution",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
+
+  // Video processing - the main process pipeline
+  PROCESS_VIDEO: "process-video",
+  RETRY_VIDEO: "retry-video",
 
   // Settings
   SETTINGS_GET_CUSTOM_PROMPT: "settings:get-custom-prompt",

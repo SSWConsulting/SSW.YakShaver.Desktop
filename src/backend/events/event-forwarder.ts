@@ -15,12 +15,6 @@ export function registerEventForwarders() {
   const controlBar = RecordingControlBarWindow.getInstance();
 
   const handlers = {
-    [IPC_CHANNELS.TRANSCRIPTION_STARTED]: () =>
-      sendToAll("transcription-started", true),
-    [IPC_CHANNELS.TRANSCRIPTION_COMPLETED]: (transcript: string) =>
-      sendToAll("transcription-completed", transcript),
-    [IPC_CHANNELS.TRANSCRIPTION_ERROR]: (error: string) =>
-      sendToAll("transcription-error", error),
     [IPC_CHANNELS.RECORDING_TIME_UPDATE]: (time: number) =>
       controlBar.updateTime(time),
   };
