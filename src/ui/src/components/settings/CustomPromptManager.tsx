@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CustomPrompt } from "@/types";
 import { usePromptManager } from "../../hooks/usePromptManager";
 import { DeleteConfirmDialog } from "../dialogs/DeleteConfirmDialog";
@@ -53,7 +53,6 @@ export function CustomPromptManager() {
     }
     setEditingPrompt(null);
     setViewMode("create");
-    formIsDirtyRef.current = false;
   }, [hasUnsavedChanges]);
 
   const handleEdit = useCallback(
@@ -70,7 +69,6 @@ export function CustomPromptManager() {
 
       setEditingPrompt(prompt);
       setViewMode("edit");
-      formIsDirtyRef.current = false;
     },
     [hasUnsavedChanges],
   );
@@ -126,7 +124,6 @@ export function CustomPromptManager() {
     }
     setViewMode("list");
     setEditingPrompt(null);
-    formIsDirtyRef.current = false;
   }, [hasUnsavedChanges]);
 
   const handleDialogClose = useCallback(
@@ -162,7 +159,21 @@ export function CustomPromptManager() {
   const handleCancelUnsavedChanges = useCallback(() => {
     setUnsavedChangesDialogOpen(false);
     setPendingAction(null);
+    // Don't reset formIsDirtyRef here - let the user continue editing
   }, []);
+
+  // Memoize defaultValues to prevent unnecessary re-renders and form resets
+  const defaultValues = useMemo(
+    () =>
+      editingPrompt
+        ? {
+            name: editingPrompt.name,
+            description: editingPrompt.description || "",
+            content: editingPrompt.content,
+          }
+        : undefined,
+    [editingPrompt],
+  );
 
   const renderContent = () => {
     if (viewMode === "list") {
@@ -176,14 +187,6 @@ export function CustomPromptManager() {
         />
       );
     }
-
-    const defaultValues = editingPrompt
-      ? {
-          name: editingPrompt.name,
-          description: editingPrompt.description || "",
-          content: editingPrompt.content,
-        }
-      : undefined;
 
     return (
       <PromptForm

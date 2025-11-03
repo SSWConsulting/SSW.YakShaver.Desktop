@@ -42,7 +42,10 @@ export function PromptForm({
       description: "",
       content: "",
     },
+    mode: "onChange",
   });
+
+  const { isDirty } = form.formState;
 
   // Reset form when defaultValues change (switching between prompts)
   useEffect(() => {
@@ -51,10 +54,9 @@ export function PromptForm({
     }
   }, [defaultValues, form]);
 
-  // Track form dirty state
   useEffect(() => {
-    onFormStateChange?.(form.formState.isDirty);
-  }, [form.formState.isDirty, onFormStateChange]);
+    onFormStateChange?.(isDirty);
+  }, [isDirty, onFormStateChange]);
 
   const handleSubmit = async (andActivate: boolean) => {
     const isValid = await form.trigger();
