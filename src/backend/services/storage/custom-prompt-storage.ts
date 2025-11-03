@@ -24,7 +24,10 @@ const DEFAULT_PROMPT: CustomPrompt = {
   description: "This is the default prompt for YakShaver",
   content: `You are YakShaver, an AI assistant with MCP capabilities to assist with create and manage PBIs.
 
-The repository link for YakShaver is https://github.com/SSWConsulting/SSW.YakShaver.Desktop`,
+The repository link for YakShaver is https://github.com/SSWConsulting/SSW.YakShaver.Desktop
+
+- Add the video link to the top of the description.
+- When creating an issue, always tag it with the "YakShaver" label.`,
   isDefault: true,
   createdAt: Date.now(),
   updatedAt: Date.now(),
