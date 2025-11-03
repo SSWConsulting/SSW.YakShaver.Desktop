@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CustomPrompt } from "@/types";
 import { usePromptManager } from "../../hooks/usePromptManager";
 import { DeleteConfirmDialog } from "../dialogs/DeleteConfirmDialog";
@@ -15,25 +14,21 @@ import {
 } from "../ui/dialog";
 import { PromptForm } from "./custom-prompt/PromptForm";
 import { PromptListView } from "./custom-prompt/PromptListView";
-import type { PromptFormData, ViewMode } from "./custom-prompt/types";
+import type { PromptFormValues } from "./custom-prompt/schema";
+import type { ViewMode } from "./custom-prompt/types";
 
 export function CustomPromptManager() {
   const promptManager = usePromptManager();
 
   const [open, setOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-
   const [editingPrompt, setEditingPrompt] = useState<CustomPrompt | null>(null);
-  const [formData, setFormData] = useState<PromptFormData>({
-    name: "",
-    description: "",
-    content: "",
-  });
-
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [promptToDelete, setPromptToDelete] = useState<CustomPrompt | null>(null);
   const [unsavedChangesDialogOpen, setUnsavedChangesDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  const formIsDirtyRef = useRef(false);
 
   useEffect(() => {
     if (open) {
@@ -43,83 +38,59 @@ export function CustomPromptManager() {
   }, [open, promptManager.loadPrompts]);
 
   const hasUnsavedChanges = useCallback(() => {
-    if (viewMode === "list") return false;
-
-    if (viewMode === "create") {
-      return (
-        formData.name.trim() !== "" ||
-        formData.description.trim() !== "" ||
-        formData.content.trim() !== ""
-      );
-    }
-
-    if (editingPrompt) {
-      return (
-        formData.name !== editingPrompt.name ||
-        formData.description !== (editingPrompt.description || "") ||
-        formData.content !== editingPrompt.content
-      );
-    }
-
-    return false;
-  }, [viewMode, formData, editingPrompt]);
-
-  const resetForm = useCallback(() => {
-    setFormData({ name: "", description: "", content: "" });
-    setEditingPrompt(null);
-  }, []);
-
-  const loadFormData = useCallback((prompt: CustomPrompt) => {
-    setFormData({
-      name: prompt.name,
-      description: prompt.description || "",
-      content: prompt.content,
-    });
-    setEditingPrompt(prompt);
-  }, []);
+    return viewMode !== "list" && formIsDirtyRef.current;
+  }, [viewMode]);
 
   const handleCreateNew = useCallback(() => {
-    resetForm();
+    if (hasUnsavedChanges()) {
+      setPendingAction(() => () => {
+        setEditingPrompt(null);
+        setViewMode("create");
+        formIsDirtyRef.current = false;
+      });
+      setUnsavedChangesDialogOpen(true);
+      return;
+    }
+    setEditingPrompt(null);
     setViewMode("create");
-  }, [resetForm]);
+    formIsDirtyRef.current = false;
+  }, [hasUnsavedChanges]);
 
   const handleEdit = useCallback(
     (prompt: CustomPrompt) => {
       if (hasUnsavedChanges()) {
         setPendingAction(() => () => {
-          loadFormData(prompt);
+          setEditingPrompt(prompt);
           setViewMode("edit");
+          formIsDirtyRef.current = false;
         });
         setUnsavedChangesDialogOpen(true);
         return;
       }
 
-      loadFormData(prompt);
+      setEditingPrompt(prompt);
       setViewMode("edit");
+      formIsDirtyRef.current = false;
     },
-    [hasUnsavedChanges, loadFormData],
+    [hasUnsavedChanges],
   );
 
-  const handleSave = useCallback(
-    async (andActivate: boolean) => {
-      if (!formData.name.trim()) {
-        toast.error("Please enter a prompt name");
-        return;
-      }
-
+  const handleFormSubmit = useCallback(
+    async (data: PromptFormValues, andActivate: boolean) => {
       const success =
         viewMode === "create"
-          ? await promptManager.createPrompt(formData, andActivate)
+          ? await promptManager.createPrompt(data, andActivate)
           : editingPrompt
-            ? await promptManager.updatePrompt(editingPrompt.id, formData, andActivate)
+            ? await promptManager.updatePrompt(editingPrompt.id, data, andActivate)
             : false;
 
       if (success) {
         setViewMode("list");
-        resetForm();
+        setEditingPrompt(null);
+        formIsDirtyRef.current = false;
       }
     },
-    [viewMode, formData, editingPrompt, promptManager, resetForm],
+    [viewMode, editingPrompt, promptManager],
   );
 
   const handleDelete = useCallback(() => {
@@ -135,25 +106,28 @@ export function CustomPromptManager() {
     const success = await promptManager.deletePrompt(promptToDelete.id);
     if (success) {
       setViewMode("list");
-      resetForm();
+      setEditingPrompt(null);
+      formIsDirtyRef.current = false;
     }
 
     setDeleteDialogOpen(false);
     setPromptToDelete(null);
-  }, [promptToDelete, promptManager, resetForm]);
+  }, [promptToDelete, promptManager]);
 
   const handleBackToList = useCallback(() => {
     if (hasUnsavedChanges()) {
       setPendingAction(() => () => {
         setViewMode("list");
-        resetForm();
+        setEditingPrompt(null);
+        formIsDirtyRef.current = false;
       });
       setUnsavedChangesDialogOpen(true);
       return;
     }
     setViewMode("list");
-    resetForm();
-  }, [hasUnsavedChanges, resetForm]);
+    setEditingPrompt(null);
+    formIsDirtyRef.current = false;
+  }, [hasUnsavedChanges]);
 
   const handleDialogClose = useCallback(
     (isOpen: boolean) => {
@@ -161,7 +135,8 @@ export function CustomPromptManager() {
         setPendingAction(() => () => {
           setOpen(false);
           setViewMode("list");
-          resetForm();
+          setEditingPrompt(null);
+          formIsDirtyRef.current = false;
         });
         setUnsavedChangesDialogOpen(true);
         return;
@@ -169,10 +144,11 @@ export function CustomPromptManager() {
       setOpen(isOpen);
       if (!isOpen) {
         setViewMode("list");
-        resetForm();
+        setEditingPrompt(null);
+        formIsDirtyRef.current = false;
       }
     },
-    [hasUnsavedChanges, resetForm],
+    [hasUnsavedChanges],
   );
 
   const handleConfirmUnsavedChanges = useCallback(() => {
@@ -201,15 +177,25 @@ export function CustomPromptManager() {
       );
     }
 
+    const defaultValues = editingPrompt
+      ? {
+          name: editingPrompt.name,
+          description: editingPrompt.description || "",
+          content: editingPrompt.content,
+        }
+      : undefined;
+
     return (
       <PromptForm
-        formData={formData}
-        onChange={(data) => setFormData((prev) => ({ ...prev, ...data }))}
-        onSave={handleSave}
+        defaultValues={defaultValues}
+        onSubmit={handleFormSubmit}
         onCancel={handleBackToList}
         onDelete={editingPrompt && !editingPrompt.isDefault ? handleDelete : undefined}
         loading={promptManager.loading}
         isDefault={editingPrompt?.isDefault}
+        onFormStateChange={(isDirty) => {
+          formIsDirtyRef.current = isDirty;
+        }}
       />
     );
   };
