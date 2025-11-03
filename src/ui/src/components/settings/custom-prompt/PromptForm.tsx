@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Trash2 } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { useClipboard } from "../../../hooks/useClipboard";
 import { Button } from "../../ui/button";
 import {
   Form,
@@ -35,6 +36,8 @@ export function PromptForm({
   isDefault = false,
   onFormStateChange,
 }: PromptFormProps) {
+  const { copyToClipboard } = useClipboard();
+
   const form = useForm<PromptFormValues>({
     resolver: zodResolver(promptFormSchema),
     defaultValues: defaultValues || {
@@ -121,7 +124,19 @@ export function PromptForm({
           name="content"
           render={({ field }) => (
             <FormItem className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              <FormLabel className="text-white/90 text-sm shrink-0">Prompt Instructions</FormLabel>
+              <div className="flex items-center justify-between shrink-0">
+                <FormLabel className="text-white/90 text-sm">Prompt Instructions</FormLabel>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(field.value)}
+                  className="cursor-pointer"
+                >
+                  <Copy className="w-4 h-4" />
+                  Copy
+                </Button>
+              </div>
               <FormControl>
                 <Textarea
                   {...field}
