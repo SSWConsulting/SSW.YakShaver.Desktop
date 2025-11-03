@@ -3,6 +3,7 @@ import { getMainWindow } from "../index";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { RecordingService } from "../services/recording/recording-service";
 import { IPC_CHANNELS } from "./channels";
+import { VideoUploadResult } from "../services/auth/types";
 
 export class ScreenRecordingIPCHandlers {
   private service = RecordingService.getInstance();
@@ -17,8 +18,6 @@ export class ScreenRecordingIPCHandlers {
       [IPC_CHANNELS.LIST_SCREEN_SOURCES]: () => this.service.listSources(),
       [IPC_CHANNELS.CLEANUP_TEMP_FILE]: (_: unknown, filePath: string) =>
         this.service.cleanupTempFile(filePath),
-      [IPC_CHANNELS.TRIGGER_TRANSCRIPTION]: (_: unknown, filePath: string) =>
-        this.service.triggerTranscription(filePath),
       [IPC_CHANNELS.SHOW_CONTROL_BAR]: () =>
         this.controlBar.showForRecording(this.service.getCurrentRecordingDisplayId()),
       [IPC_CHANNELS.HIDE_CONTROL_BAR]: () => this.controlBar.hideWithSuccess(),

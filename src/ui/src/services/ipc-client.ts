@@ -3,6 +3,7 @@ import type {
   AuthResult,
   AuthState,
   ConvertVideoToMp3Result,
+  HealthStatusInfo,
   CustomPrompt,
   LLMConfig,
   ScreenRecordingStartResult,
@@ -17,6 +18,17 @@ import type {
 declare global {
   interface Window {
     electronAPI: {
+      pipelines: {
+        processVideo: (filePath?: string) => Promise<void>;
+        retryVideo: (
+          intermediateOutput: string,
+          videoUploadResult: VideoUploadResult,
+        ) => Promise<{
+          success: boolean;
+          finalOutput?: string | null;
+          error?: string;
+        }>;
+      };
       youtube: {
         startAuth: () => Promise<AuthResult>;
         getAuthStatus: () => Promise<AuthState>;
@@ -30,6 +42,7 @@ declare global {
         setConfig: (config: LLMConfig) => Promise<{ success: boolean }>;
         getConfig: () => Promise<LLMConfig | null>;
         clearConfig: () => Promise<{ success: boolean }>;
+        checkHealth: () => Promise<HealthStatusInfo>;
       };
       config: {
         hasYouTube: () => Promise<boolean>;
@@ -48,7 +61,6 @@ declare global {
         stop: (videoData: Uint8Array) => Promise<ScreenRecordingStopResult>;
         listSources: () => Promise<ScreenSource[]>;
         cleanupTempFile: (filePath: string) => Promise<void>;
-        triggerTranscription: (filePath: string) => Promise<void>;
         showControlBar: () => Promise<{ success: boolean }>;
         hideControlBar: () => Promise<{ success: boolean }>;
         stopFromControlBar: () => Promise<{ success: boolean }>;
@@ -59,24 +71,13 @@ declare global {
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;
       };
-      openai: {
-        getTranscription: (audioFilePath: string) => Promise<string>;
-        processTranscript: (transcript: string) => Promise<string>;
-        onTranscriptionStarted: (callback: () => void) => () => void;
-        onTranscriptionCompleted: (callback: (transcript: string) => void) => () => void;
-        onTranscriptionError: (callback: (error: string) => void) => () => void;
-      };
       workflow: {
         onProgress: (callback: (progress: unknown) => void) => () => void;
-        retryTaskExecution: (intermediateOutput: string) => Promise<{
-          success: boolean;
-          finalOutput?: string | null;
-          error?: string;
-        }>;
       };
       mcp: {
         processMessage: (
           prompt: string,
+          videoUrl?: string,
           options?: { serverFilter?: string[] },
         ) => Promise<{
           final: string | null;
@@ -96,11 +97,16 @@ declare global {
         addServer: (config: MCPServerConfig) => Promise<{ success: boolean }>;
         updateServer: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
         removeServer: (name: string) => Promise<{ success: boolean }>;
+        checkServerHealth: (name: string) => Promise<HealthStatusInfo>;
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;
         getActivePrompt: () => Promise<CustomPrompt | null>;
-        addPrompt: (prompt: { name: string; description?: string; content: string }) => Promise<CustomPrompt>;
+        addPrompt: (prompt: {
+          name: string;
+          description?: string;
+          content: string;
+        }) => Promise<CustomPrompt>;
         updatePrompt: (
           id: string,
           updates: { name?: string; description?: string; content?: string },

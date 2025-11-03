@@ -1,7 +1,8 @@
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
-import { buildTaskExecutionPrompt } from "../services/openai/prompts";
+import type { VideoUploadResult } from "../services/auth/types";
 import type { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import type { MCPServerConfig } from "../services/mcp/types";
+import { buildTaskExecutionPrompt } from "../services/openai/prompts";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { IPC_CHANNELS } from "./channels";
 
@@ -43,14 +44,27 @@ export class McpIPCHandlers {
         return { success: true };
       },
     );
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH,
+      async (_event: IpcMainInvokeEvent, name: string) => {
+        return await this.orchestrator.checkServerHealth(name);
+      },
+    );
+
     ipcMain.handle(
       IPC_CHANNELS.MCP_PROCESS_MESSAGE,
-      async (_event: IpcMainInvokeEvent, prompt: string, options?: { serverFilter?: string[] }) => {
+      async (
+        _event: IpcMainInvokeEvent,
+        prompt: string,
+        videoUploadResult?: VideoUploadResult,
+        options?: { serverFilter?: string[] },
+      ) => {
         const activePrompt = await this.settingsStore.getActivePrompt();
         const customPromptContent = activePrompt?.content || "";
         const systemPrompt = buildTaskExecutionPrompt(customPromptContent);
 
-        return await this.orchestrator.processMessage(prompt, {
+        return await this.orchestrator.processMessage(prompt, videoUploadResult, {
           ...options,
           systemPrompt,
         });

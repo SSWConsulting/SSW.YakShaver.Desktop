@@ -124,3 +124,10 @@ export interface CustomPrompt {
   createdAt: number;
   updatedAt: number;
 }
+
+export interface HealthStatusInfo {
+  isHealthy: boolean;
+  error?: string;
+  successMessage?: string;
+  isChecking?: boolean;
+}
