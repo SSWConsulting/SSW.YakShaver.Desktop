@@ -1,10 +1,10 @@
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import type { CustomPrompt } from "@/types";
 import { SearchBar } from "../../common/SearchBar";
 import { ScrollArea } from "../../ui/scroll-area";
 import { Separator } from "../../ui/separator";
 import { PromptCard } from "./PromptCard";
-import { Button } from "@/components/ui/button";
 
 interface PromptListViewProps {
   prompts: CustomPrompt[];

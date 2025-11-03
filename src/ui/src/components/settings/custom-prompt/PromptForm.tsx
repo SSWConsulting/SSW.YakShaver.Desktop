@@ -31,7 +31,6 @@ export function PromptForm({
 
   return (
     <div className="flex flex-col gap-4 h-full">
-      {/* Name Field */}
       <div className="flex flex-col gap-2 shrink-0">
         <Label htmlFor={promptNameId} className="text-white/90 text-sm">
           Prompt Name *
@@ -49,7 +48,6 @@ export function PromptForm({
         )}
       </div>
 
-      {/* Description Field */}
       <div className="flex flex-col gap-2 shrink-0">
         <Label htmlFor={promptDescriptionId} className="text-white/90 text-sm">
           Description
@@ -66,7 +64,6 @@ export function PromptForm({
         </p>
       </div>
 
-      {/* Content Field */}
       <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-hidden">
         <Label htmlFor={promptInstructionsId} className="text-white/90 text-sm shrink-0">
           Prompt Instructions
@@ -83,7 +80,6 @@ export function PromptForm({
         </p>
       </div>
 
-      {/* Action Buttons */}
       <div className="flex justify-between gap-2 pt-4 border-t border-white/10 shrink-0">
         {onDelete && (
           <Button

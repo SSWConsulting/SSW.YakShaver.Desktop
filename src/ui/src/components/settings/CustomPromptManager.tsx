@@ -18,14 +18,11 @@ import { PromptListView } from "./custom-prompt/PromptListView";
 import type { PromptFormData, ViewMode } from "./custom-prompt/types";
 
 export function CustomPromptManager() {
-  // Use custom hook for prompt management
   const promptManager = usePromptManager();
 
-  // UI State
   const [open, setOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
-  // Form State
   const [editingPrompt, setEditingPrompt] = useState<CustomPrompt | null>(null);
   const [formData, setFormData] = useState<PromptFormData>({
     name: "",
@@ -33,13 +30,11 @@ export function CustomPromptManager() {
     content: "",
   });
 
-  // Dialog State
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [promptToDelete, setPromptToDelete] = useState<CustomPrompt | null>(null);
   const [unsavedChangesDialogOpen, setUnsavedChangesDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
-  // Load prompts when dialog opens
   useEffect(() => {
     if (open) {
       promptManager.loadPrompts();
@@ -47,7 +42,6 @@ export function CustomPromptManager() {
     }
   }, [open, promptManager.loadPrompts]);
 
-  // Helper: Check for unsaved changes
   const hasUnsavedChanges = useCallback(() => {
     if (viewMode === "list") return false;
 
@@ -70,13 +64,11 @@ export function CustomPromptManager() {
     return false;
   }, [viewMode, formData, editingPrompt]);
 
-  // Helper: Reset form
   const resetForm = useCallback(() => {
     setFormData({ name: "", description: "", content: "" });
     setEditingPrompt(null);
   }, []);
 
-  // Helper: Load form with prompt data
   const loadFormData = useCallback((prompt: CustomPrompt) => {
     setFormData({
       name: prompt.name,
@@ -86,13 +78,11 @@ export function CustomPromptManager() {
     setEditingPrompt(prompt);
   }, []);
 
-  // Handler: Create new prompt
   const handleCreateNew = useCallback(() => {
     resetForm();
     setViewMode("create");
   }, [resetForm]);
 
-  // Handler: Edit prompt
   const handleEdit = useCallback(
     (prompt: CustomPrompt) => {
       if (hasUnsavedChanges()) {
@@ -110,7 +100,6 @@ export function CustomPromptManager() {
     [hasUnsavedChanges, loadFormData],
   );
 
-  // Handler: Save prompt
   const handleSave = useCallback(
     async (andActivate: boolean) => {
       if (!formData.name.trim()) {
@@ -133,7 +122,6 @@ export function CustomPromptManager() {
     [viewMode, formData, editingPrompt, promptManager, resetForm],
   );
 
-  // Handler: Delete prompt
   const handleDelete = useCallback(() => {
     if (editingPrompt) {
       setPromptToDelete(editingPrompt);
@@ -154,7 +142,6 @@ export function CustomPromptManager() {
     setPromptToDelete(null);
   }, [promptToDelete, promptManager, resetForm]);
 
-  // Handler: Back to list
   const handleBackToList = useCallback(() => {
     if (hasUnsavedChanges()) {
       setPendingAction(() => () => {
@@ -168,7 +155,6 @@ export function CustomPromptManager() {
     resetForm();
   }, [hasUnsavedChanges, resetForm]);
 
-  // Handler: Dialog close
   const handleDialogClose = useCallback(
     (isOpen: boolean) => {
       if (!isOpen && hasUnsavedChanges()) {
@@ -189,7 +175,6 @@ export function CustomPromptManager() {
     [hasUnsavedChanges, resetForm],
   );
 
-  // Handler: Confirm unsaved changes
   const handleConfirmUnsavedChanges = useCallback(() => {
     setUnsavedChangesDialogOpen(false);
     if (pendingAction) {
@@ -198,13 +183,11 @@ export function CustomPromptManager() {
     }
   }, [pendingAction]);
 
-  // Handler: Cancel unsaved changes
   const handleCancelUnsavedChanges = useCallback(() => {
     setUnsavedChangesDialogOpen(false);
     setPendingAction(null);
   }, []);
 
-  // Render views based on mode
   const renderContent = () => {
     if (viewMode === "list") {
       return (
