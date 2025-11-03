@@ -14,7 +14,7 @@ import {
 } from "../../ui/form";
 import { Input } from "../../ui/input";
 import { Textarea } from "../../ui/textarea";
-import { promptFormSchema, type PromptFormValues } from "./schema";
+import { type PromptFormValues, promptFormSchema } from "./schema";
 
 interface PromptFormProps {
   defaultValues?: PromptFormValues;
@@ -47,7 +47,6 @@ export function PromptForm({
 
   const { isDirty } = form.formState;
 
-  // Reset form when defaultValues change (switching between prompts)
   useEffect(() => {
     if (defaultValues) {
       form.reset(defaultValues);
@@ -141,7 +140,7 @@ export function PromptForm({
           )}
         />
 
-        <div className="flex justify-between gap-2 pt-4 border-t border-white/10 shrink-0">
+        <div className="flex justify-between gap-2 shrink-0">
           {onDelete && (
             <Button
               type="button"
@@ -149,7 +148,7 @@ export function PromptForm({
               variant="destructive"
               size="sm"
               disabled={loading}
-              className="cursor-pointer border-2 border-red-500 hover:border-red-600"
+              className="cursor-pointer"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete
