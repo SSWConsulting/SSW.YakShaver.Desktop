@@ -35,12 +35,10 @@ export function DeleteConfirmDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700">
-            Cancel
-          </AlertDialogCancel>
+          <AlertDialogCancel className="text-black cursor-pointer">Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            className="bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
+            className="bg-red-600 hover:bg-red-700 cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
             Delete

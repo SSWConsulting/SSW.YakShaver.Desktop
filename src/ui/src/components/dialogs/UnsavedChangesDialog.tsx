@@ -32,10 +32,13 @@ export function UnsavedChangesDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel} className="text-black">
+          <AlertDialogCancel onClick={onCancel} className="cursor-pointer text-black">
             Keep Editing
           </AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-destructive hover:bg-destructive/90">
+          <AlertDialogAction
+            onClick={onConfirm}
+            className="cursor-pointer bg-destructive hover:bg-destructive/90"
+          >
             Discard Changes
           </AlertDialogAction>
         </AlertDialogFooter>
