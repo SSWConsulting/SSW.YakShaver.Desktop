@@ -55,12 +55,10 @@ export function usePromptManager() {
         description: data.description,
         content: data.content,
       });
-      toast.success("Prompt updated successfully");
-
       if (andActivate) {
         await ipcClient.settings.setActivePrompt(id);
-        toast.success("Prompt saved and activated");
       }
+      toast.success(andActivate ? "Prompt updated and activated" : "Prompt updated successfully");
 
       await loadPrompts();
       return true;
