@@ -95,7 +95,7 @@ export class CustomPromptStorage extends BaseSecureStorage {
 
     const newPrompt: CustomPrompt = {
       ...prompt,
-      id: `prompt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `prompt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
