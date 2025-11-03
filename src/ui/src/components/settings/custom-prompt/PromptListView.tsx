@@ -4,6 +4,7 @@ import { SearchBar } from "../../common/SearchBar";
 import { ScrollArea } from "../../ui/scroll-area";
 import { Separator } from "../../ui/separator";
 import { PromptCard } from "./PromptCard";
+import { Button } from "@/components/ui/button";
 
 interface PromptListViewProps {
   prompts: CustomPrompt[];
@@ -33,13 +34,12 @@ export function PromptListView({
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-hidden">
-      <SearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placeholder="Search prompts..."
-        buttonText="Add New Prompt"
-        onButtonClick={onCreateNew}
-      />
+      <div className="flex items-center gap-2">
+        <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search prompts..." />
+        <Button onClick={onCreateNew} variant="secondary" size="sm" className="shrink-0">
+          Add New Prompt
+        </Button>
+      </div>
       <Separator className="bg-white/10 shrink-0" />
       <ScrollArea className="h-[50vh]">
         <div className="flex flex-col space-y-4 pr-4">
