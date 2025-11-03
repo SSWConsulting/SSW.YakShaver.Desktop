@@ -2,16 +2,16 @@ import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import { buildTaskExecutionPrompt } from "../services/openai/prompts";
 import type { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import type { MCPServerConfig } from "../services/mcp/types";
-import { SettingsStore } from "../services/storage/settings-store";
+import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { IPC_CHANNELS } from "./channels";
 
 export class McpIPCHandlers {
   private orchestrator: MCPOrchestrator;
-  private settingsStore: SettingsStore;
+  private settingsStore: CustomPromptStorage;
 
   constructor(orchestrator: MCPOrchestrator) {
     this.orchestrator = orchestrator;
-    this.settingsStore = SettingsStore.getInstance();
+    this.settingsStore = CustomPromptStorage.getInstance();
     this.registerHandlers();
   }
 
@@ -46,7 +46,7 @@ export class McpIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.MCP_PROCESS_MESSAGE,
       async (_event: IpcMainInvokeEvent, prompt: string, options?: { serverFilter?: string[] }) => {
-        const activePrompt = this.settingsStore.getActivePrompt();
+        const activePrompt = await this.settingsStore.getActivePrompt();
         const customPromptContent = activePrompt?.content || "";
         const systemPrompt = buildTaskExecutionPrompt(customPromptContent);
 

@@ -1,10 +1,10 @@
 import { ipcMain } from "electron";
-import type { CustomPrompt } from "../services/storage/settings-store";
-import { SettingsStore } from "../services/storage/settings-store";
+import type { CustomPrompt } from "../services/storage/custom-prompt-storage";
+import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { IPC_CHANNELS } from "./channels";
 
 export class SettingsIPCHandlers {
-  private store = SettingsStore.getInstance();
+  private store = CustomPromptStorage.getInstance();
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS, () => this.store.getAllPrompts());
