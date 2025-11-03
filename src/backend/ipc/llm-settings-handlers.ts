@@ -65,5 +65,9 @@ export class LLMSettingsIPCHandlers {
       this.openAiService.clearOpenAIClient();
       return { success: true };
     });
+
+    ipcMain.handle(IPC_CHANNELS.LLM_CHECK_HEALTH, async () => {
+      return await this.openAiService.checkHealth();
+    });
   }
 }
