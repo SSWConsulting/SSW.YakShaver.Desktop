@@ -114,3 +114,10 @@ export interface WorkflowProgress {
   finalOutput?: string;
   error?: string;
 }
+
+export interface HealthStatusInfo {
+  isHealthy: boolean;
+  error?: string;
+  successMessage?: string;
+  isChecking?: boolean;
+}
