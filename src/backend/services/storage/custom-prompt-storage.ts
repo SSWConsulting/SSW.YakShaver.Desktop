@@ -16,7 +16,7 @@ interface CustomPromptData {
   activePromptId: string | null;
 }
 
-const SETTINGS_FILE = "settings.enc";
+const SETTINGS_FILE = "custom-settings.enc";
 
 const DEFAULT_PROMPT: CustomPrompt = {
   id: "default",
