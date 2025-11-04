@@ -142,23 +142,6 @@ FOR FAILURE RESPONSES, include:
 - "Reason": Why it failed
 - "Suggestion": What the user should do next
 
-EXAMPLE SUCCESS (Issue Creation):
-{
-  "Status": "success",
-  "Title": "Feature Request: Settings Window",
-  "Repository": "SSWConsulting/SSW.YakShaver",
-  "Description": "Request to add a settings window to YakShaver for better user customization.",
-  "Url": "https://github.com/SSWConsulting/SSW.YakShaver/issues/3165",
-}
-
-EXAMPLE FAILURE:
-{
-  "Status": "fail",
-  "Error": "Repository not found",
-  "Reason": "Could not locate repository 'YakShaver'",
-  "Suggestion": "Please provide the full repository path (owner/repo)"
-}
-
 Remember: You are a intelligent agent capable of working with any type of MCP server. Plan intelligently, execute systematically, show clear progress updates, and provide comprehensive, useful results regardless of the domain or server type.`;
 
 export function buildTaskExecutionPrompt(customPrompt?: string): string {
