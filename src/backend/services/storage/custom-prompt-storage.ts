@@ -24,10 +24,49 @@ const DEFAULT_PROMPT: CustomPrompt = {
   description: "This is the default prompt for YakShaver",
   content: `You are YakShaver, an AI assistant with MCP capabilities to assist with create and manage PBIs.
 
-The repository link for YakShaver is https://github.com/SSWConsulting/SSW.YakShaver.Desktop
-
+1. When creating an issue:
 - Add the video link to the top of the description.
-- When creating an issue, always tag it with the "YakShaver" label.`,
+- Always tag issue with the "YakShaver" label.
+
+2. USE one of these backlogs listed below that matches with the user mentioned:
+
+- https://github.com/SSWConsulting/SSW.YakShaver.Desktop
+- https://github.com/SSWConsulting/SSW.YakShaver
+
+3. Use below template when creating an issue:
+
+\`\`\`markdown
+<!-- These comments automatically delete -->
+<!-- **Tip:** Delete parts that are not relevant -->
+<!-- Next to Cc:, @ mention users who should be in the loop -->
+Cc: @user1 @user2 @user3
+
+<!-- add intended user next to **Hi** -->
+Hi [Team/Project Name],
+
+### Pain
+[Describe problem/pain point based on input. Stay faithful to what was mentioned.]
+
+### Suggested Solution
+[If solution mentioned, describe it. Otherwise, suggest reasonable direction based on pain point. Keep concise.]
+
+### Acceptance Criteria
+
+1. [Derive reasonable criteria from input]
+2. [Make logical inferences based on what was mentioned]
+3. [Aim for 2-4 criteria]
+
+### Tasks
+
+- [ ] [Break down into actionable tasks based on content]
+- [ ] [Be specific but stay within discussed scope]
+- [ ] [Typically 2-5 tasks]
+
+### More Information
+<!-- Add any other context from input here. -->
+
+Thanks!
+\`\`\``,
   isDefault: true,
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -62,8 +101,26 @@ export class CustomPromptStorage extends BaseSecureStorage {
       return this.cache;
     }
 
-    const data = await this.decryptAndLoad<CustomPromptData>(this.getSettingsPath());
+    const data = await this.decryptAndLoad<CustomPromptData>(
+      this.getSettingsPath()
+    );
     this.cache = data || DEFAULT_SETTINGS;
+
+    // Migrate default prompt to new default if there are changes
+    if (this.cache) {
+      const defaultPromptIndex = this.cache.prompts.findIndex(
+        (p) => p.id === "default"
+      );
+      if (defaultPromptIndex !== -1) {
+        this.cache.prompts[defaultPromptIndex] = {
+          ...this.cache.prompts[defaultPromptIndex],
+          content: DEFAULT_PROMPT.content,
+          updatedAt: Date.now(),
+        };
+        await this.saveSettings(this.cache);
+      }
+    }
+
     return this.cache;
   }
 
@@ -80,7 +137,9 @@ export class CustomPromptStorage extends BaseSecureStorage {
   async getActivePrompt(): Promise<CustomPrompt | null> {
     const settings = await this.loadSettings();
     if (!settings.activePromptId) return null;
-    return settings.prompts.find((p) => p.id === settings.activePromptId) || null;
+    return (
+      settings.prompts.find((p) => p.id === settings.activePromptId) || null
+    );
   }
 
   async getPromptById(id: string): Promise<CustomPrompt | null> {
@@ -89,7 +148,7 @@ export class CustomPromptStorage extends BaseSecureStorage {
   }
 
   async addPrompt(
-    prompt: Omit<CustomPrompt, "id" | "createdAt" | "updatedAt">,
+    prompt: Omit<CustomPrompt, "id" | "createdAt" | "updatedAt">
   ): Promise<CustomPrompt> {
     const settings = await this.loadSettings();
 
@@ -107,7 +166,7 @@ export class CustomPromptStorage extends BaseSecureStorage {
 
   async updatePrompt(
     id: string,
-    updates: Partial<Pick<CustomPrompt, "name" | "content" | "description">>,
+    updates: Partial<Pick<CustomPrompt, "name" | "content" | "description">>
   ): Promise<boolean> {
     const settings = await this.loadSettings();
     const index = settings.prompts.findIndex((p) => p.id === id);
