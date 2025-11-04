@@ -8,11 +8,11 @@ import { IPC_CHANNELS } from "./channels";
 
 export class McpIPCHandlers {
   private orchestrator: MCPOrchestrator;
-  private settingsStore: CustomPromptStorage;
+  private customPromptStorage: CustomPromptStorage;
 
   constructor(orchestrator: MCPOrchestrator) {
     this.orchestrator = orchestrator;
-    this.settingsStore = CustomPromptStorage.getInstance();
+    this.customPromptStorage = CustomPromptStorage.getInstance();
     this.registerHandlers();
   }
 
@@ -60,7 +60,7 @@ export class McpIPCHandlers {
         videoUploadResult?: VideoUploadResult,
         options?: { serverFilter?: string[] },
       ) => {
-        const activePrompt = await this.settingsStore.getActivePrompt();
+        const activePrompt = await this.customPromptStorage.getActivePrompt();
         const customPromptContent = activePrompt?.content || "";
         const systemPrompt = buildTaskExecutionPrompt(customPromptContent);
 
