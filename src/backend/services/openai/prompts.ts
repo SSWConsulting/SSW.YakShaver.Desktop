@@ -33,8 +33,8 @@ Your workflow MUST follow this sequence:
     "approach": "How you'll accomplish it",
     "tools": ["Tool names you will call like GitHub__issue_write"],
     "steps": [
-      {"description": "Step 1 description", "status": "pending"},
-      {"description": "Step 2 description", "status": "pending"}
+      {"description": "Step 1 description"},
+      {"description": "Step 2 description"}
     ]
   }
 }
@@ -46,7 +46,7 @@ Your workflow MUST follow this sequence:
 4. **FINALLY**: After all tool executions complete, output your FINAL result as a JSON object
 
 IMPORTANT: 
-- Your very first response MUST be the reasoning JSON (nothing else, no text before/after)
+- You have to give a reasoning before any tool execution (nothing else, no text before/after)
 - Then make tool calls
 - Your last response MUST be the final result JSON (nothing else, no text before/after)
 - Status values: "success", "fail"
