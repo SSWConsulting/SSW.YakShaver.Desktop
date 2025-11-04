@@ -3,7 +3,7 @@ import type { CustomPrompt } from "../services/storage/custom-prompt-storage";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { IPC_CHANNELS } from "./channels";
 
-export class SettingsIPCHandlers {
+export class CustomPromptSettingsIPCHandlers {
   private store = CustomPromptStorage.getInstance();
 
   constructor() {
