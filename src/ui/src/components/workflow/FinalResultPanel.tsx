@@ -16,7 +16,11 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
     ([key]) => key !== "Status" && key !== "IssueNumber"
   );
 
-  const renderValue = (value: unknown) => {
+  const getKey = (index: number): string => {
+    return `item-${index}`;
+  };
+
+  const renderValue = (value: unknown): React.ReactNode => {
     if (typeof value === "string") {
       const isUrl = value.startsWith("http://") || value.startsWith("https://");
       if (isUrl) {
@@ -26,7 +30,7 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
               href={value}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-400 hover:text-blue-300 transition-colors break-all"
+              className="text-sm text-white/90 hover:text-white transition-colors break-all underline"
             >
               {value}
             </a>
@@ -60,11 +64,48 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
     }
 
     if (Array.isArray(value)) {
+      // Check if array contains objects (like multiple issues)
+      if (
+        value.length > 0 &&
+        typeof value[0] === "object" &&
+        value[0] !== null
+      ) {
+        return (
+          <div className="space-y-3">
+            {value.map((item, index) => {
+              const itemObj = item as Record<string, unknown>;
+              return (
+                <div
+                  key={getKey(index)}
+                  className="bg-white/5 p-4 rounded-md border border-white/10"
+                >
+                  <div className="space-y-3">
+                    {Object.entries(itemObj).map(([itemKey, itemValue]) => (
+                      <div key={itemKey}>
+                        <div className="flex items-baseline gap-3 mb-2">
+                          <h4 className="text-xs font-semibold text-white/50 uppercase tracking-wide min-w-fit">
+                            {itemKey}
+                          </h4>
+                          <div className="h-px flex-1 bg-white/10 self-center" />
+                        </div>
+                        <div className="pl-0">{renderValue(itemValue)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+
       return (
         <ul className="space-y-1.5 list-disc list-inside text-white/90">
           {value.map((item, index) => (
-            <li key={`${String(item)}-${index}`} className="text-sm">
-              {String(item)}
+            <li key={getKey(index)} className="text-sm">
+              {typeof item === "object" && item !== null
+                ? renderValue(item)
+                : String(item)}
             </li>
           ))}
         </ul>

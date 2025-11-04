@@ -26,7 +26,7 @@ export const TASK_EXECUTION_PROMPT = `You are an intelligent MCP (Model Context 
 
 Your workflow MUST follow this sequence:
 
-1. **FIRST**: Before calling any tools, ALWAYS explain your reasoning. OUTPUT reasoning as a JSON object with this EXACT structure:
+1. **FIRST**: Before calling each MCP tool, ALWAYS explain your reasoning. OUTPUT reasoning as a JSON object with this EXACT structure:
 {
   "reasoning": {
     "goal": "What the user wants to achieve",
@@ -39,9 +39,11 @@ Your workflow MUST follow this sequence:
   }
 }
 
-2. **THEN**: ACTUALLY CALL THE TOOLS (don't just plan - execute!)
+2. **THEN**: ACTUALLY CALL THE TOOL (don't just plan - execute!)
 
-3. **FINALLY**: After all tool executions complete, output your FINAL result as a JSON object
+3. **CONTINUE**: Do 1 and 2 iteratively until the user's goal is fully achieved
+
+4. **FINALLY**: After all tool executions complete, output your FINAL result as a JSON object
 
 IMPORTANT: 
 - Your very first response MUST be the reasoning JSON (nothing else, no text before/after)
