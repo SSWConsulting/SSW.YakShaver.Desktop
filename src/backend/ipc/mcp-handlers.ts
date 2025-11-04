@@ -52,6 +52,7 @@ export class McpIPCHandlers {
       },
     );
 
+// TODO: should be removed, we shouldn't call the orchestrator directly from the frontend 
     ipcMain.handle(
       IPC_CHANNELS.MCP_PROCESS_MESSAGE,
       async (
