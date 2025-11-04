@@ -98,6 +98,7 @@ const electronAPI = {
   video: {
     selectVideoFile: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_VIDEO_FILE),
     selectOutputDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_OUTPUT_DIRECTORY),
+    // TODO: Should be removed. this function has been moved to processVideo pipeline
     convertVideoToMp3: (inputPath: string, outputPath: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.CONVERT_VIDEO_TO_MP3, inputPath, outputPath),
   },
