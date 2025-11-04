@@ -10,7 +10,7 @@ import {
   buildTaskExecutionPrompt,
   INITIAL_SUMMARY_PROMPT,
 } from "../services/openai/prompts";
-import { SettingsStore } from "../services/storage/settings-store";
+import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
@@ -19,7 +19,7 @@ export class ProcessVideoIPCHandlers {
   private readonly llmClient = OpenAIService.getInstance(); // TODO: make generic interface for different LLMs https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
   private ffmpegService = FFmpegService.getInstance();
   private readonly mcpOrchestrator: MCPOrchestrator;
-  private readonly settingsStore = SettingsStore.getInstance();
+  private readonly customPromptStorage = CustomPromptStorage.getInstance();
 
   constructor() {
     this.mcpOrchestrator = new MCPOrchestrator({}, this.llmClient);
@@ -66,8 +66,8 @@ export class ProcessVideoIPCHandlers {
         });
 
         // process transcription with MCP
-        const customPrompt = this.settingsStore.getCustomPrompt();
-        const systemPrompt = buildTaskExecutionPrompt(customPrompt);
+        const customPrompt = await this.customPromptStorage.getActivePrompt();
+        const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
         const mcpResult = await this.mcpOrchestrator.processMessage(
           intermediateOutput,
@@ -100,8 +100,8 @@ export class ProcessVideoIPCHandlers {
         try {
           this.emitProgress("executing_task");
 
-          const customPrompt = this.settingsStore.getCustomPrompt();
-          const systemPrompt = buildTaskExecutionPrompt(customPrompt);
+          const customPrompt = await this.customPromptStorage.getActivePrompt();
+          const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
           const mcpResult = await this.mcpOrchestrator.processMessage(
             intermediateOutput,
