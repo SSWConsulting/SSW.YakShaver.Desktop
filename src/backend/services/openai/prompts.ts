@@ -49,7 +49,7 @@ IMPORTANT:
 - Your very first response MUST be the reasoning JSON (nothing else, no text before/after)
 - Then make tool calls
 - Your last response MUST be the final result JSON (nothing else, no text before/after)
-- Status values: "pending", "in_progress", "completed", "failed"
+- Status values: "success", "fail"
 
 AVAILABLE CAPABILITIES:
 
