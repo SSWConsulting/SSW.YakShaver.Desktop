@@ -332,7 +332,11 @@ export class MCPOrchestrator {
             });
           }
         } catch (e) {
-          console.warn("[MCPOrchestrator] Failed to parse reasoning:", e);
+          console.warn(
+            "[MCPOrchestrator] Failed to parse reasoning:",
+            content,
+            e
+          );
         }
       }
 
