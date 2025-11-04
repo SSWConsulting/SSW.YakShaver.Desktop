@@ -345,10 +345,6 @@ export class MCPOrchestrator {
 
         // Clean up the final output - remove any reasoning tags and markdown code blocks
         const finalContent = assistantMessage?.content ?? null;
-        console.log(
-          "[MCPOrchestrator] Final assistant content before cleanup:",
-          finalContent
-        );
 
         // Validate it's JSON
         if (finalContent) {
