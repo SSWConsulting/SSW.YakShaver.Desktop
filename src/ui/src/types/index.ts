@@ -115,6 +115,16 @@ export interface WorkflowProgress {
   error?: string;
 }
 
+export interface CustomPrompt {
+  id: string;
+  name: string;
+  description?: string;
+  content: string;
+  isDefault?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface HealthStatusInfo {
   isHealthy: boolean;
   error?: string;

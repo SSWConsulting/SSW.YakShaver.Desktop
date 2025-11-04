@@ -8,7 +8,7 @@ import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
-import { SettingsIPCHandlers } from "./ipc/settings-handlers";
+import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
 import { createMcpOrchestrator } from "./services/mcp/mcp-orchestrator-factory";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
@@ -72,7 +72,7 @@ let _authHandlers: AuthIPCHandlers;
 let _videoHandlers: VideoIPCHandlers;
 let _llmSettingsHandlers: LLMSettingsIPCHandlers;
 let _mcpHandlers: McpIPCHandlers;
-let _settingsHandlers: SettingsIPCHandlers;
+let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
 let _processVideoHandlers: ProcessVideoIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
@@ -99,7 +99,7 @@ app.whenReady().then(async () => {
   // Create MCP orchestrator with factory to ensure initialization completes
   const mcpOrchestrator = await createMcpOrchestrator({ eagerCreate: true });
   _mcpHandlers = new McpIPCHandlers(mcpOrchestrator);
-  _settingsHandlers = new SettingsIPCHandlers();
+  _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
 
   // Pre-initialize control bar window for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);

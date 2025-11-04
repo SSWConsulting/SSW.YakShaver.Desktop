@@ -61,8 +61,12 @@ const IPC_CHANNELS = {
   RETRY_VIDEO: "retry-video",
 
   // Settings
-  SETTINGS_GET_CUSTOM_PROMPT: "settings:get-custom-prompt",
-  SETTINGS_SET_CUSTOM_PROMPT: "settings:set-custom-prompt",
+  SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
+  SETTINGS_GET_ACTIVE_PROMPT: "settings:get-active-prompt",
+  SETTINGS_ADD_PROMPT: "settings:add-prompt",
+  SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
+  SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
+  SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -74,14 +78,13 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 const electronAPI = {
   pipelines: {
     processVideo: (filePath?: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, filePath),
-    retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) => ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
+    retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) =>
+      ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
   },
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),
-    getAuthStatus: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_GET_AUTH_STATUS),
-    getCurrentUser: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_GET_CURRENT_USER),
+    getAuthStatus: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_GET_AUTH_STATUS),
+    getCurrentUser: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_GET_CURRENT_USER),
     disconnect: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_DISCONNECT),
     refreshToken: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_REFRESH_TOKEN),
     uploadVideo: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_UPLOAD_VIDEO),
@@ -94,18 +97,13 @@ const electronAPI = {
   },
   video: {
     selectVideoFile: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_VIDEO_FILE),
-    selectOutputDirectory: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.SELECT_OUTPUT_DIRECTORY),
+    selectOutputDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_OUTPUT_DIRECTORY),
+    // TODO: Should be removed. this function has been moved to processVideo pipeline
     convertVideoToMp3: (inputPath: string, outputPath: string) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.CONVERT_VIDEO_TO_MP3,
-        inputPath,
-        outputPath
-      ),
+      ipcRenderer.invoke(IPC_CHANNELS.CONVERT_VIDEO_TO_MP3, inputPath, outputPath),
   },
   screenRecording: {
-    start: (sourceId?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.START_SCREEN_RECORDING, sourceId),
+    start: (sourceId?: string) => ipcRenderer.invoke(IPC_CHANNELS.START_SCREEN_RECORDING, sourceId),
     stop: (videoData: Uint8Array) =>
       ipcRenderer.invoke(IPC_CHANNELS.STOP_SCREEN_RECORDING, videoData),
     listSources: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_SCREEN_SOURCES),
@@ -113,25 +111,20 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.CLEANUP_TEMP_FILE, filePath),
     showControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.SHOW_CONTROL_BAR),
     hideControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.HIDE_CONTROL_BAR),
-    stopFromControlBar: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR),
-    minimizeMainWindow: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.MINIMIZE_MAIN_WINDOW),
-    restoreMainWindow: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.RESTORE_MAIN_WINDOW),
+    stopFromControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR),
+    minimizeMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.MINIMIZE_MAIN_WINDOW),
+    restoreMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.RESTORE_MAIN_WINDOW),
     onStopRequest: (callback: () => void) => {
       const listener = () => callback();
       ipcRenderer.on("stop-recording-request", listener);
-      return () =>
-        ipcRenderer.removeListener("stop-recording-request", listener);
+      return () => ipcRenderer.removeListener("stop-recording-request", listener);
     },
   },
   controlBar: {
     onTimeUpdate: (callback: (time: string) => void) => {
       const listener = (_: unknown, time: string) => callback(time);
       ipcRenderer.on("update-recording-time", listener);
-      return () =>
-        ipcRenderer.removeListener("update-recording-time", listener);
+      return () => ipcRenderer.removeListener("update-recording-time", listener);
     },
   },
   workflow: {
@@ -139,8 +132,7 @@ const electronAPI = {
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS, callback),
   },
   llm: {
-    setConfig: (config: unknown) =>
-      ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),
+    setConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),
     getConfig: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_GET_CONFIG),
     clearConfig: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_CLEAR_CONFIG),
     checkHealth: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_CHECK_HEALTH),
@@ -149,16 +141,9 @@ const electronAPI = {
     processMessage: (
       prompt: string,
       videoUploadResult?: VideoUploadResult,
-      options?: { serverFilter?: string[] }
-    ) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.MCP_PROCESS_MESSAGE,
-        prompt,
-        videoUploadResult,
-        options
-      ),
-    prefillPrompt: (text: string) =>
-      ipcRenderer.send(IPC_CHANNELS.MCP_PREFILL_PROMPT, text),
+      options?: { serverFilter?: string[] },
+    ) => ipcRenderer.invoke(IPC_CHANNELS.MCP_PROCESS_MESSAGE, prompt, videoUploadResult, options),
+    prefillPrompt: (text: string) => ipcRenderer.send(IPC_CHANNELS.MCP_PREFILL_PROMPT, text),
     onPrefillPrompt: (callback: (text: string) => void) =>
       onIpcEvent<string>(IPC_CHANNELS.MCP_PREFILL_PROMPT, callback),
     onStepUpdate: (
@@ -167,23 +152,26 @@ const electronAPI = {
         message?: string;
         toolName?: string;
         serverName?: string;
-      }) => void
+      }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
-    addServer: (config: MCPServerConfig) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
+    addServer: (config: MCPServerConfig) => ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
     updateServer: (name: string, config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, name, config),
-    removeServer: (name: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),
+    removeServer: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),
     checkServerHealth: (name: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, name),
   },
   settings: {
-    getCustomPrompt: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_CUSTOM_PROMPT),
-    setCustomPrompt: (prompt: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_CUSTOM_PROMPT, prompt),
+    getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
+    getActivePrompt: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ACTIVE_PROMPT),
+    addPrompt: (prompt: { name: string; content: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
+    updatePrompt: (id: string, updates: { name?: string; content?: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_PROMPT, id, updates),
+    deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
+    setActivePrompt: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
   },
 };
 

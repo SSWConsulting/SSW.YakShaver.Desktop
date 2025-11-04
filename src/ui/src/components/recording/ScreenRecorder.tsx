@@ -5,7 +5,7 @@ import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, UploadStatus } from "../../types";
 import { LLMKeyManager } from "../llm/LLMKeyManager";
 import { McpServerManager } from "../mcp/McpServerManager";
-import { CustomPromptDialog } from "../settings/CustomPromptDialog";
+import { CustomPromptManager } from "../settings/CustomPromptManager";
 import { Button } from "../ui/button";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
@@ -22,9 +22,7 @@ export function ScreenRecorder() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(
-    null
-  );
+  const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
@@ -42,8 +40,7 @@ export function ScreenRecorder() {
   };
 
   useEffect(() => {
-    const cleanup =
-      window.electronAPI.screenRecording.onStopRequest(handleStopRecording);
+    const cleanup = window.electronAPI.screenRecording.onStopRequest(handleStopRecording);
     return cleanup;
   }, [handleStopRecording]);
 
@@ -73,7 +70,6 @@ export function ScreenRecorder() {
       setUploadResult(null);
 
       await window.electronAPI.pipelines.processVideo(filePath);
-
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = error instanceof Error ? error.message : String(error);
@@ -98,7 +94,7 @@ export function ScreenRecorder() {
                 : "Start Recording"}
           </Button>
           <McpServerManager />
-          <CustomPromptDialog />
+          <CustomPromptManager />
           <LLMKeyManager />
         </div>
         {!isAuthenticated && (
