@@ -112,12 +112,15 @@ export class CustomPromptStorage extends BaseSecureStorage {
         (p) => p.id === "default"
       );
       if (defaultPromptIndex !== -1) {
-        this.cache.prompts[defaultPromptIndex] = {
-          ...this.cache.prompts[defaultPromptIndex],
-          content: DEFAULT_PROMPT.content,
-          updatedAt: Date.now(),
-        };
-        await this.saveSettings(this.cache);
+        const currentDefaultPrompt = this.cache.prompts[defaultPromptIndex];
+        if (currentDefaultPrompt.content !== DEFAULT_PROMPT.content) {
+          this.cache.prompts[defaultPromptIndex] = {
+            ...currentDefaultPrompt,
+            content: DEFAULT_PROMPT.content,
+            updatedAt: Date.now(),
+          };
+          await this.saveSettings(this.cache);
+        }
       }
     }
 
