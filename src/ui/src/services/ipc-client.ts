@@ -4,6 +4,7 @@ import type {
   AuthState,
   ConvertVideoToMp3Result,
   HealthStatusInfo,
+  CustomPrompt,
   LLMConfig,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
@@ -19,7 +20,10 @@ declare global {
     electronAPI: {
       pipelines: {
         processVideo: (filePath?: string) => Promise<void>;
-        retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) => Promise<{
+        retryVideo: (
+          intermediateOutput: string,
+          videoUploadResult: VideoUploadResult,
+        ) => Promise<{
           success: boolean;
           finalOutput?: string | null;
           error?: string;
@@ -49,7 +53,7 @@ declare global {
         selectOutputDirectory: () => Promise<string | null>;
         convertVideoToMp3: (
           inputPath: string,
-          outputPath: string
+          outputPath: string,
         ) => Promise<ConvertVideoToMp3Result>;
       };
       screenRecording: {
@@ -74,7 +78,7 @@ declare global {
         processMessage: (
           prompt: string,
           videoUrl?: string,
-          options?: { serverFilter?: string[] }
+          options?: { serverFilter?: string[] },
         ) => Promise<{
           final: string | null;
           transcript: TranscriptEntry[];
@@ -87,20 +91,28 @@ declare global {
             message?: string;
             toolName?: string;
             serverName?: string;
-          }) => void
+          }) => void,
         ) => () => void;
         listServers: () => Promise<MCPServerConfig[]>;
         addServer: (config: MCPServerConfig) => Promise<{ success: boolean }>;
-        updateServer: (
-          name: string,
-          config: MCPServerConfig
-        ) => Promise<{ success: boolean }>;
+        updateServer: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
         removeServer: (name: string) => Promise<{ success: boolean }>;
         checkServerHealth: (name: string) => Promise<HealthStatusInfo>;
       };
       settings: {
-        getCustomPrompt: () => Promise<string>;
-        setCustomPrompt: (prompt: string) => Promise<{ success: boolean }>;
+        getAllPrompts: () => Promise<Array<CustomPrompt>>;
+        getActivePrompt: () => Promise<CustomPrompt | null>;
+        addPrompt: (prompt: {
+          name: string;
+          description?: string;
+          content: string;
+        }) => Promise<CustomPrompt>;
+        updatePrompt: (
+          id: string,
+          updates: { name?: string; description?: string; content?: string },
+        ) => Promise<boolean>;
+        deletePrompt: (id: string) => Promise<boolean>;
+        setActivePrompt: (id: string) => Promise<boolean>;
       };
     };
   }
