@@ -11,7 +11,6 @@ import { formatErrorMessage } from "../../utils/error-utils";
 import { YoutubeStorage } from "../storage/youtube-storage";
 import type { AuthResult, TokenData, UserInfo, VideoUploadResult } from "./types";
 
-// Google OAuth requires pre-registered redirect URIs, so we must use a fixed port
 const OAUTH_PORT = 8080;
 const REDIRECT_URI = `http://localhost:${OAUTH_PORT}/oauth/callback`;
 
@@ -112,31 +111,12 @@ export class YouTubeAuthService {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        // Allow navigation to Google's auth pages
         webSecurity: true,
         // Use a persistent partition to avoid cache conflicts
         partition: "persist:youtube-auth",
       },
       title: "Sign in to YouTube",
       autoHideMenuBar: true,
-      // Prevent window from being garbage collected
-      alwaysOnTop: false,
-    });
-
-    // Prevent the window from closing when navigating to external URLs
-    authWindow.webContents.on("will-navigate", (_event, url) => {
-      // Allow Google OAuth URLs
-      if (url.startsWith("https://accounts.google.com") || url.startsWith(REDIRECT_URI)) {
-        return;
-      }
-    });
-
-    // Handle navigation events to detect when callback URL is reached
-    authWindow.webContents.on("did-navigate", (_event, url) => {
-      if (url.startsWith(REDIRECT_URI)) {
-        // The callback will be handled by the server, keep window open until then
-        console.log("OAuth callback URL detected");
-      }
     });
 
     return authWindow;
@@ -328,7 +308,6 @@ export class YouTubeAuthService {
         }, 100);
       });
 
-      // Listen on the fixed port required by Google OAuth
       this.server.listen(OAUTH_PORT, "localhost", () => {
         console.log(`OAuth callback server listening on port ${OAUTH_PORT}`);
       });
