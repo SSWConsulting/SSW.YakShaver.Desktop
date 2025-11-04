@@ -318,8 +318,8 @@ export class MCPOrchestrator {
       const assistantMessage = choice.message;
       if (assistantMessage) messages.push(assistantMessage);
 
-      // Check if assistant message contains reasoning (at the start)
-      if (assistantMessage?.content && iteration === 0) {
+      // Check if assistant message contains reasoning
+      if (assistantMessage?.content) {
         const content = assistantMessage.content.trim();
         try {
           // Try to parse as JSON directly
@@ -343,7 +343,6 @@ export class MCPOrchestrator {
           message: "Generate final result",
         });
 
-        // Clean up the final output - remove any reasoning tags and markdown code blocks
         const finalContent = assistantMessage?.content ?? null;
 
         // Validate it's JSON
