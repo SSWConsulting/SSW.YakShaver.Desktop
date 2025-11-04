@@ -112,6 +112,7 @@ export interface WorkflowProgress {
   transcript?: string;
   intermediateOutput?: string;
   finalOutput?: string;
+  uploadResult?: VideoUploadResult;
   error?: string;
 }
 

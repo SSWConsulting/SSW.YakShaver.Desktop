@@ -1,13 +1,21 @@
+import { Check, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import type { WorkflowProgress, WorkflowStage } from "../../types";
 import { deepParseJson } from "../../utils";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
+import { ReasoningStep } from "./ReasoningStep";
 
-type StepType = "start" | "tool_call" | "tool_result" | "final_result";
+type StepType =
+  | "start"
+  | "reasoning"
+  | "tool_call"
+  | "tool_result"
+  | "final_result";
 
 interface MCPStep {
   type: StepType;
   message?: string;
+  reasoning?: string;
   toolName?: string;
   serverName?: string;
   args?: Record<string, unknown>;
@@ -47,13 +55,17 @@ const handleDetailsToggle =
   };
 
 function ToolResultError({ error }: { error: string }) {
-  return <div className="text-red-400">✗ Error: {error}</div>;
+  return (
+    <div className="text-red-400 flex items-center gap-1">
+      <X className="w-3 h-3" />
+      Error: {error}
+    </div>
+  );
 }
 
 function ToolResultSuccess({ result }: { result: unknown }) {
   return (
     <div className="space-y-1">
-      <div className="text-xs text-green-400">✓ Result received</div>
       {result !== undefined && result !== null && (
         <details className="text-xs" onToggle={handleDetailsToggle(result)}>
           <summary className="text-zinc-400 cursor-pointer hover:text-zinc-400/80">
@@ -81,8 +93,9 @@ function ToolCallStep({
 
   return (
     <div className="space-y-1">
-      <div className="text-secondary font-medium">
-        🔧 Calling tool: {toolName}
+      <div className="text-secondary font-medium flex items-center gap-2">
+        <Wrench className="w-4 h-4" />
+        Calling tool: {toolName}
         <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>
       </div>
       {hasArgs && (
@@ -140,9 +153,13 @@ export function StageWithContent({
                 className="border-l-2 border-green-400/30 pl-3 py-1"
               >
                 {step.type === "start" && (
-                  <div className="text-secondary font-medium">
-                    ▶ {step.message || "Start task execution"}
+                  <div className="text-secondary font-medium flex items-center gap-2">
+                    <Play className="w-4 h-4" />
+                    {step.message || "Start task execution"}
                   </div>
+                )}
+                {step.type === "reasoning" && step.reasoning && (
+                  <ReasoningStep reasoning={step.reasoning} />
                 )}
                 {step.type === "tool_call" && (
                   <ToolCallStep
@@ -161,8 +178,9 @@ export function StageWithContent({
                   </div>
                 )}
                 {step.type === "final_result" && (
-                  <div className="text-secondary font-medium">
-                    ✓ {step.message || "Generated final result"}
+                  <div className="text-secondary font-medium flex items-center gap-2">
+                    <Check className="w-4 h-4" />
+                    {step.message || "Generated final result"}
                   </div>
                 )}
               </div>

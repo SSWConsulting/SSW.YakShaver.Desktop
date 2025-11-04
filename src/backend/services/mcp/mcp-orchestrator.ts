@@ -4,22 +4,28 @@ import type { ChatCompletionMessageParam } from "openai/resources/index.js";
 import { ERROR_MESSAGES } from "../../constants/error-messages.js";
 import type { HealthStatusInfo } from "../../types/index.js";
 import { formatErrorMessage } from "../../utils/error-utils.js";
+import type { VideoUploadResult } from "../auth/types.js";
 import { OpenAIService } from "../openai/openai-service.js";
 import { McpStorage } from "../storage/mcp-storage.js";
 import { MCPClientWrapper } from "./mcp-client-wrapper.js";
 import type { MCPServerConfig } from "./types.js";
-import { VideoUploadResult } from "../auth/types.js";
 
 export interface MCPOrchestratorOptions {
   eagerCreate?: boolean; // create all client wrappers at construction
   eagerConnect?: boolean; // connect immediately (implies eagerCreate)
 }
 
-type StepType = "start" | "tool_call" | "tool_result" | "final_result";
+type StepType =
+  | "start"
+  | "reasoning"
+  | "tool_call"
+  | "tool_result"
+  | "final_result";
 
 interface MCPStep {
   type: StepType;
   message?: string;
+  reasoning?: string;
   toolName?: string;
   serverName?: string;
   args?: Record<string, unknown>;
@@ -312,14 +318,52 @@ export class MCPOrchestrator {
       const assistantMessage = choice.message;
       if (assistantMessage) messages.push(assistantMessage);
 
+      // Check if assistant message contains reasoning (at the start)
+      if (assistantMessage?.content && iteration === 0) {
+        const content = assistantMessage.content.trim();
+        try {
+          // Try to parse as JSON directly
+          const parsed = JSON.parse(content);
+          if (parsed.reasoning) {
+            this.sendStepEvent({
+              type: "reasoning",
+              reasoning: JSON.stringify(parsed.reasoning),
+              timestamp: Date.now(),
+            });
+          }
+        } catch (e) {
+          console.warn("[MCPOrchestrator] Failed to parse reasoning:", e);
+        }
+      }
+
       if (choice.finish_reason === "stop") {
         // Send final result event
         this.sendStepEvent({
           type: "final_result",
           message: "Generate final result",
         });
+
+        // Clean up the final output - remove any reasoning tags and markdown code blocks
+        const finalContent = assistantMessage?.content ?? null;
+        console.log(
+          "[MCPOrchestrator] Final assistant content before cleanup:",
+          finalContent
+        );
+
+        // Validate it's JSON
+        if (finalContent) {
+          try {
+            JSON.parse(finalContent);
+          } catch (e) {
+            console.warn(
+              "[MCPOrchestrator] ⚠ Final content is NOT valid JSON:",
+              e
+            );
+          }
+        }
+
         return {
-          final: assistantMessage?.content ?? null,
+          final: finalContent,
           transcript: messages,
         };
       }

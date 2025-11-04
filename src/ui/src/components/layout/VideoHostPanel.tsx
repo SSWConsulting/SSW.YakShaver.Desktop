@@ -8,7 +8,7 @@ import { PlatformSelector } from "../auth/PlatformSelector";
 import { UploadResult } from "../video/UploadResult";
 
 export const VideoHostPanel = () => {
-  const { authState, hasConfig, uploadResult } = useYouTubeAuth();
+  const { authState, hasConfig, uploadResult, uploadStatus } = useYouTubeAuth();
   const [showSelector, setShowSelector] = useState(false);
 
   const { status, userInfo } = authState;
@@ -47,7 +47,9 @@ export const VideoHostPanel = () => {
               </Card>
             )}
 
-            {uploadResult && <UploadResult result={uploadResult} />}
+            {(uploadStatus !== 'idle' || uploadResult) && (
+              <UploadResult result={uploadResult} status={uploadStatus} />
+            )}
           </>
         )}
       </div>

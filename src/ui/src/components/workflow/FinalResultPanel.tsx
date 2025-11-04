@@ -1,8 +1,8 @@
 import { Copy, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import type { WorkflowProgress } from "../../types";
-import { useClipboard } from "../../hooks/useClipboard";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
 interface ParsedResult {
@@ -13,7 +13,7 @@ interface ParsedResult {
 function JsonResultDisplay({ data }: { data: ParsedResult }) {
   const { copyToClipboard } = useClipboard();
   const entries = Object.entries(data).filter(
-    ([key]) => key !== "Status" && key !== "IssueNumber",
+    ([key]) => key !== "Status" && key !== "IssueNumber"
   );
 
   const renderValue = (value: unknown) => {
