@@ -18,6 +18,10 @@ const SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 
+const DEFAULT_TOKEN_EXPIRY = 3600000;
+const AUTH_WINDOW_CLOSE_DELAY = 1500;
+const SERVER_CLOSE_DELAY = 100;
+
 export class YouTubeAuthService {
   private static instance: YouTubeAuthService;
   private storage = YoutubeStorage.getInstance();
@@ -35,6 +39,19 @@ export class YouTubeAuthService {
     if (!cfg) throw new Error("YouTube configuration missing");
     const redirectUri = `http://localhost:${port}/oauth/callback`;
     return new OAuth2Client(cfg.clientId, cfg.clientSecret, redirectUri);
+  }
+
+  private async getAuthenticatedClient(): Promise<OAuth2Client> {
+    const tokens = await this.storage.getYouTubeTokens();
+    if (!tokens) throw new Error("No authentication tokens found");
+
+    // Port doesn't matter for API calls, only for OAuth redirect
+    const client = this.getClient(await getPort());
+    client.setCredentials({
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+    });
+    return client;
   }
 
   async authenticate(): Promise<AuthResult> {
@@ -71,7 +88,7 @@ export class YouTubeAuthService {
       const tokenData: TokenData = {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || "",
-        expiresAt: tokens.expiry_date || Date.now() + 3600000,
+        expiresAt: tokens.expiry_date || Date.now() + DEFAULT_TOKEN_EXPIRY,
         scope: SCOPES,
       };
 
@@ -166,7 +183,7 @@ export class YouTubeAuthService {
       await this.storage.storeYouTubeTokens({
         ...tokenData,
         accessToken: credentials.access_token || tokenData.accessToken,
-        expiresAt: credentials.expiry_date || Date.now() + 3600000,
+        expiresAt: credentials.expiry_date || Date.now() + DEFAULT_TOKEN_EXPIRY,
       });
 
       return true;
@@ -182,15 +199,7 @@ export class YouTubeAuthService {
 
   async getCurrentUser(): Promise<UserInfo | null> {
     try {
-      const tokens = await this.storage.getYouTubeTokens();
-      if (!tokens) return null;
-
-      const client = this.getClient(await getPort());
-      client.setCredentials({
-        access_token: tokens.accessToken,
-        refresh_token: tokens.refreshToken,
-      });
-
+      const client = await this.getAuthenticatedClient();
       return await this.getUserInfo(client);
     } catch {
       return null;
@@ -209,16 +218,7 @@ export class YouTubeAuthService {
         return { success: false, error: "Not authenticated" };
       }
 
-      const tokens = await this.storage.getYouTubeTokens();
-      if (!tokens) {
-        return { success: false, error: "No authentication tokens found" };
-      }
-
-      const client = this.getClient(await getPort());
-      client.setCredentials({
-        access_token: tokens.accessToken,
-        refresh_token: tokens.refreshToken,
-      });
+      const client = await this.getAuthenticatedClient();
 
       // Use provided file path or fall back to default sample video
       const videoPath = videoFilePath || this.getDefaultVideoPath();
@@ -297,19 +297,13 @@ export class YouTubeAuthService {
           res.end(this.renderPage("Authentication Successful", "Closing window..."));
           resolve({ code: code as string, state: state as string });
 
-          // Auto-close the window after a brief delay to show success message
-          setTimeout(() => {
-            this.closeAuthWindow();
-          }, 1500);
+          setTimeout(() => this.closeAuthWindow(), AUTH_WINDOW_CLOSE_DELAY);
         } else {
           res.end(this.renderPage("Invalid Response", "Please try again."));
           reject(new Error("Invalid OAuth callback"));
         }
 
-        // Close server after handling callback
-        setTimeout(() => {
-          this.closeServer();
-        }, 100);
+        setTimeout(() => this.closeServer(), SERVER_CLOSE_DELAY);
       });
 
       this.server.listen(port, "localhost", () => {
