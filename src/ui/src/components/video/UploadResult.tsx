@@ -19,6 +19,25 @@ const openUrl = (url: string | null) => {
   }
 };
 
+const UploadingBadge = () => (
+  <span className="text-sm font-medium px-3 py-1.5 rounded-full bg-white/10 text-white/80 border border-white/20 flex items-center gap-2">
+    <Loader2 className="w-3 h-3 animate-spin" />
+    Uploading
+  </span>
+);
+
+const StatusBadge = ({ success }: { success: boolean }) => (
+  <span
+    className={`text-sm font-medium px-3 py-1.5 rounded-full ${
+      success
+        ? "bg-green-500/20 text-green-400 border border-green-500/30"
+        : "bg-red-500/20 text-red-400 border border-red-500/30"
+    }`}
+  >
+    {success ? "Success" : "Failed"}
+  </span>
+);
+
 const VideoCard = ({
   description,
   url,
@@ -47,22 +66,7 @@ const VideoCard = ({
             </CardDescription>
           </div>
           <div className="flex-shrink-0">
-            {uploading ? (
-              <span className="text-sm font-medium px-3 py-1.5 rounded-full bg-white/10 text-white/80 border border-white/20 flex items-center gap-2">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Uploading
-              </span>
-            ) : (
-              <span
-                className={`text-sm font-medium px-3 py-1.5 rounded-full ${
-                  success
-                    ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                    : "bg-red-500/20 text-red-400 border border-red-500/30"
-                }`}
-              >
-                {success ? "Success" : "Failed"}
-              </span>
-            )}
+            {uploading ? <UploadingBadge /> : <StatusBadge success={success} />}
           </div>
         </div>
         {error && (
