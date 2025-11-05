@@ -45,7 +45,6 @@ export class YouTubeAuthService {
     const tokens = await this.storage.getYouTubeTokens();
     if (!tokens) throw new Error("No authentication tokens found");
 
-    // Port doesn't matter for API calls, only for OAuth redirect
     const client = this.getClient(await getPort());
     client.setCredentials({
       access_token: tokens.accessToken,
