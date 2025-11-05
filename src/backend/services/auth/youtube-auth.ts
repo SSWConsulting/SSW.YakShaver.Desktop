@@ -32,10 +32,10 @@ export class YouTubeAuthService {
     return YouTubeAuthService.instance;
   }
 
-  private getClient(port: number) {
+  private getClient(port?: number) {
     const cfg = config.youtube();
     if (!cfg) throw new Error("YouTube configuration missing");
-    const redirectUri = `http://localhost:${port}/oauth/callback`;
+    const redirectUri = port ? `http://localhost:${port}/oauth/callback` : undefined;
     return new OAuth2Client(cfg.clientId, cfg.clientSecret, redirectUri);
   }
 
@@ -43,7 +43,7 @@ export class YouTubeAuthService {
     const tokens = await this.storage.getYouTubeTokens();
     if (!tokens) throw new Error("No authentication tokens found");
 
-    const client = this.getClient(await getPort());
+    const client = this.getClient();
     client.setCredentials({
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,
@@ -173,7 +173,7 @@ export class YouTubeAuthService {
       const tokenData = await this.storage.getYouTubeTokens();
       if (!tokenData?.refreshToken) return false;
 
-      const client = this.getClient(await getPort());
+      const client = this.getClient();
       client.setCredentials({ refresh_token: tokenData.refreshToken });
 
       const { credentials } = await client.refreshAccessToken();
