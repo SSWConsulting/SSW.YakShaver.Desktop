@@ -19,8 +19,6 @@ const SCOPES = [
 ];
 
 const DEFAULT_TOKEN_EXPIRY = 3600000;
-const AUTH_WINDOW_CLOSE_DELAY = 1500;
-const SERVER_CLOSE_DELAY = 100;
 
 export class YouTubeAuthService {
   private static instance: YouTubeAuthService;
@@ -290,47 +288,20 @@ export class YouTubeAuthService {
         authWindow.removeListener("closed", handleWindowClose);
 
         if (error) {
-          res.end(this.renderPage("Authentication Failed", error as string));
           reject(new Error(error as string));
         } else if (code && state) {
-          res.end(this.renderPage("Authentication Successful", "Closing window..."));
           resolve({ code: code as string, state: state as string });
-
-          setTimeout(() => this.closeAuthWindow(), AUTH_WINDOW_CLOSE_DELAY);
+          this.closeAuthWindow();
         } else {
-          res.end(this.renderPage("Invalid Response", "Please try again."));
           reject(new Error("Invalid OAuth callback"));
         }
-
-        setTimeout(() => this.closeServer(), SERVER_CLOSE_DELAY);
-      });
-
-      this.server.listen(port, "localhost", () => {
-        if (process.env.NODE_ENV === "development") {
-          console.log(`OAuth callback server listening on port ${port}`);
-        }
-      });
-
-      this.server.on("error", (error) => {
-        authWindow.removeListener("closed", handleWindowClose);
-        reject(error);
-      });
+        this.closeServer();
+      })
+        .listen(port)
+        .on("error", (error) => {
+          authWindow.removeListener("closed", handleWindowClose);
+          reject(error);
+        });
     });
-  }
-
-  private renderPage(title: string, msg: string): string {
-    return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>${title}</title>
-</head>
-<body style="margin:0;font-family:system-ui;background:#1a1a1a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh">
-  <div style="background:#2a2a2a;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:3rem 2rem;max-width:400px;text-align:center">
-    <h1 style="font-size:1.5rem;margin-bottom:.75rem">${title}</h1>
-    <p style="color:#999;line-height:1.5">${msg}</p>
-  </div>
-</body>
-</html>`;
   }
 }
