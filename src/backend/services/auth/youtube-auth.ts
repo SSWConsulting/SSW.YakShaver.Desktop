@@ -1,8 +1,10 @@
+import { randomBytes } from "node:crypto";
 import { createReadStream, existsSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { parse } from "node:url";
-import { app, shell } from "electron";
+import { app, BrowserWindow } from "electron";
+import getPort from "get-port";
 import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
 import { config } from "../../config/env";
@@ -10,44 +12,72 @@ import { formatErrorMessage } from "../../utils/error-utils";
 import { YoutubeStorage } from "../storage/youtube-storage";
 import type { AuthResult, TokenData, UserInfo, VideoUploadResult } from "./types";
 
-const REDIRECT_URI = "http://localhost:8080/oauth/callback";
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube.force-ssl",
   "https://www.googleapis.com/auth/userinfo.profile",
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 
+const DEFAULT_TOKEN_EXPIRY = 3600000;
+
 export class YouTubeAuthService {
   private static instance: YouTubeAuthService;
-  private client: OAuth2Client | null = null;
   private storage = YoutubeStorage.getInstance();
   private server: Server | null = null;
+  private authWindow: BrowserWindow | null = null;
+  private pendingState: string | null = null;
 
   static getInstance() {
     YouTubeAuthService.instance ??= new YouTubeAuthService();
     return YouTubeAuthService.instance;
   }
 
-  private getClient() {
-    if (!this.client) {
-      const cfg = config.youtube();
-      if (!cfg) throw new Error("YouTube configuration missing");
-      this.client = new OAuth2Client(cfg.clientId, cfg.clientSecret, REDIRECT_URI);
-    }
-    return this.client;
+  private getClient(port?: number) {
+    const cfg = config.youtube();
+    if (!cfg) throw new Error("YouTube configuration missing");
+    const redirectUri = port ? `http://localhost:${port}/oauth/callback` : undefined;
+    return new OAuth2Client(cfg.clientId, cfg.clientSecret, redirectUri);
+  }
+
+  private async getAuthenticatedClient(): Promise<OAuth2Client> {
+    const tokens = await this.storage.getYouTubeTokens();
+    if (!tokens) throw new Error("No authentication tokens found");
+
+    const client = this.getClient();
+    client.setCredentials({
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+    });
+    return client;
   }
 
   async authenticate(): Promise<AuthResult> {
     try {
-      const client = this.getClient();
+      const port = await getPort();
+      const client = this.getClient(port);
+
+      // Generate state for CSRF protection
+      this.pendingState = this.generateState();
+
       const authUrl = client.generateAuthUrl({
         access_type: "offline",
         scope: SCOPES,
         prompt: "consent",
+        state: this.pendingState,
       });
 
-      await shell.openExternal(authUrl);
-      const { code } = await this.startCallbackServer();
+      this.authWindow = this.createAuthWindow();
+      const codePromise = this.startCallbackServer(this.authWindow, port);
+
+      await this.authWindow.loadURL(authUrl);
+
+      const { code, state } = await codePromise;
+
+      // Verify state to prevent CSRF attacks
+      if (state !== this.pendingState) {
+        throw new Error("State mismatch");
+      }
+
       const { tokens } = await client.getToken(code);
 
       if (!tokens.access_token) throw new Error("No access token received");
@@ -55,7 +85,7 @@ export class YouTubeAuthService {
       const tokenData: TokenData = {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || "",
-        expiresAt: tokens.expiry_date || Date.now() + 3600000,
+        expiresAt: tokens.expiry_date || Date.now() + DEFAULT_TOKEN_EXPIRY,
         scope: SCOPES,
       };
 
@@ -71,6 +101,49 @@ export class YouTubeAuthService {
         success: false,
         error: formatErrorMessage(error),
       };
+    } finally {
+      this.closeAuthWindow();
+      this.closeServer();
+      this.pendingState = null;
+    }
+  }
+
+  private generateState(): string {
+    return randomBytes(32).toString("hex");
+  }
+
+  private createAuthWindow(): BrowserWindow {
+    const authWindow = new BrowserWindow({
+      width: 600,
+      height: 800,
+      show: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        webSecurity: true,
+        // Use a persistent partition to avoid cache conflicts
+        partition: "persist:youtube-auth",
+      },
+      title: "Sign in to YouTube",
+      autoHideMenuBar: true,
+    });
+
+    return authWindow;
+  }
+
+  private closeAuthWindow(): void {
+    if (this.authWindow && !this.authWindow.isDestroyed()) {
+      // Remove all listeners before closing to prevent memory leaks
+      this.authWindow.removeAllListeners();
+      this.authWindow.close();
+      this.authWindow = null;
+    }
+  }
+
+  private closeServer(): void {
+    if (this.server) {
+      this.server.close();
+      this.server = null;
     }
   }
 
@@ -106,7 +179,7 @@ export class YouTubeAuthService {
       await this.storage.storeYouTubeTokens({
         ...tokenData,
         accessToken: credentials.access_token || tokenData.accessToken,
-        expiresAt: credentials.expiry_date || Date.now() + 3600000,
+        expiresAt: credentials.expiry_date || Date.now() + DEFAULT_TOKEN_EXPIRY,
       });
 
       return true;
@@ -122,15 +195,7 @@ export class YouTubeAuthService {
 
   async getCurrentUser(): Promise<UserInfo | null> {
     try {
-      const tokens = await this.storage.getYouTubeTokens();
-      if (!tokens) return null;
-
-      const client = this.getClient();
-      client.setCredentials({
-        access_token: tokens.accessToken,
-        refresh_token: tokens.refreshToken,
-      });
-
+      const client = await this.getAuthenticatedClient();
       return await this.getUserInfo(client);
     } catch {
       return null;
@@ -139,7 +204,8 @@ export class YouTubeAuthService {
 
   async disconnect(): Promise<void> {
     await this.storage.clearYouTubeTokens();
-    this.client = null;
+    this.closeAuthWindow();
+    this.closeServer();
   }
 
   async uploadVideo(videoFilePath?: string): Promise<VideoUploadResult> {
@@ -148,16 +214,7 @@ export class YouTubeAuthService {
         return { success: false, error: "Not authenticated" };
       }
 
-      const tokens = await this.storage.getYouTubeTokens();
-      if (!tokens) {
-        return { success: false, error: "No authentication tokens found" };
-      }
-
-      const client = this.getClient();
-      client.setCredentials({
-        access_token: tokens.accessToken,
-        refresh_token: tokens.refreshToken,
-      });
+      const client = await this.getAuthenticatedClient();
 
       // Use provided file path or fall back to default sample video
       const videoPath = videoFilePath || this.getDefaultVideoPath();
@@ -202,8 +259,19 @@ export class YouTubeAuthService {
     return join(app.getAppPath(), "videos", "sample.mp4");
   }
 
-  private startCallbackServer(): Promise<{ code: string }> {
+  private startCallbackServer(
+    authWindow: BrowserWindow,
+    port: number,
+  ): Promise<{ code: string; state: string }> {
     return new Promise((resolve, reject) => {
+      // Handle window closure
+      const handleWindowClose = () => {
+        reject(new Error("Authentication cancelled by user"));
+        this.closeServer();
+      };
+
+      authWindow.once("closed", handleWindowClose);
+
       this.server = createServer((req, res) => {
         const { pathname, query } = parse(req.url || "", true);
 
@@ -212,41 +280,29 @@ export class YouTubeAuthService {
           return;
         }
 
-        const { code, error } = query;
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        const { code, state, error } = query;
+
+        // Remove the window close listener since we got a response
+        authWindow.removeListener("closed", handleWindowClose);
 
         if (error) {
-          res.end(this.renderPage("Authentication Failed", error as string));
+          res.writeHead(400).end("Authentication failed");
           reject(new Error(error as string));
-        } else if (code) {
-          res.end(this.renderPage("Authentication Successful", "You can close this window."));
-          resolve({ code: code as string });
+        } else if (code && state) {
+          res.writeHead(200).end("Authentication successful. You can close this window.");
+          resolve({ code: code as string, state: state as string });
+          this.closeAuthWindow();
         } else {
-          res.end(this.renderPage("Invalid Response", "Please try again."));
+          res.writeHead(400).end("Invalid request");
           reject(new Error("Invalid OAuth callback"));
         }
-
-        this.server?.close();
-        this.server = null;
+        this.closeServer();
       })
-        .listen(8080)
-        .on("error", reject);
+        .listen(port)
+        .on("error", (error) => {
+          authWindow.removeListener("closed", handleWindowClose);
+          reject(error);
+        });
     });
-  }
-
-  private renderPage(title: string, msg: string): string {
-    return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>${title}</title>
-</head>
-<body style="margin:0;font-family:system-ui;background:#1a1a1a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh">
-  <div style="background:#2a2a2a;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:3rem 2rem;max-width:400px;text-align:center">
-    <h1 style="font-size:1.5rem;margin-bottom:.75rem">${title}</h1>
-    <p style="color:#999;line-height:1.5">${msg}</p>
-  </div>
-</body>
-</html>`;
   }
 }
