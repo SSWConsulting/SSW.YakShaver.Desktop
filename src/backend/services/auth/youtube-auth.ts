@@ -317,7 +317,9 @@ export class YouTubeAuthService {
       });
 
       this.server.listen(port, "localhost", () => {
-        console.log(`OAuth callback server listening on port ${port}`);
+        if (process.env.NODE_ENV === "development") {
+          console.log(`OAuth callback server listening on port ${port}`);
+        }
       });
 
       this.server.on("error", (error) => {
