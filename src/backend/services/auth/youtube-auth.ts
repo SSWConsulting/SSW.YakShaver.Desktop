@@ -52,20 +52,16 @@ export class YouTubeAuthService {
         state: this.pendingState,
       });
 
-      // Open auth URL in a controlled BrowserWindow instead of external browser
       this.authWindow = this.createAuthWindow();
-
-      // Start server and pass window close handler
       const codePromise = this.startCallbackServer(this.authWindow, port);
 
       await this.authWindow.loadURL(authUrl);
 
-      // Wait for the callback or window closure
       const { code, state } = await codePromise;
 
       // Verify state to prevent CSRF attacks
       if (state !== this.pendingState) {
-        throw new Error("State mismatch - potential CSRF attack");
+        throw new Error("State mismatch");
       }
 
       const { tokens } = await client.getToken(code);
@@ -272,7 +268,7 @@ export class YouTubeAuthService {
     port: number,
   ): Promise<{ code: string; state: string }> {
     return new Promise((resolve, reject) => {
-      // Handle window closure - reject the promise if user closes window
+      // Handle window closure
       const handleWindowClose = () => {
         reject(new Error("Authentication cancelled by user"));
         this.closeServer();
