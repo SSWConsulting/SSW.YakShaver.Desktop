@@ -26,7 +26,7 @@ export const TASK_EXECUTION_PROMPT = `You are an intelligent MCP (Model Context 
 
 Your workflow MUST follow this sequence:
 
-1. **FIRST**: Before calling each MCP tool, ALWAYS explain your reasoning. OUTPUT reasoning as a JSON object with this EXACT structure:
+1. **FIRST**: Before calling each MCP tool, ALWAYS explain your reasoning. OUTPUT reasoning as a VALID JSON object with this EXACT structure:
 {
   "reasoning": {
     "goal": "What the user wants to achieve",
@@ -153,6 +153,8 @@ export function buildTaskExecutionPrompt(customPrompt?: string): string {
 
   return `${trimmed}
   
+  IMPORTANT: The above user requirements are MANDATORY and must be followed throughout the task execution process.
+
   ---
 
   CONTEXT (use as reference if needed):
