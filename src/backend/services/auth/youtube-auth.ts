@@ -290,7 +290,7 @@ export class YouTubeAuthService {
           res.writeHead(400).end("Authentication failed");
           reject(new Error(error as string));
         } else if (code && state) {
-          res.writeHead(200).end("OK");
+          res.writeHead(200).end("Authentication successful. You can close this window.");
           resolve({ code: code as string, state: state as string });
           this.closeAuthWindow();
         } else {
