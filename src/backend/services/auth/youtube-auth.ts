@@ -95,16 +95,15 @@ export class YouTubeAuthService {
         this.storage.storeYouTubeTokens(tokenData),
       ]);
 
-      this.closeAuthWindow();
       return { success: true, userInfo };
     } catch (error) {
-      this.closeAuthWindow();
-      this.closeServer();
       return {
         success: false,
         error: formatErrorMessage(error),
       };
     } finally {
+      this.closeAuthWindow();
+      this.closeServer();
       this.pendingState = null;
     }
   }
