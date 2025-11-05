@@ -4,15 +4,13 @@ import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { parse } from "node:url";
 import { app, BrowserWindow } from "electron";
+import getPort from "get-port";
 import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
 import { config } from "../../config/env";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { YoutubeStorage } from "../storage/youtube-storage";
 import type { AuthResult, TokenData, UserInfo, VideoUploadResult } from "./types";
-
-const OAUTH_PORT = 8080;
-const REDIRECT_URI = `http://localhost:${OAUTH_PORT}/oauth/callback`;
 
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube.force-ssl",
@@ -32,15 +30,17 @@ export class YouTubeAuthService {
     return YouTubeAuthService.instance;
   }
 
-  private getClient() {
+  private getClient(port: number) {
     const cfg = config.youtube();
     if (!cfg) throw new Error("YouTube configuration missing");
-    return new OAuth2Client(cfg.clientId, cfg.clientSecret, REDIRECT_URI);
+    const redirectUri = `http://localhost:${port}/oauth/callback`;
+    return new OAuth2Client(cfg.clientId, cfg.clientSecret, redirectUri);
   }
 
   async authenticate(): Promise<AuthResult> {
     try {
-      const client = this.getClient();
+      const port = await getPort();
+      const client = this.getClient(port);
 
       // Generate state for CSRF protection
       this.pendingState = this.generateState();
@@ -56,7 +56,7 @@ export class YouTubeAuthService {
       this.authWindow = this.createAuthWindow();
 
       // Start server and pass window close handler
-      const codePromise = this.startCallbackServer(this.authWindow);
+      const codePromise = this.startCallbackServer(this.authWindow, port);
 
       await this.authWindow.loadURL(authUrl);
 
@@ -163,7 +163,7 @@ export class YouTubeAuthService {
       const tokenData = await this.storage.getYouTubeTokens();
       if (!tokenData?.refreshToken) return false;
 
-      const client = this.getClient();
+      const client = this.getClient(await getPort());
       client.setCredentials({ refresh_token: tokenData.refreshToken });
 
       const { credentials } = await client.refreshAccessToken();
@@ -189,7 +189,7 @@ export class YouTubeAuthService {
       const tokens = await this.storage.getYouTubeTokens();
       if (!tokens) return null;
 
-      const client = this.getClient();
+      const client = this.getClient(await getPort());
       client.setCredentials({
         access_token: tokens.accessToken,
         refresh_token: tokens.refreshToken,
@@ -218,7 +218,7 @@ export class YouTubeAuthService {
         return { success: false, error: "No authentication tokens found" };
       }
 
-      const client = this.getClient();
+      const client = this.getClient(await getPort());
       client.setCredentials({
         access_token: tokens.accessToken,
         refresh_token: tokens.refreshToken,
@@ -267,7 +267,10 @@ export class YouTubeAuthService {
     return join(app.getAppPath(), "videos", "sample.mp4");
   }
 
-  private startCallbackServer(authWindow: BrowserWindow): Promise<{ code: string; state: string }> {
+  private startCallbackServer(
+    authWindow: BrowserWindow,
+    port: number,
+  ): Promise<{ code: string; state: string }> {
     return new Promise((resolve, reject) => {
       // Handle window closure - reject the promise if user closes window
       const handleWindowClose = () => {
@@ -295,8 +298,13 @@ export class YouTubeAuthService {
           res.end(this.renderPage("Authentication Failed", error as string));
           reject(new Error(error as string));
         } else if (code && state) {
-          res.end(this.renderPage("Authentication Successful", "You can close this window."));
+          res.end(this.renderPage("Authentication Successful", "Closing window..."));
           resolve({ code: code as string, state: state as string });
+
+          // Auto-close the window after a brief delay to show success message
+          setTimeout(() => {
+            this.closeAuthWindow();
+          }, 1500);
         } else {
           res.end(this.renderPage("Invalid Response", "Please try again."));
           reject(new Error("Invalid OAuth callback"));
@@ -308,8 +316,8 @@ export class YouTubeAuthService {
         }, 100);
       });
 
-      this.server.listen(OAUTH_PORT, "localhost", () => {
-        console.log(`OAuth callback server listening on port ${OAUTH_PORT}`);
+      this.server.listen(port, "localhost", () => {
+        console.log(`OAuth callback server listening on port ${port}`);
       });
 
       this.server.on("error", (error) => {
