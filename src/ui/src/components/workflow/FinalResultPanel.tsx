@@ -10,6 +10,18 @@ interface ParsedResult {
   [key: string]: unknown;
 }
 
+interface RawTextDisplayProps {
+  content: string;
+}
+
+function RawTextDisplay({ content }: RawTextDisplayProps) {
+  return (
+    <div className="text-white/80 text-sm font-mono whitespace-pre-wrap bg-white/5 p-4 rounded-md border border-white/10">
+      {content}
+    </div>
+  );
+}
+
 function JsonResultDisplay({ data }: { data: ParsedResult }) {
   const { copyToClipboard } = useClipboard();
   const entries = Object.entries(data).filter(([key]) => key !== "Status" && key !== "IssueNumber");
@@ -18,10 +30,18 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
     return `item-${index}`;
   };
 
+  const isValidUrl = (str: string): boolean => {
+    try {
+      new URL(str);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const renderValue = (value: unknown): React.ReactNode => {
     if (typeof value === "string") {
-      const isUrl = value.startsWith("http://") || value.startsWith("https://");
-      if (isUrl) {
+      if (isValidUrl(value)) {
         return (
           <div className="flex items-center gap-2 flex-wrap">
             <a
@@ -185,9 +205,7 @@ export function FinalResultPanel() {
           {isJson && parsed ? (
             <JsonResultDisplay data={parsed} />
           ) : (
-            <div className="text-white/80 text-sm font-mono whitespace-pre-wrap bg-white/5 p-4 rounded-md border border-white/10">
-              {raw}
-            </div>
+            <RawTextDisplay content={raw} />
           )}
         </CardContent>
       </Card>
