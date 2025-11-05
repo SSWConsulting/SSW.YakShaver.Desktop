@@ -18,10 +18,7 @@ export const VideoHostPanel = () => {
     <div className="w-[500px] mx-auto py-8 min-h-[400px]">
       <div className="w-full flex flex-col items-center gap-6">
         {showSelector ? (
-          <PlatformSelector
-            onClose={() => setShowSelector(false)}
-            hasYouTubeConfig={hasConfig}
-          />
+          <PlatformSelector onClose={() => setShowSelector(false)} hasYouTubeConfig={hasConfig} />
         ) : (
           <>
             {isConnected ? (
@@ -34,9 +31,7 @@ export const VideoHostPanel = () => {
               <Card className="w-full text-center bg-black/20 backdrop-blur-sm border-white/10">
                 <CardContent className="py-12">
                   <div className="text-5xl mb-4 opacity-70">📹</div>
-                  <h3 className="text-white mb-2 text-lg font-medium">
-                    No platform connected
-                  </h3>
+                  <h3 className="text-white mb-2 text-lg font-medium">No platform connected</h3>
                   <p className="text-white/60 mb-8 text-sm">
                     Connect a video hosting platform to get started
                   </p>

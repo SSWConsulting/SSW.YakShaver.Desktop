@@ -21,19 +21,15 @@ export class McpIPCHandlers {
       async (_event: IpcMainInvokeEvent, config: MCPServerConfig) => {
         await this.orchestrator.addServer(config);
         return { success: true };
-      }
+      },
     );
 
     ipcMain.handle(
       IPC_CHANNELS.MCP_UPDATE_SERVER,
-      async (
-        _event: IpcMainInvokeEvent,
-        name: string,
-        config: MCPServerConfig
-      ) => {
+      async (_event: IpcMainInvokeEvent, name: string, config: MCPServerConfig) => {
         await this.orchestrator.updateServer(name, config);
         return { success: true };
-      }
+      },
     );
 
     ipcMain.handle(
@@ -41,14 +37,14 @@ export class McpIPCHandlers {
       async (_event: IpcMainInvokeEvent, name: string) => {
         await this.orchestrator.removeServer(name);
         return { success: true };
-      }
+      },
     );
 
     ipcMain.handle(
       IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH,
       async (_event: IpcMainInvokeEvent, name: string) => {
         return await this.orchestrator.checkServerHealth(name);
-      }
+      },
     );
 
     ipcMain.on(IPC_CHANNELS.MCP_PREFILL_PROMPT, (_event, text: string) => {

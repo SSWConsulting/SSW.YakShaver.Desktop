@@ -12,9 +12,7 @@ interface ParsedResult {
 
 function JsonResultDisplay({ data }: { data: ParsedResult }) {
   const { copyToClipboard } = useClipboard();
-  const entries = Object.entries(data).filter(
-    ([key]) => key !== "Status" && key !== "IssueNumber"
-  );
+  const entries = Object.entries(data).filter(([key]) => key !== "Status" && key !== "IssueNumber");
 
   const getKey = (index: number): string => {
     return `item-${index}`;
@@ -56,20 +54,12 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
           </div>
         );
       }
-      return (
-        <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
-          {value}
-        </p>
-      );
+      return <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">{value}</p>;
     }
 
     if (Array.isArray(value)) {
       // Check if array contains objects (like multiple issues)
-      if (
-        value.length > 0 &&
-        typeof value[0] === "object" &&
-        value[0] !== null
-      ) {
+      if (value.length > 0 && typeof value[0] === "object" && value[0] !== null) {
         return (
           <div className="space-y-3">
             {value.map((item, index) => {
@@ -103,9 +93,7 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
         <ul className="space-y-1.5 list-disc list-inside text-white/90">
           {value.map((item, index) => (
             <li key={getKey(index)} className="text-sm">
-              {typeof item === "object" && item !== null
-                ? renderValue(item)
-                : String(item)}
+              {typeof item === "object" && item !== null ? renderValue(item) : String(item)}
             </li>
           ))}
         </ul>
@@ -152,10 +140,7 @@ export function FinalResultPanel() {
       const progressData = data as WorkflowProgress;
       if (progressData.finalOutput) {
         setFinalOutput(progressData.finalOutput);
-      } else if (
-        progressData.stage === "idle" ||
-        progressData.stage === "converting_audio"
-      ) {
+      } else if (progressData.stage === "idle" || progressData.stage === "converting_audio") {
         setFinalOutput(undefined);
       }
     });
@@ -165,12 +150,9 @@ export function FinalResultPanel() {
 
   const parseFinalOutput = () => {
     const raw =
-      typeof finalOutput === "string"
-        ? finalOutput
-        : JSON.stringify(finalOutput, null, 2);
+      typeof finalOutput === "string" ? finalOutput : JSON.stringify(finalOutput, null, 2);
     try {
-      const parsed =
-        typeof finalOutput === "string" ? JSON.parse(finalOutput) : finalOutput;
+      const parsed = typeof finalOutput === "string" ? JSON.parse(finalOutput) : finalOutput;
       return { parsed, raw, isJson: true };
     } catch {
       return { parsed: null, raw, isJson: false };
@@ -185,9 +167,7 @@ export function FinalResultPanel() {
       <Card className="bg-black/30 backdrop-blur-sm border-white/20 shadow-xl">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-white text-2xl font-semibold">
-              Final Result
-            </CardTitle>
+            <CardTitle className="text-white text-2xl font-semibold">Final Result</CardTitle>
             {status && (
               <span
                 className={`text-sm font-medium px-3 py-1.5 rounded-full ${

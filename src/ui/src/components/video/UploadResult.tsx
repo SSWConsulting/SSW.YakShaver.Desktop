@@ -1,12 +1,6 @@
 import { Copy, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useClipboard } from "../../hooks/useClipboard";
 import type { UploadStatus, VideoUploadResult } from "../../types";
 import { Button } from "../ui/button";
@@ -58,21 +52,15 @@ const VideoCard = ({
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base text-white">
-              YouTube Upload
-            </CardTitle>
-            <CardDescription className="text-sm text-white/60">
-              {description}
-            </CardDescription>
+            <CardTitle className="text-base text-white">YouTube Upload</CardTitle>
+            <CardDescription className="text-sm text-white/60">{description}</CardDescription>
           </div>
           <div className="flex-shrink-0">
             {uploading ? <UploadingBadge /> : <StatusBadge success={success} />}
           </div>
         </div>
         {error && (
-          <p className="text-red-400 text-xs mt-2 border-l-2 border-red-500/50 pl-2">
-            {error}
-          </p>
+          <p className="text-red-400 text-xs mt-2 border-l-2 border-red-500/50 pl-2">{error}</p>
         )}
       </CardHeader>
       {!uploading && (
@@ -113,13 +101,7 @@ export const UploadResult = ({
 }) => {
   // Show uploading state
   if (status === "uploading") {
-    return (
-      <VideoCard
-        description="Uploading video to YouTube..."
-        url={null}
-        uploading={true}
-      />
-    );
+    return <VideoCard description="Uploading video to YouTube..." url={null} uploading={true} />;
   }
 
   if (!result) return null;
@@ -127,25 +109,14 @@ export const UploadResult = ({
   // Show error state
   if (!result.success) {
     return (
-      <VideoCard
-        description="Upload failed"
-        url={null}
-        success={false}
-        error={result.error}
-      />
+      <VideoCard description="Upload failed" url={null} success={false} error={result.error} />
     );
   }
 
   if (!result.data) return null;
 
   // Show success state
-  return (
-    <VideoCard
-      description={result.data.description}
-      url={result.data.url}
-      success={true}
-    />
-  );
+  return <VideoCard description={result.data.description} url={result.data.url} success={true} />;
 };
 
 export { VideoCard as VideoInfo };

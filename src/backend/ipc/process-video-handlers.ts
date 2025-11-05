@@ -6,10 +6,7 @@ import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
-import {
-  buildTaskExecutionPrompt,
-  INITIAL_SUMMARY_PROMPT,
-} from "../services/openai/prompts";
+import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
@@ -27,67 +24,64 @@ export class ProcessVideoIPCHandlers {
   }
 
   private registerHandlers(): void {
-    ipcMain.handle(
-      IPC_CHANNELS.PROCESS_VIDEO,
-      async (event, filePath?: string) => {
-        if (!filePath) {
-          throw new Error("video-process-handler: Video file path is required");
-        }
-
-        // check file exists
-        if (!fs.existsSync(filePath)) {
-          throw new Error("video-process-handler: Video file does not exist");
-        }
-
-        // upload to YouTube
-        const youtubeResult = await this.youtube.uploadVideo(filePath);
-        this.emitProgress("upload_completed", { uploadResult: youtubeResult });
-
-        // convert video to mp3
-        this.emitProgress("converting_audio");
-        const mp3FilePath = await this.convertVideoToMp3(filePath);
-
-        // transcribe the video via MCP
-        this.emitProgress("transcribing");
-        const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
-        this.emitProgress("transcription_completed", { transcript });
-
-        this.emitProgress("generating_task", { transcript });
-
-        // generate intermediate summary
-        const intermediateOutput = await this.llmClient.generateOutput(
-          INITIAL_SUMMARY_PROMPT,
-          transcript,
-          { jsonMode: true }
-        );
-        this.emitProgress("executing_task", {
-          transcript,
-          intermediateOutput,
-        });
-
-        // process transcription with MCP
-        const customPrompt = await this.customPromptStorage.getActivePrompt();
-        const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
-
-        const mcpResult = await this.mcpOrchestrator.processMessage(
-          intermediateOutput,
-          youtubeResult,
-          { systemPrompt }
-        );
-
-        this.emitProgress("completed", {
-          transcript,
-          intermediateOutput,
-          mcpResult,
-          finalOutput: mcpResult.final,
-        });
-
-        // delete the temporary video file
-        fs.unlinkSync(filePath);
-
-        return { youtubeResult, mcpResult };
+    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO, async (event, filePath?: string) => {
+      if (!filePath) {
+        throw new Error("video-process-handler: Video file path is required");
       }
-    );
+
+      // check file exists
+      if (!fs.existsSync(filePath)) {
+        throw new Error("video-process-handler: Video file does not exist");
+      }
+
+      // upload to YouTube
+      const youtubeResult = await this.youtube.uploadVideo(filePath);
+      this.emitProgress("upload_completed", { uploadResult: youtubeResult });
+
+      // convert video to mp3
+      this.emitProgress("converting_audio");
+      const mp3FilePath = await this.convertVideoToMp3(filePath);
+
+      // transcribe the video via MCP
+      this.emitProgress("transcribing");
+      const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
+      this.emitProgress("transcription_completed", { transcript });
+
+      this.emitProgress("generating_task", { transcript });
+
+      // generate intermediate summary
+      const intermediateOutput = await this.llmClient.generateOutput(
+        INITIAL_SUMMARY_PROMPT,
+        transcript,
+        { jsonMode: true },
+      );
+      this.emitProgress("executing_task", {
+        transcript,
+        intermediateOutput,
+      });
+
+      // process transcription with MCP
+      const customPrompt = await this.customPromptStorage.getActivePrompt();
+      const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+
+      const mcpResult = await this.mcpOrchestrator.processMessage(
+        intermediateOutput,
+        youtubeResult,
+        { systemPrompt },
+      );
+
+      this.emitProgress("completed", {
+        transcript,
+        intermediateOutput,
+        mcpResult,
+        finalOutput: mcpResult.final,
+      });
+
+      // delete the temporary video file
+      fs.unlinkSync(filePath);
+
+      return { youtubeResult, mcpResult };
+    });
 
     // Retry video pipeline
     ipcMain.handle(
@@ -95,7 +89,7 @@ export class ProcessVideoIPCHandlers {
       async (
         _event: IpcMainInvokeEvent,
         intermediateOutput: string,
-        videoUploadResult: VideoUploadResult
+        videoUploadResult: VideoUploadResult,
       ) => {
         try {
           this.emitProgress("executing_task");
@@ -106,7 +100,7 @@ export class ProcessVideoIPCHandlers {
           const mcpResult = await this.mcpOrchestrator.processMessage(
             intermediateOutput,
             videoUploadResult,
-            { systemPrompt }
+            { systemPrompt },
           );
 
           this.emitProgress("completed", {
@@ -119,16 +113,13 @@ export class ProcessVideoIPCHandlers {
           this.emitProgress("error", { error: errorMessage });
           return { success: false, error: errorMessage };
         }
-      }
+      },
     );
   }
 
   private async convertVideoToMp3(inputPath: string): Promise<string> {
     const outputFilePath = tmp.tmpNameSync({ postfix: ".mp3" });
-    const result = await this.ffmpegService.ConvertVideoToMp3(
-      inputPath,
-      outputFilePath
-    );
+    const result = await this.ffmpegService.ConvertVideoToMp3(inputPath, outputFilePath);
     return result;
   }
 

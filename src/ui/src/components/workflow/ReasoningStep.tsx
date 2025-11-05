@@ -60,18 +60,12 @@ export function ReasoningStep({ reasoning }: ReasoningStepProps) {
           )}
           {parsed.steps && parsed.steps.length > 0 && (
             <div>
-              <div className="text-white/90 font-semibold mb-1">
-                Execution Plan:
-              </div>
+              <div className="text-white/90 font-semibold mb-1">Execution Plan:</div>
               <div className="space-y-1">
                 {parsed.steps.map((step, idx: number) => {
-                  const stepText =
-                    typeof step === "string" ? step : step.description;
+                  const stepText = typeof step === "string" ? step : step.description;
                   return (
-                    <div
-                      key={`${idx}-${stepText.slice(0, 20)}`}
-                      className="flex items-start gap-2"
-                    >
+                    <div key={`${idx}-${stepText.slice(0, 20)}`} className="flex items-start gap-2">
                       <span className="text-white/60">{idx + 1}.</span>
                       <span className="flex-1">{stepText}</span>
                     </div>

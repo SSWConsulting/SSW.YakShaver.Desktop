@@ -1,18 +1,6 @@
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { ipcClient } from "../services/ipc-client";
-import {
-  type AuthState,
-  AuthStatus,
-  UploadStatus,
-  type VideoUploadResult,
-} from "../types";
+import { type AuthState, AuthStatus, UploadStatus, type VideoUploadResult } from "../types";
 
 interface YouTubeAuthContextType {
   authState: AuthState;
@@ -28,9 +16,7 @@ interface YouTubeAuthContextType {
   setUploadStatus: (status: UploadStatus) => void;
 }
 
-const YouTubeAuthContext = createContext<YouTubeAuthContextType | undefined>(
-  undefined
-);
+const YouTubeAuthContext = createContext<YouTubeAuthContextType | undefined>(undefined);
 
 export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
   const [authState, setAuthState] = useState<AuthState>({
@@ -38,12 +24,8 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [hasConfig, setHasConfig] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<UploadStatus>(
-    UploadStatus.IDLE
-  );
-  const [uploadResult, setUploadResult] = useState<VideoUploadResult | null>(
-    null
-  );
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>(UploadStatus.IDLE);
+  const [uploadResult, setUploadResult] = useState<VideoUploadResult | null>(null);
 
   const setError = useCallback((error: unknown, fallback: string) => {
     setAuthState({
@@ -87,7 +69,7 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
             : {
                 status: AuthStatus.ERROR,
                 error: result.error || "Authentication failed",
-              }
+              },
         );
       } catch (error) {
         setError(error, "Authentication failed");
@@ -102,7 +84,7 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
         setAuthState(
           success
             ? { status: AuthStatus.NOT_AUTHENTICATED }
-            : { status: AuthStatus.ERROR, error: "Failed to disconnect" }
+            : { status: AuthStatus.ERROR, error: "Failed to disconnect" },
         );
       } catch (error) {
         setError(error, "Failed to disconnect");
@@ -131,15 +113,10 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
         stage: string;
         uploadResult?: VideoUploadResult;
       };
-      if (
-        progressData.stage === "upload_completed" &&
-        progressData.uploadResult
-      ) {
+      if (progressData.stage === "upload_completed" && progressData.uploadResult) {
         setUploadResult(progressData.uploadResult);
         setUploadStatus(
-          progressData.uploadResult.success
-            ? UploadStatus.SUCCESS
-            : UploadStatus.ERROR
+          progressData.uploadResult.success ? UploadStatus.SUCCESS : UploadStatus.ERROR,
         );
       }
 
@@ -165,11 +142,7 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
     setUploadStatus,
   };
 
-  return (
-    <YouTubeAuthContext.Provider value={value}>
-      {children}
-    </YouTubeAuthContext.Provider>
-  );
+  return <YouTubeAuthContext.Provider value={value}>{children}</YouTubeAuthContext.Provider>;
 };
 
 export const useYouTubeAuth = () => {

@@ -5,12 +5,7 @@ import { deepParseJson } from "../../utils";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
 import { ReasoningStep } from "./ReasoningStep";
 
-type StepType =
-  | "start"
-  | "reasoning"
-  | "tool_call"
-  | "tool_result"
-  | "final_result";
+type StepType = "start" | "reasoning" | "tool_call" | "tool_result" | "final_result";
 
 interface MCPStep {
   type: StepType;
@@ -42,17 +37,16 @@ interface StageWithContentProps {
   getStageIcon: (stage: WorkflowStage) => React.ReactNode;
 }
 
-const handleDetailsToggle =
-  (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
-    const details = e.currentTarget;
-    if (details.open) {
-      const pre = details.querySelector("pre");
-      if (pre && !pre.dataset.parsed) {
-        pre.textContent = JSON.stringify(deepParseJson(data), null, 2);
-        pre.dataset.parsed = "true";
-      }
+const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
+  const details = e.currentTarget;
+  if (details.open) {
+    const pre = details.querySelector("pre");
+    if (pre && !pre.dataset.parsed) {
+      pre.textContent = JSON.stringify(deepParseJson(data), null, 2);
+      pre.dataset.parsed = "true";
     }
-  };
+  }
+};
 
 function ToolResultError({ error }: { error: string }) {
   return (
@@ -103,9 +97,7 @@ function ToolCallStep({
           <summary className="text-zinc-400 cursor-pointer hover:text-zinc-400/80">
             Arguments
           </summary>
-          <pre className="mt-1 p-2 bg-black rounded text-zinc-400 overflow-x-auto">
-            Loading...
-          </pre>
+          <pre className="mt-1 p-2 bg-black rounded text-zinc-400 overflow-x-auto">Loading...</pre>
         </details>
       )}
     </div>
@@ -124,9 +116,7 @@ export function StageWithContent({
       <AccordionTrigger className="px-4 hover:no-underline">
         <div className="flex items-center gap-3">
           {getStageIcon(stage)}
-          <span className="text-white/90 font-medium">
-            {STAGE_CONFIG[stage]}
-          </span>
+          <span className="text-white/90 font-medium">{STAGE_CONFIG[stage]}</span>
         </div>
       </AccordionTrigger>
       <AccordionContent className="px-4 pb-2">
@@ -148,10 +138,7 @@ export function StageWithContent({
             className="bg-black/30 border border-white/10 rounded-md p-3 max-h-[400px] overflow-y-auto space-y-2"
           >
             {mcpSteps.map((step) => (
-              <div
-                key={step.timestamp}
-                className="border-l-2 border-green-400/30 pl-3 py-1"
-              >
+              <div key={step.timestamp} className="border-l-2 border-green-400/30 pl-3 py-1">
                 {step.type === "start" && (
                   <div className="text-secondary font-medium flex items-center gap-2">
                     <Play className="w-4 h-4" />

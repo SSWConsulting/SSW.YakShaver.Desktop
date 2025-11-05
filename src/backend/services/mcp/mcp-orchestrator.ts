@@ -15,12 +15,7 @@ export interface MCPOrchestratorOptions {
   eagerConnect?: boolean; // connect immediately (implies eagerCreate)
 }
 
-type StepType =
-  | "start"
-  | "reasoning"
-  | "tool_call"
-  | "tool_result"
-  | "final_result";
+type StepType = "start" | "reasoning" | "tool_call" | "tool_result" | "final_result";
 
 interface MCPStep {
   type: StepType;
@@ -54,7 +49,7 @@ export class MCPOrchestrator {
     if (!name?.trim()) throw new Error("Server name cannot be empty");
     if (!/^[a-zA-Z0-9 _-]+$/.test(name)) {
       throw new Error(
-        `Server name '${name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`
+        `Server name '${name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
       );
     }
   }
@@ -65,7 +60,7 @@ export class MCPOrchestrator {
 
   constructor(
     opts: MCPOrchestratorOptions = {},
-    llmClient: OpenAIService = OpenAIService.getInstance()
+    llmClient: OpenAIService = OpenAIService.getInstance(),
   ) {
     this.llmClient = llmClient;
     this.mcpStorage = McpStorage.getInstance();
@@ -80,7 +75,7 @@ export class MCPOrchestrator {
     if (this.opts.eagerConnect) {
       // Fire and forget; caller can also await connectAll()
       void this.connectAll().catch((e) =>
-        console.error("[MCPOrchestrator] eagerConnect failed:", e)
+        console.error("[MCPOrchestrator] eagerConnect failed:", e),
       );
     }
   }
@@ -91,10 +86,7 @@ export class MCPOrchestrator {
       this.servers.splice(0, this.servers.length, ...servers);
       this.initialized = true;
     } catch (err) {
-      console.error(
-        "[MCPOrchestrator] Failed to load config from secure storage:",
-        err
-      );
+      console.error("[MCPOrchestrator] Failed to load config from secure storage:", err);
       // Initialize with empty array on error
       this.servers.splice(0, this.servers.length);
       this.initialized = true;
@@ -116,10 +108,7 @@ export class MCPOrchestrator {
     try {
       await this.mcpStorage.storeMcpServers(this.servers);
     } catch (err) {
-      console.error(
-        "[MCPOrchestrator] Failed to save config to secure storage:",
-        err
-      );
+      console.error("[MCPOrchestrator] Failed to save config to secure storage:", err);
       throw err;
     }
   }
@@ -139,10 +128,7 @@ export class MCPOrchestrator {
     const existing = this.servers[index];
 
     // If the name is changing, ensure the new name isn't already used
-    if (
-      config.name !== name &&
-      this.servers.some((s) => s.name === config.name)
-    ) {
+    if (config.name !== name && this.servers.some((s) => s.name === config.name)) {
       throw new Error(`Server with name '${config.name}' already exists`);
     }
 
@@ -214,10 +200,7 @@ export class MCPOrchestrator {
       try {
         await client.connect();
       } catch (e) {
-        console.error(
-          `[MCPOrchestrator] Failed to connect to '${client.name}':`,
-          e
-        );
+        console.error(`[MCPOrchestrator] Failed to connect to '${client.name}':`, e);
       }
     }
   }
@@ -242,7 +225,7 @@ export class MCPOrchestrator {
       serverFilter?: string[]; // if provided, only include tools from these servers
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
-    } = {}
+    } = {},
   ): Promise<{
     final: string | null;
     transcript: ChatCompletionMessageParam[];
@@ -267,20 +250,15 @@ export class MCPOrchestrator {
       try {
         await client.connect();
         const toolList = await client.listTools();
-        const sanitizedServerName = MCPOrchestrator.sanitizeServerName(
-          server.name
-        );
+        const sanitizedServerName = MCPOrchestrator.sanitizeServerName(server.name);
 
         toolList.tools?.forEach((tool) => {
-          const sanitizedToolName = MCPOrchestrator.sanitizeServerName(
-            tool.name
-          );
+          const sanitizedToolName = MCPOrchestrator.sanitizeServerName(tool.name);
           toolDefs.push({
             type: "function",
             function: {
               name: `${sanitizedServerName}__${sanitizedToolName}`,
-              description:
-                tool.description || `Tool ${tool.name} from ${server.name}`,
+              description: tool.description || `Tool ${tool.name} from ${server.name}`,
               parameters: tool.inputSchema || {
                 type: "object",
                 properties: {},
@@ -289,10 +267,7 @@ export class MCPOrchestrator {
           });
         });
       } catch (e) {
-        console.warn(
-          `[MCPOrchestrator] Failed to load server ${server.name}`,
-          e
-        );
+        console.warn(`[MCPOrchestrator] Failed to load server ${server.name}`, e);
       }
     }
 
@@ -332,11 +307,7 @@ export class MCPOrchestrator {
             });
           }
         } catch (e) {
-          console.warn(
-            "[MCPOrchestrator] Failed to parse reasoning:",
-            content,
-            e
-          );
+          console.warn("[MCPOrchestrator] Failed to parse reasoning:", content, e);
         }
       }
 
@@ -354,10 +325,7 @@ export class MCPOrchestrator {
           try {
             JSON.parse(finalContent);
           } catch (e) {
-            console.warn(
-              "[MCPOrchestrator] ⚠ Final content is NOT valid JSON:",
-              e
-            );
+            console.warn("[MCPOrchestrator] ⚠ Final content is NOT valid JSON:", e);
           }
         }
 
@@ -369,9 +337,7 @@ export class MCPOrchestrator {
 
       const toolCalls = assistantMessage?.tool_calls;
       if (!toolCalls?.length) {
-        console.warn(
-          "[MCPOrchestrator] No tool calls and not finished; aborting loop."
-        );
+        console.warn("[MCPOrchestrator] No tool calls and not finished; aborting loop.");
         break;
       }
 
@@ -389,13 +355,10 @@ export class MCPOrchestrator {
         }
 
         const originalServerName =
-          this.servers.find(
-            (s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName
-          )?.name ?? serverName;
+          this.servers.find((s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName)
+            ?.name ?? serverName;
 
-        const args = tc.function.arguments
-          ? JSON.parse(tc.function.arguments)
-          : {};
+        const args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
 
         this.sendStepEvent({
           type: "tool_call",

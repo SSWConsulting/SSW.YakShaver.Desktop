@@ -73,16 +73,12 @@ export class CustomPromptStorage extends BaseSecureStorage {
       return this.cache;
     }
 
-    const data = await this.decryptAndLoad<CustomPromptData>(
-      this.getSettingsPath()
-    );
+    const data = await this.decryptAndLoad<CustomPromptData>(this.getSettingsPath());
     this.cache = data || DEFAULT_SETTINGS;
 
     // Migrate default prompt to new default if there are changes
     if (this.cache) {
-      const defaultPromptIndex = this.cache.prompts.findIndex(
-        (p) => p.id === "default"
-      );
+      const defaultPromptIndex = this.cache.prompts.findIndex((p) => p.id === "default");
       if (defaultPromptIndex !== -1) {
         const currentDefaultPrompt = this.cache.prompts[defaultPromptIndex];
         if (currentDefaultPrompt.content !== DEFAULT_PROMPT.content) {
@@ -112,9 +108,7 @@ export class CustomPromptStorage extends BaseSecureStorage {
   async getActivePrompt(): Promise<CustomPrompt | null> {
     const settings = await this.loadSettings();
     if (!settings.activePromptId) return null;
-    return (
-      settings.prompts.find((p) => p.id === settings.activePromptId) || null
-    );
+    return settings.prompts.find((p) => p.id === settings.activePromptId) || null;
   }
 
   async getPromptById(id: string): Promise<CustomPrompt | null> {
@@ -123,7 +117,7 @@ export class CustomPromptStorage extends BaseSecureStorage {
   }
 
   async addPrompt(
-    prompt: Omit<CustomPrompt, "id" | "createdAt" | "updatedAt">
+    prompt: Omit<CustomPrompt, "id" | "createdAt" | "updatedAt">,
   ): Promise<CustomPrompt> {
     const settings = await this.loadSettings();
 
@@ -141,7 +135,7 @@ export class CustomPromptStorage extends BaseSecureStorage {
 
   async updatePrompt(
     id: string,
-    updates: Partial<Pick<CustomPrompt, "name" | "content" | "description">>
+    updates: Partial<Pick<CustomPrompt, "name" | "content" | "description">>,
   ): Promise<boolean> {
     const settings = await this.loadSettings();
     const index = settings.prompts.findIndex((p) => p.id === id);
