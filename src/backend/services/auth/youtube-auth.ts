@@ -282,17 +282,19 @@ export class YouTubeAuthService {
         }
 
         const { code, state, error } = query;
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
 
         // Remove the window close listener since we got a response
         authWindow.removeListener("closed", handleWindowClose);
 
         if (error) {
+          res.writeHead(400).end("Authentication failed");
           reject(new Error(error as string));
         } else if (code && state) {
+          res.writeHead(200).end("OK");
           resolve({ code: code as string, state: state as string });
           this.closeAuthWindow();
         } else {
+          res.writeHead(400).end("Invalid request");
           reject(new Error("Invalid OAuth callback"));
         }
         this.closeServer();
