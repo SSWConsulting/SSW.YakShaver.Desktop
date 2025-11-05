@@ -135,6 +135,7 @@ RULES FOR OUTPUT:
 - REQUIRED FIELDS (always): "Status": "success" | "fail" (lowercase),
 - Your response must be a valid JSON object and include ALL relevant information
 - All keys must use PascalCase (first letter uppercase): "Status", "Repository", "Title", "Description"
+- ORDER KEYS logically in the response: put primary identifiers first (e.g., Title, Name), then locations/references (e.g., Repository, URL), then descriptive content (e.g., Description, Details), then metadata last
 - Include relevant fields based on the task type
 - NO markdown code blocks, NO explanations, NO text outside JSON
 - Additional fields are allowed but must follow PascalCase naming

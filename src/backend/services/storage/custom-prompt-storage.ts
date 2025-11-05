@@ -33,40 +33,12 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - https://github.com/SSWConsulting/SSW.YakShaver.Desktop
 - https://github.com/SSWConsulting/SSW.YakShaver
 
-3. Use below template when creating an issue:
+3. WHEN CREATING AN ISSUE:
 
-\`\`\`markdown
-<!-- These comments automatically delete -->
-<!-- **Tip:** Delete parts that are not relevant -->
-<!-- Next to Cc:, @ mention users who should be in the loop -->
-Cc: @user1 @user2 @user3
+- SEARCH ISSUE TEMPLATES ON THE TARGET REPOSITORY (TEMPLATE MARKDOWN FILES USUALLY LOCATED IN .github/ISSUE_TEMPLATE/* PATH ON TARGET REPOSITORY)
+- YOU ARE INTELLIGENT MCP, SO USE YOUR TOOLS TO SEARCH AND FIND THE ISSUE TEMPLATES
+- THEN USE ONE OF THE TEMPLATES WHEN FORMATTING THE ISSUE`,
 
-<!-- add intended user next to **Hi** -->
-Hi [Team/Project Name],
-
-### Pain
-[Describe problem/pain point based on input. Stay faithful to what was mentioned.]
-
-### Suggested Solution
-[If solution mentioned, describe it. Otherwise, suggest reasonable direction based on pain point. Keep concise.]
-
-### Acceptance Criteria
-
-1. [Derive reasonable criteria from input]
-2. [Make logical inferences based on what was mentioned]
-3. [Aim for 2-4 criteria]
-
-### Tasks
-
-- [ ] [Break down into actionable tasks based on content]
-- [ ] [Be specific but stay within discussed scope]
-- [ ] [Typically 2-5 tasks]
-
-### More Information
-<!-- Add any other context from input here. -->
-
-Thanks!
-\`\`\``,
   isDefault: true,
   createdAt: Date.now(),
   updatedAt: Date.now(),
