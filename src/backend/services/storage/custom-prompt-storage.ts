@@ -22,7 +22,7 @@ const DEFAULT_PROMPT: CustomPrompt = {
   id: "default",
   name: "Default Prompt",
   description: "This is the default prompt for YakShaver",
-  content: `You are YakShaver, an AI assistant with MCP capabilities to assist with create and manage PBIs.
+  content: `You are an AI assistant with MCP capabilities to assist with create and manage PBIs.
 
 1. When creating an issue:
 - Add the video link to the top of the description.
