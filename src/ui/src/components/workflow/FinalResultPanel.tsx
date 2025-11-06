@@ -1,8 +1,8 @@
 import { Copy, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
-import { ipcClient } from "../../services/ipc-client";
-import type { WorkflowProgress } from "../../types";
 import { useClipboard } from "../../hooks/useClipboard";
+import { ipcClient } from "../../services/ipc-client";
+import { ProgressStage, type WorkflowProgress } from "../../types";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
 interface ParsedResult {
@@ -10,23 +10,45 @@ interface ParsedResult {
   [key: string]: unknown;
 }
 
+interface RawTextDisplayProps {
+  content: string;
+}
+
+function RawTextDisplay({ content }: RawTextDisplayProps) {
+  return (
+    <div className="text-white/80 text-sm font-mono whitespace-pre-wrap bg-white/5 p-4 rounded-md border border-white/10">
+      {content}
+    </div>
+  );
+}
+
 function JsonResultDisplay({ data }: { data: ParsedResult }) {
   const { copyToClipboard } = useClipboard();
-  const entries = Object.entries(data).filter(
-    ([key]) => key !== "Status" && key !== "IssueNumber",
-  );
+  const entries = Object.entries(data).filter(([key]) => key !== "Status" && key !== "IssueNumber");
 
-  const renderValue = (value: unknown) => {
+  const getKey = (index: number): string => {
+    return `item-${index}`;
+  };
+
+  const isValidUrl = (str: string): boolean => {
+    try {
+      new URL(str);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const renderValue = (value: unknown): React.ReactNode => {
     if (typeof value === "string") {
-      const isUrl = value.startsWith("http://") || value.startsWith("https://");
-      if (isUrl) {
+      if (isValidUrl(value)) {
         return (
           <div className="flex items-center gap-2 flex-wrap">
             <a
               href={value}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-400 hover:text-blue-300 transition-colors break-all"
+              className="text-sm text-white/90 hover:text-white transition-colors break-all underline"
             >
               {value}
             </a>
@@ -52,19 +74,46 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
           </div>
         );
       }
-      return (
-        <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
-          {value}
-        </p>
-      );
+      return <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">{value}</p>;
     }
 
     if (Array.isArray(value)) {
+      // Check if array contains objects (like multiple issues)
+      if (value.length > 0 && typeof value[0] === "object" && value[0] !== null) {
+        return (
+          <div className="space-y-3">
+            {value.map((item, index) => {
+              const itemObj = item as Record<string, unknown>;
+              return (
+                <div
+                  key={getKey(index)}
+                  className="bg-white/5 p-4 rounded-md border border-white/10"
+                >
+                  <div className="space-y-3">
+                    {Object.entries(itemObj).map(([itemKey, itemValue]) => (
+                      <div key={itemKey}>
+                        <div className="flex items-baseline gap-3 mb-2">
+                          <h4 className="text-xs font-semibold text-white/50 uppercase tracking-wide min-w-fit">
+                            {itemKey}
+                          </h4>
+                          <div className="h-px flex-1 bg-white/10 self-center" />
+                        </div>
+                        <div className="pl-0">{renderValue(itemValue)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+
       return (
         <ul className="space-y-1.5 list-disc list-inside text-white/90">
           {value.map((item, index) => (
-            <li key={`${String(item)}-${index}`} className="text-sm">
-              {String(item)}
+            <li key={getKey(index)} className="text-sm">
+              {typeof item === "object" && item !== null ? renderValue(item) : String(item)}
             </li>
           ))}
         </ul>
@@ -112,8 +161,8 @@ export function FinalResultPanel() {
       if (progressData.finalOutput) {
         setFinalOutput(progressData.finalOutput);
       } else if (
-        progressData.stage === "idle" ||
-        progressData.stage === "converting_audio"
+        progressData.stage === ProgressStage.IDLE ||
+        progressData.stage === ProgressStage.CONVERTING_AUDIO
       ) {
         setFinalOutput(undefined);
       }
@@ -124,12 +173,9 @@ export function FinalResultPanel() {
 
   const parseFinalOutput = () => {
     const raw =
-      typeof finalOutput === "string"
-        ? finalOutput
-        : JSON.stringify(finalOutput, null, 2);
+      typeof finalOutput === "string" ? finalOutput : JSON.stringify(finalOutput, null, 2);
     try {
-      const parsed =
-        typeof finalOutput === "string" ? JSON.parse(finalOutput) : finalOutput;
+      const parsed = typeof finalOutput === "string" ? JSON.parse(finalOutput) : finalOutput;
       return { parsed, raw, isJson: true };
     } catch {
       return { parsed: null, raw, isJson: false };
@@ -144,9 +190,7 @@ export function FinalResultPanel() {
       <Card className="bg-black/30 backdrop-blur-sm border-white/20 shadow-xl">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-white text-2xl font-semibold">
-              Final Result
-            </CardTitle>
+            <CardTitle className="text-white text-2xl font-semibold">Final Result</CardTitle>
             {status && (
               <span
                 className={`text-sm font-medium px-3 py-1.5 rounded-full ${
@@ -164,9 +208,7 @@ export function FinalResultPanel() {
           {isJson && parsed ? (
             <JsonResultDisplay data={parsed} />
           ) : (
-            <div className="text-white/80 text-sm font-mono whitespace-pre-wrap bg-white/5 p-4 rounded-md border border-white/10">
-              {raw}
-            </div>
+            <RawTextDisplay content={raw} />
           )}
         </CardContent>
       </Card>

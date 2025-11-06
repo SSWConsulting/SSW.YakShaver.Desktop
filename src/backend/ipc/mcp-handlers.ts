@@ -1,18 +1,13 @@
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
-import type { VideoUploadResult } from "../services/auth/types";
 import type { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import type { MCPServerConfig } from "../services/mcp/types";
-import { buildTaskExecutionPrompt } from "../services/openai/prompts";
-import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { IPC_CHANNELS } from "./channels";
 
 export class McpIPCHandlers {
   private orchestrator: MCPOrchestrator;
-  private customPromptStorage: CustomPromptStorage;
 
   constructor(orchestrator: MCPOrchestrator) {
     this.orchestrator = orchestrator;
-    this.customPromptStorage = CustomPromptStorage.getInstance();
     this.registerHandlers();
   }
 
@@ -49,26 +44,6 @@ export class McpIPCHandlers {
       IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH,
       async (_event: IpcMainInvokeEvent, name: string) => {
         return await this.orchestrator.checkServerHealth(name);
-      },
-    );
-
-// TODO: should be removed, we shouldn't call the orchestrator directly from the frontend 
-    ipcMain.handle(
-      IPC_CHANNELS.MCP_PROCESS_MESSAGE,
-      async (
-        _event: IpcMainInvokeEvent,
-        prompt: string,
-        videoUploadResult?: VideoUploadResult,
-        options?: { serverFilter?: string[] },
-      ) => {
-        const activePrompt = await this.customPromptStorage.getActivePrompt();
-        const customPromptContent = activePrompt?.content || "";
-        const systemPrompt = buildTaskExecutionPrompt(customPromptContent);
-
-        return await this.orchestrator.processMessage(prompt, videoUploadResult, {
-          ...options,
-          systemPrompt,
-        });
       },
     );
 

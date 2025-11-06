@@ -1,13 +1,21 @@
+import { Check, Play, Wrench, X } from "lucide-react";
 import type React from "react";
-import type { WorkflowProgress, WorkflowStage } from "../../types";
+import {
+  ProgressStage,
+  STAGE_CONFIG,
+  type WorkflowProgress,
+  type WorkflowStage,
+} from "../../types";
 import { deepParseJson } from "../../utils";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
+import { ReasoningStep } from "./ReasoningStep";
 
-type StepType = "start" | "tool_call" | "tool_result" | "final_result";
+type StepType = "start" | "reasoning" | "tool_call" | "tool_result" | "final_result";
 
 interface MCPStep {
   type: StepType;
   message?: string;
+  reasoning?: string;
   toolName?: string;
   serverName?: string;
   args?: Record<string, unknown>;
@@ -15,16 +23,6 @@ interface MCPStep {
   error?: string;
   timestamp?: number;
 }
-
-const STAGE_CONFIG: Record<WorkflowStage, string> = {
-  idle: "Waiting for recording...",
-  converting_audio: "Converting audio",
-  transcribing: "Transcribing audio",
-  generating_task: "Analyzing transcript",
-  executing_task: "Executing task",
-  completed: "Completed",
-  error: "Error occurred",
-};
 
 interface StageWithContentProps {
   stage: WorkflowStage;
@@ -34,26 +32,29 @@ interface StageWithContentProps {
   getStageIcon: (stage: WorkflowStage) => React.ReactNode;
 }
 
-const handleDetailsToggle =
-  (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
-    const details = e.currentTarget;
-    if (details.open) {
-      const pre = details.querySelector("pre");
-      if (pre && !pre.dataset.parsed) {
-        pre.textContent = JSON.stringify(deepParseJson(data), null, 2);
-        pre.dataset.parsed = "true";
-      }
+const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
+  const details = e.currentTarget;
+  if (details.open) {
+    const pre = details.querySelector("pre");
+    if (pre && !pre.dataset.parsed) {
+      pre.textContent = JSON.stringify(deepParseJson(data), null, 2);
+      pre.dataset.parsed = "true";
     }
-  };
+  }
+};
 
 function ToolResultError({ error }: { error: string }) {
-  return <div className="text-red-400">✗ Error: {error}</div>;
+  return (
+    <div className="text-red-400 flex items-center gap-1">
+      <X className="w-3 h-3" />
+      Error: {error}
+    </div>
+  );
 }
 
 function ToolResultSuccess({ result }: { result: unknown }) {
   return (
     <div className="space-y-1">
-      <div className="text-xs text-green-400">✓ Result received</div>
       {result !== undefined && result !== null && (
         <details className="text-xs" onToggle={handleDetailsToggle(result)}>
           <summary className="text-zinc-400 cursor-pointer hover:text-zinc-400/80">
@@ -81,8 +82,9 @@ function ToolCallStep({
 
   return (
     <div className="space-y-1">
-      <div className="text-secondary font-medium">
-        🔧 Calling tool: {toolName}
+      <div className="text-secondary font-medium flex items-center gap-2">
+        <Wrench className="w-4 h-4" />
+        Calling tool: {toolName}
         <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>
       </div>
       {hasArgs && (
@@ -90,9 +92,7 @@ function ToolCallStep({
           <summary className="text-zinc-400 cursor-pointer hover:text-zinc-400/80">
             Arguments
           </summary>
-          <pre className="mt-1 p-2 bg-black rounded text-zinc-400 overflow-x-auto">
-            Loading...
-          </pre>
+          <pre className="mt-1 p-2 bg-black rounded text-zinc-400 overflow-x-auto">Loading...</pre>
         </details>
       )}
     </div>
@@ -111,38 +111,37 @@ export function StageWithContent({
       <AccordionTrigger className="px-4 hover:no-underline">
         <div className="flex items-center gap-3">
           {getStageIcon(stage)}
-          <span className="text-white/90 font-medium">
-            {STAGE_CONFIG[stage]}
-          </span>
+          <span className="text-white/90 font-medium">{STAGE_CONFIG[stage]}</span>
         </div>
       </AccordionTrigger>
       <AccordionContent className="px-4 pb-2">
-        {stage === "transcribing" && progress.transcript && (
+        {stage === ProgressStage.TRANSCRIBING && progress.transcript && (
           <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm whitespace-pre-wrap">
             {progress.transcript}
           </div>
         )}
-        {stage === "generating_task" &&
+        {stage === ProgressStage.GENERATING_TASK &&
           progress.intermediateOutput &&
-          progress.stage !== "generating_task" && (
+          progress.stage !== ProgressStage.GENERATING_TASK && (
             <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-xs font-mono whitespace-pre-wrap">
               {progress.intermediateOutput}
             </div>
           )}
-        {stage === "executing_task" && mcpSteps.length > 0 && (
+        {stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0 && (
           <div
             ref={stepsRef}
             className="bg-black/30 border border-white/10 rounded-md p-3 max-h-[400px] overflow-y-auto space-y-2"
           >
             {mcpSteps.map((step) => (
-              <div
-                key={step.timestamp}
-                className="border-l-2 border-green-400/30 pl-3 py-1"
-              >
+              <div key={step.timestamp} className="border-l-2 border-green-400/30 pl-3 py-1">
                 {step.type === "start" && (
-                  <div className="text-secondary font-medium">
-                    ▶ {step.message || "Start task execution"}
+                  <div className="text-secondary font-medium flex items-center gap-2">
+                    <Play className="w-4 h-4" />
+                    {step.message || "Start task execution"}
                   </div>
+                )}
+                {step.type === "reasoning" && step.reasoning && (
+                  <ReasoningStep reasoning={step.reasoning} />
                 )}
                 {step.type === "tool_call" && (
                   <ToolCallStep
@@ -161,8 +160,9 @@ export function StageWithContent({
                   </div>
                 )}
                 {step.type === "final_result" && (
-                  <div className="text-secondary font-medium">
-                    ✓ {step.message || "Generated final result"}
+                  <div className="text-secondary font-medium flex items-center gap-2">
+                    <Check className="w-4 h-4" />
+                    {step.message || "Generated final result"}
                   </div>
                 )}
               </div>

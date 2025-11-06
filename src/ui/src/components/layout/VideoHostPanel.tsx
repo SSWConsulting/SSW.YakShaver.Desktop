@@ -2,13 +2,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
-import { AuthStatus } from "../../types";
+import { AuthStatus, UploadStatus } from "../../types";
 import { ConnectedStatus } from "../auth/ConnectedStatus";
 import { PlatformSelector } from "../auth/PlatformSelector";
 import { UploadResult } from "../video/UploadResult";
 
 export const VideoHostPanel = () => {
-  const { authState, hasConfig, uploadResult } = useYouTubeAuth();
+  const { authState, hasConfig, uploadResult, uploadStatus } = useYouTubeAuth();
   const [showSelector, setShowSelector] = useState(false);
 
   const { status, userInfo } = authState;
@@ -47,7 +47,9 @@ export const VideoHostPanel = () => {
               </Card>
             )}
 
-            {uploadResult && <UploadResult result={uploadResult} />}
+            {(uploadStatus !== UploadStatus.IDLE || uploadResult) && (
+              <UploadResult result={uploadResult} status={uploadStatus} />
+            )}
           </>
         )}
       </div>

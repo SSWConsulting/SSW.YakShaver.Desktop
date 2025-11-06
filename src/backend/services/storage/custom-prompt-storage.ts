@@ -22,12 +22,23 @@ const DEFAULT_PROMPT: CustomPrompt = {
   id: "default",
   name: "Default Prompt",
   description: "This is the default prompt for YakShaver",
-  content: `You are YakShaver, an AI assistant with MCP capabilities to assist with create and manage PBIs.
+  content: `You are an AI assistant with MCP capabilities to assist with create and manage PBIs.
 
-The repository link for YakShaver is https://github.com/SSWConsulting/SSW.YakShaver.Desktop
-
+1. When creating an issue:
 - Add the video link to the top of the description.
-- When creating an issue, always tag it with the "YakShaver" label.`,
+- Always tag issue with the "YakShaver" label.
+
+2. USE one of these backlogs listed below that matches with the user mentioned:
+
+- https://github.com/SSWConsulting/SSW.YakShaver.Desktop
+- https://github.com/SSWConsulting/SSW.YakShaver
+
+3. WHEN CREATING AN ISSUE:
+
+- SEARCH ISSUE TEMPLATES ON THE TARGET REPOSITORY (TEMPLATE MARKDOWN FILES USUALLY LOCATED IN .github/ISSUE_TEMPLATE/* PATH ON TARGET REPOSITORY)
+- YOU ARE INTELLIGENT MCP, SO USE YOUR TOOLS TO SEARCH AND FIND THE ISSUE TEMPLATE THAT MATCHES CONTEXT
+- THEN READ CONTENT OF TEMPLATE AND USE IT WHEN FORMATTING THE ISSUE`,
+
   isDefault: true,
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -64,6 +75,23 @@ export class CustomPromptStorage extends BaseSecureStorage {
 
     const data = await this.decryptAndLoad<CustomPromptData>(this.getSettingsPath());
     this.cache = data || DEFAULT_SETTINGS;
+
+    // Migrate default prompt to new default if there are changes
+    if (this.cache) {
+      const defaultPromptIndex = this.cache.prompts.findIndex((p) => p.id === "default");
+      if (defaultPromptIndex !== -1) {
+        const currentDefaultPrompt = this.cache.prompts[defaultPromptIndex];
+        if (currentDefaultPrompt.content !== DEFAULT_PROMPT.content) {
+          this.cache.prompts[defaultPromptIndex] = {
+            ...currentDefaultPrompt,
+            content: DEFAULT_PROMPT.content,
+            updatedAt: Date.now(),
+          };
+          await this.saveSettings(this.cache);
+        }
+      }
+    }
+
     return this.cache;
   }
 
