@@ -5,7 +5,7 @@ interface NoConnectionCardProps {
   onConnect: () => void;
 }
 
-export const NotConnectionStatus = ({ onConnect }: NoConnectionCardProps) => {
+export const NotConnectedStatus = ({ onConnect }: NoConnectionCardProps) => {
   return (
     <Card className="w-full text-center bg-black/20 backdrop-blur-sm border-white/10">
       <CardContent className="py-12">

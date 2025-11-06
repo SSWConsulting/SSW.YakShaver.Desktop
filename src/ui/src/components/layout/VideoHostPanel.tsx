@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { AuthStatus, UploadStatus } from "../../types";
 import { ConnectedStatus } from "../auth/ConnectedStatus";
-import { NotConnectionStatus } from "../auth/NotConnectedStatus";
+import { NotConnectedStatus } from "../auth/NotConnectedStatus";
 import { PlatformSelector } from "../auth/PlatformSelector";
 import { UploadResult } from "../video/UploadResult";
 
@@ -25,7 +25,7 @@ export const VideoHostPanel = () => {
             onSwitch={() => setShowSelector(true)}
           />
         ) : (
-          <NotConnectionStatus onConnect={() => setShowSelector(true)} />
+          <NotConnectedStatus onConnect={() => setShowSelector(true)} />
         )}
 
         {(uploadStatus !== UploadStatus.IDLE || uploadResult) && (
