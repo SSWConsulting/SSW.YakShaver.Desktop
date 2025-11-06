@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { AuthStatus, UploadStatus } from "../../types";
 import { ConnectedStatus } from "../auth/ConnectedStatus";
+import { NotConnectedStatus } from "../auth/NotConnectedStatus";
 import { PlatformSelector } from "../auth/PlatformSelector";
 import { UploadResult } from "../video/UploadResult";
 
@@ -19,38 +18,18 @@ export const VideoHostPanel = () => {
       <div className="w-full flex flex-col items-center gap-6">
         {showSelector ? (
           <PlatformSelector onClose={() => setShowSelector(false)} hasYouTubeConfig={hasConfig} />
+        ) : isConnected ? (
+          <ConnectedStatus
+            userInfo={userInfo}
+            platform="YouTube"
+            onSwitch={() => setShowSelector(true)}
+          />
         ) : (
-          <>
-            {isConnected ? (
-              <ConnectedStatus
-                userInfo={userInfo}
-                platform="YouTube"
-                onSwitch={() => setShowSelector(true)}
-              />
-            ) : (
-              <Card className="w-full text-center bg-black/20 backdrop-blur-sm border-white/10">
-                <CardContent className="py-12">
-                  <div className="text-5xl mb-4 opacity-70">📹</div>
-                  <h3 className="text-white mb-2 text-lg font-medium">No platform connected</h3>
-                  <p className="text-white/60 mb-8 text-sm">
-                    Connect a video hosting platform to get started
-                  </p>
-                  <Button
-                    variant="secondary"
-                    size="lg"
-                    onClick={() => setShowSelector(true)}
-                    className="bg-white text-black hover:bg-gray-200"
-                  >
-                    Connect Platform
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+          <NotConnectedStatus onConnect={() => setShowSelector(true)} />
+        )}
 
-            {(uploadStatus !== UploadStatus.IDLE || uploadResult) && (
-              <UploadResult result={uploadResult} status={uploadStatus} />
-            )}
-          </>
+        {(uploadStatus !== UploadStatus.IDLE || uploadResult) && (
+          <UploadResult result={uploadResult} status={uploadStatus} />
         )}
       </div>
     </div>
