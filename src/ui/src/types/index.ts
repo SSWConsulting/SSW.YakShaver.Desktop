@@ -107,6 +107,16 @@ export type WorkflowStage =
   | "completed"
   | "error";
 
+export const STAGE_CONFIG: Record<WorkflowStage, string> = {
+  idle: "Waiting for recording...",
+  converting_audio: "Converting audio",
+  transcribing: "Transcribing audio",
+  generating_task: "Analyzing transcript",
+  executing_task: "Executing task",
+  completed: "Completed",
+  error: "Error occurred",
+};
+
 export interface WorkflowProgress {
   stage: WorkflowStage;
   transcript?: string;
@@ -131,4 +141,16 @@ export interface HealthStatusInfo {
   error?: string;
   successMessage?: string;
   isChecking?: boolean;
+}
+
+export enum ProgressStage {
+  IDLE = "idle",
+  UPLOAD_COMPLETED = "upload_completed",
+  CONVERTING_AUDIO = "converting_audio",
+  TRANSCRIBING = "transcribing",
+  TRANSCRIPTION_COMPLETED = "transcription_completed",
+  GENERATING_TASK = "generating_task",
+  EXECUTING_TASK = "executing_task",
+  ERROR = "error",
+  COMPLETED = "completed",
 }

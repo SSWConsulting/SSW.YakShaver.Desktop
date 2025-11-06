@@ -1,21 +1,21 @@
 import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
-import type { WorkflowProgress, WorkflowStage } from "../../types";
+import { ProgressStage, type WorkflowProgress, type WorkflowStage } from "../../types";
 import { Accordion, AccordionItem } from "../ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { type MCPStep, StageWithContent } from "./StageWithContent";
 import { StageWithoutContent } from "./StageWithoutContent";
 
 const WORKFLOW_STAGES: WorkflowStage[] = [
-  "converting_audio",
-  "transcribing",
-  "generating_task",
-  "executing_task",
+  ProgressStage.CONVERTING_AUDIO,
+  ProgressStage.TRANSCRIBING,
+  ProgressStage.GENERATING_TASK,
+  ProgressStage.EXECUTING_TASK,
 ];
 
 export function WorkflowProgressPanel() {
-  const [progress, setProgress] = useState<WorkflowProgress>({ stage: "idle" });
+  const [progress, setProgress] = useState<WorkflowProgress>({ stage: ProgressStage.IDLE });
   const [mcpSteps, setMcpSteps] = useState<MCPStep[]>([]);
   const [openAccordions, setOpenAccordions] = useState<string[]>([]);
   const stepsRef = useRef<HTMLDivElement | null>(null);
@@ -25,8 +25,8 @@ export function WorkflowProgressPanel() {
       const progressData = data as WorkflowProgress;
       setProgress((prev) => {
         if (
-          progressData.stage === "executing_task" &&
-          prev.stage !== "executing_task"
+          progressData.stage === ProgressStage.EXECUTING_TASK &&
+          prev.stage !== ProgressStage.EXECUTING_TASK
         ) {
           setMcpSteps([]);
         }
@@ -56,9 +56,8 @@ export function WorkflowProgressPanel() {
     const currentIndex = WORKFLOW_STAGES.indexOf(progress.stage);
     const stageIndex = WORKFLOW_STAGES.indexOf(stage);
     const isActive = stage === progress.stage;
-    const isCompleted =
-      stageIndex < currentIndex || progress.stage === "completed";
-    const isError = progress.stage === "error";
+    const isCompleted = stageIndex < currentIndex || progress.stage === ProgressStage.COMPLETED;
+    const isError = progress.stage === ProgressStage.ERROR;
 
     if (isError && stage === progress.stage) {
       return <XCircle className="w-4 h-4 text-red-400" />;
@@ -77,24 +76,20 @@ export function WorkflowProgressPanel() {
     const currentIndex = WORKFLOW_STAGES.indexOf(progress.stage);
 
     if (stage === progress.stage) return "border-gray-500/30 bg-gray-500/5";
-    if (stageIndex < currentIndex || progress.stage === "completed") {
+    if (stageIndex < currentIndex || progress.stage === ProgressStage.COMPLETED) {
       return "border-green-500/30 bg-green-500/5";
     }
     return "border-white/10 bg-black/20";
   };
 
-  if (progress.stage === "idle") {
+  if (progress.stage === ProgressStage.IDLE) {
     return (
       <div className="w-[500px] mx-auto my-4">
         <Card className="bg-black/20 backdrop-blur-md border-white/10">
           <CardContent className="py-16 text-center">
             <AlertCircle className="w-16 h-16 text-white/40 mx-auto mb-4" />
-            <h3 className="text-white text-xl font-medium mb-2">
-              No Active Workflow
-            </h3>
-            <p className="text-white/60">
-              Record a video to start the automated workflow
-            </p>
+            <h3 className="text-white text-xl font-medium mb-2">No Active Workflow</h3>
+            <p className="text-white/60">Record a video to start the automated workflow</p>
           </CardContent>
         </Card>
       </div>
@@ -105,21 +100,15 @@ export function WorkflowProgressPanel() {
     <div className="w-[500px] mx-auto my-4">
       <Card className="bg-black/20 backdrop-blur-md border-white/10">
         <CardHeader>
-          <CardTitle className="text-white text-xl">
-            AI Workflow Progress
-          </CardTitle>
+          <CardTitle className="text-white text-xl">AI Workflow Progress</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Accordion
-            type="multiple"
-            value={openAccordions}
-            onValueChange={setOpenAccordions}
-          >
+          <Accordion type="multiple" value={openAccordions} onValueChange={setOpenAccordions}>
             {WORKFLOW_STAGES.map((stage, index) => {
               const hasContent =
-                (stage === "transcribing" && progress.transcript) ||
-                (stage === "generating_task" && progress.intermediateOutput) ||
-                (stage === "executing_task" && mcpSteps.length > 0);
+                (stage === ProgressStage.TRANSCRIBING && progress.transcript) ||
+                (stage === ProgressStage.GENERATING_TASK && progress.intermediateOutput) ||
+                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0);
 
               return (
                 <AccordionItem
@@ -136,17 +125,14 @@ export function WorkflowProgressPanel() {
                       getStageIcon={getStageIcon}
                     />
                   ) : (
-                    <StageWithoutContent
-                      stage={stage}
-                      getStageIcon={getStageIcon}
-                    />
+                    <StageWithoutContent stage={stage} getStageIcon={getStageIcon} />
                   )}
                 </AccordionItem>
               );
             })}
           </Accordion>
 
-          {progress.stage === "error" && progress.error && (
+          {progress.stage === ProgressStage.ERROR && progress.error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
                 <XCircle className="w-5 h-5 text-red-400" />

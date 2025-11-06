@@ -1,6 +1,11 @@
 import { Check, Play, Wrench, X } from "lucide-react";
 import type React from "react";
-import type { WorkflowProgress, WorkflowStage } from "../../types";
+import {
+  ProgressStage,
+  STAGE_CONFIG,
+  type WorkflowProgress,
+  type WorkflowStage,
+} from "../../types";
 import { deepParseJson } from "../../utils";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
 import { ReasoningStep } from "./ReasoningStep";
@@ -18,16 +23,6 @@ interface MCPStep {
   error?: string;
   timestamp?: number;
 }
-
-const STAGE_CONFIG: Record<WorkflowStage, string> = {
-  idle: "Waiting for recording...",
-  converting_audio: "Converting audio",
-  transcribing: "Transcribing audio",
-  generating_task: "Analyzing transcript",
-  executing_task: "Executing task",
-  completed: "Completed",
-  error: "Error occurred",
-};
 
 interface StageWithContentProps {
   stage: WorkflowStage;
@@ -120,19 +115,19 @@ export function StageWithContent({
         </div>
       </AccordionTrigger>
       <AccordionContent className="px-4 pb-2">
-        {stage === "transcribing" && progress.transcript && (
+        {stage === ProgressStage.TRANSCRIBING && progress.transcript && (
           <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm whitespace-pre-wrap">
             {progress.transcript}
           </div>
         )}
-        {stage === "generating_task" &&
+        {stage === ProgressStage.GENERATING_TASK &&
           progress.intermediateOutput &&
-          progress.stage !== "generating_task" && (
+          progress.stage !== ProgressStage.GENERATING_TASK && (
             <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-xs font-mono whitespace-pre-wrap">
               {progress.intermediateOutput}
             </div>
           )}
-        {stage === "executing_task" && mcpSteps.length > 0 && (
+        {stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0 && (
           <div
             ref={stepsRef}
             className="bg-black/30 border border-white/10 rounded-md p-3 max-h-[400px] overflow-y-auto space-y-2"

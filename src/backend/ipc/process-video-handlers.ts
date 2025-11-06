@@ -8,6 +8,7 @@ import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
+import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
@@ -36,18 +37,18 @@ export class ProcessVideoIPCHandlers {
 
       // upload to YouTube
       const youtubeResult = await this.youtube.uploadVideo(filePath);
-      this.emitProgress("upload_completed", { uploadResult: youtubeResult });
+      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
 
       // convert video to mp3
-      this.emitProgress("converting_audio");
+      this.emitProgress(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
       // transcribe the video via MCP
-      this.emitProgress("transcribing");
+      this.emitProgress(ProgressStage.TRANSCRIBING);
       const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
-      this.emitProgress("transcription_completed", { transcript });
+      this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      this.emitProgress("generating_task", { transcript });
+      this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
 
       // generate intermediate summary
       const intermediateOutput = await this.llmClient.generateOutput(
@@ -55,7 +56,7 @@ export class ProcessVideoIPCHandlers {
         transcript,
         { jsonMode: true },
       );
-      this.emitProgress("executing_task", {
+      this.emitProgress(ProgressStage.EXECUTING_TASK, {
         transcript,
         intermediateOutput,
       });
@@ -70,7 +71,7 @@ export class ProcessVideoIPCHandlers {
         { systemPrompt },
       );
 
-      this.emitProgress("completed", {
+      this.emitProgress(ProgressStage.COMPLETED, {
         transcript,
         intermediateOutput,
         mcpResult,
@@ -92,7 +93,7 @@ export class ProcessVideoIPCHandlers {
         videoUploadResult: VideoUploadResult,
       ) => {
         try {
-          this.emitProgress("executing_task");
+          this.emitProgress(ProgressStage.EXECUTING_TASK);
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
@@ -103,14 +104,14 @@ export class ProcessVideoIPCHandlers {
             { systemPrompt },
           );
 
-          this.emitProgress("completed", {
+          this.emitProgress(ProgressStage.COMPLETED, {
             mcpResult,
             finalOutput: mcpResult.final,
           });
           return { success: true, mcpResult };
         } catch (error) {
           const errorMessage = formatErrorMessage(error);
-          this.emitProgress("error", { error: errorMessage });
+          this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
           return { success: false, error: errorMessage };
         }
       },

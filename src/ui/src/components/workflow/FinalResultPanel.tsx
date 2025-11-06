@@ -2,7 +2,7 @@ import { Copy, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
-import type { WorkflowProgress } from "../../types";
+import { ProgressStage, type WorkflowProgress } from "../../types";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
 interface ParsedResult {
@@ -160,7 +160,10 @@ export function FinalResultPanel() {
       const progressData = data as WorkflowProgress;
       if (progressData.finalOutput) {
         setFinalOutput(progressData.finalOutput);
-      } else if (progressData.stage === "idle" || progressData.stage === "converting_audio") {
+      } else if (
+        progressData.stage === ProgressStage.IDLE ||
+        progressData.stage === ProgressStage.CONVERTING_AUDIO
+      ) {
         setFinalOutput(undefined);
       }
     });

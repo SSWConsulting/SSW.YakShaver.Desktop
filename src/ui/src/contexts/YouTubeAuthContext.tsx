@@ -1,6 +1,12 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { ipcClient } from "../services/ipc-client";
-import { type AuthState, AuthStatus, UploadStatus, type VideoUploadResult } from "../types";
+import {
+  type AuthState,
+  AuthStatus,
+  ProgressStage,
+  UploadStatus,
+  type VideoUploadResult,
+} from "../types";
 
 interface YouTubeAuthContextType {
   authState: AuthState;
@@ -113,7 +119,7 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
         stage: string;
         uploadResult?: VideoUploadResult;
       };
-      if (progressData.stage === "upload_completed" && progressData.uploadResult) {
+      if (progressData.stage === ProgressStage.UPLOAD_COMPLETED && progressData.uploadResult) {
         setUploadResult(progressData.uploadResult);
         setUploadStatus(
           progressData.uploadResult.success ? UploadStatus.SUCCESS : UploadStatus.ERROR,
@@ -121,7 +127,7 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Reset on idle
-      if (progressData.stage === "idle") {
+      if (progressData.stage === ProgressStage.IDLE) {
         setUploadResult(null);
         setUploadStatus(UploadStatus.IDLE);
       }
