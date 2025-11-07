@@ -83,8 +83,7 @@ export function ScreenRecorder() {
       <section className="flex flex-col gap-4 items-center">
         <div className="flex flex-row items-center gap-2">
           <Button
-            // className="bg-red-600 hover:bg-red-700"
-            variant="secondary"
+            className="bg-red-600 hover:bg-red-700"
             onClick={toggleRecording}
             disabled={isProcessing || isTranscribing || !isAuthenticated}
           >
