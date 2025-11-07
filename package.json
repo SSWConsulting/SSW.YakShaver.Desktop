@@ -1,7 +1,7 @@
 {
   "name": "yakshaver",
   "productName": "YakShaver",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "YakShaver, an AI agent to help you trim the fluff and get straight to the point",
   "main": "dist/index.js",
   "build": {
@@ -62,7 +62,8 @@
         "provider": "github",
         "owner": "babakamyljanovssw",
         "repo": "SSW.YakShaver.Desktop",
-        "private": false
+        "private": false,
+        "releaseType": "release"
       }
     ]
   },
