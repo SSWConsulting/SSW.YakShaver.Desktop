@@ -13,17 +13,23 @@ module.exports = async (context) => {
   } else if (electronPlatformName === "linux") {
     appPath = path.join(appOutDir, appName);
   } else {
-    return; // Skip if platform not supported
+    console.warn(`Skipping fuse configuration for unsupported platform: ${electronPlatformName}`);
+    return;
   }
 
-  await flipFuses(appPath, {
-    version: FuseVersion.V1,
-    [FuseV1Options.RunAsNode]: false,
-    [FuseV1Options.EnableCookieEncryption]: true,
-    [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
-    [FuseV1Options.EnableNodeCliInspectArguments]: false,
-    [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
-    [FuseV1Options.OnlyLoadAppFromAsar]: true,
-    resetAdHocDarwinSignature: electronPlatformName === "darwin", // For macOS, especially ARM
-  });
+  try {
+    await flipFuses(appPath, {
+      version: FuseVersion.V1,
+      [FuseV1Options.RunAsNode]: false,
+      [FuseV1Options.EnableCookieEncryption]: true,
+      [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
+      [FuseV1Options.EnableNodeCliInspectArguments]: false,
+      [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
+      [FuseV1Options.OnlyLoadAppFromAsar]: true,
+      resetAdHocDarwinSignature: electronPlatformName === "darwin", // For macOS, especially ARM
+    });
+  } catch (error) {
+    console.error("Failed to flip fuses:", error);
+  }
+  
 };

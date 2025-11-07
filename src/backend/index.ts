@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
 import { app, BrowserWindow, session } from "electron";
-import electronUpdater, { type AppUpdater } from "electron-updater";
+import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
@@ -16,11 +16,6 @@ import { RecordingControlBarWindow } from "./services/recording/control-bar-wind
 import { RecordingService } from "./services/recording/recording-service";
 
 const isDev = process.env.NODE_ENV === "development";
-
-export function getAutoUpdater(): AppUpdater {
-  const { autoUpdater } = electronUpdater;
-  return autoUpdater;
-}
 
 // Load .env early (before app.whenReady)
 const loadEnv = () => {
@@ -115,7 +110,7 @@ app.whenReady().then(async () => {
 
   // Auto-updates: Check only in packaged mode (dev skips)
   if (app.isPackaged) {
-    getAutoUpdater().checkForUpdatesAndNotify();
+    autoUpdater.checkForUpdatesAndNotify();
   }
 });
 
