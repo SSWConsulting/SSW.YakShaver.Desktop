@@ -40,7 +40,7 @@ loadEnv();
 let mainWindow: BrowserWindow | null = null;
 
 const createWindow = (): void => {
-  // Fix icon path for packaged mode (your original would break in production)
+  // Fix icon path for packaged mode
   const iconPath = isDev
     ? join(__dirname, "../ui/public/icons/icon.png")
     : join(process.resourcesPath, "public/icons/icon.png");
