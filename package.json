@@ -1,7 +1,7 @@
 {
   "name": "yakshaver",
   "productName": "YakShaver",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "YakShaver, an AI agent to help you trim the fluff and get straight to the point",
   "main": "dist/index.js",
   "build": {
@@ -84,7 +84,7 @@
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SSWConsulting/SSW.YakShaver.Desktop.git"
+    "url": "https://github.com/babakamyljanovssw/SSW.YakShaver.Desktop.git"
   },
   "dependencies": {
     "@azure/openai": "^2.0.0",

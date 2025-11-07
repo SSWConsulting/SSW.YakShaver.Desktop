@@ -62,7 +62,9 @@ jobs:
         env:
           NODE_ENV: production
           CI: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBUG: electron-builder
 
   build-macos:
     needs: check-release
@@ -98,4 +100,6 @@ jobs:
         env:
           NODE_ENV: production
           CI: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEBUG: electron-builder
