@@ -67,6 +67,13 @@ const IPC_CHANNELS = {
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
+
+  // Release Channel
+  RELEASE_CHANNEL_GET: "release-channel:get",
+  RELEASE_CHANNEL_SET: "release-channel:set",
+  RELEASE_CHANNEL_LIST_RELEASES: "release-channel:list-releases",
+  RELEASE_CHANNEL_CHECK_UPDATES: "release-channel:check-updates",
+  RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -172,6 +179,14 @@ const electronAPI = {
     deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
     setActivePrompt: (id: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
+  },
+  releaseChannel: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),
+    set: (channel: { type: "latest" | "prerelease" | "tag"; tag?: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_SET, channel),
+    listReleases: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_LIST_RELEASES),
+    checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_CHECK_UPDATES),
+    getCurrentVersion: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET_CURRENT_VERSION),
   },
 };
 

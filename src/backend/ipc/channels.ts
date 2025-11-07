@@ -61,4 +61,11 @@ export const IPC_CHANNELS = {
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
+
+  // Release Channel
+  RELEASE_CHANNEL_GET: "release-channel:get",
+  RELEASE_CHANNEL_SET: "release-channel:set",
+  RELEASE_CHANNEL_LIST_RELEASES: "release-channel:list-releases",
+  RELEASE_CHANNEL_CHECK_UPDATES: "release-channel:check-updates",
+  RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
 } as const;

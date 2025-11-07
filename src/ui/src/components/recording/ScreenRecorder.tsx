@@ -3,9 +3,6 @@ import { toast } from "sonner";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, UploadStatus } from "../../types";
-import { LLMKeyManager } from "../llm/LLMKeyManager";
-import { McpServerManager } from "../mcp/McpServerManager";
-import { CustomPromptManager } from "../settings/CustomPromptManager";
 import { Button } from "../ui/button";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
@@ -80,7 +77,7 @@ export function ScreenRecorder() {
 
   return (
     <>
-      <section className="flex flex-col gap-4 items-center">
+      <section className="flex flex-col gap-4 items-center w-full">
         <div className="flex flex-row items-center gap-2">
           <Button
             className="bg-red-600 hover:bg-red-700"
@@ -93,9 +90,6 @@ export function ScreenRecorder() {
                 ? "Transcribing..."
                 : "Start Recording"}
           </Button>
-          <McpServerManager />
-          <CustomPromptManager />
-          <LLMKeyManager />
         </div>
         {!isAuthenticated && (
           <p className="text-sm text-white/60 text-center">
