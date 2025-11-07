@@ -1,21 +1,19 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
 import { app, BrowserWindow, session } from "electron";
+import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
-import { updateElectronApp } from "update-electron-app";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
-import { McpIPCHandlers } from "./ipc/mcp-handlers";
-import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
-import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
+import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
+import { McpIPCHandlers } from "./ipc/mcp-handlers";
+import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
+import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
 import { createMcpOrchestrator } from "./services/mcp/mcp-orchestrator-factory";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
-import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
-
-updateElectronApp();
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -36,13 +34,16 @@ loadEnv();
 
 let mainWindow: BrowserWindow | null = null;
 
-if (require("electron-squirrel-startup")) app.quit();
-
 const createWindow = (): void => {
+  // Fix icon path for packaged mode (your original would break in production)
+  const iconPath = isDev
+    ? join(__dirname, "../ui/public/icons/icon.png")
+    : join(process.resourcesPath, "public/icons/icon.png");
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    icon: join(__dirname, "../ui/public/icons/icon.png"),
+    icon: iconPath,
     show: false,
     webPreferences: {
       nodeIntegration: false,
@@ -106,6 +107,12 @@ app.whenReady().then(async () => {
 
   unregisterEventForwarders = registerEventForwarders();
   createWindow();
+
+  // Auto-updates: Check only in packaged mode (dev skips)
+  if (app.isPackaged) {
+    autoUpdater.logger = console; // Basic logging; install electron-log for better if needed
+    autoUpdater.checkForUpdatesAndNotify();
+  }
 });
 
 tmp.setGracefulCleanup();

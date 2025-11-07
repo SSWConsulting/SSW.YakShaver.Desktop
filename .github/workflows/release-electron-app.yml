@@ -58,7 +58,7 @@ jobs:
         working-directory: src/ui
 
       - name: Publish Windows app
-        run: npm run publish
+        run: npm run publish -- --win
         env:
           NODE_ENV: production
           CI: true
@@ -94,7 +94,7 @@ jobs:
         working-directory: src/ui
 
       - name: Publish macOS app
-        run: npm run publish
+        run: npm run publish -- --mac
         env:
           NODE_ENV: production
           CI: true
