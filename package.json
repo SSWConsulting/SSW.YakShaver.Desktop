@@ -5,23 +5,75 @@
   "description": "YakShaver, an AI agent to help you trim the fluff and get straight to the point",
   "main": "dist/index.js",
   "build": {
-    "mac": {
-      "icon": "src/ui/public/icons/icon.icns"
-    },
     "appId": "com.ssw.yakshaver",
+    "productName": "YakShaver",
     "directories": {
-      "buildResources": "src/ui/public/icons",
-      "output": "dist"
-    }
+      "output": "build",
+      "buildResources": "src/ui/public/icons"
+    },
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!src/ui/**",
+      "src/ui/dist/**",
+      "!src/backend/**",
+      "!**/*.ts",
+      "!**/node_modules/**/*.md"
+    ],
+    "extraResources": [
+      ".env",
+      "src/ui/public/**"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "src/ui/dist/**",
+      "**/@ffmpeg-installer/**"
+    ],
+    "afterPack": "./afterPack.js",
+    "win": {
+      "icon": "src/ui/public/icons/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "icon": "src/ui/public/icons/icon.icns",
+      "target": [
+        "zip"
+      ]
+    },
+    "linux": {
+      "icon": "src/ui/public/icons/icon.png",
+      "target": [
+        "deb"
+      ]
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "babakamyljanovssw",
+        "repo": "SSW.YakShaver.Desktop",
+        "private": false
+      }
+    ]
   },
   "scripts": {
     "setup": "concurrently \"npm install\"  \"cd src/ui && npm install\"",
     "build": "tsc",
-    "start": "npm run build && electron-forge start",
+    "start": "npm run build && electron .",
     "dev": "concurrently \"cd src/ui && npm run dev\" \"wait-on http://localhost:3000 && npm run build && cross-env NODE_ENV=development electron .\"",
-    "package": "npm run build && cd src/ui && npm run build && cd ../.. && electron-forge package",
-    "make": "npm run build && cd src/ui && npm run build && cd ../.. && electron-forge make",
-    "publish": "npm run build && cd src/ui && npm run build && cd ../.. && electron-forge publish",
+    "package": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --dir",
+    "make": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder",
+    "publish": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --publish always",
     "lint": "biome check --write .",
     "format": "biome format --write ."
   },
@@ -39,31 +91,23 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.20.0",
     "dotenv": "^17.2.2",
-    "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^11.0.2",
+    "electron-updater": "^6.6.2",
     "get-port": "^7.1.0",
     "google-auth-library": "^10.3.0",
     "googleapis": "^160.0.0",
     "openai": "^6.3.0",
-    "tmp": "^0.2.5",
-    "update-electron-app": "^3.1.1"
+    "tmp": "^0.2.5"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
-    "@electron-forge/cli": "^7.8.3",
-    "@electron-forge/maker-deb": "^7.10.2",
-    "@electron-forge/maker-rpm": "^7.10.2",
-    "@electron-forge/maker-squirrel": "^7.8.3",
-    "@electron-forge/maker-zip": "^7.8.3",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.8.3",
-    "@electron-forge/plugin-fuses": "^7.8.3",
-    "@electron-forge/publisher-github": "^7.10.2",
     "@electron/fuses": "^1.8.0",
     "@types/node": "^22.18.6",
     "@types/tmp": "^0.2.6",
     "concurrently": "^9.2.1",
     "cross-env": "^10.0.0",
     "electron": "^36.0.0",
+    "electron-builder": "^26.0.12",
     "typescript": "^5.9.2",
     "wait-on": "^9.0.1"
   }
