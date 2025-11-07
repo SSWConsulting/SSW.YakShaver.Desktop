@@ -95,7 +95,8 @@ jobs:
             
             This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
           prerelease: true
-          files: build/**/*.exe
+          files: |
+            build/YakShaver.Setup*.exe
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
