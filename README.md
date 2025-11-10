@@ -45,7 +45,7 @@ The configuration file is automatically created when you add your first MCP serv
 
 ## Running macOS Compiled App (`YakShaver.app`)
 
-You will need to disable Apple Quarantine for this app to run it
+To run this app, you'll need to disable Apple's Gatekeeper quarantine attribute.
 After dragging YakShaver.app to the Applications folder, run 
 ```
 xattr -d com.apple.quarantine /Applications/YakShaver.app
