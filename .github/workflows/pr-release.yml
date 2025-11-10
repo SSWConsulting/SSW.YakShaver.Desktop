@@ -2,7 +2,7 @@ name: PR Pre-release
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -20,6 +20,9 @@ env:
 
 jobs:
   build-windows:
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'closed'
     runs-on: windows-latest
     outputs:
       pr_number: ${{ steps.pr_info.outputs.pr_number }}
@@ -103,6 +106,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'closed'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -185,13 +191,57 @@ jobs:
     needs:
       - build-windows
       - build-macos
-    if: needs.build-windows.outputs.pr_number != ''
+    if: |
+      github.event.action != 'closed' &&
+      needs.build-windows.outputs.pr_number != ''
     steps:
       - name: Comment release link on PR
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ needs.build-windows.outputs.pr_number }}
           body: |
             🚀 Pre-release build is available for this PR:
             https://github.com/${{ github.repository }}/releases/tag/${{ needs.build-windows.outputs.release_tag }}
+
+  cleanup-release:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed'
+    steps:
+      - name: Delete PR pre-release
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const tagName = `pr-${prNumber}`;
+
+            try {
+              const release = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tagName,
+              });
+
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.data.id,
+              });
+
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `tags/${tagName}`,
+              });
+
+              core.info(`Deleted release and tag for ${tagName}`);
+            } catch (error) {
+              if (error.status === 404) {
+                core.info(`Release or tag ${tagName} not found; nothing to delete.`);
+              } else {
+                core.setFailed(`Failed to delete release ${tagName}: ${error.message}`);
+              }
+            }
