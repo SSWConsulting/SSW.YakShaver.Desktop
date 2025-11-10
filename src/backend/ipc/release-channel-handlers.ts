@@ -1,4 +1,4 @@
-import { app, ipcMain } from "electron";
+import { app, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import type { ReleaseChannel } from "../services/storage/release-channel-storage";
 import { ReleaseChannelStorage } from "../services/storage/release-channel-storage";
@@ -30,6 +30,7 @@ export class ReleaseChannelIPCHandlers {
     fetchedAt: number;
     etag?: string;
   } | null = null;
+  private updateDownloaded = false;
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.RELEASE_CHANNEL_GET, () => this.getChannel());
@@ -41,6 +42,55 @@ export class ReleaseChannelIPCHandlers {
     ipcMain.handle(IPC_CHANNELS.RELEASE_CHANNEL_GET_CURRENT_VERSION, () =>
       this.getCurrentVersion(),
     );
+
+    // Setup autoUpdater event listeners
+    this.setupAutoUpdaterListeners();
+  }
+
+  private setupAutoUpdaterListeners(): void {
+    // Enable automatic download
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on("update-available", (info) => {
+      console.log("Update available:", info.version);
+      console.log("Starting download...");
+    });
+
+    autoUpdater.on("update-not-available", (info) => {
+      console.log("Update not available:", info.version);
+    });
+
+    autoUpdater.on("error", (err) => {
+      console.error("AutoUpdater error:", err);
+    });
+
+    autoUpdater.on("download-progress", (progressObj) => {
+      console.log(
+        `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}%`,
+      );
+    });
+
+    autoUpdater.on("update-downloaded", (info) => {
+      console.log("Update downloaded:", info.version);
+      this.updateDownloaded = true;
+
+      // Prompt user to restart
+      dialog
+        .showMessageBox({
+          type: "info",
+          title: "Update Ready",
+          message:
+            "A new version has been downloaded. Restart the application to apply the updates.",
+          buttons: ["Restart", "Later"],
+          defaultId: 0,
+        })
+        .then((result) => {
+          if (result.response === 0) {
+            autoUpdater.quitAndInstall();
+          }
+        });
+    });
   }
 
   private async getChannel(): Promise<ReleaseChannel> {
@@ -138,7 +188,7 @@ export class ReleaseChannelIPCHandlers {
       const currentVersion = this.getCurrentVersion();
       console.log(`Checking for updates: current version ${currentVersion}, channel:`, channel);
 
-      // For tag-based channels, check manually via GitHub API
+      // For tag-based channels, we need to configure autoUpdater first and then check
       if (channel.type === "tag" && channel.tag) {
         const releases = await this.listReleases(true);
         if (releases.error) {
@@ -169,22 +219,67 @@ export class ReleaseChannelIPCHandlers {
             `PR release: expected version ${expectedVersion}, current: ${currentVersion}, match: ${isCurrentlyOnThisPR}`,
           );
 
-          // If not on this PR version, consider update available
+          // If not on this PR version, trigger download via autoUpdater
+          if (!isCurrentlyOnThisPR) {
+            console.log("Triggering download for PR release...");
+            this.configureAutoUpdater(channel);
+
+            try {
+              const result = await autoUpdater.checkForUpdates();
+              if (result?.updateInfo) {
+                // autoUpdater will handle the download automatically
+                console.log("Update check initiated, download will start automatically");
+                return {
+                  available: true,
+                  version: expectedVersion,
+                };
+              }
+            } catch (error) {
+              console.error("Failed to check/download update:", error);
+              return {
+                available: false,
+                error: error instanceof Error ? error.message : "Failed to download update",
+              };
+            }
+          }
+
           return {
-            available: !isCurrentlyOnThisPR,
-            version: expectedVersion,
+            available: false,
+            version: currentVersion,
           };
         }
 
-        // For non-PR tags (e.g., v1.0.0), compare versions normally
+        // For non-PR tags (e.g., v1.0.0), compare versions and trigger download
         const targetVersion = targetRelease.tag_name.replace(/^v/, "");
         const isDifferent = targetVersion !== currentVersion;
         console.log(
           `Tag release: target version ${targetVersion}, current: ${currentVersion}, different: ${isDifferent}`,
         );
 
+        if (isDifferent) {
+          console.log("Triggering download for tag release...");
+          this.configureAutoUpdater(channel);
+
+          try {
+            const result = await autoUpdater.checkForUpdates();
+            if (result?.updateInfo) {
+              console.log("Update check initiated, download will start automatically");
+              return {
+                available: true,
+                version: targetVersion,
+              };
+            }
+          } catch (error) {
+            console.error("Failed to check/download update:", error);
+            return {
+              available: false,
+              error: error instanceof Error ? error.message : "Failed to download update",
+            };
+          }
+        }
+
         return {
-          available: isDifferent,
+          available: false,
           version: targetVersion,
         };
       }
