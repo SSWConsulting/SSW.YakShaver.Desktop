@@ -99,7 +99,6 @@ jobs:
           allowUpdates: true
           overwrite: true
           files: |
-            # build/latest.yml
             build/YakShaver.Setup*.exe
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
