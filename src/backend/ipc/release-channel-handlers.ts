@@ -375,13 +375,15 @@ export class ReleaseChannelIPCHandlers {
       autoUpdater.allowPrerelease = true;
       console.log("Configured autoUpdater for prerelease channel");
     } else if (channel.type === "tag" && channel.tag) {
-      // For specific tags (like PR releases), use the tag name as the channel
-      // This will look for {tag}.yml or {tag}-mac.yml files
-      autoUpdater.channel = channel.tag;
+      // For specific tags (like PR releases), convert tag to channel format
+      // Tag format: "pr-6" → Channel format: "pr.6" (to match version format)
+      // This will look for {channel}.yml or {channel}-mac.yml files
+      const channelName = channel.tag.replace("pr-", "pr.");
+      autoUpdater.channel = channelName;
       autoUpdater.allowPrerelease = true;
 
       // Log for debugging
-      console.log(`Configured autoUpdater for tag channel: ${channel.tag}`);
+      console.log(`Configured autoUpdater for tag ${channel.tag} → channel: ${channelName}`);
     }
 
     // Set update server (GitHub releases)
