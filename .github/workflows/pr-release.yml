@@ -130,13 +130,25 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Copy update manifest for channel
+      - name: Copy and fix update manifest for channel
         shell: pwsh
         run: |
           $tagName = "${{ steps.pr_info.outputs.tag }}"
           if (Test-Path "build/latest.yml") {
-            Copy-Item "build/latest.yml" "build/$tagName.yml"
-            Write-Host "Created build/$tagName.yml"
+            # Read the yml content
+            $content = Get-Content "build/latest.yml" -Raw
+            
+            # Fix the filename format mismatch
+            # yml has "YakShaver-Setup" but actual file is "YakShaver.Setup"
+            $content = $content -replace "YakShaver-Setup-", "YakShaver.Setup."
+            
+            # Write the corrected content
+            $content | Out-File -FilePath "build/$tagName.yml" -Encoding utf8 -NoNewline
+            Write-Host "Created build/$tagName.yml with corrected filenames"
+            
+            # Show what we created
+            Write-Host "`nContent:"
+            Get-Content "build/$tagName.yml"
           }
 
       - name: Create or update GitHub release
@@ -155,8 +167,8 @@ jobs:
           files: |
             build/latest.yml
             build/${{ steps.pr_info.outputs.tag }}.yml
-            build/YakShaver Setup*.exe
-            build/YakShaver Setup*.exe.blockmap
+            build/YakShaver*Setup*.exe
+            build/YakShaver*Setup*.exe.blockmap
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -226,8 +238,13 @@ jobs:
         run: |
           TAG_NAME="${{ steps.pr_info.outputs.tag }}"
           if [ -f "build/latest-mac.yml" ]; then
+            # For macOS, the filenames in yml should already match, just copy
             cp "build/latest-mac.yml" "build/$TAG_NAME-mac.yml"
             echo "Created build/$TAG_NAME-mac.yml"
+            
+            # Show what we created
+            echo -e "\nContent:"
+            cat "build/$TAG_NAME-mac.yml"
           fi
 
       - name: Create or update GitHub release
