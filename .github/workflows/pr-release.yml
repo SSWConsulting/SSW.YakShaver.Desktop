@@ -182,7 +182,7 @@ jobs:
           prerelease: true
           allowUpdates: true
           overwrite: true
-          files:
+          files: |
             - build/**/*.zip
             - build/latest.yml
           draft: false
