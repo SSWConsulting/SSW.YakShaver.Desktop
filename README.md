@@ -43,7 +43,7 @@ The MCP server configuration is automatically stored in the platform-appropriate
 
 The configuration file is automatically created when you add your first MCP server through the Settings UI. The configuration persists across app restarts and updates.
 
-## Running MacOS Compiled App (`YakShaver.app`)
+## Running macOS Compiled App (`YakShaver.app`)
 
 You will need to disable Apple Quarantine for this app to run it
 After dragging YakShaver.app to the Applications folder, run 
