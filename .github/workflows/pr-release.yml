@@ -85,6 +85,15 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Rename update manifest for channel
+        shell: pwsh
+        run: |
+          $tagName = "${{ steps.pr_info.outputs.tag }}"
+          if (Test-Path "build/latest.yml") {
+            Copy-Item "build/latest.yml" "build/$tagName.yml"
+            Write-Host "Created build/$tagName.yml"
+          }
+
       - name: Create or update GitHub release
         uses: softprops/action-gh-release@v1
         with:
@@ -100,6 +109,7 @@ jobs:
           prerelease: true
           files: |
             build/latest.yml
+            build/${{ steps.pr_info.outputs.tag }}.yml
             build/YakShaver Setup*.exe
             build/YakShaver Setup*.exe.blockmap
           draft: false
@@ -166,6 +176,14 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Rename update manifest for channel
+        run: |
+          TAG_NAME="${{ steps.pr_info.outputs.tag }}"
+          if [ -f "build/latest-mac.yml" ]; then
+            cp "build/latest-mac.yml" "build/$TAG_NAME-mac.yml"
+            echo "Created build/$TAG_NAME-mac.yml"
+          fi
+
       - name: Create or update GitHub release
         uses: softprops/action-gh-release@v1
         with:
@@ -183,6 +201,7 @@ jobs:
             build/YakShaver-*-mac.zip
             build/YakShaver-*-mac.zip.blockmap
             build/latest-mac.yml
+            build/${{ steps.pr_info.outputs.tag }}-mac.yml
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
 

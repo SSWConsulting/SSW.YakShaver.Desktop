@@ -126,6 +126,7 @@ export class ReleaseChannelIPCHandlers {
   }> {
     // Skip update checks in development/unpackaged mode
     if (!app.isPackaged) {
+      console.log("Update check skipped: app is not packaged");
       return {
         available: false,
         error: "Update checks are only available in packaged applications",
@@ -135,44 +136,74 @@ export class ReleaseChannelIPCHandlers {
     try {
       const channel = await this.getChannel();
       const currentVersion = this.getCurrentVersion();
+      console.log(`Checking for updates: current version ${currentVersion}, channel:`, channel);
 
       // For tag-based channels, check manually via GitHub API
       if (channel.type === "tag" && channel.tag) {
         const releases = await this.listReleases(true);
         if (releases.error) {
+          console.error("Failed to fetch releases:", releases.error);
           return { available: false, error: releases.error };
         }
 
         const targetRelease = releases.releases.find((r) => r.tag_name === channel.tag);
         if (!targetRelease) {
+          console.warn(`Release ${channel.tag} not found in ${releases.releases.length} releases`);
           return { available: false, error: `Release ${channel.tag} not found` };
         }
 
-        // Compare versions (simple string comparison, could be improved)
+        console.log(`Found target release: ${targetRelease.name}, tag: ${targetRelease.tag_name}`);
+        
+        // For tag-based channels, the user is explicitly selecting a specific release
+        // We should always consider it "available" if the current version doesn't match
+        // For PR releases (pr-XXX tags), the version format is X.Y.Z-pr.XXX
+        const isPRTag = channel.tag.startsWith("pr-");
+        
+        if (isPRTag) {
+          // Check if current version matches this PR
+          const prNumber = channel.tag.substring(3); // Extract number from "pr-123"
+          const expectedVersion = `${currentVersion.split("-")[0]}-pr.${prNumber}`;
+          const isCurrentlyOnThisPR = currentVersion === expectedVersion;
+          
+          console.log(`PR release: expected version ${expectedVersion}, current: ${currentVersion}, match: ${isCurrentlyOnThisPR}`);
+          
+          // If not on this PR version, consider update available
+          return {
+            available: !isCurrentlyOnThisPR,
+            version: expectedVersion,
+          };
+        }
+        
+        // For non-PR tags (e.g., v1.0.0), compare versions normally
         const targetVersion = targetRelease.tag_name.replace(/^v/, "");
-        const isNewer = this.compareVersions(targetVersion, currentVersion) > 0;
-
+        const isDifferent = targetVersion !== currentVersion;
+        console.log(`Tag release: target version ${targetVersion}, current: ${currentVersion}, different: ${isDifferent}`);
+        
         return {
-          available: isNewer,
+          available: isDifferent,
           version: targetVersion,
         };
       }
 
       // For latest/prerelease, use standard autoUpdater
       this.configureAutoUpdater(channel);
+      console.log(`Using autoUpdater for ${channel.type} channel`);
       const result = await autoUpdater.checkForUpdates();
 
       if (result?.updateInfo) {
         const updateVersion = result.updateInfo.version;
         const isNewer = this.compareVersions(updateVersion, currentVersion) > 0;
+        console.log(`Update found: ${updateVersion}, is newer: ${isNewer}`);
         return {
           available: isNewer,
           version: updateVersion,
         };
       }
 
+      console.log("No updates found");
       return { available: false };
     } catch (error) {
+      console.error("Update check failed:", error);
       return {
         available: false,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -181,18 +212,39 @@ export class ReleaseChannelIPCHandlers {
   }
 
   private compareVersions(v1: string, v2: string): number {
-    // Simple version comparison - can be improved with semver library
-    const parts1 = v1.split(/[.-]/).map(Number);
-    const parts2 = v2.split(/[.-]/).map(Number);
-    const maxLength = Math.max(parts1.length, parts2.length);
+    // Parse version strings that may include pre-release identifiers
+    // e.g., "0.3.7", "0.3.7-pr.123", "1.0.0-beta.1"
+    
+    const parseVersion = (version: string) => {
+      const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
+      if (!match) {
+        console.warn(`Invalid version format: ${version}`);
+        return { major: 0, minor: 0, patch: 0, prerelease: "" };
+      }
+      return {
+        major: Number.parseInt(match[1], 10),
+        minor: Number.parseInt(match[2], 10),
+        patch: Number.parseInt(match[3], 10),
+        prerelease: match[4] || "",
+      };
+    };
 
-    for (let i = 0; i < maxLength; i++) {
-      const part1 = parts1[i] || 0;
-      const part2 = parts2[i] || 0;
-      if (part1 > part2) return 1;
-      if (part1 < part2) return -1;
-    }
-    return 0;
+    const v1Parts = parseVersion(v1);
+    const v2Parts = parseVersion(v2);
+
+    // Compare major, minor, patch
+    if (v1Parts.major !== v2Parts.major) return v1Parts.major - v2Parts.major;
+    if (v1Parts.minor !== v2Parts.minor) return v1Parts.minor - v2Parts.minor;
+    if (v1Parts.patch !== v2Parts.patch) return v1Parts.patch - v2Parts.patch;
+
+    // If versions are equal, check pre-release
+    // No pre-release (stable) > pre-release
+    if (!v1Parts.prerelease && v2Parts.prerelease) return 1;
+    if (v1Parts.prerelease && !v2Parts.prerelease) return -1;
+    if (!v1Parts.prerelease && !v2Parts.prerelease) return 0;
+
+    // Both have pre-release, compare alphabetically
+    return v1Parts.prerelease.localeCompare(v2Parts.prerelease);
   }
 
   private getCurrentVersion(): string {
@@ -222,11 +274,13 @@ export class ReleaseChannelIPCHandlers {
       autoUpdater.channel = "beta";
       autoUpdater.allowPrerelease = true;
     } else if (channel.type === "tag" && channel.tag) {
-      // For specific tags, allow pre-releases and use tag as channel identifier
-      // Note: electron-updater will check for the latest matching release
-      // For precise tag matching, we use manual checking in checkForUpdates
+      // For specific tags (like PR releases), use the tag name as the channel
+      // This will look for {tag}.yml or {tag}-mac.yml files
       autoUpdater.channel = channel.tag;
       autoUpdater.allowPrerelease = true;
+      
+      // Log for debugging
+      console.log(`Configured autoUpdater for tag channel: ${channel.tag}`);
     }
 
     // Set update server (GitHub releases)
