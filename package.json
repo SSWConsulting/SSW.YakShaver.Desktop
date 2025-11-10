@@ -5,6 +5,7 @@
   "description": "YakShaver, an AI agent to help you trim the fluff and get straight to the point",
   "main": "dist/index.js",
   "build": {
+    "generateUpdatesFilesForAllChannels": true,
     "appId": "com.ssw.yakshaver",
     "productName": "YakShaver",
     "directories": {
