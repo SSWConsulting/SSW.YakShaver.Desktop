@@ -27,15 +27,18 @@ jobs:
     outputs:
       pr_number: ${{ steps.pr_info.outputs.pr_number }}
       release_tag: ${{ steps.pr_info.outputs.tag }}
+      channel: ${{ steps.pr_info.outputs.channel }}
     steps:
       - name: Get PR info
         id: pr_info
         run: |
           PR_NUMBER="${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
           TAG_NAME="pr-${PR_NUMBER}"
+          CHANNEL_NAME="pr.${PR_NUMBER}"
           echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
-          echo "PR: ${PR_NUMBER}, Tag: ${TAG_NAME}"
+          echo "channel=${CHANNEL_NAME}" >> $GITHUB_OUTPUT
+          echo "PR: ${PR_NUMBER}, Tag: ${TAG_NAME}, Channel: ${CHANNEL_NAME}"
 
       - name: Delete existing release assets
         continue-on-error: true
@@ -133,7 +136,7 @@ jobs:
       - name: Copy and fix update manifest for channel
         shell: pwsh
         run: |
-          $tagName = "${{ steps.pr_info.outputs.tag }}"
+          $channelName = "${{ steps.pr_info.outputs.channel }}"
           if (Test-Path "build/latest.yml") {
             # Read the yml content
             $content = Get-Content "build/latest.yml" -Raw
@@ -143,12 +146,12 @@ jobs:
             $content = $content -replace "YakShaver-Setup-", "YakShaver.Setup."
             
             # Write the corrected content
-            $content | Out-File -FilePath "build/$tagName.yml" -Encoding utf8 -NoNewline
-            Write-Host "Created build/$tagName.yml with corrected filenames"
+            $content | Out-File -FilePath "build/$channelName.yml" -Encoding utf8 -NoNewline
+            Write-Host "Created build/$channelName.yml with corrected filenames"
             
             # Show what we created
             Write-Host "`nContent:"
-            Get-Content "build/$tagName.yml"
+            Get-Content "build/$channelName.yml"
           }
 
       - name: Create or update GitHub release
@@ -166,7 +169,7 @@ jobs:
           prerelease: true
           files: |
             build/latest.yml
-            build/${{ steps.pr_info.outputs.tag }}.yml
+            build/${{ steps.pr_info.outputs.channel }}.yml
             build/YakShaver*Setup*.exe
             build/YakShaver*Setup*.exe.blockmap
           draft: false
@@ -236,15 +239,15 @@ jobs:
 
       - name: Copy update manifest for channel
         run: |
-          TAG_NAME="${{ steps.pr_info.outputs.tag }}"
+          CHANNEL_NAME="${{ steps.pr_info.outputs.channel }}"
           if [ -f "build/latest-mac.yml" ]; then
             # For macOS, the filenames in yml should already match, just copy
-            cp "build/latest-mac.yml" "build/$TAG_NAME-mac.yml"
-            echo "Created build/$TAG_NAME-mac.yml"
+            cp "build/latest-mac.yml" "build/$CHANNEL_NAME-mac.yml"
+            echo "Created build/$CHANNEL_NAME-mac.yml"
             
             # Show what we created
             echo -e "\nContent:"
-            cat "build/$TAG_NAME-mac.yml"
+            cat "build/$CHANNEL_NAME-mac.yml"
           fi
 
       - name: Create or update GitHub release
@@ -264,7 +267,7 @@ jobs:
             build/YakShaver-*-mac.zip
             build/YakShaver-*-mac.zip.blockmap
             build/latest-mac.yml
-            build/${{ steps.pr_info.outputs.tag }}-mac.yml
+            build/${{ steps.pr_info.outputs.channel }}-mac.yml
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
