@@ -100,7 +100,8 @@ jobs:
           overwrite: true
           files: |
             build/latest.yml
-            build/YakShaver.Setup*.exe
+            build/YakShaver Setup*.exe
+            build/YakShaver Setup*.exe.blockmap
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -183,8 +184,8 @@ jobs:
           allowUpdates: true
           overwrite: true
           files: |
-            - build/**/*.zip
-            - build/latest.yml
+            build/YakShaver-*-mac.zip
+            build/YakShaver-*-mac.zip.blockmap
+            build/latest-mac.yml
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
-
