@@ -64,11 +64,15 @@ jobs:
         shell: pwsh
         run: |
           $prNumber = "${{ steps.pr_info.outputs.pr_number }}"
+          $shortSha = "${{ steps.pr_info.outputs.pr_sha }}"
           if (-not $prNumber) {
             throw "Missing PR number output"
           }
+          if (-not $shortSha) {
+            throw "Missing PR SHA output"
+          }
           $baseVersion = (node -p 'require("./package.json").version.split("-")[0]').Trim()
-          $preReleaseVersion = "$baseVersion-pr.$prNumber"
+          $preReleaseVersion = "$baseVersion-pr.$prNumber.$shortSha"
 
           npm version $preReleaseVersion --no-git-tag-version
 
@@ -143,12 +147,17 @@ jobs:
       - name: Update version for pre-release
         run: |
           PR_NUMBER="${{ steps.pr_info.outputs.pr_number }}"
+          SHORT_SHA="${{ steps.pr_info.outputs.pr_sha }}"
           if [[ -z "$PR_NUMBER" ]]; then
             echo "Missing PR number output"
             exit 1
           fi
+          if [[ -z "$SHORT_SHA" ]]; then
+            echo "Missing PR SHA output"
+            exit 1
+          fi
           BASE_VERSION=$(node -p 'require("./package.json").version.split("-")[0]')
-          PRE_RELEASE_VERSION="${BASE_VERSION}-pr.${PR_NUMBER}"
+          PRE_RELEASE_VERSION="${BASE_VERSION}-pr.${PR_NUMBER}.${SHORT_SHA}"
 
           npm version "$PRE_RELEASE_VERSION" --no-git-tag-version
 
