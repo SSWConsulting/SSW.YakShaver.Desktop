@@ -153,32 +153,36 @@ export class ReleaseChannelIPCHandlers {
         }
 
         console.log(`Found target release: ${targetRelease.name}, tag: ${targetRelease.tag_name}`);
-        
+
         // For tag-based channels, the user is explicitly selecting a specific release
         // We should always consider it "available" if the current version doesn't match
         // For PR releases (pr-XXX tags), the version format is X.Y.Z-pr.XXX
         const isPRTag = channel.tag.startsWith("pr-");
-        
+
         if (isPRTag) {
           // Check if current version matches this PR
           const prNumber = channel.tag.substring(3); // Extract number from "pr-123"
           const expectedVersion = `${currentVersion.split("-")[0]}-pr.${prNumber}`;
           const isCurrentlyOnThisPR = currentVersion === expectedVersion;
-          
-          console.log(`PR release: expected version ${expectedVersion}, current: ${currentVersion}, match: ${isCurrentlyOnThisPR}`);
-          
+
+          console.log(
+            `PR release: expected version ${expectedVersion}, current: ${currentVersion}, match: ${isCurrentlyOnThisPR}`,
+          );
+
           // If not on this PR version, consider update available
           return {
             available: !isCurrentlyOnThisPR,
             version: expectedVersion,
           };
         }
-        
+
         // For non-PR tags (e.g., v1.0.0), compare versions normally
         const targetVersion = targetRelease.tag_name.replace(/^v/, "");
         const isDifferent = targetVersion !== currentVersion;
-        console.log(`Tag release: target version ${targetVersion}, current: ${currentVersion}, different: ${isDifferent}`);
-        
+        console.log(
+          `Tag release: target version ${targetVersion}, current: ${currentVersion}, different: ${isDifferent}`,
+        );
+
         return {
           available: isDifferent,
           version: targetVersion,
@@ -214,7 +218,7 @@ export class ReleaseChannelIPCHandlers {
   private compareVersions(v1: string, v2: string): number {
     // Parse version strings that may include pre-release identifiers
     // e.g., "0.3.7", "0.3.7-pr.123", "1.0.0-beta.1"
-    
+
     const parseVersion = (version: string) => {
       const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
       if (!match) {
@@ -270,15 +274,17 @@ export class ReleaseChannelIPCHandlers {
     if (channel.type === "latest") {
       autoUpdater.channel = "latest";
       autoUpdater.allowPrerelease = false;
+      console.log("Configured autoUpdater for latest channel");
     } else if (channel.type === "prerelease") {
       autoUpdater.channel = "beta";
       autoUpdater.allowPrerelease = true;
+      console.log("Configured autoUpdater for prerelease channel");
     } else if (channel.type === "tag" && channel.tag) {
       // For specific tags (like PR releases), use the tag name as the channel
       // This will look for {tag}.yml or {tag}-mac.yml files
       autoUpdater.channel = channel.tag;
       autoUpdater.allowPrerelease = true;
-      
+
       // Log for debugging
       console.log(`Configured autoUpdater for tag channel: ${channel.tag}`);
     }

@@ -19,14 +19,59 @@ env:
   NODE_VERSION: 20
 
 jobs:
+  cleanup-release:
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.pr_info.outputs.pr_number }}
+      release_tag: ${{ steps.pr_info.outputs.tag }}
+    steps:
+      - name: Get PR info
+        id: pr_info
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
+          TAG_NAME="pr-${PR_NUMBER}"
+          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "PR: ${PR_NUMBER}, Tag: ${TAG_NAME}"
+
+      - name: Delete existing release assets
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.pr_info.outputs.tag }}"
+          
+          echo "Checking for existing release: ${TAG}"
+          
+          # Try to get the release
+          RELEASE=$(gh api /repos/${{ github.repository }}/releases/tags/$TAG 2>/dev/null || echo "")
+          
+          if [ -n "$RELEASE" ]; then
+            echo "Found existing release, deleting all assets..."
+            
+            # Get all asset IDs and delete them
+            echo "$RELEASE" | jq -r '.assets[].id' | while read -r asset_id; do
+              if [ -n "$asset_id" ]; then
+                ASSET_NAME=$(echo "$RELEASE" | jq -r ".assets[] | select(.id == $asset_id) | .name")
+                echo "Deleting asset: $ASSET_NAME (ID: $asset_id)"
+                gh api -X DELETE /repos/${{ github.repository }}/releases/assets/$asset_id || true
+              fi
+            done
+            
+            echo "All assets deleted successfully"
+          else
+            echo "No existing release found - this is a new release"
+          fi
+
   build-windows:
+    needs: cleanup-release
     if: |
       github.event_name != 'pull_request' ||
       github.event.action != 'closed'
     runs-on: windows-latest
-    outputs:
-      pr_number: ${{ steps.pr_info.outputs.pr_number }}
-      release_tag: ${{ steps.pr_info.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -85,7 +130,7 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rename update manifest for channel
+      - name: Copy update manifest for channel
         shell: pwsh
         run: |
           $tagName = "${{ steps.pr_info.outputs.tag }}"
@@ -95,7 +140,7 @@ jobs:
           }
 
       - name: Create or update GitHub release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.pr_info.outputs.tag }}
           name: "Pre-release PR #${{ steps.pr_info.outputs.pr_number }} (${{ steps.pr_info.outputs.pr_sha }})"
@@ -116,6 +161,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
+    needs: cleanup-release
     if: |
       github.event_name != 'pull_request' ||
       github.event.action != 'closed'
@@ -176,7 +222,7 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rename update manifest for channel
+      - name: Copy update manifest for channel
         run: |
           TAG_NAME="${{ steps.pr_info.outputs.tag }}"
           if [ -f "build/latest-mac.yml" ]; then
@@ -185,7 +231,7 @@ jobs:
           fi
 
       - name: Create or update GitHub release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.pr_info.outputs.tag }}
           name: "Pre-release PR #${{ steps.pr_info.outputs.pr_number }} (${{ steps.pr_info.outputs.pr_sha }})"
@@ -208,22 +254,23 @@ jobs:
   comment-release:
     runs-on: ubuntu-latest
     needs:
+      - cleanup-release
       - build-windows
       - build-macos
     if: |
       github.event.action != 'closed' &&
-      needs.build-windows.outputs.pr_number != ''
+      needs.cleanup-release.outputs.pr_number != ''
     steps:
       - name: Comment release link on PR
         uses: peter-evans/create-or-update-comment@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ needs.build-windows.outputs.pr_number }}
+          issue-number: ${{ needs.cleanup-release.outputs.pr_number }}
           body: |
             🚀 Pre-release build is available for this PR:
-            https://github.com/${{ github.repository }}/releases/tag/${{ needs.build-windows.outputs.release_tag }}
+            https://github.com/${{ github.repository }}/releases/tag/${{ needs.cleanup-release.outputs.release_tag }}
 
-  cleanup-release:
+  delete-release:
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'pull_request' &&
