@@ -55,7 +55,7 @@ jobs:
           $prNumber = "${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
           $prSha = "${{ github.event.pull_request.head.sha || github.sha }}"
           $shortSha = $prSha.Substring(0, 7)
-          $tagName = "pr-$prNumber-$shortSha"
+          $tagName = "pr-$prNumber"
           echo "tag=$tagName" >> $env:GITHUB_OUTPUT
           echo "pr_number=$prNumber" >> $env:GITHUB_OUTPUT
           echo "pr_sha=$shortSha" >> $env:GITHUB_OUTPUT
@@ -63,13 +63,14 @@ jobs:
       - name: Update version for pre-release
         shell: pwsh
         run: |
-          $tagName = "${{ steps.pr_info.outputs.tag }}"
-          if ($tagName -notmatch '^pr-(\d+)-([0-9a-fA-F]{7})$') {
-            throw "Unexpected tag format: $tagName"
+          $prNumber = "${{ steps.pr_info.outputs.pr_number }}"
+          $shortSha = "${{ steps.pr_info.outputs.pr_sha }}"
+          if (-not $prNumber) {
+            throw "Missing PR number output"
           }
-
-          $prNumber = $Matches[1]
-          $shortSha = $Matches[2]
+          if (-not $shortSha) {
+            throw "Missing PR SHA output"
+          }
           $baseVersion = (node -p 'require("./package.json").version.split("-")[0]').Trim()
           $preReleaseVersion = "$baseVersion-pr.$prNumber.$shortSha"
 
@@ -95,7 +96,10 @@ jobs:
             
             This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
           prerelease: true
+          allowUpdates: true
+          overwrite: true
           files: |
+            # build/latest.yml
             build/YakShaver.Setup*.exe
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -134,21 +138,23 @@ jobs:
           PR_NUMBER="${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
           PR_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
           SHORT_SHA="${PR_SHA:0:7}"
-          TAG_NAME="pr-${PR_NUMBER}-${SHORT_SHA}"
+          TAG_NAME="pr-${PR_NUMBER}"
           echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           echo "pr_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Update version for pre-release
         run: |
-          TAG_NAME="${{ steps.pr_info.outputs.tag }}"
-          if [[ ! "$TAG_NAME" =~ ^pr-([0-9]+)-([0-9a-fA-F]{7})$ ]]; then
-            echo "Unexpected tag format: $TAG_NAME"
+          PR_NUMBER="${{ steps.pr_info.outputs.pr_number }}"
+          SHORT_SHA="${{ steps.pr_info.outputs.pr_sha }}"
+          if [[ -z "$PR_NUMBER" ]]; then
+            echo "Missing PR number output"
             exit 1
           fi
-
-          PR_NUMBER="${BASH_REMATCH[1]}"
-          SHORT_SHA="${BASH_REMATCH[2]}"
+          if [[ -z "$SHORT_SHA" ]]; then
+            echo "Missing PR SHA output"
+            exit 1
+          fi
           BASE_VERSION=$(node -p 'require("./package.json").version.split("-")[0]')
           PRE_RELEASE_VERSION="${BASE_VERSION}-pr.${PR_NUMBER}.${SHORT_SHA}"
 
@@ -174,6 +180,8 @@ jobs:
             
             This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
           prerelease: true
+          allowUpdates: true
+          overwrite: true
           files: build/**/*.zip
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
