@@ -34,7 +34,7 @@ jobs:
         run: |
           PR_NUMBER="${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
           TAG_NAME="pr-${PR_NUMBER}"
-          CHANNEL_NAME="pr.${PR_NUMBER}"
+          CHANNEL_NAME="pr${PR_NUMBER}"
           echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           echo "channel=${CHANNEL_NAME}" >> $GITHUB_OUTPUT
@@ -122,7 +122,7 @@ jobs:
             throw "Missing PR number output"
           }
           $baseVersion = (node -p 'require("./package.json").version.split("-")[0]').Trim()
-          $preReleaseVersion = "$baseVersion-pr.$prNumber"
+          $preReleaseVersion = "$baseVersion-pr$prNumber"
 
           npm version $preReleaseVersion --no-git-tag-version
 
@@ -133,25 +133,18 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Copy and fix update manifest for channel
+      - name: Fix update manifest filenames
         shell: pwsh
         run: |
-          $channelName = "${{ steps.pr_info.outputs.channel }}"
-          if (Test-Path "build/latest.yml") {
-            # Read the yml content
-            $content = Get-Content "build/latest.yml" -Raw
-            
-            # Fix the filename format mismatch
-            # yml has "YakShaver-Setup" but actual file is "YakShaver.Setup"
+          # electron-builder with generateUpdatesFilesForAllChannels creates files for all channels
+          # But we need to fix the filename format mismatch
+          # yml has "YakShaver-Setup" but actual file is "YakShaver.Setup"
+          
+          Get-ChildItem "build/*.yml" | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw
             $content = $content -replace "YakShaver-Setup-", "YakShaver.Setup."
-            
-            # Write the corrected content
-            $content | Out-File -FilePath "build/$channelName.yml" -Encoding utf8 -NoNewline
-            Write-Host "Created build/$channelName.yml with corrected filenames"
-            
-            # Show what we created
-            Write-Host "`nContent:"
-            Get-Content "build/$channelName.yml"
+            $content | Out-File -FilePath $_.FullName -Encoding utf8 -NoNewline
+            Write-Host "Fixed $($_.Name)"
           }
 
       - name: Create or update GitHub release
@@ -168,8 +161,7 @@ jobs:
             This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
           prerelease: true
           files: |
-            build/latest.yml
-            build/${{ steps.pr_info.outputs.channel }}.yml
+            build/*.yml
             build/YakShaver*Setup*.exe
             build/YakShaver*Setup*.exe.blockmap
           draft: false
@@ -226,7 +218,7 @@ jobs:
             exit 1
           fi
           BASE_VERSION=$(node -p 'require("./package.json").version.split("-")[0]')
-          PRE_RELEASE_VERSION="${BASE_VERSION}-pr.${PR_NUMBER}"
+          PRE_RELEASE_VERSION="${BASE_VERSION}-pr${PR_NUMBER}"
 
           npm version "$PRE_RELEASE_VERSION" --no-git-tag-version
 
@@ -237,18 +229,10 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Copy update manifest for channel
+      - name: List generated update files
         run: |
-          CHANNEL_NAME="${{ steps.pr_info.outputs.channel }}"
-          if [ -f "build/latest-mac.yml" ]; then
-            # For macOS, the filenames in yml should already match, just copy
-            cp "build/latest-mac.yml" "build/$CHANNEL_NAME-mac.yml"
-            echo "Created build/$CHANNEL_NAME-mac.yml"
-            
-            # Show what we created
-            echo -e "\nContent:"
-            cat "build/$CHANNEL_NAME-mac.yml"
-          fi
+          echo "Generated update manifest files:"
+          ls -la build/*.yml || echo "No yml files found"
 
       - name: Create or update GitHub release
         uses: softprops/action-gh-release@v2
@@ -266,8 +250,7 @@ jobs:
           files: |
             build/YakShaver-*-mac.zip
             build/YakShaver-*-mac.zip.blockmap
-            build/latest-mac.yml
-            build/${{ steps.pr_info.outputs.channel }}-mac.yml
+            build/*-mac.yml
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
 

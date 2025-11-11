@@ -37,6 +37,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   const [currentVersion, setCurrentVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingReleases, setIsLoadingReleases] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<string>("");
 
   const loadChannel = useCallback(async () => {
     try {
@@ -88,11 +89,22 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
 
   const handleSave = useCallback(async () => {
     setIsLoading(true);
+    setUpdateStatus("");
     try {
       await window.electronAPI.releaseChannel.set(channel);
+
+      // Show what channel was saved
+      const channelDisplay =
+        channel.type === "latest"
+          ? "Latest Stable"
+          : channel.type === "tag"
+            ? `PR Release: ${channel.tag}`
+            : channel.type;
+      setUpdateStatus(`✅ Channel saved: ${channelDisplay}`);
       toast.success("Release channel updated successfully");
     } catch (error) {
       console.error("Failed to save release channel:", error);
+      setUpdateStatus("❌ Failed to save channel");
       toast.error("Failed to save release channel settings");
     } finally {
       setIsLoading(false);
@@ -101,22 +113,50 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
 
   const handleCheckUpdates = useCallback(async () => {
     setIsLoading(true);
+    setUpdateStatus("Checking for updates...");
+
     try {
+      console.log("Starting update check...");
+      console.log("Current channel:", channel);
+
+      // Show which channel we're checking
+      const channelDisplay =
+        channel.type === "latest"
+          ? "Latest Stable"
+          : channel.type === "tag"
+            ? `PR Release: ${channel.tag}`
+            : channel.type;
+      setUpdateStatus(`Checking ${channelDisplay}...`);
+
       const result = await window.electronAPI.releaseChannel.checkUpdates();
+      console.log("Update check result:", result);
+
       if (result.error) {
+        console.error("Update error:", result.error);
+        setUpdateStatus(`❌ Error: ${result.error}`);
         toast.error(`Update check failed: ${result.error}`);
       } else if (result.available) {
-        toast.success("Update available! The app will update automatically.");
+        console.log("Update available! Version:", result.version);
+        setUpdateStatus(
+          `✅ Update found: ${result.version || "unknown"} - Download will start automatically`,
+        );
+        toast.success(
+          `Update available! Version ${result.version || "unknown"} will download automatically.`,
+        );
       } else {
+        console.log("No updates available");
+        setUpdateStatus(`✅ You are on the latest version (${currentVersion})`);
         toast.info("You are on the latest version");
       }
     } catch (error) {
       console.error("Failed to check for updates:", error);
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      setUpdateStatus(`❌ Failed: ${errorMsg}`);
       toast.error("Failed to check for updates");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [channel, currentVersion]);
 
   const selectValue = useMemo(() => {
     if (channel.type === "latest") {
@@ -168,6 +208,12 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
         <div className="p-3 bg-white/5 rounded-md border border-white/10">
           <p className="text-sm text-white/60">Current Version</p>
           <p className="text-lg font-mono text-white">{currentVersion}</p>
+        </div>
+      )}
+
+      {updateStatus && (
+        <div className="p-3 bg-blue-500/10 rounded-md border border-blue-500/30">
+          <p className="text-sm text-blue-200">{updateStatus}</p>
         </div>
       )}
 

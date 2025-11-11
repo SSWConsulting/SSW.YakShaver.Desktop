@@ -212,7 +212,7 @@ export class ReleaseChannelIPCHandlers {
         if (isPRTag) {
           // Check if current version matches this PR
           const prNumber = channel.tag.substring(3); // Extract number from "pr-123"
-          const expectedVersion = `${currentVersion.split("-")[0]}-pr.${prNumber}`;
+          const expectedVersion = `${currentVersion.split("-")[0]}-pr${prNumber}`;
           const isCurrentlyOnThisPR = currentVersion === expectedVersion;
 
           console.log(
@@ -376,9 +376,9 @@ export class ReleaseChannelIPCHandlers {
       console.log("Configured autoUpdater for prerelease channel");
     } else if (channel.type === "tag" && channel.tag) {
       // For specific tags (like PR releases), convert tag to channel format
-      // Tag format: "pr-6" → Channel format: "pr.6" (to match version format)
-      // This will look for {channel}.yml or {channel}-mac.yml files
-      const channelName = channel.tag.replace("pr-", "pr.");
+      // Tag format: "pr-6" → Channel format: "pr6" (to match version prerelease identifier)
+      // electron-builder with generateUpdatesFilesForAllChannels creates pr6.yml automatically
+      const channelName = channel.tag.replace("-", "");
       autoUpdater.channel = channelName;
       autoUpdater.allowPrerelease = true;
 

@@ -64,7 +64,8 @@
         "owner": "babakamyljanovssw",
         "repo": "SSW.YakShaver.Desktop",
         "private": false,
-        "releaseType": "release"
+        "releaseType": "release",
+        "channel": "${env.CHANNEL || 'latest'}'"
       }
     ]
   },
