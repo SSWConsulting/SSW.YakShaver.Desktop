@@ -75,19 +75,21 @@ export class ReleaseChannelIPCHandlers {
       console.log("Update downloaded:", info.version);
       this.updateDownloaded = true;
 
-      // Prompt user to restart
       dialog
         .showMessageBox({
           type: "info",
           title: "Update Ready",
-          message:
-            "A new version has been downloaded. Restart the application to apply the updates.",
-          buttons: ["Restart", "Later"],
+          message: "A new version has been downloaded. Restart now to install?",
+          buttons: ["Restart Now", "Later"],
           defaultId: 0,
+          cancelId: 1,
         })
         .then((result) => {
           if (result.response === 0) {
-            autoUpdater.quitAndInstall();
+            // Force immediate quit and install
+            setImmediate(() => {
+              autoUpdater.quitAndInstall(false, true);
+            });
           }
         });
     });

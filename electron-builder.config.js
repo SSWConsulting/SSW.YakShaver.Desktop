@@ -29,6 +29,7 @@ module.exports = {
   },
   nsis: {
     oneClick: true,
+    perMachine: false,
     allowToChangeInstallationDirectory: true,
   },
   mac: {
