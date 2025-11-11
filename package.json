@@ -4,69 +4,7 @@
   "version": "0.3.7",
   "description": "YakShaver, an AI agent to help you trim the fluff and get straight to the point",
   "main": "dist/index.js",
-  "build": {
-    "appId": "com.ssw.yakshaver",
-    "productName": "YakShaver",
-    "directories": {
-      "output": "build",
-      "buildResources": "src/ui/public/icons"
-    },
-    "files": [
-      "**/*",
-      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
-      "!src/ui/**",
-      "src/ui/dist/**",
-      "!src/backend/**",
-      "!**/*.ts",
-      "!**/node_modules/**/*.md"
-    ],
-    "extraResources": [
-      ".env",
-      "src/ui/public/**"
-    ],
-    "asar": true,
-    "asarUnpack": [
-      "src/ui/dist/**",
-      "**/@ffmpeg-installer/**"
-    ],
-    "afterPack": "./afterPack.js",
-    "win": {
-      "icon": "src/ui/public/icons/icon.ico",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    },
-    "mac": {
-      "icon": "src/ui/public/icons/icon.icns",
-      "target": [
-        "zip"
-      ]
-    },
-    "linux": {
-      "icon": "src/ui/public/icons/icon.png",
-      "target": [
-        "deb"
-      ]
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "SSWConsulting",
-        "repo": "SSW.YakShaver.Desktop",
-        "private": false,
-        "releaseType": "release"
-      }
-    ]
-  },
+  "build": {},
   "scripts": {
     "setup": "concurrently \"npm install\"  \"cd src/ui && npm install\"",
     "build": "tsc",
@@ -74,7 +12,7 @@
     "dev": "concurrently \"cd src/ui && npm run dev\" \"wait-on http://localhost:3000 && npm run build && cross-env NODE_ENV=development electron .\"",
     "package": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --dir",
     "make": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder",
-    "publish": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --publish always",
+    "publish": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --publish always --config electron-builder.config.js",
     "lint": "biome check --write .",
     "format": "biome format --write ."
   },
@@ -85,7 +23,7 @@
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SSWConsulting/SSW.YakShaver.Desktop.git"
+    "url": "https://github.com/babakamyljanovssw/SSW.YakShaver.Desktop.git"
   },
   "dependencies": {
     "@azure/openai": "^2.0.0",
