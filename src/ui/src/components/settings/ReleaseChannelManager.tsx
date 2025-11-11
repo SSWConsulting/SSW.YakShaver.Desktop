@@ -188,45 +188,65 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   };
 
   const dropdownOptions = useMemo<DropdownOption[]>(() => {
-    const mapped = releases
-      .filter((release) => release.prerelease) // Only show pre-releases (PR builds)
-      .map((release) => {
-        const prNumber = getPRNumberFromRelease(release);
-        const label = prNumber
-          ? `PR #${prNumber} (${release.tag_name})`
-          : release.name || release.tag_name;
-
-        return {
-          value: release.tag_name, // Use tag_name as the value (e.g., "0.3.7-beta.1731234567")
-          label: label,
-          isPrerelease: release.prerelease,
-          publishedAt: release.published_at,
-        };
-      });
-
-    // If current channel is a tag and it's not in the list, add it
-    if (
-      channel.type === "tag" &&
-      channel.tag &&
-      !mapped.some((option) => option.value === channel.tag)
-    ) {
-      mapped.unshift({
-        value: channel.tag,
-        label: channel.tag,
-        isPrerelease: false,
-        publishedAt: "",
-      });
+    const prereleases = releases.filter((release) => release.prerelease);
+    
+    if (prereleases.length === 0) {
+      return [];
     }
+    
+    // Sort by published date (newest first)
+    // Since workflow now uses build timestamp, published_at matches version order
+    const sorted = prereleases.sort(
+      (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+    );
+    
+    // Show all PR builds, but mark which one is the latest (what electron-updater will download)
+    return sorted.map((release, index) => {
+      const prNumber = getPRNumberFromRelease(release);
+      const isLatest = index === 0; // First one is latest
+      
+      const label = prNumber
+        ? `PR #${prNumber}${isLatest ? ' (Latest - will be downloaded)' : ''}`
+        : `${release.tag_name}${isLatest ? ' (Latest)' : ''}`;
 
-    return mapped;
-  }, [channel, releases]);
+      return {
+        value: release.tag_name,
+        label: label,
+        isPrerelease: release.prerelease,
+        publishedAt: release.published_at,
+      };
+    });
+  }, [releases]);
 
   return (
     <div className="flex flex-col gap-6">
       {currentVersion && (
-        <div className="p-3 bg-white/5 rounded-md border border-white/10">
-          <p className="text-sm text-white/60">Current Version</p>
-          <p className="text-lg font-mono text-white">{currentVersion}</p>
+        <div
+          className={`p-3 rounded-md border ${
+            currentVersion.includes("beta")
+              ? "bg-orange-500/10 border-orange-500/30"
+              : "bg-white/5 border-white/10"
+          }`}
+        >
+          <p
+            className={`text-sm ${
+              currentVersion.includes("beta") ? "text-orange-200" : "text-white/60"
+            }`}
+          >
+            Current Version
+            {currentVersion.includes("beta") && (
+              <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded bg-orange-500/20 text-orange-300">
+                BETA
+              </span>
+            )}
+          </p>
+          <p
+            className={`text-lg font-mono ${
+              currentVersion.includes("beta") ? "text-orange-100" : "text-white"
+            }`}
+          >
+            {currentVersion}
+          </p>
         </div>
       )}
 
@@ -281,7 +301,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
             </SelectContent>
           </Select>
           <p className="text-xs text-white/50">
-            PR releases are beta versions created from pull requests for testing
+            ⚠️ Note: electron-updater always downloads the LATEST beta release (top of list), regardless of which PR you select. Multiple PRs may have beta builds.
           </p>
         </div>
       </div>

@@ -91,6 +91,9 @@ export class ReleaseChannelIPCHandlers {
               autoUpdater.quitAndInstall(false, true);
             });
           }
+        })
+        .catch((err) => {
+          console.error("Error showing update dialog:", err);
         });
     });
   }
@@ -225,13 +228,21 @@ export class ReleaseChannelIPCHandlers {
           // Configure autoUpdater with beta channel
           this.configureAutoUpdater(channel);
 
+          // Force allow downgrade for PR releases
+          autoUpdater.allowDowngrade = true;
+
           try {
             const result = await autoUpdater.checkForUpdates();
             if (result?.updateInfo) {
-              console.log("Update check initiated, download will start automatically");
               return {
                 available: true,
                 version: targetVersion,
+              };
+            } else {
+              return {
+                available: false,
+                error:
+                  "No update found in beta channel. Ensure the PR release includes beta.yml manifest.",
               };
             }
           } catch (error) {
@@ -252,6 +263,10 @@ export class ReleaseChannelIPCHandlers {
       // For latest/prerelease, use standard autoUpdater
       this.configureAutoUpdater(channel);
       console.log(`Using autoUpdater for ${channel.type} channel`);
+
+      // Reset allowDowngrade for stable releases
+      autoUpdater.allowDowngrade = false;
+
       const result = await autoUpdater.checkForUpdates();
 
       if (result?.updateInfo) {
@@ -312,8 +327,7 @@ export class ReleaseChannelIPCHandlers {
   }
 
   private getCurrentVersion(): string {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require("../../package.json").version;
+    return app.getVersion();
   }
 
   public configureAutoUpdater(channel: ReleaseChannel): void {
@@ -334,10 +348,12 @@ export class ReleaseChannelIPCHandlers {
     if (channel.type === "latest") {
       autoUpdater.channel = "latest";
       autoUpdater.allowPrerelease = false;
+      autoUpdater.allowDowngrade = false;
       console.log("Configured autoUpdater for latest channel");
     } else if (channel.type === "prerelease") {
       autoUpdater.channel = "beta";
       autoUpdater.allowPrerelease = true;
+      autoUpdater.allowDowngrade = false;
       console.log("Configured autoUpdater for prerelease channel");
     } else if (channel.type === "tag" && channel.tag) {
       // For PR releases, the workflow creates releases with "beta" channel
@@ -345,8 +361,11 @@ export class ReleaseChannelIPCHandlers {
       // Set channel to "beta" to match the workflow
       autoUpdater.channel = "beta";
       autoUpdater.allowPrerelease = true;
+      autoUpdater.allowDowngrade = true;
 
-      console.log(`Configured autoUpdater for tag ${channel.tag} → using beta channel`);
+      console.log(
+        `Configured autoUpdater for tag ${channel.tag} → using beta channel with allowDowngrade`,
+      );
     }
 
     // Set update server (GitHub releases)
