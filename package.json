@@ -64,7 +64,7 @@
         "owner": "SSWConsulting",
         "repo": "SSW.YakShaver.Desktop",
         "private": false,
-        "releaseType": "${env.RELEASE_TYPE}",
+        "releaseType": "release",
         "channel": "${env.CHANNEL || 'latest'}"
       }
     ]

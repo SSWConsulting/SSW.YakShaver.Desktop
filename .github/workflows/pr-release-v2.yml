@@ -152,7 +152,7 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
-          RELEASE_TYPE: prerelease
+          EP_PRE_RELEASE: true
 
   build-macos:
     needs: cleanup-release
@@ -216,7 +216,7 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
-          RELEASE_TYPE: prerelease
+          EP_PRE_RELEASE: true
 
       - name: List generated update files
         run: |
