@@ -1,4 +1,4 @@
-name: PR Pre-release V2
+name: PR Pre-release
 
 on:
   pull_request:
@@ -48,7 +48,7 @@ jobs:
           COMMIT_TIMESTAMP=$(git show -s --format=%ct $PR_SHA)
           BASE_VERSION=$(node -p 'require("./package.json").version.split("-")[0]')
           PRE_RELEASE_VERSION="${BASE_VERSION}-beta.${COMMIT_TIMESTAMP}"
-          TAG_NAME="v${PRE_RELEASE_VERSION}"  # Add 'v' prefix for default vPrefixedTagName
+          TAG_NAME="${PRE_RELEASE_VERSION}"
           CHANNEL_NAME="beta"
           echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
@@ -114,21 +114,6 @@ jobs:
           "YOUTUBE_CLIENT_ID=$env:YOUTUBE_CLIENT_ID" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
           Add-Content -Path ".env" -Value "`nYOUTUBE_CLIENT_SECRET=$env:YOUTUBE_CLIENT_SECRET"
 
-      - name: Create RELEASE_NOTES.md
-        shell: pwsh
-        run: |
-          $prNumber = "${{ needs.cleanup-release.outputs.pr_number }}"
-          $prSha = "${{ needs.cleanup-release.outputs.pr_sha }}"
-          $prUrl = "${{ github.event.pull_request.html_url || 'N/A' }}"
-          @"
-          Pre-release build for PR #$prNumber
-
-          Commit: $prSha
-          PR: $prUrl
-
-          This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
-          "@ | Out-File -FilePath "RELEASE_NOTES.md" -Encoding utf8
-
       - name: Install dependencies
         run: npm ci --prefer-offline
 
@@ -146,12 +131,46 @@ jobs:
           npm version $version --no-git-tag-version
 
       - name: Publish Windows pre-release
-        run: npm run publish -- --win --publish always
+        run: npm run publish -- --win --publish never
         env:
           NODE_ENV: production
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EP_PRE_RELEASE: true
+          CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
+
+      - name: Fix update manifest filenames
+        shell: pwsh
+        run: |
+          # electron-builder with generateUpdatesFilesForAllChannels creates files for all channels
+          # But we need to fix the filename format mismatch
+          # yml has "YakShaver-Setup" but actual file is "YakShaver.Setup"
+          
+          Get-ChildItem "build/*.yml" | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw
+            $content = $content -replace "YakShaver-Setup-", "YakShaver.Setup."
+            $content | Out-File -FilePath $_.FullName -Encoding utf8 -NoNewline
+            Write-Host "Fixed $($_.Name)"
+          }
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.cleanup-release.outputs.release_tag }}
+          name: "Pre-release PR #${{ needs.cleanup-release.outputs.pr_number }} (${{ needs.cleanup-release.outputs.pr_sha }})"
+          body: |
+            Pre-release build for PR #${{ needs.cleanup-release.outputs.pr_number }}
+            
+            Commit: ${{ needs.cleanup-release.outputs.pr_sha }}
+            PR: ${{ github.event.pull_request.html_url || 'N/A' }}
+            
+            This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
+          prerelease: true
+          files: |
+            build/*.yml
+            build/YakShaver*Setup*.exe
+            build/YakShaver*Setup*.exe.blockmap
+          draft: false
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
     needs: cleanup-release
@@ -178,20 +197,6 @@ jobs:
         run: |
           printf "YOUTUBE_CLIENT_ID=%s\nYOUTUBE_CLIENT_SECRET=%s\n" "$YOUTUBE_CLIENT_ID" "$YOUTUBE_CLIENT_SECRET" > .env
 
-      - name: Create RELEASE_NOTES.md
-        run: |
-          PR_NUMBER="${{ needs.cleanup-release.outputs.pr_number }}"
-          PR_SHA="${{ needs.cleanup-release.outputs.pr_sha }}"
-          PR_URL="${{ github.event.pull_request.html_url || 'N/A' }}"
-          cat << EOF > RELEASE_NOTES.md
-          Pre-release build for PR #\$PR_NUMBER
-
-          Commit: \$PR_SHA
-          PR: \$PR_URL
-
-          This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
-          EOF
-
       - name: Install dependencies
         run: npm ci --prefer-offline
 
@@ -209,17 +214,37 @@ jobs:
           npm version "$VERSION" --no-git-tag-version
 
       - name: Publish macOS pre-release
-        run: npm run publish -- --mac --publish always
+        run: npm run publish -- --mac --publish never
         env:
           NODE_ENV: production
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EP_PRE_RELEASE: true
+          CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
 
       - name: List generated update files
         run: |
           echo "Generated update manifest files:"
           ls -la build/*.yml || echo "No yml files found"
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.cleanup-release.outputs.release_tag }}
+          name: "Pre-release PR #${{ needs.cleanup-release.outputs.pr_number }} (${{ needs.cleanup-release.outputs.pr_sha }})"
+          body: |
+            Pre-release build for PR #${{ needs.cleanup-release.outputs.pr_number }}
+            
+            Commit: ${{ needs.cleanup-release.outputs.pr_sha }}
+            PR: ${{ github.event.pull_request.html_url || 'N/A' }}
+            
+            This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
+          prerelease: true
+          files: |
+            build/YakShaver-*-mac.zip
+            build/YakShaver-*-mac.zip.blockmap
+            build/*-mac.yml
+          draft: false
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   comment-release:
     runs-on: ubuntu-latest
