@@ -138,19 +138,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
 
-      # - name: Fix update manifest filenames
-      #   shell: pwsh
-      #   run: |
-      #     # electron-builder with generateUpdatesFilesForAllChannels creates files for all channels
-      #     # But we need to fix the filename format mismatch
-      #     # yml has "YakShaver-Setup" but actual file is "YakShaver.Setup"
+      - name: Fix update manifest filenames
+        shell: pwsh
+        run: |
+          # electron-builder with generateUpdatesFilesForAllChannels creates files for all channels
+          # But we need to fix the filename format mismatch
+          # yml has "YakShaver-Setup" but actual file is "YakShaver.Setup"
           
-      #     Get-ChildItem "build/*.yml" | ForEach-Object {
-      #       $content = Get-Content $_.FullName -Raw
-      #       $content = $content -replace "YakShaver-Setup-", "YakShaver.Setup."
-      #       $content | Out-File -FilePath $_.FullName -Encoding utf8 -NoNewline
-      #       Write-Host "Fixed $($_.Name)"
-      #     }
+          Get-ChildItem "build/*.yml" | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw
+            $content = $content -replace "YakShaver-Setup-", "YakShaver.Setup."
+            $content | Out-File -FilePath $_.FullName -Encoding utf8 -NoNewline
+            Write-Host "Fixed $($_.Name)"
+          }
 
       - name: Create or update GitHub release
         uses: softprops/action-gh-release@v2
