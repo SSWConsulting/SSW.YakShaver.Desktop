@@ -8,6 +8,7 @@ interface GitHubRelease {
   id: number;
   tag_name: string;
   name: string;
+  body?: string;
   prerelease: boolean;
   published_at: string;
   html_url: string;
@@ -175,17 +176,35 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       return;
     }
 
+    // When selecting a tag (which is the full version like "0.3.7-beta.1731234567")
     setChannel({ type: "tag", tag: value });
   }, []);
 
-  const dropdownOptions = useMemo<DropdownOption[]>(() => {
-    const mapped = releases.map((release) => ({
-      value: release.tag_name,
-      label: release.name || release.tag_name,
-      isPrerelease: release.prerelease,
-      publishedAt: release.published_at,
-    }));
+  // Extract PR number from release body if available
+  const getPRNumberFromRelease = (release: GitHubRelease): string | null => {
+    // Look for "PR #123" in the release name or body
+    const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
+    return prMatch ? prMatch[1] : null;
+  };
 
+  const dropdownOptions = useMemo<DropdownOption[]>(() => {
+    const mapped = releases
+      .filter((release) => release.prerelease) // Only show pre-releases (PR builds)
+      .map((release) => {
+        const prNumber = getPRNumberFromRelease(release);
+        const label = prNumber
+          ? `PR #${prNumber} (${release.tag_name})`
+          : release.name || release.tag_name;
+
+        return {
+          value: release.tag_name, // Use tag_name as the value (e.g., "0.3.7-beta.1731234567")
+          label: label,
+          isPrerelease: release.prerelease,
+          publishedAt: release.published_at,
+        };
+      });
+
+    // If current channel is a tag and it's not in the list, add it
     if (
       channel.type === "tag" &&
       channel.tag &&
@@ -220,7 +239,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="release-select" className="text-white">
-            Select Release
+            Select Release Channel
           </Label>
           <Select value={selectValue} onValueChange={handleSelectionChange}>
             <SelectTrigger className="bg-white/5 border-white/20 text-white">
@@ -241,7 +260,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
               )}
               {!isLoadingReleases && dropdownOptions.length === 0 && (
                 <SelectItem value="__empty" disabled className="text-white/60">
-                  No releases available
+                  No PR releases available
                 </SelectItem>
               )}
               {dropdownOptions.map((option) => (
@@ -251,11 +270,19 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
                   className="text-white"
                   textValue={option.label}
                 >
-                  {option.label}
+                  <div className="flex flex-col">
+                    <span>{option.label}</span>
+                    <span className="text-xs text-white/50">
+                      {new Date(option.publishedAt).toLocaleString()}
+                    </span>
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          <p className="text-xs text-white/50">
+            PR releases are beta versions created from pull requests for testing
+          </p>
         </div>
       </div>
 

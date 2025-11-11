@@ -188,7 +188,7 @@ export class ReleaseChannelIPCHandlers {
       const currentVersion = this.getCurrentVersion();
       console.log(`Checking for updates: current version ${currentVersion}, channel:`, channel);
 
-      // For tag-based channels, we need to configure autoUpdater first and then check
+      // For tag-based channels (PR releases)
       if (channel.type === "tag" && channel.tag) {
         const releases = await this.listReleases(true);
         if (releases.error) {
@@ -196,6 +196,8 @@ export class ReleaseChannelIPCHandlers {
           return { available: false, error: releases.error };
         }
 
+        // Find the release with matching tag
+        // The workflow creates releases with tags like "0.3.7-beta.1731234567"
         const targetRelease = releases.releases.find((r) => r.tag_name === channel.tag);
         if (!targetRelease) {
           console.warn(`Release ${channel.tag} not found in ${releases.releases.length} releases`);
@@ -204,60 +206,21 @@ export class ReleaseChannelIPCHandlers {
 
         console.log(`Found target release: ${targetRelease.name}, tag: ${targetRelease.tag_name}`);
 
-        // For tag-based channels, the user is explicitly selecting a specific release
-        // We should always consider it "available" if the current version doesn't match
-        // For PR releases (pr-XXX tags), the version format is X.Y.Z-pr.XXX
-        const isPRTag = channel.tag.startsWith("pr-");
+        // The workflow creates beta versions with timestamp
+        // Tag format: "0.3.7-beta.1731234567"
+        // We check if user is on a different version than the selected tag
+        const targetVersion = targetRelease.tag_name;
+        const isCurrentlyOnThisVersion = currentVersion === targetVersion;
 
-        if (isPRTag) {
-          // Check if current version matches this PR
-          const prNumber = channel.tag.substring(3); // Extract number from "pr-123"
-          const expectedVersion = `${currentVersion.split("-")[0]}-pr${prNumber}`;
-          const isCurrentlyOnThisPR = currentVersion === expectedVersion;
-
-          console.log(
-            `PR release: expected version ${expectedVersion}, current: ${currentVersion}, match: ${isCurrentlyOnThisPR}`,
-          );
-
-          // If not on this PR version, trigger download via autoUpdater
-          if (!isCurrentlyOnThisPR) {
-            console.log("Triggering download for PR release...");
-            this.configureAutoUpdater(channel);
-
-            try {
-              const result = await autoUpdater.checkForUpdates();
-              if (result?.updateInfo) {
-                // autoUpdater will handle the download automatically
-                console.log("Update check initiated, download will start automatically");
-                return {
-                  available: true,
-                  version: expectedVersion,
-                };
-              }
-            } catch (error) {
-              console.error("Failed to check/download update:", error);
-              return {
-                available: false,
-                error: error instanceof Error ? error.message : "Failed to download update",
-              };
-            }
-          }
-
-          return {
-            available: false,
-            version: currentVersion,
-          };
-        }
-
-        // For non-PR tags (e.g., v1.0.0), compare versions and trigger download
-        const targetVersion = targetRelease.tag_name.replace(/^v/, "");
-        const isDifferent = targetVersion !== currentVersion;
         console.log(
-          `Tag release: target version ${targetVersion}, current: ${currentVersion}, different: ${isDifferent}`,
+          `PR release check: tag=${channel.tag}, target version=${targetVersion}, current=${currentVersion}, match=${isCurrentlyOnThisVersion}`,
         );
 
-        if (isDifferent) {
-          console.log("Triggering download for tag release...");
+        // If not on this version, trigger download
+        if (!isCurrentlyOnThisVersion) {
+          console.log("Triggering download for PR release...");
+
+          // Configure autoUpdater with beta channel
           this.configureAutoUpdater(channel);
 
           try {
@@ -280,7 +243,7 @@ export class ReleaseChannelIPCHandlers {
 
         return {
           available: false,
-          version: targetVersion,
+          version: currentVersion,
         };
       }
 
@@ -375,15 +338,13 @@ export class ReleaseChannelIPCHandlers {
       autoUpdater.allowPrerelease = true;
       console.log("Configured autoUpdater for prerelease channel");
     } else if (channel.type === "tag" && channel.tag) {
-      // For specific tags (like PR releases), convert tag to channel format
-      // Tag format: "pr-6" → Channel format: "pr6" (to match version prerelease identifier)
-      // electron-builder with generateUpdatesFilesForAllChannels creates pr6.yml automatically
-      const channelName = channel.tag.replace("-", "");
-      autoUpdater.channel = channelName;
+      // For PR releases, the workflow creates releases with "beta" channel
+      // Tag is the full version like "0.3.7-beta.1731234567"
+      // Set channel to "beta" to match the workflow
+      autoUpdater.channel = "beta";
       autoUpdater.allowPrerelease = true;
 
-      // Log for debugging
-      console.log(`Configured autoUpdater for tag ${channel.tag} → channel: ${channelName}`);
+      console.log(`Configured autoUpdater for tag ${channel.tag} → using beta channel`);
     }
 
     // Set update server (GitHub releases)
