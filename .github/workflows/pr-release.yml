@@ -1,4 +1,4 @@
-name: PR Pre-release
+name: PR Pre-release V2
 
 on:
   pull_request:
@@ -28,46 +28,64 @@ jobs:
       pr_number: ${{ steps.pr_info.outputs.pr_number }}
       release_tag: ${{ steps.pr_info.outputs.tag }}
       channel: ${{ steps.pr_info.outputs.channel }}
+      version: ${{ steps.pr_info.outputs.version }}
+      pr_sha: ${{ steps.pr_info.outputs.pr_sha }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Get PR info
         id: pr_info
         run: |
           PR_NUMBER="${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
-          TAG_NAME="pr-${PR_NUMBER}"
-          CHANNEL_NAME="pr.${PR_NUMBER}"
+          PR_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          SHORT_SHA="${PR_SHA:0:7}"
+          COMMIT_TIMESTAMP=$(git show -s --format=%ct $PR_SHA)
+          BASE_VERSION=$(node -p 'require("./package.json").version.split("-")[0]')
+          PRE_RELEASE_VERSION="${BASE_VERSION}-beta.${COMMIT_TIMESTAMP}"
+          TAG_NAME="v${PRE_RELEASE_VERSION}"  # Add 'v' prefix for default vPrefixedTagName
+          CHANNEL_NAME="beta"
           echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           echo "channel=${CHANNEL_NAME}" >> $GITHUB_OUTPUT
-          echo "PR: ${PR_NUMBER}, Tag: ${TAG_NAME}, Channel: ${CHANNEL_NAME}"
+          echo "version=${PRE_RELEASE_VERSION}" >> $GITHUB_OUTPUT
+          echo "pr_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "PR: ${PR_NUMBER}, Tag: ${TAG_NAME}, Channel: ${CHANNEL_NAME}, Version: ${PRE_RELEASE_VERSION}"
 
-      - name: Delete existing release assets
+      - name: Delete existing PR releases
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ steps.pr_info.outputs.tag }}"
+          PR_NUMBER="${{ steps.pr_info.outputs.pr_number }}"
           
-          echo "Checking for existing release: ${TAG}"
+          echo "Finding and deleting existing releases for PR #${PR_NUMBER}"
           
-          # Try to get the release
-          RELEASE=$(gh api /repos/${{ github.repository }}/releases/tags/$TAG 2>/dev/null || echo "")
+          RELEASE_IDS=$(gh api /repos/${{ github.repository }}/releases?per_page=100 --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .id")
           
-          if [ -n "$RELEASE" ]; then
-            echo "Found existing release, deleting all assets..."
-            
-            # Get all asset IDs and delete them
-            echo "$RELEASE" | jq -r '.assets[].id' | while read -r asset_id; do
-              if [ -n "$asset_id" ]; then
-                ASSET_NAME=$(echo "$RELEASE" | jq -r ".assets[] | select(.id == $asset_id) | .name")
-                echo "Deleting asset: $ASSET_NAME (ID: $asset_id)"
-                gh api -X DELETE /repos/${{ github.repository }}/releases/assets/$asset_id || true
-              fi
-            done
-            
-            echo "All assets deleted successfully"
-          else
-            echo "No existing release found - this is a new release"
-          fi
+          for id in $RELEASE_IDS; do
+            if [ -n "$id" ]; then
+              echo "Deleting release ID: $id"
+              gh api -X DELETE /repos/${{ github.repository }}/releases/$id || true
+            fi
+          done
+          
+          # Also clean up associated tags
+          TAG_NAMES=$(gh api /repos/${{ github.repository }}/releases?per_page=100 --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .tag_name")
+          
+          for tag in $TAG_NAMES; do
+            if [ -n "$tag" ]; then
+              echo "Deleting tag: $tag"
+              gh api -X DELETE /repos/${{ github.repository }}/git/refs/tags/$tag || true
+            fi
+          done
+          
+          echo "Cleanup completed"
 
   build-windows:
     needs: cleanup-release
@@ -96,6 +114,21 @@ jobs:
           "YOUTUBE_CLIENT_ID=$env:YOUTUBE_CLIENT_ID" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
           Add-Content -Path ".env" -Value "`nYOUTUBE_CLIENT_SECRET=$env:YOUTUBE_CLIENT_SECRET"
 
+      - name: Create RELEASE_NOTES.md
+        shell: pwsh
+        run: |
+          $prNumber = "${{ needs.cleanup-release.outputs.pr_number }}"
+          $prSha = "${{ needs.cleanup-release.outputs.pr_sha }}"
+          $prUrl = "${{ github.event.pull_request.html_url || 'N/A' }}"
+          @"
+          Pre-release build for PR #$prNumber
+
+          Commit: $prSha
+          PR: $prUrl
+
+          This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
+          "@ | Out-File -FilePath "RELEASE_NOTES.md" -Encoding utf8
+
       - name: Install dependencies
         run: npm ci --prefer-offline
 
@@ -103,77 +136,22 @@ jobs:
         run: npm ci --prefer-offline
         working-directory: src/ui
 
-      - name: Get PR info
-        id: pr_info
-        run: |
-          $prNumber = "${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
-          $prSha = "${{ github.event.pull_request.head.sha || github.sha }}"
-          $shortSha = $prSha.Substring(0, 7)
-          $tagName = "pr-$prNumber"
-          echo "tag=$tagName" >> $env:GITHUB_OUTPUT
-          echo "pr_number=$prNumber" >> $env:GITHUB_OUTPUT
-          echo "pr_sha=$shortSha" >> $env:GITHUB_OUTPUT
-
       - name: Update version for pre-release
         shell: pwsh
         run: |
-          $prNumber = "${{ steps.pr_info.outputs.pr_number }}"
-          if (-not $prNumber) {
-            throw "Missing PR number output"
+          $version = "${{ needs.cleanup-release.outputs.version }}"
+          if (-not $version) {
+            throw "Missing version output"
           }
-          $baseVersion = (node -p 'require("./package.json").version.split("-")[0]').Trim()
-          $preReleaseVersion = "$baseVersion-pr.$prNumber"
-
-          npm version $preReleaseVersion --no-git-tag-version
+          npm version $version --no-git-tag-version
 
       - name: Publish Windows pre-release
-        run: npm run publish -- --win --publish never
+        run: npm run publish -- --win --publish always
         env:
           NODE_ENV: production
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Copy and fix update manifest for channel
-        shell: pwsh
-        run: |
-          $channelName = "${{ steps.pr_info.outputs.channel }}"
-          if (Test-Path "build/latest.yml") {
-            # Read the yml content
-            $content = Get-Content "build/latest.yml" -Raw
-            
-            # Fix the filename format mismatch
-            # yml has "YakShaver-Setup" but actual file is "YakShaver.Setup"
-            $content = $content -replace "YakShaver-Setup-", "YakShaver.Setup."
-            
-            # Write the corrected content
-            $content | Out-File -FilePath "build/$channelName.yml" -Encoding utf8 -NoNewline
-            Write-Host "Created build/$channelName.yml with corrected filenames"
-            
-            # Show what we created
-            Write-Host "`nContent:"
-            Get-Content "build/$channelName.yml"
-          }
-
-      - name: Create or update GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.pr_info.outputs.tag }}
-          name: "Pre-release PR #${{ steps.pr_info.outputs.pr_number }} (${{ steps.pr_info.outputs.pr_sha }})"
-          body: |
-            Pre-release build for PR #${{ steps.pr_info.outputs.pr_number }}
-            
-            Commit: ${{ steps.pr_info.outputs.pr_sha }}
-            PR: ${{ github.event.pull_request.html_url || 'N/A' }}
-            
-            This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
-          prerelease: true
-          files: |
-            build/latest.yml
-            build/${{ steps.pr_info.outputs.channel }}.yml
-            build/YakShaver*Setup*.exe
-            build/YakShaver*Setup*.exe.blockmap
-          draft: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+          EP_PRE_RELEASE: true
 
   build-macos:
     needs: cleanup-release
@@ -200,6 +178,20 @@ jobs:
         run: |
           printf "YOUTUBE_CLIENT_ID=%s\nYOUTUBE_CLIENT_SECRET=%s\n" "$YOUTUBE_CLIENT_ID" "$YOUTUBE_CLIENT_SECRET" > .env
 
+      - name: Create RELEASE_NOTES.md
+        run: |
+          PR_NUMBER="${{ needs.cleanup-release.outputs.pr_number }}"
+          PR_SHA="${{ needs.cleanup-release.outputs.pr_sha }}"
+          PR_URL="${{ github.event.pull_request.html_url || 'N/A' }}"
+          cat << EOF > RELEASE_NOTES.md
+          Pre-release build for PR #\$PR_NUMBER
+
+          Commit: \$PR_SHA
+          PR: \$PR_URL
+
+          This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
+          EOF
+
       - name: Install dependencies
         run: npm ci --prefer-offline
 
@@ -207,69 +199,27 @@ jobs:
         run: npm ci --prefer-offline
         working-directory: src/ui
 
-      - name: Get PR info
-        id: pr_info
-        run: |
-          PR_NUMBER="${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
-          PR_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
-          SHORT_SHA="${PR_SHA:0:7}"
-          TAG_NAME="pr-${PR_NUMBER}"
-          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
-          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
-          echo "pr_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
-
       - name: Update version for pre-release
         run: |
-          PR_NUMBER="${{ steps.pr_info.outputs.pr_number }}"
-          if [[ -z "$PR_NUMBER" ]]; then
-            echo "Missing PR number output"
+          VERSION="${{ needs.cleanup-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Missing version output"
             exit 1
           fi
-          BASE_VERSION=$(node -p 'require("./package.json").version.split("-")[0]')
-          PRE_RELEASE_VERSION="${BASE_VERSION}-pr.${PR_NUMBER}"
-
-          npm version "$PRE_RELEASE_VERSION" --no-git-tag-version
+          npm version "$VERSION" --no-git-tag-version
 
       - name: Publish macOS pre-release
-        run: npm run publish -- --mac --publish never
+        run: npm run publish -- --mac --publish always
         env:
           NODE_ENV: production
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EP_PRE_RELEASE: true
 
-      - name: Copy update manifest for channel
+      - name: List generated update files
         run: |
-          CHANNEL_NAME="${{ steps.pr_info.outputs.channel }}"
-          if [ -f "build/latest-mac.yml" ]; then
-            # For macOS, the filenames in yml should already match, just copy
-            cp "build/latest-mac.yml" "build/$CHANNEL_NAME-mac.yml"
-            echo "Created build/$CHANNEL_NAME-mac.yml"
-            
-            # Show what we created
-            echo -e "\nContent:"
-            cat "build/$CHANNEL_NAME-mac.yml"
-          fi
-
-      - name: Create or update GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.pr_info.outputs.tag }}
-          name: "Pre-release PR #${{ steps.pr_info.outputs.pr_number }} (${{ steps.pr_info.outputs.pr_sha }})"
-          body: |
-            Pre-release build for PR #${{ steps.pr_info.outputs.pr_number }}
-            
-            Commit: ${{ steps.pr_info.outputs.pr_sha }}
-            PR: ${{ github.event.pull_request.html_url || 'N/A' }}
-            
-            This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
-          prerelease: true
-          files: |
-            build/YakShaver-*-mac.zip
-            build/YakShaver-*-mac.zip.blockmap
-            build/latest-mac.yml
-            build/${{ steps.pr_info.outputs.channel }}-mac.yml
-          draft: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+          echo "Generated update manifest files:"
+          ls -la build/*.yml || echo "No yml files found"
 
   comment-release:
     runs-on: ubuntu-latest
@@ -296,38 +246,30 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.action == 'closed'
     steps:
-      - name: Delete PR pre-release
-        uses: actions/github-script@v8
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = context.payload.pull_request.number;
-            const tagName = `pr-${prNumber}`;
-
-            try {
-              const release = await github.rest.repos.getReleaseByTag({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag: tagName,
-              });
-
-              await github.rest.repos.deleteRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: release.data.id,
-              });
-
-              await github.rest.git.deleteRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: `tags/${tagName}`,
-              });
-
-              core.info(`Deleted release and tag for ${tagName}`);
-            } catch (error) {
-              if (error.status === 404) {
-                core.info(`Release or tag ${tagName} not found; nothing to delete.`);
-              } else {
-                core.setFailed(`Failed to delete release ${tagName}: ${error.message}`);
-              }
-            }
+      - name: Delete PR pre-releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          
+          echo "Deleting all releases for closed PR #${PR_NUMBER}"
+          
+          RELEASE_IDS=$(gh api /repos/${{ github.repository }}/releases?per_page=100 --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .id")
+          
+          for id in $RELEASE_IDS; do
+            if [ -n "$id" ]; then
+              echo "Deleting release ID: $id"
+              gh api -X DELETE /repos/${{ github.repository }}/releases/$id || true
+            fi
+          done
+          
+          TAG_NAMES=$(gh api /repos/${{ github.repository }}/releases?per_page=100 --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .tag_name")
+          
+          for tag in $TAG_NAMES; do
+            if [ -n "$tag" ]; then
+              echo "Deleting tag: $tag"
+              gh api -X DELETE /repos/${{ github.repository }}/git/refs/tags/$tag || true
+            fi
+          done
+          
+          echo "Deletion completed for closed PR"
