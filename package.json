@@ -65,7 +65,7 @@
         "repo": "SSW.YakShaver.Desktop",
         "private": false,
         "releaseType": "release",
-        "channel": "${env.CHANNEL || 'latest'}"
+        "channel": "beta"
       }
     ]
   },

@@ -146,14 +146,11 @@ jobs:
           npm version $version --no-git-tag-version
 
       - name: Publish Windows pre-release
-        run: |
-          $channel = "${{ needs.cleanup-release.outputs.channel }}"
-          npm run publish -- --win --publish always "-c.publish.channel=$channel" "-c.publish.releaseType=prerelease"
+        run: npm run publish -- --win --publish always
         env:
           NODE_ENV: production
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
           EP_PRE_RELEASE: true
 
   build-macos:
@@ -212,14 +209,11 @@ jobs:
           npm version "$VERSION" --no-git-tag-version
 
       - name: Publish macOS pre-release
-        run: |
-          CHANNEL="${{ needs.cleanup-release.outputs.channel }}"
-          npm run publish -- --mac --publish always "-c.publish.channel=${CHANNEL}" "-c.publish.releaseType=prerelease"
+        run: npm run publish -- --mac --publish always
         env:
           NODE_ENV: production
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
           EP_PRE_RELEASE: true
 
       - name: List generated update files
