@@ -23,7 +23,7 @@
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "https://github.com/babakamyljanovssw/SSW.YakShaver.Desktop.git"
+    "url": "https://github.com/SSWConsulting/SSW.YakShaver.Desktop.git"
   },
   "dependencies": {
     "@azure/openai": "^2.0.0",
