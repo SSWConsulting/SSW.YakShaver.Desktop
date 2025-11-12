@@ -49,9 +49,10 @@ jobs:
           # This ensures the most recently run workflow creates the newest version
           BUILD_TIMESTAMP=$(date +%s)
           BASE_VERSION=$(node -p 'require("./package.json").version.split("-")[0]')
-          PRE_RELEASE_VERSION="${BASE_VERSION}-beta.${BUILD_TIMESTAMP}"
+          # Use PR-specific channel: beta.{PR_NUMBER}
+          CHANNEL_NAME="beta.${PR_NUMBER}"
+          PRE_RELEASE_VERSION="${BASE_VERSION}-${CHANNEL_NAME}.${BUILD_TIMESTAMP}"
           TAG_NAME="${PRE_RELEASE_VERSION}"
-          CHANNEL_NAME="beta"
           echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           echo "channel=${CHANNEL_NAME}" >> $GITHUB_OUTPUT

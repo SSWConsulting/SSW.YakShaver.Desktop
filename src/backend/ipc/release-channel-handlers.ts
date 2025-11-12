@@ -356,16 +356,22 @@ export class ReleaseChannelIPCHandlers {
       autoUpdater.allowDowngrade = false;
       console.log("Configured autoUpdater for prerelease channel");
     } else if (channel.type === "tag" && channel.tag) {
-      // For PR releases, the workflow creates releases with "beta" channel
-      // Tag is the full version like "0.3.7-beta.1731234567"
-      // Set channel to "beta" to match the workflow
-      autoUpdater.channel = "beta";
+      // For PR releases, extract PR number from version tag
+      // Version format: "0.3.7-beta.{PR_NUMBER}.{TIMESTAMP}"
+      // e.g., "0.3.7-beta.3.1762850000" -> channel "beta.3"
+      const prMatch = channel.tag.match(/beta\.(\d+)\./);
+      if (prMatch) {
+        const prNumber = prMatch[1];
+        autoUpdater.channel = `beta.${prNumber}`;
+        console.log(`Configured autoUpdater for PR #${prNumber} → channel: beta.${prNumber}`);
+      } else {
+        // Fallback to generic beta channel for old format versions
+        autoUpdater.channel = "beta";
+        console.log(`Configured autoUpdater for tag ${channel.tag} → using beta channel`);
+      }
+      
       autoUpdater.allowPrerelease = true;
       autoUpdater.allowDowngrade = true;
-
-      console.log(
-        `Configured autoUpdater for tag ${channel.tag} → using beta channel with allowDowngrade`,
-      );
     }
 
     // Set update server (GitHub releases)
