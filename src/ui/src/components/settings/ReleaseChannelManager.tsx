@@ -120,6 +120,10 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       console.log("Starting update check...");
       console.log("Current channel:", channel);
 
+      // Save the currently selected channel first before checking for updates
+      // This ensures we check for updates on the selected release, not a previously saved one
+      await window.electronAPI.releaseChannel.set(channel);
+
       // Show which channel we're checking
       const channelDisplay =
         channel.type === "latest"
@@ -200,14 +204,13 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
     );
     
-    // Show all PR builds, but mark which one is the latest (what electron-updater will download)
-    return sorted.map((release, index) => {
+    // Show all PR builds with their PR numbers
+    return sorted.map((release) => {
       const prNumber = getPRNumberFromRelease(release);
-      const isLatest = index === 0; // First one is latest
       
       const label = prNumber
-        ? `PR #${prNumber}${isLatest ? ' (Latest - will be downloaded)' : ''}`
-        : `${release.tag_name}${isLatest ? ' (Latest)' : ''}`;
+        ? `PR #${prNumber}`
+        : release.tag_name;
 
       return {
         value: release.tag_name,
@@ -292,7 +295,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
                 >
                   <div className="flex flex-col">
                     <span>{option.label}</span>
-                    <span className="text-xs text-white/50">
+                    <span className="text-xs">
                       {new Date(option.publishedAt).toLocaleString()}
                     </span>
                   </div>
@@ -300,9 +303,6 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-white/50">
-            ⚠️ Note: electron-updater always downloads the LATEST beta release (top of list), regardless of which PR you select. Multiple PRs may have beta builds.
-          </p>
         </div>
       </div>
 
