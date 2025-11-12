@@ -21,7 +21,7 @@ interface GitHubReleaseResponse {
 }
 
 const GITHUB_API_BASE = "https://api.github.com";
-const REPO_OWNER = "babakamyljanovssw";
+const REPO_OWNER = "SSWConsulting";
 const REPO_NAME = "SSW.YakShaver.Desktop";
 const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
