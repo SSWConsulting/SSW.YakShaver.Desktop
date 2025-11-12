@@ -212,11 +212,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
 
-      - name: List generated update files
-        run: |
-          echo "Generated update manifest files:"
-          ls -la build/*.yml || echo "No yml files found"
-
       - name: Create or update GitHub release
         uses: softprops/action-gh-release@v2
         with:
