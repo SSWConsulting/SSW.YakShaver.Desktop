@@ -60,7 +60,6 @@ jobs:
 
           echo "Finding and deleting existing releases for PR #${PR_NUMBER}"
 
-          # Use --paginate to get all releases, not just first 100
           RELEASE_IDS=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .id")
 
           for id in $RELEASE_IDS; do
@@ -265,7 +264,6 @@ jobs:
 
           echo "Deleting all releases for closed PR #${PR_NUMBER}"
 
-          # Use --paginate to get all releases, not just first 100
           RELEASE_IDS=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .id")
 
           for id in $RELEASE_IDS; do
