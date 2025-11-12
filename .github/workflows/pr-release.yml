@@ -261,9 +261,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
-
           echo "Deleting all releases for closed PR #${PR_NUMBER}"
-
           RELEASE_IDS=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .id")
 
           for id in $RELEASE_IDS; do
