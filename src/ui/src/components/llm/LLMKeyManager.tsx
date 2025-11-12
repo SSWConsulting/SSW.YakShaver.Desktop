@@ -7,8 +7,6 @@ import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../services/ipc-client";
 import type { HealthStatusInfo, LLMConfig } from "../../types";
 import { HealthStatus } from "../health-status/health-status";
-import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { type LLMProvider, LLMProviderForm } from "./LLMProviderForm";
 
 const schema = z.discriminatedUnion("provider", [
@@ -94,7 +92,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         toast.success(
           values.provider === "openai"
             ? "OpenAI configuration saved"
-            : "Azure OpenAI configuration saved"
+            : "Azure OpenAI configuration saved",
         );
         await refreshStatus();
         await checkHealth();
@@ -104,7 +102,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         setIsLoading(false);
       }
     },
-    [checkHealth, refreshStatus]
+    [checkHealth, refreshStatus],
   );
 
   const onClear = useCallback(async () => {
@@ -125,9 +123,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
     form.reset({
       provider: value,
       apiKey: "",
-      ...(value === "azure"
-        ? { endpoint: "", version: "", deployment: "" }
-        : {}),
+      ...(value === "azure" ? { endpoint: "", version: "", deployment: "" } : {}),
     } as FormValues);
   };
 
@@ -165,28 +161,5 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         handleProviderChange={handleProviderChange}
       />
     </div>
-  );
-}
-
-export function LLMKeyManager() {
-  const [dialogOpen, setDialogOpen] = useState(false);
-
-  return (
-    <Dialog
-      open={dialogOpen}
-      onOpenChange={(open) => {
-        setDialogOpen(open);
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button variant="secondary">LLM Settings</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md bg-neutral-900 text-neutral-100 border-neutral-800">
-        <DialogHeader>
-          <DialogTitle className="text-white text-xl">LLM Settings</DialogTitle>
-        </DialogHeader>
-        <LLMSettingsPanel isActive={dialogOpen} />
-      </DialogContent>
-    </Dialog>
   );
 }

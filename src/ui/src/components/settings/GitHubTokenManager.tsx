@@ -135,7 +135,3 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
     </div>
   );
 }
-
-export function GitHubTokenManager() {
-  return <GitHubTokenSettingsPanel isActive />;
-}

@@ -16,14 +16,6 @@ import {
 } from "../ui/alert-dialog";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../ui/dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
 import { ScrollArea } from "../ui/scroll-area";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
@@ -277,31 +269,5 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function McpServerManager() {
-  const [dialogOpen, setDialogOpen] = useState(false);
-
-  return (
-    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogTrigger asChild>
-        <Button variant="secondary">MCP Settings</Button>
-      </DialogTrigger>
-      <DialogContent
-        showCloseButton
-        className="flex max-w-5xl max-h-[90vh] flex-col overflow-hidden bg-neutral-900 text-neutral-100 border-neutral-800"
-      >
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="text-white text-2xl">MCP Server Settings</DialogTitle>
-          <DialogDescription className="sr-only">
-            View and update your current MCP server settings
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <McpSettingsPanel isActive={dialogOpen} />
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

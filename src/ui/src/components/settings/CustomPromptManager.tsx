@@ -3,15 +3,6 @@ import type { CustomPrompt } from "@/types";
 import { usePromptManager } from "../../hooks/usePromptManager";
 import { DeleteConfirmDialog } from "../dialogs/DeleteConfirmDialog";
 import { UnsavedChangesDialog } from "../dialogs/UnsavedChangesDialog";
-import { Button } from "../ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
 import { PromptForm, type PromptFormRef } from "./custom-prompt/PromptForm";
 import { PromptListView } from "./custom-prompt/PromptListView";
@@ -261,52 +252,5 @@ export function CustomPromptSettingsPanel({
         }
       />
     </>
-  );
-}
-
-export function CustomPromptManager() {
-  const [open, setOpen] = useState(false);
-  const leaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null);
-
-  const handleOpenChange = useCallback((nextOpen: boolean) => {
-    if (!nextOpen && leaveHandlerRef.current) {
-      void (async () => {
-        const canClose = await leaveHandlerRef.current?.();
-        if (canClose) {
-          setOpen(false);
-        } else {
-          setOpen(true);
-        }
-      })();
-      return;
-    }
-    setOpen(nextOpen);
-  }, []);
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="secondary">Custom Prompts</Button>
-      </DialogTrigger>
-      <DialogContent
-        showCloseButton
-        className="flex flex-col max-w-4xl max-h-[90vh] overflow-hidden bg-neutral-900 text-neutral-100 border-neutral-800"
-      >
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="text-white text-xl">Custom Prompt Manager</DialogTitle>
-          <DialogDescription className="text-white/80 text-sm">
-            Manage your custom prompts and select which one to use for task execution
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 min-h-0">
-          <CustomPromptSettingsPanel
-            isActive={open}
-            registerLeaveHandler={(handler) => {
-              leaveHandlerRef.current = handler;
-            }}
-          />
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

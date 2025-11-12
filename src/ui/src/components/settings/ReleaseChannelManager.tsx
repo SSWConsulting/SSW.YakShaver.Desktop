@@ -284,8 +284,3 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
     </div>
   );
 }
-
-// Backwards compatibility wrapper (optional usage elsewhere)
-export function ReleaseChannelManager() {
-  return <ReleaseChannelSettingsPanel isActive />;
-}
