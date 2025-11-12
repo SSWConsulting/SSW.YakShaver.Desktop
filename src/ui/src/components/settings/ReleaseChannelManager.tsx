@@ -99,9 +99,9 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       // Show what channel was saved
       const channelDisplay =
         channel.type === "latest"
-          ? "Latest Stable"
+          ? "Latest"
           : channel.type === "tag"
-            ? `PR Release: ${channel.tag}`
+            ? `PR Pre-release: ${channel.tag}`
             : channel.type;
       setUpdateStatus(`✅ Channel saved: ${channelDisplay}`);
       toast.success("Release channel updated successfully");
@@ -126,9 +126,9 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       // Show which channel we're checking
       const channelDisplay =
         channel.type === "latest"
-          ? "Latest Stable"
+          ? "Latest"
           : channel.type === "tag"
-            ? `PR Release: ${channel.tag}`
+            ? `PR Pre-release: ${channel.tag}`
             : channel.type;
       setUpdateStatus(`Checking ${channelDisplay}...`);
 
@@ -216,38 +216,19 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   return (
     <div className="flex flex-col gap-6">
       {currentVersion && (
-        <div
-          className={`p-3 rounded-md border ${
-            currentVersion.includes("beta")
-              ? "bg-orange-500/10 border-orange-500/30"
-              : "bg-white/5 border-white/10"
-          }`}
-        >
-          <p
-            className={`text-sm ${
-              currentVersion.includes("beta") ? "text-orange-200" : "text-white/60"
-            }`}
-          >
+        <div className="p-3 rounded-md border bg-white/5 border-white/10">
+          <p className="text-sm text-white/60">
             Current Version
-            {currentVersion.includes("beta") && (
-              <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded bg-orange-500/20 text-orange-300">
-                BETA
-              </span>
-            )}
           </p>
-          <p
-            className={`text-lg font-mono ${
-              currentVersion.includes("beta") ? "text-orange-100" : "text-white"
-            }`}
-          >
+          <p className="text-lg text-white">
             {currentVersion}
           </p>
         </div>
       )}
 
       {updateStatus && (
-        <div className="p-3 bg-blue-500/10 rounded-md border border-blue-500/30">
-          <p className="text-sm text-blue-200">{updateStatus}</p>
+        <div className="p-3 bg-white/5 border-white/10">
+          <p className="text-sm text-white">{updateStatus}</p>
         </div>
       )}
 
