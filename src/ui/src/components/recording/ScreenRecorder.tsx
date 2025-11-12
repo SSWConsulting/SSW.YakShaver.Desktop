@@ -6,6 +6,7 @@ import { AuthStatus, UploadStatus } from "../../types";
 import { LLMKeyManager } from "../llm/LLMKeyManager";
 import { McpServerManager } from "../mcp/McpServerManager";
 import { CustomPromptManager } from "../settings/CustomPromptManager";
+import { ReleaseChannelManager } from "../settings/ReleaseChannelManager";
 import { Button } from "../ui/button";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
@@ -96,6 +97,7 @@ export function ScreenRecorder() {
           <McpServerManager />
           <CustomPromptManager />
           <LLMKeyManager />
+          <ReleaseChannelManager />
         </div>
         {!isAuthenticated && (
           <p className="text-sm text-white/60 text-center">

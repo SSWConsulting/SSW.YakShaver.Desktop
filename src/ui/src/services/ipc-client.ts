@@ -114,6 +114,27 @@ declare global {
         deletePrompt: (id: string) => Promise<boolean>;
         setActivePrompt: (id: string) => Promise<boolean>;
       };
+      releaseChannel: {
+        get: () => Promise<{ type: "latest" | "prerelease" | "tag"; tag?: string }>;
+        set: (channel: { type: "latest" | "prerelease" | "tag"; tag?: string }) => Promise<void>;
+        listReleases: () => Promise<{
+          releases: Array<{
+            id: number;
+            tag_name: string;
+            name: string;
+            prerelease: boolean;
+            published_at: string;
+            html_url: string;
+          }>;
+          error?: string;
+        }>;
+        checkUpdates: () => Promise<{
+          available: boolean;
+          error?: string;
+          version?: string;
+        }>;
+        getCurrentVersion: () => Promise<string>;
+      };
     };
   }
 }

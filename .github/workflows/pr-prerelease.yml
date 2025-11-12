@@ -1,0 +1,161 @@
+name: PR Pre-release
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to build"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  APP_NAME: SSW.YakShaver
+  NODE_VERSION: 20
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
+      - name: Create .env from secrets
+        shell: pwsh
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: |
+          "YOUTUBE_CLIENT_ID=$env:YOUTUBE_CLIENT_ID" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
+          Add-Content -Path ".env" -Value "`nYOUTUBE_CLIENT_SECRET=$env:YOUTUBE_CLIENT_SECRET"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
+      - name: Get PR info
+        id: pr_info
+        run: |
+          $prNumber = "${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
+          $prSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+          $shortSha = $prSha.Substring(0, 7)
+          $tagName = "pr-$prNumber-$shortSha"
+          echo "tag=$tagName" >> $env:GITHUB_OUTPUT
+          echo "pr_number=$prNumber" >> $env:GITHUB_OUTPUT
+          echo "pr_sha=$shortSha" >> $env:GITHUB_OUTPUT
+
+      - name: Update version for pre-release
+        run: |
+          $tagName = "${{ steps.pr_info.outputs.tag }}"
+          $version = $tagName -replace "^pr-", ""
+          npm version $version --no-git-tag-version
+
+      - name: Publish Windows pre-release
+        run: npm run publish -- --win --publish never
+        env:
+          NODE_ENV: production
+          CI: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.pr_info.outputs.tag }}
+          name: "Pre-release PR #${{ steps.pr_info.outputs.pr_number }} (${{ steps.pr_info.outputs.pr_sha }})"
+          body: |
+            Pre-release build for PR #${{ steps.pr_info.outputs.pr_number }}
+            
+            Commit: ${{ steps.pr_info.outputs.pr_sha }}
+            PR: ${{ github.event.pull_request.html_url || 'N/A' }}
+            
+            This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
+          prerelease: true
+          files: build/**/*.exe
+          draft: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
+      - name: Create .env from secrets
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: |
+          printf "YOUTUBE_CLIENT_ID=%s\nYOUTUBE_CLIENT_SECRET=%s\n" "$YOUTUBE_CLIENT_ID" "$YOUTUBE_CLIENT_SECRET" > .env
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
+      - name: Get PR info
+        id: pr_info
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
+          PR_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          SHORT_SHA="${PR_SHA:0:7}"
+          TAG_NAME="pr-${PR_NUMBER}-${SHORT_SHA}"
+          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "pr_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Update version for pre-release
+        run: |
+          TAG_NAME="${{ steps.pr_info.outputs.tag }}"
+          VERSION=$(echo "$TAG_NAME" | sed 's/^pr-//')
+          npm version "$VERSION" --no-git-tag-version
+
+      - name: Publish macOS pre-release
+        run: npm run publish -- --mac --publish never
+        env:
+          NODE_ENV: production
+          CI: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.pr_info.outputs.tag }}
+          name: "Pre-release PR #${{ steps.pr_info.outputs.pr_number }} (${{ steps.pr_info.outputs.pr_sha }})"
+          body: |
+            Pre-release build for PR #${{ steps.pr_info.outputs.pr_number }}
+            
+            Commit: ${{ steps.pr_info.outputs.pr_sha }}
+            PR: ${{ github.event.pull_request.html_url || 'N/A' }}
+            
+            This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
+          prerelease: true
+          files: build/**/*.zip
+          draft: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
