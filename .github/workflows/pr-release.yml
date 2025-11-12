@@ -1,0 +1,283 @@
+name: PR Pre-release
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  APP_NAME: SSW.YakShaver
+  NODE_VERSION: 20
+
+jobs:
+  cleanup-release:
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.pr_info.outputs.pr_number }}
+      release_tag: ${{ steps.pr_info.outputs.tag }}
+      channel: ${{ steps.pr_info.outputs.channel }}
+      version: ${{ steps.pr_info.outputs.version }}
+      pr_sha: ${{ steps.pr_info.outputs.pr_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Get PR info
+        id: pr_info
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          SHORT_SHA="${PR_SHA:0:7}"
+          BUILD_TIMESTAMP=$(date +%s)
+          BASE_VERSION=$(node -p 'require("./package.json").version.split("-")[0]')
+          CHANNEL_NAME="beta.${PR_NUMBER}"
+          PRE_RELEASE_VERSION="${BASE_VERSION}-${CHANNEL_NAME}.${BUILD_TIMESTAMP}"
+          TAG_NAME="${PRE_RELEASE_VERSION}"
+          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "channel=${CHANNEL_NAME}" >> $GITHUB_OUTPUT
+          echo "version=${PRE_RELEASE_VERSION}" >> $GITHUB_OUTPUT
+          echo "pr_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "PR: ${PR_NUMBER}, Tag: ${TAG_NAME}, Channel: ${CHANNEL_NAME}, Version: ${PRE_RELEASE_VERSION}"
+
+      - name: Delete existing PR releases
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ steps.pr_info.outputs.pr_number }}"
+
+          echo "Finding and deleting existing releases for PR #${PR_NUMBER}"
+
+          RELEASE_IDS=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .id")
+
+          for id in $RELEASE_IDS; do
+            if [ -n "$id" ]; then
+              echo "Deleting release ID: $id"
+              gh api -X DELETE /repos/${{ github.repository }}/releases/$id || true
+            fi
+          done
+
+          # Also clean up associated tags
+          TAG_NAMES=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .tag_name")
+
+          for tag in $TAG_NAMES; do
+            if [ -n "$tag" ]; then
+              echo "Deleting tag: $tag"
+              gh api -X DELETE /repos/${{ github.repository }}/git/refs/tags/$tag || true
+            fi
+          done
+
+          echo "Cleanup completed"
+
+  build-windows:
+    needs: cleanup-release
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'closed'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
+      - name: Create .env from secrets
+        shell: pwsh
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: |
+          "YOUTUBE_CLIENT_ID=$env:YOUTUBE_CLIENT_ID" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
+          Add-Content -Path ".env" -Value "`nYOUTUBE_CLIENT_SECRET=$env:YOUTUBE_CLIENT_SECRET"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
+      - name: Update version for pre-release
+        shell: pwsh
+        run: |
+          $version = "${{ needs.cleanup-release.outputs.version }}"
+          if (-not $version) {
+            throw "Missing version output"
+          }
+          npm version $version --no-git-tag-version
+
+      - name: Publish Windows pre-release
+        run: npm run publish -- --win --publish never
+        env:
+          NODE_ENV: production
+          CI: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
+
+      - name: Fix update manifest filenames
+        shell: pwsh
+        run: |
+          Get-ChildItem "build/*.yml" | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw
+            $content = $content -replace "YakShaver-Setup-", "YakShaver.Setup."
+            $content | Out-File -FilePath $_.FullName -Encoding utf8 -NoNewline
+            Write-Host "Fixed $($_.Name)"
+          }
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.cleanup-release.outputs.release_tag }}
+          name: "Pre-release PR #${{ needs.cleanup-release.outputs.pr_number }} (${{ needs.cleanup-release.outputs.pr_sha }})"
+          body: |
+            Pre-release build for PR #${{ needs.cleanup-release.outputs.pr_number }}
+
+            Commit: ${{ needs.cleanup-release.outputs.pr_sha }}
+            PR: ${{ github.event.pull_request.html_url || 'N/A' }}
+
+            This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
+          prerelease: true
+          files: |
+            build/*.yml
+            build/YakShaver*Setup*.exe
+            build/YakShaver*Setup*.exe.blockmap
+          draft: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    needs: cleanup-release
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'closed'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
+      - name: Create .env from secrets
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: |
+          printf "YOUTUBE_CLIENT_ID=%s\nYOUTUBE_CLIENT_SECRET=%s\n" "$YOUTUBE_CLIENT_ID" "$YOUTUBE_CLIENT_SECRET" > .env
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
+      - name: Update version for pre-release
+        run: |
+          VERSION="${{ needs.cleanup-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Missing version output"
+            exit 1
+          fi
+          npm version "$VERSION" --no-git-tag-version
+
+      - name: Publish macOS pre-release
+        run: npm run publish -- --mac --publish never
+        env:
+          NODE_ENV: production
+          CI: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.cleanup-release.outputs.release_tag }}
+          name: "Pre-release PR #${{ needs.cleanup-release.outputs.pr_number }} (${{ needs.cleanup-release.outputs.pr_sha }})"
+          body: |
+            Pre-release build for PR #${{ needs.cleanup-release.outputs.pr_number }}
+
+            Commit: ${{ needs.cleanup-release.outputs.pr_sha }}
+            PR: ${{ github.event.pull_request.html_url || 'N/A' }}
+
+            This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
+          prerelease: true
+          files: |
+            build/YakShaver-*-mac.zip
+            build/YakShaver-*-mac.zip.blockmap
+            build/*-mac.yml
+          draft: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  comment-release:
+    runs-on: ubuntu-latest
+    needs:
+      - cleanup-release
+      - build-windows
+      - build-macos
+    if: |
+      github.event.action != 'closed' &&
+      needs.cleanup-release.outputs.pr_number != ''
+    steps:
+      - name: Comment release link on PR
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ needs.cleanup-release.outputs.pr_number }}
+          body: |
+            🚀 Pre-release build is available for this PR:
+            https://github.com/${{ github.repository }}/releases/tag/${{ needs.cleanup-release.outputs.release_tag }}
+
+  delete-release:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed'
+    steps:
+      - name: Delete PR pre-releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          echo "Deleting all releases for closed PR #${PR_NUMBER}"
+          RELEASE_IDS=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .id")
+
+          for id in $RELEASE_IDS; do
+            if [ -n "$id" ]; then
+              echo "Deleting release ID: $id"
+              gh api -X DELETE /repos/${{ github.repository }}/releases/$id || true
+            fi
+          done
+
+          TAG_NAMES=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .tag_name")
+
+          for tag in $TAG_NAMES; do
+            if [ -n "$tag" ]; then
+              echo "Deleting tag: $tag"
+              gh api -X DELETE /repos/${{ github.repository }}/git/refs/tags/$tag || true
+            fi
+          done
+
+          echo "Deletion completed for closed PR"
