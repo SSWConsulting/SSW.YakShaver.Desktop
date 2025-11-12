@@ -273,21 +273,7 @@ const parseFinalOutput = (
 };
 
 export function FinalResultPanel() {
-  // Sample data for testing link behavior
-  const sampleData = JSON.stringify({
-    Status: "success",
-    Title: "Test Issue Created",
-    Description: "This is a test with multiple links to verify they open in default browser",
-    Links: [
-      "https://github.com/SSWConsulting/SSW.YakShaver.Desktop",
-      "https://www.ssw.com.au",
-      "https://www.google.com",
-    ],
-    IssueUrl: "https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/119",
-    Documentation: "Check out https://docs.github.com for more info",
-  });
-
-  const [finalOutput, setFinalOutput] = useState<string | undefined>(sampleData);
+  const [finalOutput, setFinalOutput] = useState<string | undefined>();
 
   useEffect(() => {
     return ipcClient.workflow.onProgress((data: unknown) => {
