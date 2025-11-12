@@ -3,12 +3,6 @@ name: PR Pre-release
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: "PR number to build"
-        required: true
-        type: string
 
 permissions:
   contents: write
