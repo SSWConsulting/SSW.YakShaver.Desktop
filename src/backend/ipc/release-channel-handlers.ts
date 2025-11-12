@@ -387,5 +387,10 @@ export class ReleaseChannelIPCHandlers {
       repo: REPO_NAME,
       private: false,
     });
+
+    console.log(`AutoUpdater configured:`);
+    console.log(`- Channel: ${autoUpdater.channel}`);
+    console.log(`- Allow prerelease: ${autoUpdater.allowPrerelease}`);
+    console.log(`- Allow downgrade: ${autoUpdater.allowDowngrade}`);
   }
 }
