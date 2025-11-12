@@ -102,7 +102,6 @@ export class ReleaseChannelIPCHandlers {
         "User-Agent": `${app.getName()}/${app.getVersion()}`,
       };
 
-      // Try to get token from storage first, fallback to environment variable
       const githubToken = await this.tokenStore.getToken();
       if (githubToken) {
         headers.Authorization = `Bearer ${githubToken}`;
@@ -185,7 +184,7 @@ export class ReleaseChannelIPCHandlers {
         }
 
         // The workflow creates beta versions with timestamp
-        // Tag format: "0.3.7-beta.6.1762910147"
+        // Tag format: "0.3.7-beta.11.1762910147"
         const targetVersion = targetRelease.tag_name;
         const isCurrentlyOnThisVersion = currentVersion === targetVersion;
 
@@ -229,19 +228,18 @@ export class ReleaseChannelIPCHandlers {
         };
       }
 
-      // For latest, use standard autoUpdater
+      // For latest stable channel, use GitHub provider
       await this.configureAutoUpdater(channel);
-
-      // Reset allowDowngrade for stable releases
       autoUpdater.allowDowngrade = false;
 
       const result = await autoUpdater.checkForUpdates();
 
       if (result?.updateInfo) {
         const updateVersion = result.updateInfo.version;
-        const isNewer = this.compareVersions(updateVersion, currentVersion) > 0;
+        // For stable releases, just check if versions are different
+        // electron-updater will handle the version comparison
         return {
-          available: isNewer,
+          available: updateVersion !== currentVersion,
           version: updateVersion,
         };
       }
@@ -253,42 +251,6 @@ export class ReleaseChannelIPCHandlers {
         error: errMsg,
       };
     }
-  }
-
-  private compareVersions(v1: string, v2: string): number {
-    // Parse version strings that may include pre-release identifiers
-    // e.g., "0.3.7", "0.3.7-pr.123", "1.0.0-beta.1"
-
-    const parseVersion = (version: string) => {
-      const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
-      if (!match) {
-        console.warn(`Invalid version format: ${version}`);
-        return { major: 0, minor: 0, patch: 0, prerelease: "" };
-      }
-      return {
-        major: Number.parseInt(match[1], 10),
-        minor: Number.parseInt(match[2], 10),
-        patch: Number.parseInt(match[3], 10),
-        prerelease: match[4] || "",
-      };
-    };
-
-    const v1Parts = parseVersion(v1);
-    const v2Parts = parseVersion(v2);
-
-    // Compare major, minor, patch
-    if (v1Parts.major !== v2Parts.major) return v1Parts.major - v2Parts.major;
-    if (v1Parts.minor !== v2Parts.minor) return v1Parts.minor - v2Parts.minor;
-    if (v1Parts.patch !== v2Parts.patch) return v1Parts.patch - v2Parts.patch;
-
-    // If versions are equal, check pre-release
-    // No pre-release (stable) > pre-release
-    if (!v1Parts.prerelease && v2Parts.prerelease) return 1;
-    if (v1Parts.prerelease && !v2Parts.prerelease) return -1;
-    if (!v1Parts.prerelease && !v2Parts.prerelease) return 0;
-
-    // Both have pre-release, compare alphabetically
-    return v1Parts.prerelease.localeCompare(v2Parts.prerelease);
   }
 
   private getCurrentVersion(): string {

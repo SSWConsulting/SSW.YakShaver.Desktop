@@ -16,7 +16,6 @@ interface GitHubRelease {
 }
 
 type ReleaseChannelType = "latest" | "tag";
-
 export interface ReleaseChannel {
   type: ReleaseChannelType;
   tag?: string;
@@ -43,6 +42,31 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   const [isLoadingReleases, setIsLoadingReleases] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<string>("");
   const [hasGitHubToken, setHasGitHubToken] = useState<boolean>(false);
+
+  /**
+   * Returns a user-friendly display string for the given release channel.
+   * @param ch The release channel
+   * @return The display string, e.g., "PR Pre-release: 0.3.7-beta.12.1762916882"
+   */
+  const getChannelDisplay = useCallback((ch: ReleaseChannel) => {
+    if (ch.type === "latest") {
+      return "Latest";
+    }
+    if (ch.type === "tag") {
+      return `PR Pre-release: ${ch.tag}`;
+    }
+    return ch.type;
+  }, []);
+
+  /**
+   * Extracts the PR number from a GitHub release's name or body, if available.
+   * @param release The GitHub release object
+   * @return The PR number as a string, or null if not found
+   */
+  const getPRNumberFromRelease = useCallback((release: GitHubRelease): string | null => {
+    const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
+    return prMatch ? prMatch[1] : null;
+  }, []);
 
   const loadChannel = useCallback(async () => {
     try {
@@ -89,16 +113,6 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       console.error("Failed to check GitHub token:", error);
       setHasGitHubToken(false);
     }
-  }, []);
-
-  const getChannelDisplay = useCallback((ch: ReleaseChannel) => {
-    if (ch.type === "latest") {
-      return "Latest";
-    }
-    if (ch.type === "tag") {
-      return `PR Pre-release: ${ch.tag}`;
-    }
-    return ch.type;
   }, []);
 
   useEffect(() => {
@@ -158,20 +172,11 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
     if (value === "__loading" || value === "__empty") {
       return;
     }
-
     if (value === SELECT_LATEST) {
       setChannel({ type: "latest" });
       return;
     }
-
     setChannel({ type: "tag", tag: value });
-  }, []);
-
-  // Extract PR number from release body if available
-  const getPRNumberFromRelease = useCallback((release: GitHubRelease): string | null => {
-    // Look for "PR #123" in the release name or body
-    const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
-    return prMatch ? prMatch[1] : null;
   }, []);
 
   const dropdownOptions = useMemo<DropdownOption[]>(() => {
