@@ -36,13 +36,7 @@ jobs:
       - name: Get PR info
         id: pr_info
         run: |
-          # Determine PR number from different event types
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            PR_NUMBER="${{ github.event.pull_request.number }}"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            PR_NUMBER="${{ github.event.inputs.pr_number }}"
-          fi
-
+          PR_NUMBER="${{ github.event.pull_request.number }}"
           PR_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
           SHORT_SHA="${PR_SHA:0:7}"
           # Use current timestamp instead of commit timestamp
