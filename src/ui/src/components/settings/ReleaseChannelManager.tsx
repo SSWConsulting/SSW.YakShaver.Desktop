@@ -117,9 +117,6 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
     setUpdateStatus("Checking for updates...");
 
     try {
-      console.log("Starting update check...");
-      console.log("Current channel:", channel);
-
       // Save the currently selected channel first before checking for updates
       // This ensures we check for updates on the selected release, not a previously saved one
       await window.electronAPI.releaseChannel.set(channel);
@@ -134,7 +131,6 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       setUpdateStatus(`Checking ${channelDisplay}...`);
 
       const result = await window.electronAPI.releaseChannel.checkUpdates();
-      console.log("Update check result:", result);
 
       if (result.error) {
         console.error("Update error:", result.error);

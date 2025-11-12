@@ -109,7 +109,6 @@ export class ReleaseChannelIPCHandlers {
 
   private async setChannel(channel: ReleaseChannel): Promise<void> {
     await this.store.setChannel(channel);
-    // Reconfigure autoUpdater with new channel
     this.configureAutoUpdater(channel);
   }
 
@@ -128,7 +127,7 @@ export class ReleaseChannelIPCHandlers {
         "User-Agent": `${app.getName()}/${app.getVersion()}`,
       };
 
-      const githubToken = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
+      const githubToken = process.env.GITHUB_TOKEN;
       if (githubToken) {
         headers.Authorization = `Bearer ${githubToken}`;
       }
@@ -186,7 +185,6 @@ export class ReleaseChannelIPCHandlers {
   }> {
     // Skip update checks in development/unpackaged mode
     if (!app.isPackaged) {
-      console.log("Update check skipped: app is not packaged");
       return {
         available: false,
         error: "Update checks are only available in packaged applications",
@@ -196,7 +194,6 @@ export class ReleaseChannelIPCHandlers {
     try {
       const channel = await this.getChannel();
       const currentVersion = this.getCurrentVersion();
-      console.log(`Checking for updates: current version ${currentVersion}, channel:`, channel);
 
       // For tag-based channels (PR releases)
       if (channel.type === "tag" && channel.tag) {
@@ -228,8 +225,6 @@ export class ReleaseChannelIPCHandlers {
 
         // If not on this version, trigger download
         if (!isCurrentlyOnThisVersion) {
-          console.log("Triggering download for PR release...");
-
           // For PR-specific releases, use generic provider pointing to the specific release
           // Extract PR number from tag to get the correct yml filename (beta.11.yml format)
           const prMatch = channel.tag.match(/beta\.(\d+)\./);
@@ -278,7 +273,6 @@ export class ReleaseChannelIPCHandlers {
 
       // For latest/prerelease, use standard autoUpdater
       this.configureAutoUpdater(channel);
-      console.log(`Using autoUpdater for ${channel.type} channel`);
 
       // Reset allowDowngrade for stable releases
       autoUpdater.allowDowngrade = false;
@@ -294,8 +288,6 @@ export class ReleaseChannelIPCHandlers {
           version: updateVersion,
         };
       }
-
-      console.log("No updates found");
       return { available: false };
     } catch (error) {
       console.error("Update check failed:", error);
@@ -365,12 +357,10 @@ export class ReleaseChannelIPCHandlers {
       autoUpdater.channel = "latest";
       autoUpdater.allowPrerelease = false;
       autoUpdater.allowDowngrade = false;
-      console.log("Configured autoUpdater for latest channel");
     } else if (channel.type === "prerelease") {
       autoUpdater.channel = "beta";
       autoUpdater.allowPrerelease = true;
       autoUpdater.allowDowngrade = false;
-      console.log("Configured autoUpdater for prerelease channel");
     } else if (channel.type === "tag" && channel.tag) {
       // For PR releases, extract PR number from version tag
       // Version format: "0.3.7-beta.{PR_NUMBER}.{TIMESTAMP}"
@@ -379,11 +369,9 @@ export class ReleaseChannelIPCHandlers {
       if (prMatch) {
         const prNumber = prMatch[1];
         autoUpdater.channel = `beta.${prNumber}`;
-        console.log(`Configured autoUpdater for PR #${prNumber} → channel: beta.${prNumber}`);
       } else {
         // Fallback to generic beta channel for old format versions
         autoUpdater.channel = "beta";
-        console.log(`Configured autoUpdater for tag ${channel.tag} → using beta channel`);
       }
       
       autoUpdater.allowPrerelease = true;
@@ -397,10 +385,5 @@ export class ReleaseChannelIPCHandlers {
       repo: REPO_NAME,
       private: false,
     });
-
-    console.log(`AutoUpdater configured:`);
-    console.log(`- Channel: ${autoUpdater.channel}`);
-    console.log(`- Allow prerelease: ${autoUpdater.allowPrerelease}`);
-    console.log(`- Allow downgrade: ${autoUpdater.allowDowngrade}`);
   }
 }
