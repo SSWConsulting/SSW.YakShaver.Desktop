@@ -230,7 +230,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="release-select" className="text-white">
-            Select Release Channel
+            Select Release Channel To Test
           </Label>
           <Select value={selectValue} onValueChange={handleSelectionChange}>
             <SelectTrigger className="bg-white/5 border-white/20 text-white">

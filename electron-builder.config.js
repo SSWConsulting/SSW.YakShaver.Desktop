@@ -44,7 +44,7 @@ module.exports = {
   publish: [
     {
       provider: "github",
-      owner: "babakamyljanovssw",
+      owner: "SSWConsulting",
       repo: "SSW.YakShaver.Desktop",
       private: false,
       releaseType: process.env.RELEASE_TYPE || "release",
