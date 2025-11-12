@@ -1,4 +1,5 @@
 import type { MCPServerConfig } from "@/components/mcp/McpServerForm";
+import type { ReleaseChannel } from "@/components/settings/ReleaseChannelManager";
 import type {
   AuthResult,
   AuthState,
@@ -115,8 +116,8 @@ declare global {
         setActivePrompt: (id: string) => Promise<boolean>;
       };
       releaseChannel: {
-        get: () => Promise<{ type: "latest" | "prerelease" | "tag"; tag?: string }>;
-        set: (channel: { type: "latest" | "prerelease" | "tag"; tag?: string }) => Promise<void>;
+        get: () => Promise<ReleaseChannel>;
+        set: (channel: ReleaseChannel) => Promise<void>;
         listReleases: () => Promise<{
           releases: Array<{
             id: number;

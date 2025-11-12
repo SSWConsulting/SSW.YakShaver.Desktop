@@ -1,6 +1,7 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
 import type { MCPServerConfig } from "./services/mcp/types";
+import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
 // Need to make single source of truth
@@ -188,8 +189,7 @@ const electronAPI = {
   },
   releaseChannel: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),
-    set: (channel: { type: "latest" | "prerelease" | "tag"; tag?: string }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_SET, channel),
+    set: (channel: ReleaseChannel) => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_SET, channel),
     listReleases: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_LIST_RELEASES),
     checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_CHECK_UPDATES),
     getCurrentVersion: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET_CURRENT_VERSION),

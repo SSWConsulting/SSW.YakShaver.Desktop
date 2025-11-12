@@ -15,8 +15,10 @@ interface GitHubRelease {
   html_url: string;
 }
 
-interface ReleaseChannel {
-  type: "latest" | "prerelease" | "tag";
+type ReleaseChannelType = "latest" | "tag";
+
+export interface ReleaseChannel {
+  type: ReleaseChannelType;
   tag?: string;
 }
 
@@ -45,11 +47,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   const loadChannel = useCallback(async () => {
     try {
       const currentChannel = await window.electronAPI.releaseChannel.get();
-      if (currentChannel.type === "prerelease") {
-        setChannel({ type: "latest" });
-      } else {
-        setChannel(currentChannel);
-      }
+      setChannel(currentChannel);
     } catch (error) {
       const errMsg = formatErrorMessage(error);
       toast.error(`Failed to load release channel settings: ${errMsg}`);
@@ -111,24 +109,6 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       void checkGitHubToken();
     }
   }, [isActive, loadChannel, loadReleases, loadCurrentVersion, checkGitHubToken]);
-
-  const handleSave = useCallback(async () => {
-    setIsLoading(true);
-    setUpdateStatus("");
-    try {
-      await window.electronAPI.releaseChannel.set(channel);
-
-      const channelDisplay = getChannelDisplay(channel);
-      setUpdateStatus(`✅ Channel saved: ${channelDisplay}`);
-      toast.success("Release channel updated successfully");
-    } catch (error) {
-      const errMsg = formatErrorMessage(error);
-      setUpdateStatus("❌ Failed to save channel");
-      toast.error(`Failed to save release channel settings: ${errMsg}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [channel, getChannelDisplay]);
 
   const handleCheckUpdates = useCallback(async () => {
     setIsLoading(true);
@@ -289,19 +269,11 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
 
       <div className="flex gap-3 justify-end pt-2">
         <Button
-          variant="outline"
+          variant="secondary"
           onClick={handleCheckUpdates}
           disabled={isLoading || !hasGitHubToken}
-          className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-800/80 hover:text-white/80"
         >
           Check for Updates
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={handleSave}
-          disabled={isLoading || !hasGitHubToken || (channel.type === "tag" && !channel.tag)}
-        >
-          {isLoading ? "Saving..." : "Save"}
         </Button>
       </div>
     </div>

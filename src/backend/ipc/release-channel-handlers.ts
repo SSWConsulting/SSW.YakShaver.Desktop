@@ -54,7 +54,7 @@ export class ReleaseChannelIPCHandlers {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
-    autoUpdater.on("update-downloaded", () => {
+    autoUpdater.on("update-downloaded", (info) => {
       dialog
         .showMessageBox({
           type: "info",
@@ -229,7 +229,7 @@ export class ReleaseChannelIPCHandlers {
         };
       }
 
-      // For latest/prerelease, use standard autoUpdater
+      // For latest, use standard autoUpdater
       await this.configureAutoUpdater(channel);
 
       // Reset allowDowngrade for stable releases
@@ -323,10 +323,6 @@ export class ReleaseChannelIPCHandlers {
     if (channel.type === "latest") {
       autoUpdater.channel = "latest";
       autoUpdater.allowPrerelease = false;
-      autoUpdater.allowDowngrade = false;
-    } else if (channel.type === "prerelease") {
-      autoUpdater.channel = "beta";
-      autoUpdater.allowPrerelease = true;
       autoUpdater.allowDowngrade = false;
     } else if (channel.type === "tag" && channel.tag) {
       autoUpdater.channel = this.extractChannelFromTag(channel.tag);

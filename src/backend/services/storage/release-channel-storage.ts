@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import { BaseSecureStorage } from "./base-secure-storage";
 
-export type ReleaseChannelType = "latest" | "prerelease" | "tag";
+type ReleaseChannelType = "latest" | "tag";
 
 export interface ReleaseChannel {
   type: ReleaseChannelType;
-  tag?: string; // For "tag" type, specifies which tag to use
+  tag?: string;
 }
 
 const SETTINGS_FILE = "release-channel.enc";
