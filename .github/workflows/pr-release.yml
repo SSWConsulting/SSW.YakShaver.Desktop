@@ -42,22 +42,30 @@ jobs:
       - name: Get PR info
         id: pr_info
         run: |
-          PR_NUMBER="${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
+          # Determine PR number from different event types
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+
           PR_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
           SHORT_SHA="${PR_SHA:0:7}"
           # Use current timestamp instead of commit timestamp
           # This ensures the most recently run workflow creates the newest version
           BUILD_TIMESTAMP=$(date +%s)
           BASE_VERSION=$(node -p 'require("./package.json").version.split("-")[0]')
-          PRE_RELEASE_VERSION="${BASE_VERSION}-beta.${BUILD_TIMESTAMP}"
+          # Use PR-specific channel: beta.{PR_NUMBER}
+          CHANNEL_NAME="beta.${PR_NUMBER}"
+          PRE_RELEASE_VERSION="${BASE_VERSION}-${CHANNEL_NAME}.${BUILD_TIMESTAMP}"
           TAG_NAME="${PRE_RELEASE_VERSION}"
-          CHANNEL_NAME="beta"
           echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           echo "channel=${CHANNEL_NAME}" >> $GITHUB_OUTPUT
           echo "version=${PRE_RELEASE_VERSION}" >> $GITHUB_OUTPUT
           echo "pr_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "PR: ${PR_NUMBER}, Tag: ${TAG_NAME}, Channel: ${CHANNEL_NAME}, Version: ${PRE_RELEASE_VERSION}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Delete existing PR releases
         continue-on-error: true
