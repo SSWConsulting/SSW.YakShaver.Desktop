@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { formatErrorMessage } from "@/utils";
 
 interface GitHubRelease {
   id: number;
@@ -49,8 +50,8 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
         setChannel(currentChannel);
       }
     } catch (error) {
-      console.error("Failed to load release channel:", error);
-      toast.error("Failed to load release channel settings");
+      const errMsg = formatErrorMessage(error);
+      toast.error(`Failed to load release channel settings: ${errMsg}`);
     }
   }, []);
 
@@ -64,8 +65,8 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
         setReleases(response.releases || []);
       }
     } catch (error) {
-      console.error("Failed to load releases:", error);
-      toast.error("Failed to load releases");
+      const errMsg = formatErrorMessage(error);
+      toast.error(`Failed to load releases: ${errMsg}`);
     } finally {
       setIsLoadingReleases(false);
     }
@@ -76,7 +77,8 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       const version = await window.electronAPI.releaseChannel.getCurrentVersion();
       setCurrentVersion(version);
     } catch (error) {
-      console.error("Failed to load current version:", error);
+      const errMsg = formatErrorMessage(error);
+      toast.error(`Failed to load current version: ${errMsg}`);
     }
   }, []);
 
@@ -104,9 +106,9 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       setUpdateStatus(`✅ Channel saved: ${channelDisplay}`);
       toast.success("Release channel updated successfully");
     } catch (error) {
-      console.error("Failed to save release channel:", error);
+      const errMsg = formatErrorMessage(error);
       setUpdateStatus("❌ Failed to save channel");
-      toast.error("Failed to save release channel settings");
+      toast.error(`Failed to save release channel settings: ${errMsg}`);
     } finally {
       setIsLoading(false);
     }
@@ -133,11 +135,9 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       const result = await window.electronAPI.releaseChannel.checkUpdates();
 
       if (result.error) {
-        console.error("Update error:", result.error);
         setUpdateStatus(`❌ Error: ${result.error}`);
         toast.error(`Update check failed: ${result.error}`);
       } else if (result.available) {
-        console.log("Update available! Version:", result.version);
         setUpdateStatus(
           `✅ Update found: ${result.version || "unknown"} - Download will start automatically`,
         );
@@ -145,15 +145,13 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
           `Update available! Version ${result.version || "unknown"} will download automatically.`,
         );
       } else {
-        console.log("No updates available");
         setUpdateStatus(`✅ You are on the latest version (${currentVersion})`);
         toast.info("You are on the latest version");
       }
     } catch (error) {
-      console.error("Failed to check for updates:", error);
-      const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      setUpdateStatus(`❌ Failed: ${errorMsg}`);
-      toast.error("Failed to check for updates");
+      const errMsg = formatErrorMessage(error);
+      setUpdateStatus(`❌ Failed: ${errMsg}`);
+      toast.error(`Failed to check for updates: ${errMsg}`);
     } finally {
       setIsLoading(false);
     }
@@ -176,7 +174,6 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       return;
     }
 
-    // When selecting a tag (which is the full version like "0.3.7-beta.1731234567")
     setChannel({ type: "tag", tag: value });
   }, []);
 
@@ -195,7 +192,6 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
     }
     
     // Sort by published date (newest first)
-    // Since workflow now uses build timestamp, published_at matches version order
     const sorted = prereleases.sort(
       (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
     );
