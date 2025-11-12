@@ -3,12 +3,6 @@ name: PR Pre-release
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: "PR number to build"
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -42,20 +36,11 @@ jobs:
       - name: Get PR info
         id: pr_info
         run: |
-          # Determine PR number from different event types
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            PR_NUMBER="${{ github.event.pull_request.number }}"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            PR_NUMBER="${{ github.event.inputs.pr_number }}"
-          fi
-
+          PR_NUMBER="${{ github.event.pull_request.number }}"
           PR_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
           SHORT_SHA="${PR_SHA:0:7}"
-          # Use current timestamp instead of commit timestamp
-          # This ensures the most recently run workflow creates the newest version
           BUILD_TIMESTAMP=$(date +%s)
           BASE_VERSION=$(node -p 'require("./package.json").version.split("-")[0]')
-          # Use PR-specific channel: beta.{PR_NUMBER}
           CHANNEL_NAME="beta.${PR_NUMBER}"
           PRE_RELEASE_VERSION="${BASE_VERSION}-${CHANNEL_NAME}.${BUILD_TIMESTAMP}"
           TAG_NAME="${PRE_RELEASE_VERSION}"
@@ -75,8 +60,13 @@ jobs:
 
           echo "Finding and deleting existing releases for PR #${PR_NUMBER}"
 
-          RELEASE_IDS=$(gh api /repos/${{ github.repository }}/releases?per_page=100 --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .id")
+          # Collect both release IDs and tag names BEFORE deleting anything
+          RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | {id: .id, tag: .tag_name}")
 
+          RELEASE_IDS=$(echo "$RELEASES_DATA" | jq -r '.id')
+          TAG_NAMES=$(echo "$RELEASES_DATA" | jq -r '.tag')
+
+          # Now delete the releases
           for id in $RELEASE_IDS; do
             if [ -n "$id" ]; then
               echo "Deleting release ID: $id"
@@ -84,9 +74,7 @@ jobs:
             fi
           done
 
-          # Also clean up associated tags
-          TAG_NAMES=$(gh api /repos/${{ github.repository }}/releases?per_page=100 --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .tag_name")
-
+          # Clean up associated tags (collected before deletion)
           for tag in $TAG_NAMES; do
             if [ -n "$tag" ]; then
               echo "Deleting tag: $tag"
@@ -150,10 +138,6 @@ jobs:
       - name: Fix update manifest filenames
         shell: pwsh
         run: |
-          # electron-builder with generateUpdatesFilesForAllChannels creates files for all channels
-          # But we need to fix the filename format mismatch
-          # yml has "YakShaver-Setup" but actual file is "YakShaver.Setup"
-
           Get-ChildItem "build/*.yml" | ForEach-Object {
             $content = Get-Content $_.FullName -Raw
             $content = $content -replace "YakShaver-Setup-", "YakShaver.Setup."
@@ -230,11 +214,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
 
-      - name: List generated update files
-        run: |
-          echo "Generated update manifest files:"
-          ls -la build/*.yml || echo "No yml files found"
-
       - name: Create or update GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -288,8 +267,13 @@ jobs:
 
           echo "Deleting all releases for closed PR #${PR_NUMBER}"
 
-          RELEASE_IDS=$(gh api /repos/${{ github.repository }}/releases?per_page=100 --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .id")
+          # Collect both release IDs and tag names BEFORE deleting anything
+          RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | {id: .id, tag: .tag_name}")
 
+          RELEASE_IDS=$(echo "$RELEASES_DATA" | jq -r '.id')
+          TAG_NAMES=$(echo "$RELEASES_DATA" | jq -r '.tag')
+
+          # Delete the releases
           for id in $RELEASE_IDS; do
             if [ -n "$id" ]; then
               echo "Deleting release ID: $id"
@@ -297,8 +281,7 @@ jobs:
             fi
           done
 
-          TAG_NAMES=$(gh api /repos/${{ github.repository }}/releases?per_page=100 --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | .tag_name")
-
+          # Clean up associated tags (collected before deletion)
           for tag in $TAG_NAMES; do
             if [ -n "$tag" ]; then
               echo "Deleting tag: $tag"
