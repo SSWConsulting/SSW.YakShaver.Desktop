@@ -42,7 +42,12 @@ jobs:
       - name: Get PR info
         id: pr_info
         run: |
-          PR_NUMBER="${{ github.event.pull_request.number || github.event.inputs.pr_number }}"
+          # Determine PR number from different event types
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+          
           PR_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
           SHORT_SHA="${PR_SHA:0:7}"
           # Use current timestamp instead of commit timestamp
@@ -58,6 +63,9 @@ jobs:
           echo "channel=${CHANNEL_NAME}" >> $GITHUB_OUTPUT
           echo "version=${PRE_RELEASE_VERSION}" >> $GITHUB_OUTPUT
           echo "pr_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "PR: ${PR_NUMBER}, Tag: ${TAG_NAME}, Channel: ${CHANNEL_NAME}, Version: ${PRE_RELEASE_VERSION}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           echo "PR: ${PR_NUMBER}, Tag: ${TAG_NAME}, Channel: ${CHANNEL_NAME}, Version: ${PRE_RELEASE_VERSION}"
 
       - name: Delete existing PR releases
