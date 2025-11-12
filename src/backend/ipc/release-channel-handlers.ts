@@ -128,7 +128,7 @@ export class ReleaseChannelIPCHandlers {
         const baseError = `Failed to fetch releases: ${response.statusText}`;
         const errorMessage =
           response.status === 403 && /rate limit/i.test(errorBody)
-            ? "GitHub API rate limit exceeded. Please configure a GitHub token in the application .env file."
+            ? "GitHub API rate limit exceeded. Please configure a GitHub token in Settings | GitHub Token"
             : baseError;
 
         return {
