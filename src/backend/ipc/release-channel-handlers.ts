@@ -239,6 +239,7 @@ export class ReleaseChannelIPCHandlers {
           try {
             const result = await autoUpdater.checkForUpdates();
             if (result?.updateInfo) {
+              console.log(`Update available: ${result.updateInfo.version}`);
               return {
                 available: true,
                 version: targetVersion,
