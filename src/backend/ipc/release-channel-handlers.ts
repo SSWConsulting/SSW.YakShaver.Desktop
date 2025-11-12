@@ -63,6 +63,11 @@ export class ReleaseChannelIPCHandlers {
 
     autoUpdater.on("error", (err) => {
       console.error("AutoUpdater error:", err);
+      console.error("Error details:", {
+        message: err.message,
+        stack: err.stack,
+        channel: autoUpdater.channel,
+      });
     });
 
     autoUpdater.on("download-progress", (progressObj) => {
