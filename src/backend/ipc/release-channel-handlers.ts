@@ -212,7 +212,7 @@ export class ReleaseChannelIPCHandlers {
         console.log(`Found target release: ${targetRelease.name}, tag: ${targetRelease.tag_name}`);
 
         // The workflow creates beta versions with timestamp
-        // Tag format: "0.3.7-beta.1731234567"
+        // Tag format: "0.3.7-beta.6.1762910147"
         // We check if user is on a different version than the selected tag
         const targetVersion = targetRelease.tag_name;
         const isCurrentlyOnThisVersion = currentVersion === targetVersion;
