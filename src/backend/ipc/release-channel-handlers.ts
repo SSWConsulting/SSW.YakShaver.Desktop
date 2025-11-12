@@ -146,9 +146,10 @@ export class ReleaseChannelIPCHandlers {
 
       return { releases };
     } catch (error) {
+      const errMsg = formatErrorMessage(error);
       return {
         releases: [],
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: errMsg,
       };
     }
   }
@@ -236,8 +237,6 @@ export class ReleaseChannelIPCHandlers {
 
       if (result?.updateInfo) {
         const updateVersion = result.updateInfo.version;
-        // For stable releases, just check if versions are different
-        // electron-updater will handle the version comparison
         return {
           available: updateVersion !== currentVersion,
           version: updateVersion,

@@ -1,5 +1,5 @@
 import type { MCPServerConfig } from "@/components/mcp/McpServerForm";
-import type { ReleaseChannel } from "@/components/settings/ReleaseChannelManager";
+import type { GitHubRelease, ReleaseChannel } from "@/components/settings/ReleaseChannelManager";
 import type {
   AuthResult,
   AuthState,
@@ -119,14 +119,7 @@ declare global {
         get: () => Promise<ReleaseChannel>;
         set: (channel: ReleaseChannel) => Promise<void>;
         listReleases: () => Promise<{
-          releases: Array<{
-            id: number;
-            tag_name: string;
-            name: string;
-            prerelease: boolean;
-            published_at: string;
-            html_url: string;
-          }>;
+          releases: Array<GitHubRelease>;
           error?: string;
         }>;
         checkUpdates: () => Promise<{
