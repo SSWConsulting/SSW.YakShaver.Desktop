@@ -39,16 +39,50 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
     }
   };
 
+  const linkifyText = (text: string): React.ReactNode => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+
+    return (
+      <>
+        {parts.map((part, index) => {
+          if (part.match(urlRegex)) {
+            return (
+              <a
+                key={`link-${part}`}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 underline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.open(part, "_blank");
+                }}
+              >
+                {part}
+              </a>
+            );
+          }
+          return <span key={`text-${part.slice(0, 20)}-${index}`}>{part}</span>;
+        })}
+      </>
+    );
+  };
+
   const renderValue = (value: unknown): React.ReactNode => {
     if (typeof value === "string") {
       if (isValidUrl(value)) {
         return (
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="group flex items-center gap-2 p-2 bg-white/5 rounded-md border border-white/10 hover:border-white/20 transition-colors">
             <a
               href={value}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-white/90 hover:text-white transition-colors break-all underline"
+              className="flex-1 text-sm text-blue-400 hover:text-blue-300 transition-colors break-all font-mono"
+              onClick={(e) => {
+                e.preventDefault();
+                window.open(value, "_blank");
+              }}
             >
               {value}
             </a>
@@ -56,22 +90,29 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
               <button
                 type="button"
                 onClick={() => copyToClipboard(value)}
-                className="text-white/40 hover:text-white/80 p-1.5 rounded-md transition-colors hover:bg-white/5"
+                className="p-1.5 rounded-md text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
                 title="Copy to clipboard"
               >
                 <Copy className="w-3.5 h-3.5" />
               </button>
-              <a
-                href={value}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-white/40 hover:text-white/80 p-1.5 rounded-md transition-colors hover:bg-white/5"
-                title="Open in new tab"
+              <button
+                type="button"
+                onClick={() => window.open(value, "_blank")}
+                className="p-1.5 rounded-md text-white/40 hover:text-white/80 hover:bg-white/10 transition-colors"
+                title="Open in browser"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+              </button>
             </div>
           </div>
+        );
+      }
+      // Check if text contains URLs and linkify them
+      if (value.match(/(https?:\/\/[^\s]+)/g)) {
+        return (
+          <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
+            {linkifyText(value)}
+          </p>
         );
       }
       return <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">{value}</p>;
@@ -110,13 +151,19 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
       }
 
       return (
-        <ul className="space-y-1.5 list-disc list-inside text-white/90">
+        <div className="space-y-2">
           {value.map((item, index) => (
-            <li key={getKey(index)} className="text-sm">
-              {typeof item === "object" && item !== null ? renderValue(item) : String(item)}
-            </li>
+            <div key={getKey(index)}>
+              {typeof item === "object" && item !== null ? (
+                renderValue(item)
+              ) : typeof item === "string" ? (
+                renderValue(item)
+              ) : (
+                <span className="text-sm text-white/90">{String(item)}</span>
+              )}
+            </div>
           ))}
-        </ul>
+        </div>
       );
     }
 
@@ -153,7 +200,21 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
 }
 
 export function FinalResultPanel() {
-  const [finalOutput, setFinalOutput] = useState<string | undefined>();
+  // Sample data for testing link behavior
+  const sampleData = JSON.stringify({
+    Status: "success",
+    Title: "Test Issue Created",
+    Description: "This is a test with multiple links to verify they open in default browser",
+    Links: [
+      "https://github.com/SSWConsulting/SSW.YakShaver.Desktop",
+      "https://www.ssw.com.au",
+      "https://www.google.com",
+    ],
+    IssueUrl: "https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/119",
+    Documentation: "Check out https://docs.github.com for more info",
+  });
+
+  const [finalOutput, setFinalOutput] = useState<string | undefined>(sampleData);
 
   useEffect(() => {
     return ipcClient.workflow.onProgress((data: unknown) => {

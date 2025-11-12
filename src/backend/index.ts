@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, session } from "electron";
+import { app, BrowserWindow, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { registerEventForwarders } from "./events/event-forwarder";
@@ -50,6 +50,15 @@ const createWindow = (): void => {
       contextIsolation: true,
       preload: join(__dirname, "preload.js"),
     },
+  });
+
+  // URLs - by default, open in default browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      shell.openExternal(url);
+      return { action: "deny" };
+    }
+    return { action: "allow" };
   });
 
   mainWindow.once("ready-to-show", () => {
