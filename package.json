@@ -11,7 +11,7 @@
     "start": "npm run build && electron .",
     "dev": "concurrently \"cd src/ui && npm run dev\" \"wait-on http://localhost:3000 && npm run build && cross-env NODE_ENV=development electron .\"",
     "package": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --dir",
-    "make": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder  --config electron-builder.config.js",
+    "make": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --config electron-builder.config.js",
     "publish": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --publish always --config electron-builder.config.js",
     "lint": "biome check --write .",
     "format": "biome format --write ."
