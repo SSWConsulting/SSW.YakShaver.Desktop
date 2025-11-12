@@ -1,7 +1,9 @@
 import { app, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
+import { GitHubTokenStorage } from "../services/storage/github-token-storage";
 import type { ReleaseChannel } from "../services/storage/release-channel-storage";
 import { ReleaseChannelStorage } from "../services/storage/release-channel-storage";
+import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 interface GitHubRelease {
@@ -25,12 +27,12 @@ const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export class ReleaseChannelIPCHandlers {
   private store = ReleaseChannelStorage.getInstance();
+  private tokenStore = GitHubTokenStorage.getInstance();
   private releasesCache: {
     releases: GitHubRelease[];
     fetchedAt: number;
     etag?: string;
   } | null = null;
-  private updateDownloaded = false;
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.RELEASE_CHANNEL_GET, () => this.getChannel());
@@ -52,34 +54,7 @@ export class ReleaseChannelIPCHandlers {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
-    autoUpdater.on("update-available", (info) => {
-      console.log("Update available:", info.version);
-      console.log("Starting download...");
-    });
-
-    autoUpdater.on("update-not-available", (info) => {
-      console.log("Update not available:", info.version);
-    });
-
-    autoUpdater.on("error", (err) => {
-      console.error("AutoUpdater error:", err);
-      console.error("Error details:", {
-        message: err.message,
-        stack: err.stack,
-        channel: autoUpdater.channel,
-      });
-    });
-
-    autoUpdater.on("download-progress", (progressObj) => {
-      console.log(
-        `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}%`,
-      );
-    });
-
-    autoUpdater.on("update-downloaded", (info) => {
-      console.log("Update downloaded:", info.version);
-      this.updateDownloaded = true;
-
+    autoUpdater.on("update-downloaded", () => {
       dialog
         .showMessageBox({
           type: "info",
@@ -109,7 +84,7 @@ export class ReleaseChannelIPCHandlers {
 
   private async setChannel(channel: ReleaseChannel): Promise<void> {
     await this.store.setChannel(channel);
-    this.configureAutoUpdater(channel);
+    await this.configureAutoUpdater(channel);
   }
 
   private async listReleases(forceRefresh = false): Promise<GitHubReleaseResponse> {
@@ -127,7 +102,8 @@ export class ReleaseChannelIPCHandlers {
         "User-Agent": `${app.getName()}/${app.getVersion()}`,
       };
 
-      const githubToken = process.env.GITHUB_TOKEN;
+      // Try to get token from storage first, fallback to environment variable
+      const githubToken = await this.tokenStore.getToken();
       if (githubToken) {
         headers.Authorization = `Bearer ${githubToken}`;
       }
@@ -199,52 +175,34 @@ export class ReleaseChannelIPCHandlers {
       if (channel.type === "tag" && channel.tag) {
         const releases = await this.listReleases(true);
         if (releases.error) {
-          console.error("Failed to fetch releases:", releases.error);
           return { available: false, error: releases.error };
         }
 
         // Find the release with matching tag
-        // The workflow creates releases with tags like "0.3.7-beta.1731234567"
         const targetRelease = releases.releases.find((r) => r.tag_name === channel.tag);
         if (!targetRelease) {
-          console.warn(`Release ${channel.tag} not found in ${releases.releases.length} releases`);
           return { available: false, error: `Release ${channel.tag} not found` };
         }
 
-        console.log(`Found target release: ${targetRelease.name}, tag: ${targetRelease.tag_name}`);
-
         // The workflow creates beta versions with timestamp
         // Tag format: "0.3.7-beta.6.1762910147"
-        // We check if user is on a different version than the selected tag
         const targetVersion = targetRelease.tag_name;
         const isCurrentlyOnThisVersion = currentVersion === targetVersion;
 
-        console.log(
-          `PR release check: tag=${channel.tag}, target version=${targetVersion}, current=${currentVersion}, match=${isCurrentlyOnThisVersion}`,
-        );
-
         // If not on this version, trigger download
         if (!isCurrentlyOnThisVersion) {
-          // For PR-specific releases, use generic provider pointing to the specific release
-          // Extract PR number from tag to get the correct yml filename (beta.11.yml format)
-          const prMatch = channel.tag.match(/beta\.(\d+)\./);
-          const channelName = prMatch ? `beta.${prMatch[1]}` : "beta";
-          
+          const channelName = this.extractChannelFromTag(channel.tag);
           autoUpdater.setFeedURL({
             provider: "generic",
             url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${channel.tag}`,
             channel: channelName,
           });
-          
           autoUpdater.allowPrerelease = true;
           autoUpdater.allowDowngrade = true;
-
-          console.log(`Configured generic provider for ${channel.tag}, channel: ${channelName}`);
 
           try {
             const result = await autoUpdater.checkForUpdates();
             if (result?.updateInfo) {
-              console.log(`Update available: ${result.updateInfo.version}`);
               return {
                 available: true,
                 version: targetVersion,
@@ -257,10 +215,10 @@ export class ReleaseChannelIPCHandlers {
               };
             }
           } catch (error) {
-            console.error("Failed to check/download update:", error);
+            const errMsg = formatErrorMessage(error);
             return {
               available: false,
-              error: error instanceof Error ? error.message : "Failed to download update",
+              error: errMsg,
             };
           }
         }
@@ -272,7 +230,7 @@ export class ReleaseChannelIPCHandlers {
       }
 
       // For latest/prerelease, use standard autoUpdater
-      this.configureAutoUpdater(channel);
+      await this.configureAutoUpdater(channel);
 
       // Reset allowDowngrade for stable releases
       autoUpdater.allowDowngrade = false;
@@ -282,7 +240,6 @@ export class ReleaseChannelIPCHandlers {
       if (result?.updateInfo) {
         const updateVersion = result.updateInfo.version;
         const isNewer = this.compareVersions(updateVersion, currentVersion) > 0;
-        console.log(`Update found: ${updateVersion}, is newer: ${isNewer}`);
         return {
           available: isNewer,
           version: updateVersion,
@@ -290,10 +247,10 @@ export class ReleaseChannelIPCHandlers {
       }
       return { available: false };
     } catch (error) {
-      console.error("Update check failed:", error);
+      const errMsg = formatErrorMessage(error);
       return {
         available: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: errMsg,
       };
     }
   }
@@ -338,13 +295,23 @@ export class ReleaseChannelIPCHandlers {
     return app.getVersion();
   }
 
-  public configureAutoUpdater(channel: ReleaseChannel): void {
+  /**
+   * Extract PR number from a beta tag and return the channel name
+   * @param tag - Version tag like "0.3.7-beta.11.1234567890"
+   * @returns Channel name like "beta.11" or "beta" if no match
+   */
+  private extractChannelFromTag(tag: string): string {
+    const prMatch = tag.match(/beta\.(\d+)\./);
+    return prMatch ? `beta.${prMatch[1]}` : "beta";
+  }
+
+  public async configureAutoUpdater(channel: ReleaseChannel): Promise<void> {
     // Skip configuration in development/unpackaged mode
     if (!app.isPackaged) {
       return;
     }
 
-    const githubToken = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
+    const githubToken = await this.tokenStore.getToken();
     if (githubToken) {
       autoUpdater.requestHeaders = {
         ...autoUpdater.requestHeaders,
@@ -362,18 +329,7 @@ export class ReleaseChannelIPCHandlers {
       autoUpdater.allowPrerelease = true;
       autoUpdater.allowDowngrade = false;
     } else if (channel.type === "tag" && channel.tag) {
-      // For PR releases, extract PR number from version tag
-      // Version format: "0.3.7-beta.{PR_NUMBER}.{TIMESTAMP}"
-      // e.g., "0.3.7-beta.3.1762850000" -> channel "beta.3"
-      const prMatch = channel.tag.match(/beta\.(\d+)\./);
-      if (prMatch) {
-        const prNumber = prMatch[1];
-        autoUpdater.channel = `beta.${prNumber}`;
-      } else {
-        // Fallback to generic beta channel for old format versions
-        autoUpdater.channel = "beta";
-      }
-      
+      autoUpdater.channel = this.extractChannelFromTag(channel.tag);
       autoUpdater.allowPrerelease = true;
       autoUpdater.allowDowngrade = true;
     }

@@ -135,6 +135,12 @@ declare global {
         }>;
         getCurrentVersion: () => Promise<string>;
       };
+      githubToken: {
+        get: () => Promise<string | undefined>;
+        set: (token: string) => Promise<void>;
+        clear: () => Promise<void>;
+        has: () => Promise<boolean>;
+      };
     };
   }
 }

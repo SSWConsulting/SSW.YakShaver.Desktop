@@ -6,6 +6,7 @@ import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
 import { CustomPromptSettingsPanel } from "./CustomPromptManager";
+import { GitHubTokenSettingsPanel } from "./GitHubTokenManager";
 import { ReleaseChannelSettingsPanel } from "./ReleaseChannelManager";
 
 type LeaveHandler = () => Promise<boolean>;
@@ -19,6 +20,10 @@ const TABS: SettingsTab[] = [
   {
     id: "release",
     label: "Releases",
+  },
+  {
+    id: "github",
+    label: "GitHub Token",
   },
   {
     id: "prompts",
@@ -145,6 +150,9 @@ export function SettingsDialog() {
               <div className="pb-4 pr-2">
                 {activeTab?.id === "release" && (
                   <ReleaseChannelSettingsPanel isActive={open && activeTabId === "release"} />
+                )}
+                {activeTab?.id === "github" && (
+                  <GitHubTokenSettingsPanel isActive={open && activeTabId === "github"} />
                 )}
                 {activeTab?.id === "prompts" && (
                   <CustomPromptSettingsPanel

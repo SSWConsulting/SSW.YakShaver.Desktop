@@ -68,4 +68,10 @@ export const IPC_CHANNELS = {
   RELEASE_CHANNEL_LIST_RELEASES: "release-channel:list-releases",
   RELEASE_CHANNEL_CHECK_UPDATES: "release-channel:check-updates",
   RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
+
+  // GitHub Token
+  GITHUB_TOKEN_GET: "github-token:get",
+  GITHUB_TOKEN_SET: "github-token:set",
+  GITHUB_TOKEN_CLEAR: "github-token:clear",
+  GITHUB_TOKEN_HAS: "github-token:has",
 } as const;

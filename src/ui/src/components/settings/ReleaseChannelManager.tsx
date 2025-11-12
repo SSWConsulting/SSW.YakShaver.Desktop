@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { formatErrorMessage } from "@/utils";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { formatErrorMessage } from "@/utils";
 
 interface GitHubRelease {
   id: number;
@@ -40,6 +40,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingReleases, setIsLoadingReleases] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<string>("");
+  const [hasGitHubToken, setHasGitHubToken] = useState<boolean>(false);
 
   const loadChannel = useCallback(async () => {
     try {
@@ -82,13 +83,34 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
     }
   }, []);
 
+  const checkGitHubToken = useCallback(async () => {
+    try {
+      const tokenExists = await window.electronAPI.githubToken.has();
+      setHasGitHubToken(tokenExists);
+    } catch (error) {
+      console.error("Failed to check GitHub token:", error);
+      setHasGitHubToken(false);
+    }
+  }, []);
+
+  const getChannelDisplay = useCallback((ch: ReleaseChannel) => {
+    if (ch.type === "latest") {
+      return "Latest";
+    }
+    if (ch.type === "tag") {
+      return `PR Pre-release: ${ch.tag}`;
+    }
+    return ch.type;
+  }, []);
+
   useEffect(() => {
     if (isActive) {
       void loadChannel();
       void loadReleases();
       void loadCurrentVersion();
+      void checkGitHubToken();
     }
-  }, [isActive, loadChannel, loadReleases, loadCurrentVersion]);
+  }, [isActive, loadChannel, loadReleases, loadCurrentVersion, checkGitHubToken]);
 
   const handleSave = useCallback(async () => {
     setIsLoading(true);
@@ -96,13 +118,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
     try {
       await window.electronAPI.releaseChannel.set(channel);
 
-      // Show what channel was saved
-      const channelDisplay =
-        channel.type === "latest"
-          ? "Latest"
-          : channel.type === "tag"
-            ? `PR Pre-release: ${channel.tag}`
-            : channel.type;
+      const channelDisplay = getChannelDisplay(channel);
       setUpdateStatus(`✅ Channel saved: ${channelDisplay}`);
       toast.success("Release channel updated successfully");
     } catch (error) {
@@ -112,7 +128,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
     } finally {
       setIsLoading(false);
     }
-  }, [channel]);
+  }, [channel, getChannelDisplay]);
 
   const handleCheckUpdates = useCallback(async () => {
     setIsLoading(true);
@@ -123,13 +139,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       // This ensures we check for updates on the selected release, not a previously saved one
       await window.electronAPI.releaseChannel.set(channel);
 
-      // Show which channel we're checking
-      const channelDisplay =
-        channel.type === "latest"
-          ? "Latest"
-          : channel.type === "tag"
-            ? `PR Pre-release: ${channel.tag}`
-            : channel.type;
+      const channelDisplay = getChannelDisplay(channel);
       setUpdateStatus(`Checking ${channelDisplay}...`);
 
       const result = await window.electronAPI.releaseChannel.checkUpdates();
@@ -155,7 +165,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
     } finally {
       setIsLoading(false);
     }
-  }, [channel, currentVersion]);
+  }, [channel, currentVersion, getChannelDisplay]);
 
   const selectValue = useMemo(() => {
     if (channel.type === "latest") {
@@ -178,31 +188,29 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   }, []);
 
   // Extract PR number from release body if available
-  const getPRNumberFromRelease = (release: GitHubRelease): string | null => {
+  const getPRNumberFromRelease = useCallback((release: GitHubRelease): string | null => {
     // Look for "PR #123" in the release name or body
     const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
     return prMatch ? prMatch[1] : null;
-  };
+  }, []);
 
   const dropdownOptions = useMemo<DropdownOption[]>(() => {
     const prereleases = releases.filter((release) => release.prerelease);
-    
+
     if (prereleases.length === 0) {
       return [];
     }
-    
+
     // Sort by published date (newest first)
     const sorted = prereleases.sort(
-      (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+      (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
     );
-    
+
     // Show all PR builds with their PR numbers
     return sorted.map((release) => {
       const prNumber = getPRNumberFromRelease(release);
-      
-      const label = prNumber
-        ? `PR #${prNumber}`
-        : release.tag_name;
+
+      const label = prNumber ? `PR #${prNumber}` : release.tag_name;
 
       return {
         value: release.tag_name,
@@ -211,18 +219,20 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
         publishedAt: release.published_at,
       };
     });
-  }, [releases]);
+  }, [releases, getPRNumberFromRelease]);
 
   return (
     <div className="flex flex-col gap-6">
+      {!hasGitHubToken && (
+        <div className="p-4 bg-yellow-500/10 rounded-md border border-yellow-500/30">
+          <h3 className="text-yellow-200 font-medium mb-2">GitHub Token Required</h3>
+        </div>
+      )}
+
       {currentVersion && (
         <div className="p-3 rounded-md border bg-white/5 border-white/10">
-          <p className="text-sm text-white/60">
-            Current Version
-          </p>
-          <p className="text-lg text-white">
-            {currentVersion}
-          </p>
+          <p className="text-sm text-white/60">Current Version</p>
+          <p className="text-lg text-white">{currentVersion}</p>
         </div>
       )}
 
@@ -268,9 +278,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
                 >
                   <div className="flex flex-col">
                     <span>{option.label}</span>
-                    <span className="text-xs">
-                      {new Date(option.publishedAt).toLocaleString()}
-                    </span>
+                    <span className="text-xs">{new Date(option.publishedAt).toLocaleString()}</span>
                   </div>
                 </SelectItem>
               ))}
@@ -283,7 +291,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
         <Button
           variant="outline"
           onClick={handleCheckUpdates}
-          disabled={isLoading}
+          disabled={isLoading || !hasGitHubToken}
           className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-800/80 hover:text-white/80"
         >
           Check for Updates
@@ -291,7 +299,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
         <Button
           variant="secondary"
           onClick={handleSave}
-          disabled={isLoading || (channel.type === "tag" && !channel.tag)}
+          disabled={isLoading || !hasGitHubToken || (channel.type === "tag" && !channel.tag)}
         >
           {isLoading ? "Saving..." : "Save"}
         </Button>

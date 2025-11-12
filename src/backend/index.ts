@@ -6,6 +6,7 @@ import tmp from "tmp";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
+import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
 import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
@@ -77,6 +78,7 @@ let _mcpHandlers: McpIPCHandlers;
 let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
 let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
+let _githubTokenHandlers: GitHubTokenIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
@@ -104,6 +106,7 @@ app.whenReady().then(async () => {
   _mcpHandlers = new McpIPCHandlers(mcpOrchestrator);
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
+  _githubTokenHandlers = new GitHubTokenIPCHandlers();
 
   // Pre-initialize control bar window for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
