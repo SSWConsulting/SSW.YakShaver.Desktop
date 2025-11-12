@@ -230,11 +230,21 @@ export class ReleaseChannelIPCHandlers {
         if (!isCurrentlyOnThisVersion) {
           console.log("Triggering download for PR release...");
 
-          // Configure autoUpdater with beta channel
-          this.configureAutoUpdater(channel);
-
-          // Force allow downgrade for PR releases
+          // For PR-specific releases, use generic provider pointing to the specific release
+          // Extract PR number from tag to get the correct yml filename (beta.11.yml format)
+          const prMatch = channel.tag.match(/beta\.(\d+)\./);
+          const channelName = prMatch ? `beta.${prMatch[1]}` : "beta";
+          
+          autoUpdater.setFeedURL({
+            provider: "generic",
+            url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${channel.tag}`,
+            channel: channelName,
+          });
+          
+          autoUpdater.allowPrerelease = true;
           autoUpdater.allowDowngrade = true;
+
+          console.log(`Configured generic provider for ${channel.tag}, channel: ${channelName}`);
 
           try {
             const result = await autoUpdater.checkForUpdates();
