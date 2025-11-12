@@ -222,7 +222,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       )}
 
       {updateStatus && (
-        <div className="p-3 bg-white/5 border-white/10">
+        <div className="p-3 bg-white/5 border border-white/10">
           <p className="text-sm text-white">{updateStatus}</p>
         </div>
       )}
