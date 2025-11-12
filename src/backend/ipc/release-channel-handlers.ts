@@ -248,7 +248,7 @@ export class ReleaseChannelIPCHandlers {
               return {
                 available: false,
                 error:
-                  "No update found in beta channel. Ensure the PR release includes beta.yml manifest.",
+                  "No update found. Ensure the PR release includes the correct beta.{PR}.yml manifest.",
               };
             }
           } catch (error) {
