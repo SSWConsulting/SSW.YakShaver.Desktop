@@ -4,9 +4,9 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 import { formatErrorMessage } from "@/utils";
-import { ipcClient } from "../../services/ipc-client";
-import type { HealthStatusInfo, LLMConfig } from "../../types";
-import { HealthStatus } from "../health-status/health-status";
+import { ipcClient } from "../../../services/ipc-client";
+import type { HealthStatusInfo, LLMConfig } from "../../../types";
+import { HealthStatus } from "../../health-status/health-status";
 import { type LLMProvider, LLMProviderForm } from "./LLMProviderForm";
 
 const schema = z.discriminatedUnion("provider", [

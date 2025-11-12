@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
-import { ipcClient } from "../../services/ipc-client";
-import { HealthStatus } from "../health-status/health-status";
+import { ipcClient } from "../../../services/ipc-client";
+import { HealthStatus } from "../../health-status/health-status";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,11 +13,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "../ui/alert-dialog";
-import { Button } from "../ui/button";
-import { Card, CardContent } from "../ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
-import { ScrollArea } from "../ui/scroll-area";
+} from "../../ui/alert-dialog";
+import { Button } from "../../ui/button";
+import { Card, CardContent } from "../../ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
+import { ScrollArea } from "../../ui/scroll-area";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 
 type ViewMode = "list" | "add" | "edit";

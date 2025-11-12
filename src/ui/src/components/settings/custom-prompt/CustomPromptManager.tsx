@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CustomPrompt } from "@/types";
-import { usePromptManager } from "../../hooks/usePromptManager";
-import { DeleteConfirmDialog } from "../dialogs/DeleteConfirmDialog";
-import { UnsavedChangesDialog } from "../dialogs/UnsavedChangesDialog";
-import { ScrollArea } from "../ui/scroll-area";
-import { PromptForm, type PromptFormRef } from "./custom-prompt/PromptForm";
-import { PromptListView } from "./custom-prompt/PromptListView";
-import type { PromptFormValues } from "./custom-prompt/schema";
-import type { ViewMode } from "./custom-prompt/types";
+import { usePromptManager } from "../../../hooks/usePromptManager";
+import { DeleteConfirmDialog } from "../../dialogs/DeleteConfirmDialog";
+import { UnsavedChangesDialog } from "../../dialogs/UnsavedChangesDialog";
+import { ScrollArea } from "../../ui/scroll-area";
+import { PromptForm, type PromptFormRef } from "./PromptForm";
+import { PromptListView } from "./PromptListView";
+import type { PromptFormValues } from "./schema";
+import type { ViewMode } from "./types";
 
 interface CustomPromptSettingsPanelProps {
   isActive: boolean;

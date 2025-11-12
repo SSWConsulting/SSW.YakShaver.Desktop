@@ -1,13 +1,13 @@
 import { Settings } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { LLMSettingsPanel } from "../llm/LLMKeyManager";
-import { McpSettingsPanel } from "../mcp/McpServerManager";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
-import { CustomPromptSettingsPanel } from "./CustomPromptManager";
-import { GitHubTokenSettingsPanel } from "./GitHubTokenManager";
-import { ReleaseChannelSettingsPanel } from "./ReleaseChannelManager";
+import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
+import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
+import { LLMSettingsPanel } from "./llm/LLMKeyManager";
+import { McpSettingsPanel } from "./mcp/McpServerManager";
+import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelManager";
 
 type LeaveHandler = () => Promise<boolean>;
 

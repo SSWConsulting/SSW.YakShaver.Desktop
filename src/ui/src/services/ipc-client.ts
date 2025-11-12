@@ -1,5 +1,8 @@
-import type { MCPServerConfig } from "@/components/mcp/McpServerForm";
-import type { GitHubRelease, ReleaseChannel } from "@/components/settings/ReleaseChannelManager";
+import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
+import type {
+  GitHubRelease,
+  ReleaseChannel,
+} from "@/components/settings/release-channels/ReleaseChannelManager";
 import type {
   AuthResult,
   AuthState,
