@@ -181,6 +181,12 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                 <div className="flex flex-col gap-4">
                   {sortedServers.map((server) => {
                     const status = healthStatus[server.name] || {};
+                    const detailText =
+                      server.transport === "streamableHttp"
+                        ? server.url ?? ""
+                        : [server.command, ...(server.args ?? [])]
+                            .filter((part) => !!part?.trim())
+                            .join(" ");
                     return (
                       <Card
                         key={server.name}
@@ -201,7 +207,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                               <div className="flex-1">
                                 <h3 className="text-lg font-semibold text-white">{server.name}</h3>
                                 <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                  {server.url}
+                                  {detailText || ""}
                                 </p>
                               </div>
                             </div>

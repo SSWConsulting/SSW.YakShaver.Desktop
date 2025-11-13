@@ -24,10 +24,13 @@ export class MCPClientWrapper {
     this.transport = this.buildTransport();
   }
 
-  private buildTransport():
-    | StreamableHTTPClientTransport
-    | StdioClientTransport {
+  private buildTransport(): StreamableHTTPClientTransport | StdioClientTransport {
     if (this.serverConfig.transport === "streamableHttp") {
+      if (!this.serverConfig.url) {
+        throw new Error(
+          `MCP server '${this.serverConfig.name}' is missing a URL for streamableHttp transport`,
+        );
+      }
       const headers: Record<string, string> = {};
       if (this.serverConfig.headers) {
         for (const [k, v] of Object.entries(this.serverConfig.headers)) {
@@ -37,16 +40,17 @@ export class MCPClientWrapper {
       const options: StreamableHTTPClientTransportOptions = {
         requestInit: { headers },
       };
-      return new StreamableHTTPClientTransport(
-        new URL(this.serverConfig.url),
-        options
-      );
+      return new StreamableHTTPClientTransport(new URL(this.serverConfig.url), options);
     } else if (this.serverConfig.transport === "stdio") {
-      // Don't worry stdio for now, this is local MCP server, supported later
-      // TODO: Support local MCP servers via stdio transport https://github.com/SSWConsulting/SSW.YakShaver/issues/3008
+      if (!this.serverConfig.command) {
+        throw new Error(
+          `MCP server '${this.serverConfig.name}' is missing a command for stdio transport`,
+        );
+      }
       return new StdioClientTransport({
-        command: this.serverConfig.url,
-        // Future: args, env, cwd, stderr
+        command: this.serverConfig.command,
+        args: this.serverConfig.args,
+        env: this.serverConfig.env,
       });
     }
     throw new Error(`Unsupported transport: ${this.serverConfig.transport}`);
@@ -80,10 +84,7 @@ export class MCPClientWrapper {
         this.isConnected = true;
         return;
       } catch (error) {
-        console.error(
-          `[MCP] Failed to connect to '${this.serverConfig.name}':`,
-          error
-        );
+        console.error(`[MCP] Failed to connect to '${this.serverConfig.name}':`, error);
         throw error;
       } finally {
         this.connectPromise = null;
@@ -102,10 +103,7 @@ export class MCPClientWrapper {
     try {
       await this.client.close();
     } catch (error) {
-      console.warn(
-        `[MCP] Error while closing client '${this.serverConfig.name}':`,
-        error
-      );
+      console.warn(`[MCP] Error while closing client '${this.serverConfig.name}':`, error);
     } finally {
       this.isConnected = false;
     }

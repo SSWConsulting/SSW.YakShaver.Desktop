@@ -58,6 +58,18 @@ export class MCPOrchestrator {
     return name.replace(/[^a-zA-Z0-9_-]/g, "_");
   }
 
+  private static validateTransportConfig(config: MCPServerConfig): void {
+    if (config.transport === "streamableHttp") {
+      if (!config.url?.trim()) {
+        throw new Error("HTTP MCP servers require a URL");
+      }
+    } else if (config.transport === "stdio") {
+      if (!config.command?.trim()) {
+        throw new Error("Stdio MCP servers require a command to execute");
+      }
+    }
+  }
+
   constructor(
     opts: MCPOrchestratorOptions = {},
     llmClient: OpenAIService = OpenAIService.getInstance(),
@@ -114,6 +126,7 @@ export class MCPOrchestrator {
   }
   async addServer(config: MCPServerConfig): Promise<void> {
     MCPOrchestrator.validateServerName(config.name);
+    MCPOrchestrator.validateTransportConfig(config);
     if (this.servers.some((s) => s.name === config.name)) {
       throw new Error(`Server with name '${config.name}' already exists`);
     }
@@ -123,6 +136,7 @@ export class MCPOrchestrator {
 
   async updateServer(name: string, config: MCPServerConfig): Promise<void> {
     MCPOrchestrator.validateServerName(config.name);
+    MCPOrchestrator.validateTransportConfig(config);
     const index = this.servers.findIndex((s) => s.name === name);
     if (index === -1) throw new Error(`Server '${name}' not found`);
     const existing = this.servers[index];
