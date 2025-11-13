@@ -212,7 +212,8 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
         <div className="p-4 bg-yellow-500/10 rounded-md border border-yellow-500/30">
           <h3 className="text-yellow-200 font-medium mb-2">GitHub Token Required</h3>
           <p className="text-yellow-100 text-sm">
-            A GitHub token is required to view and download PR releases. Configure it in the <b>GitHub Token</b> tab.
+            A GitHub token is required to view and download PR releases. Configure it in the{" "}
+            <b>GitHub Token</b> tab.
           </p>
         </div>
       )}

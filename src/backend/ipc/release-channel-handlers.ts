@@ -68,7 +68,8 @@ export class ReleaseChannelIPCHandlers {
           if (result.response === 0) {
             // Force immediate quit and install
             setImmediate(() => {
-              autoUpdater.quitAndInstall(false, true);
+              const isForceRunAfter = true;
+              autoUpdater.quitAndInstall(isForceRunAfter);
             });
           }
         })
