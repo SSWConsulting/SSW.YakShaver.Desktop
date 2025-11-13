@@ -1,9 +1,9 @@
 import { ipcMain } from "electron";
 import { getMainWindow } from "../index";
+import { VideoUploadResult } from "../services/auth/types";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { RecordingService } from "../services/recording/recording-service";
 import { IPC_CHANNELS } from "./channels";
-import { VideoUploadResult } from "../services/auth/types";
 
 export class ScreenRecordingIPCHandlers {
   private service = RecordingService.getInstance();

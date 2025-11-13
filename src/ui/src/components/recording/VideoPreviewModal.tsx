@@ -1,3 +1,4 @@
+import { ArrowRight, RotateCcw, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   AlertDialog,
@@ -18,7 +19,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { VideoPlayer } from "./VideoPlayer";
-import { X, RotateCcw, ArrowRight } from "lucide-react";
 
 interface VideoPreviewModalProps {
   open: boolean;
@@ -47,8 +47,7 @@ export function VideoPreviewModal({
     return () => URL.revokeObjectURL(url);
   }, [videoBlob]);
 
-  const cleanupFile = () => 
-    window.electronAPI.screenRecording.cleanupTempFile(videoFilePath);
+  const cleanupFile = () => window.electronAPI.screenRecording.cleanupTempFile(videoFilePath);
 
   const confirmExit = async () => {
     await cleanupFile();
@@ -80,17 +79,17 @@ export function VideoPreviewModal({
           {videoUrl && <VideoPlayer videoUrl={videoUrl} videoBlob={videoBlob} />}
 
           <DialogFooter className="gap-2">
-            <Button 
-              variant="outline" 
-              onClick={handleRetry} 
+            <Button
+              variant="outline"
+              onClick={handleRetry}
               className="gap-2 bg-white/10 text-white border-white/20 hover:bg-white/15 hover:text-white transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
               Re-record
             </Button>
-            <Button 
-              variant="default" 
-              onClick={onContinue} 
+            <Button
+              variant="default"
+              onClick={onContinue}
               className="gap-2 bg-white text-black hover:bg-white/90 hover:text-black transition-colors"
             >
               <ArrowRight className="w-4 h-4" />
