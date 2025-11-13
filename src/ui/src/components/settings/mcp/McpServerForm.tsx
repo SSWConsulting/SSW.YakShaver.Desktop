@@ -1,13 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { z } from "zod";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "../ui/accordion";
-import { Button } from "../ui/button";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../../ui/accordion";
+import { Button } from "../../ui/button";
 import {
   FormControl,
   FormDescription,
@@ -16,16 +11,10 @@ import {
   FormLabel,
   FormMessage,
   Form as FormProvider,
-} from "../ui/form";
-import { Input } from "../ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
-import { Textarea } from "../ui/textarea";
+} from "../../ui/form";
+import { Input } from "../../ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
+import { Textarea } from "../../ui/textarea";
 
 export type Transport = "streamableHttp" | "stdio";
 
@@ -43,10 +32,7 @@ const mcpServerSchema = z.object({
   name: z
     .string()
     .min(1, "Name is required")
-    .regex(
-      /^[a-zA-Z0-9 _-]+$/,
-      "Only letters, numbers, spaces, underscores, and hyphens allowed"
-    ),
+    .regex(/^[a-zA-Z0-9 _-]+$/, "Only letters, numbers, spaces, underscores, and hyphens allowed"),
   description: z.string().optional(),
   transport: z.enum(["streamableHttp", "stdio"]),
   url: z.string().url("Must be a valid URL"),
@@ -137,9 +123,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
                   <SelectValue placeholder="Transport" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="streamableHttp">
-                    HTTP (streamableHttp)
-                  </SelectItem>
+                  <SelectItem value="streamableHttp">HTTP (streamableHttp)</SelectItem>
                   <SelectItem value="stdio">Stdio (local process)</SelectItem>
                 </SelectContent>
               </Select>
@@ -206,11 +190,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
                     <Input
                       {...field}
                       value={field.value ?? ""}
-                      onChange={(e) =>
-                        field.onChange(
-                          e.target.value ? Number(e.target.value) : ""
-                        )
-                      }
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
                       type="number"
                       placeholder="60000"
                       className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
@@ -249,9 +229,7 @@ export function McpServerFormWrapper({
       description: initialData?.description || "",
       transport: initialData?.transport || "streamableHttp",
       url: initialData?.url || "",
-      headers: initialData?.headers
-        ? JSON.stringify(initialData.headers, null, 2)
-        : "{}",
+      headers: initialData?.headers ? JSON.stringify(initialData.headers, null, 2) : "{}",
       version: initialData?.version || "",
       timeoutMs: initialData?.timeoutMs || undefined,
     },
@@ -276,8 +254,7 @@ export function McpServerFormWrapper({
       description: data.description?.trim() || undefined,
       headers,
       version: data.version?.trim() || undefined,
-      timeoutMs:
-        typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
+      timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
     };
 
     await onSubmit(config);
@@ -285,10 +262,7 @@ export function McpServerFormWrapper({
 
   return (
     <FormProvider {...form}>
-      <form
-        onSubmit={form.handleSubmit(handleFormSubmit)}
-        className="flex flex-col gap-4"
-      >
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col gap-4">
         <h3 className="text-white text-xl font-semibold">
           {isEditing ? "Edit Server" : "Add New Server"}
         </h3>

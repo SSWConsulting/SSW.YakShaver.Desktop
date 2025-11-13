@@ -1,10 +1,14 @@
-import type { MCPServerConfig } from "@/components/mcp/McpServerForm";
+import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
+import type {
+  GitHubRelease,
+  ReleaseChannel,
+} from "@/components/settings/release-channels/ReleaseChannelManager";
 import type {
   AuthResult,
   AuthState,
   ConvertVideoToMp3Result,
-  HealthStatusInfo,
   CustomPrompt,
+  HealthStatusInfo,
   LLMConfig,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
@@ -113,6 +117,26 @@ declare global {
         ) => Promise<boolean>;
         deletePrompt: (id: string) => Promise<boolean>;
         setActivePrompt: (id: string) => Promise<boolean>;
+      };
+      releaseChannel: {
+        get: () => Promise<ReleaseChannel>;
+        set: (channel: ReleaseChannel) => Promise<void>;
+        listReleases: () => Promise<{
+          releases: Array<GitHubRelease>;
+          error?: string;
+        }>;
+        checkUpdates: () => Promise<{
+          available: boolean;
+          error?: string;
+          version?: string;
+        }>;
+        getCurrentVersion: () => Promise<string>;
+      };
+      githubToken: {
+        get: () => Promise<string | undefined>;
+        set: (token: string) => Promise<void>;
+        clear: () => Promise<void>;
+        has: () => Promise<boolean>;
       };
     };
   }

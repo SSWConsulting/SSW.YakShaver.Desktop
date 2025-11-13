@@ -1,6 +1,7 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
 import type { MCPServerConfig } from "./services/mcp/types";
+import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
 // Need to make single source of truth
@@ -67,6 +68,19 @@ const IPC_CHANNELS = {
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
+
+  // Release Channel
+  RELEASE_CHANNEL_GET: "release-channel:get",
+  RELEASE_CHANNEL_SET: "release-channel:set",
+  RELEASE_CHANNEL_LIST_RELEASES: "release-channel:list-releases",
+  RELEASE_CHANNEL_CHECK_UPDATES: "release-channel:check-updates",
+  RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
+
+  // GitHub Token
+  GITHUB_TOKEN_GET: "github-token:get",
+  GITHUB_TOKEN_SET: "github-token:set",
+  GITHUB_TOKEN_CLEAR: "github-token:clear",
+  GITHUB_TOKEN_HAS: "github-token:has",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -172,6 +186,19 @@ const electronAPI = {
     deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
     setActivePrompt: (id: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
+  },
+  releaseChannel: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),
+    set: (channel: ReleaseChannel) => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_SET, channel),
+    listReleases: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_LIST_RELEASES),
+    checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_CHECK_UPDATES),
+    getCurrentVersion: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET_CURRENT_VERSION),
+  },
+  githubToken: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_GET),
+    set: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_SET, token),
+    clear: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_CLEAR),
+    has: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_HAS),
   },
 };
 

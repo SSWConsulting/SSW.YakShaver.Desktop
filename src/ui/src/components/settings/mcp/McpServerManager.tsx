@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
-import { ipcClient } from "../../services/ipc-client";
-import { HealthStatus } from "../health-status/health-status";
+import { ipcClient } from "../../../services/ipc-client";
+import { HealthStatus } from "../../health-status/health-status";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,72 +13,56 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "../ui/alert-dialog";
-import { Button } from "../ui/button";
-import { Card, CardContent } from "../ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../ui/dialog";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
+} from "../../ui/alert-dialog";
+import { Button } from "../../ui/button";
+import { Card, CardContent } from "../../ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
+import { ScrollArea } from "../../ui/scroll-area";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 
 type ViewMode = "list" | "add" | "edit";
 
-type ServerHealthStatus<T extends string = string> = Record<
-  T,
-  HealthStatusInfo
->;
+type ServerHealthStatus<T extends string = string> = Record<T, HealthStatusInfo>;
 
-export function McpServerManager() {
+interface McpSettingsPanelProps {
+  isActive: boolean;
+}
+
+export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(
-    null
-  );
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [serverToDelete, setServerToDelete] = useState<string | null>(null);
-  const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>(
-    {}
-  );
+  const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
 
-  const checkAllServersHealth = useCallback(
-    async (serverList: MCPServerConfig[]) => {
-      const initialStatus: ServerHealthStatus<string> = {};
-      serverList.forEach((server) => {
-        initialStatus[server.name] = { isHealthy: false, isChecking: true };
-      });
-      setHealthStatus(initialStatus);
+  const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
+    const initialStatus: ServerHealthStatus<string> = {};
+    serverList.forEach((server) => {
+      initialStatus[server.name] = { isHealthy: false, isChecking: true };
+    });
+    setHealthStatus(initialStatus);
 
-      for (const server of serverList) {
-        try {
-          const result = (await ipcClient.mcp.checkServerHealth(
-            server.name
-          )) as HealthStatusInfo;
-          setHealthStatus((prev) => ({
-            ...prev,
-            [server.name]: { ...result, isChecking: false },
-          }));
-        } catch (e) {
-          setHealthStatus((prev) => ({
-            ...prev,
-            [server.name]: {
-              isHealthy: false,
-              error: formatErrorMessage(e),
-              isChecking: false,
-            },
-          }));
-        }
+    for (const server of serverList) {
+      try {
+        const result = (await ipcClient.mcp.checkServerHealth(server.name)) as HealthStatusInfo;
+        setHealthStatus((prev) => ({
+          ...prev,
+          [server.name]: { ...result, isChecking: false },
+        }));
+      } catch (e) {
+        setHealthStatus((prev) => ({
+          ...prev,
+          [server.name]: {
+            isHealthy: false,
+            error: formatErrorMessage(e),
+            isChecking: false,
+          },
+        }));
       }
-    },
-    []
-  );
+    }
+  }, []);
 
   const loadServers = useCallback(async () => {
     setIsLoading(true);
@@ -94,8 +78,10 @@ export function McpServerManager() {
   }, [checkAllServersHealth]);
 
   useEffect(() => {
-    void loadServers();
-  }, [loadServers]);
+    if (isActive) {
+      void loadServers();
+    }
+  }, [isActive, loadServers]);
 
   const showAddForm = useCallback(() => {
     setViewMode("add");
@@ -131,7 +117,7 @@ export function McpServerManager() {
         setIsLoading(false);
       }
     },
-    [viewMode, editingServer, showList, loadServers]
+    [viewMode, editingServer, showList, loadServers],
   );
 
   const confirmDeleteServer = useCallback((name: string) => {
@@ -162,32 +148,19 @@ export function McpServerManager() {
   }, [servers]);
 
   return (
-    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogTrigger asChild>
-        <Button variant="secondary">MCP Settings</Button>
-      </DialogTrigger>
-      <DialogContent
-        showCloseButton
-        className="max-w-5xl max-h-[90vh] overflow-y-auto bg-neutral-900 text-neutral-100 border-neutral-800"
-      >
-        <DialogHeader>
-          <DialogTitle className="text-white text-2xl">
-            MCP Server Settings
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            View and update your current MCP server settings
-          </DialogDescription>
-        </DialogHeader>
-        <div className="w-full">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <header className="mb-4 flex flex-col gap-1">
+        <h2 className="text-white text-xl font-semibold">MCP Server Settings</h2>
+        <p className="text-white/70 text-sm">
+          Manage external MCP servers and monitor their health status.
+        </p>
+      </header>
+      <ScrollArea className="flex-1 pr-1">
+        <div className="flex flex-col gap-6 pb-6 pr-2">
           {viewMode === "list" && (
             <div className="flex flex-col gap-6">
               <div className="flex justify-end">
-                <Button
-                  variant="secondary"
-                  onClick={showAddForm}
-                  size="lg"
-                  disabled={isLoading}
-                >
+                <Button variant="secondary" onClick={showAddForm} size="lg" disabled={isLoading}>
                   Add Server
                 </Button>
               </div>
@@ -197,8 +170,8 @@ export function McpServerManager() {
                   <EmptyHeader>
                     <EmptyTitle>No MCP servers configured</EmptyTitle>
                     <EmptyDescription>
-                      You don't have any MCP servers configured. Click "Add
-                      Server" to configure one.
+                      You don't have any MCP servers configured. Click "Add Server" to configure
+                      one.
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -214,9 +187,9 @@ export function McpServerManager() {
                         className="bg-black/40 border-white/20 hover:border-white/40 transition-colors"
                       >
                         <CardContent className="p-6">
-                          <div className="flex justify-between items-start gap-4">
-                            <div className="flex-1 flex items-start gap-3">
-                              <div className="mt-1 flex-shrink-0 group relative">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex flex-1 items-start gap-3">
+                              <div className="group relative mt-1 flex-shrink-0">
                                 <HealthStatus
                                   isHealthy={!!status.isHealthy}
                                   isChecking={!!status.isChecking}
@@ -226,10 +199,8 @@ export function McpServerManager() {
                               </div>
 
                               <div className="flex-1">
-                                <h3 className="text-white font-semibold text-lg">
-                                  {server.name}
-                                </h3>
-                                <p className="text-white/50 text-sm mt-2 font-mono break-all">
+                                <h3 className="text-lg font-semibold text-white">{server.name}</h3>
+                                <p className="mt-2 break-all font-mono text-sm text-white/50">
                                   {server.url}
                                 </p>
                               </div>
@@ -272,17 +243,15 @@ export function McpServerManager() {
             />
           )}
         </div>
-      </DialogContent>
+      </ScrollArea>
 
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent className="bg-neutral-900 text-neutral-100 border-neutral-800">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">
-              Delete {serverToDelete}
-            </AlertDialogTitle>
+            <AlertDialogTitle className="text-white">Delete {serverToDelete}</AlertDialogTitle>
             <AlertDialogDescription className="text-white/70 text-base pt-2">
-              Are you sure you want to remove server '{serverToDelete}'? This
-              action cannot be undone.
+              Are you sure you want to remove server '{serverToDelete}'? This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -299,6 +268,6 @@ export function McpServerManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Dialog>
+    </div>
   );
 }

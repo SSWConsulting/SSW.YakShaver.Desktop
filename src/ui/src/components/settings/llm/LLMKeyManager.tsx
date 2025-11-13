@@ -4,17 +4,9 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 import { formatErrorMessage } from "@/utils";
-import { ipcClient } from "../../services/ipc-client";
-import type { HealthStatusInfo, LLMConfig } from "../../types";
-import { HealthStatus } from "../health-status/health-status";
-import { Button } from "../ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../ui/dialog";
+import { ipcClient } from "../../../services/ipc-client";
+import type { HealthStatusInfo, LLMConfig } from "../../../types";
+import { HealthStatus } from "../../health-status/health-status";
 import { type LLMProvider, LLMProviderForm } from "./LLMProviderForm";
 
 const schema = z.discriminatedUnion("provider", [
@@ -33,12 +25,13 @@ const schema = z.discriminatedUnion("provider", [
 
 export type FormValues = z.infer<typeof schema>;
 
-export function LLMKeyManager() {
-  const [dialogOpen, setDialogOpen] = useState(false);
+interface LLMSettingsPanelProps {
+  isActive: boolean;
+}
+
+export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
   const [hasConfig, setHasConfig] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(
-    null
-  );
+  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<FormValues>({
@@ -80,14 +73,16 @@ export function LLMKeyManager() {
   }, []);
 
   useEffect(() => {
-    void refreshStatus();
-  }, [refreshStatus]);
+    if (isActive) {
+      void refreshStatus();
+    }
+  }, [isActive, refreshStatus]);
 
   useEffect(() => {
-    if (dialogOpen && hasConfig) {
+    if (isActive && hasConfig) {
       void checkHealth();
     }
-  }, [dialogOpen, hasConfig, checkHealth]);
+  }, [isActive, hasConfig, checkHealth]);
 
   const onSubmit = useCallback(
     async (values: FormValues) => {
@@ -97,7 +92,7 @@ export function LLMKeyManager() {
         toast.success(
           values.provider === "openai"
             ? "OpenAI configuration saved"
-            : "Azure OpenAI configuration saved"
+            : "Azure OpenAI configuration saved",
         );
         await refreshStatus();
         await checkHealth();
@@ -107,7 +102,7 @@ export function LLMKeyManager() {
         setIsLoading(false);
       }
     },
-    [checkHealth, refreshStatus]
+    [checkHealth, refreshStatus],
   );
 
   const onClear = useCallback(async () => {
@@ -128,53 +123,43 @@ export function LLMKeyManager() {
     form.reset({
       provider: value,
       apiKey: "",
-      ...(value === "azure"
-        ? { endpoint: "", version: "", deployment: "" }
-        : {}),
+      ...(value === "azure" ? { endpoint: "", version: "", deployment: "" } : {}),
     } as FormValues);
   };
 
   return (
-    <Dialog
-      open={dialogOpen}
-      onOpenChange={(open) => {
-        setDialogOpen(open);
-        if (open) void refreshStatus();
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button variant="secondary">LLM Settings</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md bg-neutral-900 text-neutral-100 border-neutral-800">
-        <DialogHeader>
-          <DialogTitle className="text-white text-xl">LLM Settings</DialogTitle>
-        </DialogHeader>
-        {hasConfig && (
-          <div className="flex items-center gap-3 mb-4">
-            <p className="text-white/80 text-sm">API Key Status:</p>
-            <span className="text-green-400 text-sm font-mono">Saved</span>
-            <HealthStatus
-              isChecking={healthStatus?.isChecking ?? false}
-              isHealthy={healthStatus?.isHealthy ?? false}
-              successMessage={healthStatus?.successMessage}
-              error={healthStatus?.error}
-            />
-          </div>
-        )}
-        {!hasConfig && (
-          <p className="text-white/80 text-sm mb-4">
-            Status: <span className="text-red-400">Not Saved</span>
-          </p>
-        )}
-        <LLMProviderForm
-          form={form}
-          onSubmit={onSubmit}
-          onClear={onClear}
-          isLoading={isLoading}
-          hasConfig={hasConfig}
-          handleProviderChange={handleProviderChange}
-        />
-      </DialogContent>
-    </Dialog>
+    <div className="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <h2 className="text-white text-xl font-semibold">LLM Settings</h2>
+        <p className="text-white/70 text-sm">
+          Configure API access for OpenAI or Azure OpenAI providers.
+        </p>
+      </header>
+      {hasConfig && (
+        <div className="flex items-center gap-3">
+          <p className="text-white/80 text-sm">API Key Status:</p>
+          <span className="text-green-400 text-sm font-mono">Saved</span>
+          <HealthStatus
+            isChecking={healthStatus?.isChecking ?? false}
+            isHealthy={healthStatus?.isHealthy ?? false}
+            successMessage={healthStatus?.successMessage}
+            error={healthStatus?.error}
+          />
+        </div>
+      )}
+      {!hasConfig && (
+        <p className="text-white/80 text-sm">
+          Status: <span className="text-red-400">Not Saved</span>
+        </p>
+      )}
+      <LLMProviderForm
+        form={form}
+        onSubmit={onSubmit}
+        onClear={onClear}
+        isLoading={isLoading}
+        hasConfig={hasConfig}
+        handleProviderChange={handleProviderChange}
+      />
+    </div>
   );
 }

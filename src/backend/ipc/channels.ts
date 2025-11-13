@@ -61,4 +61,17 @@ export const IPC_CHANNELS = {
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
+
+  // Release Channel
+  RELEASE_CHANNEL_GET: "release-channel:get",
+  RELEASE_CHANNEL_SET: "release-channel:set",
+  RELEASE_CHANNEL_LIST_RELEASES: "release-channel:list-releases",
+  RELEASE_CHANNEL_CHECK_UPDATES: "release-channel:check-updates",
+  RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
+
+  // GitHub Token
+  GITHUB_TOKEN_GET: "github-token:get",
+  GITHUB_TOKEN_SET: "github-token:set",
+  GITHUB_TOKEN_CLEAR: "github-token:clear",
+  GITHUB_TOKEN_HAS: "github-token:has",
 } as const;

@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import type { Control, UseFormReturn } from "react-hook-form";
-import { Button } from "../ui/button";
+import { Button } from "../../ui/button";
 import {
   Form,
   FormControl,
@@ -9,15 +9,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "../ui/form";
-import { Input } from "../ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
+} from "../../ui/form";
+import { Input } from "../../ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import type { FormValues } from "./LLMKeyManager";
 
 export type LLMProvider = "openai" | "azure";
@@ -27,10 +21,7 @@ type LLMProviderSelectProps = {
   handleProviderChange: (value: LLMProvider) => void;
 };
 
-function LLMProviderSelect({
-  control,
-  handleProviderChange,
-}: LLMProviderSelectProps) {
+function LLMProviderSelect({ control, handleProviderChange }: LLMProviderSelectProps) {
   return (
     <FormField
       control={control}
@@ -160,9 +151,7 @@ function AzureOpenAIProviderForm({ control }: AzureOpenAIProviderFormProps) {
         name="deployment"
         render={({ field }) => (
           <FormItem className="flex flex-col gap-2">
-            <FormLabel className="text-white/90 text-sm">
-              Deployment Name
-            </FormLabel>
+            <FormLabel className="text-white/90 text-sm">Deployment Name</FormLabel>
             <FormControl>
               <Input
                 {...field}
@@ -200,14 +189,8 @@ export function LLMProviderForm({
 
   return (
     <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <LLMProviderSelect
-          control={form.control}
-          handleProviderChange={handleProviderChange}
-        />
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+        <LLMProviderSelect control={form.control} handleProviderChange={handleProviderChange} />
         {provider === "openai" ? (
           <OpenAIProviderForm control={form.control} />
         ) : (
@@ -223,15 +206,8 @@ export function LLMProviderForm({
           >
             Clear Config
           </Button>
-          <Button
-            type="submit"
-            variant="secondary"
-            size="sm"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
+          <Button type="submit" variant="secondary" size="sm" disabled={isLoading}>
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Save
           </Button>
         </div>
