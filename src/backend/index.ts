@@ -129,7 +129,21 @@ app.whenReady().then(async () => {
     const { ReleaseChannelStorage } = await import("./services/storage/release-channel-storage");
     const channelStore = ReleaseChannelStorage.getInstance();
     const channel = await channelStore.getChannel();
-    _releaseChannelHandlers.configureAutoUpdater(channel);
+
+    // For tag-based channels, check if there's a newer version for the same PR
+    if (channel.type === "tag" && channel.tag) {
+      const newerTag = await _releaseChannelHandlers.findNewerTagForSamePR(channel.tag);
+      if (newerTag) {
+        // Update to the newer tag automatically
+        await channelStore.setChannel({ type: "tag", tag: newerTag });
+        await _releaseChannelHandlers.configureAutoUpdater({ type: "tag", tag: newerTag });
+      } else {
+        await _releaseChannelHandlers.configureAutoUpdater(channel);
+      }
+    } else {
+      await _releaseChannelHandlers.configureAutoUpdater(channel);
+    }
+
     autoUpdater.checkForUpdatesAndNotify();
   }
 });

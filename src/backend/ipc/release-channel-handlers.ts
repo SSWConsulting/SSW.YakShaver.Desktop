@@ -24,6 +24,7 @@ const GITHUB_API_BASE = "https://api.github.com";
 const REPO_OWNER = "SSWConsulting";
 const REPO_NAME = "SSW.YakShaver.Desktop";
 const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const PR_NUMBER_REGEX = /beta\.(\d+)\./;
 
 export class ReleaseChannelIPCHandlers {
   private store = ReleaseChannelStorage.getInstance();
@@ -263,8 +264,52 @@ export class ReleaseChannelIPCHandlers {
    * @returns Channel name like "beta.11" or "beta" if no match
    */
   private extractChannelFromTag(tag: string): string {
-    const prMatch = tag.match(/beta\.(\d+)\./);
+    const prMatch = tag.match(PR_NUMBER_REGEX);
     return prMatch ? `beta.${prMatch[1]}` : "beta";
+  }
+
+  /**
+   * Find a newer tag for the same PR number
+   * @param currentTag - Current version tag like "0.3.7-beta.11.1234567890"
+   * @returns Newer tag if found, or null
+   */
+  public async findNewerTagForSamePR(currentTag: string): Promise<string | null> {
+    try {
+      // Extract PR number from current tag
+      const prMatch = currentTag.match(PR_NUMBER_REGEX);
+      if (!prMatch) {
+        return null;
+      }
+
+      const prNumber = prMatch[1];
+      const releases = await this.listReleases(true);
+
+      if (releases.error || !releases.releases.length) {
+        return null;
+      }
+
+      // Find all releases for the same PR
+      const prReleases = releases.releases.filter((r) => {
+        const match = r.tag_name.match(PR_NUMBER_REGEX);
+        return match && match[1] === prNumber;
+      });
+
+      if (!prReleases.length) {
+        return null;
+      }
+
+      // Sort by published date (newest first)
+      prReleases.sort(
+        (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
+      );
+
+      // Return the newest tag if it's different from current
+      const newestTag = prReleases[0].tag_name;
+      return newestTag !== currentTag ? newestTag : null;
+    } catch (error) {
+      console.error("Error finding newer tag for PR:", error);
+      return null;
+    }
   }
 
   public async configureAutoUpdater(channel: ReleaseChannel): Promise<void> {
