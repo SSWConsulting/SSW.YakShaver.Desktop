@@ -15,6 +15,7 @@ import {
 import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
+import { Switch } from "../../ui/switch";
 
 export type Transport = "streamableHttp" | "stdio";
 
@@ -29,6 +30,7 @@ export type MCPServerConfig = {
   env?: Record<string, string>;
   version?: string;
   timeoutMs?: number;
+  enabled?: boolean;
 };
 
 const mcpServerSchema = z
@@ -49,6 +51,7 @@ const mcpServerSchema = z
     env: z.string().optional(),
     version: z.string().optional(),
     timeoutMs: z.number().positive().optional().or(z.literal("")),
+    enabled: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.transport === "streamableHttp") {
@@ -124,6 +127,29 @@ export function McpServerForm({ form }: McpServerFormProps) {
                 type="text"
                 placeholder="e.g., GitHub MCP Server"
                 className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="enabled"
+        render={({ field }) => (
+          <FormItem className="flex flex-row items-center justify-between rounded-lg border border-white/20 bg-black/40 px-3 py-2">
+            <div className="space-y-0.5">
+              <FormLabel className="text-white/90">Enabled</FormLabel>
+              <FormDescription className="text-white/60 text-xs">
+                Disable to temporarily stop using this server without deleting it.
+              </FormDescription>
+            </div>
+            <FormControl>
+              <Switch
+                checked={field.value ?? true}
+                onCheckedChange={(checked) => field.onChange(checked)}
+                aria-label="Toggle server enabled state"
               />
             </FormControl>
             <FormMessage />
@@ -354,6 +380,7 @@ export function McpServerFormWrapper({
       env: initialData?.env ? JSON.stringify(initialData.env, null, 2) : "",
       version: initialData?.version || "",
       timeoutMs: initialData?.timeoutMs || undefined,
+      enabled: initialData?.enabled ?? true,
     },
   });
 
@@ -364,6 +391,7 @@ export function McpServerFormWrapper({
       description: data.description?.trim() || undefined,
       version: data.version?.trim() || undefined,
       timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
+      enabled: data.enabled ?? true,
     };
 
     if (data.transport === "streamableHttp") {

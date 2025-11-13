@@ -9,4 +9,5 @@ export type MCPServerConfig = {
   env?: Record<string, string>;
   version?: string;
   timeoutMs?: number;
+  enabled?: boolean;
 };

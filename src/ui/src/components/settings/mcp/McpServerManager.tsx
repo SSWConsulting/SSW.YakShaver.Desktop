@@ -18,6 +18,7 @@ import { Button } from "../../ui/button";
 import { Card, CardContent } from "../../ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
 import { ScrollArea } from "../../ui/scroll-area";
+import { Switch } from "../../ui/switch";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 
 type ViewMode = "list" | "add" | "edit";
@@ -40,11 +41,21 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
     const initialStatus: ServerHealthStatus<string> = {};
     serverList.forEach((server) => {
+      if (server.enabled === false) {
+        initialStatus[server.name] = {
+          isHealthy: false,
+          isChecking: false,
+          disabled: true,
+          error: "Disabled",
+        };
+        return;
+      }
       initialStatus[server.name] = { isHealthy: false, isChecking: true };
     });
     setHealthStatus(initialStatus);
 
     for (const server of serverList) {
+      if (server.enabled === false) continue;
       try {
         const result = (await ipcClient.mcp.checkServerHealth(server.name)) as HealthStatusInfo;
         setHealthStatus((prev) => ({
@@ -125,6 +136,24 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     setDeleteConfirmOpen(true);
   }, []);
 
+  const toggleServerEnabled = useCallback(
+    async (server: MCPServerConfig, enabled: boolean) => {
+      setIsLoading(true);
+      try {
+        await ipcClient.mcp.updateServer(server.name, { ...server, enabled });
+        toast.success(`Server '${server.name}' ${enabled ? "enabled" : "disabled"}`);
+        await loadServers();
+      } catch (e) {
+        toast.error(
+          `Failed to ${enabled ? "enable" : "disable"} '${server.name}': ${formatErrorMessage(e)}`,
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [loadServers],
+  );
+
   const handleDeleteConfirm = useCallback(async () => {
     if (!serverToDelete) return;
 
@@ -187,6 +216,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                         : [server.command, ...(server.args ?? [])]
                             .filter((part) => !!part?.trim())
                             .join(" ");
+                    const isEnabled = server.enabled !== false;
                     return (
                       <Card
                         key={server.name}
@@ -201,6 +231,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                   isChecking={!!status.isChecking}
                                   successMessage={status.successMessage}
                                   error={status.error}
+                                  disabled={!!status.disabled}
                                 />
                               </div>
 
@@ -211,23 +242,38 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 </p>
                               </div>
                             </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => showEditForm(server)}
-                                disabled={isLoading}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => confirmDeleteServer(server.name)}
-                                disabled={isLoading}
-                              >
-                                Delete
-                              </Button>
+                            <div className="flex flex-col items-end gap-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs uppercase tracking-wide text-white/60">
+                                  {isEnabled ? "Enabled" : "Disabled"}
+                                </span>
+                                <Switch
+                                  checked={isEnabled}
+                                  onCheckedChange={(checked) =>
+                                    toggleServerEnabled(server, checked)
+                                  }
+                                  disabled={isLoading}
+                                  aria-label={`Toggle server ${server.name}`}
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => showEditForm(server)}
+                                  disabled={isLoading}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => confirmDeleteServer(server.name)}
+                                  disabled={isLoading}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </CardContent>
