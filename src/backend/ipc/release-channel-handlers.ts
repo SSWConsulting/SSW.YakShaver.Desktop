@@ -307,7 +307,8 @@ export class ReleaseChannelIPCHandlers {
       const newestTag = prReleases[0].tag_name;
       return newestTag !== currentTag ? newestTag : null;
     } catch (error) {
-      console.error("Error finding newer tag for PR:", error);
+      const errMsg = formatErrorMessage(error);
+      console.error("Error finding newer tag for PR:", errMsg);
       return null;
     }
   }
