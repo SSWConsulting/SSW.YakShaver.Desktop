@@ -68,8 +68,8 @@ export class ReleaseChannelIPCHandlers {
           if (result.response === 0) {
             // Force immediate quit and install
             setImmediate(() => {
-              const isForceRunAfter = true;
-              autoUpdater.quitAndInstall(isForceRunAfter);
+              // isSilent: false, isForceRunAfter: true, check docs: https://www.jsdocs.io/package/electron-updater#AppUpdater.quitAndInstall
+              autoUpdater.quitAndInstall(false, true);
             });
           }
         })
