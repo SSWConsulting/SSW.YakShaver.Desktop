@@ -138,7 +138,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
       {hasConfig && (
         <div className="flex items-center gap-3">
           <p className="text-white/80 text-sm">API Key Status:</p>
-          <span className="text-emerald-400 text-sm font-mono">Saved</span>
+          <span className="text-green-400 text-sm font-mono">Saved</span>
           <HealthStatus
             isChecking={healthStatus?.isChecking ?? false}
             isHealthy={healthStatus?.isHealthy ?? false}
