@@ -107,7 +107,6 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   }, []);
 
   const checkGitHubToken = useCallback(async () => {
-    setIsCheckingToken(true);
     try {
       const tokenExists = await window.electronAPI.githubToken.has();
       setHasGitHubToken(tokenExists);
@@ -121,6 +120,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
 
   useEffect(() => {
     if (isActive) {
+      setIsCheckingToken(true);
       void loadChannel();
       void loadReleases();
       void loadCurrentVersion();
