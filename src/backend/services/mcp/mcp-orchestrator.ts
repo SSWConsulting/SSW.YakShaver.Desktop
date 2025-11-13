@@ -410,7 +410,7 @@ export class MCPOrchestrator {
         });
 
         try {
-          const client = this.getMcpClient(serverName);
+          const client = this.getMcpClient(originalServerName);
           const result = await client.callTool(toolName, args);
 
           this.sendStepEvent({
