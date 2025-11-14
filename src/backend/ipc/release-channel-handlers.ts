@@ -399,7 +399,8 @@ export class ReleaseChannelIPCHandlers {
         repo: REPO_NAME,
         private: false,
       });
-    } // Start periodic checks after configuration
+    }
+
     this.startPeriodicUpdateChecks();
   }
 }
