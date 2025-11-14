@@ -29,12 +29,17 @@ export function CustomPromptSettingsPanel({
   const [pendingLeaveResolver, setPendingLeaveResolver] = useState<
     ((result: boolean) => void) | null
   >(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const formRef = useRef<PromptFormRef>(null);
 
   useEffect(() => {
     if (isActive) {
-      promptManager.loadPrompts();
+      const initializeData = async () => {
+        await promptManager.loadPrompts();
+        setIsInitialLoad(false);
+      };
+      void initializeData();
       setViewMode("list");
     }
   }, [isActive, promptManager.loadPrompts]);
@@ -222,15 +227,21 @@ export function CustomPromptSettingsPanel({
   return (
     <>
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-        <header className="flex flex-col gap-1">
-          <h2 className="text-white text-xl font-semibold">Custom Prompt Manager</h2>
-          <p className="text-white/70 text-sm">
-            Manage your saved prompts and choose which one YakShaver should use.
-          </p>
-        </header>
-        <ScrollArea className="flex-1">
-          <div className="h-full min-h-0 pr-3">{renderContent()}</div>
-        </ScrollArea>
+        {isInitialLoad ? (
+          <div className="text-white/60 text-center py-8">Loading...</div>
+        ) : (
+          <>
+            <header className="flex flex-col gap-1">
+              <h2 className="text-white text-xl font-semibold">Custom Prompt Manager</h2>
+              <p className="text-white/70 text-sm">
+                Manage your saved prompts and choose which one YakShaver should use.
+              </p>
+            </header>
+            <ScrollArea className="flex-1">
+              <div className="h-full min-h-0 pr-3">{renderContent()}</div>
+            </ScrollArea>
+          </>
+        )}
       </div>
 
       <UnsavedChangesDialog

@@ -33,6 +33,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
   const [hasConfig, setHasConfig] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -74,7 +75,11 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
 
   useEffect(() => {
     if (isActive) {
-      void refreshStatus();
+      const initializeData = async () => {
+        await refreshStatus();
+        setIsInitialLoad(false);
+      };
+      void initializeData();
     }
   }, [isActive, refreshStatus]);
 
@@ -129,37 +134,43 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-white text-xl font-semibold">LLM Settings</h2>
-        <p className="text-white/70 text-sm">
-          Configure API access for OpenAI or Azure OpenAI providers.
-        </p>
-      </header>
-      {hasConfig && (
-        <div className="flex items-center gap-3">
-          <p className="text-white/80 text-sm">API Key Status:</p>
-          <span className="text-green-400 text-sm font-mono">Saved</span>
-          <HealthStatus
-            isChecking={healthStatus?.isChecking ?? false}
-            isHealthy={healthStatus?.isHealthy ?? false}
-            successMessage={healthStatus?.successMessage}
-            error={healthStatus?.error}
+      {isInitialLoad ? (
+        <div className="text-white/60 text-center py-8">Loading...</div>
+      ) : (
+        <>
+          <header className="flex flex-col gap-1">
+            <h2 className="text-white text-xl font-semibold">LLM Settings</h2>
+            <p className="text-white/70 text-sm">
+              Configure API access for OpenAI or Azure OpenAI providers.
+            </p>
+          </header>
+          {hasConfig && (
+            <div className="flex items-center gap-3">
+              <p className="text-white/80 text-sm">API Key Status:</p>
+              <span className="text-green-400 text-sm font-mono">Saved</span>
+              <HealthStatus
+                isChecking={healthStatus?.isChecking ?? false}
+                isHealthy={healthStatus?.isHealthy ?? false}
+                successMessage={healthStatus?.successMessage}
+                error={healthStatus?.error}
+              />
+            </div>
+          )}
+          {!hasConfig && (
+            <p className="text-white/80 text-sm">
+              Status: <span className="text-red-400">Not Saved</span>
+            </p>
+          )}
+          <LLMProviderForm
+            form={form}
+            onSubmit={onSubmit}
+            onClear={onClear}
+            isLoading={isLoading}
+            hasConfig={hasConfig}
+            handleProviderChange={handleProviderChange}
           />
-        </div>
+        </>
       )}
-      {!hasConfig && (
-        <p className="text-white/80 text-sm">
-          Status: <span className="text-red-400">Not Saved</span>
-        </p>
-      )}
-      <LLMProviderForm
-        form={form}
-        onSubmit={onSubmit}
-        onClear={onClear}
-        isLoading={isLoading}
-        hasConfig={hasConfig}
-        handleProviderChange={handleProviderChange}
-      />
     </div>
   );
 }

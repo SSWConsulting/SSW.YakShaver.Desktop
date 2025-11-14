@@ -14,7 +14,7 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
   const [token, setToken] = useState<string>("");
   const [hasToken, setHasToken] = useState<boolean>(false);
   const [showToken, setShowToken] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   const loadToken = useCallback(async () => {
