@@ -263,12 +263,10 @@ export class ReleaseChannelIPCHandlers {
         // If not on this version, trigger download
         if (!isCurrentlyOnThisVersion) {
           autoUpdater.setFeedURL({
-            provider: "github",
-            owner: REPO_OWNER,
-            repo: REPO_NAME,
-            private: false,
+            provider: "generic",
+            url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${targetVersion}`,
+            channel: channel.channel,
           });
-          autoUpdater.channel = channel.channel;
           autoUpdater.allowPrerelease = true;
           autoUpdater.allowDowngrade = true;
 
