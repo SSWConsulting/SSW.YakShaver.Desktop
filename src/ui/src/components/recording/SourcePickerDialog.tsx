@@ -41,7 +41,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl bg-neutral-900 text-neutral-100 border-neutral-800 p-4">
+      <DialogContent className="max-w-6xl p-4">
         <DialogHeader>
           <DialogTitle>Choose a source to record</DialogTitle>
           <DialogDescription>

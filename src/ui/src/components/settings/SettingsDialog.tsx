@@ -110,13 +110,15 @@ export function SettingsDialog() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none bg-neutral-900 text-neutral-100 border-neutral-800 max-h-[85vh] overflow-hidden">
+      <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none max-h-[85vh] overflow-hidden">
         <DialogHeader className="mb-6">
-          <DialogTitle className="text-white text-2xl font-semibold flex items-center gap-2">
+          <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
             <Settings className="h-5 w-5" />
             Settings
           </DialogTitle>
-          <p className="text-white/70 text-sm">Configure YakShaver preferences and integrations.</p>
+          <p className="text-muted-foreground text-sm">
+            Configure YakShaver preferences and integrations.
+          </p>
         </DialogHeader>
 
         <div className="flex gap-6 h-[calc(85vh-120px)] overflow-hidden min-h-0">
