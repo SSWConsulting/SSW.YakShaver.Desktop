@@ -13,10 +13,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "../ui/dialog";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
+import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../constants/events";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
@@ -287,6 +287,23 @@ const parseFinalOutput = (
 
 const STEP_SUMMARY_CHAR_LIMIT = 1200;
 const MERGED_INSTRUCTION_HEADER = "\n\n### Operator correction\n";
+const REPROCESS_MODES = {
+  original: {
+    title: "Reprocess this yakshave",
+    description: "Provide corrective instructions for YakShaver, then submit to rerun the MCP workflow.",
+    placeholder:
+      "Explain what needs to change. e.g. Wrong repo, please redo in xyz repo and use branch main.",
+    success: "Reprocess request finished. Review the refreshed workflow output.",
+  },
+  undo: {
+    title: "Rerun undo workflow",
+    description: "Add guidance for YakShaver before it attempts to undo the previous run again.",
+    placeholder: "Explain what went wrong when undoing. e.g. Close issue instead of deleting.",
+    success: "Undo reprocess request finished. Review the undo panel for updates.",
+  },
+} as const;
+
+type ReprocessMode = keyof typeof REPROCESS_MODES;
 
 const truncateText = (text: string, limit = STEP_SUMMARY_CHAR_LIMIT) => {
   if (text.length <= limit) {
@@ -406,12 +423,23 @@ const mergeReprocessInstructions = (base: string, extra: string): string => {
   }
 };
 
+const mergeUndoPrompt = (base: string, extra: string): string => {
+  const trimmedExtra = extra.trim();
+  if (!trimmedExtra) return base;
+  return `${base}\n\nOperator note:\n${trimmedExtra}`;
+};
+
+const emitUndoEvent = (type: UndoEventDetail["type"]) => {
+  window.dispatchEvent(new CustomEvent(UNDO_EVENT_CHANNEL, { detail: { type } }));
+};
+
 export function FinalResultPanel() {
   const [finalOutput, setFinalOutput] = useState<string | undefined>();
   const [intermediateOutput, setIntermediateOutput] = useState<string | undefined>();
   const [uploadResult, setUploadResult] = useState<WorkflowProgress["uploadResult"]>();
   const [mcpSteps, setMcpSteps] = useState<MCPStep[]>([]);
   const [reprocessDialogOpen, setReprocessDialogOpen] = useState(false);
+  const [reprocessMode, setReprocessMode] = useState<ReprocessMode>("original");
   const [reprocessInstructions, setReprocessInstructions] = useState("");
   const [reprocessLoading, setReprocessLoading] = useState(false);
   const [reprocessError, setReprocessError] = useState<string | null>(null);
@@ -419,6 +447,8 @@ export function FinalResultPanel() {
   const [undoLoading, setUndoLoading] = useState(false);
   const [undoError, setUndoError] = useState<string | null>(null);
   const [undoSuccess, setUndoSuccess] = useState<string | null>(null);
+  const [hasUndoCompleted, setHasUndoCompleted] = useState(false);
+  const [lastUndoPrompt, setLastUndoPrompt] = useState<string | null>(null);
 
   const stageRef = useRef<WorkflowStage>(ProgressStage.IDLE);
 
@@ -429,6 +459,9 @@ export function FinalResultPanel() {
     setReprocessSuccess(null);
     setUndoError(null);
     setUndoSuccess(null);
+    setHasUndoCompleted(false);
+    setLastUndoPrompt(null);
+    emitUndoEvent("reset");
   }, []);
 
   useEffect(() => {
@@ -476,10 +509,16 @@ export function FinalResultPanel() {
       setReprocessInstructions("");
       setReprocessError(null);
       setReprocessSuccess(null);
+      setReprocessMode("original");
     }
   }, []);
 
-  const handleReprocess = useCallback(async () => {
+  const openReprocessDialog = (mode: ReprocessMode) => {
+    setReprocessMode(mode);
+    setReprocessDialogOpen(true);
+  };
+
+  const handleReprocessOriginal = useCallback(async () => {
     if (!intermediateOutput || !uploadResult) return;
     setReprocessLoading(true);
     setReprocessError(null);
@@ -493,7 +532,7 @@ export function FinalResultPanel() {
         throw new Error(result?.error ?? "Reprocess failed");
       }
 
-      setReprocessSuccess("Reprocess request finished. Review the refreshed workflow output.");
+      setReprocessSuccess(REPROCESS_MODES.original.success);
       setIntermediateOutput(mergedOutput);
       setReprocessDialogOpen(false);
     } catch (error) {
@@ -504,6 +543,33 @@ export function FinalResultPanel() {
       setReprocessLoading(false);
     }
   }, [intermediateOutput, reprocessInstructions, uploadResult]);
+
+  const handleReprocessUndo = useCallback(async () => {
+    if (!lastUndoPrompt) {
+      setReprocessError("Undo history not available yet.");
+      return;
+    }
+    setReprocessLoading(true);
+    setReprocessError(null);
+    setReprocessSuccess(null);
+
+    try {
+      emitUndoEvent("start");
+      const mergedPrompt = mergeUndoPrompt(lastUndoPrompt, reprocessInstructions);
+      await ipcClient.mcp.processMessage(mergedPrompt);
+      emitUndoEvent("complete");
+      setLastUndoPrompt(mergedPrompt);
+      setReprocessSuccess(REPROCESS_MODES.undo.success);
+      setReprocessDialogOpen(false);
+    } catch (error) {
+      emitUndoEvent("error");
+      setReprocessError(
+        error instanceof Error ? error.message : "Failed to reprocess undo request.",
+      );
+    } finally {
+      setReprocessLoading(false);
+    }
+  }, [lastUndoPrompt, reprocessInstructions]);
 
   const handleUndo = useCallback(async () => {
     setUndoLoading(true);
@@ -516,22 +582,37 @@ export function FinalResultPanel() {
         finalOutput,
         intermediateOutput,
       });
+      setLastUndoPrompt(prompt);
+      emitUndoEvent("start");
       await ipcClient.mcp.processMessage(prompt);
-      setUndoSuccess("Undo request sent. Monitor the workflow panel for updates.");
+      emitUndoEvent("complete");
+      setHasUndoCompleted(true);
+      setUndoSuccess("Undo request sent. Monitor the undo panel for updates.");
     } catch (error) {
+      emitUndoEvent("error");
       setUndoError(error instanceof Error ? error.message : "Failed to trigger undo request.");
     } finally {
       setUndoLoading(false);
     }
-  }, [finalOutput, intermediateOutput, mcpSteps, uploadResult]);
+  }, [finalOutput, intermediateOutput, mcpSteps]);
+
+  const handleReprocess = useCallback(async () => {
+    if (reprocessMode === "original") {
+      await handleReprocessOriginal();
+    } else {
+      await handleReprocessUndo();
+    }
+  }, [handleReprocessOriginal, handleReprocessUndo, reprocessMode]);
 
   if (!finalOutput) return null;
 
   const { parsed, raw, isJson } = parseFinalOutput(finalOutput);
   const status = (isJson && parsed?.Status) as "success" | "fail" | undefined;
   const showActions = Boolean(finalOutput);
-  const canReprocess = showActions && Boolean(intermediateOutput && uploadResult);
-  const canUndo = showActions && mcpSteps.length > 0;
+  const canReprocessOriginal = showActions && Boolean(intermediateOutput && uploadResult);
+  const canReprocessUndo = hasUndoCompleted && Boolean(lastUndoPrompt);
+  const canUndo = showActions && !hasUndoCompleted && mcpSteps.length > 0;
+  const dialogCopy = REPROCESS_MODES[reprocessMode];
 
   return (
     <div className="w-[500px] mx-auto my-4">
@@ -552,87 +633,103 @@ export function FinalResultPanel() {
           {showActions && (
             <div className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row">
-                <Dialog open={reprocessDialogOpen} onOpenChange={handleReprocessDialogChange}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="secondary"
-                      disabled={!canReprocess || reprocessLoading}
-                      className="flex-1"
-                    >
-                      {reprocessLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RotateCcw className="h-4 w-4" />
-                      )}
-                      Reprocess
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="bg-black/95 border-white/20 text-white">
-                    <DialogHeader>
-                      <DialogTitle className="text-white">Reprocess this yakshave</DialogTitle>
-                      <DialogDescription className="text-white/70">
-                        Provide corrective instructions for YakShaver, then submit to rerun the MCP
-                        workflow.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-2">
-                      <Label htmlFor="reprocess-instructions" className="text-white/80">
-                        Additional instructions
-                      </Label>
-                      <Textarea
-                        id="reprocess-instructions"
-                        value={reprocessInstructions}
-                        onChange={(event) => setReprocessInstructions(event.target.value)}
-                        placeholder="Explain what needs to change. e.g. Wrong repo, please redo in xyz repo and use branch main."
-                        disabled={reprocessLoading}
-                        className="text-white placeholder:text-white/40 border-white/20 bg-white/5"
-                      />
-                      {reprocessError && (
-                        <p className="text-sm text-red-300">{reprocessError}</p>
-                      )}
-                      {reprocessSuccess && (
-                        <p className="text-sm text-green-300">{reprocessSuccess}</p>
-                      )}
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => handleReprocessDialogChange(false)}
-                        disabled={reprocessLoading}
-                        className="text-white hover:text-white hover:bg-white/10"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={handleReprocess}
-                        disabled={!canReprocess || reprocessLoading}
-                      >
-                        {reprocessLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                        Run reprocess
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-
                 <Button
-                  variant="outline"
-                  disabled={!canUndo || undoLoading}
-                  onClick={handleUndo}
+                  variant="secondary"
+                  disabled={!canReprocessOriginal || reprocessLoading}
                   className="flex-1"
+                  onClick={() => openReprocessDialog("original")}
                 >
-                  {undoLoading ? (
+                  {reprocessLoading && reprocessMode === "original" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Undo2 className="h-4 w-4" />
+                    <RotateCcw className="h-4 w-4" />
                   )}
-                  Undo
+                  {hasUndoCompleted ? "Reprocess original shave" : "Reprocess"}
                 </Button>
+
+                {hasUndoCompleted ? (
+                  <Button
+                    variant="secondary"
+                    disabled={!canReprocessUndo || reprocessLoading}
+                    className="flex-1"
+                    onClick={() => openReprocessDialog("undo")}
+                  >
+                    {reprocessLoading && reprocessMode === "undo" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                    Reprocess undo
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    disabled={!canUndo || undoLoading}
+                    onClick={handleUndo}
+                    className="flex-1"
+                  >
+                    {undoLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Undo2 className="h-4 w-4" />
+                    )}
+                    Undo
+                  </Button>
+                )}
               </div>
+              <Dialog open={reprocessDialogOpen} onOpenChange={handleReprocessDialogChange}>
+                <DialogContent className="bg-black/95 border-white/20 text-white">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">{dialogCopy.title}</DialogTitle>
+                    <DialogDescription className="text-white/70">
+                      {dialogCopy.description}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-2">
+                    <Label htmlFor="reprocess-instructions" className="text-white/80">
+                      Additional instructions
+                    </Label>
+                    <Textarea
+                      id="reprocess-instructions"
+                      value={reprocessInstructions}
+                      onChange={(event) => setReprocessInstructions(event.target.value)}
+                      placeholder={dialogCopy.placeholder}
+                      disabled={reprocessLoading}
+                      className="text-white placeholder:text-white/40 border-white/20 bg-white/5"
+                    />
+                    {reprocessError && <p className="text-sm text-red-300">{reprocessError}</p>}
+                    {reprocessSuccess && (
+                      <p className="text-sm text-green-300">{reprocessSuccess}</p>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => handleReprocessDialogChange(false)}
+                      disabled={reprocessLoading}
+                      className="text-white hover:text-white hover:bg-white/10"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleReprocess}
+                      disabled={
+                        reprocessLoading ||
+                        (reprocessMode === "original" ? !canReprocessOriginal : !canReprocessUndo)
+                      }
+                    >
+                      {reprocessLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Run reprocess
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
               {undoError && <p className="text-sm text-red-400">{undoError}</p>}
               {undoSuccess && <p className="text-sm text-green-400">{undoSuccess}</p>}
-              {!canUndo && showActions && (
+              {!canUndo && showActions && !hasUndoCompleted && (
                 <p className="text-xs text-white/50">
                   Undo becomes available after YakShaver logs the tool calls for this run.
                 </p>
