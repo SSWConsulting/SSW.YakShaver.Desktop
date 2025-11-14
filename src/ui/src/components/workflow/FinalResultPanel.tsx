@@ -1,5 +1,6 @@
 import { Copy, ExternalLink, Loader2, RotateCcw, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import { ProgressStage, type WorkflowProgress, type WorkflowStage } from "../../types";
@@ -443,10 +444,8 @@ export function FinalResultPanel() {
   const [reprocessInstructions, setReprocessInstructions] = useState("");
   const [reprocessLoading, setReprocessLoading] = useState(false);
   const [reprocessError, setReprocessError] = useState<string | null>(null);
-  const [reprocessSuccess, setReprocessSuccess] = useState<string | null>(null);
   const [undoLoading, setUndoLoading] = useState(false);
   const [undoError, setUndoError] = useState<string | null>(null);
-  const [undoSuccess, setUndoSuccess] = useState<string | null>(null);
   const [hasUndoCompleted, setHasUndoCompleted] = useState(false);
   const [lastUndoPrompt, setLastUndoPrompt] = useState<string | null>(null);
 
@@ -456,9 +455,7 @@ export function FinalResultPanel() {
     setFinalOutput(undefined);
     setMcpSteps([]);
     setReprocessError(null);
-    setReprocessSuccess(null);
     setUndoError(null);
-    setUndoSuccess(null);
     setHasUndoCompleted(false);
     setLastUndoPrompt(null);
     emitUndoEvent("reset");
@@ -508,7 +505,6 @@ export function FinalResultPanel() {
     if (!open) {
       setReprocessInstructions("");
       setReprocessError(null);
-      setReprocessSuccess(null);
       setReprocessMode("original");
     }
   }, []);
@@ -522,7 +518,6 @@ export function FinalResultPanel() {
     if (!intermediateOutput || !uploadResult) return;
     setReprocessLoading(true);
     setReprocessError(null);
-    setReprocessSuccess(null);
 
     try {
       const mergedOutput = mergeReprocessInstructions(intermediateOutput, reprocessInstructions);
@@ -532,9 +527,9 @@ export function FinalResultPanel() {
         throw new Error(result?.error ?? "Reprocess failed");
       }
 
-      setReprocessSuccess(REPROCESS_MODES.original.success);
       setIntermediateOutput(mergedOutput);
       setReprocessDialogOpen(false);
+      toast.success("Reprocess request sent. Watch the workflow panel for updates.");
     } catch (error) {
       setReprocessError(
         error instanceof Error ? error.message : "Failed to trigger reprocess request.",
@@ -551,7 +546,6 @@ export function FinalResultPanel() {
     }
     setReprocessLoading(true);
     setReprocessError(null);
-    setReprocessSuccess(null);
 
     try {
       emitUndoEvent("start");
@@ -559,8 +553,8 @@ export function FinalResultPanel() {
       await ipcClient.mcp.processMessage(mergedPrompt);
       emitUndoEvent("complete");
       setLastUndoPrompt(mergedPrompt);
-      setReprocessSuccess(REPROCESS_MODES.undo.success);
       setReprocessDialogOpen(false);
+      toast.success("Undo reprocess request sent. Monitor the purple undo panel.");
     } catch (error) {
       emitUndoEvent("error");
       setReprocessError(
@@ -574,7 +568,6 @@ export function FinalResultPanel() {
   const handleUndo = useCallback(async () => {
     setUndoLoading(true);
     setUndoError(null);
-    setUndoSuccess(null);
 
     try {
       const prompt = buildUndoPrompt({
@@ -587,7 +580,7 @@ export function FinalResultPanel() {
       await ipcClient.mcp.processMessage(prompt);
       emitUndoEvent("complete");
       setHasUndoCompleted(true);
-      setUndoSuccess("Undo request sent. Monitor the undo panel for updates.");
+      toast.success("Undo workflow running. Check the purple undo panel.");
     } catch (error) {
       emitUndoEvent("error");
       setUndoError(error instanceof Error ? error.message : "Failed to trigger undo request.");
@@ -698,9 +691,6 @@ export function FinalResultPanel() {
                       className="text-white placeholder:text-white/40 border-white/20 bg-white/5"
                     />
                     {reprocessError && <p className="text-sm text-red-300">{reprocessError}</p>}
-                    {reprocessSuccess && (
-                      <p className="text-sm text-green-300">{reprocessSuccess}</p>
-                    )}
                   </div>
                   <DialogFooter>
                     <Button
@@ -728,7 +718,6 @@ export function FinalResultPanel() {
               </Dialog>
 
               {undoError && <p className="text-sm text-red-400">{undoError}</p>}
-              {undoSuccess && <p className="text-sm text-green-400">{undoSuccess}</p>}
               {!canUndo && showActions && !hasUndoCompleted && (
                 <p className="text-xs text-white/50">
                   Undo becomes available after YakShaver logs the tool calls for this run.
