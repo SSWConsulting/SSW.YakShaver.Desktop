@@ -384,17 +384,35 @@ export class ReleaseChannelIPCHandlers {
         private: false,
       });
     } else if (channel.type === "pr" && channel.channel) {
-      autoUpdater.channel = channel.channel; // e.g., "beta.15"
-      autoUpdater.allowPrerelease = true;
-      autoUpdater.allowDowngrade = true;
+      // For PR channels, we need to find the latest release tag first
+      const prMatch = channel.channel.match(/beta\.(\d+)/);
+      if (prMatch) {
+        const prNumber = prMatch[1];
 
-      // Set update server (GitHub releases)
-      autoUpdater.setFeedURL({
-        provider: "github",
-        owner: REPO_OWNER,
-        repo: REPO_NAME,
-        private: false,
-      });
+        // Get the latest release for this PR
+        if (!this.releasesCache || Date.now() - this.releasesCache.fetchedAt > RELEASES_CACHE_TTL) {
+          await this.listReleases(true);
+        }
+
+        if (this.releasesCache) {
+          const prReleases = this.releasesCache.releases
+            .filter((r) => this.extractPRNumber(r) === prNumber)
+            .sort(
+              (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
+            );
+
+          if (prReleases.length > 0) {
+            const latestRelease = prReleases[0];
+            autoUpdater.setFeedURL({
+              provider: "generic",
+              url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag_name}`,
+              channel: channel.channel,
+            });
+            autoUpdater.allowPrerelease = true;
+            autoUpdater.allowDowngrade = true;
+          }
+        }
+      }
     }
 
     this.startPeriodicUpdateChecks();
