@@ -10,13 +10,20 @@ interface GitHubRelease {
   id: number;
   tag_name: string;
   name: string;
+  body?: string;
   prerelease: boolean;
   published_at: string;
   html_url: string;
 }
 
+interface ProcessedRelease {
+  prNumber: string;
+  tag: string;
+  publishedAt: string;
+}
+
 interface GitHubReleaseResponse {
-  releases: GitHubRelease[];
+  releases: ProcessedRelease[];
   error?: string;
 }
 
@@ -33,6 +40,8 @@ export class ReleaseChannelIPCHandlers {
     fetchedAt: number;
     etag?: string;
   } | null = null;
+  private updateCheckInterval: NodeJS.Timeout | null = null;
+  private readonly UPDATE_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.RELEASE_CHANNEL_GET, () => this.getChannel());
@@ -54,7 +63,7 @@ export class ReleaseChannelIPCHandlers {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
-    autoUpdater.on("update-downloaded", (info) => {
+    autoUpdater.on("update-downloaded", () => {
       dialog
         .showMessageBox({
           type: "info",
@@ -86,6 +95,7 @@ export class ReleaseChannelIPCHandlers {
   private async setChannel(channel: ReleaseChannel): Promise<void> {
     await this.store.setChannel(channel);
     await this.configureAutoUpdater(channel);
+    this.startPeriodicUpdateChecks();
   }
 
   private async listReleases(forceRefresh = false): Promise<GitHubReleaseResponse> {
@@ -95,7 +105,7 @@ export class ReleaseChannelIPCHandlers {
         this.releasesCache &&
         Date.now() - this.releasesCache.fetchedAt < RELEASES_CACHE_TTL
       ) {
-        return { releases: this.releasesCache.releases };
+        return { releases: this.processReleases(this.releasesCache.releases) };
       }
 
       const headers: Record<string, string> = {
@@ -121,7 +131,7 @@ export class ReleaseChannelIPCHandlers {
 
       if (response.status === 304 && this.releasesCache) {
         this.releasesCache.fetchedAt = Date.now();
-        return { releases: this.releasesCache.releases };
+        return { releases: this.processReleases(this.releasesCache.releases) };
       }
 
       if (!response.ok) {
@@ -145,7 +155,7 @@ export class ReleaseChannelIPCHandlers {
         etag: response.headers.get("etag") ?? undefined,
       };
 
-      return { releases };
+      return { releases: this.processReleases(releases) };
     } catch (error) {
       const errMsg = formatErrorMessage(error);
       return {
@@ -153,6 +163,49 @@ export class ReleaseChannelIPCHandlers {
         error: errMsg,
       };
     }
+  }
+
+  /**
+   * Process raw GitHub releases into frontend-ready data:
+   * - Filter to prereleases only
+   * - Extract PR numbers
+   * - Group by PR and keep only the latest release per PR
+   * - Sort by PR number descending
+   */
+  private processReleases(releases: GitHubRelease[]): ProcessedRelease[] {
+    // Filter prereleases
+    const prereleases = releases.filter((r) => r.prerelease);
+
+    // Sort by published date (newest first)
+    const sorted = prereleases.sort(
+      (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
+    );
+
+    // Group by PR number, keeping only the latest release for each PR
+    const prMap = new Map<string, GitHubRelease>();
+    for (const release of sorted) {
+      const prNumber = this.extractPRNumber(release);
+      if (prNumber && !prMap.has(prNumber)) {
+        prMap.set(prNumber, release);
+      }
+    }
+
+    // Convert to processed releases, sorted by PR number descending
+    return Array.from(prMap.entries())
+      .sort((a, b) => Number.parseInt(b[0], 10) - Number.parseInt(a[0], 10))
+      .map(([prNumber, release]) => ({
+        prNumber,
+        tag: release.tag_name,
+        publishedAt: release.published_at,
+      }));
+  }
+
+  /**
+   * Extract PR number from release name or body
+   */
+  private extractPRNumber(release: GitHubRelease): string | null {
+    const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
+    return prMatch ? prMatch[1] : null;
   }
 
   private async checkForUpdates(): Promise<{
@@ -172,32 +225,50 @@ export class ReleaseChannelIPCHandlers {
       const channel = await this.getChannel();
       const currentVersion = this.getCurrentVersion();
 
-      // For tag-based channels (PR releases)
-      if (channel.type === "tag" && channel.tag) {
-        const releases = await this.listReleases(true);
-        if (releases.error) {
-          return { available: false, error: releases.error };
+      // For PR channels
+      if (channel.type === "pr" && channel.channel) {
+        // Get raw releases for update checking (not processed)
+        if (!this.releasesCache || Date.now() - this.releasesCache.fetchedAt > RELEASES_CACHE_TTL) {
+          await this.listReleases(true);
         }
 
-        // Find the release with matching tag
-        const targetRelease = releases.releases.find((r) => r.tag_name === channel.tag);
-        if (!targetRelease) {
-          return { available: false, error: `Release ${channel.tag} not found` };
+        if (!this.releasesCache) {
+          return { available: false, error: "Failed to fetch releases" };
         }
 
-        // The workflow creates beta versions with timestamp
-        // Tag format: "0.3.7-beta.11.1762910147"
-        const targetVersion = targetRelease.tag_name;
+        // Find the latest release for this PR channel
+        // Channel format: "beta.15"
+        const prMatch = channel.channel.match(/beta\.(\d+)/);
+        if (!prMatch) {
+          return { available: false, error: `Invalid channel format: ${channel.channel}` };
+        }
+        const prNumber = prMatch[1];
+
+        // Find all releases for this PR, sorted by published date (newest first)
+        const prReleases = this.releasesCache.releases
+          .filter((r) => {
+            const releasePrMatch = this.extractPRNumber(r);
+            return releasePrMatch === prNumber;
+          })
+          .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
+
+        if (prReleases.length === 0) {
+          return { available: false, error: `No releases found for PR #${prNumber}` };
+        }
+
+        const latestRelease = prReleases[0];
+        const targetVersion = latestRelease.tag_name;
         const isCurrentlyOnThisVersion = currentVersion === targetVersion;
 
         // If not on this version, trigger download
         if (!isCurrentlyOnThisVersion) {
-          const channelName = this.extractChannelFromTag(channel.tag);
           autoUpdater.setFeedURL({
-            provider: "generic",
-            url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${channel.tag}`,
-            channel: channelName,
+            provider: "github",
+            owner: REPO_OWNER,
+            repo: REPO_NAME,
+            private: false,
           });
+          autoUpdater.channel = channel.channel;
           autoUpdater.allowPrerelease = true;
           autoUpdater.allowDowngrade = true;
 
@@ -258,13 +329,35 @@ export class ReleaseChannelIPCHandlers {
   }
 
   /**
-   * Extract PR number from a beta tag and return the channel name
-   * @param tag - Version tag like "0.3.7-beta.11.1234567890"
-   * @returns Channel name like "beta.11" or "beta" if no match
+   * Start periodic update checks in the background
    */
-  private extractChannelFromTag(tag: string): string {
-    const prMatch = tag.match(/beta\.(\d+)\./);
-    return prMatch ? `beta.${prMatch[1]}` : "beta";
+  private startPeriodicUpdateChecks(): void {
+    // Clear any existing interval
+    if (this.updateCheckInterval) {
+      clearInterval(this.updateCheckInterval);
+    }
+
+    // Skip in development/unpackaged mode
+    if (!app.isPackaged) {
+      return;
+    }
+
+    // Set up periodic checks
+    this.updateCheckInterval = setInterval(() => {
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error("Periodic update check failed:", err);
+      });
+    }, this.UPDATE_CHECK_INTERVAL);
+  }
+
+  /**
+   * Stop periodic update checks
+   */
+  public stopPeriodicUpdateChecks(): void {
+    if (this.updateCheckInterval) {
+      clearInterval(this.updateCheckInterval);
+      this.updateCheckInterval = null;
+    }
   }
 
   public async configureAutoUpdater(channel: ReleaseChannel): Promise<void> {
@@ -286,18 +379,27 @@ export class ReleaseChannelIPCHandlers {
       autoUpdater.channel = "latest";
       autoUpdater.allowPrerelease = false;
       autoUpdater.allowDowngrade = false;
-    } else if (channel.type === "tag" && channel.tag) {
-      autoUpdater.channel = this.extractChannelFromTag(channel.tag);
+
+      // Set update server (GitHub releases)
+      autoUpdater.setFeedURL({
+        provider: "github",
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        private: false,
+      });
+    } else if (channel.type === "pr" && channel.channel) {
+      autoUpdater.channel = channel.channel; // e.g., "beta.15"
       autoUpdater.allowPrerelease = true;
       autoUpdater.allowDowngrade = true;
-    }
 
-    // Set update server (GitHub releases)
-    autoUpdater.setFeedURL({
-      provider: "github",
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      private: false,
-    });
+      // Set update server (GitHub releases)
+      autoUpdater.setFeedURL({
+        provider: "github",
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        private: false,
+      });
+    } // Start periodic checks after configuration
+    this.startPeriodicUpdateChecks();
   }
 }
