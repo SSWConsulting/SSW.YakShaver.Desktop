@@ -212,9 +212,11 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                     const detailText =
                       server.transport === "streamableHttp"
                         ? (server.url ?? "")
-                        : [server.command, ...(server.args ?? [])]
-                            .filter((part) => !!part?.trim())
-                            .join(" ");
+                        : server.command && server.command.trim()
+                          ? [server.command, ...(server.args ?? [])]
+                              .filter((part) => !!part?.trim())
+                              .join(" ")
+                          : "No command specified";
                     const isEnabled = server.enabled !== false;
                     return (
                       <Card
