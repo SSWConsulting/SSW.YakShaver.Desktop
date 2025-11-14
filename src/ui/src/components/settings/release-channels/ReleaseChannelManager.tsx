@@ -269,7 +269,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
         <Button
           variant="secondary"
           onClick={handleCheckUpdates}
-          disabled={isLoading || !hasGitHubToken}
+          disabled={isLoading || !hasGitHubToken || !selectValue}
         >
           Check for Updates
         </Button>

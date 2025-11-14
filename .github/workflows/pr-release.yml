@@ -218,7 +218,7 @@ jobs:
             build/*-mac.yml
           retention-days: 1
 
-  comment-release:
+  create-and-comment-release:
     runs-on: ubuntu-latest
     needs:
       - cleanup-release
