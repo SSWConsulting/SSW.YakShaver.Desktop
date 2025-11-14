@@ -143,6 +143,37 @@ export interface HealthStatusInfo {
   isChecking?: boolean;
 }
 
+export type McpAiMode = "yolo" | "warn" | "ask_first";
+
+export interface McpToolWhitelistEntry {
+  id: string;
+  serverName: string;
+  toolName: string;
+  createdAt: number;
+}
+
+export interface McpToolControlSettings {
+  mode: McpAiMode;
+  whitelist: McpToolWhitelistEntry[];
+}
+
+export interface McpToolPermissionRequest {
+  requestId: string;
+  mode: "warn" | "ask_first";
+  toolId: string;
+  serverName: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  requestedAt: number;
+  timeoutMs?: number;
+}
+
+export interface McpToolPermissionResolution {
+  requestId: string;
+  decision: "accept_once" | "always_accept" | "reject";
+  feedback?: string;
+}
+
 export enum ProgressStage {
   IDLE = "idle",
   UPLOAD_COMPLETED = "upload_completed",

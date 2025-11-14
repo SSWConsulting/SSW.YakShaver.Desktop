@@ -8,6 +8,7 @@ import type { VideoUploadResult } from "../auth/types.js";
 import { OpenAIService } from "../openai/openai-service.js";
 import { McpStorage } from "../storage/mcp-storage.js";
 import { MCPClientWrapper } from "./mcp-client-wrapper.js";
+import { McpToolControlService, type ToolPermissionOutcome } from "./mcp-tool-control-service.js";
 import type { MCPServerConfig } from "./types.js";
 
 export interface MCPOrchestratorOptions {
@@ -36,6 +37,7 @@ export class MCPOrchestrator {
   private llmClient: OpenAIService; // TODO: make generic interface for different LLMs https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
   private mcpStorage: McpStorage;
   private opts: MCPOrchestratorOptions;
+  private toolControlService: McpToolControlService;
 
   private sendStepEvent(event: MCPStep): void {
     for (const win of BrowserWindow.getAllWindows()) {
@@ -61,10 +63,12 @@ export class MCPOrchestrator {
   constructor(
     opts: MCPOrchestratorOptions = {},
     llmClient: OpenAIService = OpenAIService.getInstance(),
+    toolControlService: McpToolControlService = McpToolControlService.getInstance(),
   ) {
     this.llmClient = llmClient;
     this.mcpStorage = McpStorage.getInstance();
     this.opts = opts;
+    this.toolControlService = toolControlService;
   }
 
   async initialize(): Promise<void> {
@@ -245,6 +249,13 @@ export class MCPOrchestrator {
       : availableServers;
 
     const toolDefs: OpenAI.Chat.Completions.ChatCompletionTool[] = [];
+    const toolMetadata = new Map<
+      string,
+      {
+        serverName: string;
+        toolName: string;
+      }
+    >();
     for (const server of targetServers) {
       const client = this.getMcpClient(server.name);
       try {
@@ -264,6 +275,10 @@ export class MCPOrchestrator {
                 properties: {},
               },
             },
+          });
+          toolMetadata.set(`${sanitizedServerName}__${sanitizedToolName}`, {
+            serverName: server.name,
+            toolName: tool.name,
           });
         });
       } catch (e) {
@@ -358,15 +373,71 @@ export class MCPOrchestrator {
           this.servers.find((s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName)
             ?.name ?? serverName;
 
-        const args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+        let args: Record<string, unknown> = {};
+        if (tc.function.arguments) {
+          try {
+            args = JSON.parse(tc.function.arguments);
+          } catch (err) {
+            const parseError = `Failed to parse arguments for tool ${toolName}: ${String(err)}`;
+            console.warn("[MCPOrchestrator]", parseError);
+            messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: parseError,
+            });
+            continue;
+          }
+        }
+
+        const metadata = toolMetadata.get(tc.function.name);
+        const displayServerName = metadata?.serverName ?? originalServerName;
+        const displayToolName = metadata?.toolName ?? toolName;
 
         this.sendStepEvent({
           type: "tool_call",
-          toolName,
-          serverName: originalServerName,
+          toolName: displayToolName,
+          serverName: displayServerName,
           args,
           timestamp: Date.now(),
         });
+
+        let permissionResult: ToolPermissionOutcome | null = null;
+        try {
+          permissionResult = await this.toolControlService.ensureToolPermission({
+            toolId: tc.function.name,
+            serverName: displayServerName,
+            toolName: displayToolName,
+            args,
+          });
+        } catch (err) {
+          console.error("[MCPOrchestrator] Tool permission check failed:", err);
+          permissionResult = { allowed: true };
+        }
+
+        if (!permissionResult.allowed) {
+          const rejectionMessage = permissionResult.userFeedback?.trim()
+            ? permissionResult.userFeedback.trim()
+            : "User rejected this tool call.";
+
+          this.sendStepEvent({
+            type: "tool_result",
+            toolName: displayToolName,
+            serverName: displayServerName,
+            error: rejectionMessage,
+            timestamp: Date.now(),
+          });
+
+          messages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: JSON.stringify({
+              success: false,
+              error: "Tool call rejected by user",
+              feedback: permissionResult.userFeedback ?? null,
+            }),
+          });
+          continue;
+        }
 
         try {
           const client = this.getMcpClient(serverName);
@@ -374,8 +445,8 @@ export class MCPOrchestrator {
 
           this.sendStepEvent({
             type: "tool_result",
-            toolName,
-            serverName: originalServerName,
+            toolName: displayToolName,
+            serverName: displayServerName,
             result,
             timestamp: Date.now(),
           });

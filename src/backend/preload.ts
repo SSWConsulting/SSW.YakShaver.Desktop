@@ -50,6 +50,12 @@ const IPC_CHANNELS = {
   MCP_UPDATE_SERVER: "mcp:update-server",
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
+  MCP_TOOL_SETTINGS_GET: "mcp:tool-settings:get",
+  MCP_TOOL_SETTINGS_SET_MODE: "mcp:tool-settings:set-mode",
+  MCP_TOOL_WHITELIST_REMOVE: "mcp:tool-whitelist:remove",
+  MCP_TOOL_PERMISSION_REQUEST: "mcp:tool-permission:request",
+  MCP_TOOL_PERMISSION_RESPONSE: "mcp:tool-permission:response",
+  MCP_TOOL_PERMISSION_RESOLVED: "mcp:tool-permission:resolved",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -168,6 +174,17 @@ const electronAPI = {
         serverName?: string;
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
+    getToolControlSettings: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_SETTINGS_GET),
+    setToolControlMode: (mode: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_SETTINGS_SET_MODE, mode),
+    removeWhitelistedTool: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_WHITELIST_REMOVE, id),
+    onToolPermissionRequest: (callback: (payload: unknown) => void) =>
+      onIpcEvent(IPC_CHANNELS.MCP_TOOL_PERMISSION_REQUEST, callback),
+    onToolPermissionResolved: (callback: (payload: unknown) => void) =>
+      onIpcEvent(IPC_CHANNELS.MCP_TOOL_PERMISSION_RESOLVED, callback),
+    respondToToolPermission: (response: unknown) =>
+      ipcRenderer.send(IPC_CHANNELS.MCP_TOOL_PERMISSION_RESPONSE, response),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
     addServer: (config: MCPServerConfig) => ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
     updateServer: (name: string, config: MCPServerConfig) =>

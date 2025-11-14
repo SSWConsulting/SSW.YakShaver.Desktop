@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import type { HealthStatusInfo } from "@/types";
+import type { HealthStatusInfo, McpAiMode, McpToolControlSettings } from "@/types";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../../services/ipc-client";
 import { HealthStatus } from "../../health-status/health-status";
@@ -18,6 +18,13 @@ import { Button } from "../../ui/button";
 import { Card, CardContent } from "../../ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
 import { ScrollArea } from "../../ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../ui/select";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 
 type ViewMode = "list" | "add" | "edit";
@@ -28,6 +35,28 @@ interface McpSettingsPanelProps {
   isActive: boolean;
 }
 
+const AI_MODE_OPTIONS: Array<{
+  value: McpAiMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "yolo",
+    label: "YOLO",
+    description: "Run all tools automatically. No prompts or warnings.",
+  },
+  {
+    value: "warn",
+    label: "Warn",
+    description: "Show a prompt and auto-accept after 15 seconds if you do nothing.",
+  },
+  {
+    value: "ask_first",
+    label: "Ask First",
+    description: "Always require manual approval before running each tool.",
+  },
+];
+
 export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +65,8 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [serverToDelete, setServerToDelete] = useState<string | null>(null);
   const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
+  const [toolSettings, setToolSettings] = useState<McpToolControlSettings | null>(null);
+  const [isToolSettingsLoading, setIsToolSettingsLoading] = useState(false);
 
   const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
     const initialStatus: ServerHealthStatus<string> = {};
@@ -77,11 +108,24 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     }
   }, [checkAllServersHealth]);
 
+  const loadToolSettings = useCallback(async () => {
+    setIsToolSettingsLoading(true);
+    try {
+      const settings = await ipcClient.mcp.getToolControlSettings();
+      setToolSettings(settings);
+    } catch (e) {
+      toast.error(`Failed to load tool controls: ${formatErrorMessage(e)}`);
+    } finally {
+      setIsToolSettingsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isActive) {
       void loadServers();
+      void loadToolSettings();
     }
-  }, [isActive, loadServers]);
+  }, [isActive, loadServers, loadToolSettings]);
 
   const showAddForm = useCallback(() => {
     setViewMode("add");
@@ -147,6 +191,36 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     return [...servers].sort((a, b) => a.name.localeCompare(b.name));
   }, [servers]);
 
+  const handleModeChange = useCallback(
+    async (mode: McpAiMode) => {
+      setIsToolSettingsLoading(true);
+      try {
+        const updated = await ipcClient.mcp.setToolControlMode(mode);
+        setToolSettings(updated);
+        const label = AI_MODE_OPTIONS.find((opt) => opt.value === mode)?.label ?? mode;
+        toast.success(`AI mode set to ${label}`);
+      } catch (e) {
+        toast.error(`Failed to update mode: ${formatErrorMessage(e)}`);
+      } finally {
+        setIsToolSettingsLoading(false);
+      }
+    },
+    [],
+  );
+
+  const handleRemoveWhitelist = useCallback(async (id: string) => {
+    setIsToolSettingsLoading(true);
+    try {
+      const updated = await ipcClient.mcp.removeWhitelistedTool(id);
+      setToolSettings(updated);
+      toast.success("Removed tool from whitelist");
+    } catch (e) {
+      toast.error(`Failed to update whitelist: ${formatErrorMessage(e)}`);
+    } finally {
+      setIsToolSettingsLoading(false);
+    }
+  }, []);
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <header className="mb-4 flex flex-col gap-1">
@@ -159,6 +233,96 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
         <div className="flex flex-col gap-6 pb-6 pr-2">
           {viewMode === "list" && (
             <div className="flex flex-col gap-6">
+              <Card className="bg-black/40 border-white/15">
+                <CardContent className="space-y-4 p-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">AI Tool Control Mode</h3>
+                    <p className="text-sm text-white/70">
+                      Decide how YakShaver uses MCP tools during automations.
+                    </p>
+                  </div>
+                  <Select
+                    value={toolSettings?.mode ?? "warn"}
+                    onValueChange={(value) => handleModeChange(value as McpAiMode)}
+                    disabled={isToolSettingsLoading}
+                  >
+                    <SelectTrigger className="w-full max-w-sm bg-black/40 border-white/20 text-white">
+                      <SelectValue placeholder="Select mode" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-neutral-900 text-white border-white/20">
+                      {AI_MODE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value} className="text-white">
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {AI_MODE_OPTIONS.map((option) => (
+                      <div
+                        key={option.value}
+                        className={`rounded-lg border p-3 text-sm ${
+                          toolSettings?.mode === option.value
+                            ? "border-white/60 bg-white/10"
+                            : "border-white/10 bg-white/5"
+                        }`}
+                      >
+                        <p className="font-semibold text-white">{option.label}</p>
+                        <p className="text-white/70">{option.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-black/40 border-white/15">
+                <CardContent className="space-y-4 p-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Tool Whitelist</h3>
+                      <p className="text-sm text-white/70">
+                        Tools listed here always run immediately, regardless of AI mode.
+                      </p>
+                    </div>
+                    {isToolSettingsLoading && (
+                      <span className="text-sm text-white/60">Updating…</span>
+                    )}
+                  </div>
+                  {toolSettings?.whitelist?.length ? (
+                    <div className="space-y-3">
+                      {toolSettings.whitelist.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="flex flex-col gap-2 rounded-lg border border-white/15 bg-white/5 p-4 text-white sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <p className="font-semibold">{entry.toolName}</p>
+                            <p className="text-sm text-white/70">Server: {entry.serverName}</p>
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={isToolSettingsLoading}
+                            onClick={() => handleRemoveWhitelist(entry.id)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <Empty className="bg-transparent border border-dashed border-white/20">
+                      <EmptyHeader>
+                        <EmptyTitle>No whitelisted tools yet</EmptyTitle>
+                        <EmptyDescription>
+                          Approve a tool with "Always accept" or change settings here later.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
+                  )}
+                </CardContent>
+              </Card>
+
               <div className="flex justify-end">
                 <Button variant="secondary" onClick={showAddForm} size="lg" disabled={isLoading}>
                   Add Server

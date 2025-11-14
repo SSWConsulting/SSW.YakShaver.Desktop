@@ -1,13 +1,16 @@
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import type { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
+import { McpToolControlService } from "../services/mcp/mcp-tool-control-service";
 import type { MCPServerConfig } from "../services/mcp/types";
 import { IPC_CHANNELS } from "./channels";
 
 export class McpIPCHandlers {
   private orchestrator: MCPOrchestrator;
+  private toolControlService: McpToolControlService;
 
   constructor(orchestrator: MCPOrchestrator) {
     this.orchestrator = orchestrator;
+    this.toolControlService = McpToolControlService.getInstance();
     this.registerHandlers();
   }
 
@@ -44,6 +47,24 @@ export class McpIPCHandlers {
       IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH,
       async (_event: IpcMainInvokeEvent, name: string) => {
         return await this.orchestrator.checkServerHealth(name);
+      },
+    );
+
+    ipcMain.handle(IPC_CHANNELS.MCP_TOOL_SETTINGS_GET, async () => {
+      return this.toolControlService.getSettings();
+    });
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_TOOL_SETTINGS_SET_MODE,
+      async (_event: IpcMainInvokeEvent, mode: string) => {
+        return this.toolControlService.setMode(mode as "yolo" | "warn" | "ask_first");
+      },
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_TOOL_WHITELIST_REMOVE,
+      async (_event: IpcMainInvokeEvent, id: string) => {
+        return this.toolControlService.removeWhitelistEntry(id);
       },
     );
 
