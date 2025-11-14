@@ -379,10 +379,31 @@ const buildUndoPrompt = ({
   return sections.join("\n\n");
 };
 
+const normalizeCorrections = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry));
+  }
+  return [String(value)];
+};
+
 const mergeReprocessInstructions = (base: string, extra: string): string => {
   const trimmedExtra = extra.trim();
   if (!trimmedExtra) return base;
-  return `${base.trim()}${MERGED_INSTRUCTION_HEADER}${trimmedExtra}`;
+
+  try {
+    const parsed = JSON.parse(base) as Record<string, unknown>;
+    const existingCorrections = normalizeCorrections(parsed.operatorCorrections);
+    const merged = {
+      ...parsed,
+      operatorCorrections: [...existingCorrections, trimmedExtra],
+      operatorCorrectionSummary:
+        "Operator supplied additional guidance. Apply these corrections before executing tool calls.",
+    };
+    return JSON.stringify(merged, null, 2);
+  } catch {
+    return `${base.trim()}${MERGED_INSTRUCTION_HEADER}${trimmedExtra}\n\nPlease fully re-execute the MCP workflow (plan + tool calls) using these corrections.`;
+  }
 };
 
 export function FinalResultPanel() {
@@ -545,28 +566,31 @@ export function FinalResultPanel() {
                       Reprocess
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="bg-black/80 border-white/20 text-white">
                     <DialogHeader>
-                      <DialogTitle>Reprocess this yakshave</DialogTitle>
-                      <DialogDescription>
+                      <DialogTitle className="text-white">Reprocess this yakshave</DialogTitle>
+                      <DialogDescription className="text-white/70">
                         Provide corrective instructions for YakShaver, then submit to rerun the MCP
                         workflow.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-2">
-                      <Label htmlFor="reprocess-instructions">Additional instructions</Label>
+                      <Label htmlFor="reprocess-instructions" className="text-white/80">
+                        Additional instructions
+                      </Label>
                       <Textarea
                         id="reprocess-instructions"
                         value={reprocessInstructions}
                         onChange={(event) => setReprocessInstructions(event.target.value)}
                         placeholder="Explain what needs to change. e.g. Wrong repo, please redo in xyz repo and use branch main."
                         disabled={reprocessLoading}
+                        className="text-white placeholder:text-white/40 border-white/20 bg-white/5"
                       />
                       {reprocessError && (
-                        <p className="text-sm text-red-400">{reprocessError}</p>
+                        <p className="text-sm text-red-300">{reprocessError}</p>
                       )}
                       {reprocessSuccess && (
-                        <p className="text-sm text-green-400">{reprocessSuccess}</p>
+                        <p className="text-sm text-green-300">{reprocessSuccess}</p>
                       )}
                     </div>
                     <DialogFooter>
@@ -575,6 +599,7 @@ export function FinalResultPanel() {
                         variant="ghost"
                         onClick={() => handleReprocessDialogChange(false)}
                         disabled={reprocessLoading}
+                        className="text-white hover:text-white hover:bg-white/10"
                       >
                         Cancel
                       </Button>
