@@ -70,12 +70,6 @@ export class ReleaseChannelIPCHandlers {
 
     autoUpdater.on("update-available", (info) => {
       console.log("Update available:", info.version);
-      dialog.showMessageBox({
-        type: "info",
-        title: "Update Available",
-        message: `Version ${info.version} is available. Downloading now...`,
-        buttons: ["OK"],
-      });
     });
 
     autoUpdater.on("update-not-available", (info) => {
@@ -362,13 +356,8 @@ export class ReleaseChannelIPCHandlers {
       return;
     }
 
-    console.log(
-      `Starting periodic update checks (every ${this.UPDATE_CHECK_INTERVAL / 60000} minutes)`,
-    );
-
     // Set up periodic checks
     this.updateCheckInterval = setInterval(() => {
-      console.log("Running periodic update check...");
       autoUpdater.checkForUpdates().catch((err) => {
         console.error("Periodic update check failed:", err);
       });
@@ -446,11 +435,6 @@ export class ReleaseChannelIPCHandlers {
 
             const currentVersion = app.getVersion();
             const isOnLatest = currentVersion === latestRelease.tag_name;
-
-            console.log(`Configured auto-updater for PR #${prNumber}`);
-            console.log(`  Current version: ${currentVersion}`);
-            console.log(`  Latest release: ${latestRelease.tag_name}`);
-            console.log(`  Up to date: ${isOnLatest}`);
 
             // Trigger immediate check if not on latest
             if (!isOnLatest) {
