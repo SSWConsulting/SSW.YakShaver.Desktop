@@ -36,7 +36,7 @@ export function PromptListView({
     <div className="flex flex-col gap-4 h-full overflow-hidden">
       <div className="flex items-center gap-2">
         <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search prompts..." />
-        <Button onClick={onCreateNew} variant="secondary" size="sm" className="shrink-0">
+        <Button onClick={onCreateNew} size="sm" className="shrink-0">
           Add New Prompt
         </Button>
       </div>

@@ -206,7 +206,7 @@ export function LLMProviderForm({
           >
             Clear Config
           </Button>
-          <Button type="submit" variant="secondary" size="sm" disabled={isLoading}>
+          <Button type="submit" size="sm" disabled={isLoading}>
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Save
           </Button>

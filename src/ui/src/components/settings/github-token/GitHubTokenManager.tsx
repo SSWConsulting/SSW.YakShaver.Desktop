@@ -126,7 +126,7 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
                 Clear Token
               </Button>
             )}
-            <Button variant="secondary" onClick={handleSave} disabled={isSaving || !token.trim()}>
+            <Button onClick={handleSave} disabled={isSaving || !token.trim()}>
               {isSaving ? "Saving..." : "Save Token"}
             </Button>
           </div>

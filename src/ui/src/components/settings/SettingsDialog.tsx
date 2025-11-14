@@ -104,12 +104,7 @@ export function SettingsDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="flex items-center gap-2"
-          aria-label="Open settings"
-        >
+        <Button size="sm" className="flex items-center gap-2" aria-label="Open settings">
           <Settings className="h-4 w-4" />
           <span>Settings</span>
         </Button>

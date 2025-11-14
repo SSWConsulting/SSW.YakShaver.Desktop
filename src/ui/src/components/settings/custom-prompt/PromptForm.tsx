@@ -174,7 +174,7 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             <div className="flex gap-2 ml-auto">
               <Button
                 type="button"
-                variant="default"
+                variant="outline"
                 size="sm"
                 onClick={onCancel}
                 className="cursor-pointer"
@@ -185,7 +185,6 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
                 type="button"
                 onClick={() => handleSubmit(false)}
                 disabled={loading || !form.formState.isValid}
-                variant="secondary"
                 size="sm"
                 className="cursor-pointer"
               >
@@ -195,7 +194,6 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
                 type="button"
                 onClick={() => handleSubmit(true)}
                 disabled={loading || !form.formState.isValid}
-                variant="secondary"
                 size="sm"
                 className="cursor-pointer"
               >

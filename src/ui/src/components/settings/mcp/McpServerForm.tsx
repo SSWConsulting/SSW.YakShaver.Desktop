@@ -14,8 +14,8 @@ import {
 } from "../../ui/form";
 import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
-import { Textarea } from "../../ui/textarea";
 import { Switch } from "../../ui/switch";
+import { Textarea } from "../../ui/textarea";
 
 export type Transport = "streamableHttp" | "stdio";
 
@@ -463,7 +463,7 @@ export function McpServerFormWrapper({
           >
             Cancel
           </Button>
-          <Button variant="secondary" type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading}>
             {isLoading ? "Saving..." : "Save Server"}
           </Button>
         </div>
