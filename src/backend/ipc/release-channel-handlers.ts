@@ -66,12 +66,6 @@ export class ReleaseChannelIPCHandlers {
 
     autoUpdater.on("checking-for-update", () => {
       console.log("Checking for updates...");
-      dialog.showMessageBox({
-        type: "info",
-        title: "Checking for Updates",
-        message: "Checking for updates...",
-        buttons: ["OK"],
-      });
     });
 
     autoUpdater.on("update-available", (info) => {
@@ -86,22 +80,10 @@ export class ReleaseChannelIPCHandlers {
 
     autoUpdater.on("update-not-available", (info) => {
       console.log("Update not available. Current version:", info.version);
-      dialog.showMessageBox({
-        type: "info",
-        title: "No Updates",
-        message: `You are on the latest version (${info.version}).`,
-        buttons: ["OK"],
-      });
     });
 
     autoUpdater.on("download-progress", (progressObj) => {
       console.log(`Download progress: ${Math.round(progressObj.percent)}%`);
-      dialog.showMessageBox({
-        type: "info",
-        title: "Download Progress",
-        message: `Download progress: ${Math.round(progressObj.percent)}%`,
-        buttons: ["OK"],
-      });
     });
 
     autoUpdater.on("update-downloaded", () => {
@@ -470,14 +452,13 @@ export class ReleaseChannelIPCHandlers {
             console.log(`  Latest release: ${latestRelease.tag_name}`);
             console.log(`  Up to date: ${isOnLatest}`);
 
-            // Show notification if not on latest
+            // Trigger immediate check if not on latest
             if (!isOnLatest) {
-              dialog.showMessageBox({
-                type: "info",
-                title: "PR Channel Configured",
-                message: `Monitoring PR #${prNumber} for updates.\n\nCurrent: ${currentVersion}\nLatest: ${latestRelease.tag_name}\n\nAuto-update will check every 10 minutes.`,
-                buttons: ["OK"],
-              });
+              setTimeout(() => {
+                autoUpdater.checkForUpdates().catch((err) => {
+                  console.error("Initial update check failed:", err);
+                });
+              }, 1000);
             }
           } else {
             console.warn(`No releases found for PR #${prNumber}`);
