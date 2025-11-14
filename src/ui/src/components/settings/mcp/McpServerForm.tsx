@@ -47,6 +47,8 @@ const mcpServerSchema = z
     url: z.string().optional(),
     headers: z.string().optional(),
     command: z.string().optional(),
+    // Note: The 'args' field is a string in the form data (newline-separated arguments).
+    // It is converted to a string[] on submission to match MCPServerConfig.
     args: z.string().optional(),
     env: z.string().optional(),
     version: z.string().optional(),
