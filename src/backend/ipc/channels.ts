@@ -68,6 +68,7 @@ export const IPC_CHANNELS = {
   RELEASE_CHANNEL_LIST_RELEASES: "release-channel:list-releases",
   RELEASE_CHANNEL_CHECK_UPDATES: "release-channel:check-updates",
   RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
+  RELEASE_CHANNEL_DOWNLOAD_PROGRESS: "release-channel:download-progress",
 
   // GitHub Token
   GITHUB_TOKEN_GET: "github-token:get",

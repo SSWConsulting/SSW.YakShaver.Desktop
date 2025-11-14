@@ -131,6 +131,9 @@ declare global {
           version?: string;
         }>;
         getCurrentVersion: () => Promise<string>;
+        onDownloadProgress: (
+          callback: (progress: { percent: number; transferred: number; total: number }) => void,
+        ) => () => void;
       };
       githubToken: {
         get: () => Promise<string | undefined>;

@@ -175,8 +175,6 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       setChannel({ type: "latest" });
       return;
     }
-    // value is the PR number (e.g., "15")
-    // Store the channel name (e.g., "beta.15")
     setChannel({ type: "pr", channel: `beta.${value}` });
   }, []);
 

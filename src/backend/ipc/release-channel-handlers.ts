@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import { GitHubTokenStorage } from "../services/storage/github-token-storage";
 import type { ReleaseChannel } from "../services/storage/release-channel-storage";
@@ -64,20 +64,17 @@ export class ReleaseChannelIPCHandlers {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
-    autoUpdater.on("checking-for-update", () => {
-      console.log("Checking for updates...");
-    });
-
-    autoUpdater.on("update-available", (info) => {
-      console.log("Update available:", info.version);
-    });
-
-    autoUpdater.on("update-not-available", (info) => {
-      console.log("Update not available. Current version:", info.version);
-    });
-
     autoUpdater.on("download-progress", (progressObj) => {
-      console.log(`Download progress: ${Math.round(progressObj.percent)}%`);
+      // Send progress to all windows
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+          win.webContents.send(IPC_CHANNELS.RELEASE_CHANNEL_DOWNLOAD_PROGRESS, {
+            percent: Math.round(progressObj.percent),
+            transferred: progressObj.transferred,
+            total: progressObj.total,
+          });
+        }
+      });
     });
 
     autoUpdater.on("update-downloaded", () => {
@@ -374,7 +371,10 @@ export class ReleaseChannelIPCHandlers {
     }
   }
 
-  public async configureAutoUpdater(channel: ReleaseChannel): Promise<void> {
+  public async configureAutoUpdater(
+    channel: ReleaseChannel,
+    triggerImmediateCheck = false,
+  ): Promise<void> {
     // Skip configuration in development/unpackaged mode
     if (!app.isPackaged) {
       return;
@@ -401,6 +401,14 @@ export class ReleaseChannelIPCHandlers {
         repo: REPO_NAME,
         private: false,
       });
+
+      if (triggerImmediateCheck) {
+        setTimeout(() => {
+          autoUpdater.checkForUpdates().catch((err) => {
+            console.error("Startup update check failed:", err);
+          });
+        }, 2000);
+      }
     } else if (channel.type === "pr" && channel.channel) {
       // For PR channels, we need to find the latest release tag first
       const prMatch = channel.channel.match(/beta\.(\d+)/);
@@ -421,28 +429,23 @@ export class ReleaseChannelIPCHandlers {
 
           if (prReleases.length > 0) {
             const latestRelease = prReleases[0];
-
-            // Set channel and settings BEFORE setFeedURL
-            autoUpdater.channel = channel.channel;
-            autoUpdater.allowPrerelease = true;
-            autoUpdater.allowDowngrade = true;
-
             autoUpdater.setFeedURL({
               provider: "generic",
               url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag_name}`,
               channel: channel.channel,
             });
+            autoUpdater.allowPrerelease = true;
+            autoUpdater.allowDowngrade = true;
 
             const currentVersion = app.getVersion();
             const isOnLatest = currentVersion === latestRelease.tag_name;
 
-            // Trigger immediate check if not on latest
-            if (!isOnLatest) {
+            if (triggerImmediateCheck && !isOnLatest) {
               setTimeout(() => {
                 autoUpdater.checkForUpdates().catch((err) => {
-                  console.error("Initial update check failed:", err);
+                  console.error("Startup update check failed:", err);
                 });
-              }, 1000);
+              }, 2000);
             }
           } else {
             console.warn(`No releases found for PR #${prNumber}`);
