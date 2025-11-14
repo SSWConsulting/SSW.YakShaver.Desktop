@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { formatErrorMessage } from "@/utils";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, UploadStatus } from "../../types";
@@ -65,11 +66,10 @@ export function ScreenRecorder() {
     try {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
-
       await window.electronAPI.pipelines.processVideo(filePath);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatErrorMessage(error);
       setUploadResult({ success: false, error: message });
       toast.error(`Processing failed: ${message}`);
     }
@@ -80,7 +80,7 @@ export function ScreenRecorder() {
       <section className="flex flex-col gap-4 items-center w-full">
         <div className="flex flex-row items-center gap-2">
           <Button
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-red-600 hover:bg-red-700"
             onClick={toggleRecording}
             disabled={isProcessing || isTranscribing || !isAuthenticated}
           >
