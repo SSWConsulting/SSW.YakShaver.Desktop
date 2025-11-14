@@ -222,7 +222,13 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
           </Label>
           <Select value={selectValue} onValueChange={handleSelectionChange}>
             <SelectTrigger className="bg-white/5 border-white/20 text-white">
-              <SelectValue placeholder="Choose a release" />
+              <SelectValue placeholder="Choose a release">
+                {selectValue === SELECT_LATEST
+                  ? "Latest Stable (default)"
+                  : selectValue
+                    ? `PR #${selectValue}`
+                    : "Choose a release"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent className="bg-neutral-800 border-neutral-700 max-h-80">
               <SelectItem
@@ -251,10 +257,8 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
                 >
                   <div className="flex flex-col">
                     <span>{option.label}</span>
-                    <span className="text-xs text-white/70">{option.version}</span>
-                    <span className="text-xs text-white/50">
-                      {new Date(option.publishedAt).toLocaleString()}
-                    </span>
+                    <span className="text-xs">{option.version}</span>
+                    <span className="text-xs">{new Date(option.publishedAt).toLocaleString()}</span>
                   </div>
                 </SelectItem>
               ))}
