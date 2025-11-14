@@ -22,14 +22,14 @@ interface TranscriptSegment {
 export interface MetadataBuilderInput {
   transcriptVtt: string;
   intermediateOutput: string;
+  executionHistory: string;
   finalResult?: string | null;
 }
 
 interface MetadataModelResponse {
   title?: string;
-  summary?: string;
+  description?: string;
   tags?: string[];
-  links?: LinkCandidate[];
   chapters?: ChapterCandidate[];
 }
 
@@ -47,15 +47,21 @@ export class VideoMetadataBuilder {
   async build(input: MetadataBuilderInput): Promise<MetadataBuilderResult> {
     const transcriptSegments = parseVtt(input.transcriptVtt);
     const transcriptForPrompt = buildTranscriptExcerpt(transcriptSegments);
+    const executionHistorySnippet = truncateText(input.executionHistory, 6000);
 
     const fallbackLinks = dedupeLinks([
       ...extractLinksFromText(input.intermediateOutput),
       ...extractLinksFromText(input.finalResult ?? ""),
+      ...extractLinksFromText(executionHistorySnippet),
       ...extractLinksFromStructuredData(input.intermediateOutput),
       ...extractLinksFromStructuredData(input.finalResult ?? ""),
+      ...extractLinksFromStructuredData(executionHistorySnippet),
     ]);
 
     const promptPayload = [
+      "### Execution History",
+      executionHistorySnippet || "No execution history available.",
+      "",
       "### Transcript (timestamp + text)",
       transcriptForPrompt || "No transcript available.",
       "",
@@ -65,7 +71,7 @@ export class VideoMetadataBuilder {
       "### Final Result JSON (if available)",
       input.finalResult ?? "No final result provided.",
       "",
-      "### Link Candidates extracted from structured data",
+      "### Link Candidates (use entire URLs exactly as provided)",
       fallbackLinks.length
         ? fallbackLinks.map((link) => `- ${link.label}: ${link.url}`).join("\n")
         : "None",
@@ -78,10 +84,15 @@ export class VideoMetadataBuilder {
     );
 
     const parsedResponse = safeJsonParse<MetadataModelResponse>(rawResponse) || {};
-    const metadata = normalizeModelResponse(parsedResponse, fallbackLinks, transcriptSegments);
+    const metadata = normalizeModelResponse(
+      parsedResponse,
+      fallbackLinks,
+      transcriptSegments,
+      executionHistorySnippet,
+    );
     const snippet: YouTubeSnippetUpdate = {
       title: metadata.title,
-      description: composeDescription(metadata.summary, metadata.links, metadata.chapters),
+      description: appendChapters(metadata.description, metadata.chapters),
       tags: metadata.tags.slice(0, 15),
       categoryId: "22",
     };
@@ -90,21 +101,19 @@ export class VideoMetadataBuilder {
   }
 }
 
-const METADATA_SYSTEM_PROMPT = `You create YouTube metadata from transcripts.
+const METADATA_SYSTEM_PROMPT = `You create polished YouTube metadata from execution histories.
 Return JSON with:
 - "title": concise, specific, <=90 chars
-- "summary": 2-3 sentences highlighting key outcomes
+- "description": 2-3 short paragraphs and (if relevant) a "Resources" bullet list. Include meaningful context, key outcomes, and EVERY URL in full (e.g., https://github.com/.../issues/123). Never rely on "#123" shorthand.
 - "tags": list of lowercase keywords (max 10) without hashtags
-- "links": array of {"label","url"} referencing concrete resources (GitHub issues, docs, etc.)
 - "chapters": array of {"label","timestamp"} with timestamps formatted as MM:SS or HH:MM:SS
 
 Rules:
 - First chapter must start at 00:00
 - Subsequent chapters must be chronological and at least 10 seconds apart
-- Prefer GitHub issue numbers/titles when available
-- Use descriptive labels (e.g., "Issue #32 – Fix login bug")
-- If no information for a section, still include a reasonable default using the transcript.
-`;
+- Highlight concrete issues/resources from the execution history
+- Write descriptions suitable for YouTube (no markdown code fences)
+- If information is missing, fall back to clear defaults rather than hallucinating.`;
 
 function parseVtt(vtt: string): TranscriptSegment[] {
   if (!vtt) return [];
@@ -231,28 +240,20 @@ function normalizeModelResponse(
   response: MetadataModelResponse,
   fallbackLinks: LinkCandidate[],
   segments: TranscriptSegment[],
+  executionHistory: string,
 ): Required<MetadataModelResponse> {
   const title = (response.title || deriveFallbackTitle(fallbackLinks)).slice(0, 90);
-  const summary = response.summary || deriveFallbackSummary(segments);
+  const description =
+    response.description || deriveFallbackDescription(executionHistory, fallbackLinks);
   const tags = dedupeTags([...(response.tags ?? []), ...DEFAULT_TAGS]);
-
-  const links = dedupeLinks(
-    (response.links ?? []).filter(isValidLinkCandidate).concat(fallbackLinks),
-  );
-
   const chapters = buildChapters(response.chapters ?? [], segments);
 
   return {
     title,
-    summary,
+    description,
     tags,
-    links,
     chapters,
   };
-}
-
-function isValidLinkCandidate(link: LinkCandidate): boolean {
-  return Boolean(link?.url && URL_REGEX.test(link.url));
 }
 
 function dedupeTags(tags: string[]): string[] {
@@ -277,15 +278,28 @@ function deriveFallbackTitle(links: LinkCandidate[]): string {
   return "YakShaver Project Update";
 }
 
-function deriveFallbackSummary(segments: TranscriptSegment[]): string {
-  if (!segments.length) {
-    return "Quick update recorded with YakShaver covering the latest fixes and action items.";
+function deriveFallbackDescription(
+  executionHistory: string,
+  links: LinkCandidate[],
+): string {
+  const lines: string[] = [];
+  const historySnippet = truncateText(executionHistory, 400);
+  if (historySnippet) {
+    lines.push("Quick summary:", historySnippet.trim());
+  } else {
+    lines.push(
+      "This YakShaver recording walks through the latest fixes, open issues, and debugging steps.",
+    );
   }
-  const firstFew = segments
-    .slice(0, 5)
-    .map((segment) => segment.text)
-    .join(" ");
-  return `${firstFew.slice(0, 200)}...`;
+
+  if (links.length) {
+    lines.push("", "Resources:");
+    for (const link of links) {
+      lines.push(`- ${link.label}: ${link.url}`);
+    }
+  }
+
+  return lines.join("\n").trim();
 }
 
 function buildChapters(
@@ -342,31 +356,26 @@ function normalizeTimestamp(timestamp: string): string {
   return "00:00:00";
 }
 
-function composeDescription(
-  summary: string,
-  links: LinkCandidate[],
-  chapters: ChapterCandidate[],
-): string {
+function appendChapters(description: string, chapters: ChapterCandidate[]): string {
   const lines: string[] = [];
-  if (summary) {
-    lines.push(summary.trim());
-  }
-
-  if (links.length) {
-    lines.push("", "Resources:");
-    for (const link of links) {
-      lines.push(`- ${link.label}: ${link.url}`);
-    }
+  if (description) {
+    lines.push(description.trim());
   }
 
   if (chapters.length) {
     lines.push("", "Chapters:");
     for (const chapter of chapters) {
-      lines.push(`${chapter.timestamp.replace(/^00:/, "")} – ${chapter.label}`);
+      lines.push(`${chapter.timestamp.replace(/^00:/, "")} - ${chapter.label}`);
     }
   }
 
   return lines.join("\n").trim();
+}
+
+function truncateText(text: string | undefined, maxLength: number): string {
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 3)}...`;
 }
 
 function safeJsonParse<T>(value?: string | null): T | null {
