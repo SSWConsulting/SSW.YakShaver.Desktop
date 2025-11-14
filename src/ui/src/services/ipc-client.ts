@@ -10,6 +10,10 @@ import type {
   CustomPrompt,
   HealthStatusInfo,
   LLMConfig,
+  McpAiMode,
+  McpToolControlSettings,
+  McpToolPermissionRequest,
+  McpToolPermissionResolution,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
   ScreenSource,
@@ -102,6 +106,16 @@ declare global {
         updateServer: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
         removeServer: (name: string) => Promise<{ success: boolean }>;
         checkServerHealth: (name: string) => Promise<HealthStatusInfo>;
+        getToolControlSettings: () => Promise<McpToolControlSettings>;
+        setToolControlMode: (mode: McpAiMode) => Promise<McpToolControlSettings>;
+        removeWhitelistedTool: (id: string) => Promise<McpToolControlSettings>;
+        onToolPermissionRequest: (
+          callback: (request: McpToolPermissionRequest) => void,
+        ) => () => void;
+        onToolPermissionResolved: (
+          callback: (resolution: McpToolPermissionResolution) => void,
+        ) => () => void;
+        respondToToolPermission: (resolution: McpToolPermissionResolution) => void;
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;

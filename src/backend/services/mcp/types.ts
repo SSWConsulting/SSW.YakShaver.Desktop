@@ -11,3 +11,17 @@ export type MCPServerConfig = {
   timeoutMs?: number;
   enabled?: boolean;
 };
+
+export type MCPAiMode = "yolo" | "warn" | "ask_first";
+
+export interface MCPToolWhitelistEntry {
+  id: string;
+  serverName: string;
+  toolName: string;
+  createdAt: number;
+}
+
+export interface MCPToolControlSettings {
+  mode: MCPAiMode;
+  whitelist: MCPToolWhitelistEntry[];
+}
