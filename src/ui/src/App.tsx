@@ -1,6 +1,7 @@
 import { Toaster } from "sonner";
 import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
+import { DownloadProgressToast } from "./components/common/DownloadProgressToast";
 import { VideoHostPanel } from "./components/layout/VideoHostPanel";
 import { ScreenRecorder } from "./components/recording/ScreenRecorder";
 import { SettingsDialog } from "./components/settings/SettingsDialog";
@@ -12,6 +13,7 @@ export default function App() {
   return (
     <div className="relative min-h-screen py-8 text-white">
       <Toaster />
+      <DownloadProgressToast />
       <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
 
       <div className="flex flex-col gap-8">
