@@ -55,7 +55,7 @@ export class OpenAIService {
 
   async sendMessage(
     message: ChatCompletionMessageParam[],
-    tools: ChatCompletionTool[] = []
+    tools: ChatCompletionTool[] = [],
   ): Promise<ChatCompletion> {
     await this.ensureClient();
     if (!this.configured || !this.client) {
@@ -72,7 +72,7 @@ export class OpenAIService {
   async generateOutput(
     systemPrompt: string,
     userInput: string,
-    options?: { jsonMode?: boolean }
+    options?: { jsonMode?: boolean },
   ): Promise<string> {
     await this.ensureClient();
     if (!this.configured || !this.client) {
@@ -115,12 +115,7 @@ export class OpenAIService {
     this.configured = false;
   }
 
-  setAzureConfig(
-    apiKey: string,
-    endpoint: string,
-    version: string,
-    deployment: string
-  ) {
+  setAzureConfig(apiKey: string, endpoint: string, version: string, deployment: string) {
     this.client = new AzureOpenAI({
       apiKey,
       baseURL: `${endpoint}/openai/deployments/${deployment}`,
