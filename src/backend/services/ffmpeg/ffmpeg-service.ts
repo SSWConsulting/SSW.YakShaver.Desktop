@@ -63,9 +63,7 @@ export class FFmpegService {
         stderr += output;
 
         // Parse duration from ffmpeg output
-        const durationMatch = output.match(
-          /Duration: (\d{2}):(\d{2}):(\d{2})\.\d{2}/,
-        );
+        const durationMatch = output.match(/Duration: (\d{2}):(\d{2}):(\d{2})\.\d{2}/);
         if (durationMatch) {
           const hours = parseInt(durationMatch[1], 10);
           const minutes = parseInt(durationMatch[2], 10);

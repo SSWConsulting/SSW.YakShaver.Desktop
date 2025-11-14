@@ -1,7 +1,7 @@
 import { type IpcMainInvokeEvent, ipcMain } from "electron";
 import { OpenAIService } from "../services/openai/openai-service";
+import { type LLMConfig, LlmStorage } from "../services/storage/llm-storage";
 import { IPC_CHANNELS } from "./channels";
-import { LlmStorage, type LLMConfig } from "../services/storage/llm-storage";
 
 export class LLMSettingsIPCHandlers {
   private openAiService = OpenAIService.getInstance();
@@ -37,8 +37,7 @@ export class LLMSettingsIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.LLM_SET_CONFIG,
       async (_event: IpcMainInvokeEvent, config: LLMConfig) => {
-        if (!config || !("provider" in config))
-          throw new Error("Invalid LLM config");
+        if (!config || !("provider" in config)) throw new Error("Invalid LLM config");
         await this.secureStorage.storeLLMConfig(config);
         // Reconfigure services
         if (config.provider === "openai") {
