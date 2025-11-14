@@ -114,10 +114,9 @@ export class McpToolControlService {
     const settings = await this.loadSettings();
     const exists = settings.whitelist.some((item) => item.id === entry.id);
     if (exists) return;
-    settings.whitelist.push(entry);
     await this.persistSettings({
       ...settings,
-      whitelist: settings.whitelist,
+      whitelist: [...settings.whitelist, entry],
     });
   }
 
