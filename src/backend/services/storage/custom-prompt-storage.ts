@@ -25,7 +25,7 @@ const DEFAULT_PROMPT: CustomPrompt = {
   content: `You are an AI assistant with MCP capabilities to assist with create and manage PBIs.
 
 1. When creating an issue:
-- Add the video link to the top of the description.
+- Add the video link to the top of the description if the video link is available.
 - Always tag issue with the "YakShaver" label.
 
 2. USE one of these backlogs listed below that matches with the user mentioned:
