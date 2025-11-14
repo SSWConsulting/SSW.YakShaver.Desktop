@@ -302,9 +302,7 @@ export class ReleaseChannelIPCHandlers {
       // For latest stable channel, use GitHub provider
       await this.configureAutoUpdater(channel);
       autoUpdater.allowDowngrade = false;
-
       const result = await autoUpdater.checkForUpdates();
-
       if (result?.updateInfo) {
         const updateVersion = result.updateInfo.version;
         return {
