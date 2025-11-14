@@ -4,8 +4,8 @@ import { desktopCapturer } from "electron";
 import tmp from "tmp";
 import { getMainWindow } from "../../index";
 import { formatErrorMessage } from "../../utils/error-utils";
+import type { VideoUploadResult } from "../auth/types";
 import type { ScreenSource, StartRecordingResult, StopRecordingResult } from "./types";
-import { VideoUploadResult } from "../auth/types";
 
 export class RecordingService extends EventEmitter {
   private static instance: RecordingService;
@@ -71,7 +71,7 @@ export class RecordingService extends EventEmitter {
       tempFile.removeCallback();
       this.tempFiles.delete(filePath);
     } else {
-      await unlink(filePath).catch(() => { });
+      await unlink(filePath).catch(() => {});
     }
   }
 
