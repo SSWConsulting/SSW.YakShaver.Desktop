@@ -12,6 +12,7 @@ const WORKFLOW_STAGES: WorkflowStage[] = [
   ProgressStage.TRANSCRIBING,
   ProgressStage.GENERATING_TASK,
   ProgressStage.EXECUTING_TASK,
+  ProgressStage.UPDATING_METADATA,
 ];
 
 export function WorkflowProgressPanel() {

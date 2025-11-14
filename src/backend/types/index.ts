@@ -13,6 +13,7 @@ export enum ProgressStage {
   TRANSCRIPTION_COMPLETED = "transcription_completed",
   GENERATING_TASK = "generating_task",
   EXECUTING_TASK = "executing_task",
+  UPDATING_METADATA = "updating_metadata",
   ERROR = "error",
   COMPLETED = "completed",
 }

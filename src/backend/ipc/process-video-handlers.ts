@@ -11,6 +11,7 @@ import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
@@ -18,9 +19,11 @@ export class ProcessVideoIPCHandlers {
   private ffmpegService = FFmpegService.getInstance();
   private readonly mcpOrchestrator: MCPOrchestrator;
   private readonly customPromptStorage = CustomPromptStorage.getInstance();
+  private readonly metadataBuilder: VideoMetadataBuilder;
 
   constructor() {
     this.mcpOrchestrator = new MCPOrchestrator({}, this.llmClient);
+    this.metadataBuilder = new VideoMetadataBuilder(this.llmClient);
     this.registerHandlers();
   }
 
@@ -36,7 +39,7 @@ export class ProcessVideoIPCHandlers {
       }
 
       // upload to YouTube
-      const youtubeResult = await this.youtube.uploadVideo(filePath);
+      let youtubeResult = await this.youtube.uploadVideo(filePath);
       this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
 
       // convert video to mp3
@@ -71,11 +74,34 @@ export class ProcessVideoIPCHandlers {
         { systemPrompt },
       );
 
+      if (youtubeResult.success && youtubeResult.data?.videoId) {
+        try {
+          this.emitProgress(ProgressStage.UPDATING_METADATA);
+          const metadata = await this.metadataBuilder.build({
+            transcriptVtt: transcript,
+            intermediateOutput,
+            finalResult: mcpResult.final ?? undefined,
+          });
+          const updateResult = await this.youtube.updateVideoMetadata(
+            youtubeResult.data.videoId,
+            metadata.snippet,
+          );
+          if (updateResult.success) {
+            youtubeResult = updateResult;
+          } else if (updateResult.error) {
+            console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+          }
+        } catch (metadataError) {
+          console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
+        }
+      }
+
       this.emitProgress(ProgressStage.COMPLETED, {
         transcript,
         intermediateOutput,
         mcpResult,
         finalOutput: mcpResult.final,
+        uploadResult: youtubeResult,
       });
 
       // delete the temporary video file

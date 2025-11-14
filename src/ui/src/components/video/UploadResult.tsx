@@ -2,7 +2,7 @@ import { Copy, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useClipboard } from "../../hooks/useClipboard";
-import type { UploadStatus, VideoUploadResult } from "../../types";
+import { UploadStatus, type VideoUploadResult } from "../../types";
 import { Button } from "../ui/button";
 
 const openUrl = (url: string | null) => {
@@ -33,14 +33,18 @@ const StatusBadge = ({ success }: { success: boolean }) => (
 );
 
 const VideoCard = ({
-  description,
+  title = "YouTube Upload",
+  subtitle,
   url,
+  videoId,
   success = true,
   uploading = false,
   error,
 }: {
-  description: string;
+  title?: string;
+  subtitle?: string;
   url: string | null;
+  videoId?: string;
   success?: boolean;
   uploading?: boolean;
   error?: string;
@@ -52,8 +56,10 @@ const VideoCard = ({
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base text-white">YouTube Upload</CardTitle>
-            <CardDescription className="text-sm text-white/60">{description}</CardDescription>
+            <CardTitle className="text-base text-white">{title}</CardTitle>
+            {subtitle && (
+              <CardDescription className="text-sm text-white/60">{subtitle}</CardDescription>
+            )}
           </div>
           <div className="flex-shrink-0">
             {uploading ? <UploadingBadge /> : <StatusBadge success={success} />}
@@ -86,6 +92,19 @@ const VideoCard = ({
               </Button>
             </div>
           </div>
+          {videoId && (
+            <div className="mt-3 flex items-center justify-between text-xs text-white/60 font-mono">
+              <span className="truncate">Video ID: {videoId}</span>
+              <Button
+                type="button"
+                className="text-white/60 hover:text-white p-1.5 rounded transition-colors duration-200 hover:bg-white/10"
+                onClick={() => copyToClipboard(videoId)}
+                title="Copy video ID"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
         </CardContent>
       )}
     </Card>
@@ -99,24 +118,38 @@ export const UploadResult = ({
   result: VideoUploadResult | null;
   status: UploadStatus;
 }) => {
+  const summarizeDescription = (description: string) => {
+    if (!description) return "";
+    const firstLine = description.split("\n").find((line) => line.trim().length > 0) ?? "";
+    return firstLine.length > 140 ? `${firstLine.slice(0, 137)}...` : firstLine;
+  };
+
   // Show uploading state
-  if (status === "uploading") {
-    return <VideoCard description="Uploading video to YouTube..." url={null} uploading={true} />;
+  if (status === UploadStatus.UPLOADING) {
+    return (
+      <VideoCard title="Uploading to YouTube" subtitle="Preparing your recording..." url={null} uploading={true} />
+    );
   }
 
   if (!result) return null;
 
   // Show error state
   if (!result.success) {
-    return (
-      <VideoCard description="Upload failed" url={null} success={false} error={result.error} />
-    );
+    return <VideoCard title="Upload failed" subtitle={result.error} url={null} success={false} error={result.error} />;
   }
 
   if (!result.data) return null;
 
   // Show success state
-  return <VideoCard description={result.data.description} url={result.data.url} success={true} />;
+  return (
+    <VideoCard
+      title={result.data.title || "YouTube Upload"}
+      subtitle={summarizeDescription(result.data.description)}
+      url={result.data.url}
+      videoId={result.data.videoId}
+      success={true}
+    />
+  );
 };
 
 export { VideoCard as VideoInfo };

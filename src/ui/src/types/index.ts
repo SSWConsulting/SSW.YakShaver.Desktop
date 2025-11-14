@@ -33,6 +33,7 @@ export interface YouTubeConfig {
 export interface VideoUploadResult {
   success: boolean;
   data?: {
+    videoId: string;
     title: string;
     description: string;
     url: string;
@@ -104,6 +105,7 @@ export type WorkflowStage =
   | "transcribing"
   | "generating_task"
   | "executing_task"
+  | "updating_metadata"
   | "completed"
   | "error";
 
@@ -113,6 +115,7 @@ export const STAGE_CONFIG: Record<WorkflowStage, string> = {
   transcribing: "Transcribing audio",
   generating_task: "Analyzing transcript",
   executing_task: "Executing task",
+  updating_metadata: "Updating YouTube metadata",
   completed: "Completed",
   error: "Error occurred",
 };
@@ -152,6 +155,7 @@ export enum ProgressStage {
   TRANSCRIPTION_COMPLETED = "transcription_completed",
   GENERATING_TASK = "generating_task",
   EXECUTING_TASK = "executing_task",
+  UPDATING_METADATA = "updating_metadata",
   ERROR = "error",
   COMPLETED = "completed",
 }
