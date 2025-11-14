@@ -434,7 +434,7 @@ export function McpServerFormWrapper({
 
     const config: MCPServerConfig = {
       ...baseConfig,
-      command: data.command?.trim(),
+      command: data.command?.trim() || undefined,
       args,
       env,
     };
