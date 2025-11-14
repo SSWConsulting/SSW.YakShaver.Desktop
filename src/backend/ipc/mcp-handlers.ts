@@ -57,6 +57,9 @@ export class McpIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.MCP_TOOL_SETTINGS_SET_MODE,
       async (_event: IpcMainInvokeEvent, mode: string) => {
+        if (!["yolo", "warn", "ask_first"].includes(mode)) {
+          throw new Error(`Invalid mode: ${mode}`);
+        }
         return this.toolControlService.setMode(mode as "yolo" | "warn" | "ask_first");
       },
     );
