@@ -495,6 +495,7 @@ export function FinalResultPanel() {
 
       setReprocessSuccess("Reprocess request finished. Review the refreshed workflow output.");
       setIntermediateOutput(mergedOutput);
+      setReprocessDialogOpen(false);
     } catch (error) {
       setReprocessError(
         error instanceof Error ? error.message : "Failed to trigger reprocess request.",
@@ -566,7 +567,7 @@ export function FinalResultPanel() {
                       Reprocess
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="bg-black/80 border-white/20 text-white">
+                  <DialogContent className="bg-black/95 border-white/20 text-white">
                     <DialogHeader>
                       <DialogTitle className="text-white">Reprocess this yakshave</DialogTitle>
                       <DialogDescription className="text-white/70">
