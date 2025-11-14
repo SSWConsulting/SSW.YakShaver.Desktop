@@ -407,7 +407,7 @@ export function McpServerFormWrapper({
 
       const config: MCPServerConfig = {
         ...baseConfig,
-        url: data.url?.trim(),
+        url: data.url?.trim() || undefined,
         headers,
       };
 
