@@ -54,8 +54,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     });
     setHealthStatus(initialStatus);
 
-    for (const server of serverList) {
-      if (server.enabled === false) continue;
+    for (const server of serverList.filter((s) => s.enabled)) {
       try {
         const result = (await ipcClient.mcp.checkServerHealth(server.name)) as HealthStatusInfo;
         setHealthStatus((prev) => ({
@@ -212,7 +211,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                     const status = healthStatus[server.name] || {};
                     const detailText =
                       server.transport === "streamableHttp"
-                        ? server.url ?? ""
+                        ? (server.url ?? "")
                         : [server.command, ...(server.args ?? [])]
                             .filter((part) => !!part?.trim())
                             .join(" ");
@@ -249,7 +248,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 </span>
                                 <Switch
                                   checked={isEnabled}
-                                  onCheckedChange={(checked) =>
+                                  onCheckedChange={(checked: boolean) =>
                                     toggleServerEnabled(server, checked)
                                   }
                                   disabled={isLoading}
