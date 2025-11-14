@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 export interface ProcessedRelease {
   prNumber: string;
   tag: string;
+  version: string;
   publishedAt: string;
 }
 
@@ -22,6 +23,7 @@ const SELECT_LATEST = "channel:latest";
 interface DropdownOption {
   value: string;
   label: string;
+  version: string;
   isPrerelease: boolean;
   publishedAt: string;
 }
@@ -182,6 +184,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
     return releases.map((release) => ({
       value: release.prNumber,
       label: `PR #${release.prNumber}`,
+      version: release.version,
       isPrerelease: true,
       publishedAt: release.publishedAt,
     }));
@@ -248,7 +251,10 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
                 >
                   <div className="flex flex-col">
                     <span>{option.label}</span>
-                    <span className="text-xs">{new Date(option.publishedAt).toLocaleString()}</span>
+                    <span className="text-xs text-white/70">{option.version}</span>
+                    <span className="text-xs text-white/50">
+                      {new Date(option.publishedAt).toLocaleString()}
+                    </span>
                   </div>
                 </SelectItem>
               ))}

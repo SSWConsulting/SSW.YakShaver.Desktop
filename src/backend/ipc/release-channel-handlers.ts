@@ -19,6 +19,7 @@ interface GitHubRelease {
 interface ProcessedRelease {
   prNumber: string;
   tag: string;
+  version: string;
   publishedAt: string;
 }
 
@@ -62,6 +63,46 @@ export class ReleaseChannelIPCHandlers {
     // Enable automatic download
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on("checking-for-update", () => {
+      console.log("Checking for updates...");
+      dialog.showMessageBox({
+        type: "info",
+        title: "Checking for Updates",
+        message: "Checking for updates...",
+        buttons: ["OK"],
+      });
+    });
+
+    autoUpdater.on("update-available", (info) => {
+      console.log("Update available:", info.version);
+      dialog.showMessageBox({
+        type: "info",
+        title: "Update Available",
+        message: `Version ${info.version} is available. Downloading now...`,
+        buttons: ["OK"],
+      });
+    });
+
+    autoUpdater.on("update-not-available", (info) => {
+      console.log("Update not available. Current version:", info.version);
+      dialog.showMessageBox({
+        type: "info",
+        title: "No Updates",
+        message: `You are on the latest version (${info.version}).`,
+        buttons: ["OK"],
+      });
+    });
+
+    autoUpdater.on("download-progress", (progressObj) => {
+      console.log(`Download progress: ${Math.round(progressObj.percent)}%`);
+      dialog.showMessageBox({
+        type: "info",
+        title: "Download Progress",
+        message: `Download progress: ${Math.round(progressObj.percent)}%`,
+        buttons: ["OK"],
+      });
+    });
 
     autoUpdater.on("update-downloaded", () => {
       dialog
@@ -196,6 +237,7 @@ export class ReleaseChannelIPCHandlers {
       .map(([prNumber, release]) => ({
         prNumber,
         tag: release.tag_name,
+        version: release.tag_name,
         publishedAt: release.published_at,
       }));
   }
@@ -338,8 +380,13 @@ export class ReleaseChannelIPCHandlers {
       return;
     }
 
+    console.log(
+      `Starting periodic update checks (every ${this.UPDATE_CHECK_INTERVAL / 60000} minutes)`,
+    );
+
     // Set up periodic checks
     this.updateCheckInterval = setInterval(() => {
+      console.log("Running periodic update check...");
       autoUpdater.checkForUpdates().catch((err) => {
         console.error("Periodic update check failed:", err);
       });
@@ -403,13 +450,37 @@ export class ReleaseChannelIPCHandlers {
 
           if (prReleases.length > 0) {
             const latestRelease = prReleases[0];
+
+            // Set channel and settings BEFORE setFeedURL
+            autoUpdater.channel = channel.channel;
+            autoUpdater.allowPrerelease = true;
+            autoUpdater.allowDowngrade = true;
+
             autoUpdater.setFeedURL({
               provider: "generic",
               url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag_name}`,
               channel: channel.channel,
             });
-            autoUpdater.allowPrerelease = true;
-            autoUpdater.allowDowngrade = true;
+
+            const currentVersion = app.getVersion();
+            const isOnLatest = currentVersion === latestRelease.tag_name;
+
+            console.log(`Configured auto-updater for PR #${prNumber}`);
+            console.log(`  Current version: ${currentVersion}`);
+            console.log(`  Latest release: ${latestRelease.tag_name}`);
+            console.log(`  Up to date: ${isOnLatest}`);
+
+            // Show notification if not on latest
+            if (!isOnLatest) {
+              dialog.showMessageBox({
+                type: "info",
+                title: "PR Channel Configured",
+                message: `Monitoring PR #${prNumber} for updates.\n\nCurrent: ${currentVersion}\nLatest: ${latestRelease.tag_name}\n\nAuto-update will check every 10 minutes.`,
+                buttons: ["OK"],
+              });
+            }
+          } else {
+            console.warn(`No releases found for PR #${prNumber}`);
           }
         }
       }
