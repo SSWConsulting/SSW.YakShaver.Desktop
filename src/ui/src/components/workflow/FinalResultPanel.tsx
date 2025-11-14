@@ -528,7 +528,7 @@ export function FinalResultPanel() {
 
   const { parsed, raw, isJson } = parseFinalOutput(finalOutput);
   const status = (isJson && parsed?.Status) as "success" | "fail" | undefined;
-  const showActions = status === "success";
+  const showActions = Boolean(finalOutput);
   const canReprocess = showActions && Boolean(intermediateOutput && uploadResult);
   const canUndo = showActions && mcpSteps.length > 0;
 
