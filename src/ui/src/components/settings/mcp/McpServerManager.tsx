@@ -240,7 +240,8 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                       const isActive = toolSettings?.mode === option.value;
                       const baseClasses =
                         "rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60";
-                      const inactiveClasses = "border-white/10 bg-white/5 hover:border-white/30";
+                      const inactiveClasses =
+                        "border-white/10 bg-white/5 hover:border-white/30 text-white/80";
                       const activeClasses =
                         option.value === "yolo"
                           ? "border-red-500 bg-red-600/20 text-white shadow-[0_0_12px_rgba(248,113,113,0.4)]"
@@ -256,7 +257,10 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                           disabled={isToolSettingsLoading || isActive}
                           aria-pressed={isActive}
                         >
-                          <p className="font-semibold">{option.label}</p>
+                          <p className="font-semibold flex items-center gap-1">
+                            {option.value === "yolo" && <span role="img" aria-label="warning">⚠️</span>}
+                            {option.label}
+                          </p>
                           <p className="text-white/80 text-sm mt-1">{option.description}</p>
                         </button>
                       );
