@@ -281,11 +281,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       </div>
 
       <div className="flex gap-3 justify-end pt-2">
-        <Button
-          variant="secondary"
-          onClick={handleCheckUpdates}
-          disabled={isLoading || !hasGitHubToken}
-        >
+        <Button onClick={handleCheckUpdates} disabled={isLoading || !hasGitHubToken}>
           Check for Updates
         </Button>
       </div>

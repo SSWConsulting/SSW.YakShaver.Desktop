@@ -25,7 +25,7 @@ export default function RecordingControlBar() {
           className="flex flex-1 cursor-move items-center justify-center gap-2 px-4"
           style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         >
-          <Circle className="size-2 animate-pulse fill-red-500 text-red-500" />
+          <Circle className="size-2 animate-pulse fill-ssw-red text-ssw-red" />
           <span className="font-mono text-sm font-medium tabular-nums text-white">{time}</span>
         </div>
         <Separator orientation="vertical" className="h-6 bg-white/20" />
@@ -35,7 +35,7 @@ export default function RecordingControlBar() {
           className="size-7 rounded-md transition-all hover:scale-105 hover:bg-white/10"
           onClick={() => window.electronAPI.screenRecording.stopFromControlBar()}
         >
-          <Square className="size-4 fill-red-500 text-red-500" />
+          <Square className="size-4 fill-ssw-red text-ssw-red" />
         </Button>
       </div>
     </div>

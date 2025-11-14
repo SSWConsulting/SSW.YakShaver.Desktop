@@ -14,8 +14,8 @@ import {
 } from "../../ui/form";
 import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
-import { Textarea } from "../../ui/textarea";
 import { Switch } from "../../ui/switch";
+import { Textarea } from "../../ui/textarea";
 
 export type Transport = "streamableHttp" | "stdio";
 
@@ -454,16 +454,10 @@ export function McpServerFormWrapper({
         <McpServerForm form={form} />
 
         <div className="flex gap-3 justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={isLoading}
-            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-800/80 hover:text-white/80"
-          >
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
             Cancel
           </Button>
-          <Button variant="secondary" type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading}>
             {isLoading ? "Saving..." : "Save Server"}
           </Button>
         </div>

@@ -188,7 +188,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           {viewMode === "list" && (
             <div className="flex flex-col gap-6">
               <div className="flex justify-end">
-                <Button variant="secondary" onClick={showAddForm} size="lg" disabled={isLoading}>
+                <Button onClick={showAddForm} size="lg" disabled={isLoading}>
                   Add Server
                 </Button>
               </div>
@@ -259,7 +259,6 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                               </div>
                               <div className="flex gap-2">
                                 <Button
-                                  variant="secondary"
                                   size="sm"
                                   onClick={() => showEditForm(server)}
                                   disabled={isLoading}
@@ -299,23 +298,17 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
       </ScrollArea>
 
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent className="bg-neutral-900 text-neutral-100 border-neutral-800">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Delete {serverToDelete}</AlertDialogTitle>
-            <AlertDialogDescription className="text-white/70 text-base pt-2">
+            <AlertDialogTitle>Delete {serverToDelete}</AlertDialogTitle>
+            <AlertDialogDescription className="text-base pt-2">
               Are you sure you want to remove server '{serverToDelete}'? This action cannot be
               undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-neutral-800 text-white hover:bg-neutral-700">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-red-600 text-white hover:bg-red-700"
-              disabled={isLoading}
-            >
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isLoading}>
               Delete Server
             </AlertDialogAction>
           </AlertDialogFooter>

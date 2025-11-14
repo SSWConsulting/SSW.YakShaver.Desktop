@@ -14,12 +14,7 @@ export const NotConnectedStatus = ({ onConnect }: NoConnectionCardProps) => {
         <p className="text-white/60 mb-8 text-sm">
           Connect a video hosting platform to get started
         </p>
-        <Button
-          variant="secondary"
-          size="lg"
-          onClick={onConnect}
-          className="bg-white text-black hover:bg-gray-200"
-        >
+        <Button size="lg" onClick={onConnect}>
           Connect Platform
         </Button>
       </CardContent>

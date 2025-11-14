@@ -117,16 +117,11 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
 
           <div className="flex gap-3 justify-end pt-2">
             {hasToken && (
-              <Button
-                variant="outline"
-                onClick={handleClear}
-                disabled={isSaving}
-                className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-800/80 hover:text-white/80"
-              >
+              <Button variant="outline" onClick={handleClear} disabled={isSaving}>
                 Clear Token
               </Button>
             )}
-            <Button variant="secondary" onClick={handleSave} disabled={isSaving || !token.trim()}>
+            <Button onClick={handleSave} disabled={isSaving || !token.trim()}>
               {isSaving ? "Saving..." : "Save Token"}
             </Button>
           </div>

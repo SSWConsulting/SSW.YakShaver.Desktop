@@ -113,7 +113,7 @@ export function VideoPreviewModal({
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmExit}
-              className="bg-red-600 text-white hover:bg-red-700"
+              className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90"
             >
               Confirm Delete
             </AlertDialogAction>
