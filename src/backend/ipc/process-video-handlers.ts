@@ -83,6 +83,9 @@ export class ProcessVideoIPCHandlers {
             executionHistory: JSON.stringify(mcpResult.transcript ?? [], null, 2),
             finalResult: mcpResult.final ?? undefined,
           });
+          this.emitProgress(ProgressStage.UPDATING_METADATA, {
+            metadataPreview: metadata.metadata,
+          });
           const updateResult = await this.youtube.updateVideoMetadata(
             youtubeResult.data.videoId,
             metadata.snippet,

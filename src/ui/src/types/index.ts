@@ -99,6 +99,18 @@ interface AzureOpenAI {
 
 export type LLMConfig = OpenAI | AzureOpenAI;
 
+export interface VideoChapter {
+  label: string;
+  timestamp: string;
+}
+
+export interface MetadataPreview {
+  title: string;
+  description: string;
+  tags?: string[];
+  chapters?: VideoChapter[];
+}
+
 export type WorkflowStage =
   | "idle"
   | "converting_audio"
@@ -126,6 +138,7 @@ export interface WorkflowProgress {
   intermediateOutput?: string;
   finalOutput?: string;
   uploadResult?: VideoUploadResult;
+  metadataPreview?: MetadataPreview;
   error?: string;
 }
 
