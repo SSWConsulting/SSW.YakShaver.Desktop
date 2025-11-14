@@ -31,5 +31,4 @@ module.exports = async (context) => {
   } catch (error) {
     console.error("Failed to flip fuses:", error);
   }
-  
 };

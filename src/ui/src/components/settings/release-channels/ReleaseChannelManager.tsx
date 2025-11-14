@@ -38,6 +38,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   const [isLoadingReleases, setIsLoadingReleases] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<string>("");
   const [hasGitHubToken, setHasGitHubToken] = useState<boolean>(false);
+  const [isCheckingToken, setIsCheckingToken] = useState<boolean>(true);
 
   /**
    * Returns a user-friendly display string for the given release channel.
@@ -94,12 +95,15 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   }, []);
 
   const checkGitHubToken = useCallback(async () => {
+    setIsCheckingToken(true);
     try {
       const tokenExists = await window.electronAPI.githubToken.has();
       setHasGitHubToken(tokenExists);
     } catch (error) {
       console.error("Failed to check GitHub token:", error);
       setHasGitHubToken(false);
+    } finally {
+      setIsCheckingToken(false);
     }
   }, []);
 
@@ -185,7 +189,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
 
   return (
     <div className="flex flex-col gap-6">
-      {!hasGitHubToken && (
+      {!isCheckingToken && !hasGitHubToken && (
         <div className="p-4 bg-yellow-500/10 rounded-md border border-yellow-500/30">
           <h3 className="text-yellow-200 font-medium mb-2">GitHub Token Required</h3>
           <p className="text-yellow-100 text-sm">

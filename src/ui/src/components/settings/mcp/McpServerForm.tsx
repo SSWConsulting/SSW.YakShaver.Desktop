@@ -15,6 +15,7 @@ import {
 import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
+import { Switch } from "../../ui/switch";
 
 export type Transport = "streamableHttp" | "stdio";
 
@@ -22,24 +23,67 @@ export type MCPServerConfig = {
   name: string;
   description?: string;
   transport: Transport;
-  url: string;
+  url?: string;
   headers?: Record<string, string>;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
   version?: string;
   timeoutMs?: number;
+  enabled?: boolean;
 };
 
-const mcpServerSchema = z.object({
-  name: z
-    .string()
-    .min(1, "Name is required")
-    .regex(/^[a-zA-Z0-9 _-]+$/, "Only letters, numbers, spaces, underscores, and hyphens allowed"),
-  description: z.string().optional(),
-  transport: z.enum(["streamableHttp", "stdio"]),
-  url: z.string().url("Must be a valid URL"),
-  headers: z.string().optional(),
-  version: z.string().optional(),
-  timeoutMs: z.number().positive().optional().or(z.literal("")),
-});
+const mcpServerSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, "Name is required")
+      .regex(
+        /^[a-zA-Z0-9 _-]+$/,
+        "Only letters, numbers, spaces, underscores, and hyphens allowed",
+      ),
+    description: z.string().optional(),
+    transport: z.enum(["streamableHttp", "stdio"]),
+    url: z.string().optional(),
+    headers: z.string().optional(),
+    command: z.string().optional(),
+    // Note: The 'args' field is a string in the form data (newline-separated arguments).
+    // It is converted to a string[] on submission to match MCPServerConfig.
+    args: z.string().optional(),
+    env: z.string().optional(),
+    version: z.string().optional(),
+    timeoutMs: z.number().positive().optional().or(z.literal("")),
+    enabled: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.transport === "streamableHttp") {
+      if (!data.url?.trim()) {
+        ctx.addIssue({
+          path: ["url"],
+          code: z.ZodIssueCode.custom,
+          message: "URL is required for HTTP transports",
+        });
+      } else {
+        try {
+          new URL(data.url);
+        } catch {
+          ctx.addIssue({
+            path: ["url"],
+            code: z.ZodIssueCode.custom,
+            message: "Must be a valid URL",
+          });
+        }
+      }
+    } else if (data.transport === "stdio") {
+      if (!data.command?.trim()) {
+        ctx.addIssue({
+          path: ["command"],
+          code: z.ZodIssueCode.custom,
+          message: "Command is required for stdio transports",
+        });
+      }
+    }
+  });
 
 type MCPServerFormData = z.infer<typeof mcpServerSchema>;
 
@@ -48,6 +92,8 @@ type McpServerFormProps = {
 };
 
 export function McpServerForm({ form }: McpServerFormProps) {
+  const transport = form.watch("transport");
+
   return (
     <>
       <FormField
@@ -92,18 +138,20 @@ export function McpServerForm({ form }: McpServerFormProps) {
 
       <FormField
         control={form.control}
-        name="url"
+        name="enabled"
         render={({ field }) => (
-          <FormItem>
-            <FormLabel className="text-white/90">
-              URL <span className="text-red-400">*</span>
-            </FormLabel>
+          <FormItem className="flex flex-row items-center justify-between rounded-lg border border-white/20 bg-black/40 px-3 py-2">
+            <div className="space-y-0.5">
+              <FormLabel className="text-white/90">Enabled</FormLabel>
+              <FormDescription className="text-white/60 text-xs">
+                Disable to temporarily stop using this server without deleting it.
+              </FormDescription>
+            </div>
             <FormControl>
-              <Input
-                {...field}
-                type="text"
-                placeholder="e.g., https://api.example.com/mcp/"
-                className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white font-mono text-sm focus:border-white/40 focus:outline-none"
+              <Switch
+                checked={field.value ?? true}
+                onCheckedChange={(checked) => field.onChange(checked)}
+                aria-label="Toggle server enabled state"
               />
             </FormControl>
             <FormMessage />
@@ -118,7 +166,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
           <FormItem>
             <FormLabel className="text-white/90">Transport</FormLabel>
             <FormControl>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} value={field.value}>
                 <SelectTrigger className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none">
                   <SelectValue placeholder="Transport" />
                 </SelectTrigger>
@@ -133,33 +181,132 @@ export function McpServerForm({ form }: McpServerFormProps) {
         )}
       />
 
+      {transport === "streamableHttp" && (
+        <FormField
+          control={form.control}
+          name="url"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-white/90">
+                URL <span className="text-red-400">*</span>
+              </FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  type="text"
+                  placeholder="e.g., https://api.example.com/mcp/"
+                  className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white font-mono text-sm focus:border-white/40 focus:outline-none"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {transport === "stdio" && (
+        <>
+          <FormField
+            control={form.control}
+            name="command"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-white/90">
+                  Command <span className="text-red-400">*</span>
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    type="text"
+                    placeholder="e.g., npx"
+                    className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white font-mono text-sm focus:border-white/40 focus:outline-none"
+                  />
+                </FormControl>
+                <FormDescription className="text-white/60 text-xs">
+                  Provide the executable to launch (e.g., npx, uvx, python).
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="args"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-white/90">Arguments</FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    placeholder={"-y\n@modelcontextprotocol/server-filesystem\n."}
+                    rows={4}
+                    className="text-white font-mono text-xs bg-black/40 border-white/20"
+                  />
+                </FormControl>
+                <FormDescription className="text-white/60 text-xs">
+                  One argument per line. Lines are passed to the command in order.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </>
+      )}
+
       <Accordion type="single" collapsible>
         <AccordionItem value="advanced">
           <AccordionTrigger className="text-base font-medium text-white/90">
             Advanced Options
           </AccordionTrigger>
           <AccordionContent className="flex flex-col gap-4 pt-4">
-            <FormField
-              control={form.control}
-              name="headers"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-white/90">Headers</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      placeholder='{"Authorization": "Bearer YOUR_TOKEN"}'
-                      rows={4}
-                      className="text-white font-mono text-xs bg-black/40 border-white/20"
-                    />
-                  </FormControl>
-                  <FormDescription className="text-white/60 text-xs">
-                    JSON format, e.g., Authorization headers
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {transport === "streamableHttp" && (
+              <FormField
+                control={form.control}
+                name="headers"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-white/90">Headers</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder='{"Authorization": "Bearer YOUR_TOKEN"}'
+                        rows={4}
+                        className="text-white font-mono text-xs bg-black/40 border-white/20"
+                      />
+                    </FormControl>
+                    <FormDescription className="text-white/60 text-xs">
+                      JSON format, e.g., Authorization headers
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {transport === "stdio" && (
+              <FormField
+                control={form.control}
+                name="env"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-white/90">Environment Variables</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder='{"PATH": "/custom/bin"}'
+                        rows={4}
+                        className="text-white font-mono text-xs bg-black/40 border-white/20"
+                      />
+                    </FormControl>
+                    <FormDescription className="text-white/60 text-xs">
+                      JSON object of key/value pairs merged into the process environment.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -229,32 +376,69 @@ export function McpServerFormWrapper({
       description: initialData?.description || "",
       transport: initialData?.transport || "streamableHttp",
       url: initialData?.url || "",
-      headers: initialData?.headers ? JSON.stringify(initialData.headers, null, 2) : "{}",
+      headers: initialData?.headers ? JSON.stringify(initialData.headers, null, 2) : "",
+      command: initialData?.command || "",
+      args: initialData?.args ? initialData.args.join("\n") : "",
+      env: initialData?.env ? JSON.stringify(initialData.env, null, 2) : "",
       version: initialData?.version || "",
       timeoutMs: initialData?.timeoutMs || undefined,
+      enabled: initialData?.enabled ?? true,
     },
   });
 
   const handleFormSubmit = async (data: MCPServerFormData) => {
-    let headers: Record<string, string> | undefined;
+    const baseConfig: MCPServerConfig = {
+      name: data.name.trim(),
+      transport: data.transport,
+      description: data.description?.trim() || undefined,
+      version: data.version?.trim() || undefined,
+      timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
+      enabled: data.enabled ?? true,
+    };
 
-    if (data.headers?.trim()) {
+    if (data.transport === "streamableHttp") {
+      let headers: Record<string, string> | undefined;
+      if (data.headers?.trim()) {
+        try {
+          headers = JSON.parse(data.headers);
+        } catch {
+          form.setError("headers", { message: "Invalid JSON format" });
+          return;
+        }
+      }
+
+      const config: MCPServerConfig = {
+        ...baseConfig,
+        url: data.url?.trim() || undefined,
+        headers,
+      };
+
+      await onSubmit(config);
+      return;
+    }
+
+    let env: Record<string, string> | undefined;
+    if (data.env?.trim()) {
       try {
-        headers = JSON.parse(data.headers);
+        env = JSON.parse(data.env);
       } catch {
-        form.setError("headers", { message: "Invalid JSON format" });
+        form.setError("env", { message: "Invalid JSON format" });
         return;
       }
     }
 
+    const args = data.args
+      ? data.args
+          .split(/\r?\n/)
+          .map((arg) => arg.trim())
+          .filter(Boolean)
+      : undefined;
+
     const config: MCPServerConfig = {
-      name: data.name.trim(),
-      url: data.url.trim(),
-      transport: data.transport,
-      description: data.description?.trim() || undefined,
-      headers,
-      version: data.version?.trim() || undefined,
-      timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
+      ...baseConfig,
+      command: data.command?.trim() || undefined,
+      args,
+      env,
     };
 
     await onSubmit(config);
@@ -287,3 +471,5 @@ export function McpServerFormWrapper({
     </FormProvider>
   );
 }
+
+export type { MCPServerFormData };
