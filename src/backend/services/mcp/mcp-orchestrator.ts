@@ -415,8 +415,9 @@ export class MCPOrchestrator {
         }
 
         if (!permissionResult.allowed) {
-          const rejectionMessage = permissionResult.userFeedback?.trim()
-            ? permissionResult.userFeedback.trim()
+          const customFeedback = permissionResult.userFeedback?.trim();
+          const rejectionMessage = customFeedback
+            ? `User rejected: ${customFeedback}`
             : "User rejected this tool call.";
 
           this.sendStepEvent({
@@ -432,7 +433,7 @@ export class MCPOrchestrator {
             tool_call_id: tc.id,
             content: JSON.stringify({
               success: false,
-              error: "Tool call rejected by user",
+              error: rejectionMessage,
               feedback: permissionResult.userFeedback ?? null,
             }),
           });

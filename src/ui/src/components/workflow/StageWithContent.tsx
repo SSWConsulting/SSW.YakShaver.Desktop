@@ -44,10 +44,13 @@ const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDeta
 };
 
 function ToolResultError({ error }: { error: string }) {
+  const normalized = error?.toLowerCase() ?? "";
+  const isUserRejection = normalized.startsWith("user rejected");
+  const prefix = isUserRejection ? "User rejected:" : "Error:";
   return (
     <div className="text-red-400 flex items-center gap-1">
       <X className="w-3 h-3" />
-      Error: {error}
+      {prefix} {error}
     </div>
   );
 }

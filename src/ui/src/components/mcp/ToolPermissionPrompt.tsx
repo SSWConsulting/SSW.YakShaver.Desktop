@@ -176,7 +176,7 @@ export function ToolPermissionPromptHost() {
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
-              className="w-full sm:w-auto border-white/30 text-white"
+              className="w-full sm:w-auto border-white/40 text-white bg-white/5 hover:bg-white/15"
               onClick={handleAcceptOnce}
             >
               Accept this time

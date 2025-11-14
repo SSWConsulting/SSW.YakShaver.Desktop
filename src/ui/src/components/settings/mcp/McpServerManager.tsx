@@ -18,13 +18,6 @@ import { Button } from "../../ui/button";
 import { Card, CardContent } from "../../ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
 import { ScrollArea } from "../../ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../ui/select";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 
 type ViewMode = "list" | "add" | "edit";
@@ -193,6 +186,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
   const handleModeChange = useCallback(
     async (mode: McpAiMode) => {
+      if (toolSettings?.mode === mode) return;
       setIsToolSettingsLoading(true);
       try {
         const updated = await ipcClient.mcp.setToolControlMode(mode);
@@ -205,7 +199,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
         setIsToolSettingsLoading(false);
       }
     },
-    [],
+    [toolSettings?.mode],
   );
 
   const handleRemoveWhitelist = useCallback(async (id: string) => {
@@ -241,36 +235,32 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                       Decide how YakShaver uses MCP tools during automations.
                     </p>
                   </div>
-                  <Select
-                    value={toolSettings?.mode ?? "warn"}
-                    onValueChange={(value) => handleModeChange(value as McpAiMode)}
-                    disabled={isToolSettingsLoading}
-                  >
-                    <SelectTrigger className="w-full max-w-sm bg-black/40 border-white/20 text-white">
-                      <SelectValue placeholder="Select mode" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-neutral-900 text-white border-white/20">
-                      {AI_MODE_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value} className="text-white">
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                   <div className="grid gap-3 md:grid-cols-3">
-                    {AI_MODE_OPTIONS.map((option) => (
-                      <div
-                        key={option.value}
-                        className={`rounded-lg border p-3 text-sm ${
-                          toolSettings?.mode === option.value
-                            ? "border-white/60 bg-white/10"
-                            : "border-white/10 bg-white/5"
-                        }`}
-                      >
-                        <p className="font-semibold text-white">{option.label}</p>
-                        <p className="text-white/70">{option.description}</p>
-                      </div>
-                    ))}
+                    {AI_MODE_OPTIONS.map((option) => {
+                      const isActive = toolSettings?.mode === option.value;
+                      const baseClasses =
+                        "rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60";
+                      const inactiveClasses = "border-white/10 bg-white/5 hover:border-white/30";
+                      const activeClasses =
+                        option.value === "yolo"
+                          ? "border-red-500 bg-red-600/20 text-white shadow-[0_0_12px_rgba(248,113,113,0.4)]"
+                          : "border-white/60 bg-white/10 text-white";
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={`${baseClasses} ${
+                            isActive ? activeClasses : inactiveClasses
+                          } ${isToolSettingsLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+                          onClick={() => handleModeChange(option.value)}
+                          disabled={isToolSettingsLoading || isActive}
+                          aria-pressed={isActive}
+                        >
+                          <p className="font-semibold">{option.label}</p>
+                          <p className="text-white/80 text-sm mt-1">{option.description}</p>
+                        </button>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
