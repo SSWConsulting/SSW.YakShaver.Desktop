@@ -119,7 +119,11 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
         stage: string;
         uploadResult?: VideoUploadResult;
       };
-      if (progressData.stage === ProgressStage.UPLOAD_COMPLETED && progressData.uploadResult) {
+      const shouldUpdateUploadResult =
+        progressData.stage === ProgressStage.UPLOAD_COMPLETED ||
+        progressData.stage === ProgressStage.COMPLETED;
+
+      if (shouldUpdateUploadResult && progressData.uploadResult) {
         setUploadResult(progressData.uploadResult);
         setUploadStatus(
           progressData.uploadResult.success ? UploadStatus.SUCCESS : UploadStatus.ERROR,

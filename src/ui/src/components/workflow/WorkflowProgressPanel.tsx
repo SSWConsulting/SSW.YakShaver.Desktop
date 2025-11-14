@@ -12,6 +12,7 @@ const WORKFLOW_STAGES: WorkflowStage[] = [
   ProgressStage.TRANSCRIBING,
   ProgressStage.GENERATING_TASK,
   ProgressStage.EXECUTING_TASK,
+  ProgressStage.UPDATING_METADATA,
 ];
 
 export function WorkflowProgressPanel() {
@@ -108,7 +109,8 @@ export function WorkflowProgressPanel() {
               const hasContent =
                 (stage === ProgressStage.TRANSCRIBING && progress.transcript) ||
                 (stage === ProgressStage.GENERATING_TASK && progress.intermediateOutput) ||
-                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0);
+                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0) ||
+                stage === ProgressStage.UPDATING_METADATA;
 
               return (
                 <AccordionItem

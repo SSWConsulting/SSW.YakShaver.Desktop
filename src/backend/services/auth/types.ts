@@ -35,11 +35,20 @@ export interface AuthState {
 export interface VideoUploadResult {
   success: boolean;
   data?: {
+    videoId: string;
     title: string;
     description: string;
     url: string;
   };
   error?: string;
+}
+
+export interface YouTubeSnippetUpdate {
+  title: string;
+  description: string;
+  tags?: string[];
+  categoryId?: string;
+  defaultLanguage?: string;
 }
 
 export interface YouTubeConfig {
