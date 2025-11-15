@@ -7,6 +7,7 @@ import { formatErrorMessage } from "../../utils/error-utils.js";
 import type { VideoUploadResult } from "../auth/types.js";
 import { OpenAIService } from "../openai/openai-service.js";
 import { McpStorage } from "../storage/mcp-storage.js";
+import { createInternalVideoToolsServer } from "./internal/internal-video-tools-server.js";
 import { MCPClientWrapper } from "./mcp-client-wrapper.js";
 import type { MCPServerConfig } from "./types.js";
 
@@ -29,10 +30,25 @@ interface MCPStep {
   timestamp?: number;
 }
 
+interface MCPAttachment {
+  type: "file";
+  path: string;
+  description?: string;
+}
+
+interface ProcessMessageOptions {
+  serverFilter?: string[];
+  systemPrompt?: string;
+  maxToolIterations?: number;
+  attachments?: MCPAttachment[];
+}
+
 export class MCPOrchestrator {
   private readonly servers: MCPServerConfig[] = [];
+  private readonly builtinServers: MCPServerConfig[] = [];
   private clients = new Map<string, MCPClientWrapper>();
   private initialized = false;
+  private internalServersReady = false;
   private llmClient: OpenAIService; // TODO: make generic interface for different LLMs https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
   private mcpStorage: McpStorage;
   private opts: MCPOrchestratorOptions;
@@ -42,6 +58,33 @@ export class MCPOrchestrator {
       if (!win.isDestroyed()) {
         win.webContents.send("mcp:step-update", event);
       }
+    }
+  }
+
+  private getAllServers(): MCPServerConfig[] {
+    return [...this.servers, ...this.builtinServers];
+  }
+
+  private registerBuiltinServer(config: MCPServerConfig): void {
+    if (this.getAllServers().some((server) => server.name === config.name)) {
+      console.warn(`[MCPOrchestrator] Built-in server '${config.name}' already registered.`);
+      return;
+    }
+    this.builtinServers.push({ ...config, builtin: true });
+  }
+
+  private async ensureInternalServers(): Promise<void> {
+    if (this.internalServersReady) {
+      return;
+    }
+
+    try {
+      const videoToolsServer = await createInternalVideoToolsServer();
+      this.registerBuiltinServer(videoToolsServer);
+    } catch (error) {
+      console.error("[MCPOrchestrator] Failed to start internal video tools server:", error);
+    } finally {
+      this.internalServersReady = true;
     }
   }
 
@@ -81,6 +124,7 @@ export class MCPOrchestrator {
 
   async initialize(): Promise<void> {
     await this.loadConfig();
+    await this.ensureInternalServers();
     if (this.opts.eagerCreate || this.opts.eagerConnect) {
       this.createAllClients();
     }
@@ -113,7 +157,8 @@ export class MCPOrchestrator {
     if (!this.initialized) {
       await this.loadConfig();
     }
-    return [...this.servers];
+    await this.ensureInternalServers();
+    return this.getAllServers().map((server) => ({ ...server }));
   }
 
   private async saveConfig(): Promise<void> {
@@ -127,7 +172,7 @@ export class MCPOrchestrator {
   async addServer(config: MCPServerConfig): Promise<void> {
     MCPOrchestrator.validateServerName(config.name);
     MCPOrchestrator.validateTransportConfig(config);
-    if (this.servers.some((s) => s.name === config.name)) {
+    if (this.getAllServers().some((s) => s.name === config.name)) {
       throw new Error(`Server with name '${config.name}' already exists`);
     }
     const normalizedConfig: MCPServerConfig = {
@@ -153,7 +198,7 @@ export class MCPOrchestrator {
     // If the name is changing, ensure the new name isn't already used
     if (
       normalizedConfig.name !== name &&
-      this.servers.some((s) => s.name === normalizedConfig.name)
+      this.getAllServers().some((s) => s.name === normalizedConfig.name)
     ) {
       throw new Error(`Server with name '${normalizedConfig.name}' already exists`);
     }
@@ -170,6 +215,9 @@ export class MCPOrchestrator {
   }
 
   async removeServer(name: string): Promise<void> {
+    if (this.builtinServers.some((s) => s.name === name)) {
+      throw new Error(`Cannot remove built-in server '${name}'`);
+    }
     const index = this.servers.findIndex((s) => s.name === name);
     if (index === -1) throw new Error(`Server '${name}' not found`);
     this.servers.splice(index, 1);
@@ -179,7 +227,7 @@ export class MCPOrchestrator {
   }
 
   async checkServerHealth(name: string): Promise<HealthStatusInfo> {
-    const serverConfig = this.servers.find((s) => s.name === name);
+    const serverConfig = this.getAllServers().find((s) => s.name === name);
     if (serverConfig?.enabled === false) {
       return {
         isHealthy: false,
@@ -210,7 +258,7 @@ export class MCPOrchestrator {
     const existing = this.clients.get(name);
     if (existing) return existing;
 
-    const config = this.servers.find((s) => s.name === name);
+    const config = this.getAllServers().find((s) => s.name === name);
     if (!config) throw new Error(`Server '${name}' not found`);
 
     const client = new MCPClientWrapper(config);
@@ -223,7 +271,7 @@ export class MCPOrchestrator {
   }
 
   createAllClients(): void {
-    this.servers
+    this.getAllServers()
       .filter((s) => s.enabled !== false)
       .forEach((s) => {
         this.ensureClient(s.name);
@@ -233,7 +281,7 @@ export class MCPOrchestrator {
   async connectAll(): Promise<void> {
     this.createAllClients();
     for (const client of this.clients.values()) {
-      const serverConfig = this.servers.find((s) => s.name === client.name);
+      const serverConfig = this.getAllServers().find((s) => s.name === client.name);
       if (serverConfig?.enabled === false) {
         continue;
       }
@@ -261,11 +309,7 @@ export class MCPOrchestrator {
   async processMessage(
     prompt: string,
     videoUploadResult?: VideoUploadResult,
-    options: {
-      serverFilter?: string[]; // if provided, only include tools from these servers
-      systemPrompt?: string;
-      maxToolIterations?: number; // safety cap to avoid infinite loops
-    } = {},
+    options: ProcessMessageOptions = {},
   ): Promise<{
     final: string | null;
     transcript: ChatCompletionMessageParam[];
@@ -318,6 +362,16 @@ export class MCPOrchestrator {
 
     if (videoUrl) {
       systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.\nPlease include this URL in the task content that you create.`;
+    }
+
+    if (options.attachments?.length) {
+      const attachmentList = options.attachments
+        .map(
+          (attachment, index) =>
+            `${index + 1}. [${attachment.type}] ${attachment.description ?? "Attachment"} – ${attachment.path}`,
+        )
+        .join("\n");
+      systemPrompt += `\n\nLocal attachments are available on this machine:\n${attachmentList}\nEnsure you use tools that can read local files if you need their contents.`;
     }
 
     const messages: ChatCompletionMessageParam[] = [
@@ -396,7 +450,9 @@ export class MCPOrchestrator {
         }
 
         const originalServerName =
-          this.servers.find((s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName)
+          this.getAllServers().find(
+            (s) => MCPOrchestrator.sanitizeServerName(s.name) === serverName,
+          )
             ?.name ?? serverName;
 
         const args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};

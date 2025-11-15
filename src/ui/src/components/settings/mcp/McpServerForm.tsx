@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../../ui/textarea";
 import { Switch } from "../../ui/switch";
 
-export type Transport = "streamableHttp" | "stdio";
+export type Transport = "streamableHttp" | "stdio" | "inMemory";
 
 export type MCPServerConfig = {
   name: string;
@@ -31,6 +31,8 @@ export type MCPServerConfig = {
   version?: string;
   timeoutMs?: number;
   enabled?: boolean;
+  inMemoryServerId?: string;
+  builtin?: boolean;
 };
 
 const mcpServerSchema = z

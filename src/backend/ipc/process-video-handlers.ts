@@ -21,6 +21,7 @@ export class ProcessVideoIPCHandlers {
 
   constructor() {
     this.mcpOrchestrator = new MCPOrchestrator({}, this.llmClient);
+    void this.mcpOrchestrator.initialize();
     this.registerHandlers();
   }
 
@@ -65,11 +66,16 @@ export class ProcessVideoIPCHandlers {
       const customPrompt = await this.customPromptStorage.getActivePrompt();
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
-      const mcpResult = await this.mcpOrchestrator.processMessage(
-        intermediateOutput,
-        youtubeResult,
-        { systemPrompt },
-      );
+      const mcpResult = await this.mcpOrchestrator.processMessage(intermediateOutput, youtubeResult, {
+        systemPrompt,
+        attachments: [
+          {
+            type: "file",
+            path: filePath,
+            description: "Original video uploaded by the user",
+          },
+        ],
+      });
 
       this.emitProgress(ProgressStage.COMPLETED, {
         transcript,
@@ -77,9 +83,6 @@ export class ProcessVideoIPCHandlers {
         mcpResult,
         finalOutput: mcpResult.final,
       });
-
-      // delete the temporary video file
-      fs.unlinkSync(filePath);
 
       return { youtubeResult, mcpResult };
     });

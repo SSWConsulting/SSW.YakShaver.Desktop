@@ -78,8 +78,9 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     setIsLoading(true);
     try {
       const list = await ipcClient.mcp.listServers();
-      setServers(list);
-      await checkAllServersHealth(list);
+      const userServers = list.filter((server) => server.transport !== "inMemory" && !server.builtin);
+      setServers(userServers);
+      await checkAllServersHealth(userServers);
     } catch (e) {
       toast.error(`Failed to load servers: ${formatErrorMessage(e)}`);
     } finally {
