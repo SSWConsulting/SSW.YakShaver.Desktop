@@ -68,6 +68,7 @@ export class ProcessVideoIPCHandlers {
 
       const mcpResult = await this.mcpOrchestrator.processMessage(intermediateOutput, youtubeResult, {
         systemPrompt,
+        transcript,
         attachments: [
           {
             type: "file",

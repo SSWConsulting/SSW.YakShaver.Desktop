@@ -41,6 +41,7 @@ interface ProcessMessageOptions {
   systemPrompt?: string;
   maxToolIterations?: number;
   attachments?: MCPAttachment[];
+  transcript?: string;
 }
 
 export class MCPOrchestrator {
@@ -372,6 +373,10 @@ export class MCPOrchestrator {
         )
         .join("\n");
       systemPrompt += `\n\nLocal attachments are available on this machine:\n${attachmentList}\nEnsure you use tools that can read local files if you need their contents.`;
+    }
+
+    if (options.transcript?.trim()) {
+      systemPrompt += `\n\nFull video transcript (may include timestamps):\n${options.transcript.trim()}`;
     }
 
     const messages: ChatCompletionMessageParam[] = [
