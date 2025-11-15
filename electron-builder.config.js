@@ -16,7 +16,11 @@ module.exports = {
   ],
   extraResources: [".env", "src/ui/public/**"],
   asar: true,
-  asarUnpack: ["src/ui/dist/**", "**/@ffmpeg-installer/**"],
+  asarUnpack: [
+    "src/ui/dist/**",
+    "node_modules/@ffmpeg-installer/win32-ia32/**",
+    "node_modules/@ffmpeg-installer/win32-x64/**",
+  ],
   afterPack: "./afterPack.js",
   win: {
     icon: "src/ui/public/icons/icon.ico",

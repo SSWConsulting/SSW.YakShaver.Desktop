@@ -4,11 +4,13 @@ import {
   StreamableHTTPClientTransport,
   type StreamableHTTPClientTransportOptions,
 } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { InternalMcpTransportRegistry } from "./internal/internal-mcp-transport-registry.js";
 import type { MCPServerConfig } from "./types";
 
 export class MCPClientWrapper {
   private client: Client;
-  private transport: StreamableHTTPClientTransport | StdioClientTransport;
+  private transport: StreamableHTTPClientTransport | StdioClientTransport | InMemoryTransport;
   private readonly serverConfig: MCPServerConfig;
   private isConnected = false;
 
@@ -24,7 +26,7 @@ export class MCPClientWrapper {
     this.transport = this.buildTransport();
   }
 
-  private buildTransport(): StreamableHTTPClientTransport | StdioClientTransport {
+  private buildTransport(): StreamableHTTPClientTransport | StdioClientTransport | InMemoryTransport {
     if (this.serverConfig.transport === "streamableHttp") {
       if (!this.serverConfig.url) {
         throw new Error(
@@ -52,6 +54,15 @@ export class MCPClientWrapper {
         args: this.serverConfig.args,
         env: this.serverConfig.env,
       });
+    } else if (this.serverConfig.transport === "inMemory") {
+      if (!this.serverConfig.inMemoryServerId) {
+        throw new Error(
+          `MCP server '${this.serverConfig.name}' is missing an inMemoryServerId for in-memory transport`,
+        );
+      }
+      return InternalMcpTransportRegistry.getClientTransport(
+        this.serverConfig.inMemoryServerId,
+      );
     }
     throw new Error(`Unsupported transport: ${this.serverConfig.transport}`);
   }

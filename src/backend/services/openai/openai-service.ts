@@ -1,5 +1,7 @@
 // TODO: make this LLM Client generic and configurable via llm-config.json, so it supports different llms https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
 import { createReadStream } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { extname } from "node:path";
 import { AzureOpenAI, OpenAI } from "openai";
 import type {
   ChatCompletion,
@@ -104,10 +106,81 @@ export class OpenAIService {
     });
   }
 
+  async describeImage(imagePath: string, prompt = "Describe this image"): Promise<string> {
+    await this.ensureClient();
+    if (!this.client) {
+      throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
+    }
+
+    const [model, imageBuffer] = await Promise.all([this.getModel(), readFile(imagePath)]);
+    const mimeType = this.detectImageMimeType(imagePath);
+    const dataUri = `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
+
+    const response = await this.client.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: prompt,
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: dataUri,
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    return this.extractTextFromContent(response.choices[0]?.message?.content);
+  }
+
   // Allow dynamic updates from UI
   setOpenAIKey(apiKey: string) {
     this.client = new OpenAI({ apiKey });
     this.configured = true;
+  }
+
+  private detectImageMimeType(imagePath: string): string {
+    const ext = extname(imagePath).toLowerCase();
+    switch (ext) {
+      case ".jpg":
+      case ".jpeg":
+        return "image/jpeg";
+      case ".webp":
+        return "image/webp";
+      case ".png":
+      default:
+        return "image/png";
+    }
+  }
+
+  private extractTextFromContent(content: unknown): string {
+    if (!content) return "";
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      return content
+        .map((part) => {
+          if (typeof part !== "object" || part === null) {
+            return "";
+          }
+          if ("text" in part && typeof (part as { text?: unknown }).text === "string") {
+            return (part as { text: string }).text;
+          }
+          if ("content" in part && typeof (part as { content?: unknown }).content === "string") {
+            return (part as { content: string }).content;
+          }
+          return "";
+        })
+        .filter(Boolean)
+        .join("\n");
+    }
+    return "";
   }
 
   clearOpenAIClient() {
