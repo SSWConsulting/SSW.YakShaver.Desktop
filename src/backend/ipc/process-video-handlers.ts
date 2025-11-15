@@ -26,66 +26,72 @@ export class ProcessVideoIPCHandlers {
   }
 
   private registerHandlers(): void {
-    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO, async (event, filePath?: string) => {
+    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO, async (_event, filePath?: string) => {
       if (!filePath) {
         throw new Error("video-process-handler: Video file path is required");
       }
 
-      // check file exists
       if (!fs.existsSync(filePath)) {
         throw new Error("video-process-handler: Video file does not exist");
       }
 
-      // upload to YouTube
-      const youtubeResult = await this.youtube.uploadVideo(filePath);
-      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
+      try {
+        const youtubeResult = await this.youtube.uploadVideo(filePath);
+        this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
 
-      // convert video to mp3
-      this.emitProgress(ProgressStage.CONVERTING_AUDIO);
-      const mp3FilePath = await this.convertVideoToMp3(filePath);
+        this.emitProgress(ProgressStage.CONVERTING_AUDIO);
+        const mp3FilePath = await this.convertVideoToMp3(filePath);
 
-      // transcribe the video via MCP
-      this.emitProgress(ProgressStage.TRANSCRIBING);
-      const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
-      this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
+        this.emitProgress(ProgressStage.TRANSCRIBING);
+        const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
+        this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
+        this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
 
-      // generate intermediate summary
-      const intermediateOutput = await this.llmClient.generateOutput(
-        INITIAL_SUMMARY_PROMPT,
-        transcript,
-        { jsonMode: true },
-      );
-      this.emitProgress(ProgressStage.EXECUTING_TASK, {
-        transcript,
-        intermediateOutput,
-      });
+        const intermediateOutput = await this.llmClient.generateOutput(
+          INITIAL_SUMMARY_PROMPT,
+          transcript,
+          { jsonMode: true },
+        );
+        this.emitProgress(ProgressStage.EXECUTING_TASK, {
+          transcript,
+          intermediateOutput,
+        });
 
-      // process transcription with MCP
-      const customPrompt = await this.customPromptStorage.getActivePrompt();
-      const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+        const customPrompt = await this.customPromptStorage.getActivePrompt();
+        const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
-      const mcpResult = await this.mcpOrchestrator.processMessage(intermediateOutput, youtubeResult, {
-        systemPrompt,
-        transcript,
-        attachments: [
+        const mcpResult = await this.mcpOrchestrator.processMessage(
+          intermediateOutput,
+          youtubeResult,
           {
-            type: "file",
-            path: filePath,
-            description: "Original video uploaded by the user",
+            systemPrompt,
+            transcript,
+            attachments: [
+              {
+                type: "file",
+                path: filePath,
+                description: "Original video uploaded by the user",
+              },
+            ],
           },
-        ],
-      });
+        );
 
-      this.emitProgress(ProgressStage.COMPLETED, {
-        transcript,
-        intermediateOutput,
-        mcpResult,
-        finalOutput: mcpResult.final,
-      });
+        this.emitProgress(ProgressStage.COMPLETED, {
+          transcript,
+          intermediateOutput,
+          mcpResult,
+          finalOutput: mcpResult.final,
+        });
 
-      return { youtubeResult, mcpResult };
+        return { youtubeResult, mcpResult };
+      } finally {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (err) {
+          console.warn("[ProcessVideoIPCHandlers] Failed to delete temp video:", err);
+        }
+      }
     });
 
     // Retry video pipeline
