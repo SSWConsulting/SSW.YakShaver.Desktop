@@ -19,7 +19,11 @@ import { Card, CardContent } from "../../ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
 import { ScrollArea } from "../../ui/scroll-area";
 import { Switch } from "../../ui/switch";
-import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
+import {
+  type EditableServerConfig,
+  type MCPServerConfig,
+  McpServerFormWrapper,
+} from "./McpServerForm";
 
 type ViewMode = "list" | "add" | "edit";
 
@@ -29,11 +33,15 @@ interface McpSettingsPanelProps {
   isActive: boolean;
 }
 
+function isEditableServerConfig(server: MCPServerConfig): server is EditableServerConfig {
+  return server.transport === "streamableHttp" || server.transport === "stdio";
+}
+
 export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
-  const [servers, setServers] = useState<MCPServerConfig[]>([]);
+  const [servers, setServers] = useState<EditableServerConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null);
+  const [editingServer, setEditingServer] = useState<EditableServerConfig | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [serverToDelete, setServerToDelete] = useState<string | null>(null);
   const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
@@ -78,7 +86,10 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     setIsLoading(true);
     try {
       const list = await ipcClient.mcp.listServers();
-      const userServers = list.filter((server) => server.transport !== "inMemory" && !server.builtin);
+      const userServers = list.filter(
+        (server): server is EditableServerConfig =>
+          isEditableServerConfig(server) && !server.builtin,
+      );
       setServers(userServers);
       await checkAllServersHealth(userServers);
     } catch (e) {
@@ -99,7 +110,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     setEditingServer(null);
   }, []);
 
-  const showEditForm = useCallback((server: MCPServerConfig) => {
+  const showEditForm = useCallback((server: EditableServerConfig) => {
     setViewMode("edit");
     setEditingServer(server);
   }, []);
@@ -110,7 +121,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   }, []);
 
   const handleSubmit = useCallback(
-    async (config: MCPServerConfig) => {
+    async (config: EditableServerConfig) => {
       setIsLoading(true);
       try {
         if (viewMode === "add") {
@@ -137,7 +148,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   }, []);
 
   const toggleServerEnabled = useCallback(
-    async (server: MCPServerConfig, enabled: boolean) => {
+    async (server: EditableServerConfig, enabled: boolean) => {
       setIsLoading(true);
       try {
         await ipcClient.mcp.updateServer(server.name, { ...server, enabled });

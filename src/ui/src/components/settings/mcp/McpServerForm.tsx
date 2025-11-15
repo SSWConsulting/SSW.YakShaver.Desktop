@@ -17,12 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../../ui/textarea";
 import { Switch } from "../../ui/switch";
 
-export type Transport = "streamableHttp" | "stdio" | "inMemory";
+export type Transport = "streamableHttp" | "stdio";
 
 export type MCPServerConfig = {
   name: string;
   description?: string;
-  transport: Transport;
+  transport: Transport | "inMemory";
   url?: string;
   headers?: Record<string, string>;
   command?: string;
@@ -34,6 +34,8 @@ export type MCPServerConfig = {
   inMemoryServerId?: string;
   builtin?: boolean;
 };
+
+export type EditableServerConfig = MCPServerConfig & { transport: Transport };
 
 const mcpServerSchema = z
   .object({
@@ -357,9 +359,9 @@ export function McpServerForm({ form }: McpServerFormProps) {
 }
 
 type McpServerFormWrapperProps = {
-  initialData?: MCPServerConfig;
+  initialData?: EditableServerConfig;
   isEditing: boolean;
-  onSubmit: (data: MCPServerConfig) => Promise<void>;
+  onSubmit: (data: EditableServerConfig) => Promise<void>;
   onCancel: () => void;
   isLoading: boolean;
 };
@@ -371,12 +373,15 @@ export function McpServerFormWrapper({
   onCancel,
   isLoading,
 }: McpServerFormWrapperProps) {
+  const initialTransport: Transport =
+    initialData?.transport === "stdio" ? "stdio" : "streamableHttp";
+
   const form = useForm<MCPServerFormData>({
     resolver: zodResolver(mcpServerSchema),
     defaultValues: {
       name: initialData?.name || "",
       description: initialData?.description || "",
-      transport: initialData?.transport || "streamableHttp",
+      transport: initialTransport,
       url: initialData?.url || "",
       headers: initialData?.headers ? JSON.stringify(initialData.headers, null, 2) : "",
       command: initialData?.command || "",
@@ -389,7 +394,7 @@ export function McpServerFormWrapper({
   });
 
   const handleFormSubmit = async (data: MCPServerFormData) => {
-    const baseConfig: MCPServerConfig = {
+    const baseConfig: EditableServerConfig = {
       name: data.name.trim(),
       transport: data.transport,
       description: data.description?.trim() || undefined,
@@ -409,7 +414,7 @@ export function McpServerFormWrapper({
         }
       }
 
-      const config: MCPServerConfig = {
+      const config: EditableServerConfig = {
         ...baseConfig,
         url: data.url?.trim() || undefined,
         headers,
@@ -436,7 +441,7 @@ export function McpServerFormWrapper({
           .filter(Boolean)
       : undefined;
 
-    const config: MCPServerConfig = {
+    const config: EditableServerConfig = {
       ...baseConfig,
       command: data.command?.trim() || undefined,
       args,
