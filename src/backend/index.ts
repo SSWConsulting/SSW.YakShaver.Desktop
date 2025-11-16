@@ -4,6 +4,7 @@ import { app, BrowserWindow, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { registerEventForwarders } from "./events/event-forwarder";
+import { AdvancedSettingsIPCHandlers } from "./ipc/advanced-settings-handlers";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
@@ -88,6 +89,7 @@ let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
 let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
 let _githubTokenHandlers: GitHubTokenIPCHandlers;
+let _advancedSettingsHandlers: AdvancedSettingsIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
@@ -116,6 +118,7 @@ app.whenReady().then(async () => {
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
+  _advancedSettingsHandlers = new AdvancedSettingsIPCHandlers();
 
   // Pre-initialize control bar window for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);

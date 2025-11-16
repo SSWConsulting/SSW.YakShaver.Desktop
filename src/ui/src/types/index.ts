@@ -100,6 +100,7 @@ export type LLMConfig = OpenAI | AzureOpenAI;
 
 export type WorkflowStage =
   | "idle"
+  | "downloading_source"
   | "converting_audio"
   | "transcribing"
   | "generating_task"
@@ -109,6 +110,7 @@ export type WorkflowStage =
 
 export const STAGE_CONFIG: Record<WorkflowStage, string> = {
   idle: "Waiting for recording...",
+  downloading_source: "Downloading video source",
   converting_audio: "Converting audio",
   transcribing: "Transcribing audio",
   generating_task: "Analyzing transcript",
@@ -136,6 +138,10 @@ export interface CustomPrompt {
   updatedAt: number;
 }
 
+export interface AdvancedSettings {
+  enableYoutubeUrlImport: boolean;
+}
+
 export interface HealthStatusInfo {
   isHealthy: boolean;
   error?: string;
@@ -146,6 +152,7 @@ export interface HealthStatusInfo {
 
 export enum ProgressStage {
   IDLE = "idle",
+  DOWNLOADING_SOURCE = "downloading_source",
   UPLOAD_COMPLETED = "upload_completed",
   CONVERTING_AUDIO = "converting_audio",
   TRANSCRIBING = "transcribing",

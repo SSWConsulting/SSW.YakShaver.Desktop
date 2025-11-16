@@ -4,6 +4,7 @@ import type {
   ReleaseChannel,
 } from "@/components/settings/release-channels/ReleaseChannelManager";
 import type {
+  AdvancedSettings,
   AuthResult,
   AuthState,
   ConvertVideoToMp3Result,
@@ -19,11 +20,13 @@ import type {
   YouTubeConfig,
 } from "../types";
 
+type ProcessVideoPayload = string | { filePath?: string; youtubeUrl?: string };
+
 declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideo: (filePath?: string) => Promise<void>;
+        processVideo: (payload?: ProcessVideoPayload) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
@@ -137,6 +140,10 @@ declare global {
         set: (token: string) => Promise<void>;
         clear: () => Promise<void>;
         has: () => Promise<boolean>;
+      };
+      advancedSettings: {
+        get: () => Promise<AdvancedSettings>;
+        update: (updates: Partial<AdvancedSettings>) => Promise<AdvancedSettings>;
       };
     };
   }

@@ -282,6 +282,7 @@ export function FinalResultPanel() {
         setFinalOutput(progressData.finalOutput);
       } else if (
         progressData.stage === ProgressStage.IDLE ||
+        progressData.stage === ProgressStage.DOWNLOADING_SOURCE ||
         progressData.stage === ProgressStage.CONVERTING_AUDIO
       ) {
         setFinalOutput(undefined);

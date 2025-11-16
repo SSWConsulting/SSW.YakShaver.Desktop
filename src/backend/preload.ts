@@ -1,6 +1,7 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
 import type { MCPServerConfig } from "./services/mcp/types";
+import type { AppSettings } from "./services/storage/app-settings-storage";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
@@ -68,6 +69,8 @@ const IPC_CHANNELS = {
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
+  ADVANCED_SETTINGS_GET: "advanced-settings:get",
+  ADVANCED_SETTINGS_UPDATE: "advanced-settings:update",
 
   // Release Channel
   RELEASE_CHANNEL_GET: "release-channel:get",
@@ -89,9 +92,12 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
   return () => ipcRenderer.removeListener(channel, listener);
 };
 
+type ProcessVideoPayload = string | { filePath?: string; youtubeUrl?: string };
+
 const electronAPI = {
   pipelines: {
-    processVideo: (filePath?: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, filePath),
+    processVideo: (payload?: ProcessVideoPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, payload),
     retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
   },
@@ -186,6 +192,11 @@ const electronAPI = {
     deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
     setActivePrompt: (id: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
+  },
+  advancedSettings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.ADVANCED_SETTINGS_GET),
+    update: (updates: Partial<AppSettings>) =>
+      ipcRenderer.invoke(IPC_CHANNELS.ADVANCED_SETTINGS_UPDATE, updates),
   },
   releaseChannel: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),

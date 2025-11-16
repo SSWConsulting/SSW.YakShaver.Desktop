@@ -8,14 +8,21 @@ import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
+import { YouTubeDownloadService } from "../services/youtube/youtube-download-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+
+type ProcessVideoPayload = {
+  filePath?: string;
+  youtubeUrl?: string;
+};
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
   private readonly llmClient = OpenAIService.getInstance(); // TODO: make generic interface for different LLMs https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
   private ffmpegService = FFmpegService.getInstance();
+  private readonly youtubeDownloader = YouTubeDownloadService.getInstance();
   private readonly mcpOrchestrator: MCPOrchestrator;
   private readonly customPromptStorage = CustomPromptStorage.getInstance();
 
@@ -25,64 +32,97 @@ export class ProcessVideoIPCHandlers {
   }
 
   private registerHandlers(): void {
-    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO, async (event, filePath?: string) => {
-      if (!filePath) {
-        throw new Error("video-process-handler: Video file path is required");
-      }
+    ipcMain.handle(
+      IPC_CHANNELS.PROCESS_VIDEO,
+      async (_event, payload?: string | ProcessVideoPayload) => {
+        let filePath: string | undefined;
+        if (typeof payload === "string" || payload === undefined) {
+          filePath = payload;
+        } else if (typeof payload === "object" && payload !== null) {
+          filePath = payload.filePath;
+        }
 
-      // check file exists
-      if (!fs.existsSync(filePath)) {
-        throw new Error("video-process-handler: Video file does not exist");
-      }
+        const youtubeUrl =
+          typeof payload === "object" && payload !== null ? payload.youtubeUrl : undefined;
 
-      // upload to YouTube
-      const youtubeResult = await this.youtube.uploadVideo(filePath);
-      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
+        let cleanupPath: string | null = null;
 
-      // convert video to mp3
-      this.emitProgress(ProgressStage.CONVERTING_AUDIO);
-      const mp3FilePath = await this.convertVideoToMp3(filePath);
+        if (youtubeUrl) {
+          this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, { youtubeUrl });
+          filePath = await this.youtubeDownloader.downloadVideo(youtubeUrl);
+          cleanupPath = filePath;
+        }
 
-      // transcribe the video via MCP
-      this.emitProgress(ProgressStage.TRANSCRIBING);
-      const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
-      this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
+        if (!filePath) {
+          throw new Error("video-process-handler: Video file path is required");
+        }
 
-      this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
+        if (!fs.existsSync(filePath)) {
+          throw new Error("video-process-handler: Video file does not exist");
+        }
 
-      // generate intermediate summary
-      const intermediateOutput = await this.llmClient.generateOutput(
-        INITIAL_SUMMARY_PROMPT,
-        transcript,
-        { jsonMode: true },
-      );
-      this.emitProgress(ProgressStage.EXECUTING_TASK, {
-        transcript,
-        intermediateOutput,
-      });
+        let fileRemoved = false;
 
-      // process transcription with MCP
-      const customPrompt = await this.customPromptStorage.getActivePrompt();
-      const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+        try {
+          // upload to YouTube
+          const youtubeResult = await this.youtube.uploadVideo(filePath);
+          this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
 
-      const mcpResult = await this.mcpOrchestrator.processMessage(
-        intermediateOutput,
-        youtubeResult,
-        { systemPrompt },
-      );
+          // convert video to mp3
+          this.emitProgress(ProgressStage.CONVERTING_AUDIO);
+          const mp3FilePath = await this.convertVideoToMp3(filePath);
 
-      this.emitProgress(ProgressStage.COMPLETED, {
-        transcript,
-        intermediateOutput,
-        mcpResult,
-        finalOutput: mcpResult.final,
-      });
+          // transcribe the video via MCP
+          this.emitProgress(ProgressStage.TRANSCRIBING);
+          const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
+          this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      // delete the temporary video file
-      fs.unlinkSync(filePath);
+          this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
 
-      return { youtubeResult, mcpResult };
-    });
+          // generate intermediate summary
+          const intermediateOutput = await this.llmClient.generateOutput(
+            INITIAL_SUMMARY_PROMPT,
+            transcript,
+            { jsonMode: true },
+          );
+          this.emitProgress(ProgressStage.EXECUTING_TASK, {
+            transcript,
+            intermediateOutput,
+          });
+
+          // process transcription with MCP
+          const customPrompt = await this.customPromptStorage.getActivePrompt();
+          const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+
+          const mcpResult = await this.mcpOrchestrator.processMessage(
+            intermediateOutput,
+            youtubeResult,
+            { systemPrompt },
+          );
+
+          this.emitProgress(ProgressStage.COMPLETED, {
+            transcript,
+            intermediateOutput,
+            mcpResult,
+            finalOutput: mcpResult.final,
+          });
+
+          // delete the temporary video file
+          fs.unlinkSync(filePath);
+          fileRemoved = true;
+
+          return { youtubeResult, mcpResult };
+        } finally {
+          if (!fileRemoved && cleanupPath && fs.existsSync(cleanupPath)) {
+            try {
+              fs.unlinkSync(cleanupPath);
+            } catch {
+              // ignore cleanup errors
+            }
+          }
+        }
+      },
+    );
 
     // Retry video pipeline
     ipcMain.handle(

@@ -8,6 +8,7 @@ import { type MCPStep, StageWithContent } from "./StageWithContent";
 import { StageWithoutContent } from "./StageWithoutContent";
 
 const WORKFLOW_STAGES: WorkflowStage[] = [
+  ProgressStage.DOWNLOADING_SOURCE,
   ProgressStage.CONVERTING_AUDIO,
   ProgressStage.TRANSCRIBING,
   ProgressStage.GENERATING_TASK,
