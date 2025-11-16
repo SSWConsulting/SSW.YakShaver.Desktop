@@ -79,7 +79,6 @@ export class ProcessVideoIPCHandlers {
       // delete the temporary video file
       fs.unlinkSync(filePath);
 
-      // return { youtubeResult, mcpResult };
       return { youtubeResult, mcpResult };
     });
 

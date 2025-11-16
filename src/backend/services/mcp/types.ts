@@ -4,6 +4,7 @@ import Stream from "stream";
 interface MCPBaseConfig {
   name: string;
   description?: string;
+  transport: "streamableHttp" | "stdio";
 }
 
 interface MCPHttpServerConfig extends MCPBaseConfig {
@@ -18,7 +19,7 @@ interface MCPStdioServerConfig extends MCPBaseConfig {
   transport: "stdio";
   command: string; // For stdio transport
   args?: string[];
-  evn?: Record<string, string>;
+  env?: Record<string, string>;
   stderr?: IOType | Stream | number;
   cwd?: string;
 }

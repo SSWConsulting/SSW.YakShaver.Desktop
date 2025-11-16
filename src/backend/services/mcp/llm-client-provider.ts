@@ -97,7 +97,7 @@ export class LLMClientProvider {
             }
 
             const messages: ModelMessage[] = [
-                { role: "user", content: "what your model name and version?" },
+                { role: "user", content: "what is your model name and version?" },
             ];
 
             await providerInstance.generateText(messages);
