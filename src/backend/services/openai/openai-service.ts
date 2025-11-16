@@ -1,4 +1,6 @@
-// TODO: make this LLM Client generic and configurable via llm-config.json, so it supports different llms https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
+//
+// TODO: Remove this class after separating transcribe from OpenAI service
+//
 import { createReadStream } from "node:fs";
 import { AzureOpenAI, OpenAI } from "openai";
 import type {
