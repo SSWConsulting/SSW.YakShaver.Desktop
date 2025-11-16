@@ -11,9 +11,9 @@ import { McpIPCHandlers } from "./ipc/mcp-handlers";
 import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
-import { createMcpOrchestrator } from "./services/mcp/mcp-orchestrator-factory";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -97,9 +97,8 @@ app.whenReady().then(async () => {
 
   _screenRecordingHandlers = new ScreenRecordingIPCHandlers();
 
-  // Create MCP orchestrator with factory to ensure initialization completes
-  const mcpOrchestrator = await createMcpOrchestrator({ eagerCreate: true });
-  _mcpHandlers = new McpIPCHandlers(mcpOrchestrator);
+  const mcpServerManager = await MCPServerManager.getInstanceAsync();
+  _mcpHandlers = new McpIPCHandlers(mcpServerManager);
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
 
   // Pre-initialize control bar window for faster display

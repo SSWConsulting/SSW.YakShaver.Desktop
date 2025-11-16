@@ -58,7 +58,7 @@ export function McpServerManager() {
 
       for (const server of serverList) {
         try {
-          const result = (await ipcClient.mcp.checkServerHealth(
+          const result = (await ipcClient.mcp.checkServerHealthAsync(
             server.name
           )) as HealthStatusInfo;
           setHealthStatus((prev) => ({
@@ -117,10 +117,10 @@ export function McpServerManager() {
       setIsLoading(true);
       try {
         if (viewMode === "add") {
-          await ipcClient.mcp.addServer(config);
+          await ipcClient.mcp.addServerAsync(config);
           toast.success(`Server '${config.name}' added`);
         } else if (viewMode === "edit" && editingServer) {
-          await ipcClient.mcp.updateServer(editingServer.name, config);
+          await ipcClient.mcp.updateServerAsync(editingServer.name, config);
           toast.success(`Server '${config.name}' updated`);
         }
         showList();
@@ -146,7 +146,7 @@ export function McpServerManager() {
     setDeleteConfirmOpen(false);
 
     try {
-      await ipcClient.mcp.removeServer(serverToDelete);
+      await ipcClient.mcp.removeServerAsync(serverToDelete);
       toast.success(`Server '${serverToDelete}' removed`);
       await loadServers();
     } catch (e) {
