@@ -58,18 +58,6 @@ export class MCPOrchestrator {
     return name.replace(/[^a-zA-Z0-9_-]/g, "_");
   }
 
-  private static validateTransportConfig(config: MCPServerConfig): void {
-    if (config.transport === "streamableHttp") {
-      if (!config.url?.trim()) {
-        throw new Error("HTTP MCP servers require a URL");
-      }
-    } else if (config.transport === "stdio") {
-      if (!config.command?.trim()) {
-        throw new Error("Stdio MCP servers require a command to execute");
-      }
-    }
-  }
-
   constructor(
     opts: MCPOrchestratorOptions = {},
     llmClient: OpenAIService = OpenAIService.getInstance(),
@@ -126,46 +114,32 @@ export class MCPOrchestrator {
   }
   async addServer(config: MCPServerConfig): Promise<void> {
     MCPOrchestrator.validateServerName(config.name);
-    MCPOrchestrator.validateTransportConfig(config);
     if (this.servers.some((s) => s.name === config.name)) {
       throw new Error(`Server with name '${config.name}' already exists`);
     }
-    const normalizedConfig: MCPServerConfig = {
-      ...config,
-      enabled: config.enabled ?? true,
-    };
-    this.servers.push(normalizedConfig);
+    this.servers.push(config);
     await this.saveConfig();
   }
 
   async updateServer(name: string, config: MCPServerConfig): Promise<void> {
     MCPOrchestrator.validateServerName(config.name);
-    MCPOrchestrator.validateTransportConfig(config);
     const index = this.servers.findIndex((s) => s.name === name);
     if (index === -1) throw new Error(`Server '${name}' not found`);
     const existing = this.servers[index];
 
-    const normalizedConfig: MCPServerConfig = {
-      ...config,
-      enabled: config.enabled ?? true,
-    };
-
     // If the name is changing, ensure the new name isn't already used
-    if (
-      normalizedConfig.name !== name &&
-      this.servers.some((s) => s.name === normalizedConfig.name)
-    ) {
-      throw new Error(`Server with name '${normalizedConfig.name}' already exists`);
+    if (config.name !== name && this.servers.some((s) => s.name === config.name)) {
+      throw new Error(`Server with name '${config.name}' already exists`);
     }
 
     // If the name changed OR the config has changed (URL/headers/etc), recreate client
-    const configChanged = JSON.stringify(existing) !== JSON.stringify(normalizedConfig);
+    const configChanged = JSON.stringify(existing) !== JSON.stringify(config);
     if (configChanged) {
       this.clients.get(name)?.disconnect();
       this.clients.delete(name);
     }
 
-    this.servers[index] = normalizedConfig;
+    this.servers[index] = config;
     await this.saveConfig();
   }
 
@@ -179,14 +153,6 @@ export class MCPOrchestrator {
   }
 
   async checkServerHealth(name: string): Promise<HealthStatusInfo> {
-    const serverConfig = this.servers.find((s) => s.name === name);
-    if (serverConfig?.enabled === false) {
-      return {
-        isHealthy: false,
-        error: "Server is disabled",
-        disabled: true,
-      };
-    }
     try {
       const client = this.getMcpClient(name);
       await client.connect();
@@ -223,20 +189,14 @@ export class MCPOrchestrator {
   }
 
   createAllClients(): void {
-    this.servers
-      .filter((s) => s.enabled !== false)
-      .forEach((s) => {
-        this.ensureClient(s.name);
-      });
+    this.servers.forEach((s) => {
+      this.ensureClient(s.name);
+    });
   }
 
   async connectAll(): Promise<void> {
     this.createAllClients();
     for (const client of this.clients.values()) {
-      const serverConfig = this.servers.find((s) => s.name === client.name);
-      if (serverConfig?.enabled === false) {
-        continue;
-      }
       try {
         await client.connect();
       } catch (e) {
@@ -280,10 +240,9 @@ export class MCPOrchestrator {
     // Ensure servers are created (and connect lazily when listing tools)
     const availableServers = await this.listAvailableServers();
     const serverFilter = options.serverFilter;
-    const enabledServers = availableServers.filter((s) => s.enabled !== false);
     const targetServers = serverFilter?.length
-      ? enabledServers.filter((s) => serverFilter.includes(s.name))
-      : enabledServers;
+      ? availableServers.filter((s) => serverFilter.includes(s.name))
+      : availableServers;
 
     const toolDefs: OpenAI.Chat.Completions.ChatCompletionTool[] = [];
     for (const server of targetServers) {
@@ -410,7 +369,7 @@ export class MCPOrchestrator {
         });
 
         try {
-          const client = this.getMcpClient(originalServerName);
+          const client = this.getMcpClient(serverName);
           const result = await client.callTool(toolName, args);
 
           this.sendStepEvent({

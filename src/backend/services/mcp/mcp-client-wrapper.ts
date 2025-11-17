@@ -26,11 +26,6 @@ export class MCPClientWrapper {
 
   private buildTransport(): StreamableHTTPClientTransport | StdioClientTransport {
     if (this.serverConfig.transport === "streamableHttp") {
-      if (!this.serverConfig.url) {
-        throw new Error(
-          `MCP server '${this.serverConfig.name}' is missing a URL for streamableHttp transport`,
-        );
-      }
       const headers: Record<string, string> = {};
       if (this.serverConfig.headers) {
         for (const [k, v] of Object.entries(this.serverConfig.headers)) {
@@ -42,15 +37,11 @@ export class MCPClientWrapper {
       };
       return new StreamableHTTPClientTransport(new URL(this.serverConfig.url), options);
     } else if (this.serverConfig.transport === "stdio") {
-      if (!this.serverConfig.command) {
-        throw new Error(
-          `MCP server '${this.serverConfig.name}' is missing a command for stdio transport`,
-        );
-      }
+      // Don't worry stdio for now, this is local MCP server, supported later
+      // TODO: Support local MCP servers via stdio transport https://github.com/SSWConsulting/SSW.YakShaver/issues/3008
       return new StdioClientTransport({
-        command: this.serverConfig.command,
-        args: this.serverConfig.args,
-        env: this.serverConfig.env,
+        command: this.serverConfig.url,
+        // Future: args, env, cwd, stderr
       });
     }
     throw new Error(`Unsupported transport: ${this.serverConfig.transport}`);
