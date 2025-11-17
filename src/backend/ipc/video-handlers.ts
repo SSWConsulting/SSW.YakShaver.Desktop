@@ -27,10 +27,7 @@ export class VideoIPCHandlers {
       IPC_CHANNELS.CONVERT_VIDEO_TO_MP3,
       async (_event, inputPath: string, outputPath: string) => {
         try {
-          const result = await this.FFmpegService.ConvertVideoToMp3(
-            inputPath,
-            outputPath,
-          );
+          const result = await this.FFmpegService.ConvertVideoToMp3(inputPath, outputPath);
           return { success: true, outputPath: result };
         } catch (error) {
           return {

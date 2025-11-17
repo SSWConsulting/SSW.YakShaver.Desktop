@@ -57,7 +57,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     for (const server of serverList) {
       if (server.enabled === false) continue;
       try {
-        const result = (await ipcClient.mcp.checkServerHealth(server.name)) as HealthStatusInfo;
+        const result = (await ipcClient.mcp.checkServerHealthAsync(server.name)) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
           [server.name]: { ...result, isChecking: false },
@@ -114,10 +114,10 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
       setIsLoading(true);
       try {
         if (viewMode === "add") {
-          await ipcClient.mcp.addServer(config);
+          await ipcClient.mcp.addServerAsync(config);
           toast.success(`Server '${config.name}' added`);
         } else if (viewMode === "edit" && editingServer) {
-          await ipcClient.mcp.updateServer(editingServer.name, config);
+          await ipcClient.mcp.updateServerAsync(editingServer.name, config);
           toast.success(`Server '${config.name}' updated`);
         }
         showList();
@@ -140,7 +140,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     async (server: MCPServerConfig, enabled: boolean) => {
       setIsLoading(true);
       try {
-        await ipcClient.mcp.updateServer(server.name, { ...server, enabled });
+        await ipcClient.mcp.updateServerAsync(server.name, { ...server, enabled });
         toast.success(`Server '${server.name}' ${enabled ? "enabled" : "disabled"}`);
         await loadServers();
       } catch (e) {
@@ -161,7 +161,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     setDeleteConfirmOpen(false);
 
     try {
-      await ipcClient.mcp.removeServer(serverToDelete);
+      await ipcClient.mcp.removeServerAsync(serverToDelete);
       toast.success(`Server '${serverToDelete}' removed`);
       await loadServers();
     } catch (e) {
@@ -210,12 +210,13 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                 <div className="flex flex-col gap-4">
                   {sortedServers.map((server) => {
                     const status = healthStatus[server.name] || {};
-                    const detailText =
-                      server.transport === "streamableHttp"
-                        ? server.url ?? ""
-                        : [server.command, ...(server.args ?? [])]
-                            .filter((part) => !!part?.trim())
-                            .join(" ");
+                    const isHttp = server.transport === "streamableHttp";
+                    const detailText = isHttp
+                      ? server.url ?? ""
+                      : [server.command, ...(server.args ?? [])]
+                          .filter((part) => !!part?.trim())
+                          .join(" ");
+                    const detailLabel = isHttp ? "HTTP Endpoint" : "Command";
                     const isEnabled = server.enabled !== false;
                     return (
                       <Card
@@ -237,6 +238,9 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
                               <div className="flex-1">
                                 <h3 className="text-lg font-semibold text-white">{server.name}</h3>
+                                <p className="text-[11px] uppercase tracking-wide text-white/50">
+                                  {detailLabel} · {server.transport}
+                                </p>
                                 <p className="mt-2 break-all font-mono text-sm text-white/50">
                                   {detailText || ""}
                                 </p>

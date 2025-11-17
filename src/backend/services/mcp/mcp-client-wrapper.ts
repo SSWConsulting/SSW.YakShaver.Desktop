@@ -5,6 +5,7 @@ import {
   type StreamableHTTPClientTransportOptions,
 } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { MCPServerConfig } from "./types";
+import { validateMcpTransportConfig } from "./types";
 
 export class MCPClientWrapper {
   private client: Client;
@@ -16,6 +17,7 @@ export class MCPClientWrapper {
   private connectPromise: Promise<void> | null = null;
 
   constructor(opts: MCPServerConfig) {
+    validateMcpTransportConfig(opts);
     this.serverConfig = opts;
     this.client = new Client({
       name: this.serverConfig.name,

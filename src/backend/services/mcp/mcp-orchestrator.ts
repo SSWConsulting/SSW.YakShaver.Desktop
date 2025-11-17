@@ -9,6 +9,7 @@ import { OpenAIService } from "../openai/openai-service.js";
 import { McpStorage } from "../storage/mcp-storage.js";
 import { MCPClientWrapper } from "./mcp-client-wrapper.js";
 import type { MCPServerConfig } from "./types.js";
+import { validateMcpTransportConfig } from "./types.js";
 
 export interface MCPOrchestratorOptions {
   eagerCreate?: boolean; // create all client wrappers at construction
@@ -59,15 +60,7 @@ export class MCPOrchestrator {
   }
 
   private static validateTransportConfig(config: MCPServerConfig): void {
-    if (config.transport === "streamableHttp") {
-      if (!config.url?.trim()) {
-        throw new Error("HTTP MCP servers require a URL");
-      }
-    } else if (config.transport === "stdio") {
-      if (!config.command?.trim()) {
-        throw new Error("Stdio MCP servers require a command to execute");
-      }
-    }
+    validateMcpTransportConfig(config);
   }
 
   constructor(
