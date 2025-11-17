@@ -150,8 +150,8 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <header className="mb-4 flex flex-col gap-1">
-        <h2 className="text-white text-xl font-semibold">MCP Server Settings</h2>
-        <p className="text-white/70 text-sm">
+        <h2 className="text-xl font-semibold">MCP Server Settings</h2>
+        <p className="text-muted-foreground text-sm">
           Manage external MCP servers and monitor their health status.
         </p>
       </header>
@@ -199,8 +199,8 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                               </div>
 
                               <div className="flex-1">
-                                <h3 className="text-lg font-semibold text-white">{server.name}</h3>
-                                <p className="mt-2 break-all font-mono text-sm text-white/50">
+                                <h3 className="text-lg font-semibold">{server.name}</h3>
+                                <p className="mt-2 break-all font-mono text-sm text-muted-foreground">
                                   {server.url}
                                 </p>
                               </div>

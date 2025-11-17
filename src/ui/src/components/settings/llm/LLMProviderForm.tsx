@@ -37,7 +37,7 @@ function LLMProviderSelect({ control, handleProviderChange }: LLMProviderSelectP
             defaultValue={field.value}
           >
             <FormControl>
-              <SelectTrigger className="bg-black/40 cursor-pointer border border-white/20 text-white">
+              <SelectTrigger className="cursor-pointer">
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
             </FormControl>
@@ -75,16 +75,11 @@ function OpenAIProviderForm({ control }: OpenAIProviderFormProps) {
       name="apiKey"
       render={({ field }) => (
         <FormItem className="flex flex-col gap-2">
-          <FormLabel className="text-white/90 text-sm">API Key</FormLabel>
+          <FormLabel className="text-sm">API Key</FormLabel>
           <FormControl>
-            <Input
-              {...field}
-              placeholder="sk-..."
-              className="bg-black/40 border border-white/20 text-white"
-              type="password"
-            />
+            <Input {...field} placeholder="sk-..." type="password" />
           </FormControl>
-          <FormDescription className="text-white/50 text-xs">
+          <FormDescription className="text-xs">
             Stored securely on this device.
           </FormDescription>
           <FormMessage />
@@ -101,16 +96,11 @@ function DeepSeekProviderForm({ control }: DeepSeekProviderFormProps) {
       name="apiKey"
       render={({ field }) => (
         <FormItem className="flex flex-col gap-2">
-          <FormLabel className="text-white/90 text-sm">API Key</FormLabel>
+          <FormLabel className="text-sm">API Key</FormLabel>
           <FormControl>
-            <Input
-              {...field}
-              placeholder="sk-..."
-              className="bg-black/40 border border-white/20 text-white"
-              type="password"
-            />
+            <Input {...field} placeholder="sk-..." type="password" />
           </FormControl>
-          <FormDescription className="text-white/50 text-xs">
+          <FormDescription className="text-xs">
             Stored securely on this device.
           </FormDescription>
           <FormMessage />
@@ -128,14 +118,9 @@ function AzureOpenAIProviderForm({ control }: AzureOpenAIProviderFormProps) {
         name="apiKey"
         render={({ field }) => (
           <FormItem className="flex flex-col gap-2">
-            <FormLabel className="text-white/90 text-sm">API Key</FormLabel>
+            <FormLabel className="text-sm">API Key</FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                placeholder="Azure OpenAI API Key"
-                className="bg-black/40 border border-white/20 text-white"
-                type="password"
-              />
+              <Input {...field} placeholder="Azure OpenAI API Key" type="password" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -146,14 +131,9 @@ function AzureOpenAIProviderForm({ control }: AzureOpenAIProviderFormProps) {
         name="endpoint"
         render={({ field }) => (
           <FormItem className="flex flex-col gap-2">
-            <FormLabel className="text-white/90 text-sm">Endpoint</FormLabel>
+            <FormLabel className="text-sm">Endpoint</FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                placeholder="https://<resource>.openai.azure.com"
-                className="bg-black/40 border border-white/20 text-white"
-                type="text"
-              />
+              <Input {...field} placeholder="https://<resource>.openai.azure.com" type="text" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -164,14 +144,9 @@ function AzureOpenAIProviderForm({ control }: AzureOpenAIProviderFormProps) {
         name="version"
         render={({ field }) => (
           <FormItem className="flex flex-col gap-2">
-            <FormLabel className="text-white/90 text-sm">API Version</FormLabel>
+            <FormLabel className="text-sm">API Version</FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                placeholder="e.g. 2024-08-01-preview"
-                className="bg-black/40 border border-white/20 text-white"
-                type="text"
-              />
+              <Input {...field} placeholder="e.g. 2024-08-01-preview" type="text" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -182,14 +157,9 @@ function AzureOpenAIProviderForm({ control }: AzureOpenAIProviderFormProps) {
         name="deployment"
         render={({ field }) => (
           <FormItem className="flex flex-col gap-2">
-            <FormLabel className="text-white/90 text-sm">Deployment Name</FormLabel>
+            <FormLabel className="text-sm">Deployment Name</FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                placeholder="e.g. Whisper"
-                className="bg-black/40 border border-white/20 text-white"
-                type="text"
-              />
+              <Input {...field} placeholder="e.g. Whisper" type="text" />
             </FormControl>
             <FormMessage />
           </FormItem>

@@ -22,7 +22,7 @@ export function PromptCard({ prompt, isActive, onEdit, onSetActive }: PromptCard
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-white font-medium truncate">{prompt.name}</h3>
+            <h3 className="font-medium truncate">{prompt.name}</h3>
             {prompt.isDefault && (
               <Badge variant="secondary" className="text-xs">
                 Default
@@ -35,7 +35,7 @@ export function PromptCard({ prompt, isActive, onEdit, onSetActive }: PromptCard
             )}
           </div>
           {prompt.description && (
-            <p className="text-white/70 text-sm line-clamp-2">{prompt.description}</p>
+            <p className="text-muted-foreground text-sm line-clamp-2">{prompt.description}</p>
           )}
         </div>
 

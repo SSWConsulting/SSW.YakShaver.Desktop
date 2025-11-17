@@ -55,16 +55,11 @@ export function McpServerForm({ form }: McpServerFormProps) {
         name="name"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="text-white/90">
+            <FormLabel>
               Name <span className="text-red-400">*</span>
             </FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                type="text"
-                placeholder="e.g., GitHub"
-                className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-              />
+              <Input {...field} type="text" placeholder="e.g., GitHub" className="font-mono" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -76,14 +71,9 @@ export function McpServerForm({ form }: McpServerFormProps) {
         name="description"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="text-white/90">Description</FormLabel>
+            <FormLabel>Description</FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                type="text"
-                placeholder="e.g., GitHub MCP Server"
-                className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-              />
+              <Input {...field} type="text" placeholder="e.g., GitHub MCP Server" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -95,7 +85,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
         name="url"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="text-white/90">
+            <FormLabel>
               URL <span className="text-red-400">*</span>
             </FormLabel>
             <FormControl>
@@ -103,7 +93,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
                 {...field}
                 type="text"
                 placeholder="e.g., https://api.example.com/mcp/"
-                className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white font-mono text-sm focus:border-white/40 focus:outline-none"
+                className="font-mono text-sm"
               />
             </FormControl>
             <FormMessage />
@@ -116,10 +106,10 @@ export function McpServerForm({ form }: McpServerFormProps) {
         name="transport"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="text-white/90">Transport</FormLabel>
+            <FormLabel>Transport</FormLabel>
             <FormControl>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <SelectTrigger className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none">
+                <SelectTrigger>
                   <SelectValue placeholder="Transport" />
                 </SelectTrigger>
                 <SelectContent>
@@ -135,7 +125,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
 
       <Accordion type="single" collapsible>
         <AccordionItem value="advanced">
-          <AccordionTrigger className="text-base font-medium text-white/90">
+          <AccordionTrigger className="text-base font-medium">
             Advanced Options
           </AccordionTrigger>
           <AccordionContent className="flex flex-col gap-4 pt-4">
@@ -144,16 +134,16 @@ export function McpServerForm({ form }: McpServerFormProps) {
               name="headers"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-white/90">Headers</FormLabel>
+                  <FormLabel>Headers</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
                       placeholder='{"Authorization": "Bearer YOUR_TOKEN"}'
                       rows={4}
-                      className="text-white font-mono text-xs bg-black/40 border-white/20"
+                      className="font-mono text-xs"
                     />
                   </FormControl>
-                  <FormDescription className="text-white/60 text-xs">
+                  <FormDescription className="text-muted-foreground text-xs">
                     JSON format, e.g., Authorization headers
                   </FormDescription>
                   <FormMessage />
@@ -166,14 +156,9 @@ export function McpServerForm({ form }: McpServerFormProps) {
               name="version"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-white/90">Version</FormLabel>
+                  <FormLabel>Version</FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      type="text"
-                      placeholder="e.g., 1.0.0"
-                      className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                    />
+                    <Input {...field} type="text" placeholder="e.g., 1.0.0" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -185,7 +170,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
               name="timeoutMs"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-white/90">Timeout (ms)</FormLabel>
+                  <FormLabel>Timeout (ms)</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
@@ -193,7 +178,6 @@ export function McpServerForm({ form }: McpServerFormProps) {
                       onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : "")}
                       type="number"
                       placeholder="60000"
-                      className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
                     />
                   </FormControl>
                   <FormMessage />
@@ -263,9 +247,7 @@ export function McpServerFormWrapper({
   return (
     <FormProvider {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col gap-4">
-        <h3 className="text-white text-xl font-semibold">
-          {isEditing ? "Edit Server" : "Add New Server"}
-        </h3>
+        <h3 className="text-xl font-semibold">{isEditing ? "Edit Server" : "Add New Server"}</h3>
 
         <McpServerForm form={form} />
 

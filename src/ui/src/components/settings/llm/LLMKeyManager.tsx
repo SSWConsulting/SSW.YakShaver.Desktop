@@ -136,14 +136,14 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
   return (
     <div className="flex flex-col gap-4">
       <header className="flex flex-col gap-1">
-        <h2 className="text-white text-xl font-semibold">LLM Settings</h2>
-        <p className="text-white/70 text-sm">
+        <h2 className="text-xl font-semibold">LLM Settings</h2>
+        <p className="text-muted-foreground text-sm">
           Configure API access for OpenAI or Azure OpenAI providers.
         </p>
       </header>
       {hasConfig && (
         <div className="flex items-center gap-3">
-          <p className="text-white/80 text-sm">API Key Status:</p>
+          <p className="text-sm">API Key Status:</p>
           <span className="text-green-400 text-sm font-mono">Saved</span>
           <HealthStatus
             isChecking={healthStatus?.isChecking ?? false}
@@ -154,7 +154,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         </div>
       )}
       {!hasConfig && (
-        <p className="text-white/80 text-sm">
+        <p className="text-sm">
           Status: <span className="text-red-400">Not Saved</span>
         </p>
       )}

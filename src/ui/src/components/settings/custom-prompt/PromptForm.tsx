@@ -78,19 +78,16 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             name="name"
             render={({ field }) => (
               <FormItem className="shrink-0">
-                <FormLabel className="text-white/90 text-sm">Prompt Name *</FormLabel>
+                <FormLabel className="text-sm">Prompt Name *</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
                     placeholder="e.g., Documentation Writer, Code Reviewer"
                     disabled={isDefault}
-                    className="bg-black/40 border-white/20"
                   />
                 </FormControl>
                 {isDefault ? (
-                  <FormDescription className="text-white/50">
-                    Default prompt name cannot be changed
-                  </FormDescription>
+                  <FormDescription>Default prompt name cannot be changed</FormDescription>
                 ) : (
                   <FormMessage />
                 )}
@@ -103,16 +100,15 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             name="description"
             render={({ field }) => (
               <FormItem className="shrink-0">
-                <FormLabel className="text-white/90 text-sm">Description</FormLabel>
+                <FormLabel className="text-sm">Description</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
                     placeholder="Brief description of what this prompt does"
                     disabled={isDefault}
-                    className="bg-black/40 border-white/20"
                   />
                 </FormControl>
-                <FormDescription className="text-white/50">
+                <FormDescription>
                   {isDefault
                     ? "Default prompt description cannot be changed"
                     : "This will be shown in the prompt card for quick reference"}
@@ -127,7 +123,7 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             render={({ field }) => (
               <FormItem className="flex flex-col flex-1 min-h-0 overflow-hidden">
                 <div className="flex items-center justify-between shrink-0">
-                  <FormLabel className="text-white/90 text-sm">Prompt Instructions</FormLabel>
+                  <FormLabel className="text-sm">Prompt Instructions</FormLabel>
                   <Button
                     type="button"
                     variant="ghost"
