@@ -2,6 +2,8 @@ import { type IpcMainInvokeEvent, ipcMain } from "electron";
 import { OpenAIService } from "../services/openai/openai-service";
 import { type LLMConfig, LlmStorage } from "../services/storage/llm-storage";
 import { IPC_CHANNELS } from "./channels";
+import { LlmStorage, type LLMConfig } from "../services/storage/llm-storage";
+import { LLMClientProvider } from "../services/mcp/llm-client-provider";
 
 export class LLMSettingsIPCHandlers {
   private openAiService = OpenAIService.getInstance();
@@ -9,28 +11,6 @@ export class LLMSettingsIPCHandlers {
 
   constructor() {
     this.registerHandlers();
-    void this.bootstrapStoredKey();
-  }
-
-  private async bootstrapStoredKey() {
-    try {
-      const llmCfg = await this.secureStorage.getLLMConfig();
-      if (llmCfg) {
-        if (llmCfg.provider === "openai") {
-          this.openAiService.setOpenAIKey(llmCfg.apiKey);
-        } else {
-          this.openAiService.setAzureConfig(
-            llmCfg.apiKey,
-            llmCfg.endpoint,
-            llmCfg.version,
-            llmCfg.deployment,
-          );
-        }
-        return;
-      }
-    } catch (e) {
-      throw new Error("Failed to bootstrap stored OpenAI key");
-    }
   }
 
   private registerHandlers(): void {
@@ -39,17 +19,6 @@ export class LLMSettingsIPCHandlers {
       async (_event: IpcMainInvokeEvent, config: LLMConfig) => {
         if (!config || !("provider" in config)) throw new Error("Invalid LLM config");
         await this.secureStorage.storeLLMConfig(config);
-        // Reconfigure services
-        if (config.provider === "openai") {
-          this.openAiService.setOpenAIKey(config.apiKey);
-        } else {
-          this.openAiService.setAzureConfig(
-            config.apiKey,
-            config.endpoint,
-            config.version,
-            config.deployment,
-          );
-        }
         return { success: true };
       },
     );
@@ -66,7 +35,7 @@ export class LLMSettingsIPCHandlers {
     });
 
     ipcMain.handle(IPC_CHANNELS.LLM_CHECK_HEALTH, async () => {
-      return await this.openAiService.checkHealth();
+      return await LLMClientProvider.checkHealthAsync();
     });
   }
 }

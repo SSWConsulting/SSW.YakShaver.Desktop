@@ -98,10 +98,10 @@ declare global {
           }) => void,
         ) => () => void;
         listServers: () => Promise<MCPServerConfig[]>;
-        addServer: (config: MCPServerConfig) => Promise<{ success: boolean }>;
-        updateServer: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
-        removeServer: (name: string) => Promise<{ success: boolean }>;
-        checkServerHealth: (name: string) => Promise<HealthStatusInfo>;
+        addServerAsync: (config: MCPServerConfig) => Promise<{ success: boolean }>;
+        updateServerAsync: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
+        removeServerAsync: (name: string) => Promise<{ success: boolean }>;
+        checkServerHealthAsync: (name: string) => Promise<HealthStatusInfo>;
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;

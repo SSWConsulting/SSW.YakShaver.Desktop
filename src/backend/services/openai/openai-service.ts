@@ -1,4 +1,6 @@
-// TODO: make this LLM Client generic and configurable via llm-config.json, so it supports different llms https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
+//
+// TODO: Remove this class after separating transcribe from OpenAI service
+//
 import { createReadStream } from "node:fs";
 import { AzureOpenAI, OpenAI } from "openai";
 import type {
@@ -36,7 +38,9 @@ export class OpenAIService {
         this.client = new OpenAI({ apiKey: llmCfg.apiKey });
         this.configured = true;
         return;
-      } else {
+      }
+
+      if (llmCfg.provider === "azure") {
         const { apiKey, endpoint, version, deployment } = llmCfg;
         const options = { endpoint, apiKey, version, deployment };
         this.client = new AzureOpenAI(options);
@@ -133,38 +137,14 @@ export class OpenAIService {
     if (cfg.provider === "openai") {
       return "gpt-4o";
     }
-    if (!cfg.deployment) {
-      throw new Error(ERROR_MESSAGES.AZURE_DEPLOYMENT_MISSING);
-    }
-    return cfg.deployment;
-  }
 
-  async checkHealth(): Promise<HealthStatusInfo> {
-    try {
-      await this.ensureClient();
-      if (!this.client) {
-        return {
-          isHealthy: false,
-          error: "LLM client not configured",
-        };
+    if (cfg.provider === "azure") {
+      if (!cfg.deployment) {
+        throw new Error(ERROR_MESSAGES.AZURE_DEPLOYMENT_MISSING);
       }
-
-      const model = await this.getModel();
-      await this.client.chat.completions.create({
-        model,
-        messages: [{ role: "user", content: "test" }],
-        max_tokens: 1,
-      });
-
-      return {
-        isHealthy: true,
-        successMessage: `Healthy - Model: ${model}`,
-      };
-    } catch (err) {
-      return {
-        isHealthy: false,
-        error: formatErrorMessage(err),
-      };
+      return cfg.deployment;
     }
+
+    throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
   }
 }
