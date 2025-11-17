@@ -15,6 +15,10 @@ const schema = z.discriminatedUnion("provider", [
     apiKey: z.string().min(1, "API key is required"),
   }),
   z.object({
+    provider: z.literal("deepseek"),
+    apiKey: z.string().min(1, "API key is required"),
+  }),
+  z.object({
     provider: z.literal("azure"),
     apiKey: z.string().min(1, "API key is required"),
     endpoint: z.string().min(1, "Endpoint is required"),
@@ -92,6 +96,8 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         toast.success(
           values.provider === "openai"
             ? "OpenAI configuration saved"
+            : values.provider === "deepseek"
+            ? "DeepSeek configuration saved"
             : "Azure OpenAI configuration saved",
         );
         await refreshStatus();
