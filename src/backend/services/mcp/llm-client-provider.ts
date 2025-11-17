@@ -100,7 +100,9 @@ export class LLMClientProvider {
                 { role: "user", content: "what is your model name and version?" },
             ];
 
-            await providerInstance.generateText(messages);
+            const response = await providerInstance.generateText(messages);
+
+            console.log("[LLMClientProvider]: Health check response:", response);
 
             return {
                 isHealthy: true,
