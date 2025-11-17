@@ -228,11 +228,11 @@ export function LLMProviderForm({
           control={form.control}
           handleProviderChange={handleProviderChange}
         />
-        {provider === "openai" ? (
-          <OpenAIProviderForm control={form.control} />
-        ) : (
-          <AzureOpenAIProviderForm control={form.control} />
-        )}
+       {provider === "openai"
+          ? <OpenAIProviderForm control={form.control} />
+          : provider === "deepseek"
+          ? <DeepSeekProviderForm control={form.control} />
+          : <AzureOpenAIProviderForm control={form.control} />}
         <div className="flex justify-start gap-2">
           <Button
             type="button"

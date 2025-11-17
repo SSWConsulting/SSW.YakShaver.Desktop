@@ -2,7 +2,6 @@ import { type IpcMainInvokeEvent, ipcMain } from "electron";
 import { OpenAIService } from "../services/openai/openai-service";
 import { type LLMConfig, LlmStorage } from "../services/storage/llm-storage";
 import { IPC_CHANNELS } from "./channels";
-import { LlmStorage, type LLMConfig } from "../services/storage/llm-storage";
 import { LLMClientProvider } from "../services/mcp/llm-client-provider";
 
 export class LLMSettingsIPCHandlers {

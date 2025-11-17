@@ -106,7 +106,7 @@ export class LLMClientProvider {
 
             return {
                 isHealthy: true,
-                successMessage: `Healthy - Model: ${LLMClientProvider.languageModel}`,
+                successMessage: `Healthy - Model: ${response}`,
             };
         } catch (err) {
             return {

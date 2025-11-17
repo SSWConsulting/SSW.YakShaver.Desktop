@@ -44,12 +44,15 @@ export class MCPOrchestratorNeo {
             throw new Error("[MCPOrchestratorNeo]: No MCP clients available");
         }
 
-        // TODO: Flatten tools from all MCP clients, applying serverFilter if provided
-        const mcpClient = mcpServerClients[0];
-
-        // Example interaction with MCP client and LLM provider
-        const tools = await mcpClient.listTools();
-        // console.log("Available tools from MCP:", tools);
+        // Flatten tools from all MCP clients, 
+        // note: this approach causes subsequent tool sets to override tools with the same name
+        const toolSets = await Promise.all(
+            mcpServerClients.map((client) => client.listTools()),
+        );
+        const tools = Object.assign(
+            {},
+            ...toolSets,
+        );
 
         let systemPrompt =
             options.systemPrompt ??

@@ -96,6 +96,8 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         toast.success(
           values.provider === "openai"
             ? "OpenAI configuration saved"
+            : values.provider === "deepseek"
+            ? "DeepSeek configuration saved"
             : "Azure OpenAI configuration saved",
         );
         await refreshStatus();
