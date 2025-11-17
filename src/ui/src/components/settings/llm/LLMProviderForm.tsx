@@ -14,7 +14,7 @@ import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import type { FormValues } from "./LLMKeyManager";
 
-export type LLMProvider = "openai" | "azure";
+export type LLMProvider = "openai" | "deepseek" | "azure";
 
 type LLMProviderSelectProps = {
   control: Control<FormValues>;
@@ -43,6 +43,7 @@ function LLMProviderSelect({ control, handleProviderChange }: LLMProviderSelectP
             </FormControl>
             <SelectContent>
               <SelectItem value="openai">OpenAI</SelectItem>
+              <SelectItem value="deepseek">DeepSeek</SelectItem>
               <SelectItem value="azure" disabled={true}>
                 Azure OpenAI
               </SelectItem>
@@ -59,11 +60,41 @@ type OpenAIProviderFormProps = {
   control: Control<FormValues>;
 };
 
+type DeepSeekProviderFormProps = {
+  control: Control<FormValues>;
+};
+
 type AzureOpenAIProviderFormProps = {
   control: Control<FormValues>;
 };
 
 function OpenAIProviderForm({ control }: OpenAIProviderFormProps) {
+  return (
+    <FormField
+      control={control}
+      name="apiKey"
+      render={({ field }) => (
+        <FormItem className="flex flex-col gap-2">
+          <FormLabel className="text-white/90 text-sm">API Key</FormLabel>
+          <FormControl>
+            <Input
+              {...field}
+              placeholder="sk-..."
+              className="bg-black/40 border border-white/20 text-white"
+              type="password"
+            />
+          </FormControl>
+          <FormDescription className="text-white/50 text-xs">
+            Stored securely on this device.
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
+
+function DeepSeekProviderForm({ control }: DeepSeekProviderFormProps) {
   return (
     <FormField
       control={control}
@@ -174,7 +205,7 @@ type LLMProviderFormProps = {
   onClear: () => Promise<void>;
   isLoading: boolean;
   hasConfig: boolean;
-  handleProviderChange: (value: "openai" | "azure") => void;
+  handleProviderChange: (value: "openai" | "deepseek" | "azure") => void;
 };
 
 export function LLMProviderForm({
@@ -189,13 +220,19 @@ export function LLMProviderForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <LLMProviderSelect control={form.control} handleProviderChange={handleProviderChange} />
-        {provider === "openai" ? (
-          <OpenAIProviderForm control={form.control} />
-        ) : (
-          <AzureOpenAIProviderForm control={form.control} />
-        )}
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-4"
+      >
+        <LLMProviderSelect
+          control={form.control}
+          handleProviderChange={handleProviderChange}
+        />
+       {provider === "openai"
+          ? <OpenAIProviderForm control={form.control} />
+          : provider === "deepseek"
+          ? <DeepSeekProviderForm control={form.control} />
+          : <AzureOpenAIProviderForm control={form.control} />}
         <div className="flex justify-start gap-2">
           <Button
             type="button"
