@@ -64,8 +64,11 @@ export class ProcessVideoIPCHandlers {
         let fileRemoved = false;
 
         try {
-          // upload to YouTube
-          const youtubeResult = await this.youtube.uploadVideo(filePath);
+          const isExistingYoutubeVideo = Boolean(youtubeUrl);
+          const youtubeResult = isExistingYoutubeVideo
+            ? await this.buildExistingVideoResult(youtubeUrl!)
+            : await this.youtube.uploadVideo(filePath);
+
           this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
 
           // convert video to mp3
@@ -162,6 +165,24 @@ export class ProcessVideoIPCHandlers {
     const outputFilePath = tmp.tmpNameSync({ postfix: ".mp3" });
     const result = await this.ffmpegService.ConvertVideoToMp3(inputPath, outputFilePath);
     return result;
+  }
+
+  private async buildExistingVideoResult(youtubeUrl: string): Promise<VideoUploadResult> {
+    const metadata = await this.youtubeDownloader.fetchVideoMetadata(youtubeUrl);
+    const fallbackTitle = "Existing YouTube video";
+
+    return {
+      success: true,
+      data: {
+        title: metadata?.title ?? fallbackTitle,
+        description:
+          metadata?.description ??
+          (metadata?.title
+            ? `Processing existing video "${metadata.title}"`
+            : "Processing the provided YouTube video"),
+        url: metadata?.url ?? youtubeUrl,
+      },
+    };
   }
 
   private emitProgress(stage: string, data?: Record<string, unknown>) {

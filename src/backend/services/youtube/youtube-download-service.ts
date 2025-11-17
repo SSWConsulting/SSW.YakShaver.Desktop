@@ -5,6 +5,14 @@ import { formatErrorMessage } from "../../utils/error-utils";
 
 tmp.setGracefulCleanup();
 
+export interface YouTubeVideoMetadata {
+  title: string;
+  url: string;
+  description?: string;
+  authorName?: string;
+  thumbnailUrl?: string;
+}
+
 export class YouTubeDownloadService {
   private static instance: YouTubeDownloadService;
   private downloadClient: typeof ytDlp;
@@ -85,6 +93,47 @@ export class YouTubeDownloadService {
       await this.tryDelete(outputPath);
       const message = formatErrorMessage(error);
       throw new Error(`youtube-download-service: Failed to download video (${message})`);
+    }
+  }
+
+  async fetchVideoMetadata(youtubeUrl: string): Promise<YouTubeVideoMetadata | null> {
+    if (!youtubeUrl?.trim()) {
+      return null;
+    }
+
+    try {
+      const endpoint = new URL("https://www.youtube.com/oembed");
+      endpoint.searchParams.set("url", youtubeUrl);
+      endpoint.searchParams.set("format", "json");
+
+      const response = await fetch(endpoint);
+      if (!response.ok) {
+        console.warn(
+          "[youtube-download-service] metadata fetch failed",
+          response.status,
+          response.statusText,
+        );
+        return null;
+      }
+
+      type OEmbedResponse = {
+        title: string;
+        author_name?: string;
+        thumbnail_url?: string;
+      };
+
+      const data = (await response.json()) as OEmbedResponse;
+
+      return {
+        title: data.title,
+        url: youtubeUrl,
+        authorName: data.author_name,
+        thumbnailUrl: data.thumbnail_url,
+        description: data.author_name ? `Existing video by ${data.author_name}` : undefined,
+      };
+    } catch (error) {
+      console.warn("[youtube-download-service] metadata fetch threw", error);
+      return null;
     }
   }
 
