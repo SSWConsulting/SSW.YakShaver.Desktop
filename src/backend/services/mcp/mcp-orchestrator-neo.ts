@@ -31,7 +31,7 @@ export class MCPOrchestratorNeo {
         options: {
             serverFilter?: string[]; // if provided, only include tools from these servers
             systemPrompt?: string;
-            maxToolIterations?: number; // safety cap to avoid infinite loops) 
+            maxToolIterations?: number; // safety cap to avoid infinite loops
         } = {}): Promise<any> {
 
         // Ensure LLM provider and MCP clients are initialized
