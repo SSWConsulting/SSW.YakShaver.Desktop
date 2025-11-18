@@ -34,25 +34,19 @@ export class MCPOrchestratorNeo {
             maxToolIterations?: number; // safety cap to avoid infinite loops
         } = {}): Promise<any> {
 
-        // Ensure LLM provider and MCP clients are initialized
+        // Ensure LLM has been initialized
         if (!MCPOrchestratorNeo.llmProvider) {
             throw new Error("[MCPOrchestratorNeo]: LLM client not initialized");
         }
 
-        const mcpServerClients = await MCPOrchestratorNeo.mcpServerManager?.getAllMcpServerClientsAsync();
-        if (!mcpServerClients || mcpServerClients.length === 0) {
-            throw new Error("[MCPOrchestratorNeo]: No MCP clients available");
+        // Ensure MCP server manager is initialized
+        const serverManager = MCPOrchestratorNeo.mcpServerManager;
+        if (!serverManager) {
+            throw new Error("[MCPOrchestratorNeo]: MCP server manager not initialized");
         }
 
-        // Flatten tools from all MCP clients, 
-        // note: this approach causes subsequent tool sets to override tools with the same name
-        const toolSets = await Promise.all(
-            mcpServerClients.map((client) => client.listTools()),
-        );
-        const tools = Object.assign(
-            {},
-            ...toolSets,
-        );
+        // Get tools and apply the server filter if provided
+        const tools = await serverManager.collectToolsAsync(options.serverFilter);
 
         let systemPrompt =
             options.systemPrompt ??
