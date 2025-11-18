@@ -1,12 +1,12 @@
 import { Copy, ExternalLink, Loader2, RotateCcw, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../constants/events";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import { ProgressStage, type WorkflowProgress, type WorkflowStage } from "../../types";
-import type { MCPStep } from "./StageWithContent";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import {
 } from "../ui/dialog";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../constants/events";
+import type { MCPStep } from "./StageWithContent";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
@@ -291,7 +291,8 @@ const MERGED_INSTRUCTION_HEADER = "\n\n### Operator correction\n";
 const REPROCESS_MODES = {
   original: {
     title: "Reprocess this yakshave",
-    description: "Provide corrective instructions for YakShaver, then submit to rerun the MCP workflow.",
+    description:
+      "Provide corrective instructions for YakShaver, then submit to rerun the MCP workflow.",
     placeholder:
       "Explain what needs to change. e.g. Wrong repo, please redo in xyz repo and use branch main.",
     success: "Reprocess request finished. Review the refreshed workflow output.",
@@ -387,7 +388,9 @@ const buildUndoPrompt = ({
   if (stepSummary) {
     sections.push(`Recorded actions from the last run:\n${stepSummary}`);
   } else {
-    sections.push("No granular step log is available. Undo any persisted changes created by the most recent run.");
+    sections.push(
+      "No granular step log is available. Undo any persisted changes created by the most recent run.",
+    );
   }
 
   sections.push(
@@ -689,7 +692,6 @@ export function FinalResultPanel() {
                       Additional instructions
                     </Label>
                     <Textarea
-                      id="reprocess-instructions"
                       value={reprocessInstructions}
                       onChange={(event) => setReprocessInstructions(event.target.value)}
                       placeholder={dialogCopy.placeholder}
