@@ -400,8 +400,14 @@ const buildUndoPrompt = ({
 const normalizeCorrections = (value: unknown): string[] => {
   if (!value) return [];
   if (Array.isArray(value)) {
-    return value.map((entry) => String(entry));
+    return value.map((entry) => {
+      if (typeof entry === "string") return entry;
+      if (typeof entry === "object" && entry !== null) return JSON.stringify(entry);
+      return String(entry);
+    });
   }
+  if (typeof value === "string") return [value];
+  if (typeof value === "object" && value !== null) return [JSON.stringify(value)];
   return [String(value)];
 };
 
