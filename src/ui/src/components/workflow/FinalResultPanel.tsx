@@ -1,6 +1,7 @@
 import { Copy, ExternalLink, Loader2, RotateCcw, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { formatErrorMessage } from "@/utils";
 import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../constants/events";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
@@ -540,9 +541,7 @@ export function FinalResultPanel() {
       setReprocessDialogOpen(false);
       toast.success("Reprocess request sent. Watch the workflow panel for updates.");
     } catch (error) {
-      setReprocessError(
-        error instanceof Error ? error.message : "Failed to trigger reprocess request.",
-      );
+      setReprocessError(formatErrorMessage(error));
     } finally {
       setReprocessLoading(false);
     }
@@ -710,11 +709,7 @@ export function FinalResultPanel() {
                     >
                       Cancel
                     </Button>
-                    <Button
-                      type="button"
-                      onClick={handleReprocess}
-                      disabled={reprocessLoading}
-                    >
+                    <Button type="button" onClick={handleReprocess} disabled={reprocessLoading}>
                       {reprocessLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                       Run reprocess
                     </Button>
