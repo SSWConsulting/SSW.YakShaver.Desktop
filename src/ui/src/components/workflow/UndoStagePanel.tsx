@@ -92,7 +92,6 @@ const StatusBadge = ({ status }: { status: UndoStagePanelProps["status"] }) => {
 };
 
 export function UndoStagePanel({ steps, status, stepsRef }: UndoStagePanelProps) {
-  if (status === "idle" && steps.length === 0) return null;
 
   return (
     <div className="border border-purple-500/40 rounded-xl bg-purple-500/10 backdrop-blur px-4 py-3 space-y-3">
