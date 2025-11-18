@@ -107,7 +107,7 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
                 </button>
               )}
             </div>
-            <p className="text-xs text-primary/60">
+            <p className="text-xs text-muted-foreground">
               The token is encrypted and stored locally on your device
             </p>
           </div>
