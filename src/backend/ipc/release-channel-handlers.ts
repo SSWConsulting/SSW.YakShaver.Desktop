@@ -223,6 +223,28 @@ export class ReleaseChannelIPCHandlers {
     return prMatch ? prMatch[1] : null;
   }
 
+  /**
+   * Get all releases for a specific PR number, sorted by published date (newest first)
+   */
+  private getPRReleases(prNumber: string): GitHubRelease[] {
+    if (!this.releasesCache) {
+      return [];
+    }
+
+    return this.releasesCache.releases
+      .filter((r) => this.extractPRNumber(r) === prNumber)
+      .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
+  }
+
+  /**
+   * Extract PR number from channel format (e.g., "beta.15" -> "15")
+   * @returns PR number or null if format is invalid
+   */
+  private extractPRNumberFromChannel(channel: string): string | null {
+    const prMatch = channel.match(/beta\.(\d+)/);
+    return prMatch ? prMatch[1] : null;
+  }
+
   private async checkForUpdates(): Promise<{
     available: boolean;
     error?: string;
@@ -251,22 +273,11 @@ export class ReleaseChannelIPCHandlers {
           return { available: false, error: "Failed to fetch releases" };
         }
 
-        // Find the latest release for this PR channel
-        // Channel format: "beta.15"
-        const prMatch = channel.channel.match(/beta\.(\d+)/);
-        if (!prMatch) {
+        const prNumber = this.extractPRNumberFromChannel(channel.channel);
+        if (!prNumber) {
           return { available: false, error: `Invalid channel format: ${channel.channel}` };
         }
-        const prNumber = prMatch[1];
-
-        // Find all releases for this PR, sorted by published date (newest first)
-        const prReleases = this.releasesCache.releases
-          .filter((r) => {
-            const releasePrMatch = this.extractPRNumber(r);
-            return releasePrMatch === prNumber;
-          })
-          .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
-
+        const prReleases = this.getPRReleases(prNumber);
         if (prReleases.length === 0) {
           return { available: false, error: `No releases found for PR #${prNumber}` };
         }
@@ -411,21 +422,15 @@ export class ReleaseChannelIPCHandlers {
       }
     } else if (channel.type === "pr" && channel.channel) {
       // For PR channels, we need to find the latest release tag first
-      const prMatch = channel.channel.match(/beta\.(\d+)/);
-      if (prMatch) {
-        const prNumber = prMatch[1];
-
+      const prNumber = this.extractPRNumberFromChannel(channel.channel);
+      if (prNumber) {
         // Get the latest release for this PR
         if (!this.releasesCache || Date.now() - this.releasesCache.fetchedAt > RELEASES_CACHE_TTL) {
           await this.listReleases(true);
         }
 
         if (this.releasesCache) {
-          const prReleases = this.releasesCache.releases
-            .filter((r) => this.extractPRNumber(r) === prNumber)
-            .sort(
-              (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
-            );
+          const prReleases = this.getPRReleases(prNumber);
 
           if (prReleases.length > 0) {
             const latestRelease = prReleases[0];
