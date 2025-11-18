@@ -1,8 +1,8 @@
 import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../constants/events";
 import { ipcClient } from "../../services/ipc-client";
 import { ProgressStage, type WorkflowProgress, type WorkflowStage } from "../../types";
-import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../constants/events";
 import { Accordion, AccordionItem } from "../ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { type MCPStep, StageWithContent } from "./StageWithContent";
@@ -195,7 +195,7 @@ export function WorkflowProgressPanel() {
         </CardContent>
       </Card>
 
-      {(undoStatus !== "idle" || undoSteps.length > 0) && (
+      {undoStatus !== "idle" && undoSteps.length > 0 && (
         <div className="mt-3">
           <UndoStagePanel status={undoStatus} steps={undoSteps} stepsRef={stepsRef} />
         </div>
