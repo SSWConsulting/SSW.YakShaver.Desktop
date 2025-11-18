@@ -109,7 +109,6 @@ function LinkifiedText({ text }: LinkifiedTextProps) {
     <>
       {parts.map((part, index) => {
         const isUrl = regex.test(part);
-        // Reset regex after test
         regex.lastIndex = 0;
 
         if (isUrl || part.match(/^https?:\/\//)) {
