@@ -95,7 +95,7 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
             </div>
           </div>
         ) : (
-          <div className="text-center py-8 px-4 text-primary/60">
+          <div className="text-center py-8 px-4 text-muted-foreground">
             <p className="mb-2 text-sm">No platforms available</p>
             <p className="text-xs italic">Configure YouTube API credentials to get started</p>
           </div>
