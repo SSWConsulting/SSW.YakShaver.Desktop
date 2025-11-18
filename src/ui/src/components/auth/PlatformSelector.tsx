@@ -77,7 +77,7 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
               <div>
                 <h3 className="mb-1 text-base font-medium">YouTube</h3>
                 {isConnected && userInfo && (
-                  <p className="text-xs text-primary/60 font-medium">{userInfo.name}</p>
+                  <p className="text-xs text-muted-foreground font-medium">{userInfo.name}</p>
                 )}
               </div>
             </div>
