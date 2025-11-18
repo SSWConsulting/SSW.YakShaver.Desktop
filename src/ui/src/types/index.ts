@@ -141,7 +141,6 @@ export interface HealthStatusInfo {
   error?: string;
   successMessage?: string;
   isChecking?: boolean;
-  disabled?: boolean;
 }
 
 export enum ProgressStage {

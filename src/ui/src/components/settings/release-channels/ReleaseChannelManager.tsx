@@ -5,20 +5,17 @@ import { Button } from "../../ui/button";
 import { Label } from "../../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 
-export interface GitHubRelease {
-  id: number;
-  tag_name: string;
-  name: string;
-  body?: string;
-  prerelease: boolean;
-  published_at: string;
-  html_url: string;
+export interface ProcessedRelease {
+  prNumber: string;
+  tag: string;
+  version: string;
+  publishedAt: string;
 }
 
-type ReleaseChannelType = "latest" | "tag";
+type ReleaseChannelType = "latest" | "pr";
 export interface ReleaseChannel {
   type: ReleaseChannelType;
-  tag?: string;
+  channel?: string;
 }
 
 const SELECT_LATEST = "channel:latest";
@@ -26,6 +23,7 @@ const SELECT_LATEST = "channel:latest";
 interface DropdownOption {
   value: string;
   label: string;
+  version: string;
   isPrerelease: boolean;
   publishedAt: string;
 }
@@ -36,7 +34,7 @@ interface ReleaseChannelSettingsPanelProps {
 
 export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettingsPanelProps) {
   const [channel, setChannel] = useState<ReleaseChannel>({ type: "latest" });
-  const [releases, setReleases] = useState<GitHubRelease[]>([]);
+  const [releases, setReleases] = useState<ProcessedRelease[]>([]);
   const [currentVersion, setCurrentVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingReleases, setIsLoadingReleases] = useState(false);
@@ -47,26 +45,18 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
   /**
    * Returns a user-friendly display string for the given release channel.
    * @param ch The release channel
-   * @return The display string, e.g., "PR Pre-release: 0.3.7-beta.12.1762916882"
+   * @return The display string, e.g., "PR #15"
    */
   const getChannelDisplay = useCallback((ch: ReleaseChannel) => {
     if (ch.type === "latest") {
       return "Latest";
     }
-    if (ch.type === "tag") {
-      return `PR Pre-release: ${ch.tag}`;
+    if (ch.type === "pr" && ch.channel) {
+      // Extract PR number from channel like "beta.15"
+      const prMatch = ch.channel.match(/beta\.(\d+)/);
+      return prMatch ? `PR #${prMatch[1]}` : `PR Pre-release: ${ch.channel}`;
     }
     return ch.type;
-  }, []);
-
-  /**
-   * Extracts the PR number from a GitHub release's name or body, if available.
-   * @param release The GitHub release object
-   * @return The PR number as a string, or null if not found
-   */
-  const getPRNumberFromRelease = useCallback((release: GitHubRelease): string | null => {
-    const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
-    return prMatch ? prMatch[1] : null;
   }, []);
 
   const loadChannel = useCallback(async () => {
@@ -169,7 +159,12 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
     if (channel.type === "latest") {
       return SELECT_LATEST;
     }
-    return channel.tag ?? "";
+    // Return the PR number for matching
+    if (channel.type === "pr" && channel.channel) {
+      const prMatch = channel.channel.match(/beta\.(\d+)/);
+      return prMatch ? prMatch[1] : "";
+    }
+    return "";
   }, [channel]);
 
   const handleSelectionChange = useCallback((value: string) => {
@@ -180,35 +175,18 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       setChannel({ type: "latest" });
       return;
     }
-    setChannel({ type: "tag", tag: value });
+    setChannel({ type: "pr", channel: `beta.${value}` });
   }, []);
 
   const dropdownOptions = useMemo<DropdownOption[]>(() => {
-    const prereleases = releases.filter((release) => release.prerelease);
-
-    if (prereleases.length === 0) {
-      return [];
-    }
-
-    // Sort by published date (newest first)
-    const sorted = prereleases.sort(
-      (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
-    );
-
-    // Show all PR builds with their PR numbers
-    return sorted.map((release) => {
-      const prNumber = getPRNumberFromRelease(release);
-
-      const label = prNumber ? `PR #${prNumber}` : release.tag_name;
-
-      return {
-        value: release.tag_name,
-        label: label,
-        isPrerelease: release.prerelease,
-        publishedAt: release.published_at,
-      };
-    });
-  }, [releases, getPRNumberFromRelease]);
+    return releases.map((release) => ({
+      value: release.prNumber,
+      label: `PR #${release.prNumber}`,
+      version: release.version,
+      isPrerelease: true,
+      publishedAt: release.publishedAt,
+    }));
+  }, [releases]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -242,7 +220,13 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
           </Label>
           <Select value={selectValue} onValueChange={handleSelectionChange}>
             <SelectTrigger className="bg-white/5 border-white/20 text-white">
-              <SelectValue placeholder="Choose a release" />
+              <SelectValue placeholder="Choose a release">
+                {selectValue === SELECT_LATEST
+                  ? "Latest Stable (default)"
+                  : selectValue
+                    ? `PR #${selectValue}`
+                    : "Choose a release"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent className="bg-neutral-800 border-neutral-700 max-h-80">
               <SelectItem
@@ -271,6 +255,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
                 >
                   <div className="flex flex-col">
                     <span>{option.label}</span>
+                    <span className="text-xs">{option.version}</span>
                     <span className="text-xs">{new Date(option.publishedAt).toLocaleString()}</span>
                   </div>
                 </SelectItem>
@@ -284,7 +269,7 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
         <Button
           variant="secondary"
           onClick={handleCheckUpdates}
-          disabled={isLoading || !hasGitHubToken}
+          disabled={isLoading || !hasGitHubToken || !selectValue}
         >
           Check for Updates
         </Button>

@@ -1,28 +1,29 @@
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import type { VideoUploadResult } from "../services/auth/types";
-import type { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
+import { MCPOrchestratorNeo } from "../services/mcp/mcp-orchestrator-neo";
+import type { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import type { MCPServerConfig } from "../services/mcp/types";
 import { IPC_CHANNELS } from "./channels";
 
-type ProcessMessageOptions = Parameters<MCPOrchestrator["processMessage"]>[2];
+type ProcessMessageOptions = Parameters<MCPOrchestratorNeo["processMessageAsync"]>[2];
 
 export class McpIPCHandlers {
-  private orchestrator: MCPOrchestrator;
+  private mcpServerManager: MCPServerManager;
 
-  constructor(orchestrator: MCPOrchestrator) {
-    this.orchestrator = orchestrator;
+  constructor(mcpServerManager: MCPServerManager) {
+    this.mcpServerManager = mcpServerManager;
     this.registerHandlers();
   }
 
   private registerHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.MCP_LIST_SERVERS, async () => {
-      return this.orchestrator.listAvailableServers();
+      return this.mcpServerManager.listAvailableServers();
     });
 
     ipcMain.handle(
       IPC_CHANNELS.MCP_ADD_SERVER,
       async (_event: IpcMainInvokeEvent, config: MCPServerConfig) => {
-        await this.orchestrator.addServer(config);
+        await this.mcpServerManager.addServerAsync(config);
         return { success: true };
       },
     );
@@ -30,7 +31,7 @@ export class McpIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.MCP_UPDATE_SERVER,
       async (_event: IpcMainInvokeEvent, name: string, config: MCPServerConfig) => {
-        await this.orchestrator.updateServer(name, config);
+        await this.mcpServerManager.updateServerAsync(name, config);
         return { success: true };
       },
     );
@@ -38,7 +39,7 @@ export class McpIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.MCP_REMOVE_SERVER,
       async (_event: IpcMainInvokeEvent, name: string) => {
-        await this.orchestrator.removeServer(name);
+        await this.mcpServerManager.removeServerAsync(name);
         return { success: true };
       },
     );
@@ -46,7 +47,7 @@ export class McpIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH,
       async (_event: IpcMainInvokeEvent, name: string) => {
-        return await this.orchestrator.checkServerHealth(name);
+        return await this.mcpServerManager.checkServerHealthAsync(name);
       },
     );
 
@@ -58,7 +59,8 @@ export class McpIPCHandlers {
         videoUploadResult?: VideoUploadResult,
         options?: ProcessMessageOptions,
       ) => {
-        return await this.orchestrator.processMessage(prompt, videoUploadResult, options);
+        const orchestrator = await MCPOrchestratorNeo.getInstanceAsync();
+        return await orchestrator.processMessageAsync(prompt, videoUploadResult, options);
       },
     );
 
