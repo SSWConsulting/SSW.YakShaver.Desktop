@@ -206,7 +206,10 @@ export class ReleaseChannelIPCHandlers {
 
     // Convert to processed releases, sorted by PR number descending
     return Array.from(prMap.entries())
-      .sort((a, b) => Number.parseInt(b[0], 10) - Number.parseInt(a[0], 10))
+      .sort(
+        ([prNumberA], [prNumberB]) =>
+          Number.parseInt(prNumberB, 10) - Number.parseInt(prNumberA, 10),
+      )
       .map(([prNumber, release]) => ({
         prNumber,
         tag: release.tag_name,
