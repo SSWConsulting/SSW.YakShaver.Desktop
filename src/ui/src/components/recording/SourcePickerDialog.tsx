@@ -51,13 +51,15 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
         <div className="max-h-[75vh] overflow-auto space-y-6 p-2">
           {loading && (
-            <div className="text-sm text-neutral-400 text-center py-2">Loading sources…</div>
+            <div className="text-sm text-muted-foreground text-center py-2">Loading sources…</div>
           )}
           <SourceSection label="Screens" sources={screens} onSelect={(id) => onSelect(id)} />
           <SourceSection label="Windows" sources={windows} onSelect={(id) => onSelect(id)} />
 
           {!loading && screens.length === 0 && windows.length === 0 && (
-            <div className="text-sm text-neutral-400 text-center py-8">No sources available</div>
+            <div className="text-sm text-muted-foreground text-center py-8">
+              No sources available
+            </div>
           )}
         </div>
       </DialogContent>

@@ -64,12 +64,7 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-white text-2xl font-medium">Select Platform</CardTitle>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="text-white/60 hover:text-white hover:bg-white/10"
-          >
+          <Button variant="ghost" size="icon" onClick={onClose} className="">
             <X className="size-4" />
           </Button>
         </div>
@@ -78,20 +73,16 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
         {hasYouTubeConfig ? (
           <div className="flex items-center justify-between gap-6 p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors">
             <div className="flex items-center gap-2">
-              <FaYoutube className="w-8 h-8 text-red-500 text-2xl" />
+              <FaYoutube className="w-8 h-8 text-ssw-red text-2xl" />
               <div>
-                <h3 className="mb-1 text-base font-medium text-white">YouTube</h3>
+                <h3 className="mb-1 text-base font-medium">YouTube</h3>
                 {isConnected && userInfo && (
-                  <p className="text-xs text-white/60 font-medium">{userInfo.name}</p>
+                  <p className="text-xs text-primary/60 font-medium">{userInfo.name}</p>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-4">
-              {isConnected && (
-                <Badge className="bg-green-400/20 text-green-400 border-green-400/30 hover:bg-green-400/30">
-                  Connected
-                </Badge>
-              )}
+              {isConnected && <Badge variant="outline">Connected</Badge>}
               <Button
                 variant={isConnected ? "outline" : "secondary"}
                 size="sm"
@@ -104,7 +95,7 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
             </div>
           </div>
         ) : (
-          <div className="text-center py-8 px-4 text-white/60">
+          <div className="text-center py-8 px-4 text-primary/60">
             <p className="mb-2 text-sm">No platforms available</p>
             <p className="text-xs italic">Configure YouTube API credentials to get started</p>
           </div>

@@ -59,7 +59,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
               Name <span className="text-red-400">*</span>
             </FormLabel>
             <FormControl>
-              <Input {...field} type="text" placeholder="e.g., GitHub" className="font-mono" />
+              <Input {...field} type="text" placeholder="e.g., GitHub" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -93,7 +93,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
                 {...field}
                 type="text"
                 placeholder="e.g., https://api.example.com/mcp/"
-                className="font-mono text-sm"
+                className="text-sm"
               />
             </FormControl>
             <FormMessage />
@@ -125,9 +125,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
 
       <Accordion type="single" collapsible>
         <AccordionItem value="advanced">
-          <AccordionTrigger className="text-base font-medium">
-            Advanced Options
-          </AccordionTrigger>
+          <AccordionTrigger className="text-base font-medium">Advanced Options</AccordionTrigger>
           <AccordionContent className="flex flex-col gap-4 pt-4">
             <FormField
               control={form.control}
@@ -140,10 +138,10 @@ export function McpServerForm({ form }: McpServerFormProps) {
                       {...field}
                       placeholder='{"Authorization": "Bearer YOUR_TOKEN"}'
                       rows={4}
-                      className="font-mono text-xs"
+                      className="text-xs"
                     />
                   </FormControl>
-                  <FormDescription className="text-muted-foreground text-xs">
+                  <FormDescription className="text-xs">
                     JSON format, e.g., Authorization headers
                   </FormDescription>
                   <FormMessage />

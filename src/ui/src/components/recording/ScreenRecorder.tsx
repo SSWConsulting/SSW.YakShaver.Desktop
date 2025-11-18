@@ -92,7 +92,7 @@ export function ScreenRecorder() {
           </Button>
         </div>
         {!isAuthenticated && (
-          <p className="text-sm text-white/60 text-center">
+          <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
           </p>
         )}

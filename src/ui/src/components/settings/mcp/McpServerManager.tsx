@@ -46,7 +46,9 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
     for (const server of serverList) {
       try {
-        const result = (await ipcClient.mcp.checkServerHealthAsync(server.name)) as HealthStatusInfo;
+        const result = (await ipcClient.mcp.checkServerHealthAsync(
+          server.name,
+        )) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
           [server.name]: { ...result, isChecking: false },
@@ -166,7 +168,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
               </div>
 
               {servers.length === 0 && (
-                <Empty className="bg-black/20">
+                <Empty>
                   <EmptyHeader>
                     <EmptyTitle>No MCP servers configured</EmptyTitle>
                     <EmptyDescription>
@@ -182,10 +184,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                   {sortedServers.map((server) => {
                     const status = healthStatus[server.name] || {};
                     return (
-                      <Card
-                        key={server.name}
-                        className="bg-black/40 border-white/20 hover:border-white/40 transition-colors"
-                      >
+                      <Card key={server.name}>
                         <CardContent className="p-6">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex flex-1 items-start gap-3">
@@ -200,7 +199,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
                               <div className="flex-1">
                                 <h3 className="text-lg font-semibold">{server.name}</h3>
-                                <p className="mt-2 break-all font-mono text-sm text-muted-foreground">
+                                <p className="mt-2 break-all text-sm text-muted-foreground">
                                   {server.url}
                                 </p>
                               </div>
@@ -250,7 +249,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {serverToDelete}</AlertDialogTitle>
-            <AlertDialogDescription className="text-base pt-2">
+            <AlertDialogDescription>
               Are you sure you want to remove server '{serverToDelete}'? This action cannot be
               undone.
             </AlertDialogDescription>

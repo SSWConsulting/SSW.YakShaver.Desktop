@@ -97,8 +97,8 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
           values.provider === "openai"
             ? "OpenAI configuration saved"
             : values.provider === "deepseek"
-            ? "DeepSeek configuration saved"
-            : "Azure OpenAI configuration saved",
+              ? "DeepSeek configuration saved"
+              : "Azure OpenAI configuration saved",
         );
         await refreshStatus();
         await checkHealth();
@@ -144,7 +144,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
       {hasConfig && (
         <div className="flex items-center gap-3">
           <p className="text-sm">API Key Status:</p>
-          <span className="text-green-400 text-sm font-mono">Saved</span>
+          <span className="text-green-400 text-sm">Saved</span>
           <HealthStatus
             isChecking={healthStatus?.isChecking ?? false}
             isHealthy={healthStatus?.isHealthy ?? false}
@@ -155,7 +155,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
       )}
       {!hasConfig && (
         <p className="text-sm">
-          Status: <span className="text-red-400">Not Saved</span>
+          Status: <span className="text-ssw-red">Not Saved</span>
         </p>
       )}
       <LLMProviderForm

@@ -83,34 +83,31 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
   return (
     <div className="flex flex-col gap-6">
       {isLoading ? (
-        <div className="text-white/60 text-center py-8">Loading...</div>
+        <div className="text-primary/60 text-center py-8">Loading...</div>
       ) : (
         <>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="github-token" className="text-white">
-              GitHub Personal Access Token
-            </Label>
+            <Label>GitHub Personal Access Token</Label>
             <div className="relative">
               <Input
                 type={showToken ? "text" : "password"}
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 placeholder={hasToken ? "Token is saved (hidden)" : "ghp_xxxxxxxxxxxxxxxxxxxx"}
-                className="bg-white/5 border-white/20 text-white pr-10"
                 disabled={isSaving}
               />
               {token && (
                 <button
                   type="button"
                   onClick={toggleShowToken}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
                   aria-label={showToken ? "Hide token" : "Show token"}
                 >
                   {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               )}
             </div>
-            <p className="text-xs text-white/60">
+            <p className="text-xs text-primary/60">
               The token is encrypted and stored locally on your device
             </p>
           </div>

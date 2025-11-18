@@ -13,12 +13,7 @@ interface PromptCardProps {
 
 export function PromptCard({ prompt, isActive, onEdit, onSetActive }: PromptCardProps) {
   return (
-    <Card
-      className={clsx(
-        "p-4 bg-black/30 border transition-colors",
-        isActive ? "border-white/40 bg-white/5" : "border-white/20 hover:border-white/30",
-      )}
-    >
+    <Card className={clsx("p-4", isActive ? "bg-black/20" : "")}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
@@ -29,7 +24,7 @@ export function PromptCard({ prompt, isActive, onEdit, onSetActive }: PromptCard
               </Badge>
             )}
             {isActive && (
-              <Badge className="text-xs bg-green-400/10 text-green-400 border-green-400/30 hover:bg-green-400/20">
+              <Badge variant="outline" className="text-xs">
                 Active
               </Badge>
             )}
@@ -43,7 +38,7 @@ export function PromptCard({ prompt, isActive, onEdit, onSetActive }: PromptCard
           {!isActive && (
             <Button
               onClick={() => onSetActive(prompt.id)}
-              variant="default"
+              variant="outline"
               size="sm"
               className="cursor-pointer"
             >

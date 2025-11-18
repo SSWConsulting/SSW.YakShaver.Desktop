@@ -78,7 +78,7 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             name="name"
             render={({ field }) => (
               <FormItem className="shrink-0">
-                <FormLabel className="text-sm">Prompt Name *</FormLabel>
+                <FormLabel>Prompt Name *</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
@@ -100,7 +100,7 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             name="description"
             render={({ field }) => (
               <FormItem className="shrink-0">
-                <FormLabel className="text-sm">Description</FormLabel>
+                <FormLabel>Description</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
@@ -123,7 +123,7 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             render={({ field }) => (
               <FormItem className="flex flex-col flex-1 min-h-0 overflow-hidden">
                 <div className="flex items-center justify-between shrink-0">
-                  <FormLabel className="text-sm">Prompt Instructions</FormLabel>
+                  <FormLabel>Prompt Instructions</FormLabel>
                   <Button
                     type="button"
                     variant="ghost"
@@ -140,10 +140,10 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
                     {...field}
                     placeholder="Enter your custom instructions here..."
                     disabled={isDefault}
-                    className="resize-none flex-1 max-h-50 overflow-y-auto font-mono text-sm bg-black/40 border-white/20"
+                    className="resize-none flex-1 max-h-50 overflow-y-auto"
                   />
                 </FormControl>
-                <FormDescription className="text-white/50 shrink-0">
+                <FormDescription>
                   {isDefault
                     ? "Default prompt instructions cannot be changed"
                     : "These instructions will be appended to the task execution system prompt"}

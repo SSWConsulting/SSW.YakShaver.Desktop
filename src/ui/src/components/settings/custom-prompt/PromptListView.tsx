@@ -40,11 +40,11 @@ export function PromptListView({
           Add New Prompt
         </Button>
       </div>
-      <Separator className="bg-white/10 shrink-0" />
+      <Separator />
       <ScrollArea className="h-[50vh]">
         <div className="flex flex-col space-y-4 pr-4">
           {filteredPrompts.length === 0 ? (
-            <p className="text-white/50 text-center py-8">
+            <p className="text-muted-foreground text-center py-8">
               {searchQuery ? "No prompts found matching your search" : "No prompts available"}
             </p>
           ) : (

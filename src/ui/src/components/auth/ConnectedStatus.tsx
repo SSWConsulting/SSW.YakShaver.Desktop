@@ -48,25 +48,19 @@ export const ConnectedStatus = ({ userInfo, platform, onSwitch }: ConnectedStatu
 
         <div className="flex justify-between items-center p-4 bg-white/5 rounded-md border border-white/10">
           <div className="flex flex-col gap-2">
-            <span className="text-xs text-white/60 uppercase font-medium">Connected to</span>
+            <span className="text-xs uppercase font-medium">Connected to</span>
             <div className="flex items-center gap-2">
-              <FaYoutube className="w-4 h-4 text-red-500" />
-              <span className="text-sm font-medium text-white">{platform}</span>
+              <FaYoutube className="w-4 h-4 text-ssw-red" />
+              <span className="text-sm font-medium">{platform}</span>
             </div>
           </div>
 
-          <Badge className="bg-green-400/10 text-green-400 border-green-400/30 hover:bg-green-400/20">
-            Active
-          </Badge>
+          <Badge variant="outline">Active</Badge>
         </div>
       </CardContent>
 
       <CardFooter className="flex flex-col gap-3">
-        <Button
-          variant="outline"
-          onClick={onSwitch}
-          className="bg-white/10 text-white border-white/20 hover:bg-white/20 w-full"
-        >
+        <Button variant="outline" onClick={onSwitch} className="w-full">
           Switch Platform
         </Button>
       </CardFooter>

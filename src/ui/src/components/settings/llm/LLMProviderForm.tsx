@@ -75,13 +75,11 @@ function OpenAIProviderForm({ control }: OpenAIProviderFormProps) {
       name="apiKey"
       render={({ field }) => (
         <FormItem className="flex flex-col gap-2">
-          <FormLabel className="text-sm">API Key</FormLabel>
+          <FormLabel>API Key</FormLabel>
           <FormControl>
             <Input {...field} placeholder="sk-..." type="password" />
           </FormControl>
-          <FormDescription className="text-xs">
-            Stored securely on this device.
-          </FormDescription>
+          <FormDescription className="text-xs">Stored securely on this device.</FormDescription>
           <FormMessage />
         </FormItem>
       )}
@@ -96,13 +94,11 @@ function DeepSeekProviderForm({ control }: DeepSeekProviderFormProps) {
       name="apiKey"
       render={({ field }) => (
         <FormItem className="flex flex-col gap-2">
-          <FormLabel className="text-sm">API Key</FormLabel>
+          <FormLabel>API Key</FormLabel>
           <FormControl>
             <Input {...field} placeholder="sk-..." type="password" />
           </FormControl>
-          <FormDescription className="text-xs">
-            Stored securely on this device.
-          </FormDescription>
+          <FormDescription className="text-xs">Stored securely on this device.</FormDescription>
           <FormMessage />
         </FormItem>
       )}
@@ -118,7 +114,7 @@ function AzureOpenAIProviderForm({ control }: AzureOpenAIProviderFormProps) {
         name="apiKey"
         render={({ field }) => (
           <FormItem className="flex flex-col gap-2">
-            <FormLabel className="text-sm">API Key</FormLabel>
+            <FormLabel>API Key</FormLabel>
             <FormControl>
               <Input {...field} placeholder="Azure OpenAI API Key" type="password" />
             </FormControl>
@@ -131,7 +127,7 @@ function AzureOpenAIProviderForm({ control }: AzureOpenAIProviderFormProps) {
         name="endpoint"
         render={({ field }) => (
           <FormItem className="flex flex-col gap-2">
-            <FormLabel className="text-sm">Endpoint</FormLabel>
+            <FormLabel>Endpoint</FormLabel>
             <FormControl>
               <Input {...field} placeholder="https://<resource>.openai.azure.com" type="text" />
             </FormControl>
@@ -144,7 +140,7 @@ function AzureOpenAIProviderForm({ control }: AzureOpenAIProviderFormProps) {
         name="version"
         render={({ field }) => (
           <FormItem className="flex flex-col gap-2">
-            <FormLabel className="text-sm">API Version</FormLabel>
+            <FormLabel>API Version</FormLabel>
             <FormControl>
               <Input {...field} placeholder="e.g. 2024-08-01-preview" type="text" />
             </FormControl>
@@ -157,7 +153,7 @@ function AzureOpenAIProviderForm({ control }: AzureOpenAIProviderFormProps) {
         name="deployment"
         render={({ field }) => (
           <FormItem className="flex flex-col gap-2">
-            <FormLabel className="text-sm">Deployment Name</FormLabel>
+            <FormLabel>Deployment Name</FormLabel>
             <FormControl>
               <Input {...field} placeholder="e.g. Whisper" type="text" />
             </FormControl>
@@ -190,19 +186,15 @@ export function LLMProviderForm({
 
   return (
     <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <LLMProviderSelect
-          control={form.control}
-          handleProviderChange={handleProviderChange}
-        />
-       {provider === "openai"
-          ? <OpenAIProviderForm control={form.control} />
-          : provider === "deepseek"
-          ? <DeepSeekProviderForm control={form.control} />
-          : <AzureOpenAIProviderForm control={form.control} />}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+        <LLMProviderSelect control={form.control} handleProviderChange={handleProviderChange} />
+        {provider === "openai" ? (
+          <OpenAIProviderForm control={form.control} />
+        ) : provider === "deepseek" ? (
+          <DeepSeekProviderForm control={form.control} />
+        ) : (
+          <AzureOpenAIProviderForm control={form.control} />
+        )}
         <div className="flex justify-start gap-2">
           <Button
             type="button"
