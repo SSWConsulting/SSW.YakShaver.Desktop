@@ -1,4 +1,4 @@
-import { ArrowRight, RotateCcw, X } from "lucide-react";
+import { ArrowRight, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   AlertDialog,
