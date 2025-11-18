@@ -2,10 +2,10 @@ import { Copy, ExternalLink, Loader2, RotateCcw, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
-import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../constants/events";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import { ProgressStage, type WorkflowProgress, type WorkflowStage } from "../../types";
+import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import {
