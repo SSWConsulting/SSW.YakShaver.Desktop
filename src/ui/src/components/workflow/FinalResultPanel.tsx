@@ -565,9 +565,7 @@ export function FinalResultPanel() {
       toast.success("Undo reprocess request sent. Monitor the purple undo panel.");
     } catch (error) {
       emitUndoEvent("error");
-      setReprocessError(
-        error instanceof Error ? error.message : "Failed to reprocess undo request.",
-      );
+      setReprocessError(formatErrorMessage(error));
     } finally {
       setReprocessLoading(false);
     }
