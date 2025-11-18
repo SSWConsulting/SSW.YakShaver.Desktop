@@ -128,7 +128,7 @@ app.whenReady().then(async () => {
     const { ReleaseChannelStorage } = await import("./services/storage/release-channel-storage");
     const channelStore = ReleaseChannelStorage.getInstance();
     const channel = await channelStore.getChannel();
-    _releaseChannelHandlers.configureAutoUpdater(channel);
+    _releaseChannelHandlers.configureAutoUpdater(channel, true);
     autoUpdater.checkForUpdatesAndNotify();
   }
 });

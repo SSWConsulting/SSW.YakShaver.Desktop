@@ -75,6 +75,7 @@ const IPC_CHANNELS = {
   RELEASE_CHANNEL_LIST_RELEASES: "release-channel:list-releases",
   RELEASE_CHANNEL_CHECK_UPDATES: "release-channel:check-updates",
   RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
+  RELEASE_CHANNEL_DOWNLOAD_PROGRESS: "release-channel:download-progress",
 
   // GitHub Token
   GITHUB_TOKEN_GET: "github-token:get",
@@ -193,6 +194,9 @@ const electronAPI = {
     listReleases: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_LIST_RELEASES),
     checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_CHECK_UPDATES),
     getCurrentVersion: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET_CURRENT_VERSION),
+    onDownloadProgress: (
+      callback: (progress: { percent: number; transferred: number; total: number }) => void,
+    ) => onIpcEvent(IPC_CHANNELS.RELEASE_CHANNEL_DOWNLOAD_PROGRESS, callback),
   },
   githubToken: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_GET),
