@@ -589,7 +589,7 @@ export function FinalResultPanel() {
       toast.success("Undo workflow running. Check the purple undo panel.");
     } catch (error) {
       emitUndoEvent("error");
-      setUndoError(error instanceof Error ? error.message : "Failed to trigger undo request.");
+      setUndoError(formatErrorMessage(error));
     } finally {
       setUndoLoading(false);
     }
