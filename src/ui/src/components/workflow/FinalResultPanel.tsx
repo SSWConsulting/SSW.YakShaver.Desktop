@@ -713,10 +713,7 @@ export function FinalResultPanel() {
                     <Button
                       type="button"
                       onClick={handleReprocess}
-                      disabled={
-                        reprocessLoading ||
-                        (reprocessMode === "original" ? !canReprocessOriginal : !canReprocessUndo)
-                      }
+                      disabled={reprocessLoading}
                     >
                       {reprocessLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                       Run reprocess
