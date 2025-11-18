@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { formatErrorMessage } from "@/utils";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, UploadStatus } from "../../types";
@@ -65,11 +66,10 @@ export function ScreenRecorder() {
     try {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
-
       await window.electronAPI.pipelines.processVideo(filePath);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatErrorMessage(error);
       setUploadResult({ success: false, error: message });
       toast.error(`Processing failed: ${message}`);
     }
