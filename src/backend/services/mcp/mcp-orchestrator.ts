@@ -3,26 +3,26 @@ import { MCPServerManager } from "./mcp-server-manager";
 import { VideoUploadResult } from "../auth/types";
 import { ModelMessage } from "ai";
 
-export class MCPOrchestratorNeo {
-    private static instance: MCPOrchestratorNeo;
+export class MCPOrchestrator {
+    private static instance: MCPOrchestrator;
     private static llmProvider: LLMClientProvider | null = null;
     private static mcpServerManager: MCPServerManager | null = null;
 
     private constructor() { }
 
-    public static async getInstanceAsync(): Promise<MCPOrchestratorNeo> {
-        if (MCPOrchestratorNeo.instance) {
-            return MCPOrchestratorNeo.instance;
+    public static async getInstanceAsync(): Promise<MCPOrchestrator> {
+        if (MCPOrchestrator.instance) {
+            return MCPOrchestrator.instance;
         }
-        MCPOrchestratorNeo.instance = new MCPOrchestratorNeo();
+        MCPOrchestrator.instance = new MCPOrchestrator();
 
         // Initialize LLM provider
-        MCPOrchestratorNeo.llmProvider = await LLMClientProvider.getInstanceAsync();
+        MCPOrchestrator.llmProvider = await LLMClientProvider.getInstanceAsync();
 
         // Initialize MCP server manager
-        MCPOrchestratorNeo.mcpServerManager = await MCPServerManager.getInstanceAsync();
+        MCPOrchestrator.mcpServerManager = await MCPServerManager.getInstanceAsync();
 
-        return MCPOrchestratorNeo.instance;
+        return MCPOrchestrator.instance;
     }
 
     public async processMessageAsync(
@@ -35,14 +35,14 @@ export class MCPOrchestratorNeo {
         } = {}): Promise<any> {
 
         // Ensure LLM has been initialized
-        if (!MCPOrchestratorNeo.llmProvider) {
-            throw new Error("[MCPOrchestratorNeo]: LLM client not initialized");
+        if (!MCPOrchestrator.llmProvider) {
+            throw new Error("[MCPOrchestrator]: LLM client not initialized");
         }
 
         // Ensure MCP server manager is initialized
-        const serverManager = MCPOrchestratorNeo.mcpServerManager;
+        const serverManager = MCPOrchestrator.mcpServerManager;
         if (!serverManager) {
-            throw new Error("[MCPOrchestratorNeo]: MCP server manager not initialized");
+            throw new Error("[MCPOrchestrator]: MCP server manager not initialized");
         }
 
         // Get tools and apply the server filter if provided
@@ -62,7 +62,7 @@ export class MCPOrchestratorNeo {
             { role: "user", content: prompt },
         ];
 
-        const { text, steps, reasoning } = await MCPOrchestratorNeo.llmProvider.sendMessage(messages, tools);
+        const { text, steps, reasoning } = await MCPOrchestrator.llmProvider.sendMessage(messages, tools);
 
         return text;
     }
