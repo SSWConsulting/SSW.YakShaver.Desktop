@@ -64,7 +64,7 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-white text-2xl font-medium">Select Platform</CardTitle>
-          <Button variant="ghost" size="icon" onClick={onClose} className="">
+          <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="size-4" />
           </Button>
         </div>

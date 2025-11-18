@@ -83,7 +83,7 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
   return (
     <div className="flex flex-col gap-6">
       {isLoading ? (
-        <div className="text-primary/60 text-center py-8">Loading...</div>
+        <div className="text-muted-foreground text-center py-8">Loading...</div>
       ) : (
         <>
           <div className="flex flex-col gap-2">
