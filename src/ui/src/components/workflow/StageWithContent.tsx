@@ -131,7 +131,7 @@ function MetadataField({
 }
 
 function ChapterRow({ chapter }: { chapter: VideoChapter }) {
-  const timestamp = chapter.timestamp.replace(/^00:/, "");
+  const timestamp = chapter.timestamp;
   return (
     <div className="flex items-center gap-3 text-sm text-white/80">
       <span className="font-mono text-white/60">{timestamp}</span>
