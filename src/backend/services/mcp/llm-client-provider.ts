@@ -98,7 +98,7 @@ export class LLMClientProvider {
                 tools,
                 messages: message,
                 stopWhen: stepCountIs(50),
-                onFinish: (result) => { sendStepEvent({ type: 'final_result', message: result.finishReason }); },
+                onFinish: (result) => sendStepEvent({ type: 'final_result', message: result.finishReason }),
                 onChunk: ({ chunk }) => {
                     switch (chunk.type) {
                         case 'tool-call':
