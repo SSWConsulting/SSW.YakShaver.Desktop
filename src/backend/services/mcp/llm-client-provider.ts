@@ -1,9 +1,33 @@
-import { generateText, GenerateTextResult, LanguageModel, ModelMessage, stepCountIs } from "ai";
-import { LlmStorage } from "../storage/llm-storage";
+import { BrowserWindow } from "electron";
 import { createOpenAI } from "@ai-sdk/openai"
 import { createDeepSeek } from "@ai-sdk/deepseek"
-import { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
+import { generateText, type GenerateTextResult, type LanguageModel, type ModelMessage, stepCountIs, streamText } from "ai";
+import type { HealthStatusInfo } from "../../types";
+import { LlmStorage } from "../storage/llm-storage";
+
+
+type StepType = "start" | "reasoning" | "tool_call" | "tool_result" | "final_result";
+
+interface MCPStep {
+    type: StepType;
+    message?: string;
+    reasoning?: string;
+    toolName?: string;
+    serverName?: string;
+    args?: unknown;
+    result?: unknown;
+    error?: string;
+    timestamp?: number;
+}
+
+function sendStepEvent(event: MCPStep): void {
+    for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) {
+            win.webContents.send("mcp:step-update", event);
+        }
+    }
+}
 
 
 export class LLMClientProvider {
@@ -69,12 +93,26 @@ export class LLMClientProvider {
 
         let response: any;
         try {
-            response = await generateText({
+            response = await streamText({
                 model: LLMClientProvider.languageModel,
                 tools,
                 messages: message,
-                stopWhen: stepCountIs(30),
+                stopWhen: stepCountIs(50),
+                onFinish: (result) => { sendStepEvent({ type: 'final_result', message: result.finishReason }); },
+                onChunk: ({ chunk }) => {
+                    switch (chunk.type) {
+                        case 'tool-call':
+                            // send an event to your orchestrator UI: "Calling tool X …"
+                            sendStepEvent({ type: 'tool_call', toolName: chunk.toolName, args: chunk.input });
+                            break;
+                        case 'tool-result':
+                            // show the result once the tool returns
+                            sendStepEvent({ type: 'tool_result', toolName: chunk.toolName, result: chunk.output });
+                            break;
+                    }
+                }
             });
+
         } catch (error) {
             console.error("[LLMClientProvider]: Error in sendMessage:", error);
             throw error;
