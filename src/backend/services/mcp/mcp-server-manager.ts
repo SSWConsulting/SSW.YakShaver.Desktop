@@ -79,7 +79,6 @@ export class MCPServerManager {
     }
 
     async addServerAsync(config: MCPServerConfig): Promise<void> {
-        MCPServerManager.validateServerName(config.name);
         MCPServerManager.validateServerConfig(config);
         if (MCPServerManager.serverConfigs.some((s) => s.name === config.name)) {
             throw new Error(`Server with name '${config.name}' already exists`);
@@ -89,7 +88,6 @@ export class MCPServerManager {
     }
 
     async updateServerAsync(name: string, config: MCPServerConfig): Promise<void> {
-        MCPServerManager.validateServerName(config.name);
         MCPServerManager.validateServerConfig(config);
         const index = MCPServerManager.serverConfigs.findIndex((s) => s.name === name);
         if (index === -1) throw new Error(`Server '${name}' not found`);
@@ -159,14 +157,6 @@ export class MCPServerManager {
         }
     }
 
-    private static validateServerName(name: string): void {
-        if (!name?.trim()) throw new Error("Server name cannot be empty");
-        if (!/^[a-zA-Z0-9 _-]+$/.test(name)) {
-            throw new Error(
-                `Server name '${name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
-            );
-        }
-    }
     private static validateServerConfig(config: MCPServerConfig): void {
         if (config.transport === "streamableHttp") {
             if (!config.url?.trim()) {
@@ -178,8 +168,17 @@ export class MCPServerManager {
             } catch (error) {
                 throw new Error(`Invalid URL '${config.url}' for server '${config.name}'`);
             }
-
             return;
+        }
+
+        if (!config.name?.trim()) {
+            throw new Error("Server name cannot be empty");
+        }
+
+        if (!/^[a-zA-Z0-9 _-]+$/.test(config.name)) {
+            throw new Error(
+                `Server name '${config.name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
+            );
         }
 
         if (!config.command?.trim()) {
