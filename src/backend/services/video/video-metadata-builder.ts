@@ -1,5 +1,5 @@
-import { OpenAIService } from "../openai/openai-service.js";
 import type { YouTubeSnippetUpdate } from "../auth/types.js";
+import { OpenAIService } from "../openai/openai-service.js";
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s)]+/gi;
 
@@ -76,11 +76,9 @@ export class VideoMetadataBuilder {
         : "None",
     ].join("\n");
 
-    const rawResponse = await this.llmClient.generateOutput(
-      METADATA_SYSTEM_PROMPT,
-      promptPayload,
-      { jsonMode: true },
-    );
+    const rawResponse = await this.llmClient.generateOutput(METADATA_SYSTEM_PROMPT, promptPayload, {
+      jsonMode: true,
+    });
 
     const parsedResponse = safeJsonParse<MetadataModelResponse>(rawResponse) || {};
     const metadata = normalizeModelResponse(
@@ -93,7 +91,7 @@ export class VideoMetadataBuilder {
       title: metadata.title,
       description: appendChapters(metadata.description, metadata.chapters),
       tags: metadata.tags.slice(0, 15),
-      categoryId: "22",
+      categoryId: "28", // Science & Technology
     };
 
     return { snippet, metadata };
@@ -154,9 +152,10 @@ function secondsToTimestamp(seconds: number): string {
   const hrs = Math.floor(clamped / 3600);
   const mins = Math.floor((clamped % 3600) / 60);
   const secs = clamped % 60;
-  return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(
-    secs,
-  ).padStart(2, "0")}`;
+  return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(
+    2,
+    "0",
+  )}`;
 }
 
 function buildTranscriptExcerpt(segments: TranscriptSegment[], limit = 60): string {
@@ -277,10 +276,7 @@ function deriveFallbackTitle(links: LinkCandidate[]): string {
   return "YakShaver Project Update";
 }
 
-function deriveFallbackDescription(
-  executionHistory: string,
-  links: LinkCandidate[],
-): string {
+function deriveFallbackDescription(executionHistory: string, links: LinkCandidate[]): string {
   const lines: string[] = [];
   const historySnippet = truncateText(executionHistory, 400);
   if (historySnippet) {
@@ -385,4 +381,3 @@ function safeJsonParse<T>(value?: string | null): T | null {
     return null;
   }
 }
-

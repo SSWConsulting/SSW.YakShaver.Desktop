@@ -1,5 +1,5 @@
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
-import { MCPServerManager } from "../services/mcp/mcp-server-manager";
+import type { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import type { MCPServerConfig } from "../services/mcp/types";
 import { IPC_CHANNELS } from "./channels";
 
