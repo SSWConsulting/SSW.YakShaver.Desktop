@@ -2,12 +2,11 @@ import { McpStorage } from "../storage/mcp-storage";
 import { MCPServerClient } from "./mcp-server-client";
 import { MCPServerConfig } from "./types";
 import type { HealthStatusInfo } from "../../types/index.js";
-import { formatErrorMessage } from "../../utils/error-utils";
 
 
 export class MCPServerManager {
     private static instance: MCPServerManager;
-    private static serverConfigs: MCPServerConfig[];
+    private static serverConfigs: MCPServerConfig[] = [];
     private static mcpClients: Map<string, MCPServerClient> = new Map();
     private constructor() { }
 
@@ -21,23 +20,49 @@ export class MCPServerManager {
         return MCPServerManager.instance;
     }
 
-    public async getAllMcpServerClientsAsync(): Promise<MCPServerClient[] | null> {
+    public async getAllMcpServerClientsAsync(): Promise<MCPServerClient[]> {
+
+        if (!MCPServerManager.serverConfigs.length) {
+            return [];
+        }
 
         const clientPromises = MCPServerManager.serverConfigs.map((config) =>
             this.getMcpClientAsync(config.name),
         );
-        return await Promise.all(clientPromises);
+        return (await Promise.all(clientPromises)).filter((client) => client !== null);
     }
 
     public async getSelectedMcpServerClientsAsync(selectedServerNames: string[]): Promise<MCPServerClient[]> {
+        if (!selectedServerNames.length) {
+            return [];
+        }
+
         const clientPromises = selectedServerNames.map((name) =>
             this.getMcpClientAsync(name),
         );
-        return await Promise.all(clientPromises);
+        return (await Promise.all(clientPromises)).filter((client) => client !== null);
+    }
+
+    public async collectToolsAsync(serverFilter?: string[]): Promise<Record<string, unknown>> {
+        const normalizedFilter = serverFilter
+            ?.map((name) => name.trim())
+            .filter((name) => name.length > 0);
+
+        const clients = normalizedFilter?.length
+            ? await this.getSelectedMcpServerClientsAsync(normalizedFilter)
+            : await this.getAllMcpServerClientsAsync();
+
+        if (!clients.length) {
+            throw new Error("[MCPServerManager]: No MCP clients available");
+        }
+
+        const toolSets = await Promise.all(clients.map((client) => client.listToolsAsync()));
+        const toolMaps = toolSets.map((toolSet) => MCPServerManager.normalizeTools(toolSet));
+        return Object.assign({}, ...toolMaps);
     }
 
     // Get or Create MCP client for a given server name
-    public async getMcpClientAsync(name: string): Promise<MCPServerClient> {
+    public async getMcpClientAsync(name: string): Promise<MCPServerClient | null> {
         const config = MCPServerManager.serverConfigs.find((s) => s.name === name);
         if (!config) {
             throw new Error(`MCP server with name '${name}' not found`);
@@ -48,12 +73,17 @@ export class MCPServerManager {
         }
 
         const client = await MCPServerClient.createClientAsync(config);
-        MCPServerManager.mcpClients.set(name, client);
-        return client;
+        const health = await client.healthCheckAsync();
+        if (health.healthy) {
+            MCPServerManager.mcpClients.set(name, client);
+            return client;
+        }
+
+        return null;
     }
 
     async addServerAsync(config: MCPServerConfig): Promise<void> {
-        MCPServerManager.validateServerName(config.name);
+        MCPServerManager.validateServerConfig(config);
         if (MCPServerManager.serverConfigs.some((s) => s.name === config.name)) {
             throw new Error(`Server with name '${config.name}' already exists`);
         }
@@ -62,7 +92,7 @@ export class MCPServerManager {
     }
 
     async updateServerAsync(name: string, config: MCPServerConfig): Promise<void> {
-        MCPServerManager.validateServerName(config.name);
+        MCPServerManager.validateServerConfig(config);
         const index = MCPServerManager.serverConfigs.findIndex((s) => s.name === name);
         if (index === -1) throw new Error(`Server '${name}' not found`);
         const existing = MCPServerManager.serverConfigs[index];
@@ -105,36 +135,89 @@ export class MCPServerManager {
     }
 
     public async checkServerHealthAsync(name: string): Promise<HealthStatusInfo> {
-        try {
-            const serverConfig = MCPServerManager.serverConfigs.find((s) => s.name === name);
-            if (!serverConfig) {
-                throw new Error(`[MCPServerManager]: CheckServerHealth - MCP server with name '${name}' not found`);
-            }
 
-            const client = await this.getMcpClientAsync(name);
-            const toolList = await client.listTools();
-            return {
-                isHealthy: true,
-                successMessage:
-                    toolList.length > 0
-                        ? `Healthy - ${toolList.length} tools available`
-                        : "Healthy",
-            };
-        } catch (err) {
-            console.error(`[MCPServerManager]: Health check failed for MCP server '${name}':`, err);
+        const serverConfig = MCPServerManager.serverConfigs.find((s) => s.name === name);
+        if (!serverConfig) {
+            throw new Error(`[MCPServerManager]: CheckServerHealth - MCP server with name '${name}' not found`);
+        }
+
+        const client = await this.getMcpClientAsync(name);
+        if (!client) {
             return {
                 isHealthy: false,
-                error: formatErrorMessage(err),
+                error: `MCP server client for '${name}' not found`,
             };
+        }
+
+        const healthResult = await client.healthCheckAsync();
+
+        return {
+            isHealthy: healthResult.healthy,
+            successMessage: healthResult.toolCount > 0 ? `Healthy - ${healthResult.toolCount} tools available` : "Healthy",
+        };
+
+    }
+
+    private static validateServerConfig(config: MCPServerConfig): void {
+        if (config.transport === "streamableHttp") {
+            if (!config.url?.trim()) {
+                throw new Error("HTTP transport servers require a URL");
+            }
+
+            try {
+                new URL(config.url);
+            } catch (error) {
+                throw new Error(`Invalid URL '${config.url}' for server '${config.name}'`);
+            }
+            return;
+        }
+
+        if (!config.name?.trim()) {
+            throw new Error("Server name cannot be empty");
+        }
+
+        if (!/^[a-zA-Z0-9 _-]+$/.test(config.name)) {
+            throw new Error(
+                `Server name '${config.name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
+            );
+        }
+
+        if (!config.command?.trim()) {
+            throw new Error("Stdio transport servers require a command");
+        }
+
+        if (config.args && !config.args.every((value) => typeof value === "string")) {
+            throw new Error("Stdio server arguments must be a string array");
+        }
+
+        if (config.env && Object.values(config.env).some((value) => typeof value !== "string")) {
+            throw new Error("Stdio server environment variables must map to string values");
         }
     }
 
-    private static validateServerName(name: string): void {
-        if (!name?.trim()) throw new Error("Server name cannot be empty");
-        if (!/^[a-zA-Z0-9 _-]+$/.test(name)) {
-            throw new Error(
-                `Server name '${name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
-            );
+    public static normalizeTools(toolSet: unknown): Record<string, unknown> {
+        if (!toolSet) {
+            return {};
         }
+
+        if (Array.isArray(toolSet)) {
+            return toolSet.reduce<Record<string, unknown>>((accumulator, entry) => {
+                if (
+                    entry &&
+                    typeof entry === "object" &&
+                    "name" in entry &&
+                    typeof (entry as { name: unknown }).name === "string"
+                ) {
+                    accumulator[(entry as { name: string }).name] = entry;
+                }
+                return accumulator;
+            }, {});
+        }
+
+        if (typeof toolSet === "object") {
+            return { ...(toolSet as Record<string, unknown>) };
+        }
+
+        return {};
     }
 }
