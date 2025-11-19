@@ -140,15 +140,7 @@ export const UploadResult = ({
 
   // Show error state
   if (!result.success) {
-    return (
-      <VideoCard
-        title="Upload failed"
-        subtitle={result.error}
-        url={null}
-        success={false}
-        error={result.error}
-      />
-    );
+    return <VideoCard title="Upload failed" url={null} success={false} error={result.error} />;
   }
 
   if (!result.data) return null;
