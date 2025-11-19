@@ -34,7 +34,15 @@ export class ProcessVideoIPCHandlers {
       }
 
       // upload to YouTube
-      const youtubeResult = await this.youtube.uploadVideo(filePath);
+      // const youtubeResult = await this.youtube.uploadVideo(filePath);
+      const youtubeResult: VideoUploadResult = {
+        success: true,
+        data: {
+          title: "",
+          description: "",
+          url: "",
+        },
+      };
       this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
 
       // convert video to mp3
@@ -64,10 +72,9 @@ export class ProcessVideoIPCHandlers {
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
       const orchestrator = await MCPOrchestratorNeo.getInstanceAsync();
-      const mcpResult = await orchestrator.processMessageAsync(
-        intermediateOutput,
-        youtubeResult,
-        { systemPrompt })
+      const mcpResult = await orchestrator.processMessageAsync(intermediateOutput, youtubeResult, {
+        systemPrompt,
+      });
 
       this.emitProgress(ProgressStage.COMPLETED, {
         transcript,

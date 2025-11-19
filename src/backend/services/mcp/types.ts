@@ -1,10 +1,10 @@
-import { IOType } from "child_process";
-import Stream from "stream";
+import type { IOType } from "node:child_process";
+import type Stream from "node:stream";
 
 interface MCPBaseConfig {
   name: string;
   description?: string;
-  transport: "streamableHttp" | "stdio";
+  transport: "streamableHttp" | "stdio" | "inMemory";
 }
 
 interface MCPHttpServerConfig extends MCPBaseConfig {
@@ -24,4 +24,9 @@ interface MCPStdioServerConfig extends MCPBaseConfig {
   cwd?: string;
 }
 
-export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig;
+interface MCPInMemoryServerConfig extends MCPBaseConfig {
+  transport: "inMemory";
+  inMemoryServerId: string; // Identifier for the in-memory server implementation
+}
+
+export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig | MCPInMemoryServerConfig;
