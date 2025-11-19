@@ -79,7 +79,7 @@ function ToolCallStep({
   args?: unknown;
 }) {
   const hasArgs =
-    typeof args === "object" && args !== null && Object.keys(args).length > 0;
+    typeof args === "object" && args !== null && !Array.isArray(args) && Object.keys(args).length > 0;
 
   return (
     <div className="space-y-1">
