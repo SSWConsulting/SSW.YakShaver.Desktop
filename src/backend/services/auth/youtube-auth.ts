@@ -236,7 +236,7 @@ export class YouTubeAuthService {
             title: "Uploaded Video",
             description: "Video uploaded via Desktop Electron App",
             tags: ["electron", "upload"],
-            categoryId: "22",
+            categoryId: "28",
           },
           status: { privacyStatus: "unlisted" },
         },
@@ -286,8 +286,8 @@ export class YouTubeAuthService {
         requestBody: {
           id: videoId,
           snippet: {
-            categoryId: snippet.categoryId ?? "22",
             ...snippet,
+            categoryId: snippet.categoryId ?? "28",
           },
         },
       });
