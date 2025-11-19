@@ -2,12 +2,27 @@ import { experimental_createMCPClient, experimental_MCPClient } from "@ai-sdk/mc
 import { MCPServerConfig } from "./types";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MCPUtils } from "./mcp-utils";
+import { formatErrorMessage } from "../../utils/error-utils";
+
+// Minimal tool interface based on MCP spec; allows additional provider-specific fields.
+export interface MCPTool {
+    name: string;
+    description?: string;
+    input_schema?: unknown;
+    // Allow arbitrary extra metadata without forcing any.
+    [key: string]: unknown;
+}
+
+// A tool set can be an array or an object keyed by tool name.
+export type MCPToolSet = MCPTool[] | Record<string, MCPTool>;
 
 
 export class MCPServerClient {
+    public mcpClientName: string;
     private mcpClient: experimental_MCPClient;
 
-    private constructor(client: experimental_MCPClient) {
+    private constructor(name: string, client: experimental_MCPClient) {
+        this.mcpClientName = name;
         this.mcpClient = client;
     }
 
@@ -21,7 +36,7 @@ export class MCPServerClient {
                     headers: mcpConfig.headers,
                 }
             });
-            return new MCPServerClient(client);
+            return new MCPServerClient(mcpConfig.name, client);
         }
 
         // create stdio transport MCP client
@@ -43,14 +58,37 @@ export class MCPServerClient {
                     cwd,
                 }),
             });
-            return new MCPServerClient(mcpClient);
+            return new MCPServerClient(mcpConfig.name, mcpClient);
         }
 
         throw new Error(`Unsupported transport type: ${mcpConfig}`);
     }
 
-    public async listTools(): Promise<any> {
-        return await this.mcpClient.tools();
+    public async listToolsAsync(): Promise<MCPToolSet> {
+        const raw = await this.mcpClient.tools();
+        return raw as MCPToolSet;
+    }
+
+    public async toolCountAsync(): Promise<number> {
+        try {
+            const tools = await this.listToolsAsync();
+            if (Array.isArray(tools)) {
+                return tools.length;
+            } else {
+                return Object.keys(tools).length;
+            }
+        } catch (error) {
+            throw new Error(`Failed to get tool count from MCP server: ${this.mcpClientName}. Error: ${formatErrorMessage(error)}`);
+        }
+    }
+
+    public async healthCheckAsync(): Promise<{ healthy: boolean, toolCount: number }> {
+        try {
+            const toolCount = await this.toolCountAsync();
+            return { healthy: true, toolCount: toolCount };
+        } catch {
+            return { healthy: false, toolCount: 0 };
+        }
     }
 
     public async disconnectAsync(): Promise<void> {

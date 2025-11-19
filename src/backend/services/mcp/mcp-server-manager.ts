@@ -2,7 +2,6 @@ import { McpStorage } from "../storage/mcp-storage";
 import { MCPServerClient } from "./mcp-server-client";
 import { MCPServerConfig } from "./types";
 import type { HealthStatusInfo } from "../../types/index.js";
-import { formatErrorMessage } from "../../utils/error-utils";
 
 
 export class MCPServerManager {
@@ -30,7 +29,7 @@ export class MCPServerManager {
         const clientPromises = MCPServerManager.serverConfigs.map((config) =>
             this.getMcpClientAsync(config.name),
         );
-        return await Promise.all(clientPromises);
+        return (await Promise.all(clientPromises)).filter((client) => client !== null);
     }
 
     public async getSelectedMcpServerClientsAsync(selectedServerNames: string[]): Promise<MCPServerClient[]> {
@@ -41,7 +40,7 @@ export class MCPServerManager {
         const clientPromises = selectedServerNames.map((name) =>
             this.getMcpClientAsync(name),
         );
-        return await Promise.all(clientPromises);
+        return (await Promise.all(clientPromises)).filter((client) => client !== null);
     }
 
     public async collectToolsAsync(serverFilter?: string[]): Promise<Record<string, unknown>> {
@@ -57,13 +56,13 @@ export class MCPServerManager {
             throw new Error("[MCPServerManager]: No MCP clients available");
         }
 
-        const toolSets = await Promise.all(clients.map((client) => client.listTools()));
+        const toolSets = await Promise.all(clients.map((client) => client.listToolsAsync()));
         const toolMaps = toolSets.map((toolSet) => MCPServerManager.normalizeTools(toolSet));
         return Object.assign({}, ...toolMaps);
     }
 
     // Get or Create MCP client for a given server name
-    public async getMcpClientAsync(name: string): Promise<MCPServerClient> {
+    public async getMcpClientAsync(name: string): Promise<MCPServerClient | null> {
         const config = MCPServerManager.serverConfigs.find((s) => s.name === name);
         if (!config) {
             throw new Error(`MCP server with name '${name}' not found`);
@@ -74,8 +73,13 @@ export class MCPServerManager {
         }
 
         const client = await MCPServerClient.createClientAsync(config);
-        MCPServerManager.mcpClients.set(name, client);
-        return client;
+        const health = await client.healthCheckAsync();
+        if (health.healthy) {
+            MCPServerManager.mcpClients.set(name, client);
+            return client;
+        }
+
+        return null;
     }
 
     async addServerAsync(config: MCPServerConfig): Promise<void> {
@@ -131,30 +135,27 @@ export class MCPServerManager {
     }
 
     public async checkServerHealthAsync(name: string): Promise<HealthStatusInfo> {
-        try {
-            const serverConfig = MCPServerManager.serverConfigs.find((s) => s.name === name);
-            if (!serverConfig) {
-                throw new Error(`[MCPServerManager]: CheckServerHealth - MCP server with name '${name}' not found`);
-            }
 
-            const client = await this.getMcpClientAsync(name);
-            const toolSet = await client.listTools();
-            const tools = MCPServerManager.normalizeTools(toolSet);
-            const toolCount = Object.keys(tools).length;
-            return {
-                isHealthy: true,
-                successMessage:
-                    toolCount > 0
-                        ? `Healthy - ${toolCount} tools available`
-                        : "Healthy",
-            };
-        } catch (err) {
-            console.error(`[MCPServerManager]: Health check failed for MCP server '${name}':`, err);
+        const serverConfig = MCPServerManager.serverConfigs.find((s) => s.name === name);
+        if (!serverConfig) {
+            throw new Error(`[MCPServerManager]: CheckServerHealth - MCP server with name '${name}' not found`);
+        }
+
+        const client = await this.getMcpClientAsync(name);
+        if (!client) {
             return {
                 isHealthy: false,
-                error: formatErrorMessage(err),
+                error: `MCP server client for '${name}' not found`,
             };
         }
+
+        const healthResult = await client.healthCheckAsync();
+
+        return {
+            isHealthy: healthResult.healthy,
+            successMessage: healthResult.toolCount > 0 ? `Healthy - ${healthResult.toolCount} tools available` : "Healthy",
+        };
+
     }
 
     private static validateServerConfig(config: MCPServerConfig): void {
