@@ -147,7 +147,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="streamableHttp">HTTP (streamableHttp)</SelectItem>
-                  <SelectItem value="stdio">Stdio (local process)</SelectItem>
+                  <SelectItem value="stdio">STDIO (local process)</SelectItem>
                 </SelectContent>
               </Select>
             </FormControl>

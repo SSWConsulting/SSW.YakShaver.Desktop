@@ -182,7 +182,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                   {sortedServers.map((server) => {
                     const status = healthStatus[server.name] || {};
                     const transportLabel =
-                      server.transport === "streamableHttp" ? "HTTP" : "Stdio";
+                      server.transport === "streamableHttp" ? "http" : "stdio";
                     const connectionSummary =
                       server.transport === "streamableHttp"
                         ? server.url ?? ""
