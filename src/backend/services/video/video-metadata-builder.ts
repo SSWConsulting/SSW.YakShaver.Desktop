@@ -346,7 +346,8 @@ function normalizeTimestamp(timestamp: string): string {
     return `00:${timestamp}`;
   }
   if (/^\d{1,2}:\d{2}:\d{2}(?:\.\d+)?$/.test(timestamp)) {
-    return timestamp.split(".")[0].padStart(8, "0");
+    const [h, m, s] = timestamp.split(".")[0].split(":");
+    return `${h.padStart(2, "0")}:${m.padStart(2, "0")}:${s.padStart(2, "0")}`;
   }
   return "00:00:00";
 }
