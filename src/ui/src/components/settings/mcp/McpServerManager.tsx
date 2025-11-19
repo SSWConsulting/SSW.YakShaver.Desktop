@@ -181,6 +181,19 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                 <div className="flex flex-col gap-4">
                   {sortedServers.map((server) => {
                     const status = healthStatus[server.name] || {};
+                    const transportLabel =
+                      server.transport === "streamableHttp" ? "http" : "stdio";
+                    const connectionSummary =
+                      server.transport === "streamableHttp"
+                        ? server.url ?? ""
+                        : "command" in server
+                          ? [server.command, ...(server.args ?? [])]
+                              .filter((part) => part && part.length > 0)
+                              .join(" ")
+                          : "";
+                    const cwdSummary =
+                      server.transport === "stdio" && "cwd" in server ? server.cwd : undefined;
+
                     return (
                       <Card
                         key={server.name}
@@ -200,9 +213,20 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
                               <div className="flex-1">
                                 <h3 className="text-lg font-semibold text-white">{server.name}</h3>
-                                <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                  {server.url}
+                                <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
+                                  {transportLabel}
                                 </p>
+                                {server.description && (
+                                  <p className="mt-1 text-sm text-white/70">{server.description}</p>
+                                )}
+                                <p className="mt-2 break-all font-mono text-sm text-white/50">
+                                  {connectionSummary || "—"}
+                                </p>
+                                {cwdSummary && (
+                                  <p className="mt-1 text-xs text-white/40">
+                                    cwd: <span className="font-mono">{cwdSummary}</span>
+                                  </p>
+                                )}
                               </div>
                             </div>
                             <div className="flex gap-2">

@@ -1,11 +1,11 @@
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import type { VideoUploadResult } from "../services/auth/types";
-import { MCPOrchestratorNeo } from "../services/mcp/mcp-orchestrator-neo";
+import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import type { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import type { MCPServerConfig } from "../services/mcp/types";
 import { IPC_CHANNELS } from "./channels";
 
-type ProcessMessageOptions = Parameters<MCPOrchestratorNeo["processMessageAsync"]>[2];
+type ProcessMessageOptions = Parameters<MCPOrchestrator["processMessageAsync"]>[2];
 
 export class McpIPCHandlers {
   private mcpServerManager: MCPServerManager;
@@ -59,7 +59,7 @@ export class McpIPCHandlers {
         videoUploadResult?: VideoUploadResult,
         options?: ProcessMessageOptions,
       ) => {
-        const orchestrator = await MCPOrchestratorNeo.getInstanceAsync();
+        const orchestrator = await MCPOrchestrator.getInstanceAsync();
         return await orchestrator.processMessageAsync(prompt, videoUploadResult, options);
       },
     );
