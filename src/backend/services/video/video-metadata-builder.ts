@@ -2,7 +2,6 @@ import { OpenAIService } from "../openai/openai-service.js";
 import type { YouTubeSnippetUpdate } from "../auth/types.js";
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s)]+/gi;
-const URL_REGEX = /^https?:\/\/[^\s)]+$/i;
 
 interface LinkCandidate {
   label: string;
