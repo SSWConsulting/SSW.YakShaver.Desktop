@@ -102,6 +102,12 @@ export class MCPOrchestrator {
     return name.replace(/[^a-zA-Z0-9_-]/g, "_");
   }
 
+  private static sanitizeFilePath(path: string): string {
+    // Remove any potential prompt injection characters or escape sequences
+    // Keep only path-safe characters and basic punctuation
+    return path.replace(/[\r\n\t\0\x0B\x1B]/g, "").trim();
+  }
+
   private static validateTransportConfig(config: MCPServerConfig): void {
     if (config.transport === "streamableHttp") {
       if (!config.url?.trim()) {
@@ -185,6 +191,9 @@ export class MCPOrchestrator {
   }
 
   async updateServer(name: string, config: MCPServerConfig): Promise<void> {
+    if (this.builtinServers.some((s) => s.name === name)) {
+      throw new Error(`Cannot update built-in server '${name}'`);
+    }
     MCPOrchestrator.validateServerName(config.name);
     MCPOrchestrator.validateTransportConfig(config);
     const index = this.servers.findIndex((s) => s.name === name);
@@ -369,7 +378,7 @@ export class MCPOrchestrator {
       const attachmentList = options.attachments
         .map(
           (attachment, index) =>
-            `${index + 1}. [${attachment.type}] ${attachment.description ?? "Attachment"} – ${attachment.path}`,
+            `${index + 1}. [${attachment.type}] ${attachment.description ?? "Attachment"} – ${MCPOrchestrator.sanitizeFilePath(attachment.path)}`,
         )
         .join("\n");
       systemPrompt += `\n\nLocal attachments are available on this machine:\n${attachmentList}\nEnsure you use tools that can read local files if you need their contents.`;

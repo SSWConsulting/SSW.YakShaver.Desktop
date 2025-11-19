@@ -173,7 +173,7 @@ export class FFmpegService {
     const millis = Math.round((seconds - Math.floor(seconds)) * 1000);
 
     const pad = (value: number, length = 2) => value.toString().padStart(length, "0");
-    const millisPart = millis > 0 ? `.${pad(millis, 3)}` : ".000";
+    const millisPart = `.${pad(millis, 3)}`;
 
     return `${pad(hrs)}:${pad(mins)}:${pad(secs)}${millisPart}`;
   }

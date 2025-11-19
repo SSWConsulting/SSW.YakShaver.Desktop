@@ -10,8 +10,6 @@ import { OpenAIService } from "../../openai/openai-service.js";
 import type { MCPServerConfig } from "../types.js";
 import { InternalMcpTransportRegistry } from "./internal-mcp-transport-registry.js";
 
-const activeServers: McpServer[] = [];
-
 const captureInputShape = {
   videoPath: z.string().min(1).describe("Absolute path to the source video"),
   timestamp: z
@@ -98,7 +96,6 @@ export async function createInternalVideoToolsServer(): Promise<MCPServerConfig>
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await mcpServer.connect(serverTransport);
-  activeServers.push(mcpServer);
 
   InternalMcpTransportRegistry.registerClientTransport(serverId, clientTransport);
 
@@ -138,6 +135,10 @@ function parseTimestamp(value: number | string): number {
   const parts = trimmed.split(":").map((part) => Number.parseFloat(part));
   if (parts.some((part) => Number.isNaN(part))) {
     throw new Error(`Invalid timestamp format: ${value}`);
+  }
+
+  if (parts.length > 3) {
+    throw new Error(`Invalid timestamp format: ${value}. Expected HH:MM:SS format with at most 3 parts.`);
   }
 
   while (parts.length < 3) {

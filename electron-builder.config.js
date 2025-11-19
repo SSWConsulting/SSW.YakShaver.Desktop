@@ -20,6 +20,11 @@ module.exports = {
     "src/ui/dist/**",
     "node_modules/@ffmpeg-installer/win32-ia32/**",
     "node_modules/@ffmpeg-installer/win32-x64/**",
+    "node_modules/@ffmpeg-installer/darwin-x64/**",
+    "node_modules/@ffmpeg-installer/darwin-arm64/**",
+    "node_modules/@ffmpeg-installer/linux-ia32/**",
+    "node_modules/@ffmpeg-installer/linux-x64/**",
+    "node_modules/@ffmpeg-installer/linux-arm64/**",
   ],
   afterPack: "./afterPack.js",
   win: {
