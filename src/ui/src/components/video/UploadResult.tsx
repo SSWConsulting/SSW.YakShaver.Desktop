@@ -111,6 +111,12 @@ const VideoCard = ({
   );
 };
 
+const summarizeDescription = (description: string) => {
+  if (!description) return "";
+  const firstLine = description.split("\n").find((line) => line.trim().length > 0) ?? "";
+  return firstLine.length > 140 ? `${firstLine.slice(0, 137)}...` : firstLine;
+};
+
 export const UploadResult = ({
   result,
   status,
@@ -118,16 +124,15 @@ export const UploadResult = ({
   result: VideoUploadResult | null;
   status: UploadStatus;
 }) => {
-  const summarizeDescription = (description: string) => {
-    if (!description) return "";
-    const firstLine = description.split("\n").find((line) => line.trim().length > 0) ?? "";
-    return firstLine.length > 140 ? `${firstLine.slice(0, 137)}...` : firstLine;
-  };
-
   // Show uploading state
   if (status === UploadStatus.UPLOADING) {
     return (
-      <VideoCard title="Uploading to YouTube" subtitle="Preparing your recording..." url={null} uploading={true} />
+      <VideoCard
+        title="Uploading to YouTube"
+        subtitle="Preparing your recording..."
+        url={null}
+        uploading={true}
+      />
     );
   }
 
@@ -135,7 +140,15 @@ export const UploadResult = ({
 
   // Show error state
   if (!result.success) {
-    return <VideoCard title="Upload failed" subtitle={result.error} url={null} success={false} error={result.error} />;
+    return (
+      <VideoCard
+        title="Upload failed"
+        subtitle={result.error}
+        url={null}
+        success={false}
+        error={result.error}
+      />
+    );
   }
 
   if (!result.data) return null;
