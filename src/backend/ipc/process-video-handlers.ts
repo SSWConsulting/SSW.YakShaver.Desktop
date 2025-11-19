@@ -23,7 +23,7 @@ export class ProcessVideoIPCHandlers {
   }
 
   private registerHandlers(): void {
-    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO, async (event, filePath?: string) => {
+    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO, async (_event, filePath?: string) => {
       if (!filePath) {
         throw new Error("video-process-handler: Video file path is required");
       }
