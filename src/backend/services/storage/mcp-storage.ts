@@ -23,23 +23,15 @@ export class McpStorage extends BaseSecureStorage {
   }
 
   async storeMcpServers(servers: MCPServerConfig[]): Promise<void> {
-    const normalized = servers.map((server) => ({
-      ...server,
-      enabled: server.enabled ?? true,
-    }));
-    await this.encryptAndStore(this.getMcpConfigPath(), { servers: normalized });
+    await this.encryptAndStore(this.getMcpConfigPath(), { servers });
   }
 
-  async getMcpServers(): Promise<MCPServerConfig[]> {
+  async getMcpServerConfigsAsync(): Promise<MCPServerConfig[]> {
     const data = await this.decryptAndLoad<{ servers: MCPServerConfig[] }>(this.getMcpConfigPath());
-    const servers = data?.servers || [];
-    return servers.map((server) => ({
-      ...server,
-      enabled: server.enabled ?? true,
-    }));
+    return data?.servers || [];
   }
 
-  async hasMcpServers(): Promise<boolean> {
+  async hasMcpServersAsync(): Promise<boolean> {
     return await this.fileExists(this.getMcpConfigPath());
   }
 }

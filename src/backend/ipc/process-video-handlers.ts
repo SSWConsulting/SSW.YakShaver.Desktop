@@ -8,21 +8,19 @@ import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
+import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
   private readonly llmClient = OpenAIService.getInstance(); // TODO: make generic interface for different LLMs https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
   private ffmpegService = FFmpegService.getInstance();
-  private readonly mcpOrchestrator: MCPOrchestrator;
   private readonly customPromptStorage = CustomPromptStorage.getInstance();
   private readonly metadataBuilder: VideoMetadataBuilder;
 
   constructor() {
-    this.mcpOrchestrator = new MCPOrchestrator({}, this.llmClient);
     this.metadataBuilder = new VideoMetadataBuilder(this.llmClient);
     this.registerHandlers();
   }
@@ -68,11 +66,10 @@ export class ProcessVideoIPCHandlers {
       const customPrompt = await this.customPromptStorage.getActivePrompt();
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
-      const mcpResult = await this.mcpOrchestrator.processMessage(
-        intermediateOutput,
-        youtubeResult,
-        { systemPrompt },
-      );
+      const orchestrator = await MCPOrchestrator.getInstanceAsync();
+      const mcpResult = await orchestrator.processMessageAsync(intermediateOutput, youtubeResult, {
+        systemPrompt,
+      });
 
       if (youtubeResult.success && youtubeResult.data?.videoId) {
         try {
@@ -104,7 +101,7 @@ export class ProcessVideoIPCHandlers {
         transcript,
         intermediateOutput,
         mcpResult,
-        finalOutput: mcpResult.final,
+        finalOutput: mcpResult,
         uploadResult: youtubeResult,
       });
 
@@ -128,7 +125,8 @@ export class ProcessVideoIPCHandlers {
           const customPrompt = await this.customPromptStorage.getActivePrompt();
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
-          const mcpResult = await this.mcpOrchestrator.processMessage(
+          const orchestrator = await MCPOrchestrator.getInstanceAsync();
+          const mcpResult = await orchestrator.processMessageAsync(
             intermediateOutput,
             videoUploadResult,
             { systemPrompt },

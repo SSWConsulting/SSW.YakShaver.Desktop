@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import { GitHubTokenStorage } from "../services/storage/github-token-storage";
 import type { ReleaseChannel } from "../services/storage/release-channel-storage";
@@ -10,13 +10,21 @@ interface GitHubRelease {
   id: number;
   tag_name: string;
   name: string;
+  body?: string;
   prerelease: boolean;
   published_at: string;
   html_url: string;
 }
 
+interface ProcessedRelease {
+  prNumber: string;
+  tag: string;
+  version: string;
+  publishedAt: string;
+}
+
 interface GitHubReleaseResponse {
-  releases: GitHubRelease[];
+  releases: ProcessedRelease[];
   error?: string;
 }
 
@@ -33,6 +41,8 @@ export class ReleaseChannelIPCHandlers {
     fetchedAt: number;
     etag?: string;
   } | null = null;
+  private updateCheckInterval: NodeJS.Timeout | null = null;
+  private readonly UPDATE_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.RELEASE_CHANNEL_GET, () => this.getChannel());
@@ -54,7 +64,20 @@ export class ReleaseChannelIPCHandlers {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
-    autoUpdater.on("update-downloaded", (info) => {
+    autoUpdater.on("download-progress", (progressObj) => {
+      // Send progress to all windows
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+          win.webContents.send(IPC_CHANNELS.RELEASE_CHANNEL_DOWNLOAD_PROGRESS, {
+            percent: Math.round(progressObj.percent),
+            transferred: progressObj.transferred,
+            total: progressObj.total,
+          });
+        }
+      });
+    });
+
+    autoUpdater.on("update-downloaded", () => {
       dialog
         .showMessageBox({
           type: "info",
@@ -86,6 +109,7 @@ export class ReleaseChannelIPCHandlers {
   private async setChannel(channel: ReleaseChannel): Promise<void> {
     await this.store.setChannel(channel);
     await this.configureAutoUpdater(channel);
+    this.startPeriodicUpdateChecks();
   }
 
   private async listReleases(forceRefresh = false): Promise<GitHubReleaseResponse> {
@@ -95,7 +119,7 @@ export class ReleaseChannelIPCHandlers {
         this.releasesCache &&
         Date.now() - this.releasesCache.fetchedAt < RELEASES_CACHE_TTL
       ) {
-        return { releases: this.releasesCache.releases };
+        return { releases: this.processReleases(this.releasesCache.releases) };
       }
 
       const headers: Record<string, string> = {
@@ -121,7 +145,7 @@ export class ReleaseChannelIPCHandlers {
 
       if (response.status === 304 && this.releasesCache) {
         this.releasesCache.fetchedAt = Date.now();
-        return { releases: this.releasesCache.releases };
+        return { releases: this.processReleases(this.releasesCache.releases) };
       }
 
       if (!response.ok) {
@@ -145,7 +169,7 @@ export class ReleaseChannelIPCHandlers {
         etag: response.headers.get("etag") ?? undefined,
       };
 
-      return { releases };
+      return { releases: this.processReleases(releases) };
     } catch (error) {
       const errMsg = formatErrorMessage(error);
       return {
@@ -153,6 +177,75 @@ export class ReleaseChannelIPCHandlers {
         error: errMsg,
       };
     }
+  }
+
+  /**
+   * Process raw GitHub releases into frontend-ready data:
+   * - Filter to prereleases only
+   * - Extract PR numbers
+   * - Group by PR and keep only the latest release per PR
+   * - Sort by PR number descending
+   */
+  private processReleases(releases: GitHubRelease[]): ProcessedRelease[] {
+    // Filter prereleases
+    const prereleases = releases.filter((r) => r.prerelease);
+
+    // Sort by published date (newest first)
+    const sorted = prereleases.sort(
+      (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
+    );
+
+    // Group by PR number, keeping only the latest release for each PR
+    const prMap = new Map<string, GitHubRelease>();
+    for (const release of sorted) {
+      const prNumber = this.extractPRNumber(release);
+      if (prNumber && !prMap.has(prNumber)) {
+        prMap.set(prNumber, release);
+      }
+    }
+
+    // Convert to processed releases, sorted by PR number descending
+    return Array.from(prMap.entries())
+      .sort(
+        ([prNumberA], [prNumberB]) =>
+          Number.parseInt(prNumberB, 10) - Number.parseInt(prNumberA, 10),
+      )
+      .map(([prNumber, release]) => ({
+        prNumber,
+        tag: release.tag_name,
+        version: release.tag_name,
+        publishedAt: release.published_at,
+      }));
+  }
+
+  /**
+   * Extract PR number from release name or body
+   */
+  private extractPRNumber(release: GitHubRelease): string | null {
+    const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
+    return prMatch ? prMatch[1] : null;
+  }
+
+  /**
+   * Get all releases for a specific PR number, sorted by published date (newest first)
+   */
+  private getPRReleases(prNumber: string): GitHubRelease[] {
+    if (!this.releasesCache) {
+      return [];
+    }
+
+    return this.releasesCache.releases
+      .filter((r) => this.extractPRNumber(r) === prNumber)
+      .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
+  }
+
+  /**
+   * Extract PR number from channel format (e.g., "beta.15" -> "15")
+   * @returns PR number or null if format is invalid
+   */
+  private extractPRNumberFromChannel(channel: string): string | null {
+    const prMatch = channel.match(/beta\.(\d+)/);
+    return prMatch ? prMatch[1] : null;
   }
 
   private async checkForUpdates(): Promise<{
@@ -172,31 +265,38 @@ export class ReleaseChannelIPCHandlers {
       const channel = await this.getChannel();
       const currentVersion = this.getCurrentVersion();
 
-      // For tag-based channels (PR releases)
-      if (channel.type === "tag" && channel.tag) {
-        const releases = await this.listReleases(true);
-        if (releases.error) {
-          return { available: false, error: releases.error };
+      // For PR channels
+      if (channel.type === "pr" && channel.channel) {
+        // Get raw releases for update checking (not processed)
+        if (!this.releasesCache || Date.now() - this.releasesCache.fetchedAt > RELEASES_CACHE_TTL) {
+          await this.listReleases(true);
         }
 
-        // Find the release with matching tag
-        const targetRelease = releases.releases.find((r) => r.tag_name === channel.tag);
-        if (!targetRelease) {
-          return { available: false, error: `Release ${channel.tag} not found` };
+        if (!this.releasesCache) {
+          return { available: false, error: "Failed to fetch releases" };
         }
 
-        // The workflow creates beta versions with timestamp
-        // Tag format: "0.3.7-beta.11.1762910147"
-        const targetVersion = targetRelease.tag_name;
+        const prNumber = this.extractPRNumberFromChannel(channel.channel);
+        if (!prNumber) {
+          return { available: false, error: `Invalid channel format: ${channel.channel}` };
+        }
+        const prReleases = this.getPRReleases(prNumber);
+        if (prReleases.length === 0) {
+          return { available: false, error: `No releases found for PR #${prNumber}` };
+        }
+
+        const latestRelease = prReleases[0];
+        const targetVersion = latestRelease.tag_name;
         const isCurrentlyOnThisVersion = currentVersion === targetVersion;
 
         // If not on this version, trigger download
         if (!isCurrentlyOnThisVersion) {
-          const channelName = this.extractChannelFromTag(channel.tag);
+          // Explicitly set the channel before configuring feed URL
+          autoUpdater.channel = channel.channel;
           autoUpdater.setFeedURL({
             provider: "generic",
-            url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${channel.tag}`,
-            channel: channelName,
+            url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${targetVersion}`,
+            channel: channel.channel,
           });
           autoUpdater.allowPrerelease = true;
           autoUpdater.allowDowngrade = true;
@@ -233,9 +333,7 @@ export class ReleaseChannelIPCHandlers {
       // For latest stable channel, use GitHub provider
       await this.configureAutoUpdater(channel);
       autoUpdater.allowDowngrade = false;
-
       const result = await autoUpdater.checkForUpdates();
-
       if (result?.updateInfo) {
         const updateVersion = result.updateInfo.version;
         return {
@@ -258,16 +356,41 @@ export class ReleaseChannelIPCHandlers {
   }
 
   /**
-   * Extract PR number from a beta tag and return the channel name
-   * @param tag - Version tag like "0.3.7-beta.11.1234567890"
-   * @returns Channel name like "beta.11" or "beta" if no match
+   * Start periodic update checks in the background
    */
-  private extractChannelFromTag(tag: string): string {
-    const prMatch = tag.match(/beta\.(\d+)\./);
-    return prMatch ? `beta.${prMatch[1]}` : "beta";
+  private startPeriodicUpdateChecks(): void {
+    // Clear any existing interval
+    if (this.updateCheckInterval) {
+      clearInterval(this.updateCheckInterval);
+    }
+
+    // Skip in development/unpackaged mode
+    if (!app.isPackaged) {
+      return;
+    }
+
+    // Set up periodic checks
+    this.updateCheckInterval = setInterval(() => {
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error("Periodic update check failed:", err);
+      });
+    }, this.UPDATE_CHECK_INTERVAL);
   }
 
-  public async configureAutoUpdater(channel: ReleaseChannel): Promise<void> {
+  /**
+   * Stop periodic update checks
+   */
+  public stopPeriodicUpdateChecks(): void {
+    if (this.updateCheckInterval) {
+      clearInterval(this.updateCheckInterval);
+      this.updateCheckInterval = null;
+    }
+  }
+
+  public async configureAutoUpdater(
+    channel: ReleaseChannel,
+    triggerImmediateCheck = false,
+  ): Promise<void> {
     // Skip configuration in development/unpackaged mode
     if (!app.isPackaged) {
       return;
@@ -286,18 +409,63 @@ export class ReleaseChannelIPCHandlers {
       autoUpdater.channel = "latest";
       autoUpdater.allowPrerelease = false;
       autoUpdater.allowDowngrade = false;
-    } else if (channel.type === "tag" && channel.tag) {
-      autoUpdater.channel = this.extractChannelFromTag(channel.tag);
-      autoUpdater.allowPrerelease = true;
-      autoUpdater.allowDowngrade = true;
+
+      // Set update server (GitHub releases)
+      autoUpdater.setFeedURL({
+        provider: "github",
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        private: false,
+      });
+
+      if (triggerImmediateCheck) {
+        setTimeout(() => {
+          autoUpdater.checkForUpdates().catch((err) => {
+            console.error("Startup update check failed:", err);
+          });
+        }, 2000);
+      }
+    } else if (channel.type === "pr" && channel.channel) {
+      // For PR channels, we need to find the latest release tag first
+      const prNumber = this.extractPRNumberFromChannel(channel.channel);
+      if (prNumber) {
+        // Get the latest release for this PR
+        if (!this.releasesCache || Date.now() - this.releasesCache.fetchedAt > RELEASES_CACHE_TTL) {
+          await this.listReleases(true);
+        }
+
+        if (this.releasesCache) {
+          const prReleases = this.getPRReleases(prNumber);
+
+          if (prReleases.length > 0) {
+            const latestRelease = prReleases[0];
+            // Explicitly set the channel before configuring feed URL
+            autoUpdater.channel = channel.channel;
+            autoUpdater.setFeedURL({
+              provider: "generic",
+              url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag_name}`,
+              channel: channel.channel,
+            });
+            autoUpdater.allowPrerelease = true;
+            autoUpdater.allowDowngrade = true;
+
+            const currentVersion = app.getVersion();
+            const isOnLatest = currentVersion === latestRelease.tag_name;
+
+            if (triggerImmediateCheck && !isOnLatest) {
+              setTimeout(() => {
+                autoUpdater.checkForUpdates().catch((err) => {
+                  console.error("Startup update check failed:", err);
+                });
+              }, 2000);
+            }
+          } else {
+            console.warn(`No releases found for PR #${prNumber}`);
+          }
+        }
+      }
     }
 
-    // Set update server (GitHub releases)
-    autoUpdater.setFeedURL({
-      provider: "github",
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      private: false,
-    });
+    this.startPeriodicUpdateChecks();
   }
 }

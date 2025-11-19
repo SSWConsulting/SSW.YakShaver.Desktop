@@ -75,6 +75,7 @@ const IPC_CHANNELS = {
   RELEASE_CHANNEL_LIST_RELEASES: "release-channel:list-releases",
   RELEASE_CHANNEL_CHECK_UPDATES: "release-channel:check-updates",
   RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
+  RELEASE_CHANNEL_DOWNLOAD_PROGRESS: "release-channel:download-progress",
 
   // GitHub Token
   GITHUB_TOKEN_GET: "github-token:get",
@@ -169,11 +170,11 @@ const electronAPI = {
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
-    addServer: (config: MCPServerConfig) => ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
-    updateServer: (name: string, config: MCPServerConfig) =>
+    addServerAsync: (config: MCPServerConfig) => ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
+    updateServerAsync: (name: string, config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, name, config),
-    removeServer: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),
-    checkServerHealth: (name: string) =>
+    removeServerAsync: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),
+    checkServerHealthAsync: (name: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, name),
   },
   settings: {
@@ -193,6 +194,9 @@ const electronAPI = {
     listReleases: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_LIST_RELEASES),
     checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_CHECK_UPDATES),
     getCurrentVersion: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET_CURRENT_VERSION),
+    onDownloadProgress: (
+      callback: (progress: { percent: number; transferred: number; total: number }) => void,
+    ) => onIpcEvent(IPC_CHANNELS.RELEASE_CHANNEL_DOWNLOAD_PROGRESS, callback),
   },
   githubToken: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_GET),
