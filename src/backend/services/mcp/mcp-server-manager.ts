@@ -1,6 +1,7 @@
 import type { HealthStatusInfo } from "../../types/index.js";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { McpStorage } from "../storage/mcp-storage";
+import { InternalMcpTransportRegistry } from "./internal/mcp-transport-registry";
 import { MCPServerClient } from "./mcp-server-client";
 import type { MCPServerConfig } from "./types";
 
@@ -36,7 +37,10 @@ export class MCPServerManager {
 
   // Get or Create MCP client for a given server name
   public async getMcpClientAsync(name: string): Promise<MCPServerClient> {
-    const config = MCPServerManager.serverConfigs.find((s) => s.name === name);
+    const internalServers = InternalMcpTransportRegistry.listServerConfigs();
+    const config =
+      internalServers.find((s) => s.name === name) ||
+      MCPServerManager.serverConfigs.find((s) => s.name === name);
     if (!config) {
       throw new Error(`MCP server with name '${name}' not found`);
     }
@@ -53,6 +57,9 @@ export class MCPServerManager {
 
   async addServerAsync(config: MCPServerConfig): Promise<void> {
     MCPServerManager.validateServerName(config.name);
+    if (config.builtin) {
+      throw new Error("Cannot add a built-in server");
+    }
     if (MCPServerManager.serverConfigs.some((s) => s.name === config.name)) {
       throw new Error(`Server with name '${config.name}' already exists`);
     }
@@ -65,6 +72,9 @@ export class MCPServerManager {
     const index = MCPServerManager.serverConfigs.findIndex((s) => s.name === name);
     if (index === -1) throw new Error(`Server '${name}' not found`);
     const existing = MCPServerManager.serverConfigs[index];
+    if (existing.builtin) {
+      throw new Error("Cannot update a built-in server");
+    }
     // If the name is changing, ensure the new name isn't already used
     if (
       config.name !== name &&
@@ -87,6 +97,10 @@ export class MCPServerManager {
   async removeServerAsync(name: string): Promise<void> {
     const index = MCPServerManager.serverConfigs.findIndex((s) => s.name === name);
     if (index === -1) throw new Error(`Server '${name}' not found`);
+    const existing = MCPServerManager.serverConfigs[index];
+    if (existing.builtin) {
+      throw new Error("Cannot remove a built-in server");
+    }
     MCPServerManager.serverConfigs.splice(index, 1);
     await MCPServerManager.mcpClients.get(name)?.disconnectAsync();
     MCPServerManager.mcpClients.delete(name);
@@ -103,12 +117,16 @@ export class MCPServerManager {
   }
 
   public listAvailableServers(): MCPServerConfig[] {
-    return [...MCPServerManager.serverConfigs];
+    const internalServers = InternalMcpTransportRegistry.listServerConfigs();
+    return [...internalServers, ...MCPServerManager.serverConfigs];
   }
 
   public async checkServerHealthAsync(name: string): Promise<HealthStatusInfo> {
     try {
-      const serverConfig = MCPServerManager.serverConfigs.find((s) => s.name === name);
+      const internalServers = InternalMcpTransportRegistry.listServerConfigs();
+      const serverConfig =
+        internalServers.find((s) => s.name === name) ||
+        MCPServerManager.serverConfigs.find((s) => s.name === name);
       if (!serverConfig) {
         throw new Error(
           `[MCPServerManager]: CheckServerHealth - MCP server with name '${name}' not found`,

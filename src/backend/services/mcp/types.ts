@@ -5,6 +5,7 @@ interface MCPBaseConfig {
   name: string;
   description?: string;
   transport: "streamableHttp" | "stdio" | "inMemory";
+  builtin?: boolean; // True for internal/built-in servers
 }
 
 interface MCPHttpServerConfig extends MCPBaseConfig {

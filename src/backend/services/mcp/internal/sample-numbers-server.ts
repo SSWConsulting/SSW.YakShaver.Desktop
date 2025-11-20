@@ -160,10 +160,14 @@ export async function createInternalSampleNumbersServer(): Promise<MCPServerConf
 
   InternalMcpTransportRegistry.registerClientTransport(serverId, clientTransport);
 
-  return {
-    name: "Sample Numbers",
-    description: "Built-in sample MCP server demonstrating number-related tools.",
+  const config: MCPServerConfig = {
+    name: "Sample numbers",
+    description: "Built-in video frame capture and screenshot interpretation tools.",
     transport: "inMemory",
     inMemoryServerId: serverId,
+    builtin: true,
   };
+
+  InternalMcpTransportRegistry.registerServerConfig(config);
+  return config;
 }

@@ -26,6 +26,8 @@ export type MCPServerConfig = {
   headers?: Record<string, string>;
   version?: string;
   timeoutMs?: number;
+  builtin?: boolean;
+  command?: string;
 };
 
 const mcpServerSchema = z.object({

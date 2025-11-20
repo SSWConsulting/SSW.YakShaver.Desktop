@@ -1,5 +1,6 @@
 import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { InternalMcpTransportRegistry } from "./internal/mcp-transport-registry";
 import type { ToolSet } from "ai";
 import type { MCPServerConfig } from "./types";
 
@@ -34,7 +35,18 @@ export class MCPServerClient {
       return new MCPServerClient(mcpClient);
     }
 
-    throw new Error(`Unsupported transport type: ${mcpConfig}`);
+    // create inMemory transport MCP client
+    if (mcpConfig.transport === "inMemory") {
+      const clientTransport = InternalMcpTransportRegistry.getClientTransport(
+        mcpConfig.inMemoryServerId,
+      );
+      const client = await experimental_createMCPClient({
+        transport: clientTransport,
+      });
+      return new MCPServerClient(client);
+    }
+
+    throw new Error("Unsupported transport type");
   }
 
   public async listTools(): Promise<ToolSet> {

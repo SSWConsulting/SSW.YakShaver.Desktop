@@ -46,7 +46,9 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
     for (const server of serverList) {
       try {
-        const result = (await ipcClient.mcp.checkServerHealthAsync(server.name)) as HealthStatusInfo;
+        const result = (await ipcClient.mcp.checkServerHealthAsync(
+          server.name,
+        )) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
           [server.name]: { ...result, isChecking: false },
@@ -200,9 +202,14 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
                               <div className="flex-1">
                                 <h3 className="text-lg font-semibold text-white">{server.name}</h3>
-                                <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                  {server.url}
-                                </p>
+                                {server.builtin ? (
+                                  <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
+                                ) : (
+                                  <p className="mt-2 break-all font-mono text-sm text-white/50">
+                                    {server.url ||
+                                      `${server.transport}${server.command ? `: ${server.command}` : ""}`}
+                                  </p>
+                                )}
                               </div>
                             </div>
                             <div className="flex gap-2">
@@ -210,7 +217,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => showEditForm(server)}
-                                disabled={isLoading}
+                                disabled={isLoading || server.builtin}
                               >
                                 Edit
                               </Button>
@@ -218,7 +225,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => confirmDeleteServer(server.name)}
-                                disabled={isLoading}
+                                disabled={isLoading || server.builtin}
                               >
                                 Delete
                               </Button>
