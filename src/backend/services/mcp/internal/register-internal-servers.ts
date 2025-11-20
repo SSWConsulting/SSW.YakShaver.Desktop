@@ -11,8 +11,11 @@ const internalServerFactories: InternalServerFactory[] = [
 ];
 export async function registerAllInternalMcpServers(): Promise<void> {
   for (const factory of internalServerFactories) {
-    const { config, clientTransport } = await factory();
-
-    MCPServerManager.registerInternalServer(config, clientTransport);
+    try {
+      const { config, clientTransport } = await factory();
+      MCPServerManager.registerInternalServer(config, clientTransport);
+    } catch (error) {
+      console.error("Error registering internal MCP server:", error);
+    }
   }
 }

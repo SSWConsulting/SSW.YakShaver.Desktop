@@ -5,7 +5,7 @@ import { formatErrorMessage } from "../../utils/error-utils";
 import { MCPUtils } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 
-interface CreateClientOptions {
+export interface CreateClientOptions {
   inMemoryClientTransport?: InMemoryTransport;
 }
 

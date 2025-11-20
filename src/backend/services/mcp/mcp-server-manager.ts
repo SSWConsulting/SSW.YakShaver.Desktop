@@ -1,7 +1,7 @@
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { HealthStatusInfo } from "../../types/index.js";
 import { McpStorage } from "../storage/mcp-storage";
-import { MCPServerClient } from "./mcp-server-client";
+import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
 import type { MCPServerConfig } from "./types";
 
 export class MCPServerManager {
@@ -59,29 +59,28 @@ export class MCPServerManager {
 
   // Get or Create MCP client for a given server name
   public async getMcpClientAsync(name: string): Promise<MCPServerClient | null> {
-    const config = MCPServerManager.getAllServerConfigs().find((s) => s.name === name);
-    if (!config) {
-      throw new Error(`MCP server with name '${name}' not found`);
-    }
-
     const existingClient = MCPServerManager.mcpClients.get(name);
     if (existingClient) {
       return existingClient;
     }
 
-    const inMemoryClientTransport =
-      config.transport === "inMemory" && "inMemoryServerId" in config
-        ? MCPServerManager.internalClientTransports.get(config.inMemoryServerId)
-        : undefined;
-    if (config.transport === "inMemory" && !inMemoryClientTransport) {
-      throw new Error(
-        `No in-memory transport registered for server '${name}'. Ensure it was initialized correctly.`,
-      );
+    const config = MCPServerManager.getAllServerConfigs().find((s) => s.name === name);
+    if (!config) {
+      throw new Error(`MCP server with name '${name}' not found`);
     }
 
-    const client = await MCPServerClient.createClientAsync(config, {
-      inMemoryClientTransport,
-    });
+    let options: CreateClientOptions | undefined;
+    if (config.transport === "inMemory" && "inMemoryServerId" in config) {
+      const transport = MCPServerManager.internalClientTransports.get(config.inMemoryServerId);
+      if (!transport) {
+        throw new Error(
+          `No in-memory transport registered for server '${name}'. Ensure it was initialized correctly.`,
+        );
+      }
+      options = { inMemoryClientTransport: transport };
+    }
+
+    const client = await MCPServerClient.createClientAsync(config, options);
     const health = await client.healthCheckAsync();
     if (health.healthy) {
       MCPServerManager.mcpClients.set(name, client);
@@ -100,7 +99,6 @@ export class MCPServerManager {
       );
     }
 
-    // Ensure builtin metadata is set
     config.builtin = true;
     // Replace any existing entry with same name to keep latest config
     MCPServerManager.internalServerConfigs = MCPServerManager.internalServerConfigs.filter(
@@ -130,10 +128,6 @@ export class MCPServerManager {
       }
     }
     return result;
-  }
-
-  private static isBuiltinName(name: string): boolean {
-    return MCPServerManager.internalServerConfigs.some((s) => s.name === name);
   }
 
   async addServerAsync(config: MCPServerConfig): Promise<void> {
@@ -285,5 +279,9 @@ export class MCPServerManager {
     }
 
     return {};
+  }
+
+  private static isBuiltinName(name: string): boolean {
+    return MCPServerManager.internalServerConfigs.some((s) => s.name === name);
   }
 }

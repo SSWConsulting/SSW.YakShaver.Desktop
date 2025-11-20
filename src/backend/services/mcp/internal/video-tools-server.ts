@@ -3,7 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
-import { extname, join } from "node:path";
+import path, { extname, join } from "node:path";
 import { z } from "zod";
 import { FFmpegService } from "../../ffmpeg/ffmpeg-service.js";
 import { LLMClientProvider } from "../llm-client-provider.js";
@@ -44,13 +44,14 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
       inputSchema: captureInputShape,
     },
     async (input) => {
-      console.log("capture_video_frame input:", input);
+      validatePath(input.videoPath);
       const { videoPath, timestamp, outputPath } = captureInputSchema.parse(input);
       await ensureFileExists(videoPath, "video");
 
       const resolvedOutput =
         outputPath?.trim() ||
         join(tmpdir(), `yakshaver-frame-${Date.now()}-${randomUUID().slice(0, 8)}.png`);
+      validatePath(resolvedOutput);
       const timestampSeconds = parseTimestamp(timestamp);
 
       await ffmpegService.captureNthFrame(videoPath, resolvedOutput, timestampSeconds);
@@ -77,13 +78,16 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
       inputSchema: describeInputShape,
     },
     async (input) => {
-      console.log("describe_image input:", input);
+      validatePath(input.imagePath);
       const { imagePath, prompt } = describeInputSchema.parse(input);
       await ensureFileExists(imagePath, "image");
       const imageBuffer = await fs.readFile(imagePath);
       const mimeType = detectImageMimeType(imagePath);
       const dataUri = `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
-      const description = await llmClientProvider?.generateText([
+      if (!llmClientProvider) {
+        throw new Error("[describe_image]: LLM client not initialized");
+      }
+      const description = await llmClientProvider.generateText([
         {
           role: "user",
           content: [
@@ -167,5 +171,12 @@ function detectImageMimeType(imagePath: string): string {
       return "image/webp";
     default:
       return "image/png";
+  }
+}
+
+function validatePath(filePath: string, allowedDirs: string[] = [tmpdir()]): void {
+  const normalized = path.resolve(filePath);
+  if (!allowedDirs.some((dir) => normalized.startsWith(path.resolve(dir)))) {
+    throw new Error(`Access denied: Path must be within allowed directories`);
   }
 }
