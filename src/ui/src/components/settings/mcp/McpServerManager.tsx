@@ -46,7 +46,9 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
     for (const server of serverList) {
       try {
-        const result = (await ipcClient.mcp.checkServerHealthAsync(server.name)) as HealthStatusInfo;
+        const result = (await ipcClient.mcp.checkServerHealthAsync(
+          server.name,
+        )) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
           [server.name]: { ...result, isChecking: false },
@@ -181,11 +183,10 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                 <div className="flex flex-col gap-4">
                   {sortedServers.map((server) => {
                     const status = healthStatus[server.name] || {};
-                    const transportLabel =
-                      server.transport === "streamableHttp" ? "http" : "stdio";
+                    const transportLabel = server.transport === "streamableHttp" ? "http" : "stdio";
                     const connectionSummary =
                       server.transport === "streamableHttp"
-                        ? server.url ?? ""
+                        ? (server.url ?? "")
                         : "command" in server
                           ? [server.command, ...(server.args ?? [])]
                               .filter((part) => part && part.length > 0)
@@ -213,14 +214,18 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
                               <div className="flex-1">
                                 <h3 className="text-lg font-semibold text-white">{server.name}</h3>
-                                <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
-                                  {transportLabel}
-                                </p>
+                                {server.builtin ? (
+                                  <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
+                                ) : (
+                                  <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
+                                    {transportLabel}
+                                  </p>
+                                )}
                                 {server.description && (
                                   <p className="mt-1 text-sm text-white/70">{server.description}</p>
                                 )}
                                 <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                  {connectionSummary || "—"}
+                                  {server.builtin ? "" : connectionSummary || "—"}
                                 </p>
                                 {cwdSummary && (
                                   <p className="mt-1 text-xs text-white/40">
@@ -234,7 +239,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => showEditForm(server)}
-                                disabled={isLoading}
+                                disabled={isLoading || server.builtin}
                               >
                                 Edit
                               </Button>
@@ -242,7 +247,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => confirmDeleteServer(server.name)}
-                                disabled={isLoading}
+                                disabled={isLoading || server.builtin}
                               >
                                 Delete
                               </Button>
