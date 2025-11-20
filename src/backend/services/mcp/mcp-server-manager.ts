@@ -70,7 +70,7 @@ export class MCPServerManager {
     }
 
     const inMemoryClientTransport =
-      config.transport === "inMemory" && config.inMemoryServerId
+      config.transport === "inMemory" && "inMemoryServerId" in config
         ? MCPServerManager.internalClientTransports.get(config.inMemoryServerId)
         : undefined;
     if (config.transport === "inMemory" && !inMemoryClientTransport) {
