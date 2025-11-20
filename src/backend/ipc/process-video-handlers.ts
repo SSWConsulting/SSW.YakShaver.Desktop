@@ -34,15 +34,7 @@ export class ProcessVideoIPCHandlers {
       }
 
       // upload to YouTube
-      // const youtubeResult = await this.youtube.uploadVideo(filePath);
-      const youtubeResult: VideoUploadResult = {
-        success: true,
-        data: {
-          title: "",
-          description: "",
-          url: "",
-        },
-      };
+      const youtubeResult = await this.youtube.uploadVideo(filePath);
       this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
 
       // convert video to mp3
