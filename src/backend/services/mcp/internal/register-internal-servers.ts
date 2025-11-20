@@ -1,14 +1,10 @@
 import { MCPServerManager } from "../mcp-server-manager.js";
 import type { InternalMcpServerRegistration } from "./internal-server-types.js";
-import { createInternalSampleNumbersServer } from "./sample-numbers-server.js";
 import { createInternalVideoToolsServer } from "./video-tools-server.js";
 
 type InternalServerFactory = () => Promise<InternalMcpServerRegistration>;
 
-const internalServerFactories: InternalServerFactory[] = [
-  createInternalVideoToolsServer,
-  createInternalSampleNumbersServer,
-];
+const internalServerFactories: InternalServerFactory[] = [createInternalVideoToolsServer];
 export async function registerAllInternalMcpServers(): Promise<void> {
   for (const factory of internalServerFactories) {
     try {
