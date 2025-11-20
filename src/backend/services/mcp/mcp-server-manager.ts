@@ -111,7 +111,8 @@ export class MCPServerManager {
     MCPServerManager.internalClientTransports.set(config.inMemoryServerId, clientTransport);
   }
 
-  // Merge internal (built-in) and external (stored) configs, de-duplicated by name, preferring built-ins
+  // Merge internal (built-in) and external (stored) configs, de-duplicated by name.
+  // Built-ins are always processed first, so they take precedence over external configs with the same name.
   private static getAllServerConfigs(): MCPServerConfig[] {
     const internalServers = MCPServerManager.internalServerConfigs;
     const seen = new Set<string>();
