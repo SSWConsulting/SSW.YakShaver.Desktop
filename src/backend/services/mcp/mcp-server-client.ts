@@ -1,10 +1,9 @@
 import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { MCPUtils } from "./mcp-utils";
-import { formatErrorMessage } from "../../utils/error-utils";
-import { MCPServerConfig } from "./types";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import type { ToolSet } from "ai";
+import { formatErrorMessage } from "../../utils/error-utils";
+import { MCPUtils } from "./mcp-utils";
+import type { MCPServerConfig } from "./types";
 
 interface CreateClientOptions {
   inMemoryClientTransport?: InMemoryTransport;

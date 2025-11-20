@@ -13,51 +13,6 @@ export class MCPServerManager {
   private static mcpClients: Map<string, MCPServerClient> = new Map();
   private constructor() {}
 
-  public static registerInternalServer(
-    config: MCPServerConfig,
-    clientTransport: InMemoryTransport,
-  ): void {
-    if (config.transport !== "inMemory" || !config.inMemoryServerId) {
-      throw new Error(
-        `Internal MCP server '${config.name}' must use inMemory transport with a server ID`,
-      );
-    }
-
-    // Ensure builtin metadata is set
-    config.builtin = true;
-    // Replace any existing entry with same name to keep latest config
-    MCPServerManager.internalServerConfigs = MCPServerManager.internalServerConfigs.filter(
-      (s) => s.name !== config.name,
-    );
-    MCPServerManager.internalServerConfigs.push(config);
-
-    MCPServerManager.internalClientTransports.set(config.inMemoryServerId, clientTransport);
-  }
-
-  // Merge internal (built-in) and external (stored) configs, de-duplicated by name, preferring built-ins
-  private static getAllServerConfigs(): MCPServerConfig[] {
-    const internalServers = MCPServerManager.internalServerConfigs;
-    const seen = new Set<string>();
-    const result: MCPServerConfig[] = [];
-    for (const s of internalServers) {
-      if (!seen.has(s.name)) {
-        seen.add(s.name);
-        result.push(s);
-      }
-    }
-    for (const s of MCPServerManager.serverConfigs) {
-      if (!seen.has(s.name)) {
-        seen.add(s.name);
-        result.push(s);
-      }
-    }
-    return result;
-  }
-
-  private static isBuiltinName(name: string): boolean {
-    return MCPServerManager.internalServerConfigs.some((s) => s.name === name);
-  }
-
   public static async getInstanceAsync(): Promise<MCPServerManager> {
     if (MCPServerManager.instance) {
       return MCPServerManager.instance;
@@ -134,6 +89,51 @@ export class MCPServerManager {
       return client;
     }
     return null;
+  }
+
+  public static registerInternalServer(
+    config: MCPServerConfig,
+    clientTransport: InMemoryTransport,
+  ): void {
+    if (config.transport !== "inMemory" || !config.inMemoryServerId) {
+      throw new Error(
+        `Internal MCP server '${config.name}' must use inMemory transport with a server ID`,
+      );
+    }
+
+    // Ensure builtin metadata is set
+    config.builtin = true;
+    // Replace any existing entry with same name to keep latest config
+    MCPServerManager.internalServerConfigs = MCPServerManager.internalServerConfigs.filter(
+      (s) => s.name !== config.name,
+    );
+    MCPServerManager.internalServerConfigs.push(config);
+
+    MCPServerManager.internalClientTransports.set(config.inMemoryServerId, clientTransport);
+  }
+
+  // Merge internal (built-in) and external (stored) configs, de-duplicated by name, preferring built-ins
+  private static getAllServerConfigs(): MCPServerConfig[] {
+    const internalServers = MCPServerManager.internalServerConfigs;
+    const seen = new Set<string>();
+    const result: MCPServerConfig[] = [];
+    for (const s of internalServers) {
+      if (!seen.has(s.name)) {
+        seen.add(s.name);
+        result.push(s);
+      }
+    }
+    for (const s of MCPServerManager.serverConfigs) {
+      if (!seen.has(s.name)) {
+        seen.add(s.name);
+        result.push(s);
+      }
+    }
+    return result;
+  }
+
+  private static isBuiltinName(name: string): boolean {
+    return MCPServerManager.internalServerConfigs.some((s) => s.name === name);
   }
 
   async addServerAsync(config: MCPServerConfig): Promise<void> {

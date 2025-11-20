@@ -127,7 +127,7 @@ export async function createInternalSampleNumbersServer(): Promise<InternalMcpSe
             break;
           }
         }
-        if (!isPrime) {
+        if (isPrime) {
           primes.push(num);
         }
       }
@@ -157,7 +157,7 @@ export async function createInternalSampleNumbersServer(): Promise<InternalMcpSe
 
   const config: MCPServerConfig = {
     name: "Sample numbers",
-    description: "Built-in video frame capture and screenshot interpretation tools.",
+    description: "Built-in number generation, Fibonacci, and prime utilities for demos.",
     transport: "inMemory",
     inMemoryServerId: serverId,
     builtin: true,

@@ -79,10 +79,10 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
     async (input) => {
       console.log("describe_image input:", input);
       const { imagePath, prompt } = describeInputSchema.parse(input);
+      await ensureFileExists(imagePath, "image");
       const imageBuffer = await fs.readFile(imagePath);
       const mimeType = detectImageMimeType(imagePath);
       const dataUri = `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
-      await ensureFileExists(imagePath, "image");
       const description = await llmClientProvider?.generateText([
         {
           role: "user",
