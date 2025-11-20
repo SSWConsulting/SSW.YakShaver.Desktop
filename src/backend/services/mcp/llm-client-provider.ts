@@ -1,18 +1,17 @@
-import { BrowserWindow } from "electron";
-import { createOpenAI } from "@ai-sdk/openai";
 import { createDeepSeek } from "@ai-sdk/deepseek";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { createOpenAI } from "@ai-sdk/openai";
 import {
   generateText,
-  type StreamTextResult,
   type LanguageModel,
   type ModelMessage,
+  type StreamTextResult,
   stepCountIs,
   streamText,
-  ToolSet,
-  Tool,
+  type ToolSet,
 } from "ai";
+import { BrowserWindow } from "electron";
 import type { HealthStatusInfo } from "../../types";
+import { formatErrorMessage } from "../../utils/error-utils";
 import { LlmStorage } from "../storage/llm-storage";
 
 type StepType = "start" | "reasoning" | "tool_call" | "tool_result" | "final_result";
@@ -107,7 +106,7 @@ export class LLMClientProvider {
 
     let response: any;
     try {
-      response = await streamText({
+      response = streamText({
         model: LLMClientProvider.languageModel,
         tools,
         messages: message,
