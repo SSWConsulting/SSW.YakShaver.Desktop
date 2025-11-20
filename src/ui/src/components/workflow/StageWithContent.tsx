@@ -5,6 +5,8 @@ import {
   STAGE_CONFIG,
   type WorkflowProgress,
   type WorkflowStage,
+  type MetadataPreview,
+  type VideoChapter,
 } from "../../types";
 import { deepParseJson } from "../../utils";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
@@ -65,6 +67,75 @@ function ToolResultSuccess({ result }: { result: unknown }) {
           </pre>
         </details>
       )}
+    </div>
+  );
+}
+
+function MetadataPreviewCard({ preview }: { preview?: MetadataPreview }) {
+  if (!preview) {
+    return (
+      <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm">
+        Generating YouTube title, description, and chapters...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <MetadataField label="Title">
+        <p className="text-white font-semibold">{preview.title}</p>
+      </MetadataField>
+      <MetadataField label="Description">
+        <pre className="text-sm text-white/80 whitespace-pre-wrap font-sans">{preview.description}</pre>
+      </MetadataField>
+      {preview.tags && preview.tags.length > 0 && (
+        <MetadataField label="Tags">
+          <div className="flex flex-wrap gap-2">
+            {preview.tags.map((tag) => (
+              <span
+                key={tag}
+                className="text-xs uppercase tracking-wide px-2 py-1 rounded-full bg-white/10 text-white/80"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </MetadataField>
+      )}
+      {preview.chapters && preview.chapters.length > 0 && (
+        <MetadataField label="Chapters">
+          <div className="space-y-1">
+            {preview.chapters.map((chapter) => (
+              <ChapterRow key={`${chapter.timestamp}-${chapter.label}`} chapter={chapter} />
+            ))}
+          </div>
+        </MetadataField>
+      )}
+    </div>
+  );
+}
+
+function MetadataField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="p-3 bg-black/30 border border-white/10 rounded-md space-y-2">
+      <p className="text-xs uppercase tracking-wide text-white/50">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function ChapterRow({ chapter }: { chapter: VideoChapter }) {
+  const timestamp = chapter.timestamp;
+  return (
+    <div className="flex items-center gap-3 text-sm text-white/80">
+      <span className="font-mono text-white/60">{timestamp}</span>
+      <span>{chapter.label}</span>
     </div>
   );
 }
@@ -172,6 +243,9 @@ export function StageWithContent({
               </div>
             ))}
           </div>
+        )}
+        {stage === ProgressStage.UPDATING_METADATA && (
+          <MetadataPreviewCard preview={progress.metadataPreview} />
         )}
       </AccordionContent>
     </>

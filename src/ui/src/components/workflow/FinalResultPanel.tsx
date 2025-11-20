@@ -32,8 +32,13 @@ interface RawTextDisplayProps {
 }
 
 const isValidUrl = (str: string): boolean => {
+  const trimmed = str.trim();
+  // Ensure the entire string is just a URL (no spaces, newlines, or additional text)
+  if (trimmed.includes(" ") || trimmed.includes("\n")) {
+    return false;
+  }
   try {
-    new URL(str);
+    new URL(trimmed);
     return true;
   } catch {
     return false;
@@ -55,7 +60,39 @@ function RawTextDisplay({ content }: RawTextDisplayProps) {
 
 function JsonResultDisplay({ data }: { data: ParsedResult }) {
   const { copyToClipboard } = useClipboard();
-  const entries = Object.entries(data).filter(([key]) => key !== "Status" && key !== "IssueNumber");
+
+  // Parse and restructure the data to separate label patterns like "Type: Bug"
+  const processedData: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    if (key === "Status" || key === "IssueNumber") continue;
+
+    // Special handling for Labels array
+    if (key === "Labels" && Array.isArray(value)) {
+      const regularLabels: string[] = [];
+
+      for (const label of value) {
+        if (typeof label === "string" && label.includes(":")) {
+          // Parse "Type: Bug" pattern
+          const [labelKey, ...labelValueParts] = label.split(":");
+          const labelValue = labelValueParts.join(":").trim();
+          if (labelKey && labelValue) {
+            processedData[labelKey.trim()] = labelValue;
+            continue;
+          }
+        }
+        regularLabels.push(String(label));
+      }
+
+      if (regularLabels.length > 0) {
+        processedData["Labels"] = regularLabels;
+      }
+    } else {
+      processedData[key] = value;
+    }
+  }
+
+  const entries = Object.entries(processedData);
 
   return (
     <div className="space-y-4">
@@ -214,6 +251,26 @@ function ValueRenderer({ value, onCopy }: ValueRendererProps): React.ReactNode {
               </div>
             );
           })}
+        </div>
+      );
+    }
+
+    // Check if all items are simple strings without URLs (like labels/tags)
+    const allSimpleStrings = value.every(
+      (item) => typeof item === "string" && !isValidUrl(item) && !containsUrl(item),
+    );
+
+    if (allSimpleStrings) {
+      return (
+        <div className="flex flex-wrap gap-2">
+          {value.map((item, index) => (
+            <span
+              key={`tag-${String(item).slice(0, 50)}-${index}`}
+              className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap"
+            >
+              {String(item)}
+            </span>
+          ))}
         </div>
       );
     }

@@ -14,6 +14,7 @@ const WORKFLOW_STAGES: WorkflowStage[] = [
   ProgressStage.TRANSCRIBING,
   ProgressStage.GENERATING_TASK,
   ProgressStage.EXECUTING_TASK,
+  ProgressStage.UPDATING_METADATA,
 ];
 
 export function WorkflowProgressPanel() {
@@ -41,7 +42,24 @@ export function WorkflowProgressPanel() {
         ) {
           setMcpSteps([]);
         }
-        return progressData;
+        
+        // Reset preserved fields when starting a new workflow
+        const isStartingNewWorkflow =
+          progressData.stage === ProgressStage.CONVERTING_AUDIO ||
+          progressData.stage === ProgressStage.IDLE;
+
+        if (isStartingNewWorkflow) {
+          return progressData;
+        }
+
+        // Merge progress data to preserve fields like metadataPreview and transcript
+        return {
+          ...prev,
+          ...progressData,
+          // Preserve these fields if not included in the new update
+          metadataPreview: progressData.metadataPreview ?? prev.metadataPreview,
+          transcript: progressData.transcript ?? prev.transcript,
+        };
       });
 
       const stageIndex = WORKFLOW_STAGES.indexOf(progressData.stage);
@@ -157,7 +175,8 @@ export function WorkflowProgressPanel() {
               const hasContent =
                 (stage === ProgressStage.TRANSCRIBING && progress.transcript) ||
                 (stage === ProgressStage.GENERATING_TASK && progress.intermediateOutput) ||
-                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0);
+                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0) ||
+                stage === ProgressStage.UPDATING_METADATA;
 
               return (
                 <AccordionItem

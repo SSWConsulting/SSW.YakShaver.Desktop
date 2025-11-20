@@ -98,10 +98,10 @@ EXAMPLE FINAL OUTPUT (THIS example for issue_create TASK, and the fields can be 
   "Status": "success",
   "Repository": "SSW.YakShaver.Desktop",
   "Title": "Fix login bug",
+  "URL": "Relevant URL if applicable",
   "Description": "Users are unable to log in under certain conditions...",
   "Assignee": "john.doe",
-  "Labels": ["bug", "high priority"],
-  "URL": "Relevant URL if applicable"
+  "Labels": ["YakShaver"]
 }
 
 FOR FAILURE RESPONSES, include:
