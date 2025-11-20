@@ -11,6 +11,30 @@ export class MCPServerManager {
   private static mcpClients: Map<string, MCPServerClient> = new Map();
   private constructor() {}
 
+  // Merge internal (built-in) and external (stored) configs, de-duplicated by name, preferring built-ins
+  private static getAllServerConfigs(): MCPServerConfig[] {
+    const internalServers = InternalMcpTransportRegistry.listServerConfigs();
+    const seen = new Set<string>();
+    const result: MCPServerConfig[] = [];
+    for (const s of internalServers) {
+      if (!seen.has(s.name)) {
+        seen.add(s.name);
+        result.push(s);
+      }
+    }
+    for (const s of MCPServerManager.serverConfigs) {
+      if (!seen.has(s.name)) {
+        seen.add(s.name);
+        result.push(s);
+      }
+    }
+    return result;
+  }
+
+  private static isBuiltinName(name: string): boolean {
+    return InternalMcpTransportRegistry.listServerConfigs().some((s) => s.name === name);
+  }
+
   public static async getInstanceAsync(): Promise<MCPServerManager> {
     if (MCPServerManager.instance) {
       return MCPServerManager.instance;
@@ -22,9 +46,8 @@ export class MCPServerManager {
   }
 
   public async getAllMcpServerClientsAsync(): Promise<MCPServerClient[] | null> {
-    const clientPromises = MCPServerManager.serverConfigs.map((config) =>
-      this.getMcpClientAsync(config.name),
-    );
+    const allConfigs = MCPServerManager.getAllServerConfigs();
+    const clientPromises = allConfigs.map((config) => this.getMcpClientAsync(config.name));
     return await Promise.all(clientPromises);
   }
 
@@ -37,10 +60,7 @@ export class MCPServerManager {
 
   // Get or Create MCP client for a given server name
   public async getMcpClientAsync(name: string): Promise<MCPServerClient> {
-    const internalServers = InternalMcpTransportRegistry.listServerConfigs();
-    const config =
-      internalServers.find((s) => s.name === name) ||
-      MCPServerManager.serverConfigs.find((s) => s.name === name);
+    const config = MCPServerManager.getAllServerConfigs().find((s) => s.name === name);
     if (!config) {
       throw new Error(`MCP server with name '${name}' not found`);
     }
@@ -60,6 +80,10 @@ export class MCPServerManager {
     if (config.builtin) {
       throw new Error("Cannot add a built-in server");
     }
+    // Disallow names that collide with built-in servers
+    if (MCPServerManager.isBuiltinName(config.name)) {
+      throw new Error(`Server name '${config.name}' is reserved by a built-in server`);
+    }
     if (MCPServerManager.serverConfigs.some((s) => s.name === config.name)) {
       throw new Error(`Server with name '${config.name}' already exists`);
     }
@@ -78,7 +102,8 @@ export class MCPServerManager {
     // If the name is changing, ensure the new name isn't already used
     if (
       config.name !== name &&
-      MCPServerManager.serverConfigs.some((s) => s.name === config.name)
+      (MCPServerManager.serverConfigs.some((s) => s.name === config.name) ||
+        MCPServerManager.isBuiltinName(config.name))
     ) {
       throw new Error(`Server with name '${config.name}' already exists`);
     }
@@ -117,16 +142,12 @@ export class MCPServerManager {
   }
 
   public listAvailableServers(): MCPServerConfig[] {
-    const internalServers = InternalMcpTransportRegistry.listServerConfigs();
-    return [...internalServers, ...MCPServerManager.serverConfigs];
+    return MCPServerManager.getAllServerConfigs();
   }
 
   public async checkServerHealthAsync(name: string): Promise<HealthStatusInfo> {
     try {
-      const internalServers = InternalMcpTransportRegistry.listServerConfigs();
-      const serverConfig =
-        internalServers.find((s) => s.name === name) ||
-        MCPServerManager.serverConfigs.find((s) => s.name === name);
+      const serverConfig = MCPServerManager.getAllServerConfigs().find((s) => s.name === name);
       if (!serverConfig) {
         throw new Error(
           `[MCPServerManager]: CheckServerHealth - MCP server with name '${name}' not found`,

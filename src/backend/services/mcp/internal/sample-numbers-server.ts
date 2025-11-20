@@ -129,11 +129,11 @@ export async function createInternalSampleNumbersServer(): Promise<MCPServerConf
             break;
           }
         }
-        if (isPrime) {
+        if (!isPrime) {
           primes.push(num);
         }
       }
-
+      console.log(`Primes up to ${limit}:`, primes);
       return {
         content: [
           {
