@@ -100,7 +100,7 @@ FOR FAILURE RESPONSES, include:
 - "Suggestion": What the user should do next
 
 
-Remember: You are a intelligent agent capable of working with any type of MCP server. Plan intelligently, execute systematically, show clear progress updates, and provide comprehensive, useful results regardless of the domain or server type.`;
+Remember: You are an intelligent agent capable of working with any type of MCP server. Plan intelligently, execute systematically, show clear progress updates, and provide comprehensive, useful results regardless of the domain or server type.`;
 
 export function buildTaskExecutionPrompt(customPrompt?: string): string {
   const trimmed = customPrompt?.trim();
