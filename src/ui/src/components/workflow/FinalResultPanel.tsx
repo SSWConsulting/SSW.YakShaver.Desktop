@@ -85,7 +85,7 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
       }
 
       if (regularLabels.length > 0) {
-        processedData["Labels"] = regularLabels;
+        processedData.Labels = regularLabels;
       }
     } else {
       processedData[key] = value;
