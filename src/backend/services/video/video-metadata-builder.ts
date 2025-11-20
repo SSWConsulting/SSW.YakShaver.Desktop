@@ -90,7 +90,7 @@ export class VideoMetadataBuilder {
     const snippet: YouTubeSnippetUpdate = {
       title: metadata.title,
       description: appendChapters(metadata.description, metadata.chapters),
-      tags: metadata.tags.slice(0, 15),
+      tags: metadata.tags.slice(0, 10),
       categoryId: "28", // Science & Technology
     };
 
