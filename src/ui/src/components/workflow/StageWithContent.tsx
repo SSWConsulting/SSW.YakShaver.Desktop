@@ -150,14 +150,17 @@ function ToolCallStep({
   args?: unknown;
 }) {
   const hasArgs =
-    typeof args === "object" && args !== null && !Array.isArray(args) && Object.keys(args).length > 0;
+    typeof args === "object" &&
+    args !== null &&
+    !Array.isArray(args) &&
+    Object.keys(args).length > 0;
 
   return (
     <div className="space-y-1">
       <div className="text-secondary font-medium flex items-center gap-2">
         <Wrench className="w-4 h-4" />
         Calling tool: {toolName}
-        <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>
+        {serverName && <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>}
       </div>
       {hasArgs && (
         <details className="ml-4 text-xs" onToggle={handleDetailsToggle(args)}>

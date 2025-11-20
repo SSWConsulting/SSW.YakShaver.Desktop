@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
+import { dirname } from "node:path";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import type { ConversionProgress } from "./types";
 
@@ -22,19 +23,8 @@ export class FFmpegService {
     outputPath: string,
     onProgress?: (progress: ConversionProgress) => void,
   ): Promise<string> {
-    // Check if input file exists
-    try {
-      await fs.access(inputPath);
-    } catch {
-      throw new Error(`Input file not found: ${inputPath}`);
-    }
-
-    // Validate ffmpeg binary exists before spawn (better error than ENOENT)
-    try {
-      await fs.access(ffmpegPath);
-    } catch {
-      throw new Error(`FFmpeg binary not found at: ${ffmpegPath}.`);
-    }
+    await this.ensureInputFileExists(inputPath);
+    await this.ensureFfmpegExists();
 
     return new Promise((resolve, reject) => {
       // FFmpeg command to convert video to MP3
@@ -107,5 +97,74 @@ export class FFmpegService {
         reject(new Error(`Failed to start FFmpeg: ${error.message}`));
       });
     });
+  }
+
+  async captureNthFrame(
+    inputPath: string,
+    outputImagePath: string,
+    nSeconds: number,
+  ): Promise<string> {
+    if (nSeconds < 0) {
+      throw new Error("Timestamp must be non-negative.");
+    }
+
+    await this.ensureInputFileExists(inputPath);
+    await this.ensureFfmpegExists();
+    await fs.mkdir(dirname(outputImagePath), { recursive: true });
+
+    const timeStamp = this.formatTimestamp(nSeconds);
+    return new Promise((resolve, reject) => {
+      const args = ["-ss", timeStamp, "-i", inputPath, "-frames:v", "1", "-y", outputImagePath];
+
+      const ffmpegProcess = spawn(ffmpegPath, args);
+      let stderr = "";
+
+      ffmpegProcess.stderr.on("data", (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      ffmpegProcess.on("close", (code: number | null) => {
+        if (code === 0) {
+          resolve(outputImagePath);
+        } else {
+          reject(
+            new Error(`FFmpeg frame capture failed with code ${code ?? "unknown"}: ${stderr}`),
+          );
+        }
+      });
+
+      ffmpegProcess.on("error", (error: Error) => {
+        console.error("FFmpeg spawn error:", error);
+        reject(new Error(`Failed to start FFmpeg: ${error.message}`));
+      });
+    });
+  }
+
+  private async ensureInputFileExists(filePath: string): Promise<void> {
+    try {
+      await fs.access(filePath);
+    } catch {
+      throw new Error(`The specified input file does not exist: ${filePath}`);
+    }
+  }
+
+  private async ensureFfmpegExists(): Promise<void> {
+    try {
+      await fs.access(ffmpegPath);
+    } catch {
+      throw new Error(`FFmpeg binary not found at: ${ffmpegPath}.`);
+    }
+  }
+
+  private formatTimestamp(seconds: number): string {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const millis = Math.round((seconds - Math.floor(seconds)) * 1000);
+
+    const pad = (value: number, length = 2) => value.toString().padStart(length, "0");
+    const millisPart = `.${pad(millis, 3)}`;
+
+    return `${pad(hrs)}:${pad(mins)}:${pad(secs)}${millisPart}`;
   }
 }

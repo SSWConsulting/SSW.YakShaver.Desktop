@@ -1,4 +1,3 @@
-/** biome-ignore-all lint/suspicious/noExplicitAny: The return response from AI is unpredictable so we can't specify exact type  */
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAI } from "@ai-sdk/openai";
 import {
@@ -76,7 +75,7 @@ export class LLMClientProvider {
       const openai = createOpenAI({
         apiKey: llmConfig.apiKey,
       });
-      LLMClientProvider.languageModel = openai(llmConfig.model ?? "gpt-4o");
+      LLMClientProvider.languageModel = openai(llmConfig.model ?? "gpt-5-mini");
     }
 
     if (llmConfig.provider === "azure") {
@@ -106,7 +105,7 @@ export class LLMClientProvider {
 
     let response: any;
     try {
-      response = await streamText({
+      response = streamText({
         model: LLMClientProvider.languageModel,
         tools,
         messages: message,
