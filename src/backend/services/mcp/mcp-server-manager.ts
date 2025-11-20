@@ -213,6 +213,20 @@ export class MCPServerManager {
   }
 
   private static validateServerConfig(config: MCPServerConfig): void {
+    if (!config.name?.trim()) {
+      throw new Error("Server name cannot be empty");
+    }
+
+    if (config.transport !== "inMemory" && MCPServerManager.isBuiltinName(config.name.trim())) {
+      throw new Error(`Server name '${config.name}' is reserved for built-in servers`);
+    }
+
+    if (!/^[a-zA-Z0-9 _-]+$/.test(config.name.trim())) {
+      throw new Error(
+        `Server name '${config.name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
+      );
+    }
+
     if (config.transport === "streamableHttp") {
       if (!config.url?.trim()) {
         throw new Error("HTTP transport servers require a URL");
@@ -224,20 +238,6 @@ export class MCPServerManager {
         throw new Error(`Invalid URL '${config.url}' for server '${config.name}'`);
       }
       return;
-    }
-
-    if (!config.name?.trim()) {
-      throw new Error("Server name cannot be empty");
-    }
-
-    if (config.transport !== "inMemory" && MCPServerManager.isBuiltinName(config.name)) {
-      throw new Error(`Server name '${config.name}' is reserved for built-in servers`);
-    }
-
-    if (!/^[a-zA-Z0-9 _-]+$/.test(config.name)) {
-      throw new Error(
-        `Server name '${config.name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
-      );
     }
 
     if (config.transport === "stdio") {
