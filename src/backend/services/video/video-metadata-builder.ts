@@ -38,7 +38,7 @@ export interface MetadataBuilderResult {
 }
 
 const DEFAULT_TAGS = ["yakshaver", "automation", "workflow"];
-const MIN_CHAPTER_GAP_SECONDS = 10;
+const MIN_CHAPTER_GAP_SECONDS = 5;
 
 export class VideoMetadataBuilder {
   constructor(private readonly llmClient: OpenAIService = OpenAIService.getInstance()) {}
@@ -107,7 +107,9 @@ Return JSON with:
 
 Rules:
 - First chapter must start at 00:00
-- Subsequent chapters must be chronological and at least 10 seconds apart
+- Create a chapter for EACH distinct topic, bug, or task mentioned in the transcript
+- Subsequent chapters must be chronological and at least 5 seconds apart
+- Use specific, descriptive chapter names that reflect the actual content
 - Highlight concrete issues/resources from the execution history
 - Write descriptions suitable for YouTube (no markdown code fences)
 - If information is missing, fall back to clear defaults rather than hallucinating.`;
