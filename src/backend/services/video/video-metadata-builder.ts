@@ -170,7 +170,7 @@ function extractLinksFromText(text: string): LinkCandidate[] {
   if (!text) return [];
   const matches = text.match(URL_REGEX_GLOBAL) || [];
   return matches.map((url) => ({
-    url,
+    url: url.replace(/[.,;:!?]+$/, ""), // Strip trailing punctuation,
     label: deriveLabelFromUrl(url),
   }));
 }
