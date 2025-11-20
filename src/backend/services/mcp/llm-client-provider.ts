@@ -75,7 +75,7 @@ export class LLMClientProvider {
       const openai = createOpenAI({
         apiKey: llmConfig.apiKey,
       });
-      LLMClientProvider.languageModel = openai(llmConfig.model ?? "gpt-4o");
+      LLMClientProvider.languageModel = openai(llmConfig.model ?? "gpt-5-mini");
     }
 
     if (llmConfig.provider === "azure") {
