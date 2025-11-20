@@ -1,6 +1,5 @@
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { HealthStatusInfo } from "../../types/index.js";
-import { formatErrorMessage } from "../../utils/error-utils";
 import { McpStorage } from "../storage/mcp-storage";
 import { MCPServerClient } from "./mcp-server-client";
 import type { MCPServerConfig } from "./types";
@@ -218,15 +217,6 @@ export class MCPServerManager {
     };
   }
 
-  private static validateServerName(name: string): void {
-    if (!name?.trim()) throw new Error("Server name cannot be empty");
-    if (!/^[a-zA-Z0-9 _-]+$/.test(name)) {
-      throw new Error(
-        `Server name '${name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
-      );
-    }
-  }
-
   private static validateServerConfig(config: MCPServerConfig): void {
     if (config.transport === "streamableHttp") {
       if (!config.url?.trim()) {
@@ -235,7 +225,7 @@ export class MCPServerManager {
 
       try {
         new URL(config.url);
-      } catch (error) {
+      } catch (_error) {
         throw new Error(`Invalid URL '${config.url}' for server '${config.name}'`);
       }
       return;
@@ -245,22 +235,28 @@ export class MCPServerManager {
       throw new Error("Server name cannot be empty");
     }
 
+    if (config.transport !== "inMemory" && MCPServerManager.isBuiltinName(config.name)) {
+      throw new Error(`Server name '${config.name}' is reserved for built-in servers`);
+    }
+
     if (!/^[a-zA-Z0-9 _-]+$/.test(config.name)) {
       throw new Error(
         `Server name '${config.name}' contains invalid characters. Only letters, numbers, spaces, underscores, and hyphens are allowed.`,
       );
     }
 
-    if (!config.command?.trim()) {
-      throw new Error("Stdio transport servers require a command");
-    }
+    if (config.transport === "stdio") {
+      if (!config.command?.trim()) {
+        throw new Error("Stdio transport servers require a command");
+      }
 
-    if (config.args && !config.args.every((value) => typeof value === "string")) {
-      throw new Error("Stdio server arguments must be a string array");
-    }
+      if (config.args && !config.args.every((value) => typeof value === "string")) {
+        throw new Error("Stdio server arguments must be a string array");
+      }
 
-    if (config.env && Object.values(config.env).some((value) => typeof value !== "string")) {
-      throw new Error("Stdio server environment variables must map to string values");
+      if (config.env && Object.values(config.env).some((value) => typeof value !== "string")) {
+        throw new Error("Stdio server environment variables must map to string values");
+      }
     }
   }
 

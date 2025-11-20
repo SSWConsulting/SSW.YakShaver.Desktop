@@ -7,7 +7,6 @@ import {
   type StreamTextResult,
   stepCountIs,
   streamText,
-  type ToolSet,
 } from "ai";
 import { BrowserWindow } from "electron";
 import type { HealthStatusInfo } from "../../types";
@@ -98,8 +97,8 @@ export class LLMClientProvider {
 
   public async sendMessage(
     message: ModelMessage[],
-    tools: ToolSet,
-  ): Promise<StreamTextResult<ToolSet, any>> {
+    tools: any,
+  ): Promise<StreamTextResult<any, any>> {
     if (!LLMClientProvider.languageModel) {
       throw new Error("[LLMClientProvider]: LLM client not initialized");
     }

@@ -217,19 +217,15 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 {server.builtin ? (
                                   <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
                                 ) : (
-                                  <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                    {server.url ||
-                                      `${server.transport}${server.command ? `: ${server.command}` : ""}`}
+                                  <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
+                                    {transportLabel}
                                   </p>
                                 )}
-                                <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
-                                  {transportLabel}
-                                </p>
                                 {server.description && (
                                   <p className="mt-1 text-sm text-white/70">{server.description}</p>
                                 )}
                                 <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                  {connectionSummary || "—"}
+                                  {server.builtin ? "" : connectionSummary || "—"}
                                 </p>
                                 {cwdSummary && (
                                   <p className="mt-1 text-xs text-white/40">

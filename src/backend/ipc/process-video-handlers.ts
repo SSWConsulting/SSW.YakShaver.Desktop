@@ -4,13 +4,13 @@ import tmp from "tmp";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
+import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
@@ -34,15 +34,7 @@ export class ProcessVideoIPCHandlers {
       }
 
       // upload to YouTube
-      // const youtubeResult = await this.youtube.uploadVideo(filePath);
-      const youtubeResult: VideoUploadResult = {
-        success: true,
-        data: {
-          title: "",
-          description: "",
-          url: "",
-        },
-      };
+      const youtubeResult = await this.youtube.uploadVideo(filePath);
       this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
 
       // convert video to mp3
