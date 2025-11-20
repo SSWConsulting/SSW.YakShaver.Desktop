@@ -2,7 +2,7 @@ import { BrowserWindow } from "electron";
 import { createOpenAI } from "@ai-sdk/openai"
 import { createDeepSeek } from "@ai-sdk/deepseek"
 import { formatErrorMessage } from "../../utils/error-utils";
-import { generateText, type GenerateTextResult, type LanguageModel, type ModelMessage, stepCountIs, streamText } from "ai";
+import { generateText, type StreamTextResult, type LanguageModel, type ModelMessage, stepCountIs, streamText } from "ai";
 import type { HealthStatusInfo } from "../../types";
 import { LlmStorage } from "../storage/llm-storage";
 
@@ -86,7 +86,7 @@ export class LLMClientProvider {
         return text;
     }
 
-    public async sendMessage(message: ModelMessage[], tools: any): Promise<GenerateTextResult<any, any>> {
+    public async sendMessage(message: ModelMessage[], tools: any): Promise<StreamTextResult<any, any>> {
         if (!LLMClientProvider.languageModel) {
             throw new Error("[LLMClientProvider]: LLM client not initialized");
         }
