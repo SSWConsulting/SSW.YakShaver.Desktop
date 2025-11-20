@@ -105,7 +105,7 @@ export class FFmpegService {
     nSeconds: number,
   ): Promise<string> {
     if (nSeconds < 0) {
-      throw new Error("Frame number 'n' must be a positive integer.");
+      throw new Error("Timestamp must be non-negative.");
     }
 
     await this.ensureInputFileExists(inputPath);
