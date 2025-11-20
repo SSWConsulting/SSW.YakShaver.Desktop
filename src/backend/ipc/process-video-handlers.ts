@@ -10,7 +10,7 @@ import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { MCPOrchestratorNeo } from "../services/mcp/mcp-orchestrator-neo";
+import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
@@ -71,7 +71,7 @@ export class ProcessVideoIPCHandlers {
       const customPrompt = await this.customPromptStorage.getActivePrompt();
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
-      const orchestrator = await MCPOrchestratorNeo.getInstanceAsync();
+      const orchestrator = await MCPOrchestrator.getInstanceAsync();
       const mcpResult = await orchestrator.processMessageAsync(intermediateOutput, youtubeResult, {
         systemPrompt,
       });
@@ -103,7 +103,7 @@ export class ProcessVideoIPCHandlers {
           const customPrompt = await this.customPromptStorage.getActivePrompt();
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
-          const orchestrator = await MCPOrchestratorNeo.getInstanceAsync();
+          const orchestrator = await MCPOrchestrator.getInstanceAsync();
           const mcpResult = await orchestrator.processMessageAsync(
             intermediateOutput,
             videoUploadResult,

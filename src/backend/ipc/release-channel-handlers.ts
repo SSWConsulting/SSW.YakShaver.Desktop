@@ -291,6 +291,8 @@ export class ReleaseChannelIPCHandlers {
 
         // If not on this version, trigger download
         if (!isCurrentlyOnThisVersion) {
+          // Explicitly set the channel before configuring feed URL
+          autoUpdater.channel = channel.channel;
           autoUpdater.setFeedURL({
             provider: "generic",
             url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${targetVersion}`,
@@ -437,6 +439,8 @@ export class ReleaseChannelIPCHandlers {
 
           if (prReleases.length > 0) {
             const latestRelease = prReleases[0];
+            // Explicitly set the channel before configuring feed URL
+            autoUpdater.channel = channel.channel;
             autoUpdater.setFeedURL({
               provider: "generic",
               url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag_name}`,
