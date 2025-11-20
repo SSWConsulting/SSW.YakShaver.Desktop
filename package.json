@@ -50,7 +50,7 @@
     "@types/tmp": "^0.2.6",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
-    "electron": "^36.0.0",
+    "electron": "^39.2.3",
     "electron-builder": "^26.0.12",
     "typescript": "^5.9.2",
     "wait-on": "^9.0.1"
