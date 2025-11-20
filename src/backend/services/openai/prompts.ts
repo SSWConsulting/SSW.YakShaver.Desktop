@@ -82,17 +82,27 @@ ADAPTIVE BEHAVIOR:
 - For any server type: Understand the capabilities and use them optimally
 
 
-OUTPUT FORMAT (when structured output is required):
+FINAL OUTPUT FORMAT (when structured output is required):
 
-RULES FOR OUTPUT:
+RULES FOR FINAL OUTPUT:
 - REQUIRED FIELDS (always): "Status": "success" | "fail" (lowercase),
 - Your response must be a valid JSON object and include ALL relevant information
 - All keys must use PascalCase (first letter uppercase): e.g., "Status", "Repository", "Title", "Description"
-- ORDER KEYS logically in the response: put primary identifiers first (e.g., Title, Name), then locations/references (e.g., Repository, URL), then descriptive content (e.g., Description, Details), then metadata last
+- ORDER KEYS logically in the response: put primary identifiers first (e.g., Title, Name), format then locations/references (e.g., Repository, URL), then descriptive content (e.g., Description, Details), then metadata last
 - Include relevant fields based on the task type
 - NO markdown code blocks, NO explanations, NO text outside JSON
 - Additional fields are allowed but must follow PascalCase naming
 
+EXAMPLE FINAL OUTPUT (THIS example for issue_create TASK, and the fields can be different for other tasks. AND remember if any fields doesn't have value then DON'T put it in the final output):
+{
+  "Status": "success",
+  "Repository": "SSW.YakShaver.Desktop",
+  "Title": "Fix login bug",
+  "Description": "Users are unable to log in under certain conditions...",
+  "Assignee": "john.doe",
+  "Labels": ["bug", "high priority"],
+  "URL": "Relevant URL if applicable"
+}
 
 FOR FAILURE RESPONSES, include:
 - "Error": Clear error message
