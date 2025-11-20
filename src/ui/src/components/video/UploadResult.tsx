@@ -92,19 +92,6 @@ const VideoCard = ({
               </Button>
             </div>
           </div>
-          {videoId && (
-            <div className="mt-3 flex items-center justify-between text-xs text-white/60 font-mono">
-              <span className="truncate">Video ID: {videoId}</span>
-              <Button
-                type="button"
-                className="text-white/60 hover:text-white p-1.5 rounded transition-colors duration-200 hover:bg-white/10"
-                onClick={() => copyToClipboard(videoId)}
-                title="Copy video ID"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          )}
         </CardContent>
       )}
     </Card>
