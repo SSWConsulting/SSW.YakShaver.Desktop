@@ -36,7 +36,6 @@ const VideoCard = ({
   title = "YouTube Upload",
   subtitle,
   url,
-  videoId,
   success = true,
   uploading = false,
   error,
@@ -44,7 +43,6 @@ const VideoCard = ({
   title?: string;
   subtitle?: string;
   url: string | null;
-  videoId?: string;
   success?: boolean;
   uploading?: boolean;
   error?: string;
@@ -138,7 +136,6 @@ export const UploadResult = ({
       title={result.data.title || "YouTube Upload"}
       subtitle={summarizeDescription(result.data.description)}
       url={result.data.url}
-      videoId={result.data.videoId}
       success={true}
     />
   );
