@@ -4,13 +4,13 @@ import tmp from "tmp";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
+import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
@@ -64,11 +64,9 @@ export class ProcessVideoIPCHandlers {
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
-      const mcpResult = await orchestrator.processMessageAsync(
-        intermediateOutput,
-        youtubeResult,
-        { systemPrompt },
-      );
+      const mcpResult = await orchestrator.processMessageAsync(intermediateOutput, youtubeResult, {
+        systemPrompt,
+      });
 
       this.emitProgress(ProgressStage.COMPLETED, {
         transcript,
@@ -106,9 +104,9 @@ export class ProcessVideoIPCHandlers {
 
           this.emitProgress(ProgressStage.COMPLETED, {
             mcpResult,
-            finalOutput: mcpResult.final,
+            finalOutput: mcpResult,
           });
-          return { success: true, mcpResult };
+          return { success: true, finalOutput: mcpResult };
         } catch (error) {
           const errorMessage = formatErrorMessage(error);
           this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
