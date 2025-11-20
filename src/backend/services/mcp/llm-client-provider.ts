@@ -105,7 +105,7 @@ export class LLMClientProvider {
 
     let response: any;
     try {
-      response = await streamText({
+      response = streamText({
         model: LLMClientProvider.languageModel,
         tools,
         messages: message,

@@ -16,11 +16,16 @@ import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
 
-export type Transport = "streamableHttp" | "stdio";
+export type Transport = "streamableHttp" | "stdio" | "inMemory";
 
-type MCPHttpServerConfig = {
+type MCPBaseConfig = {
   name: string;
   description?: string;
+  transport: Transport;
+  builtin?: boolean;
+};
+
+type MCPHttpServerConfig = MCPBaseConfig & {
   transport: "streamableHttp";
   url: string;
   headers?: Record<string, string>;
@@ -28,9 +33,7 @@ type MCPHttpServerConfig = {
   timeoutMs?: number;
 };
 
-type MCPStdioServerConfig = {
-  name: string;
-  description?: string;
+type MCPStdioServerConfig = MCPBaseConfig & {
   transport: "stdio";
   command: string;
   args?: string[];
@@ -39,16 +42,24 @@ type MCPStdioServerConfig = {
   stderr?: "inherit" | "ignore" | "pipe";
 };
 
-export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig;
+type MCPInternalServerConfig = MCPBaseConfig & {
+  transport: "inMemory";
+  builtin: true;
+};
+
+export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig | MCPInternalServerConfig;
 
 const mcpServerSchema = z
   .object({
     name: z
       .string()
       .min(1, "Name is required")
-      .regex(/^[a-zA-Z0-9 _-]+$/, "Only letters, numbers, spaces, underscores, and hyphens allowed"),
+      .regex(
+        /^[a-zA-Z0-9 _-]+$/,
+        "Only letters, numbers, spaces, underscores, and hyphens allowed",
+      ),
     description: z.string().optional(),
-    transport: z.enum(["streamableHttp", "stdio"]),
+    transport: z.enum(["streamableHttp", "stdio", "inMemory"]),
     url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
     headers: z.string().optional(),
     version: z.string().optional(),
@@ -393,17 +404,17 @@ export function McpServerFormWrapper({
       name: initialData?.name ?? "",
       description: initialData?.description ?? "",
       transport: initialData?.transport ?? "streamableHttp",
-      url: initialData?.transport === "streamableHttp" ? initialData?.url ?? "" : "",
+      url: initialData?.transport === "streamableHttp" ? (initialData?.url ?? "") : "",
       headers:
         initialData?.transport === "streamableHttp" && initialData?.headers
           ? JSON.stringify(initialData.headers, null, 2)
           : "",
-      version: initialData?.transport === "streamableHttp" ? initialData?.version ?? "" : "",
+      version: initialData?.transport === "streamableHttp" ? (initialData?.version ?? "") : "",
       timeoutMs:
         initialData?.transport === "streamableHttp" && typeof initialData?.timeoutMs === "number"
           ? initialData.timeoutMs
           : "",
-      command: initialData?.transport === "stdio" ? initialData?.command ?? "" : "",
+      command: initialData?.transport === "stdio" ? (initialData?.command ?? "") : "",
       args:
         initialData?.transport === "stdio" && initialData?.args?.length
           ? initialData.args.join("\n")
@@ -412,8 +423,8 @@ export function McpServerFormWrapper({
         initialData?.transport === "stdio" && initialData?.env
           ? JSON.stringify(initialData.env, null, 2)
           : "",
-      cwd: initialData?.transport === "stdio" ? initialData?.cwd ?? "" : "",
-      stderr: initialData?.transport === "stdio" ? initialData?.stderr ?? "inherit" : "inherit",
+      cwd: initialData?.transport === "stdio" ? (initialData?.cwd ?? "") : "",
+      stderr: initialData?.transport === "stdio" ? (initialData?.stderr ?? "inherit") : "inherit",
     },
   });
 
@@ -466,7 +477,7 @@ export function McpServerFormWrapper({
       }
 
       if (
-        (result.startsWith("\"") && result.endsWith("\"")) ||
+        (result.startsWith('"') && result.endsWith('"')) ||
         (result.startsWith("'") && result.endsWith("'"))
       ) {
         result = result.slice(1, -1).trim();
