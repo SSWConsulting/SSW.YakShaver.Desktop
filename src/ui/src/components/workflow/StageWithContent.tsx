@@ -20,7 +20,7 @@ interface MCPStep {
   reasoning?: string;
   toolName?: string;
   serverName?: string;
-  args?: Record<string, unknown>;
+  args?: unknown;
   result?: unknown;
   error?: string;
   timestamp?: number;
@@ -147,9 +147,10 @@ function ToolCallStep({
 }: {
   toolName?: string;
   serverName?: string;
-  args?: Record<string, unknown>;
+  args?: unknown;
 }) {
-  const hasArgs = args && Object.keys(args).length > 0;
+  const hasArgs =
+    typeof args === "object" && args !== null && !Array.isArray(args) && Object.keys(args).length > 0;
 
   return (
     <div className="space-y-1">

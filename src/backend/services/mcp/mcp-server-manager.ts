@@ -1,6 +1,6 @@
 import { McpStorage } from "../storage/mcp-storage";
 import { MCPServerClient } from "./mcp-server-client";
-import { MCPServerConfig } from "./types";
+import type { MCPServerConfig } from "./types";
 import type { HealthStatusInfo } from "../../types/index.js";
 
 
@@ -68,8 +68,9 @@ export class MCPServerManager {
             throw new Error(`MCP server with name '${name}' not found`);
         }
 
-        if (MCPServerManager.mcpClients.has(name)) {
-            return MCPServerManager.mcpClients.get(name)!;
+        const existingClient = MCPServerManager.mcpClients.get(name);
+        if (existingClient) {
+            return existingClient;
         }
 
         const client = await MCPServerClient.createClientAsync(config);

@@ -134,9 +134,9 @@ export class ProcessVideoIPCHandlers {
 
           this.emitProgress(ProgressStage.COMPLETED, {
             mcpResult,
-            finalOutput: mcpResult.final,
+            finalOutput: mcpResult,
           });
-          return { success: true, mcpResult };
+          return { success: true, finalOutput: mcpResult };
         } catch (error) {
           const errorMessage = formatErrorMessage(error);
           this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
