@@ -67,7 +67,8 @@ export class ProcessVideoIPCHandlers {
       const mcpResult = await orchestrator.processMessageAsync(
         intermediateOutput,
         youtubeResult,
-        { systemPrompt })
+        { systemPrompt },
+      );
 
       this.emitProgress(ProgressStage.COMPLETED, {
         transcript,
