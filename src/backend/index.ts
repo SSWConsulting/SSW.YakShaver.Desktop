@@ -16,8 +16,7 @@ import { VideoIPCHandlers } from "./ipc/video-handlers";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
-import { createInternalVideoToolsServer } from "./services/mcp/internal/video-tools-server";
-import { createInternalSampleNumbersServer } from "./services/mcp/internal/sample-numbers-server";
+import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -113,8 +112,7 @@ app.whenReady().then(async () => {
   _screenRecordingHandlers = new ScreenRecordingIPCHandlers();
 
   // Initialize in-memory MCP servers
-  await createInternalSampleNumbersServer();
-  await createInternalVideoToolsServer();
+  await registerAllInternalMcpServers();
 
   const mcpServerManager = await MCPServerManager.getInstanceAsync();
   _mcpHandlers = new McpIPCHandlers(mcpServerManager);

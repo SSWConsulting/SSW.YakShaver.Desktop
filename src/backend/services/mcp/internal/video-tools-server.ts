@@ -8,7 +8,7 @@ import { z } from "zod";
 import { FFmpegService } from "../../ffmpeg/ffmpeg-service.js";
 import { LLMClientProvider } from "../llm-client-provider.js";
 import type { MCPServerConfig } from "../types.js";
-import { InternalMcpTransportRegistry } from "./mcp-transport-registry.js";
+import type { InternalMcpServerRegistration } from "./internal-server-types.js";
 
 const captureInputShape = {
   videoPath: z.string().min(1).describe("Absolute path to the source video"),
@@ -25,7 +25,7 @@ const describeInputShape = {
 };
 const describeInputSchema = z.object(describeInputShape);
 
-export async function createInternalVideoToolsServer(): Promise<MCPServerConfig> {
+export async function createInternalVideoToolsServer(): Promise<InternalMcpServerRegistration> {
   const ffmpegService = FFmpegService.getInstance();
   const llmClientProvider = await LLMClientProvider.getInstanceAsync();
   const serverId = `yak-video-tools-${randomUUID()}`;
@@ -107,8 +107,6 @@ export async function createInternalVideoToolsServer(): Promise<MCPServerConfig>
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await mcpServer.connect(serverTransport);
 
-  InternalMcpTransportRegistry.registerClientTransport(serverId, clientTransport);
-
   const config: MCPServerConfig = {
     name: "Yak Video Tools",
     description: "Built-in video frame capture and screenshot interpretation tools.",
@@ -117,8 +115,7 @@ export async function createInternalVideoToolsServer(): Promise<MCPServerConfig>
     builtin: true,
   };
 
-  InternalMcpTransportRegistry.registerServerConfig(config);
-  return config;
+  return { config, clientTransport };
 }
 
 async function ensureFileExists(filePath: string, label: string): Promise<void> {

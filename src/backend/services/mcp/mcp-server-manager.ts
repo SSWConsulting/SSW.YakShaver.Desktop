@@ -1,19 +1,43 @@
+import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { HealthStatusInfo } from "../../types/index.js";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { McpStorage } from "../storage/mcp-storage";
-import { InternalMcpTransportRegistry } from "./internal/mcp-transport-registry";
 import { MCPServerClient } from "./mcp-server-client";
 import type { MCPServerConfig } from "./types";
 
 export class MCPServerManager {
   private static instance: MCPServerManager;
-  private static serverConfigs: MCPServerConfig[];
+  private static serverConfigs: MCPServerConfig[] = [];
+  private static internalServerConfigs: MCPServerConfig[] = [];
+  private static internalClientTransports: Map<string, InMemoryTransport> = new Map();
   private static mcpClients: Map<string, MCPServerClient> = new Map();
   private constructor() {}
 
+  public static registerInternalServer(
+    config: MCPServerConfig,
+    clientTransport: InMemoryTransport,
+  ): void {
+    if (config.transport !== "inMemory" || !config.inMemoryServerId) {
+      throw new Error(
+        `Internal MCP server '${config.name}' must use inMemory transport with a server ID`,
+      );
+    }
+
+    // Ensure builtin metadata is set
+    config.builtin = true;
+
+    // Replace any existing entry with same name to keep latest config
+    MCPServerManager.internalServerConfigs = MCPServerManager.internalServerConfigs.filter(
+      (s) => s.name !== config.name,
+    );
+    MCPServerManager.internalServerConfigs.push(config);
+
+    MCPServerManager.internalClientTransports.set(config.inMemoryServerId, clientTransport);
+  }
+
   // Merge internal (built-in) and external (stored) configs, de-duplicated by name, preferring built-ins
   private static getAllServerConfigs(): MCPServerConfig[] {
-    const internalServers = InternalMcpTransportRegistry.listServerConfigs();
+    const internalServers = MCPServerManager.internalServerConfigs;
     const seen = new Set<string>();
     const result: MCPServerConfig[] = [];
     for (const s of internalServers) {
@@ -32,7 +56,7 @@ export class MCPServerManager {
   }
 
   private static isBuiltinName(name: string): boolean {
-    return InternalMcpTransportRegistry.listServerConfigs().some((s) => s.name === name);
+    return MCPServerManager.internalServerConfigs.some((s) => s.name === name);
   }
 
   public static async getInstanceAsync(): Promise<MCPServerManager> {
@@ -70,7 +94,19 @@ export class MCPServerManager {
       return client;
     }
 
-    client = await MCPServerClient.createClientAsync(config);
+    const inMemoryClientTransport =
+      config.transport === "inMemory" && config.inMemoryServerId
+        ? MCPServerManager.internalClientTransports.get(config.inMemoryServerId)
+        : undefined;
+    if (config.transport === "inMemory" && !inMemoryClientTransport) {
+      throw new Error(
+        `No in-memory transport registered for server '${name}'. Ensure it was initialized correctly.`,
+      );
+    }
+
+    client = await MCPServerClient.createClientAsync(config, {
+      inMemoryClientTransport,
+    });
     MCPServerManager.mcpClients.set(name, client);
     return client;
   }

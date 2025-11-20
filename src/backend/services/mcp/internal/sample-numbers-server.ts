@@ -3,9 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MCPServerConfig } from "../types.js";
-import { InternalMcpTransportRegistry } from "./mcp-transport-registry.js";
-
-const activeServers: McpServer[] = [];
+import type { InternalMcpServerRegistration } from "./internal-server-types.js";
 
 const generateRandomNumbersInputShape = {
   count: z.number().min(1).max(100).describe("Number of random numbers to generate"),
@@ -27,7 +25,7 @@ const getPrimeNumbersSchema = z.object(getPrimeNumbersInputShape);
 /**
  * Create and initialize the sample numbers in-memory MCP server
  */
-export async function createInternalSampleNumbersServer(): Promise<MCPServerConfig> {
+export async function createInternalSampleNumbersServer(): Promise<InternalMcpServerRegistration> {
   const serverId = `sample-numbers-${randomUUID()}`;
 
   const mcpServer = new McpServer({
@@ -156,9 +154,6 @@ export async function createInternalSampleNumbersServer(): Promise<MCPServerConf
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await mcpServer.connect(serverTransport);
-  activeServers.push(mcpServer);
-
-  InternalMcpTransportRegistry.registerClientTransport(serverId, clientTransport);
 
   const config: MCPServerConfig = {
     name: "Sample numbers",
@@ -168,6 +163,5 @@ export async function createInternalSampleNumbersServer(): Promise<MCPServerConf
     builtin: true,
   };
 
-  InternalMcpTransportRegistry.registerServerConfig(config);
-  return config;
+  return { config, clientTransport };
 }

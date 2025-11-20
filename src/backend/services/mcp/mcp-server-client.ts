@@ -1,8 +1,12 @@
 import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { InternalMcpTransportRegistry } from "./internal/mcp-transport-registry";
+import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ToolSet } from "ai";
 import type { MCPServerConfig } from "./types";
+
+interface CreateClientOptions {
+  inMemoryClientTransport?: InMemoryTransport;
+}
 
 export class MCPServerClient {
   private mcpClient: experimental_MCPClient;
@@ -11,7 +15,10 @@ export class MCPServerClient {
     this.mcpClient = client;
   }
 
-  public static async createClientAsync(mcpConfig: MCPServerConfig): Promise<MCPServerClient> {
+  public static async createClientAsync(
+    mcpConfig: MCPServerConfig,
+    options: CreateClientOptions = {},
+  ): Promise<MCPServerClient> {
     // create streamableHttp transport MCP client
     if (mcpConfig.transport === "streamableHttp") {
       const client = await experimental_createMCPClient({
@@ -37,9 +44,12 @@ export class MCPServerClient {
 
     // create inMemory transport MCP client
     if (mcpConfig.transport === "inMemory") {
-      const clientTransport = InternalMcpTransportRegistry.getClientTransport(
-        mcpConfig.inMemoryServerId,
-      );
+      const clientTransport = options.inMemoryClientTransport;
+      if (!clientTransport) {
+        throw new Error(
+          `Missing in-memory transport for MCP server '${mcpConfig.name}'. Ensure it is registered before use.`,
+        );
+      }
       const client = await experimental_createMCPClient({
         transport: clientTransport,
       });
