@@ -4,26 +4,29 @@ import tmp from "tmp";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
+import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
+import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
   private readonly llmClient = OpenAIService.getInstance(); // TODO: make generic interface for different LLMs https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
   private ffmpegService = FFmpegService.getInstance();
   private readonly customPromptStorage = CustomPromptStorage.getInstance();
+  private readonly metadataBuilder: VideoMetadataBuilder;
 
   constructor() {
+    this.metadataBuilder = new VideoMetadataBuilder(this.llmClient);
     this.registerHandlers();
   }
 
   private registerHandlers(): void {
-    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO, async (event, filePath?: string) => {
+    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO, async (_event, filePath?: string) => {
       if (!filePath) {
         throw new Error("video-process-handler: Video file path is required");
       }
@@ -34,7 +37,7 @@ export class ProcessVideoIPCHandlers {
       }
 
       // upload to YouTube
-      const youtubeResult = await this.youtube.uploadVideo(filePath);
+      let youtubeResult = await this.youtube.uploadVideo(filePath);
       this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
 
       // convert video to mp3
@@ -64,16 +67,42 @@ export class ProcessVideoIPCHandlers {
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
-      const mcpResult = await orchestrator.processMessageAsync(
-        intermediateOutput,
-        youtubeResult,
-        { systemPrompt })
+      const mcpResult = await orchestrator.processMessageAsync(intermediateOutput, youtubeResult, {
+        systemPrompt,
+      });
+
+      if (youtubeResult.success && youtubeResult.data?.videoId) {
+        try {
+          this.emitProgress(ProgressStage.UPDATING_METADATA);
+          const metadata = await this.metadataBuilder.build({
+            transcriptVtt: transcript,
+            intermediateOutput,
+            executionHistory: JSON.stringify(mcpResult.transcript ?? [], null, 2),
+            finalResult: mcpResult.final ?? undefined,
+          });
+          this.emitProgress(ProgressStage.UPDATING_METADATA, {
+            metadataPreview: metadata.metadata,
+          });
+          const updateResult = await this.youtube.updateVideoMetadata(
+            youtubeResult.data.videoId,
+            metadata.snippet,
+          );
+          if (updateResult.success) {
+            youtubeResult = updateResult;
+          } else if (updateResult.error) {
+            console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+          }
+        } catch (metadataError) {
+          console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
+        }
+      }
 
       this.emitProgress(ProgressStage.COMPLETED, {
         transcript,
         intermediateOutput,
         mcpResult,
         finalOutput: mcpResult,
+        uploadResult: youtubeResult,
       });
 
       // delete the temporary video file
@@ -105,9 +134,9 @@ export class ProcessVideoIPCHandlers {
 
           this.emitProgress(ProgressStage.COMPLETED, {
             mcpResult,
-            finalOutput: mcpResult.final,
+            finalOutput: mcpResult,
           });
-          return { success: true, mcpResult };
+          return { success: true, finalOutput: mcpResult };
         } catch (error) {
           const errorMessage = formatErrorMessage(error);
           this.emitProgress(ProgressStage.ERROR, { error: errorMessage });

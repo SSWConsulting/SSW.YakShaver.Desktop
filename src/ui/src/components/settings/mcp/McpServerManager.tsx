@@ -210,15 +210,19 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                               </div>
 
                               <div className="flex-1">
-                                <h3 className="text-lg font-semibold">{server.name}</h3>
-                                <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
-                                  {transportLabel}
-                                </p>
+                                <h3 className="text-lg font-semibold text-white">{server.name}</h3>
+                                {server.builtin ? (
+                                  <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
+                                ) : (
+                                  <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
+                                    {transportLabel}
+                                  </p>
+                                )}
                                 {server.description && (
                                   <p className="mt-1 text-sm text-white/70">{server.description}</p>
                                 )}
-                                <p className="mt-2 break-all text-sm text-muted-foreground">
-                                  {connectionSummary || "—"}
+                                <p className="mt-2 break-all font-mono text-sm text-white/50">
+                                  {server.builtin ? "" : connectionSummary || "—"}
                                 </p>
                                 {cwdSummary && (
                                   <p className="mt-1 text-xs text-white/40">
@@ -227,24 +231,23 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 )}
                               </div>
                             </div>
-                            <div className="flex flex-col items-end gap-3">
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => showEditForm(server)}
-                                  disabled={isLoading}
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => confirmDeleteServer(server.name)}
-                                  disabled={isLoading}
-                                >
-                                  Delete
-                                </Button>
-                              </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => showEditForm(server)}
+                                disabled={isLoading || server.builtin}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => confirmDeleteServer(server.name)}
+                                disabled={isLoading || server.builtin}
+                              >
+                                Delete
+                              </Button>
                             </div>
                           </div>
                         </CardContent>

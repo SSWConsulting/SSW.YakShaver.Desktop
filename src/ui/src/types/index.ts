@@ -33,6 +33,7 @@ export interface YouTubeConfig {
 export interface VideoUploadResult {
   success: boolean;
   data?: {
+    videoId: string;
     title: string;
     description: string;
     url: string;
@@ -98,12 +99,25 @@ interface AzureOpenAI {
 
 export type LLMConfig = OpenAI | AzureOpenAI;
 
+export interface VideoChapter {
+  label: string;
+  timestamp: string;
+}
+
+export interface MetadataPreview {
+  title: string;
+  description: string;
+  tags?: string[];
+  chapters?: VideoChapter[];
+}
+
 export type WorkflowStage =
   | "idle"
   | "converting_audio"
   | "transcribing"
   | "generating_task"
   | "executing_task"
+  | "updating_metadata"
   | "completed"
   | "error";
 
@@ -113,6 +127,7 @@ export const STAGE_CONFIG: Record<WorkflowStage, string> = {
   transcribing: "Transcribing audio",
   generating_task: "Analyzing transcript",
   executing_task: "Executing task",
+  updating_metadata: "Updating YouTube metadata",
   completed: "Completed",
   error: "Error occurred",
 };
@@ -123,6 +138,7 @@ export interface WorkflowProgress {
   intermediateOutput?: string;
   finalOutput?: string;
   uploadResult?: VideoUploadResult;
+  metadataPreview?: MetadataPreview;
   error?: string;
 }
 
@@ -151,6 +167,13 @@ export enum ProgressStage {
   TRANSCRIPTION_COMPLETED = "transcription_completed",
   GENERATING_TASK = "generating_task",
   EXECUTING_TASK = "executing_task",
+  UPDATING_METADATA = "updating_metadata",
   ERROR = "error",
   COMPLETED = "completed",
 }
+
+export const UNDO_EVENT_CHANNEL = "yakshaver:undo-event";
+
+export type UndoEventDetail = {
+  type: "start" | "complete" | "error" | "reset";
+};

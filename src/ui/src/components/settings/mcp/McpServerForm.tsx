@@ -16,11 +16,16 @@ import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
 
-export type Transport = "streamableHttp" | "stdio";
+export type Transport = "streamableHttp" | "stdio" | "inMemory";
 
-type MCPHttpServerConfig = {
+type MCPBaseConfig = {
   name: string;
   description?: string;
+  transport: Transport;
+  builtin?: boolean;
+};
+
+type MCPHttpServerConfig = MCPBaseConfig & {
   transport: "streamableHttp";
   url: string;
   headers?: Record<string, string>;
@@ -28,9 +33,7 @@ type MCPHttpServerConfig = {
   timeoutMs?: number;
 };
 
-type MCPStdioServerConfig = {
-  name: string;
-  description?: string;
+type MCPStdioServerConfig = MCPBaseConfig & {
   transport: "stdio";
   command: string;
   args?: string[];
@@ -39,7 +42,12 @@ type MCPStdioServerConfig = {
   stderr?: "inherit" | "ignore" | "pipe";
 };
 
-export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig;
+type MCPInternalServerConfig = MCPBaseConfig & {
+  transport: "inMemory";
+  builtin: true;
+};
+
+export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig | MCPInternalServerConfig;
 
 const mcpServerSchema = z
   .object({
@@ -51,7 +59,7 @@ const mcpServerSchema = z
         "Only letters, numbers, spaces, underscores, and hyphens allowed",
       ),
     description: z.string().optional(),
-    transport: z.enum(["streamableHttp", "stdio"]),
+    transport: z.enum(["streamableHttp", "stdio", "inMemory"]),
     url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
     headers: z.string().optional(),
     version: z.string().optional(),

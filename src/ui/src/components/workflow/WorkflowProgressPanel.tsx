@@ -2,26 +2,38 @@ import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import { ProgressStage, type WorkflowProgress, type WorkflowStage } from "../../types";
+import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
 import { Accordion, AccordionItem } from "../ui/accordion";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { type MCPStep, StageWithContent } from "./StageWithContent";
 import { StageWithoutContent } from "./StageWithoutContent";
+import { UndoStagePanel } from "./UndoStagePanel";
 
 const WORKFLOW_STAGES: WorkflowStage[] = [
   ProgressStage.CONVERTING_AUDIO,
   ProgressStage.TRANSCRIBING,
   ProgressStage.GENERATING_TASK,
   ProgressStage.EXECUTING_TASK,
+  ProgressStage.UPDATING_METADATA,
 ];
 
 export function WorkflowProgressPanel() {
   const [progress, setProgress] = useState<WorkflowProgress>({ stage: ProgressStage.IDLE });
   const [mcpSteps, setMcpSteps] = useState<MCPStep[]>([]);
+  const [undoSteps, setUndoSteps] = useState<MCPStep[]>([]);
+  const [undoStatus, setUndoStatus] = useState<"idle" | "in_progress" | "completed" | "error">(
+    "idle",
+  );
   const [openAccordions, setOpenAccordions] = useState<string[]>([]);
   const stepsRef = useRef<HTMLDivElement | null>(null);
+  const undoStatusRef = useRef<"idle" | "in_progress" | "completed" | "error">("idle");
 
   useEffect(() => {
-    return ipcClient.workflow.onProgress((data: unknown) => {
+    undoStatusRef.current = undoStatus;
+  }, [undoStatus]);
+
+  useEffect(() => {
+    const unsubscribeProgress = ipcClient.workflow.onProgress((data: unknown) => {
       const progressData = data as WorkflowProgress;
       setProgress((prev) => {
         if (
@@ -30,17 +42,72 @@ export function WorkflowProgressPanel() {
         ) {
           setMcpSteps([]);
         }
-        return progressData;
+        
+        // Reset preserved fields when starting a new workflow
+        const isStartingNewWorkflow =
+          progressData.stage === ProgressStage.CONVERTING_AUDIO ||
+          progressData.stage === ProgressStage.IDLE;
+
+        if (isStartingNewWorkflow) {
+          return progressData;
+        }
+
+        // Merge progress data to preserve fields like metadataPreview and transcript
+        return {
+          ...prev,
+          ...progressData,
+          // Preserve these fields if not included in the new update
+          metadataPreview: progressData.metadataPreview ?? prev.metadataPreview,
+          transcript: progressData.transcript ?? prev.transcript,
+        };
       });
 
       const stageIndex = WORKFLOW_STAGES.indexOf(progressData.stage);
       if (stageIndex !== -1) setOpenAccordions([`stage-${stageIndex}`]);
+
+      if (
+        progressData.stage === ProgressStage.CONVERTING_AUDIO ||
+        progressData.stage === ProgressStage.IDLE
+      ) {
+        setUndoStatus("idle");
+        setUndoSteps([]);
+      }
     });
+    const undoEventListener = (event: Event) => {
+      const detail = (event as CustomEvent<UndoEventDetail>).detail;
+      if (!detail) return;
+      switch (detail.type) {
+        case "start":
+          setUndoStatus("in_progress");
+          setUndoSteps([]);
+          break;
+        case "complete":
+          setUndoStatus("completed");
+          break;
+        case "error":
+          setUndoStatus("error");
+          break;
+        case "reset":
+          setUndoStatus("idle");
+          setUndoSteps([]);
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener(UNDO_EVENT_CHANNEL, undoEventListener as EventListener);
+
+    return () => {
+      unsubscribeProgress();
+      window.removeEventListener(UNDO_EVENT_CHANNEL, undoEventListener as EventListener);
+    };
   }, []);
 
   useEffect(() => {
     return ipcClient.mcp.onStepUpdate((step) => {
-      setMcpSteps((prev) => {
+      const targetSetter = undoStatusRef.current === "idle" ? setMcpSteps : setUndoSteps;
+      targetSetter((prev) => {
         const updated = [...prev, { ...step, timestamp: Date.now() }];
         requestAnimationFrame(() => {
           if (stepsRef.current) {
@@ -108,7 +175,8 @@ export function WorkflowProgressPanel() {
               const hasContent =
                 (stage === ProgressStage.TRANSCRIBING && progress.transcript) ||
                 (stage === ProgressStage.GENERATING_TASK && progress.intermediateOutput) ||
-                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0);
+                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0) ||
+                stage === ProgressStage.UPDATING_METADATA;
 
               return (
                 <AccordionItem
@@ -145,6 +213,12 @@ export function WorkflowProgressPanel() {
           )}
         </CardContent>
       </Card>
+
+      {undoStatus !== "idle" && undoSteps.length > 0 && (
+        <div className="mt-3">
+          <UndoStagePanel status={undoStatus} steps={undoSteps} stepsRef={stepsRef} />
+        </div>
+      )}
     </div>
   );
 }
