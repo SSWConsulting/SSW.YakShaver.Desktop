@@ -55,15 +55,12 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
   };
 
   const buttonText = getButtonText();
-  const buttonStyle = isConnected
-    ? "bg-white/10 text-white border border-white/20 hover:bg-white/20"
-    : "bg-white text-black hover:bg-gray-200";
 
   return (
     <Card className="w-full bg-black/20 backdrop-blur-sm border-white/10">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-white text-2xl font-medium">Select Platform</CardTitle>
+          <CardTitle className="text-2xl font-medium">Select Platform</CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="size-4" />
           </Button>
@@ -88,7 +85,6 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
                 size="sm"
                 onClick={handleAction}
                 disabled={isConnecting && !isConnected}
-                className={buttonStyle}
               >
                 {buttonText}
               </Button>

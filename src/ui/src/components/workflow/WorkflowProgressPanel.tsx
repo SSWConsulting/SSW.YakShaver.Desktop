@@ -88,7 +88,7 @@ export function WorkflowProgressPanel() {
         <Card className="bg-black/20 backdrop-blur-md border-white/10">
           <CardContent className="py-16 text-center">
             <AlertCircle className="w-16 h-16 text-white/40 mx-auto mb-4" />
-            <h3 className="text-white text-xl font-medium mb-2">No Active Workflow</h3>
+            <h3 className="text-xl font-medium mb-2">No Active Workflow</h3>
             <p className="text-white/60">Record a video to start the automated workflow</p>
           </CardContent>
         </Card>
@@ -100,7 +100,7 @@ export function WorkflowProgressPanel() {
     <div className="w-[500px] mx-auto my-4">
       <Card className="bg-black/20 backdrop-blur-md border-white/10">
         <CardHeader>
-          <CardTitle className="text-white text-xl">AI Workflow Progress</CardTitle>
+          <CardTitle className=" text-xl">AI Workflow Progress</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <Accordion type="multiple" value={openAccordions} onValueChange={setOpenAccordions}>
