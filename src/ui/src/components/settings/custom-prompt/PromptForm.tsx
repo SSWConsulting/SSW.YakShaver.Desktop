@@ -123,7 +123,7 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             render={({ field }) => (
               <FormItem className="flex flex-col flex-1 min-h-0 overflow-hidden shrink-0 max-w-full">
                 <div className="flex items-center justify-between">
-                  <FormLabel>Prompt Instructions</FormLabel>
+                  <FormLabel className="text-white/90 text-sm">Prompt Instructions</FormLabel>
                   <Button
                     type="button"
                     variant="ghost"
@@ -140,7 +140,8 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
                     {...field}
                     placeholder="Enter your custom instructions here..."
                     disabled={isDefault}
-                    className="resize-none flex-1 max-h-50 overflow-y-auto font-mono text-sm bg-black/40 border-white/20"
+                    className="resize-none flex-1 max-h-50 overflow-y-auto font-mono text-sm bg-black/40 border-white/20 max-w-full"
+                    style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" }}
                   />
                 </FormControl>
                 <FormDescription>
