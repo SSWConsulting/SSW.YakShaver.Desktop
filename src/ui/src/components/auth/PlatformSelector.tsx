@@ -81,7 +81,7 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
             <div className="flex items-center gap-4">
               {isConnected && <Badge variant="outline">Connected</Badge>}
               <Button
-                variant={isConnected ? "outline" : "secondary"}
+                variant="default"
                 size="sm"
                 onClick={handleAction}
                 disabled={isConnecting && !isConnected}
