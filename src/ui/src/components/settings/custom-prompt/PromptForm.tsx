@@ -140,7 +140,7 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
                     {...field}
                     placeholder="Enter your custom instructions here..."
                     disabled={isDefault}
-                    className="resize-none flex-1 max-h-50 overflow-y-auto font-mono text-sm bg-black/40 border-white/20 max-w-full wrap-break-word break-normal whitespace-pre-wrap"
+                    className="resize-none flex-1 max-h-50 overflow-y-auto font-mono text-sm bg-black/40 border-white/20 max-w-full wrap-break-word break-normal whitespace-pre-wrap overflow-x-hidden [word-break:break-word]"
                   />
                 </FormControl>
                 <FormDescription>
