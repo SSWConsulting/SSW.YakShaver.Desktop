@@ -79,7 +79,7 @@ export const PlatformSelector = ({ onClose, hasYouTubeConfig }: PlatformSelector
               </div>
             </div>
             <div className="flex items-center gap-4">
-              {isConnected && <Badge variant="outline">Connected</Badge>}
+              {isConnected && <Badge variant="success">Connected</Badge>}
               <Button
                 variant="default"
                 size="sm"

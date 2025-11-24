@@ -24,7 +24,7 @@ export function PromptCard({ prompt, isActive, onEdit, onSetActive }: PromptCard
               </Badge>
             )}
             {isActive && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="success" className="text-xs">
                 Active
               </Badge>
             )}

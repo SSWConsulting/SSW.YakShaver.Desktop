@@ -55,7 +55,7 @@ export const ConnectedStatus = ({ userInfo, platform, onSwitch }: ConnectedStatu
             </div>
           </div>
 
-          <Badge variant="outline">Active</Badge>
+          <Badge variant="success">Active</Badge>
         </div>
       </CardContent>
 
