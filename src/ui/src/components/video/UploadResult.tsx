@@ -2,7 +2,7 @@ import { Copy, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useClipboard } from "../../hooks/useClipboard";
-import type { UploadStatus, VideoUploadResult } from "../../types";
+import { UploadStatus, type VideoUploadResult } from "../../types";
 import { Button } from "../ui/button";
 
 const openUrl = (url: string | null) => {
@@ -33,13 +33,15 @@ const StatusBadge = ({ success }: { success: boolean }) => (
 );
 
 const VideoCard = ({
-  description,
+  title = "YouTube Upload",
+  subtitle,
   url,
   success = true,
   uploading = false,
   error,
 }: {
-  description: string;
+  title?: string;
+  subtitle?: string;
   url: string | null;
   success?: boolean;
   uploading?: boolean;
@@ -52,8 +54,10 @@ const VideoCard = ({
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base text-white">YouTube Upload</CardTitle>
-            <CardDescription className="text-sm text-white/60">{description}</CardDescription>
+            <CardTitle className="text-base text-white">{title}</CardTitle>
+            {subtitle && (
+              <CardDescription className="text-sm text-white/60">{subtitle}</CardDescription>
+            )}
           </div>
           <div className="flex-shrink-0">
             {uploading ? <UploadingBadge /> : <StatusBadge success={success} />}
@@ -66,7 +70,7 @@ const VideoCard = ({
       {!uploading && (
         <CardContent>
           <div className="p-3 bg-white/5 rounded-md flex items-center justify-between border border-white/10">
-            <p className="text-sm text-white truncate flex-1 min-w-0">{url}</p>
+            <p className="text-sm truncate flex-1 min-w-0">{url}</p>
             <div className="flex items-center gap-1 ml-2">
               <Button
                 type="button"
@@ -92,6 +96,12 @@ const VideoCard = ({
   );
 };
 
+const summarizeDescription = (description: string) => {
+  if (!description) return "";
+  const firstLine = description.split("\n").find((line) => line.trim().length > 0) ?? "";
+  return firstLine.length > 140 ? `${firstLine.slice(0, 137)}...` : firstLine;
+};
+
 export const UploadResult = ({
   result,
   status,
@@ -100,23 +110,35 @@ export const UploadResult = ({
   status: UploadStatus;
 }) => {
   // Show uploading state
-  if (status === "uploading") {
-    return <VideoCard description="Uploading video to YouTube..." url={null} uploading={true} />;
+  if (status === UploadStatus.UPLOADING) {
+    return (
+      <VideoCard
+        title="Uploading to YouTube"
+        subtitle="Preparing your recording..."
+        url={null}
+        uploading={true}
+      />
+    );
   }
 
   if (!result) return null;
 
   // Show error state
   if (!result.success) {
-    return (
-      <VideoCard description="Upload failed" url={null} success={false} error={result.error} />
-    );
+    return <VideoCard title="Upload failed" url={null} success={false} error={result.error} />;
   }
 
   if (!result.data) return null;
 
   // Show success state
-  return <VideoCard description={result.data.description} url={result.data.url} success={true} />;
+  return (
+    <VideoCard
+      title={result.data.title || "YouTube Upload"}
+      subtitle={summarizeDescription(result.data.description)}
+      url={result.data.url}
+      success={true}
+    />
+  );
 };
 
 export { VideoCard as VideoInfo };

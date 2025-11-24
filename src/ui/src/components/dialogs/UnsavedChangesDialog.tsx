@@ -24,21 +24,18 @@ export function UnsavedChangesDialog({
 }: UnsavedChangesDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="bg-neutral-900 text-neutral-100 border-neutral-800">
+      <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-white">Unsaved Changes</AlertDialogTitle>
-          <AlertDialogDescription className="text-white/70">
+          <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+          <AlertDialogDescription>
             You have unsaved changes. Are you sure you want to discard them?
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel} className="cursor-pointer text-black">
+          <AlertDialogCancel onClick={onCancel} className="cursor-pointer">
             Keep Editing
           </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onConfirm}
-            className="cursor-pointer bg-destructive hover:bg-destructive/90"
-          >
+          <AlertDialogAction onClick={onConfirm} className="cursor-pointer">
             Discard Changes
           </AlertDialogAction>
         </AlertDialogFooter>

@@ -46,7 +46,9 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
     for (const server of serverList) {
       try {
-        const result = (await ipcClient.mcp.checkServerHealthAsync(server.name)) as HealthStatusInfo;
+        const result = (await ipcClient.mcp.checkServerHealthAsync(
+          server.name,
+        )) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
           [server.name]: { ...result, isChecking: false },
@@ -150,8 +152,8 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <header className="mb-4 flex flex-col gap-1">
-        <h2 className="text-white text-xl font-semibold">MCP Server Settings</h2>
-        <p className="text-white/70 text-sm">
+        <h2 className="text-xl font-semibold">MCP Server Settings</h2>
+        <p className="text-muted-foreground text-sm">
           Manage external MCP servers and monitor their health status.
         </p>
       </header>
@@ -160,13 +162,13 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           {viewMode === "list" && (
             <div className="flex flex-col gap-6">
               <div className="flex justify-end">
-                <Button variant="secondary" onClick={showAddForm} size="lg" disabled={isLoading}>
+                <Button onClick={showAddForm} size="lg" disabled={isLoading}>
                   Add Server
                 </Button>
               </div>
 
               {servers.length === 0 && (
-                <Empty className="bg-black/20">
+                <Empty>
                   <EmptyHeader>
                     <EmptyTitle>No MCP servers configured</EmptyTitle>
                     <EmptyDescription>
@@ -181,11 +183,10 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                 <div className="flex flex-col gap-4">
                   {sortedServers.map((server) => {
                     const status = healthStatus[server.name] || {};
-                    const transportLabel =
-                      server.transport === "streamableHttp" ? "http" : "stdio";
+                    const transportLabel = server.transport === "streamableHttp" ? "http" : "stdio";
                     const connectionSummary =
                       server.transport === "streamableHttp"
-                        ? server.url ?? ""
+                        ? (server.url ?? "")
                         : "command" in server
                           ? [server.command, ...(server.args ?? [])]
                               .filter((part) => part && part.length > 0)
@@ -195,10 +196,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                       server.transport === "stdio" && "cwd" in server ? server.cwd : undefined;
 
                     return (
-                      <Card
-                        key={server.name}
-                        className="bg-black/40 border-white/20 hover:border-white/40 transition-colors"
-                      >
+                      <Card key={server.name}>
                         <CardContent className="p-6">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex flex-1 items-start gap-3">
@@ -213,14 +211,18 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
                               <div className="flex-1">
                                 <h3 className="text-lg font-semibold text-white">{server.name}</h3>
-                                <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
-                                  {transportLabel}
-                                </p>
+                                {server.builtin ? (
+                                  <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
+                                ) : (
+                                  <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
+                                    {transportLabel}
+                                  </p>
+                                )}
                                 {server.description && (
                                   <p className="mt-1 text-sm text-white/70">{server.description}</p>
                                 )}
                                 <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                  {connectionSummary || "—"}
+                                  {server.builtin ? "" : connectionSummary || "—"}
                                 </p>
                                 {cwdSummary && (
                                   <p className="mt-1 text-xs text-white/40">
@@ -234,7 +236,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => showEditForm(server)}
-                                disabled={isLoading}
+                                disabled={isLoading || server.builtin}
                               >
                                 Edit
                               </Button>
@@ -242,7 +244,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => confirmDeleteServer(server.name)}
-                                disabled={isLoading}
+                                disabled={isLoading || server.builtin}
                               >
                                 Delete
                               </Button>
@@ -270,23 +272,17 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
       </ScrollArea>
 
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent className="bg-neutral-900 text-neutral-100 border-neutral-800">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Delete {serverToDelete}</AlertDialogTitle>
-            <AlertDialogDescription className="text-white/70 text-base pt-2">
+            <AlertDialogTitle>Delete {serverToDelete}</AlertDialogTitle>
+            <AlertDialogDescription>
               Are you sure you want to remove server '{serverToDelete}'? This action cannot be
               undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-neutral-800 text-white hover:bg-neutral-700">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-red-600 text-white hover:bg-red-700"
-              disabled={isLoading}
-            >
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isLoading}>
               Delete Server
             </AlertDialogAction>
           </AlertDialogFooter>

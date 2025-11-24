@@ -16,11 +16,16 @@ import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
 
-export type Transport = "streamableHttp" | "stdio";
+export type Transport = "streamableHttp" | "stdio" | "inMemory";
 
-type MCPHttpServerConfig = {
+type MCPBaseConfig = {
   name: string;
   description?: string;
+  transport: Transport;
+  builtin?: boolean;
+};
+
+type MCPHttpServerConfig = MCPBaseConfig & {
   transport: "streamableHttp";
   url: string;
   headers?: Record<string, string>;
@@ -28,9 +33,7 @@ type MCPHttpServerConfig = {
   timeoutMs?: number;
 };
 
-type MCPStdioServerConfig = {
-  name: string;
-  description?: string;
+type MCPStdioServerConfig = MCPBaseConfig & {
   transport: "stdio";
   command: string;
   args?: string[];
@@ -39,16 +42,24 @@ type MCPStdioServerConfig = {
   stderr?: "inherit" | "ignore" | "pipe";
 };
 
-export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig;
+type MCPInternalServerConfig = MCPBaseConfig & {
+  transport: "inMemory";
+  builtin: true;
+};
+
+export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig | MCPInternalServerConfig;
 
 const mcpServerSchema = z
   .object({
     name: z
       .string()
       .min(1, "Name is required")
-      .regex(/^[a-zA-Z0-9 _-]+$/, "Only letters, numbers, spaces, underscores, and hyphens allowed"),
+      .regex(
+        /^[a-zA-Z0-9 _-]+$/,
+        "Only letters, numbers, spaces, underscores, and hyphens allowed",
+      ),
     description: z.string().optional(),
-    transport: z.enum(["streamableHttp", "stdio"]),
+    transport: z.enum(["streamableHttp", "stdio", "inMemory"]),
     url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
     headers: z.string().optional(),
     version: z.string().optional(),
@@ -97,16 +108,11 @@ export function McpServerForm({ form }: McpServerFormProps) {
         name="name"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="text-white/90">
+            <FormLabel>
               Name <span className="text-red-400">*</span>
             </FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                type="text"
-                placeholder="e.g., GitHub"
-                className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-              />
+              <Input {...field} type="text" placeholder="e.g., GitHub" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -118,14 +124,9 @@ export function McpServerForm({ form }: McpServerFormProps) {
         name="description"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="text-white/90">Description</FormLabel>
+            <FormLabel>Description</FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                type="text"
-                placeholder="e.g., GitHub MCP Server"
-                className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-              />
+              <Input {...field} type="text" placeholder="e.g., GitHub MCP Server" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -137,12 +138,12 @@ export function McpServerForm({ form }: McpServerFormProps) {
         name="transport"
         render={({ field }) => (
           <FormItem>
-            <FormLabel className="text-white/90">
+            <FormLabel>
               Transport <span className="text-red-400">*</span>
             </FormLabel>
             <FormControl>
               <Select onValueChange={field.onChange} value={field.value}>
-                <SelectTrigger className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none">
+                <SelectTrigger>
                   <SelectValue placeholder="Transport" />
                 </SelectTrigger>
                 <SelectContent>
@@ -162,16 +163,11 @@ export function McpServerForm({ form }: McpServerFormProps) {
           name="url"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-white/90">
+              <FormLabel>
                 URL <span className="text-red-400">*</span>
               </FormLabel>
               <FormControl>
-                <Input
-                  {...field}
-                  type="text"
-                  placeholder="e.g., https://api.example.com/mcp/"
-                  className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white font-mono text-sm focus:border-white/40 focus:outline-none"
-                />
+                <Input {...field} type="text" placeholder="e.g., https://api.example.com/mcp/" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -185,16 +181,11 @@ export function McpServerForm({ form }: McpServerFormProps) {
           name="command"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-white/90">
+              <FormLabel>
                 Command <span className="text-red-400">*</span>
               </FormLabel>
               <FormControl>
-                <Input
-                  {...field}
-                  type="text"
-                  placeholder="e.g., npx"
-                  className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                />
+                <Input {...field} type="text" placeholder="e.g., npx" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -215,16 +206,15 @@ export function McpServerForm({ form }: McpServerFormProps) {
                   name="headers"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/90">Headers</FormLabel>
+                      <FormLabel>Headers</FormLabel>
                       <FormControl>
                         <Textarea
                           {...field}
                           placeholder='{"Authorization": "Bearer YOUR_TOKEN"}'
                           rows={4}
-                          className="text-white font-mono text-xs bg-black/40 border-white/20"
                         />
                       </FormControl>
-                      <FormDescription className="text-white/60 text-xs">
+                      <FormDescription className="text-xs">
                         JSON format, e.g., Authorization headers
                       </FormDescription>
                       <FormMessage />
@@ -237,14 +227,9 @@ export function McpServerForm({ form }: McpServerFormProps) {
                   name="version"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/90">Version</FormLabel>
+                      <FormLabel>Version</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          type="text"
-                          placeholder="e.g., 1.0.0"
-                          className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                        />
+                        <Input {...field} type="text" placeholder="e.g., 1.0.0" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -256,7 +241,7 @@ export function McpServerForm({ form }: McpServerFormProps) {
                   name="timeoutMs"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/90">Timeout (ms)</FormLabel>
+                      <FormLabel>Timeout (ms)</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -266,7 +251,6 @@ export function McpServerForm({ form }: McpServerFormProps) {
                           }
                           type="number"
                           placeholder="60000"
-                          className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
                         />
                       </FormControl>
                       <FormMessage />
@@ -283,16 +267,15 @@ export function McpServerForm({ form }: McpServerFormProps) {
                   name="args"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/90">Arguments</FormLabel>
+                      <FormLabel>Arguments</FormLabel>
                       <FormControl>
                         <Textarea
                           {...field}
                           rows={4}
                           placeholder={`-y\n@modelcontextprotocol/server-filesystem\n.`}
-                          className="text-white font-mono text-xs bg-black/40 border-white/20"
                         />
                       </FormControl>
-                      <FormDescription className="text-white/60 text-xs">
+                      <FormDescription className="text-xs">
                         One flag per line, or provide a JSON array such as ["-y","package"]
                       </FormDescription>
                       <FormMessage />
@@ -305,16 +288,11 @@ export function McpServerForm({ form }: McpServerFormProps) {
                   name="env"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/90">Environment Variables</FormLabel>
+                      <FormLabel>Environment Variables</FormLabel>
                       <FormControl>
-                        <Textarea
-                          {...field}
-                          rows={4}
-                          placeholder='{"NODE_ENV": "production"}'
-                          className="text-white font-mono text-xs bg-black/40 border-white/20"
-                        />
+                        <Textarea {...field} rows={4} placeholder='{"NODE_ENV": "production"}' />
                       </FormControl>
-                      <FormDescription className="text-white/60 text-xs">
+                      <FormDescription className="text-xs">
                         JSON object mapping variable name to value
                       </FormDescription>
                       <FormMessage />
@@ -327,14 +305,9 @@ export function McpServerForm({ form }: McpServerFormProps) {
                   name="cwd"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/90">Working Directory</FormLabel>
+                      <FormLabel>Working Directory</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          type="text"
-                          placeholder="Optional working directory"
-                          className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                        />
+                        <Input {...field} type="text" placeholder="Optional working directory" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -346,10 +319,10 @@ export function McpServerForm({ form }: McpServerFormProps) {
                   name="stderr"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-white/90">stderr Handling</FormLabel>
+                      <FormLabel>stderr Handling</FormLabel>
                       <FormControl>
                         <Select onValueChange={field.onChange} value={field.value ?? "inherit"}>
-                          <SelectTrigger className="w-full bg-black/40 border border-white/20 rounded-md px-3 py-2 text-white focus:border-white/40 focus:outline-none">
+                          <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -393,17 +366,17 @@ export function McpServerFormWrapper({
       name: initialData?.name ?? "",
       description: initialData?.description ?? "",
       transport: initialData?.transport ?? "streamableHttp",
-      url: initialData?.transport === "streamableHttp" ? initialData?.url ?? "" : "",
+      url: initialData?.transport === "streamableHttp" ? (initialData?.url ?? "") : "",
       headers:
         initialData?.transport === "streamableHttp" && initialData?.headers
           ? JSON.stringify(initialData.headers, null, 2)
           : "",
-      version: initialData?.transport === "streamableHttp" ? initialData?.version ?? "" : "",
+      version: initialData?.transport === "streamableHttp" ? (initialData?.version ?? "") : "",
       timeoutMs:
         initialData?.transport === "streamableHttp" && typeof initialData?.timeoutMs === "number"
           ? initialData.timeoutMs
           : "",
-      command: initialData?.transport === "stdio" ? initialData?.command ?? "" : "",
+      command: initialData?.transport === "stdio" ? (initialData?.command ?? "") : "",
       args:
         initialData?.transport === "stdio" && initialData?.args?.length
           ? initialData.args.join("\n")
@@ -412,8 +385,8 @@ export function McpServerFormWrapper({
         initialData?.transport === "stdio" && initialData?.env
           ? JSON.stringify(initialData.env, null, 2)
           : "",
-      cwd: initialData?.transport === "stdio" ? initialData?.cwd ?? "" : "",
-      stderr: initialData?.transport === "stdio" ? initialData?.stderr ?? "inherit" : "inherit",
+      cwd: initialData?.transport === "stdio" ? (initialData?.cwd ?? "") : "",
+      stderr: initialData?.transport === "stdio" ? (initialData?.stderr ?? "inherit") : "inherit",
     },
   });
 
@@ -466,7 +439,7 @@ export function McpServerFormWrapper({
       }
 
       if (
-        (result.startsWith("\"") && result.endsWith("\"")) ||
+        (result.startsWith('"') && result.endsWith('"')) ||
         (result.startsWith("'") && result.endsWith("'"))
       ) {
         result = result.slice(1, -1).trim();
@@ -534,23 +507,15 @@ export function McpServerFormWrapper({
   return (
     <FormProvider {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col gap-4">
-        <h3 className="text-white text-xl font-semibold">
-          {isEditing ? "Edit Server" : "Add New Server"}
-        </h3>
+        <h3 className="text-xl font-semibold">{isEditing ? "Edit Server" : "Add New Server"}</h3>
 
         <McpServerForm form={form} />
 
         <div className="flex gap-3 justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={isLoading}
-            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-800/80 hover:text-white/80"
-          >
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
             Cancel
           </Button>
-          <Button variant="secondary" type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading}>
             {isLoading ? "Saving..." : "Save Server"}
           </Button>
         </div>

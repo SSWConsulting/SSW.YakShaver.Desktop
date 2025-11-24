@@ -80,7 +80,7 @@ export function ScreenRecorder() {
       <section className="flex flex-col gap-4 items-center w-full">
         <div className="flex flex-row items-center gap-2">
           <Button
-            className="bg-red-600 hover:bg-red-700"
+            className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90"
             onClick={toggleRecording}
             disabled={isProcessing || isTranscribing || !isAuthenticated}
           >
@@ -92,7 +92,7 @@ export function ScreenRecorder() {
           </Button>
         </div>
         {!isAuthenticated && (
-          <p className="text-sm text-white/60 text-center">
+          <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
           </p>
         )}

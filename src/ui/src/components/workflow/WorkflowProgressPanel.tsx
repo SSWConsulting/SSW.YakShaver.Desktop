@@ -14,6 +14,7 @@ const WORKFLOW_STAGES: WorkflowStage[] = [
   ProgressStage.TRANSCRIBING,
   ProgressStage.GENERATING_TASK,
   ProgressStage.EXECUTING_TASK,
+  ProgressStage.UPDATING_METADATA,
 ];
 
 export function WorkflowProgressPanel() {
@@ -41,7 +42,24 @@ export function WorkflowProgressPanel() {
         ) {
           setMcpSteps([]);
         }
-        return progressData;
+        
+        // Reset preserved fields when starting a new workflow
+        const isStartingNewWorkflow =
+          progressData.stage === ProgressStage.CONVERTING_AUDIO ||
+          progressData.stage === ProgressStage.IDLE;
+
+        if (isStartingNewWorkflow) {
+          return progressData;
+        }
+
+        // Merge progress data to preserve fields like metadataPreview and transcript
+        return {
+          ...prev,
+          ...progressData,
+          // Preserve these fields if not included in the new update
+          metadataPreview: progressData.metadataPreview ?? prev.metadataPreview,
+          transcript: progressData.transcript ?? prev.transcript,
+        };
       });
 
       const stageIndex = WORKFLOW_STAGES.indexOf(progressData.stage);
@@ -137,7 +155,7 @@ export function WorkflowProgressPanel() {
         <Card className="bg-black/20 backdrop-blur-md border-white/10">
           <CardContent className="py-16 text-center">
             <AlertCircle className="w-16 h-16 text-white/40 mx-auto mb-4" />
-            <h3 className="text-white text-xl font-medium mb-2">No Active Workflow</h3>
+            <h3 className="text-xl font-medium mb-2">No Active Workflow</h3>
             <p className="text-white/60">Record a video to start the automated workflow</p>
           </CardContent>
         </Card>
@@ -149,7 +167,7 @@ export function WorkflowProgressPanel() {
     <div className="w-[500px] mx-auto my-4">
       <Card className="bg-black/20 backdrop-blur-md border-white/10">
         <CardHeader>
-          <CardTitle className="text-white text-xl">AI Workflow Progress</CardTitle>
+          <CardTitle className=" text-xl">AI Workflow Progress</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <Accordion type="multiple" value={openAccordions} onValueChange={setOpenAccordions}>
@@ -157,7 +175,8 @@ export function WorkflowProgressPanel() {
               const hasContent =
                 (stage === ProgressStage.TRANSCRIBING && progress.transcript) ||
                 (stage === ProgressStage.GENERATING_TASK && progress.intermediateOutput) ||
-                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0);
+                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0) ||
+                stage === ProgressStage.UPDATING_METADATA;
 
               return (
                 <AccordionItem

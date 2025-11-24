@@ -41,7 +41,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl bg-neutral-900 text-neutral-100 border-neutral-800 p-4">
+      <DialogContent className="max-w-6xl p-4">
         <DialogHeader>
           <DialogTitle>Choose a source to record</DialogTitle>
           <DialogDescription>
@@ -51,13 +51,15 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
         <div className="max-h-[75vh] overflow-auto space-y-6 p-2">
           {loading && (
-            <div className="text-sm text-neutral-400 text-center py-2">Loading sources…</div>
+            <div className="text-sm text-muted-foreground text-center py-2">Loading sources…</div>
           )}
           <SourceSection label="Screens" sources={screens} onSelect={(id) => onSelect(id)} />
           <SourceSection label="Windows" sources={windows} onSelect={(id) => onSelect(id)} />
 
           {!loading && screens.length === 0 && windows.length === 0 && (
-            <div className="text-sm text-neutral-400 text-center py-8">No sources available</div>
+            <div className="text-sm text-muted-foreground text-center py-8">
+              No sources available
+            </div>
           )}
         </div>
       </DialogContent>
