@@ -13,7 +13,7 @@ interface PromptCardProps {
 
 export function PromptCard({ prompt, isActive, onEdit, onSetActive }: PromptCardProps) {
   return (
-    <Card className={clsx("p-4", isActive ? "bg-black/20" : "")}>
+    <Card className={clsx("p-4", isActive ? "bg-accent" : "")}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
