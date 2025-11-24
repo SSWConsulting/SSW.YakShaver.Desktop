@@ -1,4 +1,4 @@
-import { ArrowRight, RotateCcw, X } from "lucide-react";
+import { ArrowRight, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   AlertDialog,
@@ -63,35 +63,19 @@ export function VideoPreviewModal({
   return (
     <>
       <Dialog open={open} onOpenChange={() => setShowConfirmExit(true)}>
-        <DialogContent className="max-w-4xl bg-black/90 backdrop-blur-md border-white/20">
+        <DialogContent className="max-w-4xl">
           <DialogHeader className="flex flex-row items-center justify-between">
-            <DialogTitle className="text-white text-xl">Recording Preview</DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowConfirmExit(true)}
-              className="text-white/60 hover:text-white hover:bg-white/10"
-            >
-              <X className="size-4" />
-            </Button>
+            <DialogTitle className="text-xl">Recording Preview</DialogTitle>
           </DialogHeader>
 
           {videoUrl && <VideoPlayer videoUrl={videoUrl} videoBlob={videoBlob} />}
 
           <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={handleRetry}
-              className="gap-2 bg-white/10 text-white border-white/20 hover:bg-white/15 hover:text-white transition-colors"
-            >
+            <Button variant="outline" onClick={handleRetry}>
               <RotateCcw className="w-4 h-4" />
               Re-record
             </Button>
-            <Button
-              variant="default"
-              onClick={onContinue}
-              className="gap-2 bg-white text-black hover:bg-white/90 hover:text-black transition-colors"
-            >
+            <Button variant="default" onClick={onContinue}>
               <ArrowRight className="w-4 h-4" />
               Continue
             </Button>
@@ -100,20 +84,18 @@ export function VideoPreviewModal({
       </Dialog>
 
       <AlertDialog open={showConfirmExit} onOpenChange={setShowConfirmExit}>
-        <AlertDialogContent className="bg-black/90 backdrop-blur-md border-white/20">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Confirm Exit</AlertDialogTitle>
-            <AlertDialogDescription className="text-white/70">
+            <AlertDialogTitle>Confirm Exit</AlertDialogTitle>
+            <AlertDialogDescription>
               Exiting will discard this recording. Are you sure you want to continue?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-white/10 text-white hover:bg-white/20 border-white/20">
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmExit}
-              className="bg-red-600 text-white hover:bg-red-700"
+              className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90"
             >
               Confirm Delete
             </AlertDialogAction>

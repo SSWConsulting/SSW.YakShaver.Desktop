@@ -19,7 +19,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
           {...props}
         >
           <Loader2 className="h-5 w-5 text-white/50 animate-spin" />
-          <span className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-1 text-xs text-white shadow-lg">
+          <span className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-1 text-xs shadow-lg">
             Checking...
           </span>
         </div>
@@ -34,7 +34,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
           {...props}
         >
           <CheckCircle2 className="h-5 w-5 text-green-400" />
-          <span className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-1 text-xs text-white shadow-lg break-words whitespace-normal">
+          <span className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-1 text-xs shadow-lg break-words whitespace-normal">
             {successMessage}
           </span>
         </div>
@@ -44,7 +44,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
     return (
       <div ref={ref} className={cn("group relative flex items-center gap-2", className)} {...props}>
         <XCircle className="h-5 w-5 text-red-400" />
-        <span className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-48 rounded bg-neutral-800 px-2 py-1 text-xs text-white shadow-lg break-words whitespace-normal">
+        <span className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-48 rounded bg-neutral-800 px-2 py-1 text-xs shadow-lg break-words whitespace-normal">
           {error ? `Unhealthy - ${error}` : "Unhealthy"}
         </span>
       </div>

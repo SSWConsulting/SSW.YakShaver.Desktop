@@ -78,19 +78,16 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             name="name"
             render={({ field }) => (
               <FormItem className="shrink-0">
-                <FormLabel className="text-white/90 text-sm">Prompt Name *</FormLabel>
+                <FormLabel>Prompt Name *</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
                     placeholder="e.g., Documentation Writer, Code Reviewer"
                     disabled={isDefault}
-                    className="bg-black/40 border-white/20"
                   />
                 </FormControl>
                 {isDefault ? (
-                  <FormDescription className="text-white/50">
-                    Default prompt name cannot be changed
-                  </FormDescription>
+                  <FormDescription>Default prompt name cannot be changed</FormDescription>
                 ) : (
                   <FormMessage />
                 )}
@@ -103,16 +100,15 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             name="description"
             render={({ field }) => (
               <FormItem className="shrink-0">
-                <FormLabel className="text-white/90 text-sm">Description</FormLabel>
+                <FormLabel>Description</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
                     placeholder="Brief description of what this prompt does"
                     disabled={isDefault}
-                    className="bg-black/40 border-white/20"
                   />
                 </FormControl>
-                <FormDescription className="text-white/50">
+                <FormDescription>
                   {isDefault
                     ? "Default prompt description cannot be changed"
                     : "This will be shown in the prompt card for quick reference"}
@@ -127,7 +123,7 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             render={({ field }) => (
               <FormItem className="flex flex-col flex-1 min-h-0 overflow-hidden">
                 <div className="flex items-center justify-between shrink-0">
-                  <FormLabel className="text-white/90 text-sm">Prompt Instructions</FormLabel>
+                  <FormLabel>Prompt Instructions</FormLabel>
                   <Button
                     type="button"
                     variant="ghost"
@@ -144,10 +140,10 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
                     {...field}
                     placeholder="Enter your custom instructions here..."
                     disabled={isDefault}
-                    className="resize-none flex-1 max-h-50 overflow-y-auto font-mono text-sm bg-black/40 border-white/20"
+                    className="resize-none flex-1 max-h-50 overflow-y-auto"
                   />
                 </FormControl>
-                <FormDescription className="text-white/50 shrink-0">
+                <FormDescription>
                   {isDefault
                     ? "Default prompt instructions cannot be changed"
                     : "These instructions will be appended to the task execution system prompt"}
@@ -174,7 +170,7 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
             <div className="flex gap-2 ml-auto">
               <Button
                 type="button"
-                variant="default"
+                variant="outline"
                 size="sm"
                 onClick={onCancel}
                 className="cursor-pointer"
@@ -185,7 +181,6 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
                 type="button"
                 onClick={() => handleSubmit(false)}
                 disabled={loading || !form.formState.isValid}
-                variant="secondary"
                 size="sm"
                 className="cursor-pointer"
               >
@@ -195,7 +190,6 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
                 type="button"
                 onClick={() => handleSubmit(true)}
                 disabled={loading || !form.formState.isValid}
-                variant="secondary"
                 size="sm"
                 className="cursor-pointer"
               >

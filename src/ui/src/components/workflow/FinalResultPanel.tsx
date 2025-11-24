@@ -674,7 +674,7 @@ export function FinalResultPanel() {
       <Card className="bg-black/30 backdrop-blur-sm border-white/20 shadow-xl">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-white text-2xl font-semibold">Final Result</CardTitle>
+            <CardTitle className="text-2xl font-semibold">Final Result</CardTitle>
             {status && <StatusBadge status={status} />}
           </div>
         </CardHeader>

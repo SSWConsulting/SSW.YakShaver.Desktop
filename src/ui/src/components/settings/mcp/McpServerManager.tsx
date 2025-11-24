@@ -152,8 +152,8 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <header className="mb-4 flex flex-col gap-1">
-        <h2 className="text-white text-xl font-semibold">MCP Server Settings</h2>
-        <p className="text-white/70 text-sm">
+        <h2 className="text-xl font-semibold">MCP Server Settings</h2>
+        <p className="text-muted-foreground text-sm">
           Manage external MCP servers and monitor their health status.
         </p>
       </header>
@@ -162,13 +162,13 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           {viewMode === "list" && (
             <div className="flex flex-col gap-6">
               <div className="flex justify-end">
-                <Button variant="secondary" onClick={showAddForm} size="lg" disabled={isLoading}>
+                <Button onClick={showAddForm} size="lg" disabled={isLoading}>
                   Add Server
                 </Button>
               </div>
 
               {servers.length === 0 && (
-                <Empty className="bg-black/20">
+                <Empty>
                   <EmptyHeader>
                     <EmptyTitle>No MCP servers configured</EmptyTitle>
                     <EmptyDescription>
@@ -196,10 +196,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                       server.transport === "stdio" && "cwd" in server ? server.cwd : undefined;
 
                     return (
-                      <Card
-                        key={server.name}
-                        className="bg-black/40 border-white/20 hover:border-white/40 transition-colors"
-                      >
+                      <Card key={server.name}>
                         <CardContent className="p-6">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex flex-1 items-start gap-3">
@@ -275,23 +272,17 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
       </ScrollArea>
 
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent className="bg-neutral-900 text-neutral-100 border-neutral-800">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Delete {serverToDelete}</AlertDialogTitle>
-            <AlertDialogDescription className="text-white/70 text-base pt-2">
+            <AlertDialogTitle>Delete {serverToDelete}</AlertDialogTitle>
+            <AlertDialogDescription>
               Are you sure you want to remove server '{serverToDelete}'? This action cannot be
               undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-neutral-800 text-white hover:bg-neutral-700">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-red-600 text-white hover:bg-red-700"
-              disabled={isLoading}
-            >
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isLoading}>
               Delete Server
             </AlertDialogAction>
           </AlertDialogFooter>
