@@ -10,6 +10,7 @@ import { StageWithoutContent } from "./StageWithoutContent";
 import { UndoStagePanel } from "./UndoStagePanel";
 
 const WORKFLOW_STAGES: WorkflowStage[] = [
+  ProgressStage.DOWNLOADING_SOURCE,
   ProgressStage.CONVERTING_AUDIO,
   ProgressStage.TRANSCRIBING,
   ProgressStage.GENERATING_TASK,
@@ -42,7 +43,7 @@ export function WorkflowProgressPanel() {
         ) {
           setMcpSteps([]);
         }
-        
+
         // Reset preserved fields when starting a new workflow
         const isStartingNewWorkflow =
           progressData.stage === ProgressStage.CONVERTING_AUDIO ||

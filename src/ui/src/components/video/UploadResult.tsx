@@ -54,10 +54,8 @@ const VideoCard = ({
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base text-white">{title}</CardTitle>
-            {subtitle && (
-              <CardDescription className="text-sm text-white/60">{subtitle}</CardDescription>
-            )}
+            <CardTitle className="text-base">{title}</CardTitle>
+            {subtitle && <CardDescription className="text-sm">{subtitle}</CardDescription>}
           </div>
           <div className="flex-shrink-0">
             {uploading ? <UploadingBadge /> : <StatusBadge success={success} />}
@@ -74,7 +72,8 @@ const VideoCard = ({
             <div className="flex items-center gap-1 ml-2">
               <Button
                 type="button"
-                className="text-white/60 hover:text-white p-2 rounded transition-colors duration-200 hover:bg-white/10"
+                variant="default"
+                className="cursor-pointer"
                 onClick={() => copyToClipboard(url)}
                 title="Copy URL"
               >
@@ -82,7 +81,8 @@ const VideoCard = ({
               </Button>
               <Button
                 type="button"
-                className="text-white/60 hover:text-white p-2 rounded transition-colors duration-200 hover:bg-white/10"
+                variant="default"
+                className="cursor-pointer"
                 onClick={() => openUrl(url)}
                 title="Open in YouTube"
               >

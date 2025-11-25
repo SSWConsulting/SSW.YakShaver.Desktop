@@ -22,6 +22,7 @@ export function ScreenRecorder() {
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
   const [isTranscribing, _] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [isProcessingUrl, setIsProcessingUrl] = useState(false);
   const youtubeUrlInputId = useId();
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -51,6 +52,7 @@ export function ScreenRecorder() {
   useEffect(() => {
     if (!isYoutubeUrlWorkflowEnabled) {
       setYoutubeUrl("");
+      setIsProcessingUrl(false);
     }
   }, [isYoutubeUrlWorkflowEnabled]);
 
@@ -78,7 +80,10 @@ export function ScreenRecorder() {
     try {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
-      await window.electronAPI.pipelines.processVideo(filePath);
+      await window.electronAPI.pipelines.processVideo({
+        type: "file",
+        path: filePath,
+      });
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = formatErrorMessage(error);
@@ -91,13 +96,46 @@ export function ScreenRecorder() {
     setYoutubeUrl(event.target.value);
   };
 
-  const handleProcessYoutubeUrl = () => {
-    if (!youtubeUrl.trim()) {
-      toast.error("Please paste a valid YouTube link before processing");
+  const handleProcessYoutubeUrl = async () => {
+    const trimmedUrl = youtubeUrl.trim();
+
+    if (!trimmedUrl) {
+      toast.error("Link is empty");
       return;
     }
 
-    toast.info("YouTube URL workflow is coming soon.");
+    if (!isValidYouTubeUrl(trimmedUrl)) {
+      return;
+    }
+
+    setIsProcessingUrl(true);
+    setUploadStatus(UploadStatus.UPLOADING);
+    setUploadResult(null);
+
+    try {
+      await window.electronAPI.pipelines.processVideo({
+        type: "url",
+        path: trimmedUrl,
+      });
+      setYoutubeUrl("");
+    } catch (error) {
+      setUploadStatus(UploadStatus.ERROR);
+      const message = formatErrorMessage(error);
+      setUploadResult({ success: false, error: message });
+      toast.error(`Processing failed: ${message}`);
+    } finally {
+      setIsProcessingUrl(false);
+    }
+  };
+
+  const isValidYouTubeUrl = (url: string): boolean => {
+    try {
+      const { hostname } = new URL(url);
+      return hostname === "youtu.be" || hostname.endsWith("youtube.com");
+    } catch {
+      toast.error("Please provide a valid YouTube URL");
+      return false;
+    }
   };
 
   return (
@@ -141,9 +179,9 @@ export function ScreenRecorder() {
                 type="button"
                 variant="secondary"
                 onClick={handleProcessYoutubeUrl}
-                disabled={!youtubeUrl.trim()}
+                disabled={!youtubeUrl.trim() || isProcessingUrl}
               >
-                Process Link
+                {isProcessingUrl ? "Processing..." : "Process Link"}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">

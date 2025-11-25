@@ -54,6 +54,11 @@ export interface ConvertVideoToMp3Result {
   error?: string;
 }
 
+export type ProcessVideoPayload = {
+  type: "file" | "url";
+  path: string;
+};
+
 export interface ScreenRecordingStartResult {
   success: boolean;
   sourceId?: string;
@@ -113,6 +118,7 @@ export interface MetadataPreview {
 
 export type WorkflowStage =
   | "idle"
+  | "downloading_source"
   | "converting_audio"
   | "transcribing"
   | "generating_task"
@@ -123,6 +129,7 @@ export type WorkflowStage =
 
 export const STAGE_CONFIG: Record<WorkflowStage, string> = {
   idle: "Waiting for recording...",
+  downloading_source: "Downloading source video",
   converting_audio: "Converting audio",
   transcribing: "Transcribing audio",
   generating_task: "Analyzing transcript",
@@ -161,6 +168,7 @@ export interface HealthStatusInfo {
 
 export enum ProgressStage {
   IDLE = "idle",
+  DOWNLOADING_SOURCE = "downloading_source",
   UPLOAD_COMPLETED = "upload_completed",
   CONVERTING_AUDIO = "converting_audio",
   TRANSCRIBING = "transcribing",

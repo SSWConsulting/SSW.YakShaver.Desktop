@@ -1,4 +1,5 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
+import type { ProcessVideoPayload } from "./ipc/process-video-handlers";
 import type { VideoUploadResult } from "./services/auth/types";
 import type { MCPServerConfig } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
@@ -92,7 +93,8 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideo: (filePath?: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, filePath),
+    processVideo: (payload?: ProcessVideoPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, payload),
     retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
   },
@@ -170,7 +172,8 @@ const electronAPI = {
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
-    addServerAsync: (config: MCPServerConfig) => ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
+    addServerAsync: (config: MCPServerConfig) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
     updateServerAsync: (name: string, config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, name, config),
     removeServerAsync: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),

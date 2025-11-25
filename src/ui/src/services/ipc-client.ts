@@ -10,6 +10,7 @@ import type {
   CustomPrompt,
   HealthStatusInfo,
   LLMConfig,
+  ProcessVideoPayload,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
   ScreenSource,
@@ -23,7 +24,7 @@ declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideo: (filePath?: string) => Promise<void>;
+        processVideo: (payload?: ProcessVideoPayload) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
