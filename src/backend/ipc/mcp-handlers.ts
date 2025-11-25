@@ -2,7 +2,7 @@ import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import type { VideoUploadResult } from "../services/auth/types";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import type { MCPServerManager } from "../services/mcp/mcp-server-manager";
-import type { MCPServerConfig } from "../services/mcp/types";
+import type { MCPServerConfig, MCPToolSummary } from "../services/mcp/types";
 import { IPC_CHANNELS } from "./channels";
 
 type ProcessMessageOptions = Parameters<MCPOrchestrator["processMessageAsync"]>[2];
@@ -48,6 +48,36 @@ export class McpIPCHandlers {
       IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH,
       async (_event: IpcMainInvokeEvent, name: string) => {
         return await this.mcpServerManager.checkServerHealthAsync(name);
+      },
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_LIST_SERVER_TOOLS,
+      async (_event: IpcMainInvokeEvent, name: string) => {
+        const client = await this.mcpServerManager.getMcpClientAsync(name);
+        if (!client) {
+          return [] as MCPToolSummary[];
+        }
+        const raw = await client.listToolsAsync();
+        if (Array.isArray(raw)) {
+          return (raw as unknown[])
+            .map((tool) => ({
+              name: (tool as { name?: string }).name ?? "",
+              description: (tool as { description?: string }).description,
+            }))
+            .filter((summary) => typeof summary.name === "string" && summary.name.length > 0);
+        }
+        if (raw && typeof raw === "object") {
+          const obj = raw as Record<string, unknown>;
+          return Object.entries(obj).map(([name, value]) => ({
+            name,
+            description:
+              value && typeof value === "object" && "description" in (value as { description?: string })
+                ? (value as { description?: string }).description
+                : undefined,
+          }));
+        }
+        return [] as MCPToolSummary[];
       },
     );
 

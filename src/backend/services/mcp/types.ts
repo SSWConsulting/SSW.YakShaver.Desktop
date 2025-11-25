@@ -6,6 +6,7 @@ interface MCPBaseConfig {
   description?: string;
   transport: "streamableHttp" | "stdio" | "inMemory";
   builtin?: boolean; // True for internal/built-in servers
+  toolWhitelist?: string[];
 }
 
 interface MCPHttpServerConfig extends MCPBaseConfig {
@@ -31,3 +32,8 @@ interface MCPInMemoryServerConfig extends MCPBaseConfig {
 }
 
 export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig | MCPInMemoryServerConfig;
+
+export interface MCPToolSummary {
+  name: string;
+  description?: string;
+}

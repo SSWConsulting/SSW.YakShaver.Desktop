@@ -23,6 +23,7 @@ type MCPBaseConfig = {
   description?: string;
   transport: Transport;
   builtin?: boolean;
+  toolWhitelist?: string[];
 };
 
 type MCPHttpServerConfig = MCPBaseConfig & {
