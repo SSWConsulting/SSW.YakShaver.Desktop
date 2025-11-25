@@ -2,7 +2,7 @@ import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import type { VideoUploadResult } from "../services/auth/types";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import type { MCPServerManager } from "../services/mcp/mcp-server-manager";
-import type { MCPServerConfig } from "../services/mcp/types";
+import type { MCPServerConfig, MCPToolSummary } from "../services/mcp/types";
 import { IPC_CHANNELS } from "./channels";
 
 type ProcessMessageOptions = Parameters<MCPOrchestrator["processMessageAsync"]>[2];
@@ -48,6 +48,18 @@ export class McpIPCHandlers {
       IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH,
       async (_event: IpcMainInvokeEvent, name: string) => {
         return await this.mcpServerManager.checkServerHealthAsync(name);
+      },
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_LIST_SERVER_TOOLS,
+      async (_event: IpcMainInvokeEvent, name: string) => {
+        const client = await this.mcpServerManager.getMcpClientAsync(name);
+        if (!client) {
+          return [] as MCPToolSummary[];
+        }
+        const summaries = await client.listToolsSummaryAsync();
+        return summaries;
       },
     );
 

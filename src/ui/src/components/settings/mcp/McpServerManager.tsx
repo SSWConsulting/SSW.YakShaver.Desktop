@@ -4,6 +4,7 @@ import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../../services/ipc-client";
 import { HealthStatus } from "../../health-status/health-status";
+import { McpWhitelistDialog } from "./McpWhitelistDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +37,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [serverToDelete, setServerToDelete] = useState<string | null>(null);
   const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
+  const [whitelistServer, setWhitelistServer] = useState<MCPServerConfig | null>(null);
 
   const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
     const initialStatus: ServerHealthStatus<string> = {};
@@ -125,6 +127,11 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   const confirmDeleteServer = useCallback((name: string) => {
     setServerToDelete(name);
     setDeleteConfirmOpen(true);
+  }, []);
+
+  const openWhitelistDialog = useCallback((server: MCPServerConfig) => {
+    if (server.builtin) return;
+    setWhitelistServer(server);
   }, []);
 
   const handleDeleteConfirm = useCallback(async () => {
@@ -241,6 +248,14 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 Edit
                               </Button>
                               <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => openWhitelistDialog(server)}
+                                disabled={isLoading || server.builtin}
+                              >
+                                Configure Whitelist
+                              </Button>
+                              <Button
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => confirmDeleteServer(server.name)}
@@ -288,6 +303,15 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <McpWhitelistDialog
+        server={whitelistServer}
+        onClose={() => setWhitelistServer(null)}
+        onSaved={async () => {
+          setWhitelistServer(null);
+          await loadServers();
+        }}
+      />
     </div>
   );
 }
