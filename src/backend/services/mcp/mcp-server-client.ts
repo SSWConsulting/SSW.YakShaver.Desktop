@@ -3,7 +3,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { MCPUtils } from "./mcp-utils";
-import type { MCPServerConfig, MCPToolSummary } from "./types";
+import type { MCPServerConfig } from "./types";
 
 export interface CreateClientOptions {
   inMemoryClientTransport?: InMemoryTransport;
@@ -90,29 +90,6 @@ export class MCPServerClient {
   public async listToolsAsync(): Promise<MCPToolSet> {
     const raw = await this.mcpClient.tools();
     return raw as MCPToolSet;
-  }
-
-  public async listToolsSummaryAsync(): Promise<MCPToolSummary[]> {
-    const raw = await this.mcpClient.tools();
-    if (Array.isArray(raw)) {
-      return (raw as unknown[])
-        .map((tool) => ({
-          name: (tool as { name?: string }).name ?? "",
-          description: (tool as { description?: string }).description,
-        }))
-        .filter((summary) => typeof summary.name === "string" && summary.name.length > 0);
-    }
-    if (raw && typeof raw === "object") {
-      const obj = raw as Record<string, unknown>;
-      return Object.entries(obj).map(([name, value]) => ({
-        name,
-        description:
-          value && typeof value === "object" && "description" in (value as { description?: string })
-            ? (value as { description?: string }).description
-            : undefined,
-      }));
-    }
-    return [];
   }
 
   public async toolCountAsync(): Promise<number> {

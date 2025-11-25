@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../ui/dialog";
-import { Switch } from "../../ui/switch";
+import { Checkbox } from "../../ui/checkbox";
 import { ScrollArea } from "../../ui/scroll-area";
 import { Button } from "../../ui/button";
 
@@ -95,7 +95,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
               <div className="flex flex-col gap-2">
               {tools.map((tool) => (
                 <div key={tool.name} className="flex items-start gap-3">
-                  <Switch
+                  <Checkbox
                     className="mt-1"
                     checked={selected.has(tool.name)}
                     onCheckedChange={() => toggleTool(tool.name)}

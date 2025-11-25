@@ -58,8 +58,26 @@ export class McpIPCHandlers {
         if (!client) {
           return [] as MCPToolSummary[];
         }
-        const summaries = await client.listToolsSummaryAsync();
-        return summaries;
+        const raw = await client.listToolsAsync();
+        if (Array.isArray(raw)) {
+          return (raw as unknown[])
+            .map((tool) => ({
+              name: (tool as { name?: string }).name ?? "",
+              description: (tool as { description?: string }).description,
+            }))
+            .filter((summary) => typeof summary.name === "string" && summary.name.length > 0);
+        }
+        if (raw && typeof raw === "object") {
+          const obj = raw as Record<string, unknown>;
+          return Object.entries(obj).map(([name, value]) => ({
+            name,
+            description:
+              value && typeof value === "object" && "description" in (value as { description?: string })
+                ? (value as { description?: string }).description
+                : undefined,
+          }));
+        }
+        return [] as MCPToolSummary[];
       },
     );
 
