@@ -82,7 +82,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
         <DialogHeader>
           <DialogTitle>Configure Tool Whitelist</DialogTitle>
           <DialogDescription>
-            Enable or disable tools for server '{server?.name}'.
+            Add or remove tool from whitelist for server '{server?.name}'.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[50vh] pr-2">
@@ -93,20 +93,21 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
             )}
             {!isLoading && tools.length > 0 && (
               <div className="flex flex-col gap-2">
-                {tools.map((tool) => (
-                  <div key={tool.name} className="flex items-start gap-3">
-                    <Switch
-                      checked={selected.has(tool.name)}
-                      onCheckedChange={() => toggleTool(tool.name)}
-                    />
-                    <div className="flex-1">
-                      <p className="text-sm">{tool.name}</p>
-                      {tool.description && (
-                        <p className="text-xs text-muted-foreground">{tool.description}</p>
-                      )}
-                    </div>
+              {tools.map((tool) => (
+                <div key={tool.name} className="flex items-start gap-3">
+                  <Switch
+                    className="mt-1"
+                    checked={selected.has(tool.name)}
+                    onCheckedChange={() => toggleTool(tool.name)}
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm">{tool.name}</p>
+                    {tool.description && (
+                      <p className="text-xs text-muted-foreground">{tool.description}</p>
+                    )}
                   </div>
-                ))}
+                </div>
+              ))}
               </div>
             )}
           </div>
