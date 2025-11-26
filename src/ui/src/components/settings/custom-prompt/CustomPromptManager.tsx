@@ -223,8 +223,8 @@ export function CustomPromptSettingsPanel({
     <>
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
         <header className="flex flex-col gap-1">
-          <h2 className="text-white text-xl font-semibold">Custom Prompt Manager</h2>
-          <p className="text-white/70 text-sm">
+          <h2 className="text-xl font-semibold">Custom Prompt Manager</h2>
+          <p className="text-muted-foreground text-sm">
             Manage your saved prompts and choose which one YakShaver should use.
           </p>
         </header>

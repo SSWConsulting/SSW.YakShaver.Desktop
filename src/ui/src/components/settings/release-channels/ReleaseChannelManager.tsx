@@ -201,25 +201,23 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       )}
 
       {currentVersion && (
-        <div className="p-3 rounded-md border bg-white/5 border-white/10">
-          <p className="text-sm text-white/60">Current Version</p>
-          <p className="text-lg text-white">{currentVersion}</p>
+        <div className="p-3 rounded-md border bg-card border-border">
+          <p className="text-sm text-muted-foreground">Current Version</p>
+          <p className="text-lg">{currentVersion}</p>
         </div>
       )}
 
       {updateStatus && (
-        <div className="p-3 bg-white/5 border border-white/10">
-          <p className="text-sm text-white">{updateStatus}</p>
+        <div className="p-3 bg-card border border-border">
+          <p className="text-sm">{updateStatus}</p>
         </div>
       )}
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="release-select" className="text-white">
-            Select Release Channel To Test
-          </Label>
+          <Label htmlFor="release-select">Select Release Channel To Test</Label>
           <Select value={selectValue} onValueChange={handleSelectionChange}>
-            <SelectTrigger className="bg-white/5 border-white/20 text-white">
+            <SelectTrigger>
               <SelectValue placeholder="Choose a release">
                 {selectValue === SELECT_LATEST
                   ? "Latest Stable (default)"
@@ -228,21 +226,17 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
                     : "Choose a release"}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent className="bg-neutral-800 border-neutral-700 max-h-80">
-              <SelectItem
-                value={SELECT_LATEST}
-                className="text-white"
-                textValue="Latest Stable (default)"
-              >
+            <SelectContent className="max-h-80">
+              <SelectItem value={SELECT_LATEST} textValue="Latest Stable (default)">
                 Latest Stable (default)
               </SelectItem>
               {isLoadingReleases && (
-                <SelectItem value="__loading" disabled className="text-white/60">
+                <SelectItem value="__loading" disabled>
                   Loading releases...
                 </SelectItem>
               )}
               {!isLoadingReleases && dropdownOptions.length === 0 && (
-                <SelectItem value="__empty" disabled className="text-white/60">
+                <SelectItem value="__empty" disabled>
                   No PR releases available
                 </SelectItem>
               )}
@@ -267,7 +261,6 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
 
       <div className="flex gap-3 justify-end pt-2">
         <Button
-          variant="secondary"
           onClick={handleCheckUpdates}
           disabled={isLoading || !hasGitHubToken || !selectValue}
         >

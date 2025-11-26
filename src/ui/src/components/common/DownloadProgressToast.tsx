@@ -29,7 +29,7 @@ export function DownloadProgressToast() {
   return (
     <Card className="fixed bottom-6 right-6 z-[100] w-80 bg-black/30 border-white/20 shadow-2xl animate-in slide-in-from-bottom-5">
       <CardHeader className="flex justify-between items-center">
-        <CardTitle className="text-white">Downloading update...</CardTitle>
+        <CardTitle>Downloading update...</CardTitle>
         <span className="text-sm text-white/70">{downloadProgress}%</span>
       </CardHeader>
       <CardContent className="space-y-3">

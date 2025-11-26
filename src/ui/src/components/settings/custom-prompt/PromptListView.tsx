@@ -36,15 +36,15 @@ export function PromptListView({
     <div className="flex flex-col gap-4 h-full overflow-hidden">
       <div className="flex items-center gap-2">
         <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search prompts..." />
-        <Button onClick={onCreateNew} variant="secondary" size="sm" className="shrink-0">
+        <Button onClick={onCreateNew} size="sm" className="shrink-0">
           Add New Prompt
         </Button>
       </div>
-      <Separator className="bg-white/10 shrink-0" />
+      <Separator />
       <ScrollArea className="h-[50vh]">
         <div className="flex flex-col space-y-4 pr-4">
           {filteredPrompts.length === 0 ? (
-            <p className="text-white/50 text-center py-8">
+            <p className="text-muted-foreground text-center py-8">
               {searchQuery ? "No prompts found matching your search" : "No prompts available"}
             </p>
           ) : (

@@ -102,6 +102,7 @@ declare global {
         updateServerAsync: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
         removeServerAsync: (name: string) => Promise<{ success: boolean }>;
         checkServerHealthAsync: (name: string) => Promise<HealthStatusInfo>;
+        listServerTools: (name: string) => Promise<Array<{ name: string; description?: string }>>;
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;

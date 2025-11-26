@@ -70,7 +70,7 @@ const VideoCard = ({
       {!uploading && (
         <CardContent>
           <div className="p-3 bg-white/5 rounded-md flex items-center justify-between border border-white/10">
-            <p className="text-sm text-white truncate flex-1 min-w-0">{url}</p>
+            <p className="text-sm truncate flex-1 min-w-0">{url}</p>
             <div className="flex items-center gap-1 ml-2">
               <Button
                 type="button"
