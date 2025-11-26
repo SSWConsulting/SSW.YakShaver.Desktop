@@ -19,6 +19,11 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
+  const [verifyDetails, setVerifyDetails] = useState<{
+    username?: string;
+    scopes?: string[];
+    rateLimitRemaining?: number;
+  } | null>(null);
 
   const loadToken = useCallback(async () => {
     setIsLoading(true);
@@ -61,12 +66,18 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
           successMessage: parts.join("; "),
           isChecking: false,
         });
+        setVerifyDetails({
+          username: result.username,
+          scopes: result.scopes,
+          rateLimitRemaining: result.rateLimitRemaining,
+        });
       } else {
         setHealthStatus({
           isHealthy: false,
           error: result.error ?? "GitHub token is invalid",
           isChecking: false,
         });
+        setVerifyDetails(null);
       }
     } catch (error) {
       setHealthStatus({
@@ -144,13 +155,14 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
                 isChecking={healthStatus?.isChecking ?? false}
                 isHealthy={healthStatus?.isHealthy ?? false}
                 successMessage={healthStatus?.successMessage}
+                successDetails={verifyDetails ?? undefined}
                 error={healthStatus?.error}
               />
             </div>
           )}
           {!hasToken && (
             <p className="text-white/80 text-sm">
-              Status: <span className="text-red-400">Not Saved</span>
+              Status: <span className="text-red-400">No Token Saved</span>
             </p>
           )}
           <div className="flex flex-col gap-2">
