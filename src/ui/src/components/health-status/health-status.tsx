@@ -41,10 +41,10 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
           {...props}
         >
           <CheckCircle2 className="h-5 w-5 text-green-400" />
-          <div className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-2 text-xs text-white shadow-lg break-words whitespace-normal">
+          <div className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-2 text-xs shadow-lg break-words whitespace-normal">
             {successDetails ? (
               <div className="space-y-1">
-                <div className="font-semibold text-green-300">Token is valid</div>
+                <div className="font-semibold text-green-400">Token is valid</div>
                 {successDetails.username ? (
                   <div>
                     <span className="text-white/80">User:</span> {successDetails.username}

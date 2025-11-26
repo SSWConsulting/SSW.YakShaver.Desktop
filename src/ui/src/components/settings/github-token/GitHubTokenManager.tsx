@@ -162,7 +162,7 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
           )}
           {!hasToken && (
             <p className="text-white/80 text-sm">
-              Status: <span className="text-red-400">No Token Saved</span>
+              Status: <span className="text-ssw-red">No Token Saved</span>
             </p>
           )}
           <div className="flex flex-col gap-2">
