@@ -55,6 +55,17 @@ export class MCPServerClient {
       const clientSecret = process.env.MCP_CLIENT_SECRET;
       const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
 
+      if (mcpConfig.builtin) {
+        const client = await experimental_createMCPClient({
+          transport: {
+            type: "http",
+            url: serverUrl,
+            headers: mcpConfig.headers,
+          },
+        });
+        return new MCPServerClient(mcpConfig.name, client);
+      }
+
       if (clientId && clientSecret) {
         const authProvider = new InMemoryOAuthClientProvider({
           clientId,
@@ -304,6 +315,13 @@ function waitForAuthorizationCode(port: number): Promise<string> {
         res.writeHead(400).end(`Authorization failed: ${err ?? "missing code"}`);
         setTimeout(() => server.close(), 100);
         reject(new Error(`Authorization failed: ${err ?? "missing code"}`));
+      }
+    });
+    server.on("error", (err: any) => {
+      if (err?.code === "EADDRINUSE") {
+        reject(new Error(`OAuth callback port ${port} is already in use`));
+      } else {
+        reject(err);
       }
     });
     server.listen(port);

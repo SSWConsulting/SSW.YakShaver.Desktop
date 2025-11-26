@@ -10,6 +10,7 @@ export class MCPServerManager {
   private static internalServerConfigs: MCPServerConfig[] = [];
   private static internalClientTransports: Map<string, InMemoryTransport> = new Map();
   private static mcpClients: Map<string, MCPServerClient> = new Map();
+  private static mcpClientPromises: Map<string, Promise<MCPServerClient | null>> = new Map();
   private constructor() {}
 
   public static async getInstanceAsync(): Promise<MCPServerManager> {
@@ -24,8 +25,12 @@ export class MCPServerManager {
 
   public async getAllMcpServerClientsAsync(): Promise<MCPServerClient[]> {
     const allConfigs = MCPServerManager.getAllServerConfigs();
-    const clientPromises = allConfigs.map((config) => this.getMcpClientAsync(config.name));
-    return (await Promise.all(clientPromises)).filter((client) => client !== null);
+    const clients: MCPServerClient[] = [];
+    for (const config of allConfigs) {
+      const client = await this.getMcpClientAsync(config.name);
+      if (client) clients.push(client);
+    }
+    return clients;
   }
 
   public async getSelectedMcpServerClientsAsync(
@@ -64,6 +69,11 @@ export class MCPServerManager {
       return existingClient;
     }
 
+    const inFlight = MCPServerManager.mcpClientPromises.get(name);
+    if (inFlight) {
+      return await inFlight;
+    }
+
     const config = MCPServerManager.getAllServerConfigs().find((s) => s.name === name);
     if (!config) {
       throw new Error(`MCP server with name '${name}' not found`);
@@ -80,13 +90,22 @@ export class MCPServerManager {
       options = { inMemoryClientTransport: transport };
     }
 
-    const client = await MCPServerClient.createClientAsync(config, options);
-    const health = await client.healthCheckAsync();
-    if (health.healthy) {
-      MCPServerManager.mcpClients.set(name, client);
-      return client;
-    }
-    return null;
+    const creationPromise = (async () => {
+      try {
+        const client = await MCPServerClient.createClientAsync(config, options);
+        const health = await client.healthCheckAsync();
+        if (health.healthy) {
+          MCPServerManager.mcpClients.set(name, client);
+          return client;
+        }
+        return null;
+      } finally {
+        MCPServerManager.mcpClientPromises.delete(name);
+      }
+    })();
+
+    MCPServerManager.mcpClientPromises.set(name, creationPromise);
+    return await creationPromise;
   }
 
   public static registerInternalServer(
