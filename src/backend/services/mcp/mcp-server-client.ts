@@ -8,6 +8,7 @@ import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { MCPUtils } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
+import { shell } from "electron";
 import type {
   OAuthClientProvider,
   OAuthClientInformation,
@@ -189,8 +190,17 @@ class InMemoryOAuthClientProvider implements OAuthClientProvider {
   }
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
     const url = authorizationUrl.toString();
-    const cmd = process.platform === "win32" ? `start ${url}` : process.platform === "darwin" ? `open "${url}"` : `xdg-open "${url}"`;
-    exec(cmd, () => {});
+    try {
+      await shell.openExternal(url);
+    } catch {
+      const cmd =
+        process.platform === "win32"
+          ? `start "" "${url}"`
+          : process.platform === "darwin"
+            ? `open "${url}"`
+            : `xdg-open "${url}"`;
+      exec(cmd, () => {});
+    }
   }
   async saveCodeVerifier(codeVerifier: string): Promise<void> {
     this._codeVerifier = codeVerifier;
