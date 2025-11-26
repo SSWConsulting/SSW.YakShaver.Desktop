@@ -19,9 +19,6 @@ export class GitHubTokenIPCHandlers {
     );
     ipcMain.handle(IPC_CHANNELS.GITHUB_TOKEN_CLEAR, () => this.clearToken());
     ipcMain.handle(IPC_CHANNELS.GITHUB_TOKEN_HAS, () => this.hasToken());
-    ipcMain.handle(IPC_CHANNELS.GITHUB_TOKEN_VALIDATE, () =>
-      this.validateToken()
-    );
     ipcMain.handle(IPC_CHANNELS.GITHUB_TOKEN_VERIFY, () => this.verifyToken());
   }
 
@@ -41,61 +38,7 @@ export class GitHubTokenIPCHandlers {
     return await this.store.hasToken();
   }
 
-  private async validateToken(): Promise<HealthStatusInfo> {
-    try {
-      const token = await this.store.getToken();
-
-      if (!token) {
-        return {
-          isHealthy: false,
-          error: "No token configured",
-        };
-      }
-
-      const response = await fetch("https://api.github.com/user", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-          "User-Agent": "SSW-YakShaver-Desktop",
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return {
-            isHealthy: false,
-            error: "Invalid or expired token",
-          };
-        }
-        if (response.status === 403) {
-          const errorBody = await response.text();
-          if (/rate limit/i.test(errorBody)) {
-            return {
-              isHealthy: false,
-              error: "Rate limit exceeded",
-            };
-          }
-        }
-        return {
-          isHealthy: false,
-          error: `GitHub API error: ${response.statusText}`,
-        };
-      }
-
-      const userData = await response.json();
-      const username = userData.login || "Unknown";
-
-      return {
-        isHealthy: true,
-        successMessage: `Valid token for user: ${username}`,
-      };
-    } catch (error) {
-      return {
-        isHealthy: false,
-        error: formatErrorMessage(error),
-      };
-    }
-  }
+  // Deprecated validateToken removed in favor of verifyToken
 
   private async verifyToken(): Promise<{
     isValid: boolean;
@@ -124,7 +67,9 @@ export class GitHubTokenIPCHandlers {
         .split(",")
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
-      const rateLimitRemainingHeader = response.headers.get("x-ratelimit-remaining");
+      const rateLimitRemainingHeader = response.headers.get(
+        "x-ratelimit-remaining"
+      );
       const rateLimitRemaining = rateLimitRemainingHeader
         ? Number.parseInt(rateLimitRemainingHeader, 10)
         : undefined;

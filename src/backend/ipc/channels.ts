@@ -76,6 +76,5 @@ export const IPC_CHANNELS = {
   GITHUB_TOKEN_SET: "github-token:set",
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
-  GITHUB_TOKEN_VALIDATE: "github-token:validate",
   GITHUB_TOKEN_VERIFY: "github-token:verify",
 } as const;
