@@ -60,6 +60,7 @@ export function WorkflowProgressPanel() {
           // Preserve these fields if not included in the new update
           metadataPreview: progressData.metadataPreview ?? prev.metadataPreview,
           transcript: progressData.transcript ?? prev.transcript,
+          sourceOrigin: progressData.sourceOrigin ?? prev.sourceOrigin,
         };
       });
 
@@ -164,6 +165,8 @@ export function WorkflowProgressPanel() {
     );
   }
 
+  const isExternalWorkflow = progress.sourceOrigin === "external";
+
   return (
     <div className="w-[500px] mx-auto my-4">
       <Card className="bg-black/20 backdrop-blur-md border-white/10">
@@ -173,6 +176,13 @@ export function WorkflowProgressPanel() {
         <CardContent className="space-y-3">
           <Accordion type="multiple" value={openAccordions} onValueChange={setOpenAccordions}>
             {WORKFLOW_STAGES.map((stage, index) => {
+              const hideMetadataStage =
+                stage === ProgressStage.UPDATING_METADATA && isExternalWorkflow;
+
+              if (hideMetadataStage) {
+                return null;
+              }
+
               const hasContent =
                 (stage === ProgressStage.TRANSCRIBING && progress.transcript) ||
                 (stage === ProgressStage.GENERATING_TASK && progress.intermediateOutput) ||

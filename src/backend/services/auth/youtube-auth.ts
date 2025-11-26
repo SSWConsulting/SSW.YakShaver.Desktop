@@ -14,6 +14,7 @@ import type {
   AuthResult,
   TokenData,
   UserInfo,
+  VideoUploadOrigin,
   VideoUploadResult,
   YouTubeSnippetUpdate,
 } from "./types";
@@ -257,6 +258,7 @@ export class YouTubeAuthService {
           description: snippet?.description || "",
           url: `https://www.youtube.com/watch?v=${videoId}`,
         },
+        origin: "upload",
       };
     } catch (error) {
       return {
@@ -269,6 +271,7 @@ export class YouTubeAuthService {
   async updateVideoMetadata(
     videoId: string,
     snippet: YouTubeSnippetUpdate,
+    origin: VideoUploadOrigin = "upload",
   ): Promise<VideoUploadResult> {
     try {
       if (!(await this.isAuthenticated())) {
@@ -277,6 +280,13 @@ export class YouTubeAuthService {
 
       if (!videoId?.trim()) {
         return { success: false, error: "Video ID is required" };
+      }
+
+      if (origin === "external") {
+        return {
+          success: false,
+          error: "Cannot update metadata for externally sourced videos",
+        };
       }
 
       const client = await this.getAuthenticatedClient();
@@ -302,6 +312,7 @@ export class YouTubeAuthService {
           description: updatedSnippet.description || snippet.description,
           url: `https://www.youtube.com/watch?v=${videoId}`,
         },
+        origin,
       };
     } catch (error) {
       return {

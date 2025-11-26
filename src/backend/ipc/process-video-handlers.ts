@@ -44,8 +44,11 @@ export class ProcessVideoIPCHandlers {
 
       // download video from URL to a temp file
       let youtubeResult = await this.youtubeDownloadService.getVideoMetadata(payload.path);
-      console.log("[ProcessVideo] Downloading video:", { youtubeResult });
-      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE);
+      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
+        uploadResult: youtubeResult,
+        sourceOrigin: "external",
+      });
+      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, { sourceOrigin: "external" });
       const filePath = await this.youtubeDownloadService.downloadVideoToFile(payload.path);
 
       // convert video to mp3
@@ -79,29 +82,33 @@ export class ProcessVideoIPCHandlers {
         systemPrompt,
       });
 
-      if (youtubeResult.success && youtubeResult.data?.videoId) {
-        try {
-          this.emitProgress(ProgressStage.UPDATING_METADATA);
-          const metadata = await this.metadataBuilder.build({
-            transcriptVtt: transcript,
-            intermediateOutput,
-            executionHistory: JSON.stringify(mcpResult.transcript ?? [], null, 2),
-            finalResult: mcpResult.final ?? undefined,
-          });
-          this.emitProgress(ProgressStage.UPDATING_METADATA, {
-            metadataPreview: metadata.metadata,
-          });
-          const updateResult = await this.youtube.updateVideoMetadata(
-            youtubeResult.data.videoId,
-            metadata.snippet,
-          );
-          if (updateResult.success) {
-            youtubeResult = updateResult;
-          } else if (updateResult.error) {
-            console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+      if (youtubeResult.origin !== "external" && youtubeResult.success) {
+        const videoId = youtubeResult.data?.videoId;
+        if (videoId) {
+          try {
+            this.emitProgress(ProgressStage.UPDATING_METADATA);
+            const metadata = await this.metadataBuilder.build({
+              transcriptVtt: transcript,
+              intermediateOutput,
+              executionHistory: JSON.stringify(mcpResult.transcript ?? [], null, 2),
+              finalResult: mcpResult.final ?? undefined,
+            });
+            this.emitProgress(ProgressStage.UPDATING_METADATA, {
+              metadataPreview: metadata.metadata,
+            });
+            const updateResult = await this.youtube.updateVideoMetadata(
+              videoId,
+              metadata.snippet,
+              youtubeResult.origin,
+            );
+            if (updateResult.success) {
+              youtubeResult = updateResult;
+            } else if (updateResult.error) {
+              console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+            }
+          } catch (metadataError) {
+            console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
           }
-        } catch (metadataError) {
-          console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
         }
       }
 
@@ -162,7 +169,10 @@ export class ProcessVideoIPCHandlers {
 
     // upload to YouTube
     let youtubeResult = await this.youtube.uploadVideo(filePath);
-    this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
+    this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
+      uploadResult: youtubeResult,
+      sourceOrigin: youtubeResult.origin,
+    });
 
     // convert video to mp3
     this.emitProgress(ProgressStage.CONVERTING_AUDIO);
@@ -195,29 +205,33 @@ export class ProcessVideoIPCHandlers {
       systemPrompt,
     });
 
-    if (youtubeResult.success && youtubeResult.data?.videoId) {
-      try {
-        this.emitProgress(ProgressStage.UPDATING_METADATA);
-        const metadata = await this.metadataBuilder.build({
-          transcriptVtt: transcript,
-          intermediateOutput,
-          executionHistory: JSON.stringify(mcpResult.transcript ?? [], null, 2),
-          finalResult: mcpResult.final ?? undefined,
-        });
-        this.emitProgress(ProgressStage.UPDATING_METADATA, {
-          metadataPreview: metadata.metadata,
-        });
-        const updateResult = await this.youtube.updateVideoMetadata(
-          youtubeResult.data.videoId,
-          metadata.snippet,
-        );
-        if (updateResult.success) {
-          youtubeResult = updateResult;
-        } else if (updateResult.error) {
-          console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+    if (youtubeResult.origin !== "external" && youtubeResult.success) {
+      const videoId = youtubeResult.data?.videoId;
+      if (videoId) {
+        try {
+          this.emitProgress(ProgressStage.UPDATING_METADATA);
+          const metadata = await this.metadataBuilder.build({
+            transcriptVtt: transcript,
+            intermediateOutput,
+            executionHistory: JSON.stringify(mcpResult.transcript ?? [], null, 2),
+            finalResult: mcpResult.final ?? undefined,
+          });
+          this.emitProgress(ProgressStage.UPDATING_METADATA, {
+            metadataPreview: metadata.metadata,
+          });
+          const updateResult = await this.youtube.updateVideoMetadata(
+            videoId,
+            metadata.snippet,
+            youtubeResult.origin,
+          );
+          if (updateResult.success) {
+            youtubeResult = updateResult;
+          } else if (updateResult.error) {
+            console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+          }
+        } catch (metadataError) {
+          console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
         }
-      } catch (metadataError) {
-        console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
       }
     }
 

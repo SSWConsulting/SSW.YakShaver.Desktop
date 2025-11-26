@@ -30,6 +30,8 @@ export interface YouTubeConfig {
   clientSecret: string;
 }
 
+export type VideoUploadOrigin = "upload" | "external";
+
 export interface VideoUploadResult {
   success: boolean;
   data?: {
@@ -38,6 +40,7 @@ export interface VideoUploadResult {
     description: string;
     url: string;
   };
+  origin?: VideoUploadOrigin;
   error?: string;
 }
 
@@ -147,6 +150,7 @@ export interface WorkflowProgress {
   uploadResult?: VideoUploadResult;
   metadataPreview?: MetadataPreview;
   error?: string;
+  sourceOrigin?: VideoUploadOrigin;
 }
 
 export interface CustomPrompt {

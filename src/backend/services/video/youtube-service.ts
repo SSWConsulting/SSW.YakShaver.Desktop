@@ -41,6 +41,7 @@ export class YouTubeDownloadService {
         description: metadata.description,
         url: metadata.webpage_url,
       },
+      origin: "external",
     };
   }
 
