@@ -74,7 +74,7 @@ const VideoCard = ({
             <div className="flex items-center gap-1 ml-2">
               <Button
                 type="button"
-                className="text-white/60 hover:text-white p-2 rounded transition-colors duration-200 hover:bg-white/10"
+                variant="ghost"
                 onClick={() => copyToClipboard(url)}
                 title="Copy URL"
               >
@@ -82,7 +82,7 @@ const VideoCard = ({
               </Button>
               <Button
                 type="button"
-                className="text-white/60 hover:text-white p-2 rounded transition-colors duration-200 hover:bg-white/10"
+                variant="ghost"
                 onClick={() => openUrl(url)}
                 title="Open in YouTube"
               >
