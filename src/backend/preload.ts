@@ -82,6 +82,7 @@ const IPC_CHANNELS = {
   GITHUB_TOKEN_SET: "github-token:set",
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
+  GITHUB_TOKEN_VERIFY: "github-token:verify",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -203,6 +204,14 @@ const electronAPI = {
     set: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_SET, token),
     clear: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_CLEAR),
     has: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_HAS),
+    verify: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_VERIFY) as Promise<{
+        isValid: boolean;
+        username?: string;
+        scopes?: string[];
+        rateLimitRemaining?: number;
+        error?: string;
+      }>,
   },
 };
 

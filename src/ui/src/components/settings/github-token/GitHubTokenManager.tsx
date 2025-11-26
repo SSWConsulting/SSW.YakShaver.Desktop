@@ -1,7 +1,9 @@
 import { Eye, EyeOff } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
+import { HealthStatus } from "../../health-status/health-status";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
@@ -16,6 +18,7 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
   const [showToken, setShowToken] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
 
   const loadToken = useCallback(async () => {
     setIsLoading(true);
@@ -35,11 +38,56 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
     }
   }, []);
 
+  const checkHealth = useCallback(async () => {
+    setHealthStatus((prev) => ({
+      isHealthy: prev?.isHealthy ?? false,
+      error: prev?.error,
+      successMessage: prev?.successMessage,
+      isChecking: true,
+    }));
+    try {
+      const result = await window.electronAPI.githubToken.verify();
+      console.log("GitHub token verify result:", result);
+      if (result.isValid) {
+        const parts: string[] = ["Token is valid"];
+        if (result.username) parts.push(`user: ${result.username}`);
+        if (result.scopes && result.scopes.length > 0)
+          parts.push(`scopes: ${result.scopes.join(", ")}`);
+        if (typeof result.rateLimitRemaining === "number")
+          parts.push(`rate limit remaining: ${result.rateLimitRemaining}`);
+
+        setHealthStatus({
+          isHealthy: true,
+          successMessage: parts.join("; "),
+          isChecking: false,
+        });
+      } else {
+        setHealthStatus({
+          isHealthy: false,
+          error: result.error ?? "GitHub token is invalid",
+          isChecking: false,
+        });
+      }
+    } catch (error) {
+      setHealthStatus({
+        isHealthy: false,
+        error: formatErrorMessage(error),
+        isChecking: false,
+      });
+    }
+  }, []);
+
   useEffect(() => {
     if (isActive) {
       void loadToken();
     }
   }, [isActive, loadToken]);
+
+  useEffect(() => {
+    if (isActive && hasToken) {
+      void checkHealth();
+    }
+  }, [isActive, hasToken, checkHealth]);
 
   const handleSave = useCallback(async () => {
     if (!token.trim()) {
@@ -52,13 +100,14 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
       await window.electronAPI.githubToken.set(token.trim());
       setHasToken(true);
       toast.success("GitHub token saved successfully");
+      await checkHealth();
     } catch (error) {
       const errMsg = formatErrorMessage(error);
       toast.error(`Failed to save GitHub token: ${errMsg}`);
     } finally {
       setIsSaving(false);
     }
-  }, [token]);
+  }, [token, checkHealth]);
 
   const handleClear = useCallback(async () => {
     setIsSaving(true);
@@ -67,6 +116,7 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
       setToken("");
       setHasToken(false);
       setShowToken(false);
+      setHealthStatus(null);
       toast.success("GitHub token cleared successfully");
     } catch (error) {
       const errMsg = formatErrorMessage(error);
@@ -86,6 +136,23 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
         <div className="text-white/60 text-center py-8">Loading...</div>
       ) : (
         <>
+          {hasToken && (
+            <div className="flex items-center gap-3">
+              <p className="text-white/80 text-sm">Token Status:</p>
+              <span className="text-green-400 text-sm font-mono">Saved</span>
+              <HealthStatus
+                isChecking={healthStatus?.isChecking ?? false}
+                isHealthy={healthStatus?.isHealthy ?? false}
+                successMessage={healthStatus?.successMessage}
+                error={healthStatus?.error}
+              />
+            </div>
+          )}
+          {!hasToken && (
+            <p className="text-white/80 text-sm">
+              Status: <span className="text-red-400">Not Saved</span>
+            </p>
+          )}
           <div className="flex flex-col gap-2">
             <Label htmlFor="github-token" className="text-white">
               GitHub Personal Access Token
@@ -118,7 +185,7 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
           <div className="flex gap-3 justify-end pt-2">
             {hasToken && (
               <Button
-                variant="outline"
+                variant="destructive"
                 onClick={handleClear}
                 disabled={isSaving}
                 className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-800/80 hover:text-white/80"
