@@ -1,8 +1,4 @@
-import {
-  experimental_createMCPClient,
-  type experimental_MCPClient,
-  auth,
-} from "@ai-sdk/mcp";
+import { experimental_createMCPClient, type experimental_MCPClient, auth } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
@@ -51,10 +47,8 @@ export class MCPServerClient {
     // create streamableHttp transport MCP client
     if (mcpConfig.transport === "streamableHttp") {
       const serverUrl = MCPUtils.expandHomePath(mcpConfig.url);
-      const clientId = process.env.MCP_CLIENT_ID;
-      const clientSecret = process.env.MCP_CLIENT_SECRET;
-      const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
 
+      // Don't use OAuth for built-in MCP server
       if (mcpConfig.builtin) {
         const client = await experimental_createMCPClient({
           transport: {
@@ -66,25 +60,33 @@ export class MCPServerClient {
         return new MCPServerClient(mcpConfig.name, client);
       }
 
-      if (clientId && clientSecret) {
-        const authProvider = new InMemoryOAuthClientProvider({
-          clientId,
-          clientSecret,
-          callbackPort,
-        });
-        await authorizeWithPkceOnce(authProvider, serverUrl, () =>
-          waitForAuthorizationCode(callbackPort),
-        );
-        const client = await experimental_createMCPClient({
-          transport: {
-            type: "http",
-            url: serverUrl,
-            authProvider,
-          },
-        });
-        return new MCPServerClient(mcpConfig.name, client);
+      // Currently support OAuth for GitHub MCP server
+      if (mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
+        const githubClientId = process.env.GITHUB_MCP_CLIENT_ID;
+        const githubClientSecret = process.env.GITHUB_MCP_CLIENT_SECRET;
+        const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
+
+        if (githubClientId && githubClientSecret) {
+          const authProvider = new InMemoryOAuthClientProvider({
+            clientId: githubClientId,
+            clientSecret: githubClientSecret,
+            callbackPort,
+          });
+          await authorizeWithPkceOnce(authProvider, serverUrl, () =>
+            waitForAuthorizationCode(callbackPort),
+          );
+          const client = await experimental_createMCPClient({
+            transport: {
+              type: "http",
+              url: serverUrl,
+              authProvider,
+            },
+          });
+          return new MCPServerClient(mcpConfig.name, client);
+        }
       }
 
+      // Fallback: Use headers if no OAuth is configured
       const client = await experimental_createMCPClient({
         transport: {
           type: "http",
@@ -308,7 +310,9 @@ function waitForAuthorizationCode(port: number): Promise<string> {
       const err = url.searchParams.get("error");
       if (code) {
         res.writeHead(200, { "Content-Type": "text/html" });
-        res.end("<html><body><h1>Authorization Successful</h1><p>You can close this window.</p></body></html>");
+        res.end(
+          "<html><body><h1>Authorization Successful</h1><p>You can close this window.</p></body></html>",
+        );
         setTimeout(() => server.close(), 100);
         resolve(code);
       } else {
