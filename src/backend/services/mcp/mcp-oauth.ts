@@ -1,13 +1,13 @@
-import { auth } from "@ai-sdk/mcp";
-import { shell } from "electron";
+import { exec } from "node:child_process";
+import { createServer } from "node:http";
 import type {
-  OAuthClientProvider,
   OAuthClientInformation,
   OAuthClientMetadata,
+  OAuthClientProvider,
   OAuthTokens,
 } from "@ai-sdk/mcp";
-import { createServer } from "node:http";
-import { exec } from "node:child_process";
+import { auth } from "@ai-sdk/mcp";
+import { shell } from "electron";
 
 export class InMemoryOAuthClientProvider implements OAuthClientProvider {
   private _tokens?: OAuthTokens;
@@ -49,12 +49,9 @@ export class InMemoryOAuthClientProvider implements OAuthClientProvider {
           : process.platform === "darwin"
             ? `open "${url}"`
             : `xdg-open "${url}"`;
-      exec(cmd, error => {
+      exec(cmd, (error) => {
         if (error) {
-          console.error(
-            'Open this URL to continue:',
-            authorizationUrl.toString(),
-          );
+          console.error("Open this URL to continue:", authorizationUrl.toString());
         }
       });
     }

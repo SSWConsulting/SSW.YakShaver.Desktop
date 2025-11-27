@@ -2,9 +2,13 @@ import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-s
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
+import {
+  authorizeWithPkceOnce,
+  InMemoryOAuthClientProvider,
+  waitForAuthorizationCode,
+} from "./mcp-oauth";
 import { MCPUtils } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
-import { InMemoryOAuthClientProvider, authorizeWithPkceOnce, waitForAuthorizationCode } from "./mcp-oauth";
 import "dotenv/config";
 
 export interface CreateClientOptions {
