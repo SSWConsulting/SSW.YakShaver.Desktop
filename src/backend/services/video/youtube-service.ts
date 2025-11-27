@@ -60,8 +60,11 @@ export class YouTubeDownloadService {
       quiet: true,
     };
 
-    await this.downloadClient(youtubeUrl, flags);
-
-    return outputPath;
+    try {
+      await this.downloadClient(youtubeUrl, flags);
+      return outputPath;
+    } catch (error) {
+      throw new Error(`Failed to download video: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }
