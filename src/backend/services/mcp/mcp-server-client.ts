@@ -56,7 +56,7 @@ export class MCPServerClient {
         return new MCPServerClient(mcpConfig.name, client);
       }
 
-      // Currently support OAuth for GitHub MCP server
+      // Non-dynamic client registration MCP Server OAuth (e.g. GitHub MCP)
       if (mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
         const githubClientId = process.env.GITHUB_MCP_CLIENT_ID;
         const githubClientSecret = process.env.GITHUB_MCP_CLIENT_SECRET;
@@ -80,6 +80,27 @@ export class MCPServerClient {
           });
           return new MCPServerClient(mcpConfig.name, client);
         }
+      }
+
+      // Dynamic client registration for servers that support it (e.g., Vercel MCP)
+      if (mcpConfig.url.includes("https://mcp.vercel.com")) {
+        const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
+
+        // Don't pass credentials - let server register dynamically
+        const authProvider = new InMemoryOAuthClientProvider({
+          callbackPort,
+        });
+        await authorizeWithPkceOnce(authProvider, serverUrl, () =>
+          waitForAuthorizationCode(callbackPort),
+        );
+        const client = await experimental_createMCPClient({
+          transport: {
+            type: "http",
+            url: serverUrl,
+            authProvider,
+          },
+        });
+        return new MCPServerClient(mcpConfig.name, client);
       }
 
       // Fallback: Use headers if no OAuth is configured

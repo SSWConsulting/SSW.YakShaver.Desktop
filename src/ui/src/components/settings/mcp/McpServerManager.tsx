@@ -4,7 +4,6 @@ import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../../services/ipc-client";
 import { HealthStatus } from "../../health-status/health-status";
-import { McpWhitelistDialog } from "./McpWhitelistDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +19,7 @@ import { Card, CardContent } from "../../ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
 import { ScrollArea } from "../../ui/scroll-area";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
+import { McpWhitelistDialog } from "./McpWhitelistDialog";
 
 type ViewMode = "list" | "add" | "edit";
 
@@ -243,7 +243,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => showEditForm(server)}
-                                disabled={isLoading || server.builtin}
+                                disabled={server.builtin}
                               >
                                 Edit
                               </Button>
@@ -251,7 +251,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => openWhitelistDialog(server)}
-                                disabled={isLoading || server.builtin}
+                                disabled={server.builtin}
                               >
                                 Configure Whitelist
                               </Button>
@@ -259,7 +259,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => confirmDeleteServer(server.name)}
-                                disabled={isLoading || server.builtin}
+                                disabled={server.builtin}
                               >
                                 Delete
                               </Button>
@@ -297,9 +297,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isLoading}>
-              Delete Server
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteConfirm}>Delete Server</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
