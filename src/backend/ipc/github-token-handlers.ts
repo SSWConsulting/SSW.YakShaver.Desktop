@@ -3,12 +3,6 @@ import { GitHubTokenStorage } from "../services/storage/github-token-storage";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
-interface HealthStatusInfo {
-  isHealthy: boolean;
-  error?: string;
-  successMessage?: string;
-}
-
 export class GitHubTokenIPCHandlers {
   private store = GitHubTokenStorage.getInstance();
 
