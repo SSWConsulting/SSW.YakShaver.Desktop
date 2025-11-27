@@ -53,16 +53,8 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
     try {
       const result = await window.electronAPI.githubToken.verify();
       if (result.isValid) {
-        const parts: string[] = ["Token is valid"];
-        if (result.username) parts.push(`user: ${result.username}`);
-        if (result.scopes && result.scopes.length > 0)
-          parts.push(`scopes: ${result.scopes.join(", ")}`);
-        if (typeof result.rateLimitRemaining === "number")
-          parts.push(`rate limit remaining: ${result.rateLimitRemaining}`);
-
         setHealthStatus({
           isHealthy: true,
-          successMessage: parts.join("; "),
           isChecking: false,
         });
         setVerifyDetails({
