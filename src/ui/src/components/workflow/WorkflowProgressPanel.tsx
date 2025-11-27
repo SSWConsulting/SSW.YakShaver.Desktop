@@ -19,7 +19,6 @@ const WORKFLOW_CORE_STAGES: WorkflowStage[] = [
   ProgressStage.TRANSCRIBING,
   ProgressStage.GENERATING_TASK,
   ProgressStage.EXECUTING_TASK,
-  ProgressStage.UPDATING_METADATA,
 ];
 
 const EXTERNAL_WORKFLOW_STAGES: WorkflowStage[] = [
@@ -30,6 +29,7 @@ const EXTERNAL_WORKFLOW_STAGES: WorkflowStage[] = [
 const RECORDING_WORKFLOW_STAGES: WorkflowStage[] = [
   ProgressStage.UPLOADING_SOURCE,
   ...WORKFLOW_CORE_STAGES,
+  ProgressStage.UPDATING_METADATA,
 ];
 
 const resolveWorkflowOrigin = (progress: WorkflowProgress): VideoUploadOrigin | undefined =>
@@ -158,7 +158,7 @@ export function WorkflowProgressPanel() {
 
   const derivedOrigin = resolveWorkflowOrigin(progress);
   sourceOriginRef.current = derivedOrigin ?? sourceOriginRef.current;
-  const workflowStages = getWorkflowStagesByOrigin(derivedOrigin);
+  const workflowStages = getWorkflowStagesByOrigin(sourceOriginRef.current);
 
   const getStageIcon = (stage: WorkflowStage) => {
     const currentIndex = workflowStages.indexOf(progress.stage);
