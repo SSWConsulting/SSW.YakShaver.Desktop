@@ -10,6 +10,7 @@ import {
 import { MCPUtils } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
+import getPort from "get-port";
 
 export interface CreateClientOptions {
   inMemoryClientTransport?: InMemoryTransport;
@@ -83,9 +84,11 @@ export class MCPServerClient {
       }
 
       // Dynamic client registration for servers that support it (e.g., Vercel MCP)
-      if (mcpConfig.url.includes("https://mcp.vercel.com")) {
-        const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
-
+      if (
+        mcpConfig.url.includes("https://mcp.vercel.com") ||
+        mcpConfig.url.includes("https://mcp.atlassian.com/v1/sse")
+      ) {
+        const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
         // Don't pass credentials - let server register dynamically
         const authProvider = new InMemoryOAuthClientProvider({
           callbackPort,

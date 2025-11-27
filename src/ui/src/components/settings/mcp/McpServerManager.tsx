@@ -169,7 +169,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           {viewMode === "list" && (
             <div className="flex flex-col gap-6">
               <div className="flex justify-end">
-                <Button onClick={showAddForm} size="lg" disabled={isLoading}>
+                <Button onClick={showAddForm} size="lg">
                   Add Server
                 </Button>
               </div>
