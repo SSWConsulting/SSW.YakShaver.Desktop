@@ -2,13 +2,6 @@ import tmp from "tmp";
 import ytDlp, { type YtFlags } from "yt-dlp-exec";
 import type { VideoUploadResult } from "../auth/types";
 
-export interface YouTubeVideoMetadata {
-  videoId: string;
-  title: string;
-  description: string;
-  url: string;
-}
-
 export class YouTubeDownloadService {
   private static instance: YouTubeDownloadService;
   private downloadClient: typeof ytDlp;
@@ -31,18 +24,24 @@ export class YouTubeDownloadService {
       noWarnings: true,
       quiet: true,
     };
-    const metadata = await this.downloadClient(youtubeUrl, flags);
-
-    return {
-      success: true,
-      data: {
-        videoId: metadata.id,
-        title: metadata.title,
-        description: metadata.description,
-        url: metadata.webpage_url,
-      },
-      origin: "external",
-    };
+    try {
+      const metadata = await this.downloadClient(youtubeUrl, flags);
+      return {
+        success: true,
+        data: {
+          videoId: metadata.id,
+          title: metadata.title,
+          description: metadata.description,
+          url: metadata.webpage_url,
+        },
+        origin: "external",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to fetch video metadata: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
   }
 
   public async downloadVideoToFile(youtubeUrl: string, outputPath?: string): Promise<string> {

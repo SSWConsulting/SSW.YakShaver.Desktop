@@ -36,11 +36,10 @@ const resolveWorkflowOrigin = (progress: WorkflowProgress): VideoUploadOrigin | 
   progress.sourceOrigin ?? progress.uploadResult?.origin;
 
 const getWorkflowStagesByOrigin = (origin?: VideoUploadOrigin): WorkflowStage[] => {
-  if (origin === "upload") {
-    return RECORDING_WORKFLOW_STAGES;
+  if (origin === "external") {
+    return EXTERNAL_WORKFLOW_STAGES;
   }
-
-  return EXTERNAL_WORKFLOW_STAGES;
+  return RECORDING_WORKFLOW_STAGES;
 };
 
 export function WorkflowProgressPanel() {

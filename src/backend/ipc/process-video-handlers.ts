@@ -22,7 +22,6 @@ export type ProcessVideoPayload = {
 type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
-  cleanup?: () => void;
 };
 
 export class ProcessVideoIPCHandlers {
@@ -45,22 +44,27 @@ export class ProcessVideoIPCHandlers {
       }
 
       if (payload.type === "file") {
-        return await this.ProcessFileVideo(payload.path);
+        return await this.processFileVideo(payload.path);
       }
 
-      // download video from URL to a temp file
-      const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(payload.path);
-      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
-        uploadResult: youtubeResult,
-        sourceOrigin: "external",
-      });
-      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, { sourceOrigin: "external" });
-      const filePath = await this.youtubeDownloadService.downloadVideoToFile(payload.path);
-
-      return await this.processVideoSource({
-        filePath,
-        youtubeResult,
-      });
+      try {
+        // download video from URL to a temp file
+        const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(payload.path);
+        this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
+          uploadResult: youtubeResult,
+          sourceOrigin: "external",
+        });
+        this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, { sourceOrigin: "external" });
+        const filePath = await this.youtubeDownloadService.downloadVideoToFile(payload.path);
+        return await this.processVideoSource({
+          filePath,
+          youtubeResult,
+        });
+      } catch (error) {
+        const errorMessage = formatErrorMessage(error);
+        this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+        return { success: false, error: errorMessage };
+      }
     });
 
     // Retry video pipeline
@@ -98,7 +102,7 @@ export class ProcessVideoIPCHandlers {
     );
   }
 
-  private async ProcessFileVideo(filePath: string) {
+  private async processFileVideo(filePath: string) {
     // check file exists
     if (!fs.existsSync(filePath)) {
       throw new Error("video-process-handler: Video file does not exist");
@@ -193,7 +197,7 @@ export class ProcessVideoIPCHandlers {
       return { youtubeResult, mcpResult };
     } finally {
       try {
-        fs.unlinkSync(filePath);
+        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
       } catch (cleanupError) {
         console.warn("[ProcessVideo] Failed to clean up source file", cleanupError);
       }

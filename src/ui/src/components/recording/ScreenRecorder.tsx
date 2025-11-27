@@ -131,7 +131,12 @@ export function ScreenRecorder() {
   const isValidYouTubeUrl = (url: string): boolean => {
     try {
       const { hostname } = new URL(url);
-      return hostname === "youtu.be" || hostname.endsWith("youtube.com");
+      return (
+        hostname === "youtu.be" ||
+        hostname === "youtube.com" ||
+        hostname === "www.youtube.com" ||
+        hostname === "m.youtube.com"
+      );
     } catch {
       toast.error("Please provide a valid YouTube URL");
       return false;
