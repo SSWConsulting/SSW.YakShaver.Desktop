@@ -274,7 +274,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => showEditForm(server)}
-                                disabled={isLoading || server.builtin}
+                                disabled={server.builtin}
                               >
                                 Edit
                               </Button>
@@ -282,7 +282,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => openWhitelistDialog(server)}
-                                disabled={isLoading || server.builtin}
+                                disabled={server.builtin}
                               >
                                 Configure Whitelist
                               </Button>
@@ -290,7 +290,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 variant="destructive"
                                 size="sm"
                                 onClick={() => confirmDeleteServer(server.name)}
-                                disabled={isLoading || server.builtin}
+                                disabled={server.builtin}
                               >
                                 Delete
                               </Button>
@@ -328,9 +328,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isLoading}>
-              Delete Server
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteConfirm}>Delete Server</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
