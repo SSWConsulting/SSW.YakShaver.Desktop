@@ -89,7 +89,6 @@ export class MCPServerClient {
         mcpConfig.url.includes("https://mcp.atlassian.com/v1/sse")
       ) {
         const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
-        // Don't pass credentials - let server register dynamically
         const authProvider = new InMemoryOAuthClientProvider({
           callbackPort,
         });
