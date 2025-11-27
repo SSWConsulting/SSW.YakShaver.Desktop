@@ -60,7 +60,6 @@ export class ProcessVideoIPCHandlers {
       return await this.processVideoSource({
         filePath,
         youtubeResult,
-        cleanup: () => fs.unlinkSync(filePath),
       });
     });
 
@@ -116,11 +115,10 @@ export class ProcessVideoIPCHandlers {
     return await this.processVideoSource({
       filePath,
       youtubeResult,
-      cleanup: () => fs.unlinkSync(filePath),
     });
   }
 
-  private async processVideoSource({ filePath, youtubeResult, cleanup }: VideoProcessingContext) {
+  private async processVideoSource({ filePath, youtubeResult }: VideoProcessingContext) {
     try {
       this.emitProgress(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
@@ -189,12 +187,10 @@ export class ProcessVideoIPCHandlers {
 
       return { youtubeResult, mcpResult };
     } finally {
-      if (cleanup) {
-        try {
-          cleanup();
-        } catch (cleanupError) {
-          console.warn("[ProcessVideo] Failed to clean up source file", cleanupError);
-        }
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.warn("[ProcessVideo] Failed to clean up source file", cleanupError);
       }
     }
   }
