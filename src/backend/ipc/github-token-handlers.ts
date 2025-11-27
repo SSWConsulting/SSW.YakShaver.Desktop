@@ -73,8 +73,7 @@ export class GitHubTokenIPCHandlers {
         if (response.status === 401) {
           errorMessage = "Invalid or expired token";
         } else if (response.status === 403) {
-          const body = await response.text();
-          if (/rate limit/i.test(body)) {
+          if (rateLimitRemaining === 0) {
             errorMessage = "Rate limit exceeded";
           }
         }

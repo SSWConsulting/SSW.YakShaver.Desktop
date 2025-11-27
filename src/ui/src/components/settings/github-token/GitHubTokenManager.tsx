@@ -52,7 +52,6 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
     }));
     try {
       const result = await window.electronAPI.githubToken.verify();
-      console.log("GitHub token verify result:", result);
       if (result.isValid) {
         const parts: string[] = ["Token is valid"];
         if (result.username) parts.push(`user: ${result.username}`);
