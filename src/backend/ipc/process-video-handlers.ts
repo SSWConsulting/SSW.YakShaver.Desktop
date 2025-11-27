@@ -119,6 +119,11 @@ export class ProcessVideoIPCHandlers {
   }
 
   private async processVideoSource({ filePath, youtubeResult }: VideoProcessingContext) {
+    // check file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error("video-process-handler: Video file does not exist");
+    }
+
     try {
       this.emitProgress(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
