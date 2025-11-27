@@ -43,6 +43,7 @@ export const IPC_CHANNELS = {
   MCP_UPDATE_SERVER: "mcp:update-server",
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
+  MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -75,4 +76,5 @@ export const IPC_CHANNELS = {
   GITHUB_TOKEN_SET: "github-token:set",
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
+  GITHUB_TOKEN_VERIFY: "github-token:verify",
 } as const;

@@ -1,7 +1,7 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { ProcessVideoPayload } from "./ipc/process-video-handlers";
 import type { VideoUploadResult } from "./services/auth/types";
-import type { MCPServerConfig } from "./services/mcp/types";
+import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
@@ -51,6 +51,7 @@ const IPC_CHANNELS = {
   MCP_UPDATE_SERVER: "mcp:update-server",
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
+  MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -83,6 +84,7 @@ const IPC_CHANNELS = {
   GITHUB_TOKEN_SET: "github-token:set",
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
+  GITHUB_TOKEN_VERIFY: "github-token:verify",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -179,6 +181,8 @@ const electronAPI = {
     removeServerAsync: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),
     checkServerHealthAsync: (name: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, name),
+    listServerTools: (name: string): Promise<MCPToolSummary[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, name),
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
@@ -206,6 +210,14 @@ const electronAPI = {
     set: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_SET, token),
     clear: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_CLEAR),
     has: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_HAS),
+    verify: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_VERIFY) as Promise<{
+        isValid: boolean;
+        username?: string;
+        scopes?: string[];
+        rateLimitRemaining?: number;
+        error?: string;
+      }>,
   },
 };
 
