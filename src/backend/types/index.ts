@@ -6,6 +6,7 @@ export interface HealthStatusInfo {
 
 export enum ProgressStage {
   IDLE = "idle",
+  UPLOADING_SOURCE = "uploading_source",
   DOWNLOADING_SOURCE = "downloading_source",
   UPLOAD_COMPLETED = "upload_completed",
   CONVERTING_AUDIO = "converting_audio",

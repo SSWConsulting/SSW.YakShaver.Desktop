@@ -121,6 +121,7 @@ export interface MetadataPreview {
 
 export type WorkflowStage =
   | "idle"
+  | "uploading_source"
   | "downloading_source"
   | "converting_audio"
   | "transcribing"
@@ -132,6 +133,7 @@ export type WorkflowStage =
 
 export const STAGE_CONFIG: Record<WorkflowStage, string> = {
   idle: "Waiting for recording...",
+  uploading_source: "Uploading video",
   downloading_source: "Downloading source video",
   converting_audio: "Converting audio",
   transcribing: "Transcribing audio",
@@ -172,6 +174,7 @@ export interface HealthStatusInfo {
 
 export enum ProgressStage {
   IDLE = "idle",
+  UPLOADING_SOURCE = "uploading_source",
   DOWNLOADING_SOURCE = "downloading_source",
   UPLOAD_COMPLETED = "upload_completed",
   CONVERTING_AUDIO = "converting_audio",
