@@ -4,7 +4,6 @@ import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../../services/ipc-client";
 import { HealthStatus } from "../../health-status/health-status";
-import { McpWhitelistDialog } from "./McpWhitelistDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +18,9 @@ import { Button } from "../../ui/button";
 import { Card, CardContent } from "../../ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
 import { ScrollArea } from "../../ui/scroll-area";
+import { GitHubAppInstallGuide } from "../github-token/GitHubAppInstallGuide";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
+import { McpWhitelistDialog } from "./McpWhitelistDialog";
 
 type ViewMode = "list" | "add" | "edit";
 
@@ -38,6 +39,32 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   const [serverToDelete, setServerToDelete] = useState<string | null>(null);
   const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
   const [whitelistServer, setWhitelistServer] = useState<MCPServerConfig | null>(null);
+  const [appInstallUrl, setAppInstallUrl] = useState<string>("");
+
+  // Check if any server is a GitHub MCP server
+  const hasGitHubServer = useMemo(() => {
+    return servers.some((server) => {
+      if (server.transport === "streamableHttp" && server.url) {
+        return server.url.includes("github");
+      }
+      return false;
+    });
+  }, [servers]);
+
+  // Load GitHub install URL
+  useEffect(() => {
+    if (isActive && hasGitHubServer) {
+      const loadGitHubInstallUrl = async () => {
+        try {
+          const installUrl = await ipcClient.githubToken.getInstallUrl();
+          setAppInstallUrl(installUrl);
+        } catch (e) {
+          console.error("Failed to load GitHub install URL:", e);
+        }
+      };
+      void loadGitHubInstallUrl();
+    }
+  }, [isActive, hasGitHubServer]);
 
   const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
     const initialStatus: ServerHealthStatus<string> = {};
@@ -168,6 +195,10 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
         <div className="flex flex-col gap-6 pb-6 pr-2">
           {viewMode === "list" && (
             <div className="flex flex-col gap-6">
+              {hasGitHubServer && appInstallUrl && (
+                <GitHubAppInstallGuide appInstallUrl={appInstallUrl}/>
+              )}
+
               <div className="flex justify-end">
                 <Button onClick={showAddForm} size="lg" disabled={isLoading}>
                   Add Server
