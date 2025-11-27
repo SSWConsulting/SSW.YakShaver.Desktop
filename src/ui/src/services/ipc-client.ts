@@ -141,6 +141,13 @@ declare global {
         set: (token: string) => Promise<void>;
         clear: () => Promise<void>;
         has: () => Promise<boolean>;
+        verify: () => Promise<{
+          isValid: boolean;
+          username?: string;
+          scopes?: string[];
+          rateLimitRemaining?: number;
+          error?: string;
+        }>;
       };
     };
   }
