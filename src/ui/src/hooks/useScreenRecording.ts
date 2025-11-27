@@ -6,6 +6,8 @@ const VIDEO_MIME_TYPE = "video/mp4";
 interface RecordingStreams {
   video?: MediaStream;
   audio?: MediaStream;
+  camera?: MediaStream;
+  composite?: MediaStream;
 }
 interface ElectronVideoConstraints extends MediaTrackConstraints {
   mandatory?: {
@@ -21,11 +23,26 @@ export function useScreenRecording() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamsRef = useRef<RecordingStreams>({});
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const desktopVideoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   const cleanup = useCallback(() => {
     mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
     streamsRef.current.video?.getTracks().forEach((track) => track.stop());
     streamsRef.current.audio?.getTracks().forEach((track) => track.stop());
+    streamsRef.current.camera?.getTracks().forEach((track) => track.stop());
+    streamsRef.current.composite?.getTracks().forEach((track) => track.stop());
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    desktopVideoRef.current && (desktopVideoRef.current.srcObject = null);
+    cameraVideoRef.current && (cameraVideoRef.current.srcObject = null);
+    canvasRef.current = null;
+    desktopVideoRef.current = null;
+    cameraVideoRef.current = null;
 
     mediaRecorderRef.current = null;
     chunksRef.current = [];
@@ -33,7 +50,10 @@ export function useScreenRecording() {
   }, []);
 
   const start = useCallback(
-    async (sourceId?: string) => {
+    async (
+      sourceId?: string,
+      options?: { micDeviceId?: string; cameraDeviceId?: string },
+    ) => {
       setIsProcessing(true);
       try {
         const result = await window.electronAPI.screenRecording.start(sourceId);
@@ -49,13 +69,62 @@ export function useScreenRecording() {
               },
             } as ElectronVideoConstraints,
           }),
-          navigator.mediaDevices.getUserMedia({ audio: true, video: false }),
+          navigator.mediaDevices.getUserMedia({
+            audio: options?.micDeviceId
+              ? { deviceId: { exact: options.micDeviceId } }
+              : true,
+            video: false,
+          }),
         ]);
 
-        streamsRef.current = { video: videoStream, audio: audioStream };
+        let compositeStream: MediaStream | null = null;
+        if (options?.cameraDeviceId) {
+          const camStream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: options.cameraDeviceId } },
+            audio: false,
+          });
+          const desktopVideo = document.createElement("video");
+          const cameraVideo = document.createElement("video");
+          desktopVideo.muted = true;
+          cameraVideo.muted = true;
+          desktopVideo.playsInline = true;
+          cameraVideo.playsInline = true;
+          desktopVideo.srcObject = videoStream;
+          cameraVideo.srcObject = camStream;
+          await Promise.all([desktopVideo.play().catch(() => {}), cameraVideo.play().catch(() => {})]);
+          const settings = videoStream.getVideoTracks()[0].getSettings();
+          const width = settings.width || 1280;
+          const height = settings.height || 720;
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          const draw = () => {
+            if (!ctx) return;
+            ctx.clearRect(0, 0, width, height);
+            ctx.drawImage(desktopVideo, 0, 0, width, height);
+            const camW = Math.floor(width * 0.25);
+            const camH = Math.floor(height * 0.25);
+            const x = width - camW - 16;
+            const y = height - camH - 16;
+            ctx.drawImage(cameraVideo, x, y, camW, camH);
+            rafRef.current = requestAnimationFrame(draw);
+          };
+          draw();
+          compositeStream = canvas.captureStream(30);
+          canvasRef.current = canvas;
+          desktopVideoRef.current = desktopVideo;
+          cameraVideoRef.current = cameraVideo;
+          streamsRef.current = { video: videoStream, audio: audioStream, camera: camStream, composite: compositeStream };
+        } else {
+          streamsRef.current = { video: videoStream, audio: audioStream };
+        }
 
+        const videoTracks = compositeStream
+          ? compositeStream.getVideoTracks()
+          : videoStream.getVideoTracks();
         const recorder = new MediaRecorder(
-          new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]),
+          new MediaStream([...videoTracks, ...audioStream.getAudioTracks()]),
           { mimeType: VIDEO_MIME_TYPE },
         );
 

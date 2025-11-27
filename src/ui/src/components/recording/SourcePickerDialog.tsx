@@ -1,19 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../../services/ipc-client";
 import type { ScreenSource } from "../../types";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 type SourcePickerDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (sourceId: string) => void;
+  onSelect: (sourceId: string, devices: { cameraId?: string; microphoneId?: string }) => void;
 };
 
 export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePickerDialogProps) {
   const [loading, setLoading] = useState(false);
   const [sources, setSources] = useState<ScreenSource[]>([]);
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
+  const [microphoneDevices, setMicrophoneDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string | undefined>(undefined);
+  const [selectedMicrophoneId, setSelectedMicrophoneId] = useState<string | undefined>(undefined);
+  const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const [cameraPreviewStream, setCameraPreviewStream] = useState<MediaStream | null>(null);
 
   const fetchSources = useCallback(async () => {
     setLoading(true);
@@ -27,14 +34,80 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
     }
   }, []);
 
+  const fetchDevices = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter((d) => d.kind === "videoinput");
+      const mics = devices.filter((d) => d.kind === "audioinput");
+      setCameraDevices(cams);
+      setMicrophoneDevices(mics);
+      const lastCam = localStorage.getItem("yakshaver.lastCameraDeviceId") || undefined;
+      const lastMic = localStorage.getItem("yakshaver.lastMicDeviceId") || undefined;
+      setSelectedCameraId(cams.find((c) => c.deviceId === lastCam)?.deviceId || cams[0]?.deviceId);
+      setSelectedMicrophoneId(
+        mics.find((m) => m.deviceId === lastMic)?.deviceId || mics[0]?.deviceId,
+      );
+    } catch {
+      setCameraDevices([]);
+      setMicrophoneDevices([]);
+    }
+  }, []);
+
   useEffect(() => {
     if (open) {
       void fetchSources();
+      void fetchDevices();
     } else {
       setSources([]);
       setLoading(false);
+      setCameraDevices([]);
+      setMicrophoneDevices([]);
+      if (cameraPreviewStream) {
+        cameraPreviewStream.getTracks().forEach((t) => t.stop());
+        setCameraPreviewStream(null);
+      }
+      if (cameraPreviewRef.current) {
+        cameraPreviewRef.current.srcObject = null;
+      }
     }
-  }, [open, fetchSources]);
+  }, [open, fetchSources, fetchDevices]);
+
+  useEffect(() => {
+    const startPreview = async () => {
+      if (!open) return;
+      if (!selectedCameraId || !cameraPreviewRef.current) {
+        if (cameraPreviewStream) {
+          cameraPreviewStream.getTracks().forEach((t) => t.stop());
+          setCameraPreviewStream(null);
+        }
+        if (cameraPreviewRef.current) {
+          cameraPreviewRef.current.srcObject = null;
+        }
+        return;
+      }
+      if (cameraPreviewStream) {
+        cameraPreviewStream.getTracks().forEach((t) => t.stop());
+        setCameraPreviewStream(null);
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: selectedCameraId } },
+          audio: false,
+        });
+        setCameraPreviewStream(stream);
+        cameraPreviewRef.current.srcObject = stream;
+        cameraPreviewRef.current.muted = true;
+        cameraPreviewRef.current.playsInline = true;
+        await cameraPreviewRef.current.play().catch(() => {});
+      } catch {
+        if (cameraPreviewRef.current) {
+          cameraPreviewRef.current.srcObject = null;
+        }
+        setCameraPreviewStream(null);
+      }
+    };
+    void startPreview();
+  }, [open, selectedCameraId]);
 
   const screens = useMemo(() => sources.filter((s) => s.type === "screen"), [sources]);
   const windows = useMemo(() => sources.filter((s) => s.type === "window"), [sources]);
@@ -50,11 +123,74 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
         </DialogHeader>
 
         <div className="max-h-[75vh] overflow-auto space-y-6 p-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Camera</span>
+              <Select
+                value={selectedCameraId ?? ""}
+                onValueChange={(v) => {
+                  setSelectedCameraId(v || undefined);
+                  if (v) localStorage.setItem("yakshaver.lastCameraDeviceId", v);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select camera" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cameraDevices.length === 0 && (
+                    <SelectItem value="__no_camera__" disabled textValue="No camera devices">No camera devices</SelectItem>
+                  )}
+                  {cameraDevices.map((d) => (
+                    <SelectItem key={d.deviceId} value={d.deviceId} textValue={d.label || d.deviceId}>
+                      {d.label || d.deviceId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Microphone</span>
+              <Select
+                value={selectedMicrophoneId ?? ""}
+                onValueChange={(v) => {
+                  setSelectedMicrophoneId(v || undefined);
+                  if (v) localStorage.setItem("yakshaver.lastMicDeviceId", v);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select microphone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {microphoneDevices.length === 0 && (
+                    <SelectItem value="__no_mic__" disabled textValue="No microphone devices">No microphone devices</SelectItem>
+                  )}
+                  {microphoneDevices.map((d) => (
+                    <SelectItem key={d.deviceId} value={d.deviceId} textValue={d.label || d.deviceId}>
+                      {d.label || d.deviceId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="rounded-md overflow-hidden bg-neutral-800">
+            <div className="relative aspect-video w-full">
+              <video ref={cameraPreviewRef} className="h-full w-full object-cover" autoPlay playsInline muted />
+            </div>
+          </div>
           {loading && (
             <div className="text-sm text-muted-foreground text-center py-2">Loading sources…</div>
           )}
-          <SourceSection label="Screens" sources={screens} onSelect={(id) => onSelect(id)} />
-          <SourceSection label="Windows" sources={windows} onSelect={(id) => onSelect(id)} />
+          <SourceSection
+            label="Screens"
+            sources={screens}
+            onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
+          />
+          <SourceSection
+            label="Windows"
+            sources={windows}
+            onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
+          />
 
           {!loading && screens.length === 0 && windows.length === 0 && (
             <div className="text-sm text-muted-foreground text-center py-8">
