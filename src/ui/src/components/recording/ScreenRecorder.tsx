@@ -4,7 +4,12 @@ import { formatErrorMessage } from "@/utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
-import { AuthStatus, UploadStatus, type ChromeMonitorState } from "../../types";
+import {
+  AuthStatus,
+  UploadStatus,
+  type ChromeMonitorState,
+  type ChromeTelemetryEvent,
+} from "../../types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -99,6 +104,34 @@ export function ScreenRecorder() {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!chromeState?.enabled) {
+      return;
+    }
+
+    const unsubscribe = window.electronAPI.chromeMonitor.onTelemetry((event: ChromeTelemetryEvent) => {
+      if (!chromeState?.enabled) {
+        return;
+      }
+      if (event.kind === "console") {
+        const { level, text, url } = event.entry;
+        const formatted = url ? `${text} (${url})` : text;
+        const toastFn =
+          level === "error" ? toast.error : level === "warning" ? toast.warning : toast.info;
+        toastFn(`Chrome console [${level}]: ${formatted}`);
+      } else {
+        const { method, status, url, mimeType } = event.entry;
+        const statusPart = status ? ` status=${status}` : "";
+        const mimePart = mimeType ? ` mime=${mimeType}` : "";
+        toast.info(`Chrome network [${method ?? "GET"}]: ${url}${statusPart}${mimePart}`);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [chromeState?.enabled]);
 
   useEffect(() => {
     if (!isYoutubeUrlWorkflowEnabled) {

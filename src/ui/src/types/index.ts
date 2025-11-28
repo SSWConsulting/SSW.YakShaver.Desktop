@@ -86,6 +86,28 @@ export interface ChromeMonitorState {
   remoteDebuggingPort?: number;
 }
 
+export interface ChromeConsoleLogEntry {
+  level: string;
+  text: string;
+  source?: string;
+  url?: string;
+  timestamp: number;
+}
+
+export interface ChromeNetworkEntry {
+  url: string;
+  method?: string;
+  status?: number;
+  mimeType?: string;
+  resourceType?: string;
+  encodedDataLength?: number;
+  timestamp: number;
+}
+
+export type ChromeTelemetryEvent =
+  | { kind: "console"; entry: ChromeConsoleLogEntry }
+  | { kind: "network"; entry: ChromeNetworkEntry };
+
 export interface TranscriptEntry {
   role: string;
   content?: unknown;

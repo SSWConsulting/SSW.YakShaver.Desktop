@@ -1,6 +1,9 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
-import type { ChromeMonitorState } from "./services/chrome/chrome-devtools-monitor";
+import type {
+  ChromeMonitorState,
+  ChromeTelemetryEvent,
+} from "./services/chrome/chrome-devtools-monitor";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 
@@ -59,6 +62,7 @@ const IPC_CHANNELS = {
   CHROME_MONITOR_START_CAPTURE: "chrome-monitor:start-capture",
   CHROME_MONITOR_STOP_CAPTURE: "chrome-monitor:stop-capture",
   CHROME_MONITOR_STATE_CHANGED: "chrome-monitor:state-changed",
+  CHROME_MONITOR_TELEMETRY: "chrome-monitor:telemetry",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -155,6 +159,8 @@ const electronAPI = {
     stopCapture: () => ipcRenderer.invoke(IPC_CHANNELS.CHROME_MONITOR_STOP_CAPTURE),
     onStateChange: (callback: (state: ChromeMonitorState) => void) =>
       onIpcEvent(IPC_CHANNELS.CHROME_MONITOR_STATE_CHANGED, callback),
+    onTelemetry: (callback: (event: ChromeTelemetryEvent) => void) =>
+      onIpcEvent(IPC_CHANNELS.CHROME_MONITOR_TELEMETRY, callback),
   },
   controlBar: {
     onTimeUpdate: (callback: (time: string) => void) => {

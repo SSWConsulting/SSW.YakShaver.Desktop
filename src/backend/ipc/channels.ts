@@ -51,6 +51,7 @@ export const IPC_CHANNELS = {
   CHROME_MONITOR_START_CAPTURE: "chrome-monitor:start-capture",
   CHROME_MONITOR_STOP_CAPTURE: "chrome-monitor:stop-capture",
   CHROME_MONITOR_STATE_CHANGED: "chrome-monitor:state-changed",
+  CHROME_MONITOR_TELEMETRY: "chrome-monitor:telemetry",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",

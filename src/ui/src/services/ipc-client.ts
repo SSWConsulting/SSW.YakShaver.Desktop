@@ -7,6 +7,7 @@ import type {
   AuthResult,
   AuthState,
   ChromeMonitorState,
+  ChromeTelemetryEvent,
   ConvertVideoToMp3Result,
   CustomPrompt,
   HealthStatusInfo,
@@ -80,6 +81,7 @@ declare global {
         startCapture: () => Promise<{ success: boolean; message?: string }>;
         stopCapture: () => Promise<{ success: boolean; message?: string }>;
         onStateChange: (callback: (state: ChromeMonitorState) => void) => () => void;
+        onTelemetry: (callback: (event: ChromeTelemetryEvent) => void) => () => void;
       };
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;

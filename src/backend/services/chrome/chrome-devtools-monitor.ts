@@ -81,6 +81,10 @@ export interface ChromeTelemetrySnapshot {
   networkRequests: ChromeNetworkEntry[];
 }
 
+export type ChromeTelemetryEvent =
+  | { kind: "console"; entry: ChromeConsoleLogEntry }
+  | { kind: "network"; entry: ChromeNetworkEntry };
+
 const CHROME_DEVTOOLS_IDENTIFIER = "chrome-devtools-mcp";
 const MAX_LOG_ENTRIES = 50;
 
@@ -311,16 +315,18 @@ export class ChromeDevtoolsMonitorService {
     const entry = payload.entry;
     const timestamp = entry.timestamp ? entry.timestamp / 1000 : Date.now();
     const text = this.normalizeConsoleText(entry);
-    this.consoleLogs.push({
+    const normalized: ChromeConsoleLogEntry = {
       level: entry.level ?? "info",
       text,
       source: entry.source,
       url: entry.url,
       timestamp,
-    });
+    };
+    this.consoleLogs.push(normalized);
     if (this.consoleLogs.length > MAX_LOG_ENTRIES) {
       this.consoleLogs = this.consoleLogs.slice(-MAX_LOG_ENTRIES);
     }
+    this.emitTelemetry({ kind: "console", entry: normalized });
   }
 
   private normalizeConsoleText(entry: LogEntry): string {
@@ -352,6 +358,10 @@ export class ChromeDevtoolsMonitorService {
       encodedDataLength: existing?.encodedDataLength,
       timestamp,
     });
+    const current = this.networkMap.get(params.requestId);
+    if (current) {
+      this.emitTelemetry({ kind: "network", entry: { ...current } });
+    }
   }
 
   private handleNetworkResponse(params: ResponseReceivedParams): void {
@@ -373,6 +383,10 @@ export class ChromeDevtoolsMonitorService {
       ...existing,
       encodedDataLength: params.encodedDataLength ?? existing.encodedDataLength,
     });
+    const updated = this.networkMap.get(params.requestId);
+    if (updated) {
+      this.emitTelemetry({ kind: "network", entry: { ...updated } });
+    }
   }
 
   private getLatestNetworkEntries(): ChromeNetworkEntry[] {
@@ -385,6 +399,14 @@ export class ChromeDevtoolsMonitorService {
   private resetCollections(): void {
     this.consoleLogs = [];
     this.networkMap.clear();
+  }
+
+  private emitTelemetry(event: ChromeTelemetryEvent): void {
+    BrowserWindow.getAllWindows()
+      .filter((win) => !win.isDestroyed())
+      .forEach((win) => {
+        win.webContents.send(IPC_CHANNELS.CHROME_MONITOR_TELEMETRY, event);
+      });
   }
 
   private sendCommand(method: string, params?: Record<string, unknown>): void {
