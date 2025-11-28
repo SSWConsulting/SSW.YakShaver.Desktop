@@ -1,12 +1,12 @@
 import { Check, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import {
+  type MetadataPreview,
   ProgressStage,
   STAGE_CONFIG,
+  type VideoChapter,
   type WorkflowProgress,
   type WorkflowStage,
-  type MetadataPreview,
-  type VideoChapter,
 } from "../../types";
 import { deepParseJson } from "../../utils";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
@@ -86,7 +86,9 @@ function MetadataPreviewCard({ preview }: { preview?: MetadataPreview }) {
         <p className="text-white font-semibold">{preview.title}</p>
       </MetadataField>
       <MetadataField label="Description">
-        <pre className="text-sm text-white/80 whitespace-pre-wrap font-sans">{preview.description}</pre>
+        <pre className="text-sm text-white/80 whitespace-pre-wrap font-sans">
+          {preview.description}
+        </pre>
       </MetadataField>
       {preview.tags && preview.tags.length > 0 && (
         <MetadataField label="Tags">
@@ -115,13 +117,7 @@ function MetadataPreviewCard({ preview }: { preview?: MetadataPreview }) {
   );
 }
 
-function MetadataField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function MetadataField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="p-3 bg-black/30 border border-white/10 rounded-md space-y-2">
       <p className="text-xs uppercase tracking-wide text-white/50">{label}</p>
@@ -181,6 +177,8 @@ export function StageWithContent({
   stepsRef,
   getStageIcon,
 }: StageWithContentProps) {
+  const isExternalSource = progress.sourceOrigin === "external";
+
   return (
     <>
       <AccordionTrigger className="px-4 hover:no-underline">
@@ -244,7 +242,7 @@ export function StageWithContent({
             ))}
           </div>
         )}
-        {stage === ProgressStage.UPDATING_METADATA && (
+        {stage === ProgressStage.UPDATING_METADATA && !isExternalSource && (
           <MetadataPreviewCard preview={progress.metadataPreview} />
         )}
       </AccordionContent>

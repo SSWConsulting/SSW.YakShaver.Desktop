@@ -59,7 +59,8 @@ const IPC_CHANNELS = {
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
   // Video processing - the main process pipeline
-  PROCESS_VIDEO: "process-video",
+  PROCESS_VIDEO_FILE: "process-video:file",
+  PROCESS_VIDEO_URL: "process-video:url",
   RETRY_VIDEO: "retry-video",
 
   // Settings
@@ -83,6 +84,7 @@ const IPC_CHANNELS = {
   GITHUB_TOKEN_SET: "github-token:set",
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
+  GITHUB_TOKEN_VERIFY: "github-token:verify",
   GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
 } as const;
 
@@ -94,7 +96,9 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideo: (filePath?: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, filePath),
+    processVideoFile: (filePath: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath),
+    processVideoUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url),
     retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
   },
@@ -208,6 +212,14 @@ const electronAPI = {
     set: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_SET, token),
     clear: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_CLEAR),
     has: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_HAS),
+    verify: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_VERIFY) as Promise<{
+        isValid: boolean;
+        username?: string;
+        scopes?: string[];
+        rateLimitRemaining?: number;
+        error?: string;
+      }>,
     getInstallUrl: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_APP_GET_INSTALL_URL),
   },
 };

@@ -30,7 +30,7 @@ jobs:
     needs: check-release
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.check-release.outputs.target }}
 
@@ -78,7 +78,7 @@ jobs:
     needs: check-release
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.check-release.outputs.target }}
 
