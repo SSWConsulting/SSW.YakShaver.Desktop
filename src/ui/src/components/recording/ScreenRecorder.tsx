@@ -1,4 +1,4 @@
-import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
@@ -30,6 +30,7 @@ export function ScreenRecorder() {
   const [isProcessingUrl, setIsProcessingUrl] = useState(false);
   const [chromeState, setChromeState] = useState<ChromeMonitorState | null>(null);
   const [isOpeningChrome, setIsOpeningChrome] = useState(false);
+  const chromeEnabledRef = useRef(false);
   const youtubeUrlInputId = useId();
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -106,12 +107,12 @@ export function ScreenRecorder() {
   }, []);
 
   useEffect(() => {
-    if (!chromeState?.enabled) {
-      return;
-    }
+    chromeEnabledRef.current = !!chromeState?.enabled;
+  }, [chromeState?.enabled]);
 
+  useEffect(() => {
     const unsubscribe = window.electronAPI.chromeMonitor.onTelemetry((event: ChromeTelemetryEvent) => {
-      if (!chromeState?.enabled) {
+      if (!chromeEnabledRef.current) {
         return;
       }
       if (event.kind === "console") {
@@ -131,7 +132,7 @@ export function ScreenRecorder() {
     return () => {
       unsubscribe();
     };
-  }, [chromeState?.enabled]);
+  }, []);
 
   useEffect(() => {
     if (!isYoutubeUrlWorkflowEnabled) {
