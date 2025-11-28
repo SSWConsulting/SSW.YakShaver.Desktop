@@ -16,9 +16,19 @@ import { Label } from "../ui/label";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
 
+const MAX_CHROME_LOGS = 200;
+
 interface RecordedVideo {
   blob: Blob;
   filePath: string;
+}
+
+interface ChromeLogEntry {
+  id: string;
+  type: "console" | "network";
+  timestamp: number;
+  level?: string;
+  message: string;
 }
 
 export function ScreenRecorder() {
@@ -30,6 +40,7 @@ export function ScreenRecorder() {
   const [isProcessingUrl, setIsProcessingUrl] = useState(false);
   const [chromeState, setChromeState] = useState<ChromeMonitorState | null>(null);
   const [isOpeningChrome, setIsOpeningChrome] = useState(false);
+  const [chromeLogs, setChromeLogs] = useState<ChromeLogEntry[]>([]);
   const chromeEnabledRef = useRef(false);
   const youtubeUrlInputId = useId();
 
@@ -108,6 +119,9 @@ export function ScreenRecorder() {
 
   useEffect(() => {
     chromeEnabledRef.current = !!chromeState?.enabled;
+    if (!chromeState?.enabled) {
+      setChromeLogs([]);
+    }
   }, [chromeState?.enabled]);
 
   useEffect(() => {
@@ -115,17 +129,34 @@ export function ScreenRecorder() {
       if (!chromeEnabledRef.current) {
         return;
       }
+      const id =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`;
+      const timestamp = event.entry.timestamp ?? Date.now();
+      let message = "";
       if (event.kind === "console") {
         const { level, text, url } = event.entry;
-        const formatted = url ? `${text} (${url})` : text;
-        const toastFn =
-          level === "error" ? toast.error : level === "warning" ? toast.warning : toast.info;
-        toastFn(`Chrome console [${level}]: ${formatted}`);
+        message = url ? `${text} (${url})` : text;
+        setChromeLogs((prev) => {
+          const next: ChromeLogEntry[] = [
+            ...prev,
+            { id, type: "console", timestamp, level, message },
+          ];
+          return next.length > MAX_CHROME_LOGS ? next.slice(-MAX_CHROME_LOGS) : next;
+        });
       } else {
         const { method, status, url, mimeType } = event.entry;
         const statusPart = status ? ` status=${status}` : "";
         const mimePart = mimeType ? ` mime=${mimeType}` : "";
-        toast.info(`Chrome network [${method ?? "GET"}]: ${url}${statusPart}${mimePart}`);
+        message = `${method ?? "GET"} ${url}${statusPart}${mimePart}`;
+        setChromeLogs((prev) => {
+          const next: ChromeLogEntry[] = [
+            ...prev,
+            { id, type: "network", timestamp, message },
+          ];
+          return next.length > MAX_CHROME_LOGS ? next.slice(-MAX_CHROME_LOGS) : next;
+        });
       }
     });
 
@@ -266,6 +297,47 @@ export function ScreenRecorder() {
             </Button>
           )}
         </div>
+        {chromeState?.enabled && (
+          <div className="w-full max-w-4xl rounded-xl border border-white/10 bg-black/40 p-4 shadow-inner">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-white">Chrome MCP Telemetry</p>
+              <span className="text-xs text-white/60">{chromeLogs.length} events</span>
+            </div>
+            <div className="mt-3 h-48 overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-3 font-mono text-xs text-white/80">
+              {chromeLogs.length === 0 ? (
+                <p className="text-white/50">Waiting for console or network activity...</p>
+              ) : (
+                chromeLogs.map((entry) => {
+                  const timeLabel = new Date(entry.timestamp || Date.now()).toLocaleTimeString();
+                  const badgeLabel =
+                    entry.type === "console"
+                      ? `console:${entry.level ?? "info"}`
+                      : "network";
+                  const badgeClass =
+                    entry.type === "console"
+                      ? entry.level === "error"
+                        ? "bg-red-500/20 text-red-300"
+                        : entry.level === "warning"
+                          ? "bg-amber-500/20 text-amber-200"
+                          : "bg-sky-500/20 text-sky-200"
+                      : "bg-emerald-500/20 text-emerald-200";
+                  return (
+                    <div
+                      key={entry.id}
+                      className="mb-1 flex items-start gap-3 rounded-md bg-white/5 px-2 py-1 last:mb-0"
+                    >
+                      <span className="text-white/50">{timeLabel}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase ${badgeClass}`}>
+                        {badgeLabel}
+                      </span>
+                      <span className="flex-1 text-white/80">{entry.message}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
         {!isAuthenticated && (
           <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
