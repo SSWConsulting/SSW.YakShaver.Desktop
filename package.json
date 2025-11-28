@@ -38,7 +38,7 @@
     "electron-updater": "^6.6.2",
     "get-port": "^7.1.0",
     "google-auth-library": "^10.5.0",
-    "googleapis": "^160.0.0",
+    "googleapis": "^166.0.0",
     "json-schema-to-zod": "^2.6.1",
     "openai": "^6.3.0",
     "tmp": "^0.2.5",
