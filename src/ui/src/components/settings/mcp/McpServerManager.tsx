@@ -43,7 +43,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
   // Load GitHub install URL
   useEffect(() => {
-    if (isActive) {
+    if (isActive && !appInstallUrl) {
       const loadGitHubInstallUrl = async () => {
         try {
           const installUrl = await ipcClient.githubToken.getInstallUrl();
@@ -54,7 +54,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
       };
       void loadGitHubInstallUrl();
     }
-  }, [isActive]);
+  }, [isActive, appInstallUrl]);
 
   const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
     const initialStatus: ServerHealthStatus<string> = {};
