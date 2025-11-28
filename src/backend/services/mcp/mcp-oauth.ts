@@ -220,25 +220,15 @@ export async function checkDynamicRegistrationSupport(serverUrl: string): Promis
 
         // Check if dynamic client registration endpoint exists
         if (metadata.registration_endpoint) {
-          console.log(
-            `[MCPServerClient]: Dynamic registration supported at ${metadata.registration_endpoint}`,
-          );
           return metadata.authorization_endpoint;
         }
-
-        // If metadata exists but no registration endpoint, explicitly return null
-        console.log(
-          `[MCPServerClient]: OAuth metadata found but no registration endpoint for ${serverUrl}`,
-        );
         return null;
       }
     } catch (metadataError) {
-      console.log(
+      console.warn(
         `[MCPServerClient]: OAuth metadata endpoint not available at ${metadataUrl}, error: ${formatErrorMessage(metadataError)}`,
       );
     }
-
-    console.log(`[MCPServerClient]: No dynamic registration support detected for ${serverUrl}`);
     return null;
   } catch (error) {
     console.error(

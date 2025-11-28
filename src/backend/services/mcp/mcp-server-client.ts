@@ -70,9 +70,6 @@ export class MCPServerClient {
       }
 
       if (oauthEndpoint) {
-        console.log(
-          `[MCPServerClient]: Dynamic client registration detected for ${mcpConfig.name}`,
-        );
         const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
         const authProvider = new InMemoryOAuthClientProvider({
           callbackPort,
