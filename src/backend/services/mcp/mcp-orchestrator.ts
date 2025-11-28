@@ -105,7 +105,6 @@ export class MCPOrchestrator {
 
       if (llmResponse.finishReason === "tool-calls") {
         for (const toolCall of llmResponse.toolCalls) {
-          llmResponse.reasoning;
           // send event to UI about tool call
           sendStepEvent({ type: "tool_call", toolName: toolCall.toolName, args: toolCall.input });
           console.log("Executing tool:", toolCall.toolName);
