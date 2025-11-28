@@ -1,6 +1,5 @@
 import { ExternalLink } from "lucide-react";
 import { Button } from "../../ui/button";
-import { Card } from "../../ui/card";
 
 interface GitHubAppInstallGuideProps {
   appInstallUrl: string;
@@ -14,25 +13,20 @@ export function GitHubAppInstallGuide({
   };
 
   return (
-    <Card className="p-3 bg-muted/30">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium mb-1">GitHub App Authorization</p>
-          <p className="text-xs text-muted-foreground">
-            To create issues in a repository, you must install our GitHub App
-            and grant it access.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleInstallApp}
-          className="gap-2 flex-shrink-0"
-        >
-          Install App
-          <ExternalLink className="h-3 w-3" />
-        </Button>
+    <div className="flex items-start gap-3 p-3 rounded-md bg-accent/30 border border-accent/40">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-accent-foreground mb-1">
+          GitHub App Authorization Required
+        </p>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          To create issues in a repository, you must install our GitHub App and
+          grant it access.
+        </p>
       </div>
-    </Card>
+      <Button variant="outline" size="sm" onClick={handleInstallApp}>
+        Install App
+        <ExternalLink className="h-3 w-3" />
+      </Button>
+    </div>
   );
 }
