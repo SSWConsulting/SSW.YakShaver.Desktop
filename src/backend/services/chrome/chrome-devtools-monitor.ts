@@ -239,14 +239,8 @@ export class ChromeDevtoolsMonitorService {
       this.latestSnapshot = undefined;
     });
 
-    const [, browserUrl] = await this.resolveCurrentServer();
-    if (!browserUrl) {
-      return { success: false, message: "Browser URL was not found for chrome-devtools MCP." };
-    }
-
     try {
-      await this.waitForDevtoolsEndpoint(browserUrl, 15_000);
-      await this.ensureMonitorConnection(true);
+      await this.attachWithRetries(true, 6);
       return { success: true };
     } catch (error) {
       console.error("[ChromeMonitor] telemetry connection failed:", error);
@@ -399,12 +393,7 @@ export class ChromeDevtoolsMonitorService {
 
   private async tryAttachToExistingChrome(): Promise<boolean> {
     try {
-      const [, browserUrl] = await this.resolveCurrentServer();
-      if (!browserUrl) {
-        return false;
-      }
-      await this.waitForDevtoolsEndpoint(browserUrl, 2_000);
-      await this.ensureMonitorConnection(true);
+      await this.attachWithRetries(true, 4);
       return true;
     } catch (error) {
       console.warn("[ChromeMonitor] attach to existing Chrome failed:", error);
@@ -430,23 +419,6 @@ export class ChromeDevtoolsMonitorService {
     }
     const browserUrl = this.extractBrowserUrl(config);
     return [config, browserUrl];
-  }
-
-  private async waitForDevtoolsEndpoint(browserUrl: URL, timeoutMs: number): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-    let lastError: unknown;
-    while (Date.now() < deadline) {
-      try {
-        await this.fetchJson(new URL("/json/version", browserUrl));
-        return;
-      } catch (error) {
-        lastError = error;
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
-    }
-    throw new Error(
-      `Chrome DevTools endpoint not reachable at ${browserUrl.toString()}: ${lastError instanceof Error ? lastError.message : "unknown error"}`,
-    );
   }
 
   private handleSocketMessage(raw: WebSocket.RawData): void {
@@ -910,5 +882,22 @@ export class ChromeDevtoolsMonitorService {
     }
 
     return null;
+  }
+
+  private async attachWithRetries(resetBuffers: boolean, attempts: number): Promise<void> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        await this.ensureMonitorConnection(resetBuffers && attempt === 0);
+        return;
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+    }
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+    throw new Error("Unable to attach to Chrome DevTools endpoint.");
   }
 }
