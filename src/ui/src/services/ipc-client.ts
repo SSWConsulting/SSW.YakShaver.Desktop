@@ -23,7 +23,8 @@ declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideo: (filePath?: string) => Promise<void>;
+        processVideoFile: (filePath: string) => Promise<void>;
+        processVideoUrl: (url: string) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
@@ -102,6 +103,7 @@ declare global {
         updateServerAsync: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
         removeServerAsync: (name: string) => Promise<{ success: boolean }>;
         checkServerHealthAsync: (name: string) => Promise<HealthStatusInfo>;
+        listServerTools: (name: string) => Promise<Array<{ name: string; description?: string }>>;
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;
@@ -140,6 +142,13 @@ declare global {
         set: (token: string) => Promise<void>;
         clear: () => Promise<void>;
         has: () => Promise<boolean>;
+        verify: () => Promise<{
+          isValid: boolean;
+          username?: string;
+          scopes?: string[];
+          rateLimitRemaining?: number;
+          error?: string;
+        }>;
       };
     };
   }
