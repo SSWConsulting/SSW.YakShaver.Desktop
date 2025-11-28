@@ -516,7 +516,7 @@ export function McpServerFormWrapper({
           <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
             Cancel
           </Button>
-          <Button type="submit">Save Server</Button>
+          <Button type="submit">{isLoading ? "Saving..." : "Save Server"}</Button>
         </div>
       </form>
     </FormProvider>
