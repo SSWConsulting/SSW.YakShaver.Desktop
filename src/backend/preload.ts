@@ -95,7 +95,8 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideoFile: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath),
+    processVideoFile: (filePath: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath),
     processVideoUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url),
     retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
