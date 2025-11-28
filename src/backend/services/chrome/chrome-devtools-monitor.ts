@@ -10,11 +10,28 @@ import { IPC_CHANNELS } from "../../ipc/channels";
 import { MCPServerManager } from "../mcp/mcp-server-manager";
 import type { MCPServerConfig } from "../mcp/types";
 
-type JsonListEntry = {
-  type?: string;
+type TargetInfo = {
+  targetId: string;
+  type: string;
   title?: string;
   url?: string;
-  webSocketDebuggerUrl?: string;
+};
+
+type RuntimeConsoleAPICalledParams = {
+  type: string;
+  args?: RemoteObject[];
+  timestamp?: number;
+  stackTrace?: {
+    callFrames?: Array<{
+      url?: string;
+    }>;
+  };
+};
+
+type RemoteObject = {
+  type?: string;
+  value?: unknown;
+  description?: string;
 };
 
 type LogEntry = {
@@ -23,7 +40,7 @@ type LogEntry = {
   source?: string;
   url?: string;
   timestamp?: number;
-  args?: Array<{ value?: unknown; description?: string }>;
+  args?: Array<{ type?: string; value?: unknown; description?: string }>;
 };
 
 type RequestWillBeSentParams = {
@@ -88,6 +105,7 @@ export type ChromeTelemetryEvent =
 const CHROME_DEVTOOLS_IDENTIFIER = "chrome-devtools-mcp";
 const MAX_LOG_ENTRIES = 2000;
 const PRE_RECORDING_WINDOW_MS = 2 * 60 * 1000;
+const COMMAND_TIMEOUT_MS = 5000;
 
 export class ChromeDevtoolsMonitorService {
   private static instance: ChromeDevtoolsMonitorService;
@@ -102,6 +120,13 @@ export class ChromeDevtoolsMonitorService {
   private networkLogs: ChromeNetworkEntry[] = [];
   private networkMap: Map<string, ChromeNetworkEntry> = new Map();
   private latestSnapshot?: ChromeTelemetrySnapshot;
+
+  private sessionTargets = new Map<string, string>();
+  private targetSessions = new Map<string, string>();
+  private pendingCommands = new Map<
+    number,
+    { resolve: (value: unknown) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }
+  >();
 
   private constructor() {}
 
@@ -197,8 +222,9 @@ export class ChromeDevtoolsMonitorService {
     this.chromeProcess?.on("exit", () => {
       this.chromeProcess = undefined;
       this.monitorConnected = false;
-      this.captureSocket?.removeAllListeners();
-      this.captureSocket = undefined;
+      this.teardownSocket("Chrome window closed");
+      this.sessionTargets.clear();
+      this.targetSessions.clear();
       this.recordingStartTimestamp = undefined;
       this.resetCollections();
       this.latestSnapshot = undefined;
@@ -241,12 +267,12 @@ export class ChromeDevtoolsMonitorService {
 
     const [config, browserUrl] = await this.resolveCurrentServer();
 
-    const consoleLogs = this.consoleLogs.filter(
-      (entry) => entry.timestamp >= cutoff && entry.timestamp <= stopTime,
-    );
-    const networkRequests = this.networkLogs.filter(
-      (entry) => entry.timestamp >= cutoff && entry.timestamp <= stopTime,
-    );
+    const consoleLogs = this.consoleLogs
+      .filter((entry) => entry.timestamp >= cutoff && entry.timestamp <= stopTime)
+      .sort((a, b) => a.timestamp - b.timestamp);
+    const networkRequests = this.networkLogs
+      .filter((entry) => entry.timestamp >= cutoff && entry.timestamp <= stopTime)
+      .sort((a, b) => a.timestamp - b.timestamp);
 
     this.latestSnapshot = {
       capturedAt: new Date(stopTime).toISOString(),
@@ -271,27 +297,41 @@ export class ChromeDevtoolsMonitorService {
       };
 
       this.captureSocket.once("open", () => {
-        this.captureSocket?.off("error", handleError);
-        this.captureSocket?.on("message", (raw) => this.handleSocketMessage(raw));
-        this.captureSocket?.on("close", () => {
+        const socket = this.captureSocket;
+        if (!socket) {
+          reject(new Error("Chrome websocket missing after open"));
+          return;
+        }
+        socket.off("error", handleError);
+        socket.on("message", (raw) => this.handleSocketMessage(raw));
+        socket.once("close", () => {
           this.monitorConnected = false;
-          this.captureSocket = undefined;
+          this.teardownSocket("Connection closed");
           setTimeout(() => {
             this.ensureMonitorConnection(false).catch((error) => {
               console.warn("[ChromeMonitor] failed to reconnect:", error);
             });
           }, 1000);
         });
-        this.captureSocket?.on("error", (error) => console.warn("[ChromeMonitor] socket error", error));
+        socket.once("error", (error) => console.warn("[ChromeMonitor] socket error", error));
         this.captureMessageId = 0;
-        this.sendCommand("Log.enable");
-        this.sendCommand("Network.enable");
         this.monitorConnected = true;
         resolve();
       });
 
       this.captureSocket.once("error", handleError);
     });
+  }
+
+  private teardownSocket(reason: string): void {
+    this.pendingCommands.forEach(({ reject, timeout }, id) => {
+      clearTimeout(timeout);
+      reject(new Error(reason));
+      this.pendingCommands.delete(id);
+    });
+    this.pendingCommands.clear();
+    this.sessionTargets.clear();
+    this.targetSessions.clear();
   }
 
   private async ensureMonitorConnection(resetBuffers: boolean): Promise<void> {
@@ -312,11 +352,38 @@ export class ChromeDevtoolsMonitorService {
       throw new Error("Chrome MCP test mode is not fully configured.");
     }
 
-    const wsUrl = await this.resolveWebSocketUrl(browserUrl);
+    const wsUrl = await this.resolveBrowserWebSocketUrl(browserUrl);
+    if (!wsUrl) {
+      throw new Error("Unable to locate Chrome DevTools websocket endpoint.");
+    }
+
     await this.connectToDevtools(wsUrl);
+    await this.sendCommand("Target.setDiscoverTargets", { discover: true }).catch(() => {});
+    await this.sendCommand("Target.setAutoAttach", {
+      autoAttach: true,
+      waitForDebuggerOnStart: false,
+      flatten: true,
+    }).catch(() => {});
+
+    const targets = await this.sendCommand<{ targetInfos: TargetInfo[] }>("Target.getTargets");
+    for (const targetInfo of targets.targetInfos ?? []) {
+      await this.maybeAttachToTarget(targetInfo);
+    }
+
     if (resetBuffers) {
       this.resetCollections();
       this.latestSnapshot = undefined;
+    }
+  }
+
+  private async resolveBrowserWebSocketUrl(browserUrl: URL): Promise<string | null> {
+    try {
+      const version = await this.fetchJson<{ webSocketDebuggerUrl?: string }>(
+        new URL("/json/version", browserUrl),
+      );
+      return version.webSocketDebuggerUrl ?? null;
+    } catch {
+      return null;
     }
   }
 
@@ -330,130 +397,267 @@ export class ChromeDevtoolsMonitorService {
   }
 
   private handleSocketMessage(raw: WebSocket.RawData): void {
-    if (!this.monitorConnected) return;
-
-    let payload: { method?: string; params?: unknown };
+    let payload: any;
     try {
       payload = JSON.parse(raw.toString());
     } catch {
       return;
     }
 
-    if (!payload.method || !payload.params) {
+    if (typeof payload.id === "number") {
+      const pending = this.pendingCommands.get(payload.id);
+      if (pending) {
+        if (payload.error) {
+          pending.reject(new Error(payload.error.message ?? "Command failed"));
+        } else {
+          pending.resolve(payload.result);
+        }
+      }
       return;
     }
 
-    switch (payload.method) {
+    const method: string | undefined = payload.method;
+    const params: unknown = payload.params;
+    const sessionId: string | undefined = payload.sessionId;
+
+    if (!method) {
+      return;
+    }
+
+    if (method === "Target.attachedToTarget") {
+      const info = params as { sessionId: string; targetInfo: TargetInfo };
+      if (!this.sessionTargets.has(info.sessionId)) {
+        this.sessionTargets.set(info.sessionId, info.targetInfo.targetId);
+        this.targetSessions.set(info.targetInfo.targetId, info.sessionId);
+        void this.initializeSession(info.sessionId);
+      }
+      return;
+    }
+
+    if (method === "Target.detachedFromTarget") {
+      this.detachSession((params as { sessionId?: string }).sessionId);
+      return;
+    }
+
+    if (method === "Target.targetDestroyed") {
+      this.detachTarget((params as { targetId?: string }).targetId);
+      return;
+    }
+
+    if (method === "Target.targetCreated") {
+      void this.maybeAttachToTarget((params as { targetInfo: TargetInfo }).targetInfo);
+      return;
+    }
+
+    if (sessionId) {
+      this.handleSessionEvent(sessionId, method, params);
+      return;
+    }
+  }
+
+  private async maybeAttachToTarget(targetInfo: TargetInfo): Promise<void> {
+    if (targetInfo.type !== "page") {
+      return;
+    }
+
+    if (this.targetSessions.has(targetInfo.targetId)) {
+      return;
+    }
+
+    try {
+      const result = await this.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
+        targetId: targetInfo.targetId,
+        flatten: true,
+      });
+      this.sessionTargets.set(result.sessionId, targetInfo.targetId);
+      this.targetSessions.set(targetInfo.targetId, result.sessionId);
+      await this.initializeSession(result.sessionId);
+    } catch (error) {
+      console.warn("[ChromeMonitor] Failed to attach to target", targetInfo.targetId, error);
+    }
+  }
+
+  private detachTarget(targetId?: string): void {
+    if (!targetId) return;
+    const sessionId = this.targetSessions.get(targetId);
+    if (sessionId) {
+      this.sessionTargets.delete(sessionId);
+    }
+    this.targetSessions.delete(targetId);
+  }
+
+  private detachSession(sessionId?: string): void {
+    if (!sessionId) return;
+    const targetId = this.sessionTargets.get(sessionId);
+    if (targetId) {
+      this.targetSessions.delete(targetId);
+    }
+    this.sessionTargets.delete(sessionId);
+  }
+
+  private async initializeSession(sessionId: string): Promise<void> {
+    await this.sendCommand("Runtime.enable", undefined, sessionId).catch(() => {});
+    await this.sendCommand("Log.enable", undefined, sessionId).catch(() => {});
+    await this.sendCommand("Network.enable", undefined, sessionId).catch(() => {});
+  }
+
+  private handleSessionEvent(sessionId: string, method: string, params: unknown): void {
+    switch (method) {
+      case "Runtime.consoleAPICalled":
+        this.handleRuntimeConsoleEvent(params as RuntimeConsoleAPICalledParams);
+        break;
       case "Log.entryAdded":
-        this.handleConsoleEntry(payload.params as { entry?: LogEntry });
+        this.handleLogEntry(params as { entry?: LogEntry });
         break;
       case "Network.requestWillBeSent":
-        this.handleNetworkRequest(payload.params as RequestWillBeSentParams);
+        this.handleNetworkRequest(params as RequestWillBeSentParams, sessionId);
         break;
       case "Network.responseReceived":
-        this.handleNetworkResponse(payload.params as ResponseReceivedParams);
+        this.handleNetworkResponse(params as ResponseReceivedParams, sessionId);
         break;
       case "Network.loadingFinished":
-        this.handleNetworkFinished(payload.params as LoadingFinishedParams);
+        this.handleNetworkFinished(params as LoadingFinishedParams, sessionId);
         break;
       default:
         break;
     }
   }
 
-  private handleConsoleEntry(payload: { entry?: LogEntry }): void {
-    if (!payload.entry) return;
-    const entry = payload.entry;
-    const timestamp = entry.timestamp ? entry.timestamp * 1000 : Date.now();
-    const text = this.normalizeConsoleText(entry);
-    const normalized: ChromeConsoleLogEntry = {
-      level: entry.level ?? "info",
-      text,
-      source: entry.source,
-      url: entry.url,
+  private handleRuntimeConsoleEvent(params: RuntimeConsoleAPICalledParams): void {
+    const level = this.mapConsoleLevel(params.type);
+    const message =
+      params.args?.map((arg) => this.stringifyRemoteObject(arg)).join(" ") ??
+      params.type ??
+      "log";
+    const timestamp = params.timestamp ? params.timestamp * 1000 : Date.now();
+    const entry: ChromeConsoleLogEntry = {
+      level,
+      text: message,
+      url: params.stackTrace?.callFrames?.[0]?.url,
       timestamp,
     };
-    this.consoleLogs.push(normalized);
+    this.consoleLogs.push(entry);
     if (this.consoleLogs.length > MAX_LOG_ENTRIES) {
       this.consoleLogs = this.consoleLogs.slice(-MAX_LOG_ENTRIES);
     }
-    this.emitTelemetry({ kind: "console", entry: normalized });
+    this.emitTelemetry({ kind: "console", entry });
   }
 
-  private normalizeConsoleText(entry: LogEntry): string {
-    if (entry.text?.length) {
-      return entry.text;
+  private handleLogEntry(payload: { entry?: LogEntry }): void {
+    if (!payload.entry) return;
+    const timestamp = payload.entry.timestamp ? payload.entry.timestamp * 1000 : Date.now();
+    const entry: ChromeConsoleLogEntry = {
+      level: payload.entry.level ?? "info",
+      text: this.normalizeLegacyLogText(payload.entry),
+      source: payload.entry.source,
+      url: payload.entry.url,
+      timestamp,
+    };
+    this.consoleLogs.push(entry);
+    if (this.consoleLogs.length > MAX_LOG_ENTRIES) {
+      this.consoleLogs = this.consoleLogs.slice(-MAX_LOG_ENTRIES);
     }
+    this.emitTelemetry({ kind: "console", entry });
+  }
+
+  private mapConsoleLevel(type: string): string {
+    switch (type) {
+      case "warning":
+        return "warning";
+      case "error":
+      case "assert":
+        return "error";
+      case "info":
+      case "log":
+      default:
+        return "info";
+    }
+  }
+
+  private stringifyRemoteObject(arg: RemoteObject): string {
+    if (typeof arg.value === "string") {
+      return arg.value;
+    }
+    if (typeof arg.value === "number" || typeof arg.value === "boolean") {
+      return String(arg.value);
+    }
+    if (arg.description) {
+      return arg.description;
+    }
+    return "[object]";
+  }
+
+  private normalizeLegacyLogText(entry: LogEntry): string {
+    if (entry.text?.length) return entry.text;
     if (entry.args?.length) {
       return entry.args
-        .map((arg) =>
+        .map((arg: { value?: unknown; description?: string }) =>
           typeof arg.value === "string"
             ? arg.value
             : arg.description ?? JSON.stringify(arg.value ?? ""),
         )
         .join(" ");
     }
-    return "(no message)";
+    return "console";
   }
 
-  private handleNetworkRequest(params: RequestWillBeSentParams): void {
+  private handleNetworkRequest(params: RequestWillBeSentParams, sessionId: string): void {
     if (!params.requestId) return;
-    const existing = this.networkMap.get(params.requestId);
-    const timestamp = Date.now();
-    this.networkMap.set(params.requestId, {
+    const key = this.getNetworkKey(sessionId, params.requestId);
+    const existing = this.networkMap.get(key);
+    this.networkMap.set(key, {
       url: params.request?.url ?? existing?.url ?? "",
-      method: params.request?.method ?? existing?.method,
+      method: params.request?.method ?? existing?.method ?? "GET",
       resourceType: params.type ?? existing?.resourceType,
       status: existing?.status,
       mimeType: existing?.mimeType,
       encodedDataLength: existing?.encodedDataLength,
-      timestamp,
+      timestamp: Date.now(),
     });
-    const current = this.networkMap.get(params.requestId);
-    if (current) {
-      this.networkLogs.push({ ...current });
-      if (this.networkLogs.length > MAX_LOG_ENTRIES) {
-        this.networkLogs = this.networkLogs.slice(-MAX_LOG_ENTRIES);
-      }
-      this.emitTelemetry({ kind: "network", entry: { ...current } });
-    }
   }
 
-  private handleNetworkResponse(params: ResponseReceivedParams): void {
+  private handleNetworkResponse(params: ResponseReceivedParams, sessionId: string): void {
     if (!params.requestId) return;
-    const existing = this.networkMap.get(params.requestId);
+    const key = this.getNetworkKey(sessionId, params.requestId);
+    const existing = this.networkMap.get(key);
     if (!existing) return;
-    this.networkMap.set(params.requestId, {
+    this.networkMap.set(key, {
       ...existing,
       status: params.response?.status ?? existing.status,
       mimeType: params.response?.mimeType ?? existing.mimeType,
+      timestamp: Date.now(),
     });
-    const updated = this.networkMap.get(params.requestId);
-    if (updated) {
-      this.networkLogs.push({ ...updated });
-      if (this.networkLogs.length > MAX_LOG_ENTRIES) {
-        this.networkLogs = this.networkLogs.slice(-MAX_LOG_ENTRIES);
-      }
-      this.emitTelemetry({ kind: "network", entry: { ...updated } });
-    }
+    this.pushNetworkLog(key);
   }
 
-  private handleNetworkFinished(params: LoadingFinishedParams): void {
+  private handleNetworkFinished(params: LoadingFinishedParams, sessionId: string): void {
     if (!params.requestId) return;
-    const existing = this.networkMap.get(params.requestId);
+    const key = this.getNetworkKey(sessionId, params.requestId);
+    const existing = this.networkMap.get(key);
     if (!existing) return;
-    this.networkMap.set(params.requestId, {
+    this.networkMap.set(key, {
       ...existing,
       encodedDataLength: params.encodedDataLength ?? existing.encodedDataLength,
+      timestamp: Date.now(),
     });
-    const updated = this.networkMap.get(params.requestId);
-    if (updated) {
-      this.networkLogs.push({ ...updated });
-      if (this.networkLogs.length > MAX_LOG_ENTRIES) {
-        this.networkLogs = this.networkLogs.slice(-MAX_LOG_ENTRIES);
-      }
-      this.emitTelemetry({ kind: "network", entry: { ...updated } });
+    this.pushNetworkLog(key);
+  }
+
+  private pushNetworkLog(key: string): void {
+    const entry = this.networkMap.get(key);
+    if (!entry || !entry.url) {
+      return;
     }
+    const normalized: ChromeNetworkEntry = { ...entry };
+    this.networkLogs.push(normalized);
+    if (this.networkLogs.length > MAX_LOG_ENTRIES) {
+      this.networkLogs = this.networkLogs.slice(-MAX_LOG_ENTRIES);
+    }
+    this.emitTelemetry({ kind: "network", entry: normalized });
+  }
+
+  private getNetworkKey(sessionId: string, requestId: string): string {
+    return `${sessionId}:${requestId}`;
   }
 
   private resetCollections(): void {
@@ -470,36 +674,39 @@ export class ChromeDevtoolsMonitorService {
       });
   }
 
-  private sendCommand(method: string, params?: Record<string, unknown>): void {
+  private async sendCommand<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+    sessionId?: string,
+  ): Promise<T> {
     if (!this.captureSocket || this.captureSocket.readyState !== WebSocket.OPEN) {
-      return;
+      throw new Error("Chrome monitor is not connected.");
     }
-    const payload = {
-      id: ++this.captureMessageId,
-      method,
-      params,
-    };
-    this.captureSocket.send(JSON.stringify(payload));
-  }
+    const id = ++this.captureMessageId;
+    const payload: Record<string, unknown> = { id, method };
+    if (params) payload.params = params;
+    if (sessionId) payload.sessionId = sessionId;
 
-  private async resolveWebSocketUrl(browserUrl: URL): Promise<string> {
-    const listUrl = new URL("/json/list", browserUrl);
-    const versionUrl = new URL("/json/version", browserUrl);
-
-    const list = await this.fetchJson<JsonListEntry[]>(listUrl).catch(() => []);
-    const page = list.find(
-      (entry) => entry.webSocketDebuggerUrl && (entry.type === "page" || entry.type === "other"),
-    );
-    if (page?.webSocketDebuggerUrl) {
-      return page.webSocketDebuggerUrl;
-    }
-
-    const version = await this.fetchJson<{ webSocketDebuggerUrl?: string }>(versionUrl);
-    if (version.webSocketDebuggerUrl) {
-      return version.webSocketDebuggerUrl;
-    }
-
-    throw new Error("Unable to locate a debuggable Chrome target");
+    return await new Promise<T>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingCommands.delete(id);
+        reject(new Error(`Command ${method} timed out`));
+      }, COMMAND_TIMEOUT_MS);
+      this.pendingCommands.set(id, {
+        resolve: (value: unknown) => {
+          clearTimeout(timeout);
+          this.pendingCommands.delete(id);
+          resolve(value as T);
+        },
+        reject: (error: Error) => {
+          clearTimeout(timeout);
+          this.pendingCommands.delete(id);
+          reject(error);
+        },
+        timeout,
+      });
+      this.captureSocket?.send(JSON.stringify(payload));
+    });
   }
 
   private async fetchJson<T>(target: URL): Promise<T> {
