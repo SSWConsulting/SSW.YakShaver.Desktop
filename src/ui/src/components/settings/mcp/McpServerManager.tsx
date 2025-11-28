@@ -18,7 +18,7 @@ import { Button } from "../../ui/button";
 import { Card, CardContent } from "../../ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
 import { ScrollArea } from "../../ui/scroll-area";
-import { GitHubAppInstallGuide } from "../github-token/GitHubAppInstallGuide";
+import { GitHubAppInstallGuide } from "./GitHubAppInstallGuide";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 import { McpWhitelistDialog } from "./McpWhitelistDialog";
 

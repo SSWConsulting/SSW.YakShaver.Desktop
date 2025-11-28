@@ -30,17 +30,12 @@ export class GitHubTokenIPCHandlers {
   }
 
   private getGitHubAppInstallUrl(): string {
-    const appSlug = process.env.GITHUB_APP_SLUG;
-    const defaultUrl = process.env.GITHUB_APP_PUBLIC_LINK;
+    const installUrl = process.env.GITHUB_APP_INSTALLATION_LINK;
 
-    if (defaultUrl) {
-      return `${defaultUrl}/installations/new`;
+    if (installUrl) {
+      return installUrl;
     }
-
-    if (appSlug) {
-      return `https://github.com/apps/${appSlug}/installations/new`;
-    }
-
+    
     // Fallback to GitHub Apps installation page
     return "https://github.com/apps";
   }
