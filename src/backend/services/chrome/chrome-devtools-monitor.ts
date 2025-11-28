@@ -387,7 +387,6 @@ export class ChromeDevtoolsMonitorService {
 
     if (resetBuffers) {
       this.resetCollections();
-      this.latestSnapshot = undefined;
     }
   }
 
@@ -888,7 +887,8 @@ export class ChromeDevtoolsMonitorService {
     let lastError: unknown;
     for (let attempt = 0; attempt < attempts; attempt++) {
       try {
-        await this.ensureMonitorConnection(resetBuffers && attempt === 0);
+        const shouldReset = resetBuffers && (!this.latestSnapshot || attempt > 0);
+        await this.ensureMonitorConnection(shouldReset);
         return;
       } catch (error) {
         lastError = error;

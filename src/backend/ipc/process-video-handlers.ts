@@ -63,7 +63,7 @@ export class ProcessVideoIPCHandlers {
           this.emitProgress(ProgressStage.EXECUTING_TASK);
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
-          const chromeTelemetry = this.chromeMonitor.getLatestSnapshot();
+          const chromeTelemetry = this.chromeMonitor.getLatestSnapshot({ consume: true });
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content, chromeTelemetry);
 
           const orchestrator = await MCPOrchestrator.getInstanceAsync();
@@ -154,7 +154,7 @@ export class ProcessVideoIPCHandlers {
       });
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
-      const chromeTelemetry = this.chromeMonitor.getLatestSnapshot();
+      const chromeTelemetry = this.chromeMonitor.getLatestSnapshot({ consume: true });
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content, chromeTelemetry);
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
