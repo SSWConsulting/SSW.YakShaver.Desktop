@@ -70,7 +70,7 @@ export class MCPServerClient {
             clientSecret: githubClientSecret,
             callbackPort,
           });
-          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 20000);
+          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
           await withTimeout(
             authorizeWithPkceOnce(authProvider, serverUrl, () =>
               waitForAuthorizationCode(callbackPort),
@@ -98,7 +98,7 @@ export class MCPServerClient {
         const authProvider = new InMemoryOAuthClientProvider({
           callbackPort,
         });
-        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 20000);
+        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
         await withTimeout(
           authorizeWithPkceOnce(authProvider, serverUrl, () =>
             waitForAuthorizationCode(callbackPort),
