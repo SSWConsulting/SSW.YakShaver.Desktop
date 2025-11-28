@@ -1,6 +1,6 @@
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
-  GitHubRelease,
+  ProcessedRelease,
   ReleaseChannel,
 } from "@/components/settings/release-channels/ReleaseChannelManager";
 import type {
@@ -23,7 +23,8 @@ declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideo: (filePath?: string) => Promise<void>;
+        processVideoFile: (filePath: string) => Promise<void>;
+        processVideoUrl: (url: string) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
@@ -102,6 +103,7 @@ declare global {
         updateServerAsync: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
         removeServerAsync: (name: string) => Promise<{ success: boolean }>;
         checkServerHealthAsync: (name: string) => Promise<HealthStatusInfo>;
+        listServerTools: (name: string) => Promise<Array<{ name: string; description?: string }>>;
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;
@@ -122,7 +124,7 @@ declare global {
         get: () => Promise<ReleaseChannel>;
         set: (channel: ReleaseChannel) => Promise<void>;
         listReleases: () => Promise<{
-          releases: Array<GitHubRelease>;
+          releases: Array<ProcessedRelease>;
           error?: string;
         }>;
         checkUpdates: () => Promise<{
@@ -131,12 +133,22 @@ declare global {
           version?: string;
         }>;
         getCurrentVersion: () => Promise<string>;
+        onDownloadProgress: (
+          callback: (progress: { percent: number; transferred: number; total: number }) => void,
+        ) => () => void;
       };
       githubToken: {
         get: () => Promise<string | undefined>;
         set: (token: string) => Promise<void>;
         clear: () => Promise<void>;
         has: () => Promise<boolean>;
+        verify: () => Promise<{
+          isValid: boolean;
+          username?: string;
+          scopes?: string[];
+          rateLimitRemaining?: number;
+          error?: string;
+        }>;
       };
     };
   }

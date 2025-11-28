@@ -16,6 +16,7 @@ import { VideoIPCHandlers } from "./ipc/video-handlers";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
+import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -110,6 +111,9 @@ app.whenReady().then(async () => {
 
   _screenRecordingHandlers = new ScreenRecordingIPCHandlers();
 
+  // Initialize in-memory MCP servers
+  await registerAllInternalMcpServers();
+
   const mcpServerManager = await MCPServerManager.getInstanceAsync();
   _mcpHandlers = new McpIPCHandlers(mcpServerManager);
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
@@ -128,7 +132,7 @@ app.whenReady().then(async () => {
     const { ReleaseChannelStorage } = await import("./services/storage/release-channel-storage");
     const channelStore = ReleaseChannelStorage.getInstance();
     const channel = await channelStore.getChannel();
-    _releaseChannelHandlers.configureAutoUpdater(channel);
+    _releaseChannelHandlers.configureAutoUpdater(channel, true);
     autoUpdater.checkForUpdatesAndNotify();
   }
 });

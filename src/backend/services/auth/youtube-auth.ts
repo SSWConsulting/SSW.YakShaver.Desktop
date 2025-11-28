@@ -10,7 +10,14 @@ import { google } from "googleapis";
 import { config } from "../../config/env";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { YoutubeStorage } from "../storage/youtube-storage";
-import type { AuthResult, TokenData, UserInfo, VideoUploadResult } from "./types";
+import type {
+  AuthResult,
+  TokenData,
+  UserInfo,
+  VideoUploadOrigin,
+  VideoUploadResult,
+  YouTubeSnippetUpdate,
+} from "./types";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube.force-ssl",
@@ -230,7 +237,7 @@ export class YouTubeAuthService {
             title: "Uploaded Video",
             description: "Video uploaded via Desktop Electron App",
             tags: ["electron", "upload"],
-            categoryId: "22",
+            categoryId: "28",
           },
           status: { privacyStatus: "unlisted" },
         },
@@ -239,13 +246,73 @@ export class YouTubeAuthService {
 
       const { id: videoId, snippet } = response.data;
 
+      if (!videoId) {
+        return { success: false, error: "Failed to retrieve uploaded video ID" };
+      }
+
       return {
         success: true,
         data: {
+          videoId,
           title: snippet?.title || "Untitled",
           description: snippet?.description || "",
           url: `https://www.youtube.com/watch?v=${videoId}`,
         },
+        origin: "upload",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: formatErrorMessage(error),
+      };
+    }
+  }
+
+  async updateVideoMetadata(
+    videoId: string,
+    snippet: YouTubeSnippetUpdate,
+    origin: VideoUploadOrigin = "upload",
+  ): Promise<VideoUploadResult> {
+    try {
+      if (!(await this.isAuthenticated())) {
+        return { success: false, error: "Not authenticated" };
+      }
+
+      if (!videoId?.trim()) {
+        return { success: false, error: "Video ID is required" };
+      }
+
+      if (origin === "external") {
+        return {
+          success: false,
+          error: "Cannot update metadata for externally sourced videos",
+        };
+      }
+
+      const client = await this.getAuthenticatedClient();
+      const youtube = google.youtube({ version: "v3", auth: client });
+      const response = await youtube.videos.update({
+        part: ["snippet"],
+        requestBody: {
+          id: videoId,
+          snippet: {
+            ...snippet,
+            categoryId: snippet.categoryId ?? "28",
+          },
+        },
+      });
+
+      const updatedSnippet = response.data.snippet ?? snippet;
+
+      return {
+        success: true,
+        data: {
+          videoId,
+          title: updatedSnippet.title || snippet.title,
+          description: updatedSnippet.description || snippet.description,
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+        },
+        origin,
       };
     } catch (error) {
       return {

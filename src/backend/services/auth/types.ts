@@ -32,14 +32,26 @@ export interface AuthState {
   error?: string;
 }
 
+export type VideoUploadOrigin = "upload" | "external";
+
 export interface VideoUploadResult {
   success: boolean;
   data?: {
+    videoId: string;
     title: string;
     description: string;
     url: string;
   };
+  origin?: VideoUploadOrigin;
   error?: string;
+}
+
+export interface YouTubeSnippetUpdate {
+  title: string;
+  description: string;
+  tags?: string[];
+  categoryId?: string;
+  defaultLanguage?: string;
 }
 
 export interface YouTubeConfig {

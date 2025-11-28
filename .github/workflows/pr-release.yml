@@ -29,7 +29,7 @@ jobs:
       version: ${{ steps.pr_info.outputs.version }}
       pr_sha: ${{ steps.pr_info.outputs.pr_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
@@ -95,7 +95,7 @@ jobs:
       github.event.action != 'closed'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
@@ -149,25 +149,15 @@ jobs:
             Write-Host "Fixed $($_.Name)"
           }
 
-      - name: Create or update GitHub release
-        uses: softprops/action-gh-release@v2
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v5
         with:
-          tag_name: ${{ needs.cleanup-release.outputs.release_tag }}
-          name: "Pre-release PR #${{ needs.cleanup-release.outputs.pr_number }} (${{ needs.cleanup-release.outputs.pr_sha }})"
-          body: |
-            Pre-release build for PR #${{ needs.cleanup-release.outputs.pr_number }}
-
-            Commit: ${{ needs.cleanup-release.outputs.pr_sha }}
-            PR: ${{ github.event.pull_request.html_url || 'N/A' }}
-
-            This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
-          prerelease: true
-          files: |
+          name: windows-build
+          path: |
             build/*.yml
             build/YakShaver*Setup*.exe
             build/YakShaver*Setup*.exe.blockmap
-          draft: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+          retention-days: 1
 
   build-macos:
     needs: cleanup-release
@@ -176,7 +166,7 @@ jobs:
       github.event.action != 'closed'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
@@ -218,7 +208,39 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
 
-      - name: Create or update GitHub release
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: macos-build
+          path: |
+            build/YakShaver-*-mac.zip
+            build/YakShaver-*-mac.zip.blockmap
+            build/*-mac.yml
+          retention-days: 1
+
+  create-and-comment-release:
+    runs-on: ubuntu-latest
+    needs:
+      - cleanup-release
+      - build-windows
+      - build-macos
+    if: |
+      github.event.action != 'closed' &&
+      needs.cleanup-release.outputs.pr_number != ''
+    steps:
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: windows-build
+          path: artifacts/
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: macos-build
+          path: artifacts/
+
+      - name: Create single GitHub release with all artifacts
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.cleanup-release.outputs.release_tag }}
@@ -231,23 +253,10 @@ jobs:
 
             This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
           prerelease: true
-          files: |
-            build/YakShaver-*-mac.zip
-            build/YakShaver-*-mac.zip.blockmap
-            build/*-mac.yml
+          files: artifacts/**/*
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  comment-release:
-    runs-on: ubuntu-latest
-    needs:
-      - cleanup-release
-      - build-windows
-      - build-macos
-    if: |
-      github.event.action != 'closed' &&
-      needs.cleanup-release.outputs.pr_number != ''
-    steps:
       - name: Comment release link on PR
         uses: peter-evans/create-or-update-comment@v5
         with:

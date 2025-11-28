@@ -2,7 +2,8 @@ import { Copy, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useClipboard } from "../../hooks/useClipboard";
-import type { UploadStatus, VideoUploadResult } from "../../types";
+import { UploadStatus, type VideoUploadResult } from "../../types";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
 const openUrl = (url: string | null) => {
@@ -20,30 +21,34 @@ const UploadingBadge = () => (
   </span>
 );
 
-const StatusBadge = ({ success }: { success: boolean }) => (
-  <span
-    className={`text-sm font-medium px-3 py-1.5 rounded-full ${
-      success
-        ? "bg-green-500/20 text-green-400 border border-green-500/30"
-        : "bg-red-500/20 text-red-400 border border-red-500/30"
-    }`}
-  >
-    {success ? "Success" : "Failed"}
-  </span>
-);
+type StatusVariant = "success" | "failed" | "external";
+
+const STATUS_CONFIG = {
+  success: { label: "Success", variant: "success" },
+  failed: { label: "Failed", variant: "destructive" },
+  external: { label: "External", variant: "outline" },
+} as const;
+type StatusType = keyof typeof STATUS_CONFIG;
+
+const StatusBadge = ({ status }: { status: StatusType }) => {
+  const { label, variant } = STATUS_CONFIG[status];
+  return <Badge variant={variant}>{label}</Badge>;
+};
 
 const VideoCard = ({
-  description,
+  title = "YouTube Upload",
+  subtitle,
   url,
-  success = true,
   uploading = false,
   error,
+  status = "success",
 }: {
-  description: string;
+  title?: string;
+  subtitle?: string;
   url: string | null;
-  success?: boolean;
   uploading?: boolean;
   error?: string;
+  status?: StatusVariant;
 }) => {
   const { copyToClipboard } = useClipboard();
 
@@ -52,11 +57,11 @@ const VideoCard = ({
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base text-white">YouTube Upload</CardTitle>
-            <CardDescription className="text-sm text-white/60">{description}</CardDescription>
+            <CardTitle className="text-base">{title}</CardTitle>
+            {subtitle && <CardDescription className="text-sm">{subtitle}</CardDescription>}
           </div>
           <div className="flex-shrink-0">
-            {uploading ? <UploadingBadge /> : <StatusBadge success={success} />}
+            {uploading ? <UploadingBadge /> : <StatusBadge status={status} />}
           </div>
         </div>
         {error && (
@@ -66,11 +71,12 @@ const VideoCard = ({
       {!uploading && (
         <CardContent>
           <div className="p-3 bg-white/5 rounded-md flex items-center justify-between border border-white/10">
-            <p className="text-sm text-white truncate flex-1 min-w-0">{url}</p>
+            <p className="text-sm truncate flex-1 min-w-0">{url}</p>
             <div className="flex items-center gap-1 ml-2">
               <Button
                 type="button"
-                className="text-white/60 hover:text-white p-2 rounded transition-colors duration-200 hover:bg-white/10"
+                variant="default"
+                className="cursor-pointer"
                 onClick={() => copyToClipboard(url)}
                 title="Copy URL"
               >
@@ -78,7 +84,8 @@ const VideoCard = ({
               </Button>
               <Button
                 type="button"
-                className="text-white/60 hover:text-white p-2 rounded transition-colors duration-200 hover:bg-white/10"
+                variant="default"
+                className="cursor-pointer"
                 onClick={() => openUrl(url)}
                 title="Open in YouTube"
               >
@@ -92,6 +99,12 @@ const VideoCard = ({
   );
 };
 
+const summarizeDescription = (description: string) => {
+  if (!description) return "";
+  const firstLine = description.split("\n").find((line) => line.trim().length > 0) ?? "";
+  return firstLine.length > 140 ? `${firstLine.slice(0, 137)}...` : firstLine;
+};
+
 export const UploadResult = ({
   result,
   status,
@@ -99,24 +112,50 @@ export const UploadResult = ({
   result: VideoUploadResult | null;
   status: UploadStatus;
 }) => {
-  // Show uploading state
-  if (status === "uploading") {
-    return <VideoCard description="Uploading video to YouTube..." url={null} uploading={true} />;
-  }
-
   if (!result) return null;
 
   // Show error state
   if (!result.success) {
-    return (
-      <VideoCard description="Upload failed" url={null} success={false} error={result.error} />
-    );
+    return <VideoCard title="Upload failed" url={null} status="failed" error={result.error} />;
   }
 
   if (!result.data) return null;
 
-  // Show success state
-  return <VideoCard description={result.data.description} url={result.data.url} success={true} />;
+  // Show state immediately if the video is from an external source
+  const isExternal = result.origin === "external";
+  if (isExternal) {
+    return (
+      <VideoCard
+        title="Watch Video"
+        subtitle={result.data.title}
+        url={result.data.url}
+        status="external"
+      />
+    );
+  }
+
+  // Show uploading state
+  if (status === UploadStatus.UPLOADING) {
+    return (
+      <VideoCard
+        title="Uploading to YouTube"
+        subtitle="Preparing your recording..."
+        url={null}
+        uploading={true}
+      />
+    );
+  }
+
+  const descriptionSummary = summarizeDescription(result.data.description);
+
+  return (
+    <VideoCard
+      title={result.data.title || "YouTube Upload"}
+      subtitle={descriptionSummary}
+      url={result.data.url}
+      status="success"
+    />
+  );
 };
 
 export { VideoCard as VideoInfo };

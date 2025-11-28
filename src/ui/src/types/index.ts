@@ -30,13 +30,17 @@ export interface YouTubeConfig {
   clientSecret: string;
 }
 
+export type VideoUploadOrigin = "upload" | "external";
+
 export interface VideoUploadResult {
   success: boolean;
   data?: {
+    videoId: string;
     title: string;
     description: string;
     url: string;
   };
+  origin?: VideoUploadOrigin;
   error?: string;
 }
 
@@ -98,21 +102,39 @@ interface AzureOpenAI {
 
 export type LLMConfig = OpenAI | AzureOpenAI;
 
+export interface VideoChapter {
+  label: string;
+  timestamp: string;
+}
+
+export interface MetadataPreview {
+  title: string;
+  description: string;
+  tags?: string[];
+  chapters?: VideoChapter[];
+}
+
 export type WorkflowStage =
   | "idle"
+  | "uploading_source"
+  | "downloading_source"
   | "converting_audio"
   | "transcribing"
   | "generating_task"
   | "executing_task"
+  | "updating_metadata"
   | "completed"
   | "error";
 
 export const STAGE_CONFIG: Record<WorkflowStage, string> = {
   idle: "Waiting for recording...",
+  uploading_source: "Uploading video",
+  downloading_source: "Downloading source video",
   converting_audio: "Converting audio",
   transcribing: "Transcribing audio",
   generating_task: "Analyzing transcript",
   executing_task: "Executing task",
+  updating_metadata: "Updating YouTube metadata",
   completed: "Completed",
   error: "Error occurred",
 };
@@ -123,7 +145,9 @@ export interface WorkflowProgress {
   intermediateOutput?: string;
   finalOutput?: string;
   uploadResult?: VideoUploadResult;
+  metadataPreview?: MetadataPreview;
   error?: string;
+  sourceOrigin?: VideoUploadOrigin;
 }
 
 export interface CustomPrompt {
@@ -145,12 +169,21 @@ export interface HealthStatusInfo {
 
 export enum ProgressStage {
   IDLE = "idle",
+  UPLOADING_SOURCE = "uploading_source",
+  DOWNLOADING_SOURCE = "downloading_source",
   UPLOAD_COMPLETED = "upload_completed",
   CONVERTING_AUDIO = "converting_audio",
   TRANSCRIBING = "transcribing",
   TRANSCRIPTION_COMPLETED = "transcription_completed",
   GENERATING_TASK = "generating_task",
   EXECUTING_TASK = "executing_task",
+  UPDATING_METADATA = "updating_metadata",
   ERROR = "error",
   COMPLETED = "completed",
 }
+
+export const UNDO_EVENT_CHANNEL = "yakshaver:undo-event";
+
+export type UndoEventDetail = {
+  type: "start" | "complete" | "error" | "reset";
+};

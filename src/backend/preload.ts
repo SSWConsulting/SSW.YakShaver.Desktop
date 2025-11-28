@@ -1,6 +1,6 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
-import type { MCPServerConfig } from "./services/mcp/types";
+import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
@@ -50,6 +50,7 @@ const IPC_CHANNELS = {
   MCP_UPDATE_SERVER: "mcp:update-server",
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
+  MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -58,7 +59,8 @@ const IPC_CHANNELS = {
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
   // Video processing - the main process pipeline
-  PROCESS_VIDEO: "process-video",
+  PROCESS_VIDEO_FILE: "process-video:file",
+  PROCESS_VIDEO_URL: "process-video:url",
   RETRY_VIDEO: "retry-video",
 
   // Settings
@@ -75,12 +77,14 @@ const IPC_CHANNELS = {
   RELEASE_CHANNEL_LIST_RELEASES: "release-channel:list-releases",
   RELEASE_CHANNEL_CHECK_UPDATES: "release-channel:check-updates",
   RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
+  RELEASE_CHANNEL_DOWNLOAD_PROGRESS: "release-channel:download-progress",
 
   // GitHub Token
   GITHUB_TOKEN_GET: "github-token:get",
   GITHUB_TOKEN_SET: "github-token:set",
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
+  GITHUB_TOKEN_VERIFY: "github-token:verify",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -91,7 +95,9 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideo: (filePath?: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, filePath),
+    processVideoFile: (filePath: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath),
+    processVideoUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url),
     retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
   },
@@ -169,12 +175,15 @@ const electronAPI = {
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
-    addServerAsync: (config: MCPServerConfig) => ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
+    addServerAsync: (config: MCPServerConfig) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
     updateServerAsync: (name: string, config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, name, config),
     removeServerAsync: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),
     checkServerHealthAsync: (name: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, name),
+    listServerTools: (name: string): Promise<MCPToolSummary[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, name),
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
@@ -193,12 +202,23 @@ const electronAPI = {
     listReleases: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_LIST_RELEASES),
     checkUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_CHECK_UPDATES),
     getCurrentVersion: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET_CURRENT_VERSION),
+    onDownloadProgress: (
+      callback: (progress: { percent: number; transferred: number; total: number }) => void,
+    ) => onIpcEvent(IPC_CHANNELS.RELEASE_CHANNEL_DOWNLOAD_PROGRESS, callback),
   },
   githubToken: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_GET),
     set: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_SET, token),
     clear: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_CLEAR),
     has: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_HAS),
+    verify: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_VERIFY) as Promise<{
+        isValid: boolean;
+        username?: string;
+        scopes?: string[];
+        rateLimitRemaining?: number;
+        error?: string;
+      }>,
   },
 };
 

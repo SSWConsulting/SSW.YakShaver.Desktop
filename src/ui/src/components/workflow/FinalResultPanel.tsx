@@ -1,9 +1,24 @@
-import { Copy, ExternalLink } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Copy, ExternalLink, Loader2, RotateCcw, Undo2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { formatErrorMessage } from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
-import { ProgressStage, type WorkflowProgress } from "../../types";
+import { ProgressStage, type WorkflowProgress, type WorkflowStage } from "../../types";
+import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
+import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
+import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea";
+import type { MCPStep } from "./StageWithContent";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
@@ -17,8 +32,13 @@ interface RawTextDisplayProps {
 }
 
 const isValidUrl = (str: string): boolean => {
+  const trimmed = str.trim();
+  // Ensure the entire string is just a URL (no spaces, newlines, or additional text)
+  if (trimmed.includes(" ") || trimmed.includes("\n")) {
+    return false;
+  }
   try {
-    new URL(str);
+    new URL(trimmed);
     return true;
   } catch {
     return false;
@@ -40,7 +60,39 @@ function RawTextDisplay({ content }: RawTextDisplayProps) {
 
 function JsonResultDisplay({ data }: { data: ParsedResult }) {
   const { copyToClipboard } = useClipboard();
-  const entries = Object.entries(data).filter(([key]) => key !== "Status" && key !== "IssueNumber");
+
+  // Parse and restructure the data to separate label patterns like "Type: Bug"
+  const processedData: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    if (key === "Status" || key === "IssueNumber") continue;
+
+    // Special handling for Labels array
+    if (key === "Labels" && Array.isArray(value)) {
+      const regularLabels: string[] = [];
+
+      for (const label of value) {
+        if (typeof label === "string" && label.includes(":")) {
+          // Parse "Type: Bug" pattern
+          const [labelKey, ...labelValueParts] = label.split(":");
+          const labelValue = labelValueParts.join(":").trim();
+          if (labelKey && labelValue) {
+            processedData[labelKey.trim()] = labelValue;
+            continue;
+          }
+        }
+        regularLabels.push(String(label));
+      }
+
+      if (regularLabels.length > 0) {
+        processedData.Labels = regularLabels;
+      }
+    } else {
+      processedData[key] = value;
+    }
+  }
+
+  const entries = Object.entries(processedData);
 
   return (
     <div className="space-y-4">
@@ -94,7 +146,6 @@ function LinkifiedText({ text }: LinkifiedTextProps) {
     <>
       {parts.map((part, index) => {
         const isUrl = regex.test(part);
-        // Reset regex after test
         regex.lastIndex = 0;
 
         if (isUrl || part.match(/^https?:\/\//)) {
@@ -204,6 +255,26 @@ function ValueRenderer({ value, onCopy }: ValueRendererProps): React.ReactNode {
       );
     }
 
+    // Check if all items are simple strings without URLs (like labels/tags)
+    const allSimpleStrings = value.every(
+      (item) => typeof item === "string" && !isValidUrl(item) && !containsUrl(item),
+    );
+
+    if (allSimpleStrings) {
+      return (
+        <div className="flex flex-wrap gap-2">
+          {value.map((item, index) => (
+            <span
+              key={`tag-${String(item).slice(0, 50)}-${index}`}
+              className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap"
+            >
+              {String(item)}
+            </span>
+          ))}
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-2">
         {value.map((item, index) => {
@@ -272,42 +343,441 @@ const parseFinalOutput = (
   }
 };
 
+const STEP_SUMMARY_CHAR_LIMIT = 1200;
+const MERGED_INSTRUCTION_HEADER = "\n\n### Operator correction\n";
+const REPROCESS_MODES = {
+  original: {
+    title: "Reprocess this yakshave",
+    description:
+      "Provide corrective instructions for YakShaver, then submit to rerun the MCP workflow.",
+    placeholder:
+      "Explain what needs to change. e.g. Wrong repo, please redo in xyz repo and use branch main.",
+    success: "Reprocess request finished. Review the refreshed workflow output.",
+  },
+  undo: {
+    title: "Rerun undo workflow",
+    description: "Add guidance for YakShaver before it attempts to undo the previous run again.",
+    placeholder: "Explain what went wrong when undoing. e.g. Close issue instead of deleting.",
+    success: "Undo reprocess request finished. Review the undo panel for updates.",
+  },
+} as const;
+
+type ReprocessMode = keyof typeof REPROCESS_MODES;
+
+const truncateText = (text: string, limit = STEP_SUMMARY_CHAR_LIMIT) => {
+  if (text.length <= limit) {
+    return text;
+  }
+  return `${text.slice(0, limit)}... (truncated)`;
+};
+
+const formatValue = (value: unknown) => {
+  if (value === undefined || value === null) {
+    return "none";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+};
+
+const summarizeSteps = (steps: MCPStep[]): string => {
+  if (!steps.length) return "";
+  return steps
+    .map((step, index) => {
+      const prefix = `${index + 1}.`;
+      switch (step.type) {
+        case "start":
+          return `${prefix} START — ${step.message ?? "Workflow execution started."}`;
+        case "reasoning": {
+          if (!step.reasoning) return null;
+          return `${prefix} REASONING — ${truncateText(step.reasoning)}`;
+        }
+        case "tool_call": {
+          const argsText = step.args ? truncateText(formatValue(step.args)) : "No args provided.";
+          return `${prefix} TOOL CALL — ${step.toolName ?? "unknown"} (server: ${step.serverName ?? "unknown"})\nArgs: ${argsText}`;
+        }
+        case "tool_result": {
+          if (step.error) {
+            return `${prefix} TOOL ERROR — ${step.error}`;
+          }
+          if (step.result === undefined) {
+            return `${prefix} TOOL RESULT — No result payload returned.`;
+          }
+          return `${prefix} TOOL RESULT — ${truncateText(formatValue(step.result))}`;
+        }
+        case "final_result":
+          return `${prefix} FINAL RESULT — ${step.message ?? "Generated final output."}`;
+        default:
+          return null;
+      }
+    })
+    .filter((entry): entry is string => Boolean(entry))
+    .join("\n");
+};
+
+const buildUndoPrompt = ({
+  steps,
+  finalOutput,
+  intermediateOutput,
+}: {
+  steps: MCPStep[];
+  finalOutput?: string;
+  intermediateOutput?: string;
+}) => {
+  const sections: string[] = [
+    "You previously executed an automated YakShaver task. I now need you to undo the effects of that run.",
+  ];
+
+  if (intermediateOutput) {
+    sections.push(`Original operator brief / intermediate output:\n${intermediateOutput}`);
+  }
+
+  if (finalOutput) {
+    sections.push(`Final output that must be reversed:\n${finalOutput}`);
+  }
+
+  const stepSummary = summarizeSteps(steps);
+  if (stepSummary) {
+    sections.push(`Recorded actions from the last run:\n${stepSummary}`);
+  } else {
+    sections.push(
+      "No granular step log is available. Undo any persisted changes created by the most recent run.",
+    );
+  }
+
+  sections.push(
+    "Use the same MCP tools (and only those tools) to reverse those actions. Return a JSON summary describing the undo steps performed, tools used, and any follow-up required.",
+  );
+
+  return sections.join("\n\n");
+};
+
+const normalizeCorrections = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.map((entry) => {
+      if (typeof entry === "string") return entry;
+      if (typeof entry === "object" && entry !== null) return JSON.stringify(entry);
+      return String(entry);
+    });
+  }
+  if (typeof value === "string") return [value];
+  if (typeof value === "object" && value !== null) return [JSON.stringify(value)];
+  return [String(value)];
+};
+
+const mergeReprocessInstructions = (base: string, extra: string): string => {
+  const trimmedExtra = extra.trim();
+  if (!trimmedExtra) return base;
+
+  try {
+    const parsed = JSON.parse(base) as Record<string, unknown>;
+    const existingCorrections = normalizeCorrections(parsed.operatorCorrections);
+    const merged = {
+      ...parsed,
+      operatorCorrections: [...existingCorrections, trimmedExtra],
+      operatorCorrectionSummary:
+        "Operator supplied additional guidance. Apply these corrections before executing tool calls.",
+    };
+    return JSON.stringify(merged, null, 2);
+  } catch {
+    return `${base.trim()}${MERGED_INSTRUCTION_HEADER}${trimmedExtra}\n\nPlease fully re-execute the MCP workflow (plan + tool calls) using these corrections.`;
+  }
+};
+
+const mergeUndoPrompt = (base: string, extra: string): string => {
+  const trimmedExtra = extra.trim();
+  if (!trimmedExtra) return base;
+  return `${base}\n\nOperator note:\n${trimmedExtra}`;
+};
+
+const emitUndoEvent = (type: UndoEventDetail["type"]) => {
+  window.dispatchEvent(new CustomEvent(UNDO_EVENT_CHANNEL, { detail: { type } }));
+};
+
 export function FinalResultPanel() {
   const [finalOutput, setFinalOutput] = useState<string | undefined>();
+  const [intermediateOutput, setIntermediateOutput] = useState<string | undefined>();
+  const [uploadResult, setUploadResult] = useState<WorkflowProgress["uploadResult"]>();
+  const [mcpSteps, setMcpSteps] = useState<MCPStep[]>([]);
+  const [reprocessDialogOpen, setReprocessDialogOpen] = useState(false);
+  const [reprocessMode, setReprocessMode] = useState<ReprocessMode>("original");
+  const [reprocessInstructions, setReprocessInstructions] = useState("");
+  const [reprocessLoading, setReprocessLoading] = useState(false);
+  const [reprocessError, setReprocessError] = useState<string | null>(null);
+  const [undoLoading, setUndoLoading] = useState(false);
+  const [undoError, setUndoError] = useState<string | null>(null);
+  const [hasUndoCompleted, setHasUndoCompleted] = useState(false);
+  const [lastUndoPrompt, setLastUndoPrompt] = useState<string | null>(null);
+
+  const stageRef = useRef<WorkflowStage>(ProgressStage.IDLE);
+
+  const resetForNewRun = useCallback(() => {
+    setFinalOutput(undefined);
+    setMcpSteps([]);
+    setReprocessError(null);
+    setUndoError(null);
+    setHasUndoCompleted(false);
+    setLastUndoPrompt(null);
+    emitUndoEvent("reset");
+  }, []);
 
   useEffect(() => {
     return ipcClient.workflow.onProgress((data: unknown) => {
       const progressData = data as WorkflowProgress;
-      if (progressData.finalOutput) {
-        setFinalOutput(progressData.finalOutput);
-      } else if (
-        progressData.stage === ProgressStage.IDLE ||
-        progressData.stage === ProgressStage.CONVERTING_AUDIO
-      ) {
-        setFinalOutput(undefined);
+      const previousStage = stageRef.current;
+
+      const isNewRecordingStage =
+        progressData.stage === ProgressStage.CONVERTING_AUDIO &&
+        previousStage !== ProgressStage.CONVERTING_AUDIO;
+
+      const isRetryStage =
+        progressData.stage === ProgressStage.EXECUTING_TASK &&
+        previousStage !== ProgressStage.EXECUTING_TASK;
+
+      if (isNewRecordingStage || isRetryStage) {
+        resetForNewRun();
       }
+
+      if (progressData.intermediateOutput) {
+        setIntermediateOutput(progressData.intermediateOutput);
+      }
+
+      if (progressData.uploadResult) {
+        setUploadResult(progressData.uploadResult);
+      }
+
+      if (typeof progressData.finalOutput !== "undefined") {
+        setFinalOutput(progressData.finalOutput ?? undefined);
+      }
+
+      stageRef.current = progressData.stage;
+    });
+  }, [resetForNewRun]);
+
+  useEffect(() => {
+    return ipcClient.mcp.onStepUpdate((step) => {
+      setMcpSteps((prev) => [...prev, { ...step, timestamp: Date.now() }]);
     });
   }, []);
+
+  const handleReprocessDialogChange = useCallback((open: boolean) => {
+    setReprocessDialogOpen(open);
+    if (!open) {
+      setReprocessInstructions("");
+      setReprocessError(null);
+      setReprocessMode("original");
+    }
+  }, []);
+
+  const openReprocessDialog = (mode: ReprocessMode) => {
+    setReprocessMode(mode);
+    setReprocessDialogOpen(true);
+  };
+
+  const handleReprocessOriginal = useCallback(async () => {
+    if (!intermediateOutput || !uploadResult) return;
+    setReprocessLoading(true);
+    setReprocessError(null);
+
+    try {
+      const mergedOutput = mergeReprocessInstructions(intermediateOutput, reprocessInstructions);
+      const result = await ipcClient.pipelines.retryVideo(mergedOutput, uploadResult);
+
+      if (!result?.success) {
+        throw new Error(result?.error ?? "Reprocess failed");
+      }
+
+      setIntermediateOutput(mergedOutput);
+      setReprocessDialogOpen(false);
+      toast.success("Reprocess request sent. Watch the workflow panel for updates.");
+    } catch (error) {
+      setReprocessError(formatErrorMessage(error));
+    } finally {
+      setReprocessLoading(false);
+    }
+  }, [intermediateOutput, reprocessInstructions, uploadResult]);
+
+  const handleReprocessUndo = useCallback(async () => {
+    if (!lastUndoPrompt) {
+      setReprocessError("Undo history not available yet.");
+      return;
+    }
+    setReprocessLoading(true);
+    setReprocessError(null);
+
+    try {
+      emitUndoEvent("start");
+      const mergedPrompt = mergeUndoPrompt(lastUndoPrompt, reprocessInstructions);
+      await ipcClient.mcp.processMessage(mergedPrompt);
+      emitUndoEvent("complete");
+      setLastUndoPrompt(mergedPrompt);
+      setReprocessDialogOpen(false);
+      toast.success("Undo reprocess request sent. Monitor the purple undo panel.");
+    } catch (error) {
+      emitUndoEvent("error");
+      setReprocessError(formatErrorMessage(error));
+    } finally {
+      setReprocessLoading(false);
+    }
+  }, [lastUndoPrompt, reprocessInstructions]);
+
+  const handleUndo = useCallback(async () => {
+    setUndoLoading(true);
+    setUndoError(null);
+
+    try {
+      const prompt = buildUndoPrompt({
+        steps: mcpSteps,
+        finalOutput,
+        intermediateOutput,
+      });
+      setLastUndoPrompt(prompt);
+      emitUndoEvent("start");
+      await ipcClient.mcp.processMessage(prompt);
+      emitUndoEvent("complete");
+      setHasUndoCompleted(true);
+      toast.success("Undo workflow running. Check the purple undo panel.");
+    } catch (error) {
+      emitUndoEvent("error");
+      setUndoError(formatErrorMessage(error));
+    } finally {
+      setUndoLoading(false);
+    }
+  }, [finalOutput, intermediateOutput, mcpSteps]);
+
+  const handleReprocess = useCallback(async () => {
+    if (reprocessMode === "original") {
+      await handleReprocessOriginal();
+    } else {
+      await handleReprocessUndo();
+    }
+  }, [handleReprocessOriginal, handleReprocessUndo, reprocessMode]);
 
   if (!finalOutput) return null;
 
   const { parsed, raw, isJson } = parseFinalOutput(finalOutput);
   const status = (isJson && parsed?.Status) as "success" | "fail" | undefined;
+  const showActions = Boolean(finalOutput);
+  const canReprocessOriginal = showActions && Boolean(intermediateOutput && uploadResult);
+  const canReprocessUndo = hasUndoCompleted && Boolean(lastUndoPrompt);
+  const canUndo = showActions && !hasUndoCompleted && mcpSteps.length > 0;
+  const dialogCopy = REPROCESS_MODES[reprocessMode];
 
   return (
     <div className="w-[500px] mx-auto my-4">
       <Card className="bg-black/30 backdrop-blur-sm border-white/20 shadow-xl">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-white text-2xl font-semibold">Final Result</CardTitle>
+            <CardTitle className="text-2xl font-semibold">Final Result</CardTitle>
             {status && <StatusBadge status={status} />}
           </div>
         </CardHeader>
-        <CardContent className="pt-2">
+        <CardContent className="pt-2 space-y-6">
           {isJson && parsed ? (
             <JsonResultDisplay data={parsed} />
           ) : (
             <RawTextDisplay content={raw} />
+          )}
+
+          {showActions && (
+            <div className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button
+                  variant="secondary"
+                  disabled={!canReprocessOriginal || reprocessLoading}
+                  className="flex-1"
+                  onClick={() => openReprocessDialog("original")}
+                >
+                  {reprocessLoading && reprocessMode === "original" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" />
+                  )}
+                  {hasUndoCompleted ? "Reprocess original shave" : "Reprocess"}
+                </Button>
+
+                {hasUndoCompleted ? (
+                  <Button
+                    variant="secondary"
+                    disabled={!canReprocessUndo || reprocessLoading}
+                    className="flex-1"
+                    onClick={() => openReprocessDialog("undo")}
+                  >
+                    {reprocessLoading && reprocessMode === "undo" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                    Reprocess undo
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    disabled={!canUndo || undoLoading}
+                    onClick={handleUndo}
+                    className="flex-1"
+                  >
+                    {undoLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Undo2 className="h-4 w-4" />
+                    )}
+                    Undo
+                  </Button>
+                )}
+              </div>
+              <Dialog open={reprocessDialogOpen} onOpenChange={handleReprocessDialogChange}>
+                <DialogContent className="bg-black/95 border-white/20 text-white">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">{dialogCopy.title}</DialogTitle>
+                    <DialogDescription className="text-white/70">
+                      {dialogCopy.description}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-2">
+                    <Label htmlFor="reprocess-instructions" className="text-white/80">
+                      Additional instructions
+                    </Label>
+                    <Textarea
+                      value={reprocessInstructions}
+                      onChange={(event) => setReprocessInstructions(event.target.value)}
+                      placeholder={dialogCopy.placeholder}
+                      disabled={reprocessLoading}
+                      className="text-white placeholder:text-white/40 border-white/20 bg-white/5"
+                    />
+                    {reprocessError && <p className="text-sm text-red-300">{reprocessError}</p>}
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => handleReprocessDialogChange(false)}
+                      disabled={reprocessLoading}
+                      className="text-white hover:text-white hover:bg-white/10"
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="button" onClick={handleReprocess} disabled={reprocessLoading}>
+                      {reprocessLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Run reprocess
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {undoError && <p className="text-sm text-red-400">{undoError}</p>}
+              {!canUndo && showActions && !hasUndoCompleted && (
+                <p className="text-xs text-white/50">
+                  Undo becomes available after YakShaver logs the tool calls for this run.
+                </p>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
