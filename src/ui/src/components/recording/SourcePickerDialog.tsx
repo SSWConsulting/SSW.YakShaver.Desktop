@@ -21,6 +21,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   const [selectedMicrophoneId, setSelectedMicrophoneId] = useState<string | undefined>(undefined);
   const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
   const [cameraPreviewStream, setCameraPreviewStream] = useState<MediaStream | null>(null);
+  const [devicesReady, setDevicesReady] = useState(false);
 
   const fetchSources = useCallback(async () => {
     setLoading(true);
@@ -47,9 +48,11 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       setSelectedMicrophoneId(
         mics.find((m) => m.deviceId === lastMic)?.deviceId || mics[0]?.deviceId,
       );
+      setDevicesReady(true);
     } catch {
       setCameraDevices([]);
       setMicrophoneDevices([]);
+      setDevicesReady(true);
     }
   }, []);
 
@@ -62,6 +65,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       setLoading(false);
       setCameraDevices([]);
       setMicrophoneDevices([]);
+      setDevicesReady(false);
       if (cameraPreviewStream) {
         cameraPreviewStream.getTracks().forEach((t) => t.stop());
         setCameraPreviewStream(null);
@@ -74,7 +78,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
   useEffect(() => {
     const startPreview = async () => {
-      if (!open) return;
+      if (!open || !devicesReady) return;
       if (!selectedCameraId || !cameraPreviewRef.current) {
         if (cameraPreviewStream) {
           cameraPreviewStream.getTracks().forEach((t) => t.stop());
@@ -95,10 +99,19 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           audio: false,
         });
         setCameraPreviewStream(stream);
-        cameraPreviewRef.current.srcObject = stream;
-        cameraPreviewRef.current.muted = true;
-        cameraPreviewRef.current.playsInline = true;
-        await cameraPreviewRef.current.play().catch(() => {});
+        const cameraPreviewVideo = cameraPreviewRef.current;
+        if (!cameraPreviewVideo) return;
+        cameraPreviewVideo.muted = true;
+        cameraPreviewVideo.playsInline = true;
+        await new Promise<void>((resolve) => {
+          const handler = () => {
+            cameraPreviewVideo.removeEventListener("loadedmetadata", handler);
+            resolve();
+          };
+          cameraPreviewVideo.addEventListener("loadedmetadata", handler);
+          cameraPreviewVideo.srcObject = stream;
+        });
+        await cameraPreviewVideo.play().catch(() => {});
       } catch {
         if (cameraPreviewRef.current) {
           cameraPreviewRef.current.srcObject = null;
@@ -107,7 +120,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       }
     };
     void startPreview();
-  }, [open, selectedCameraId]);
+  }, [open, selectedCameraId, devicesReady]);
 
   const screens = useMemo(() => sources.filter((s) => s.type === "screen"), [sources]);
   const windows = useMemo(() => sources.filter((s) => s.type === "window"), [sources]);
