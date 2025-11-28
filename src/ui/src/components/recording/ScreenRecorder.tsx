@@ -306,7 +306,9 @@ export function ScreenRecorder() {
               {chromeLogs.length === 0 ? (
                 <p className="text-white/50">Waiting for console or network activity...</p>
               ) : (
-                chromeLogs.map((entry) => {
+                [...chromeLogs]
+                  .sort((a, b) => a.timestamp - b.timestamp)
+                  .map((entry) => {
                   const timeLabel = new Date(entry.timestamp || Date.now()).toLocaleTimeString();
                   const badgeLabel =
                     entry.type === "console"

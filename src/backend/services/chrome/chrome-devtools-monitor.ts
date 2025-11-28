@@ -115,6 +115,7 @@ export class ChromeDevtoolsMonitorService {
   private captureMessageId = 0;
   private monitorConnected = false;
   private recordingStartTimestamp?: number;
+  private telemetryStartTimestamp = 0;
 
   private consoleLogs: ChromeConsoleLogEntry[] = [];
   private networkLogs: ChromeNetworkEntry[] = [];
@@ -226,14 +227,22 @@ export class ChromeDevtoolsMonitorService {
       this.sessionTargets.clear();
       this.targetSessions.clear();
       this.recordingStartTimestamp = undefined;
+      this.telemetryStartTimestamp = 0;
       this.resetCollections();
       this.latestSnapshot = undefined;
     });
 
-    await this.ensureMonitorConnection(true).catch((error) => {
-      console.warn("[ChromeMonitor] telemetry connection failed:", error);
-    });
-    return { success: true };
+    this.telemetryStartTimestamp = Date.now();
+    try {
+      await this.ensureMonitorConnection(true);
+      return { success: true };
+    } catch (error) {
+      console.error("[ChromeMonitor] telemetry connection failed:", error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Failed to attach DevTools session",
+      };
+    }
   }
 
   public async startCapture(): Promise<{ success: boolean; message?: string }> {
@@ -536,6 +545,7 @@ export class ChromeDevtoolsMonitorService {
       url: params.stackTrace?.callFrames?.[0]?.url,
       timestamp,
     };
+    if (!this.shouldRecordTimestamp(timestamp)) return;
     this.consoleLogs.push(entry);
     if (this.consoleLogs.length > MAX_LOG_ENTRIES) {
       this.consoleLogs = this.consoleLogs.slice(-MAX_LOG_ENTRIES);
@@ -546,6 +556,7 @@ export class ChromeDevtoolsMonitorService {
   private handleLogEntry(payload: { entry?: LogEntry }): void {
     if (!payload.entry) return;
     const timestamp = payload.entry.timestamp ? payload.entry.timestamp * 1000 : Date.now();
+    if (!this.shouldRecordTimestamp(timestamp)) return;
     const entry: ChromeConsoleLogEntry = {
       level: payload.entry.level ?? "info",
       text: this.normalizeLegacyLogText(payload.entry),
@@ -605,6 +616,7 @@ export class ChromeDevtoolsMonitorService {
     if (!params.requestId) return;
     const key = this.getNetworkKey(sessionId, params.requestId);
     const existing = this.networkMap.get(key);
+    const timestamp = Date.now();
     this.networkMap.set(key, {
       url: params.request?.url ?? existing?.url ?? "",
       method: params.request?.method ?? existing?.method ?? "GET",
@@ -612,7 +624,7 @@ export class ChromeDevtoolsMonitorService {
       status: existing?.status,
       mimeType: existing?.mimeType,
       encodedDataLength: existing?.encodedDataLength,
-      timestamp: Date.now(),
+      timestamp,
     });
   }
 
@@ -621,11 +633,12 @@ export class ChromeDevtoolsMonitorService {
     const key = this.getNetworkKey(sessionId, params.requestId);
     const existing = this.networkMap.get(key);
     if (!existing) return;
+    const timestamp = Date.now();
     this.networkMap.set(key, {
       ...existing,
       status: params.response?.status ?? existing.status,
       mimeType: params.response?.mimeType ?? existing.mimeType,
-      timestamp: Date.now(),
+      timestamp,
     });
     this.pushNetworkLog(key);
   }
@@ -635,10 +648,11 @@ export class ChromeDevtoolsMonitorService {
     const key = this.getNetworkKey(sessionId, params.requestId);
     const existing = this.networkMap.get(key);
     if (!existing) return;
+    const timestamp = Date.now();
     this.networkMap.set(key, {
       ...existing,
       encodedDataLength: params.encodedDataLength ?? existing.encodedDataLength,
-      timestamp: Date.now(),
+      timestamp,
     });
     this.pushNetworkLog(key);
   }
@@ -649,6 +663,9 @@ export class ChromeDevtoolsMonitorService {
       return;
     }
     const normalized: ChromeNetworkEntry = { ...entry };
+    if (!this.shouldRecordTimestamp(normalized.timestamp)) {
+      return;
+    }
     this.networkLogs.push(normalized);
     if (this.networkLogs.length > MAX_LOG_ENTRIES) {
       this.networkLogs = this.networkLogs.slice(-MAX_LOG_ENTRIES);
@@ -664,6 +681,13 @@ export class ChromeDevtoolsMonitorService {
     this.consoleLogs = [];
     this.networkLogs = [];
     this.networkMap.clear();
+  }
+
+  private shouldRecordTimestamp(timestamp: number): boolean {
+    if (!this.telemetryStartTimestamp) {
+      return true;
+    }
+    return timestamp >= this.telemetryStartTimestamp;
   }
 
   private emitTelemetry(event: ChromeTelemetryEvent): void {
