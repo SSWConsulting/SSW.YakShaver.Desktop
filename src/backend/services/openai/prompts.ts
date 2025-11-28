@@ -119,7 +119,6 @@ const formatConsoleLogs = (entries: ChromeTelemetrySnapshot["consoleLogs"]): str
     return "- None captured";
   }
   return entries
-    .slice(-20)
     .map((entry) => {
       const timestamp = new Date(entry.timestamp).toISOString();
       const location = entry.url ? ` (${entry.url})` : "";
@@ -133,7 +132,6 @@ const formatNetworkLogs = (entries: ChromeTelemetrySnapshot["networkRequests"]):
     return "- None captured";
   }
   return entries
-    .slice(-20)
     .map((entry) => {
       const status = entry.status ? ` status=${entry.status}` : "";
       const size =
