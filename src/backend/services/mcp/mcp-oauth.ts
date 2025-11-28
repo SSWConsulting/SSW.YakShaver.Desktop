@@ -1,3 +1,4 @@
+// Used Vercel AI Example for OAuth: https://github.com/vercel/ai/tree/main/examples/mcp/src/mcp-with-auth
 import { exec } from "node:child_process";
 import { createServer } from "node:http";
 import type {
