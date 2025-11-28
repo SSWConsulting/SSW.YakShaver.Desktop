@@ -184,11 +184,6 @@ export function ScreenRecorder() {
     return [...trimmedNormal, ...trimmedHighPriority];
   };
 
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
   useEffect(() => {
     if (!isYoutubeUrlWorkflowEnabled) {
       setYoutubeUrl("");
