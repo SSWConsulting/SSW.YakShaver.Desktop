@@ -86,7 +86,7 @@ export type ChromeTelemetryEvent =
   | { kind: "network"; entry: ChromeNetworkEntry };
 
 const CHROME_DEVTOOLS_IDENTIFIER = "chrome-devtools-mcp";
-const MAX_LOG_ENTRIES = 1000;
+const MAX_LOG_ENTRIES = 2000;
 const PRE_RECORDING_WINDOW_MS = 2 * 60 * 1000;
 
 export class ChromeDevtoolsMonitorService {
@@ -204,18 +204,9 @@ export class ChromeDevtoolsMonitorService {
       this.latestSnapshot = undefined;
     });
 
-    try {
-      await this.ensureMonitorConnection(true);
-    } catch (error) {
-      return {
-        success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Chrome launched but telemetry connection failed.",
-      };
-    }
-
+    await this.ensureMonitorConnection(true).catch((error) => {
+      console.warn("[ChromeMonitor] telemetry connection failed:", error);
+    });
     return { success: true };
   }
 
@@ -285,6 +276,11 @@ export class ChromeDevtoolsMonitorService {
         this.captureSocket?.on("close", () => {
           this.monitorConnected = false;
           this.captureSocket = undefined;
+          setTimeout(() => {
+            this.ensureMonitorConnection(false).catch((error) => {
+              console.warn("[ChromeMonitor] failed to reconnect:", error);
+            });
+          }, 1000);
         });
         this.captureSocket?.on("error", (error) => console.warn("[ChromeMonitor] socket error", error));
         this.captureMessageId = 0;

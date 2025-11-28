@@ -134,10 +134,9 @@ export function ScreenRecorder() {
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random()}`;
       const timestamp = event.entry.timestamp ?? Date.now();
-      let message = "";
       if (event.kind === "console") {
         const { level, text, url } = event.entry;
-        message = url ? `${text} (${url})` : text;
+        const message = url ? `${text} (${url})` : text;
         setChromeLogs((prev) => {
           const next: ChromeLogEntry[] = [
             ...prev,
@@ -149,7 +148,7 @@ export function ScreenRecorder() {
         const { method, status, url, mimeType } = event.entry;
         const statusPart = status ? ` status=${status}` : "";
         const mimePart = mimeType ? ` mime=${mimeType}` : "";
-        message = `${method ?? "GET"} ${url}${statusPart}${mimePart}`;
+        const message = `${method ?? "GET"} ${url}${statusPart}${mimePart}`;
         setChromeLogs((prev) => {
           const next: ChromeLogEntry[] = [
             ...prev,
