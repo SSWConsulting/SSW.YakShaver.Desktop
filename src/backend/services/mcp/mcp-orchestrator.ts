@@ -146,10 +146,10 @@ export class MCPOrchestrator {
         sendStepEvent({ type: "final_result", message: llmResponse.finishReason });
         return llmResponse.text;
       } else if (llmResponse.finishReason === "content-filter") {
-        console.log("\\n\\nConversation ended due to content filter. ");
+        console.log("Conversation ended due to content filter. ");
         return "Conversation ended due to content filter.";
       } else if (llmResponse.finishReason === "length") {
-        console.log("\\n\\nConversation ended due to length limit. ");
+        console.log("Conversation ended due to length limit. ");
         return "Conversation ended due to length limit.";
       } else {
         console.log("Conversation ended by error or unknown stop. Reason: ");
