@@ -180,6 +180,13 @@ export class ChromeDevtoolsMonitorService {
       return { success: false, message: "Chrome MCP test mode is not configured." };
     }
 
+    this.telemetryStartTimestamp = Date.now();
+
+    // First try to attach to an already running Chrome instance on the configured port
+    if (await this.tryAttachToExistingChrome()) {
+      return { success: true, message: "Attached to existing Chrome debugging session." };
+    }
+
     if (this.chromeProcess && !this.chromeProcess.killed) {
       return { success: true, message: "Monitored Chrome window is already running." };
     }
@@ -232,7 +239,6 @@ export class ChromeDevtoolsMonitorService {
       this.latestSnapshot = undefined;
     });
 
-    this.telemetryStartTimestamp = Date.now();
     try {
       await this.ensureMonitorConnection(true);
       return { success: true };
@@ -382,6 +388,16 @@ export class ChromeDevtoolsMonitorService {
     if (resetBuffers) {
       this.resetCollections();
       this.latestSnapshot = undefined;
+    }
+  }
+
+  private async tryAttachToExistingChrome(): Promise<boolean> {
+    try {
+      await this.ensureMonitorConnection(true);
+      return true;
+    } catch (error) {
+      console.warn("[ChromeMonitor] attach to existing Chrome failed:", error);
+      return false;
     }
   }
 
