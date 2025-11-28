@@ -122,7 +122,6 @@ export function ScreenRecorder() {
     chromeEnabledRef.current = !!chromeState?.enabled;
     if (!chromeState?.enabled) {
       setChromeLogs([]);
-      pendingLogsRef.current = [];
     }
   }, [chromeState?.enabled]);
 
