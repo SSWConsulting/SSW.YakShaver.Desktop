@@ -86,7 +86,8 @@ export type ChromeTelemetryEvent =
   | { kind: "network"; entry: ChromeNetworkEntry };
 
 const CHROME_DEVTOOLS_IDENTIFIER = "chrome-devtools-mcp";
-const MAX_LOG_ENTRIES = 50;
+const MAX_LOG_ENTRIES = 1000;
+const PRE_RECORDING_WINDOW_MS = 2 * 60 * 1000;
 
 export class ChromeDevtoolsMonitorService {
   private static instance: ChromeDevtoolsMonitorService;
@@ -94,9 +95,11 @@ export class ChromeDevtoolsMonitorService {
   private chromeProcess?: ChildProcess;
   private captureSocket?: WebSocket;
   private captureMessageId = 0;
-  private capturing = false;
+  private monitorConnected = false;
+  private recordingStartTimestamp?: number;
 
   private consoleLogs: ChromeConsoleLogEntry[] = [];
+  private networkLogs: ChromeNetworkEntry[] = [];
   private networkMap: Map<string, ChromeNetworkEntry> = new Map();
   private latestSnapshot?: ChromeTelemetrySnapshot;
 
@@ -193,58 +196,76 @@ export class ChromeDevtoolsMonitorService {
 
     this.chromeProcess?.on("exit", () => {
       this.chromeProcess = undefined;
+      this.monitorConnected = false;
+      this.captureSocket?.removeAllListeners();
+      this.captureSocket = undefined;
+      this.recordingStartTimestamp = undefined;
       this.resetCollections();
       this.latestSnapshot = undefined;
-      this.capturing = false;
     });
+
+    try {
+      await this.ensureMonitorConnection(true);
+    } catch (error) {
+      return {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Chrome launched but telemetry connection failed.",
+      };
+    }
 
     return { success: true };
   }
 
   public async startCapture(): Promise<{ success: boolean; message?: string }> {
-    if (this.capturing) {
-      return { success: true };
-    }
-
-    const config = await this.findChromeServerConfig();
-    if (!config) {
+    const state = await this.getState();
+    if (!state.enabled) {
       return { success: false, message: "Chrome MCP test mode is not enabled." };
     }
 
-    const browserUrl = this.extractBrowserUrl(config);
-    if (!browserUrl) {
-      return { success: false, message: "chrome-devtools-mcp server is missing --browser-url." };
+    try {
+      await this.ensureMonitorConnection(false);
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Unable to start Chrome monitoring",
+      };
     }
 
-    const wsUrl = await this.resolveWebSocketUrl(browserUrl);
-    await this.connectToDevtools(wsUrl);
+    this.recordingStartTimestamp = Date.now();
     this.latestSnapshot = undefined;
-    this.capturing = true;
-
     return { success: true };
   }
 
   public async stopCapture(): Promise<{ success: boolean; message?: string }> {
-    if (!this.capturing) {
+    if (!this.recordingStartTimestamp) {
       return { success: false, message: "Chrome MCP capture is not active." };
     }
 
-    this.capturing = false;
-    this.captureSocket?.removeAllListeners();
-    this.captureSocket?.close();
-    this.captureSocket = undefined;
+    const startTime = this.recordingStartTimestamp;
+    const stopTime = Date.now();
+    const cutoff = startTime - PRE_RECORDING_WINDOW_MS;
 
-    const config = await this.findChromeServerConfig();
-    const browserUrl = config ? this.extractBrowserUrl(config) : null;
+    const [config, browserUrl] = await this.resolveCurrentServer();
+
+    const consoleLogs = this.consoleLogs.filter(
+      (entry) => entry.timestamp >= cutoff && entry.timestamp <= stopTime,
+    );
+    const networkRequests = this.networkLogs.filter(
+      (entry) => entry.timestamp >= cutoff && entry.timestamp <= stopTime,
+    );
 
     this.latestSnapshot = {
-      capturedAt: new Date().toISOString(),
+      capturedAt: new Date(stopTime).toISOString(),
       serverName: config?.name ?? "chrome-devtools-mcp",
       browserUrl: browserUrl?.toString() ?? "",
-      consoleLogs: [...this.consoleLogs],
-      networkRequests: this.getLatestNetworkEntries(),
+      consoleLogs,
+      networkRequests,
     };
 
+    this.recordingStartTimestamp = undefined;
     return { success: true };
   }
 
@@ -262,15 +283,14 @@ export class ChromeDevtoolsMonitorService {
         this.captureSocket?.off("error", handleError);
         this.captureSocket?.on("message", (raw) => this.handleSocketMessage(raw));
         this.captureSocket?.on("close", () => {
-          if (this.capturing) {
-            void this.stopCapture();
-          }
+          this.monitorConnected = false;
+          this.captureSocket = undefined;
         });
         this.captureSocket?.on("error", (error) => console.warn("[ChromeMonitor] socket error", error));
         this.captureMessageId = 0;
-        this.resetCollections();
         this.sendCommand("Log.enable");
         this.sendCommand("Network.enable");
+        this.monitorConnected = true;
         resolve();
       });
 
@@ -278,8 +298,43 @@ export class ChromeDevtoolsMonitorService {
     });
   }
 
+  private async ensureMonitorConnection(resetBuffers: boolean): Promise<void> {
+    if (
+      this.monitorConnected &&
+      this.captureSocket &&
+      this.captureSocket.readyState === WebSocket.OPEN
+    ) {
+      if (resetBuffers) {
+        this.resetCollections();
+        this.latestSnapshot = undefined;
+      }
+      return;
+    }
+
+    const [config, browserUrl] = await this.resolveCurrentServer();
+    if (!config || !browserUrl) {
+      throw new Error("Chrome MCP test mode is not fully configured.");
+    }
+
+    const wsUrl = await this.resolveWebSocketUrl(browserUrl);
+    await this.connectToDevtools(wsUrl);
+    if (resetBuffers) {
+      this.resetCollections();
+      this.latestSnapshot = undefined;
+    }
+  }
+
+  private async resolveCurrentServer(): Promise<[MCPServerConfig | null, URL | null]> {
+    const config = await this.findChromeServerConfig();
+    if (!config) {
+      return [null, null];
+    }
+    const browserUrl = this.extractBrowserUrl(config);
+    return [config, browserUrl];
+  }
+
   private handleSocketMessage(raw: WebSocket.RawData): void {
-    if (!this.capturing) return;
+    if (!this.monitorConnected) return;
 
     let payload: { method?: string; params?: unknown };
     try {
@@ -313,7 +368,7 @@ export class ChromeDevtoolsMonitorService {
   private handleConsoleEntry(payload: { entry?: LogEntry }): void {
     if (!payload.entry) return;
     const entry = payload.entry;
-    const timestamp = entry.timestamp ? entry.timestamp / 1000 : Date.now();
+    const timestamp = entry.timestamp ? entry.timestamp * 1000 : Date.now();
     const text = this.normalizeConsoleText(entry);
     const normalized: ChromeConsoleLogEntry = {
       level: entry.level ?? "info",
@@ -360,6 +415,10 @@ export class ChromeDevtoolsMonitorService {
     });
     const current = this.networkMap.get(params.requestId);
     if (current) {
+      this.networkLogs.push({ ...current });
+      if (this.networkLogs.length > MAX_LOG_ENTRIES) {
+        this.networkLogs = this.networkLogs.slice(-MAX_LOG_ENTRIES);
+      }
       this.emitTelemetry({ kind: "network", entry: { ...current } });
     }
   }
@@ -373,6 +432,14 @@ export class ChromeDevtoolsMonitorService {
       status: params.response?.status ?? existing.status,
       mimeType: params.response?.mimeType ?? existing.mimeType,
     });
+    const updated = this.networkMap.get(params.requestId);
+    if (updated) {
+      this.networkLogs.push({ ...updated });
+      if (this.networkLogs.length > MAX_LOG_ENTRIES) {
+        this.networkLogs = this.networkLogs.slice(-MAX_LOG_ENTRIES);
+      }
+      this.emitTelemetry({ kind: "network", entry: { ...updated } });
+    }
   }
 
   private handleNetworkFinished(params: LoadingFinishedParams): void {
@@ -385,19 +452,17 @@ export class ChromeDevtoolsMonitorService {
     });
     const updated = this.networkMap.get(params.requestId);
     if (updated) {
+      this.networkLogs.push({ ...updated });
+      if (this.networkLogs.length > MAX_LOG_ENTRIES) {
+        this.networkLogs = this.networkLogs.slice(-MAX_LOG_ENTRIES);
+      }
       this.emitTelemetry({ kind: "network", entry: { ...updated } });
     }
   }
 
-  private getLatestNetworkEntries(): ChromeNetworkEntry[] {
-    const entries = Array.from(this.networkMap.values())
-      .filter((entry) => entry.url)
-      .sort((a, b) => a.timestamp - b.timestamp);
-    return entries.slice(-MAX_LOG_ENTRIES);
-  }
-
   private resetCollections(): void {
     this.consoleLogs = [];
+    this.networkLogs = [];
     this.networkMap.clear();
   }
 
