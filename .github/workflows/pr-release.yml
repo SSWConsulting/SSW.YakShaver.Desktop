@@ -29,7 +29,7 @@ jobs:
       version: ${{ steps.pr_info.outputs.version }}
       pr_sha: ${{ steps.pr_info.outputs.pr_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
@@ -95,7 +95,7 @@ jobs:
       github.event.action != 'closed'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
@@ -166,7 +166,7 @@ jobs:
       github.event.action != 'closed'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
