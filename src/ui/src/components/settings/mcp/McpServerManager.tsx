@@ -18,6 +18,7 @@ import { Button } from "../../ui/button";
 import { Card, CardContent } from "../../ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
 import { ScrollArea } from "../../ui/scroll-area";
+import { GitHubAppInstallGuide } from "./GitHubAppInstallGuide";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 import { McpWhitelistDialog } from "./McpWhitelistDialog";
 
@@ -38,6 +39,22 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   const [serverToDelete, setServerToDelete] = useState<string | null>(null);
   const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
   const [whitelistServer, setWhitelistServer] = useState<MCPServerConfig | null>(null);
+  const [appInstallUrl, setAppInstallUrl] = useState<string>("");
+
+  // Load GitHub install URL
+  useEffect(() => {
+    if (isActive) {
+      const loadGitHubInstallUrl = async () => {
+        try {
+          const installUrl = await ipcClient.githubToken.getInstallUrl();
+          setAppInstallUrl(installUrl);
+        } catch (e) {
+          console.error("Failed to load GitHub install URL:", e);
+        }
+      };
+      void loadGitHubInstallUrl();
+    }
+  }, [isActive]);
 
   const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
     const initialStatus: ServerHealthStatus<string> = {};
@@ -202,21 +219,28 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                     const cwdSummary =
                       server.transport === "stdio" && "cwd" in server ? server.cwd : undefined;
 
-                    return (
-                      <Card key={server.name}>
-                        <CardContent className="p-6">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex flex-1 items-start gap-3">
-                              <div className="group relative mt-1 flex-shrink-0">
-                                <HealthStatus
-                                  isHealthy={!!status.isHealthy}
-                                  isChecking={!!status.isChecking}
-                                  successMessage={status.successMessage}
-                                  error={status.error}
-                                />
-                              </div>
+                    // Check if this is a GitHub MCP server
+                    const isGitHubServer =
+                      server.transport === "streamableHttp" &&
+                      server.url &&
+                      server.url.includes("github");
 
-                              <div className="flex-1">
+                    return (
+                      <Card key={server.name} className="overflow-hidden">
+                        <CardContent className="p-6">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3">
+                                <div className="group relative mt-1 flex-shrink-0">
+                                  <HealthStatus
+                                    isHealthy={!!status.isHealthy}
+                                    isChecking={!!status.isChecking}
+                                    successMessage={status.successMessage}
+                                    error={status.error}
+                                  />
+                                </div>
+
+                                <div className="flex-1">
                                 <h3 className="text-lg font-semibold text-white">{server.name}</h3>
                                 {server.builtin ? (
                                   <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
@@ -237,33 +261,40 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                   </p>
                                 )}
                               </div>
+                              </div>
+
+                              <div className="flex gap-2 flex-shrink-0">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => showEditForm(server)}
+                                  disabled={server.builtin}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => openWhitelistDialog(server)}
+                                  disabled={server.builtin}
+                                >
+                                  Configure Whitelist
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => confirmDeleteServer(server.name)}
+                                  disabled={server.builtin}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
                             </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => showEditForm(server)}
-                                disabled={server.builtin}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => openWhitelistDialog(server)}
-                                disabled={server.builtin}
-                              >
-                                Configure Whitelist
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => confirmDeleteServer(server.name)}
-                                disabled={server.builtin}
-                              >
-                                Delete
-                              </Button>
-                            </div>
+
+                            {/* Show GitHub App install guide for GitHub MCP servers */}
+                            {isGitHubServer && appInstallUrl && (
+                              <GitHubAppInstallGuide appInstallUrl={appInstallUrl} />
+                            )}
                           </div>
                         </CardContent>
                       </Card>

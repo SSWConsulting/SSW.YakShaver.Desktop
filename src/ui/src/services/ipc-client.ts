@@ -141,6 +141,7 @@ declare global {
         set: (token: string) => Promise<void>;
         clear: () => Promise<void>;
         has: () => Promise<boolean>;
+        getInstallUrl: () => Promise<string>;
       };
     };
   }
