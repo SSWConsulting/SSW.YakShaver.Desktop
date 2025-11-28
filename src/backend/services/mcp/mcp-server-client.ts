@@ -2,8 +2,17 @@ import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-s
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
+import {
+  authorizeWithPkceOnce,
+  checkDynamicRegistrationSupport,
+  InMemoryOAuthClientProvider,
+  waitForAuthorizationCode,
+} from "./mcp-oauth";
 import { MCPUtils } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
+import "dotenv/config";
+import getPort from "get-port";
+import { withTimeout } from "../../utils/async-utils";
 
 export interface CreateClientOptions {
   inMemoryClientTransport?: InMemoryTransport;
@@ -36,10 +45,88 @@ export class MCPServerClient {
   ): Promise<MCPServerClient> {
     // create streamableHttp transport MCP client
     if (mcpConfig.transport === "streamableHttp") {
+      const serverUrl = MCPUtils.expandHomePath(mcpConfig.url);
+
+      // Don't use OAuth for built-in MCP server
+      if (mcpConfig.builtin) {
+        const client = await experimental_createMCPClient({
+          transport: {
+            type: "http",
+            url: serverUrl,
+            headers: mcpConfig.headers,
+          },
+        });
+        return new MCPServerClient(mcpConfig.name, client);
+      }
+
+      // Check for dynamic client registration support for servers
+      let oauthEndpoint: string | null = null;
+      try {
+        oauthEndpoint = await checkDynamicRegistrationSupport(serverUrl);
+      } catch (detectionError) {
+        console.warn(
+          `[MCPServerClient]: Dynamic registration detection failed for ${mcpConfig.name}: ${formatErrorMessage(detectionError)}`,
+        );
+      }
+
+      if (oauthEndpoint) {
+        const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
+        const authProvider = new InMemoryOAuthClientProvider({
+          callbackPort,
+        });
+        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
+        await withTimeout(
+          authorizeWithPkceOnce(authProvider, serverUrl, () =>
+            waitForAuthorizationCode(callbackPort),
+          ),
+          authTimeoutMs,
+          `${mcpConfig.name} OAuth`,
+        );
+        const client = await experimental_createMCPClient({
+          transport: {
+            type: "http",
+            url: serverUrl,
+            authProvider,
+          },
+        });
+        return new MCPServerClient(mcpConfig.name, client);
+      }
+
+      if (!oauthEndpoint && mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
+        const githubClientId = process.env.MCP_GITHUB_CLIENT_ID;
+        const githubClientSecret = process.env.MCP_GITHUB_CLIENT_SECRET;
+        const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
+
+        if (githubClientId && githubClientSecret) {
+          const authProvider = new InMemoryOAuthClientProvider({
+            clientId: githubClientId,
+            clientSecret: githubClientSecret,
+            callbackPort,
+          });
+          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
+          await withTimeout(
+            authorizeWithPkceOnce(authProvider, serverUrl, () =>
+              waitForAuthorizationCode(callbackPort),
+            ),
+            authTimeoutMs,
+            `${mcpConfig.name} OAuth`,
+          );
+          const client = await experimental_createMCPClient({
+            transport: {
+              type: "http",
+              url: serverUrl,
+              authProvider,
+            },
+          });
+          return new MCPServerClient(mcpConfig.name, client);
+        }
+      }
+
+      // Fallback: Use headers if no OAuth is configured
       const client = await experimental_createMCPClient({
         transport: {
           type: "http",
-          url: MCPUtils.expandHomePath(mcpConfig.url),
+          url: serverUrl,
           headers: mcpConfig.headers,
         },
       });
