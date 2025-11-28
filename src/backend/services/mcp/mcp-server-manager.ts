@@ -110,9 +110,7 @@ export class MCPServerManager {
         }
         return null;
       } catch (err) {
-        console.warn(
-          `[MCPServerManager] Failed to initialize client '${name}': ${String(err)}`,
-        );
+        console.warn(`[MCPServerManager] Failed to initialize client '${name}': ${String(err)}`);
         return null;
       } finally {
         MCPServerManager.mcpClientPromises.delete(name);
