@@ -35,80 +35,84 @@ export class ProcessVideoIPCHandlers {
       if (!fs.existsSync(filePath)) {
         throw new Error("video-process-handler: Video file does not exist");
       }
+      try {
+        // upload to YouTube
+        let youtubeResult = await this.youtube.uploadVideo(filePath);
+        this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
 
-      // upload to YouTube
-      let youtubeResult = await this.youtube.uploadVideo(filePath);
-      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, { uploadResult: youtubeResult });
+        // convert video to mp3
+        this.emitProgress(ProgressStage.CONVERTING_AUDIO);
+        const mp3FilePath = await this.convertVideoToMp3(filePath);
 
-      // convert video to mp3
-      this.emitProgress(ProgressStage.CONVERTING_AUDIO);
-      const mp3FilePath = await this.convertVideoToMp3(filePath);
+        // transcribe the video via MCP
+        this.emitProgress(ProgressStage.TRANSCRIBING);
+        const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
+        this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      // transcribe the video via MCP
-      this.emitProgress(ProgressStage.TRANSCRIBING);
-      const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
-      this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
+        this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
 
-      this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
+        // generate intermediate summary
+        const intermediateOutput = await this.llmClient.generateOutput(
+          INITIAL_SUMMARY_PROMPT,
+          transcript,
+          { jsonMode: true },
+        );
+        this.emitProgress(ProgressStage.EXECUTING_TASK, {
+          transcript,
+          intermediateOutput,
+        });
 
-      // generate intermediate summary
-      const intermediateOutput = await this.llmClient.generateOutput(
-        INITIAL_SUMMARY_PROMPT,
-        transcript,
-        { jsonMode: true },
-      );
-      this.emitProgress(ProgressStage.EXECUTING_TASK, {
-        transcript,
-        intermediateOutput,
-      });
+        // process transcription with MCP
+        const customPrompt = await this.customPromptStorage.getActivePrompt();
+        const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
-      // process transcription with MCP
-      const customPrompt = await this.customPromptStorage.getActivePrompt();
-      const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+        const orchestrator = await MCPOrchestrator.getInstanceAsync();
+        const mcpResult = await orchestrator.manualLoopAsync(intermediateOutput, youtubeResult, {
+          systemPrompt,
+        });
 
-      const orchestrator = await MCPOrchestrator.getInstanceAsync();
-      const mcpResult = await orchestrator.processMessageAsync(intermediateOutput, youtubeResult, {
-        systemPrompt,
-      });
-
-      if (youtubeResult.success && youtubeResult.data?.videoId) {
-        try {
-          this.emitProgress(ProgressStage.UPDATING_METADATA);
-          const metadata = await this.metadataBuilder.build({
-            transcriptVtt: transcript,
-            intermediateOutput,
-            executionHistory: JSON.stringify(mcpResult.transcript ?? [], null, 2),
-            finalResult: mcpResult.final ?? undefined,
-          });
-          this.emitProgress(ProgressStage.UPDATING_METADATA, {
-            metadataPreview: metadata.metadata,
-          });
-          const updateResult = await this.youtube.updateVideoMetadata(
-            youtubeResult.data.videoId,
-            metadata.snippet,
-          );
-          if (updateResult.success) {
-            youtubeResult = updateResult;
-          } else if (updateResult.error) {
-            console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+        if (youtubeResult.success && youtubeResult.data?.videoId) {
+          try {
+            this.emitProgress(ProgressStage.UPDATING_METADATA);
+            const metadata = await this.metadataBuilder.build({
+              transcriptVtt: transcript,
+              intermediateOutput,
+              executionHistory: JSON.stringify(mcpResult.transcript ?? [], null, 2),
+              finalResult: mcpResult.final ?? undefined,
+            });
+            this.emitProgress(ProgressStage.UPDATING_METADATA, {
+              metadataPreview: metadata.metadata,
+            });
+            const updateResult = await this.youtube.updateVideoMetadata(
+              youtubeResult.data.videoId,
+              metadata.snippet,
+            );
+            if (updateResult.success) {
+              youtubeResult = updateResult;
+            } else if (updateResult.error) {
+              console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+            }
+          } catch (metadataError) {
+            console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
           }
-        } catch (metadataError) {
-          console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
         }
+
+        this.emitProgress(ProgressStage.COMPLETED, {
+          transcript,
+          intermediateOutput,
+          mcpResult,
+          finalOutput: mcpResult,
+          uploadResult: youtubeResult,
+        });
+        return { youtubeResult, mcpResult };
+        // delete the temporary video file
+      } catch (error) {
+        console.error("Error processing video:", error);
+        throw error;
+      } finally {
+        fs.unlinkSync(filePath);
+        console.log(`Temporary video file deleted: ${filePath}`);
       }
-
-      this.emitProgress(ProgressStage.COMPLETED, {
-        transcript,
-        intermediateOutput,
-        mcpResult,
-        finalOutput: mcpResult,
-        uploadResult: youtubeResult,
-      });
-
-      // delete the temporary video file
-      fs.unlinkSync(filePath);
-
-      return { youtubeResult, mcpResult };
     });
 
     // Retry video pipeline
@@ -126,7 +130,7 @@ export class ProcessVideoIPCHandlers {
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
           const orchestrator = await MCPOrchestrator.getInstanceAsync();
-          const mcpResult = await orchestrator.processMessageAsync(
+          const mcpResult = await orchestrator.manualLoopAsync(
             intermediateOutput,
             videoUploadResult,
             { systemPrompt },

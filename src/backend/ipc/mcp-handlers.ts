@@ -5,7 +5,7 @@ import type { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import type { MCPServerConfig, MCPToolSummary } from "../services/mcp/types";
 import { IPC_CHANNELS } from "./channels";
 
-type ProcessMessageOptions = Parameters<MCPOrchestrator["processMessageAsync"]>[2];
+type ProcessMessageOptions = Parameters<MCPOrchestrator["manualLoopAsync"]>[2];
 
 export class McpIPCHandlers {
   private mcpServerManager: MCPServerManager;
@@ -72,7 +72,9 @@ export class McpIPCHandlers {
           return Object.entries(obj).map(([name, value]) => ({
             name,
             description:
-              value && typeof value === "object" && "description" in (value as { description?: string })
+              value &&
+              typeof value === "object" &&
+              "description" in (value as { description?: string })
                 ? (value as { description?: string }).description
                 : undefined,
           }));
@@ -90,7 +92,7 @@ export class McpIPCHandlers {
         options?: ProcessMessageOptions,
       ) => {
         const orchestrator = await MCPOrchestrator.getInstanceAsync();
-        return await orchestrator.processMessageAsync(prompt, videoUploadResult, options);
+        return await orchestrator.manualLoopAsync(prompt, videoUploadResult, options);
       },
     );
 

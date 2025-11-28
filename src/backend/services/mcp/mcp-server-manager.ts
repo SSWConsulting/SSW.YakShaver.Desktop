@@ -3,6 +3,7 @@ import type { HealthStatusInfo } from "../../types/index.js";
 import { McpStorage } from "../storage/mcp-storage";
 import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
 import type { MCPServerConfig } from "./types";
+import { ToolSet } from "ai";
 
 export class MCPServerManager {
   private static instance: MCPServerManager;
@@ -39,7 +40,7 @@ export class MCPServerManager {
     return (await Promise.all(clientPromises)).filter((client) => client !== null);
   }
 
-  public async collectToolsAsync(serverFilter?: string[]): Promise<Record<string, unknown>> {
+  public async collectToolsAsync(serverFilter?: string[]): Promise<ToolSet> {
     const normalizedFilter = serverFilter
       ?.map((name) => name.trim())
       .filter((name) => name.length > 0);
@@ -54,7 +55,9 @@ export class MCPServerManager {
 
     const toolSets = await Promise.all(clients.map((client) => client.listToolsAsync()));
     const toolMaps = toolSets.map((toolSet) => MCPServerManager.normalizeTools(toolSet));
-    return Object.assign({}, ...toolMaps);
+    const mergedTools = Object.assign({}, ...toolMaps) as ToolSet;
+
+    return mergedTools;
   }
 
   // Get or Create MCP client for a given server name

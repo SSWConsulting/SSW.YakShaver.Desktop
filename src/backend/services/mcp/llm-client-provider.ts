@@ -7,6 +7,8 @@ import {
   type StreamTextResult,
   stepCountIs,
   streamText,
+  ToolSet,
+  GenerateTextResult,
 } from "ai";
 import { BrowserWindow } from "electron";
 import type { HealthStatusInfo } from "../../types";
@@ -95,9 +97,33 @@ export class LLMClientProvider {
     return text;
   }
 
+  public async generateTextWithTools(
+    messages: ModelMessage[],
+    tools?: ToolSet,
+  ): Promise<GenerateTextResult<any, any>> {
+    if (!LLMClientProvider.languageModel) {
+      throw new Error("[LLMClientProvider]: LLM client not initialized");
+    }
+
+    // remove 'execute' functions from tools before passing to generateText to prevent ai sdk auto execute the tool
+    const sanitizedTools = tools
+      ? Object.fromEntries(
+          Object.entries(tools).map(([name, { execute, ...rest }]) => [name, rest]),
+        )
+      : undefined;
+
+    const response = await generateText({
+      model: LLMClientProvider.languageModel,
+      messages: messages,
+      tools: sanitizedTools,
+    });
+
+    return response;
+  }
+
   public async sendMessage(
     message: ModelMessage[],
-    tools: any,
+    tools: ToolSet,
   ): Promise<StreamTextResult<any, any>> {
     if (!LLMClientProvider.languageModel) {
       throw new Error("[LLMClientProvider]: LLM client not initialized");
