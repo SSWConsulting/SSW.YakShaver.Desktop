@@ -3,6 +3,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
+import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
 import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
 import { LLMSettingsPanel } from "./llm/LLMKeyManager";
@@ -36,6 +37,10 @@ const TABS: SettingsTab[] = [
   {
     id: "mcp",
     label: "MCP Servers",
+  },
+  {
+    id: "advanced",
+    label: "Advanced",
   },
 ];
 
@@ -131,9 +136,7 @@ export function SettingsDialog() {
                   type="button"
                   onClick={() => attemptTabChange(tab.id)}
                   className={`text-left px-3 py-2 rounded-md transition-colors border border-transparent ${
-                    isActive
-                      ? "bg-white/10 border-white/20"
-                      : "text-white/60 hover:bg-white/5"
+                    isActive ? "bg-white/10 border-white/20" : "text-white/60 hover:bg-white/5"
                   }`}
                 >
                   <div className="text-sm font-medium">{tab.label}</div>
@@ -163,6 +166,7 @@ export function SettingsDialog() {
                 {activeTab?.id === "mcp" && (
                   <McpSettingsPanel isActive={open && activeTabId === "mcp"} />
                 )}
+                {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
               </div>
             </ScrollArea>
           </section>
