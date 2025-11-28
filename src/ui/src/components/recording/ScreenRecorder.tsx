@@ -317,9 +317,18 @@ export function ScreenRecorder() {
         </div>
         {chromeState?.enabled && (
           <div className="w-full max-w-4xl rounded-xl border border-white/10 bg-black/40 p-4 shadow-inner">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Chrome MCP Telemetry</p>
-              <span className="text-xs text-white/60">{chromeLogs.length} events</span>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-white">Chrome MCP Telemetry</p>
+                <span className="text-xs text-white/60">{chromeLogs.length} events</span>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80 transition hover:bg-white/20"
+                onClick={() => setChromeLogs([])}
+              >
+                Clear
+              </button>
             </div>
             <div className="mt-3 h-48 overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-3 font-mono text-xs text-white/80">
               {chromeLogs.length === 0 ? (
