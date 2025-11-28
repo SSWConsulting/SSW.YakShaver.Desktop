@@ -11,6 +11,7 @@ import { MCPUtils } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
 import getPort from "get-port";
+import { withTimeout } from "../../utils/async-utils";
 
 export interface CreateClientOptions {
   inMemoryClientTransport?: InMemoryTransport;
@@ -69,8 +70,13 @@ export class MCPServerClient {
             clientSecret: githubClientSecret,
             callbackPort,
           });
-          await authorizeWithPkceOnce(authProvider, serverUrl, () =>
-            waitForAuthorizationCode(callbackPort),
+          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 20000);
+          await withTimeout(
+            authorizeWithPkceOnce(authProvider, serverUrl, () =>
+              waitForAuthorizationCode(callbackPort),
+            ),
+            authTimeoutMs,
+            `${mcpConfig.name} OAuth`,
           );
           const client = await experimental_createMCPClient({
             transport: {
@@ -92,8 +98,13 @@ export class MCPServerClient {
         const authProvider = new InMemoryOAuthClientProvider({
           callbackPort,
         });
-        await authorizeWithPkceOnce(authProvider, serverUrl, () =>
-          waitForAuthorizationCode(callbackPort),
+        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 20000);
+        await withTimeout(
+          authorizeWithPkceOnce(authProvider, serverUrl, () =>
+            waitForAuthorizationCode(callbackPort),
+          ),
+          authTimeoutMs,
+          `${mcpConfig.name} OAuth`,
         );
         const client = await experimental_createMCPClient({
           transport: {
