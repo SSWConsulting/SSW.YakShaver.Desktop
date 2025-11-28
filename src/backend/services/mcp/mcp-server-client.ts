@@ -59,8 +59,8 @@ export class MCPServerClient {
 
       // Non-dynamic client registration MCP Server OAuth (e.g. GitHub MCP)
       if (mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
-        const githubClientId = process.env.GITHUB_MCP_CLIENT_ID;
-        const githubClientSecret = process.env.GITHUB_MCP_CLIENT_SECRET;
+        const githubClientId = process.env.MCP_GITHUB_CLIENT_ID;
+        const githubClientSecret = process.env.MCP_GITHUB_CLIENT_SECRET;
         const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
 
         if (githubClientId && githubClientSecret) {

@@ -46,9 +46,17 @@ jobs:
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          MCP_GITHUB_CLIENT_ID: ${{ secrets.MCP_GITHUB_CLIENT_ID }}
+          MCP_GITHUB_CLIENT_SECRET: ${{ secrets.MCP_GITHUB_CLIENT_SECRET }}
+          MCP_CALLBACK_PORT: 8090
+          GITHUB_APP_INSTALLATION_LINK: https://github.com/apps/ssw-yakshaver-staging
         run: |
           "YOUTUBE_CLIENT_ID=$env:YOUTUBE_CLIENT_ID" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
           Add-Content -Path ".env" -Value "`nYOUTUBE_CLIENT_SECRET=$env:YOUTUBE_CLIENT_SECRET"
+          Add-Content -Path ".env" -Value "`nMCP_GITHUB_CLIENT_ID=$env:MCP_GITHUB_CLIENT_ID"
+          Add-Content -Path ".env" -Value "`nMCP_GITHUB_CLIENT_SECRET=$env:MCP_GITHUB_CLIENT_SECRET"
+          Add-Content -Path ".env" -Value "`nMCP_CALLBACK_PORT=$env:MCP_CALLBACK_PORT"
+          Add-Content -Path ".env" -Value "`nGITHUB_APP_INSTALLATION_LINK=$env:GITHUB_APP_INSTALLATION_LINK"
 
       - name: Install dependencies
         run: npm ci --prefer-offline
@@ -83,8 +91,16 @@ jobs:
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          MCP_GITHUB_CLIENT_ID: ${{ secrets.MCP_GITHUB_CLIENT_ID }}
+          MCP_GITHUB_CLIENT_SECRET: ${{ secrets.MCP_GITHUB_CLIENT_SECRET }}
+          MCP_CALLBACK_PORT: 8090
+          GITHUB_APP_INSTALLATION_LINK: https://github.com/apps/ssw-yakshaver-staging
         run: |
           printf "YOUTUBE_CLIENT_ID=%s\nYOUTUBE_CLIENT_SECRET=%s\n" "$YOUTUBE_CLIENT_ID" "$YOUTUBE_CLIENT_SECRET" > .env
+          Add-Content -Path ".env" -Value "`nMCP_GITHUB_CLIENT_ID=$env:MCP_GITHUB_CLIENT_ID"
+          Add-Content -Path ".env" -Value "`nMCP_GITHUB_CLIENT_SECRET=$env:MCP_GITHUB_CLIENT_SECRET"
+          Add-Content -Path ".env" -Value "`nMCP_CALLBACK_PORT=$env:MCP_CALLBACK_PORT"
+          Add-Content -Path ".env" -Value "`nGITHUB_APP_INSTALLATION_LINK=$env:GITHUB_APP_INSTALLATION_LINK"
 
       - name: Install dependencies
         run: npm ci --prefer-offline
