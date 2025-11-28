@@ -4,6 +4,7 @@ import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
 import {
   authorizeWithPkceOnce,
+  checkDynamicRegistrationSupport,
   InMemoryOAuthClientProvider,
   waitForAuthorizationCode,
 } from "./mcp-oauth";
@@ -58,8 +59,43 @@ export class MCPServerClient {
         return new MCPServerClient(mcpConfig.name, client);
       }
 
-      // Non-dynamic client registration MCP Server OAuth (e.g. GitHub MCP)
-      if (mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
+      // Check for dynamic client registration support for servers
+      let oauthEndpoint: string | null = null;
+      try {
+        oauthEndpoint = await checkDynamicRegistrationSupport(serverUrl);
+      } catch (detectionError) {
+        console.warn(
+          `[MCPServerClient]: Dynamic registration detection failed for ${mcpConfig.name}: ${formatErrorMessage(detectionError)}`,
+        );
+      }
+
+      if (oauthEndpoint) {
+        console.log(
+          `[MCPServerClient]: Dynamic client registration detected for ${mcpConfig.name}`,
+        );
+        const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
+        const authProvider = new InMemoryOAuthClientProvider({
+          callbackPort,
+        });
+        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
+        await withTimeout(
+          authorizeWithPkceOnce(authProvider, serverUrl, () =>
+            waitForAuthorizationCode(callbackPort),
+          ),
+          authTimeoutMs,
+          `${mcpConfig.name} OAuth`,
+        );
+        const client = await experimental_createMCPClient({
+          transport: {
+            type: "http",
+            url: serverUrl,
+            authProvider,
+          },
+        });
+        return new MCPServerClient(mcpConfig.name, client);
+      }
+
+      if (!oauthEndpoint && mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
         const githubClientId = process.env.MCP_GITHUB_CLIENT_ID;
         const githubClientSecret = process.env.MCP_GITHUB_CLIENT_SECRET;
         const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
@@ -87,33 +123,6 @@ export class MCPServerClient {
           });
           return new MCPServerClient(mcpConfig.name, client);
         }
-      }
-
-      // Dynamic client registration for servers that support it (e.g., Vercel MCP)
-      if (
-        mcpConfig.url.includes("https://mcp.vercel.com") ||
-        mcpConfig.url.includes("https://mcp.atlassian.com/v1/sse")
-      ) {
-        const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
-        const authProvider = new InMemoryOAuthClientProvider({
-          callbackPort,
-        });
-        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
-        await withTimeout(
-          authorizeWithPkceOnce(authProvider, serverUrl, () =>
-            waitForAuthorizationCode(callbackPort),
-          ),
-          authTimeoutMs,
-          `${mcpConfig.name} OAuth`,
-        );
-        const client = await experimental_createMCPClient({
-          transport: {
-            type: "http",
-            url: serverUrl,
-            authProvider,
-          },
-        });
-        return new MCPServerClient(mcpConfig.name, client);
       }
 
       // Fallback: Use headers if no OAuth is configured

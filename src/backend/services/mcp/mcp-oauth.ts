@@ -9,6 +9,7 @@ import type {
 } from "@ai-sdk/mcp";
 import { auth } from "@ai-sdk/mcp";
 import { shell } from "electron";
+import { formatErrorMessage } from "../../utils/error-utils";
 
 export class InMemoryOAuthClientProvider implements OAuthClientProvider {
   private _tokens?: OAuthTokens;
@@ -192,4 +193,57 @@ export function waitForAuthorizationCode(port: number): Promise<string> {
     });
     server.listen(port);
   });
+}
+
+/**
+ * Attempts to discover OAuth endpoints and dynamic client registration support from an MCP server.
+ * @returns The OAuth authorization endpoint if dynamic registration is supported, null otherwise
+ */
+export async function checkDynamicRegistrationSupport(serverUrl: string): Promise<string | null> {
+  try {
+    const baseUrl = new URL(serverUrl);
+    const metadataUrl = new URL("/.well-known/oauth-authorization-server", baseUrl.origin);
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const metadataResponse = await fetch(metadataUrl.toString(), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (metadataResponse.ok) {
+        const metadata = await metadataResponse.json();
+
+        // Check if dynamic client registration endpoint exists
+        if (metadata.registration_endpoint) {
+          console.log(
+            `[MCPServerClient]: Dynamic registration supported at ${metadata.registration_endpoint}`,
+          );
+          return metadata.authorization_endpoint;
+        }
+
+        // If metadata exists but no registration endpoint, explicitly return null
+        console.log(
+          `[MCPServerClient]: OAuth metadata found but no registration endpoint for ${serverUrl}`,
+        );
+        return null;
+      }
+    } catch (metadataError) {
+      console.log(
+        `[MCPServerClient]: OAuth metadata endpoint not available at ${metadataUrl}, error: ${formatErrorMessage(metadataError)}`,
+      );
+    }
+
+    console.log(`[MCPServerClient]: No dynamic registration support detected for ${serverUrl}`);
+    return null;
+  } catch (error) {
+    console.error(
+      `[MCPServerClient]: Error checking dynamic registration support: ${formatErrorMessage(error)}`,
+    );
+    return null;
+  }
 }
