@@ -149,6 +149,7 @@ declare global {
           rateLimitRemaining?: number;
           error?: string;
         }>;
+        getInstallUrl: () => Promise<string>;
       };
     };
   }

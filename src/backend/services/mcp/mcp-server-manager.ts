@@ -1,9 +1,9 @@
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import type { ToolSet } from "ai";
 import type { HealthStatusInfo } from "../../types/index.js";
 import { McpStorage } from "../storage/mcp-storage";
 import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
 import type { MCPServerConfig } from "./types";
-import { ToolSet } from "ai";
 
 export class MCPServerManager {
   private static instance: MCPServerManager;
@@ -11,6 +11,7 @@ export class MCPServerManager {
   private static internalServerConfigs: MCPServerConfig[] = [];
   private static internalClientTransports: Map<string, InMemoryTransport> = new Map();
   private static mcpClients: Map<string, MCPServerClient> = new Map();
+  private static mcpClientPromises: Map<string, Promise<MCPServerClient | null>> = new Map();
   private constructor() {}
 
   public static async getInstanceAsync(): Promise<MCPServerManager> {
@@ -25,8 +26,12 @@ export class MCPServerManager {
 
   public async getAllMcpServerClientsAsync(): Promise<MCPServerClient[]> {
     const allConfigs = MCPServerManager.getAllServerConfigs();
-    const clientPromises = allConfigs.map((config) => this.getMcpClientAsync(config.name));
-    return (await Promise.all(clientPromises)).filter((client) => client !== null);
+    const results = await Promise.allSettled(
+      allConfigs.map((config) => this.getMcpClientAsync(config.name)),
+    );
+    return results
+      .filter((r) => r.status === "fulfilled" && r.value)
+      .map((r) => (r as PromiseFulfilledResult<MCPServerClient | null>).value as MCPServerClient);
   }
 
   public async getSelectedMcpServerClientsAsync(
@@ -36,8 +41,12 @@ export class MCPServerManager {
       return [];
     }
 
-    const clientPromises = selectedServerNames.map((name) => this.getMcpClientAsync(name));
-    return (await Promise.all(clientPromises)).filter((client) => client !== null);
+    const results = await Promise.allSettled(
+      selectedServerNames.map((name) => this.getMcpClientAsync(name)),
+    );
+    return results
+      .filter((r) => r.status === "fulfilled" && r.value)
+      .map((r) => (r as PromiseFulfilledResult<MCPServerClient | null>).value as MCPServerClient);
   }
 
   public async collectToolsAsync(serverFilter?: string[]): Promise<ToolSet> {
@@ -53,11 +62,15 @@ export class MCPServerManager {
       throw new Error("[MCPServerManager]: No MCP clients available");
     }
 
-    const toolSets = await Promise.all(clients.map((client) => client.listToolsAsync()));
-    const toolMaps = toolSets.map((toolSet) => MCPServerManager.normalizeTools(toolSet));
-    const mergedTools = Object.assign({}, ...toolMaps) as ToolSet;
-
-    return mergedTools;
+    const results = await Promise.allSettled(clients.map((client) => client.listToolsAsync()));
+    const toolMaps = results
+      .filter((r) => r.status === "fulfilled")
+      .map((r) => MCPServerManager.normalizeTools((r as PromiseFulfilledResult<unknown>).value));
+    const combined = Object.assign({}, ...toolMaps) as ToolSet;
+    if (Object.keys(combined).length === 0) {
+      throw new Error("[MCPServerManager]: No tools available from selected/healthy servers");
+    }
+    return combined;
   }
 
   // Get or Create MCP client for a given server name
@@ -65,6 +78,11 @@ export class MCPServerManager {
     const existingClient = MCPServerManager.mcpClients.get(name);
     if (existingClient) {
       return existingClient;
+    }
+
+    const inFlight = MCPServerManager.mcpClientPromises.get(name);
+    if (inFlight) {
+      return await inFlight;
     }
 
     const config = MCPServerManager.getAllServerConfigs().find((s) => s.name === name);
@@ -83,13 +101,25 @@ export class MCPServerManager {
       options = { inMemoryClientTransport: transport };
     }
 
-    const client = await MCPServerClient.createClientAsync(config, options);
-    const health = await client.healthCheckAsync();
-    if (health.healthy) {
-      MCPServerManager.mcpClients.set(name, client);
-      return client;
-    }
-    return null;
+    const creationPromise = (async () => {
+      try {
+        const client = await MCPServerClient.createClientAsync(config, options);
+        const health = await client.healthCheckAsync();
+        if (health.healthy) {
+          MCPServerManager.mcpClients.set(name, client);
+          return client;
+        }
+        return null;
+      } catch (err) {
+        console.warn(`[MCPServerManager] Failed to initialize client '${name}': ${String(err)}`);
+        return null;
+      } finally {
+        MCPServerManager.mcpClientPromises.delete(name);
+      }
+    })();
+
+    MCPServerManager.mcpClientPromises.set(name, creationPromise);
+    return await creationPromise;
   }
 
   public static registerInternalServer(

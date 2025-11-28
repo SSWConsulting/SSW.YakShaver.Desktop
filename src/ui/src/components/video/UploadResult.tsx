@@ -75,7 +75,7 @@ const VideoCard = ({
             <div className="flex items-center gap-1 ml-2">
               <Button
                 type="button"
-                variant="default"
+                variant="ghost"
                 className="cursor-pointer"
                 onClick={() => copyToClipboard(url)}
                 title="Copy URL"
@@ -84,7 +84,7 @@ const VideoCard = ({
               </Button>
               <Button
                 type="button"
-                variant="default"
+                variant="ghost"
                 className="cursor-pointer"
                 onClick={() => openUrl(url)}
                 title="Open in YouTube"

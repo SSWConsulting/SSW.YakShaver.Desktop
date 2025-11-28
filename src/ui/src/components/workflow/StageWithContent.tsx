@@ -153,7 +153,7 @@ function ToolCallStep({
 
   return (
     <div className="space-y-1">
-      <div className="text-secondary font-medium flex items-center gap-2">
+      <div className="font-medium flex items-center gap-2">
         <Wrench className="w-4 h-4" />
         Calling tool: {toolName}
         {serverName && <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>}
@@ -233,7 +233,7 @@ export function StageWithContent({
                   </div>
                 )}
                 {step.type === "final_result" && (
-                  <div className="text-secondary font-medium flex items-center gap-2">
+                  <div className="font-medium flex items-center gap-2">
                     <Check className="w-4 h-4" />
                     {step.message || "Generated final result"}
                   </div>
