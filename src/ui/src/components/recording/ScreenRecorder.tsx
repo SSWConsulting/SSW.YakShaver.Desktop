@@ -80,10 +80,7 @@ export function ScreenRecorder() {
     try {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
-      await window.electronAPI.pipelines.processVideo({
-        type: "file",
-        path: filePath,
-      });
+      await window.electronAPI.pipelines.processVideoFile(filePath);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = formatErrorMessage(error);
@@ -113,10 +110,7 @@ export function ScreenRecorder() {
     setUploadResult(null);
 
     try {
-      await window.electronAPI.pipelines.processVideo({
-        type: "url",
-        path: trimmedUrl,
-      });
+      await window.electronAPI.pipelines.processVideoUrl(trimmedUrl);
       setYoutubeUrl("");
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);

@@ -14,11 +14,6 @@ import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
-export type ProcessVideoPayload = {
-  type: "file" | "url";
-  path: string;
-};
-
 type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
@@ -38,33 +33,20 @@ export class ProcessVideoIPCHandlers {
   }
 
   private registerHandlers(): void {
-    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO, async (_event, payload?: ProcessVideoPayload) => {
-      if (!payload || !payload.path) {
+    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO_FILE, async (_event, filePath?: string) => {
+      if (!filePath) {
         throw new Error("video-process-handler: Video file path is required");
       }
 
-      if (payload.type === "file") {
-        return await this.processFileVideo(payload.path);
+      return await this.processFileVideo(filePath);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO_URL, async (_event, url?: string) => {
+      if (!url) {
+        throw new Error("video-process-handler: Video URL is required");
       }
 
-      try {
-        // download video from URL to a temp file
-        const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(payload.path);
-        this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
-          uploadResult: youtubeResult,
-          sourceOrigin: "external",
-        });
-        this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, { sourceOrigin: "external" });
-        const filePath = await this.youtubeDownloadService.downloadVideoToFile(payload.path);
-        return await this.processVideoSource({
-          filePath,
-          youtubeResult,
-        });
-      } catch (error) {
-        const errorMessage = formatErrorMessage(error);
-        this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
-        return { success: false, error: errorMessage };
-      }
+      return await this.processUrlVideo(url);
     });
 
     // Retry video pipeline
@@ -120,6 +102,26 @@ export class ProcessVideoIPCHandlers {
       filePath,
       youtubeResult,
     });
+  }
+
+  private async processUrlVideo(url: string) {
+    try {
+      const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
+      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
+        uploadResult: youtubeResult,
+        sourceOrigin: "external",
+      });
+      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, { sourceOrigin: "external" });
+      const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
+      return await this.processVideoSource({
+        filePath,
+        youtubeResult,
+      });
+    } catch (error) {
+      const errorMessage = formatErrorMessage(error);
+      this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+      return { success: false, error: errorMessage };
+    }
   }
 
   private async processVideoSource({ filePath, youtubeResult }: VideoProcessingContext) {

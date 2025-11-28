@@ -1,5 +1,4 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
-import type { ProcessVideoPayload } from "./ipc/process-video-handlers";
 import type { VideoUploadResult } from "./services/auth/types";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
@@ -60,7 +59,8 @@ const IPC_CHANNELS = {
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
   // Video processing - the main process pipeline
-  PROCESS_VIDEO: "process-video",
+  PROCESS_VIDEO_FILE: "process-video:file",
+  PROCESS_VIDEO_URL: "process-video:url",
   RETRY_VIDEO: "retry-video",
 
   // Settings
@@ -95,8 +95,8 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideo: (payload?: ProcessVideoPayload) =>
-      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, payload),
+    processVideoFile: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath),
+    processVideoUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url),
     retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
   },

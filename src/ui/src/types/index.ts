@@ -57,11 +57,6 @@ export interface ConvertVideoToMp3Result {
   error?: string;
 }
 
-export type ProcessVideoPayload = {
-  type: "file" | "url";
-  path: string;
-};
-
 export interface ScreenRecordingStartResult {
   success: boolean;
   sourceId?: string;
