@@ -23,7 +23,8 @@ declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideo: (filePath?: string) => Promise<void>;
+        processVideoFile: (filePath: string) => Promise<void>;
+        processVideoUrl: (url: string) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,

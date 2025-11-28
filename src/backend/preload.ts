@@ -59,7 +59,8 @@ const IPC_CHANNELS = {
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
   // Video processing - the main process pipeline
-  PROCESS_VIDEO: "process-video",
+  PROCESS_VIDEO_FILE: "process-video:file",
+  PROCESS_VIDEO_URL: "process-video:url",
   RETRY_VIDEO: "retry-video",
 
   // Settings
@@ -94,7 +95,9 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideo: (filePath?: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, filePath),
+    processVideoFile: (filePath: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath),
+    processVideoUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url),
     retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
   },

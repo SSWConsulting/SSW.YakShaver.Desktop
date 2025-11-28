@@ -41,7 +41,8 @@
     "googleapis": "^160.0.0",
     "json-schema-to-zod": "^2.6.1",
     "openai": "^6.3.0",
-    "tmp": "^0.2.5"
+    "tmp": "^0.2.5",
+    "yt-dlp-exec": "^1.0.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.7",
