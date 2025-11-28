@@ -22,6 +22,8 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
   const [cameraPreviewStream, setCameraPreviewStream] = useState<MediaStream | null>(null);
   const [devicesReady, setDevicesReady] = useState(false);
+  const NO_CAMERA_VALUE = "__none__";
+  const LAST_CAMERA_KEY = "yakshaver.lastCameraDeviceId";
 
   const fetchSources = useCallback(async () => {
     setLoading(true);
@@ -42,9 +44,13 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       const mics = devices.filter((d) => d.kind === "audioinput");
       setCameraDevices(cams);
       setMicrophoneDevices(mics);
-      const lastCam = localStorage.getItem("yakshaver.lastCameraDeviceId") || undefined;
+      const lastCam = localStorage.getItem(LAST_CAMERA_KEY) || undefined;
       const lastMic = localStorage.getItem("yakshaver.lastMicDeviceId") || undefined;
-      setSelectedCameraId(cams.find((c) => c.deviceId === lastCam)?.deviceId || cams[0]?.deviceId);
+      if (lastCam === "none") {
+        setSelectedCameraId(undefined);
+      } else {
+        setSelectedCameraId(cams.find((c) => c.deviceId === lastCam)?.deviceId || cams[0]?.deviceId);
+      }
       setSelectedMicrophoneId(
         mics.find((m) => m.deviceId === lastMic)?.deviceId || mics[0]?.deviceId,
       );
@@ -140,16 +146,22 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
             <div className="flex flex-col gap-2">
               <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Camera</span>
               <Select
-                value={selectedCameraId ?? ""}
-                onValueChange={(v) => {
-                  setSelectedCameraId(v || undefined);
-                  if (v) localStorage.setItem("yakshaver.lastCameraDeviceId", v);
+                value={selectedCameraId ?? NO_CAMERA_VALUE}
+                onValueChange={(value) => {
+                  if (value === NO_CAMERA_VALUE) {
+                    setSelectedCameraId(undefined);
+                    localStorage.setItem(LAST_CAMERA_KEY, "none");
+                  } else {
+                    setSelectedCameraId(value || undefined);
+                    if (value) localStorage.setItem(LAST_CAMERA_KEY, value);
+                  }
                 }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select camera" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={NO_CAMERA_VALUE} textValue="No camera">No camera</SelectItem>
                   {cameraDevices.length === 0 && (
                     <SelectItem value="__no_camera__" disabled textValue="No camera devices">No camera devices</SelectItem>
                   )}
@@ -186,11 +198,13 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
               </Select>
             </div>
           </div>
-          <div className="rounded-md overflow-hidden bg-neutral-800">
-            <div className="relative aspect-video w-full">
-              <video ref={cameraPreviewRef} className="h-full w-full object-cover" autoPlay playsInline muted />
+          {selectedCameraId && (
+            <div className="rounded-md overflow-hidden bg-neutral-800">
+              <div className="relative aspect-video w-full">
+                <video ref={cameraPreviewRef} className="h-full w-full object-cover" autoPlay playsInline muted />
+              </div>
             </div>
-          </div>
+          )}
           {loading && (
             <div className="text-sm text-muted-foreground text-center py-2">Loading sources…</div>
           )}
