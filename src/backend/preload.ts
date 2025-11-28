@@ -1,5 +1,6 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
+import type { ChromeMonitorState } from "./services/chrome/chrome-devtools-monitor";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 
@@ -51,6 +52,13 @@ const IPC_CHANNELS = {
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
+
+  // Chrome monitor
+  CHROME_MONITOR_GET_STATE: "chrome-monitor:get-state",
+  CHROME_MONITOR_OPEN_BROWSER: "chrome-monitor:open-browser",
+  CHROME_MONITOR_START_CAPTURE: "chrome-monitor:start-capture",
+  CHROME_MONITOR_STOP_CAPTURE: "chrome-monitor:stop-capture",
+  CHROME_MONITOR_STATE_CHANGED: "chrome-monitor:state-changed",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -139,6 +147,14 @@ const electronAPI = {
       ipcRenderer.on("stop-recording-request", listener);
       return () => ipcRenderer.removeListener("stop-recording-request", listener);
     },
+  },
+  chromeMonitor: {
+    getState: () => ipcRenderer.invoke(IPC_CHANNELS.CHROME_MONITOR_GET_STATE),
+    openMonitoredChrome: () => ipcRenderer.invoke(IPC_CHANNELS.CHROME_MONITOR_OPEN_BROWSER),
+    startCapture: () => ipcRenderer.invoke(IPC_CHANNELS.CHROME_MONITOR_START_CAPTURE),
+    stopCapture: () => ipcRenderer.invoke(IPC_CHANNELS.CHROME_MONITOR_STOP_CAPTURE),
+    onStateChange: (callback: (state: ChromeMonitorState) => void) =>
+      onIpcEvent(IPC_CHANNELS.CHROME_MONITOR_STATE_CHANGED, callback),
   },
   controlBar: {
     onTimeUpdate: (callback: (time: string) => void) => {

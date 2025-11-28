@@ -1,5 +1,6 @@
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import type { VideoUploadResult } from "../services/auth/types";
+import { ChromeDevtoolsMonitorService } from "../services/chrome/chrome-devtools-monitor";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import type { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import type { MCPServerConfig, MCPToolSummary } from "../services/mcp/types";
@@ -9,6 +10,7 @@ type ProcessMessageOptions = Parameters<MCPOrchestrator["processMessageAsync"]>[
 
 export class McpIPCHandlers {
   private mcpServerManager: MCPServerManager;
+  private chromeMonitor = ChromeDevtoolsMonitorService.getInstance();
 
   constructor(mcpServerManager: MCPServerManager) {
     this.mcpServerManager = mcpServerManager;
@@ -24,6 +26,7 @@ export class McpIPCHandlers {
       IPC_CHANNELS.MCP_ADD_SERVER,
       async (_event: IpcMainInvokeEvent, config: MCPServerConfig) => {
         await this.mcpServerManager.addServerAsync(config);
+        await this.chromeMonitor.broadcastState();
         return { success: true };
       },
     );
@@ -32,6 +35,7 @@ export class McpIPCHandlers {
       IPC_CHANNELS.MCP_UPDATE_SERVER,
       async (_event: IpcMainInvokeEvent, name: string, config: MCPServerConfig) => {
         await this.mcpServerManager.updateServerAsync(name, config);
+        await this.chromeMonitor.broadcastState();
         return { success: true };
       },
     );
@@ -40,6 +44,7 @@ export class McpIPCHandlers {
       IPC_CHANNELS.MCP_REMOVE_SERVER,
       async (_event: IpcMainInvokeEvent, name: string) => {
         await this.mcpServerManager.removeServerAsync(name);
+        await this.chromeMonitor.broadcastState();
         return { success: true };
       },
     );

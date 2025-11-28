@@ -79,6 +79,13 @@ export interface ScreenSource {
   isMainWindow?: boolean;
 }
 
+export interface ChromeMonitorState {
+  enabled: boolean;
+  serverName?: string;
+  browserUrl?: string;
+  remoteDebuggingPort?: number;
+}
+
 export interface TranscriptEntry {
   role: string;
   content?: unknown;

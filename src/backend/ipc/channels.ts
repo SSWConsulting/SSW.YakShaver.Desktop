@@ -45,6 +45,13 @@ export const IPC_CHANNELS = {
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
 
+  // Chrome monitor
+  CHROME_MONITOR_GET_STATE: "chrome-monitor:get-state",
+  CHROME_MONITOR_OPEN_BROWSER: "chrome-monitor:open-browser",
+  CHROME_MONITOR_START_CAPTURE: "chrome-monitor:start-capture",
+  CHROME_MONITOR_STOP_CAPTURE: "chrome-monitor:stop-capture",
+  CHROME_MONITOR_STATE_CHANGED: "chrome-monitor:state-changed",
+
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
 

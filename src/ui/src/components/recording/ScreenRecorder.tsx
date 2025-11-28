@@ -4,7 +4,7 @@ import { formatErrorMessage } from "@/utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
-import { AuthStatus, UploadStatus } from "../../types";
+import { AuthStatus, UploadStatus, type ChromeMonitorState } from "../../types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -23,6 +23,8 @@ export function ScreenRecorder() {
   const [isTranscribing, _] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isProcessingUrl, setIsProcessingUrl] = useState(false);
+  const [chromeState, setChromeState] = useState<ChromeMonitorState | null>(null);
+  const [isOpeningChrome, setIsOpeningChrome] = useState(false);
   const youtubeUrlInputId = useId();
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -31,14 +33,39 @@ export function ScreenRecorder() {
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
+  const startChromeCapture = useCallback(async () => {
+    if (!chromeState?.enabled) return;
+    try {
+      const result = await window.electronAPI.chromeMonitor.startCapture();
+      if (!result.success && result.message) {
+        toast.warning(result.message);
+      }
+    } catch (error) {
+      toast.warning(`Chrome capture error: ${formatErrorMessage(error)}`);
+    }
+  }, [chromeState?.enabled]);
+
+  const stopChromeCapture = useCallback(async () => {
+    if (!chromeState?.enabled) return;
+    try {
+      const result = await window.electronAPI.chromeMonitor.stopCapture();
+      if (!result.success && result.message) {
+        toast.warning(result.message);
+      }
+    } catch (error) {
+      toast.warning(`Chrome capture error: ${formatErrorMessage(error)}`);
+    }
+  }, [chromeState?.enabled]);
+
   const handleStopRecording = useCallback(async () => {
+    await stopChromeCapture();
     const result = await stop();
     if (result) {
       setRecordedVideo(result);
       setPreviewOpen(true);
       await window.electronAPI.screenRecording.restoreMainWindow();
     }
-  }, [stop]);
+  }, [stop, stopChromeCapture]);
 
   const toggleRecording = () => {
     isRecording ? handleStopRecording() : setPickerOpen(true);
@@ -50,6 +77,30 @@ export function ScreenRecorder() {
   }, [handleStopRecording]);
 
   useEffect(() => {
+    let isMounted = true;
+    const fetchState = async () => {
+      try {
+        const state = await window.electronAPI.chromeMonitor.getState();
+        if (isMounted) {
+          setChromeState(state);
+        }
+      } catch {
+        // silently ignore
+      }
+    };
+
+    void fetchState();
+    const unsubscribe = window.electronAPI.chromeMonitor.onStateChange((state) => {
+      setChromeState(state);
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isYoutubeUrlWorkflowEnabled) {
       setYoutubeUrl("");
       setIsProcessingUrl(false);
@@ -58,6 +109,7 @@ export function ScreenRecorder() {
 
   const handleStartRecording = async (sourceId: string) => {
     setPickerOpen(false);
+    await startChromeCapture();
     await start(sourceId);
   };
 
@@ -137,6 +189,23 @@ export function ScreenRecorder() {
     }
   };
 
+  const handleOpenMonitoredChrome = async () => {
+    setIsOpeningChrome(true);
+    try {
+      const result = await window.electronAPI.chromeMonitor.openMonitoredChrome();
+      if (!result.success) {
+        toast.error(result.message ?? "Failed to launch monitored Chrome");
+      } else {
+        const message = result.message ?? "Monitored Chrome launched";
+        toast.success(message);
+      }
+    } catch (error) {
+      toast.error(`Unable to launch Chrome: ${formatErrorMessage(error)}`);
+    } finally {
+      setIsOpeningChrome(false);
+    }
+  };
+
   return (
     <>
       <section className="flex flex-col gap-4 items-center w-full">
@@ -152,6 +221,16 @@ export function ScreenRecorder() {
                 ? "Transcribing..."
                 : "Start Recording"}
           </Button>
+          {chromeState?.enabled && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleOpenMonitoredChrome}
+              disabled={isProcessing || isTranscribing || isOpeningChrome}
+            >
+              {isOpeningChrome ? "Launching Chrome..." : "Open Monitored Chrome"}
+            </Button>
+          )}
         </div>
         {!isAuthenticated && (
           <p className="text-sm text-muted-foreground text-center">

@@ -13,6 +13,7 @@ import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import { ChromeDevtoolsMonitorService } from "../services/chrome/chrome-devtools-monitor";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -26,6 +27,7 @@ export class ProcessVideoIPCHandlers {
   private readonly customPromptStorage = CustomPromptStorage.getInstance();
   private readonly metadataBuilder: VideoMetadataBuilder;
   private readonly youtubeDownloadService = YouTubeDownloadService.getInstance();
+  private readonly chromeMonitor = ChromeDevtoolsMonitorService.getInstance();
 
   constructor() {
     this.metadataBuilder = new VideoMetadataBuilder(this.llmClient);
@@ -61,7 +63,8 @@ export class ProcessVideoIPCHandlers {
           this.emitProgress(ProgressStage.EXECUTING_TASK);
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
-          const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+          const chromeTelemetry = this.chromeMonitor.getLatestSnapshot();
+          const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content, chromeTelemetry);
 
           const orchestrator = await MCPOrchestrator.getInstanceAsync();
           const mcpResult = await orchestrator.processMessageAsync(
@@ -151,7 +154,8 @@ export class ProcessVideoIPCHandlers {
       });
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
-      const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+      const chromeTelemetry = this.chromeMonitor.getLatestSnapshot();
+      const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content, chromeTelemetry);
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
       const mcpResult = await orchestrator.processMessageAsync(intermediateOutput, youtubeResult, {

@@ -5,6 +5,7 @@ import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
+import { ChromeMonitorIPCHandlers } from "./ipc/chrome-monitor-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
@@ -15,6 +16,7 @@ import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { ChromeDevtoolsMonitorService } from "./services/chrome/chrome-devtools-monitor";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 
@@ -89,6 +91,7 @@ let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
 let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
 let _githubTokenHandlers: GitHubTokenIPCHandlers;
+let _chromeMonitorHandlers: ChromeMonitorIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
@@ -119,12 +122,15 @@ app.whenReady().then(async () => {
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
+  _chromeMonitorHandlers = new ChromeMonitorIPCHandlers();
 
   // Pre-initialize control bar window for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
 
   unregisterEventForwarders = registerEventForwarders();
   createWindow();
+
+  void ChromeDevtoolsMonitorService.getInstance().broadcastState();
 
   // Auto-updates: Check only in packaged mode (dev skips)
   // Configure and check based on stored channel preference

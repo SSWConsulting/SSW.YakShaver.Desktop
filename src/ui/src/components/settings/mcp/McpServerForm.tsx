@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -12,11 +13,21 @@ import {
   FormMessage,
   Form as FormProvider,
 } from "../../ui/form";
+import { Checkbox } from "../../ui/checkbox";
 import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
 
+const CHROME_DEVTOOLS_IDENTIFIER = "chrome-devtools-mcp";
+
+const containsChromeDevtools = (value?: string): boolean =>
+  !!value?.toLowerCase().includes(CHROME_DEVTOOLS_IDENTIFIER);
+
 export type Transport = "streamableHttp" | "stdio" | "inMemory";
+
+type ChromeMcpTestConfig = {
+  enabled: boolean;
+};
 
 type MCPBaseConfig = {
   name: string;
@@ -24,6 +35,7 @@ type MCPBaseConfig = {
   transport: Transport;
   builtin?: boolean;
   toolWhitelist?: string[];
+  chromeTestConfig?: ChromeMcpTestConfig;
 };
 
 type MCPHttpServerConfig = MCPBaseConfig & {
@@ -50,6 +62,29 @@ type MCPInternalServerConfig = MCPBaseConfig & {
 
 export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig | MCPInternalServerConfig;
 
+const shouldShowChromeTestToggle = (
+  transport: Transport,
+  commandInput?: string,
+  argsInput?: string,
+): boolean => {
+  if (transport !== "stdio") {
+    return false;
+  }
+  return containsChromeDevtools(commandInput) || containsChromeDevtools(argsInput);
+};
+
+const isChromeDevtoolsConfig = (config: MCPServerConfig): boolean => {
+  if (config.transport !== "stdio") {
+    return false;
+  }
+
+  if (containsChromeDevtools(config.command)) {
+    return true;
+  }
+
+  return config.args?.some((arg) => containsChromeDevtools(arg)) ?? false;
+};
+
 const mcpServerSchema = z
   .object({
     name: z
@@ -70,6 +105,7 @@ const mcpServerSchema = z
     env: z.string().optional(),
     cwd: z.string().optional(),
     stderr: z.enum(["inherit", "ignore", "pipe"]).optional(),
+    chromeTestModeEnabled: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.transport === "streamableHttp") {
@@ -101,6 +137,13 @@ type McpServerFormProps = {
 
 export function McpServerForm({ form }: McpServerFormProps) {
   const transport = form.watch("transport");
+  const commandInput = form.watch("command");
+  const argsInput = form.watch("args");
+  const chromeTestModeEnabled = form.watch("chromeTestModeEnabled");
+  const showChromeTestToggle = useMemo(
+    () => shouldShowChromeTestToggle(transport, commandInput, argsInput) || !!chromeTestModeEnabled,
+    [transport, commandInput, argsInput, chromeTestModeEnabled],
+  );
 
   return (
     <>
@@ -342,6 +385,34 @@ export function McpServerForm({ form }: McpServerFormProps) {
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+
+      {showChromeTestToggle && (
+        <FormField
+          control={form.control}
+          name="chromeTestModeEnabled"
+          render={({ field }) => (
+            <FormItem className="rounded-lg border border-white/10 bg-white/5 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value ?? false}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                  />
+                </FormControl>
+                <div className="space-y-1">
+                  <FormLabel className="text-base">Enable Chrome MCP Test Mode</FormLabel>
+                  <FormDescription className="text-xs text-white/70">
+                    Adds YakShaver instrumentation for chrome-devtools-mcp servers. A dedicated
+                    Chrome window can be launched and its console + network activity will be captured
+                    during recordings.
+                  </FormDescription>
+                </div>
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
     </>
   );
 }
@@ -388,6 +459,7 @@ export function McpServerFormWrapper({
           : "",
       cwd: initialData?.transport === "stdio" ? (initialData?.cwd ?? "") : "",
       stderr: initialData?.transport === "stdio" ? (initialData?.stderr ?? "inherit") : "inherit",
+      chromeTestModeEnabled: initialData?.chromeTestConfig?.enabled ?? false,
     },
   });
 
@@ -427,6 +499,10 @@ export function McpServerFormWrapper({
         version: data.version?.trim() || undefined,
         timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
       };
+
+      if (isChromeDevtoolsConfig(config) && data.chromeTestModeEnabled) {
+        config.chromeTestConfig = { enabled: true };
+      }
 
       await onSubmit(config);
       return;
@@ -501,6 +577,10 @@ export function McpServerFormWrapper({
       cwd: data.cwd?.trim() || undefined,
       stderr,
     };
+
+    if (isChromeDevtoolsConfig(config) && data.chromeTestModeEnabled) {
+      config.chromeTestConfig = { enabled: true };
+    }
 
     await onSubmit(config);
   };

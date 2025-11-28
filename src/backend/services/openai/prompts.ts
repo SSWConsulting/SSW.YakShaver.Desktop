@@ -1,3 +1,5 @@
+import type { ChromeTelemetrySnapshot } from "../chrome/chrome-devtools-monitor";
+
 export const INITIAL_SUMMARY_PROMPT = `You are a precise information structuring AI. Process the raw transcript into a structured JSON object without adding, inferring, or embellishing information.
 
 Output a single valid JSON object with:
@@ -112,16 +114,70 @@ FOR FAILURE RESPONSES, include:
 
 Remember: You are an intelligent agent capable of working with any type of MCP server. Plan intelligently, execute systematically, show clear progress updates, and provide comprehensive, useful results regardless of the domain or server type.`;
 
-export function buildTaskExecutionPrompt(customPrompt?: string): string {
-  const trimmed = customPrompt?.trim();
-  if (!trimmed) return TASK_EXECUTION_PROMPT;
+const formatConsoleLogs = (entries: ChromeTelemetrySnapshot["consoleLogs"]): string => {
+  if (!entries?.length) {
+    return "- None captured";
+  }
+  return entries
+    .slice(-20)
+    .map((entry) => {
+      const timestamp = new Date(entry.timestamp).toISOString();
+      const location = entry.url ? ` (${entry.url})` : "";
+      return `- [${entry.level.toUpperCase()}] ${timestamp}${location}: ${entry.text}`;
+    })
+    .join("\n");
+};
 
-  return `${trimmed}
+const formatNetworkLogs = (entries: ChromeTelemetrySnapshot["networkRequests"]): string => {
+  if (!entries?.length) {
+    return "- None captured";
+  }
+  return entries
+    .slice(-20)
+    .map((entry) => {
+      const status = entry.status ? ` status=${entry.status}` : "";
+      const size =
+        typeof entry.encodedDataLength === "number"
+          ? ` bytes=${Math.round(entry.encodedDataLength)}`
+          : "";
+      const mime = entry.mimeType ? ` mime=${entry.mimeType}` : "";
+      return `- [${entry.method ?? "GET"}] ${entry.url}${status}${mime}${size}`;
+    })
+    .join("\n");
+};
+
+export function buildTaskExecutionPrompt(
+  customPrompt?: string,
+  chromeTelemetry?: ChromeTelemetrySnapshot,
+): string {
+  const trimmed = customPrompt?.trim();
+  let prompt = trimmed
+    ? `${trimmed}
   
   IMPORTANT: The above user requirements are MANDATORY and must be followed throughout the task execution process.
 
   ---
 
   CONTEXT (use as reference if needed):
-  ${TASK_EXECUTION_PROMPT}`;
+  ${TASK_EXECUTION_PROMPT}`
+    : TASK_EXECUTION_PROMPT;
+
+  if (chromeTelemetry) {
+    prompt += `
+
+---
+CHROME MCP TEST DATA
+- Server: ${chromeTelemetry.serverName}
+- CapturedAt: ${chromeTelemetry.capturedAt}
+- BrowserUrl: ${chromeTelemetry.browserUrl}
+
+Console Logs:
+${formatConsoleLogs(chromeTelemetry.consoleLogs)}
+
+Network Requests:
+${formatNetworkLogs(chromeTelemetry.networkRequests)}
+`;
+  }
+
+  return prompt;
 }
