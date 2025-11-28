@@ -29,6 +29,7 @@ interface ChromeLogEntry {
   timestamp: number;
   level?: string;
   message: string;
+  isHighPriority?: boolean;
 }
 
 export function ScreenRecorder() {
@@ -121,6 +122,7 @@ export function ScreenRecorder() {
     chromeEnabledRef.current = !!chromeState?.enabled;
     if (!chromeState?.enabled) {
       setChromeLogs([]);
+      pendingLogsRef.current = [];
     }
   }, [chromeState?.enabled]);
 
@@ -134,30 +136,53 @@ export function ScreenRecorder() {
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random()}`;
       const timestamp = event.entry.timestamp ?? Date.now();
+      const isHighPriority =
+        (event.kind === "console" && event.entry.level === "error") ||
+        (event.kind === "network" && typeof event.entry.status === "number" && event.entry.status >= 400);
+
       if (event.kind === "console") {
         const { level, text, url } = event.entry;
         const message = url ? `${text} (${url})` : text;
-        setChromeLogs((prev) => {
-          const next: ChromeLogEntry[] = [
-            ...prev,
-            { id, type: "console", timestamp, level, message },
-          ];
-          return next.length > MAX_CHROME_LOGS ? next.slice(-MAX_CHROME_LOGS) : next;
+        addChromeLog({
+          id,
+          type: "console",
+          timestamp,
+          level,
+          message,
+          isHighPriority: isHighPriority || level === "warning",
         });
       } else {
         const { method, status, url, mimeType } = event.entry;
         const statusPart = status ? ` status=${status}` : "";
         const mimePart = mimeType ? ` mime=${mimeType}` : "";
         const message = `${method ?? "GET"} ${url}${statusPart}${mimePart}`;
-        setChromeLogs((prev) => {
-          const next: ChromeLogEntry[] = [
-            ...prev,
-            { id, type: "network", timestamp, message },
-          ];
-          return next.length > MAX_CHROME_LOGS ? next.slice(-MAX_CHROME_LOGS) : next;
+        addChromeLog({
+          id,
+          type: "network",
+          timestamp,
+          message,
+          isHighPriority,
         });
       }
     });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const addChromeLog = (entry: ChromeLogEntry) => {
+    setChromeLogs((prev) => trimLogs([...prev, entry]));
+  };
+
+  const trimLogs = (logs: ChromeLogEntry[]): ChromeLogEntry[] => {
+    const highPriority = logs.filter((log) => log.isHighPriority);
+    const normal = logs.filter((log) => !log.isHighPriority);
+    const maxNormal = Math.max(0, MAX_CHROME_LOGS - highPriority.length);
+    const trimmedNormal = normal.slice(-maxNormal);
+    const trimmedHighPriority = highPriority.slice(-MAX_CHROME_LOGS);
+    return [...trimmedNormal, ...trimmedHighPriority];
+  };
 
     return () => {
       unsubscribe();
