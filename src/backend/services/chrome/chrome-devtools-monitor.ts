@@ -189,6 +189,9 @@ export class ChromeDevtoolsMonitorService {
 
     this.chromeProcess?.on("exit", () => {
       this.chromeProcess = undefined;
+      this.resetCollections();
+      this.latestSnapshot = undefined;
+      this.capturing = false;
     });
 
     return { success: true };
