@@ -239,7 +239,13 @@ export class ChromeDevtoolsMonitorService {
       this.latestSnapshot = undefined;
     });
 
+    const [, browserUrl] = await this.resolveCurrentServer();
+    if (!browserUrl) {
+      return { success: false, message: "Browser URL was not found for chrome-devtools MCP." };
+    }
+
     try {
+      await this.waitForDevtoolsEndpoint(browserUrl, 15_000);
       await this.ensureMonitorConnection(true);
       return { success: true };
     } catch (error) {
@@ -393,6 +399,11 @@ export class ChromeDevtoolsMonitorService {
 
   private async tryAttachToExistingChrome(): Promise<boolean> {
     try {
+      const [, browserUrl] = await this.resolveCurrentServer();
+      if (!browserUrl) {
+        return false;
+      }
+      await this.waitForDevtoolsEndpoint(browserUrl, 2_000);
       await this.ensureMonitorConnection(true);
       return true;
     } catch (error) {
@@ -419,6 +430,23 @@ export class ChromeDevtoolsMonitorService {
     }
     const browserUrl = this.extractBrowserUrl(config);
     return [config, browserUrl];
+  }
+
+  private async waitForDevtoolsEndpoint(browserUrl: URL, timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let lastError: unknown;
+    while (Date.now() < deadline) {
+      try {
+        await this.fetchJson(new URL("/json/version", browserUrl));
+        return;
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+    throw new Error(
+      `Chrome DevTools endpoint not reachable at ${browserUrl.toString()}: ${lastError instanceof Error ? lastError.message : "unknown error"}`,
+    );
   }
 
   private handleSocketMessage(raw: WebSocket.RawData): void {
