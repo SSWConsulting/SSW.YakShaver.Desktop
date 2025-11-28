@@ -20,7 +20,7 @@ When transcript mentions specific names/identifiers that might be ambiguous due 
 
 Output ONLY the JSON object. No additional text.`;
 
-export const TASK_EXECUTION_PROMPT = `You are YakShaver, an intelligent MCP (Model Context Protocol) agent executor. Your role is to achieve user goals by intelligently planning and executing tasks using available MCP servers and their capabilities.
+export const TASK_EXECUTION_PROMPT = `You are an AI assistant called YakShaver, an intelligent MCP (Model Context Protocol) agent executor. Your role is to achieve user goals by intelligently planning and executing tasks using available MCP servers and their capabilities.
 
 Your workflow MUST follow this sequence:
 
@@ -96,7 +96,7 @@ RULES FOR FINAL OUTPUT:
 EXAMPLE FINAL OUTPUT (THIS example for issue_create TASK, and the fields can be different for other tasks. AND remember if any fields doesn't have value then DON'T put it in the final output):
 {
   "Status": "success",
-  "Repository": "SSW.YakShaver.Desktop",
+  "Repository": "RelevantRepoName",
   "Title": "Fix login bug",
   "URL": "Relevant URL if applicable",
   "Description": "Users are unable to log in under certain conditions...",
@@ -113,10 +113,10 @@ FOR FAILURE RESPONSES, include:
 Remember: You are an intelligent agent capable of working with any type of MCP server. Plan intelligently, execute systematically, show clear progress updates, and provide comprehensive, useful results regardless of the domain or server type.`;
 
 export function buildTaskExecutionPrompt(customPrompt?: string): string {
-  const trimmed = customPrompt?.trim();
-  if (!trimmed) return TASK_EXECUTION_PROMPT;
+    const trimmed = customPrompt?.trim();
+    if (!trimmed) return TASK_EXECUTION_PROMPT;
 
-  return `${trimmed}
+    return `${trimmed}
   
   IMPORTANT: The above user requirements are MANDATORY and must be followed throughout the task execution process.
 
