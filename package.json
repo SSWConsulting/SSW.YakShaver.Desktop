@@ -32,6 +32,7 @@
     "@azure/openai": "^2.0.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.21.1",
+    "@types/ws": "^8.18.1",
     "ai": "^5.0.92",
     "dotenv": "^17.2.3",
     "electron-store": "^11.0.2",
@@ -42,6 +43,7 @@
     "json-schema-to-zod": "^2.6.1",
     "openai": "^6.3.0",
     "tmp": "^0.2.5",
+    "ws": "^8.18.3",
     "yt-dlp-exec": "^1.0.2"
   },
   "devDependencies": {

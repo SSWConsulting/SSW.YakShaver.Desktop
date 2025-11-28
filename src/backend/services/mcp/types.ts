@@ -1,12 +1,17 @@
 import type { IOType } from "node:child_process";
 import type Stream from "node:stream";
 
+export interface ChromeMcpTestConfig {
+  enabled: boolean;
+}
+
 interface MCPBaseConfig {
   name: string;
   description?: string;
   transport: "streamableHttp" | "stdio" | "inMemory";
   builtin?: boolean; // True for internal/built-in servers
   toolWhitelist?: string[];
+  chromeTestConfig?: ChromeMcpTestConfig;
 }
 
 interface MCPHttpServerConfig extends MCPBaseConfig {

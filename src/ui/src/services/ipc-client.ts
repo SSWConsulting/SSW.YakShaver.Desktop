@@ -6,6 +6,8 @@ import type {
 import type {
   AuthResult,
   AuthState,
+  ChromeMonitorState,
+  ChromeTelemetryEvent,
   ConvertVideoToMp3Result,
   CustomPrompt,
   HealthStatusInfo,
@@ -72,6 +74,14 @@ declare global {
         minimizeMainWindow: () => Promise<{ success: boolean }>;
         restoreMainWindow: () => Promise<{ success: boolean }>;
         onStopRequest: (callback: () => void) => () => void;
+      };
+      chromeMonitor: {
+        getState: () => Promise<ChromeMonitorState>;
+        openMonitoredChrome: () => Promise<{ success: boolean; message?: string }>;
+        startCapture: () => Promise<{ success: boolean; message?: string }>;
+        stopCapture: () => Promise<{ success: boolean; message?: string }>;
+        onStateChange: (callback: (state: ChromeMonitorState) => void) => () => void;
+        onTelemetry: (callback: (event: ChromeTelemetryEvent) => void) => () => void;
       };
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;

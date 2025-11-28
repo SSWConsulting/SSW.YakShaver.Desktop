@@ -1,19 +1,35 @@
-import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
-import { AuthStatus, UploadStatus } from "../../types";
+import {
+  AuthStatus,
+  UploadStatus,
+  type ChromeMonitorState,
+  type ChromeTelemetryEvent,
+} from "../../types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
 
+const MAX_CHROME_LOGS = 200;
+
 interface RecordedVideo {
   blob: Blob;
   filePath: string;
+}
+
+interface ChromeLogEntry {
+  id: string;
+  type: "console" | "network";
+  timestamp: number;
+  level?: string;
+  message: string;
+  isHighPriority?: boolean;
 }
 
 export function ScreenRecorder() {
@@ -23,6 +39,10 @@ export function ScreenRecorder() {
   const [isTranscribing, _] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isProcessingUrl, setIsProcessingUrl] = useState(false);
+  const [chromeState, setChromeState] = useState<ChromeMonitorState | null>(null);
+  const [isOpeningChrome, setIsOpeningChrome] = useState(false);
+  const [chromeLogs, setChromeLogs] = useState<ChromeLogEntry[]>([]);
+  const chromeEnabledRef = useRef(false);
   const youtubeUrlInputId = useId();
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -31,14 +51,39 @@ export function ScreenRecorder() {
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
+  const startChromeCapture = useCallback(async () => {
+    if (!chromeState?.enabled) return;
+    try {
+      const result = await window.electronAPI.chromeMonitor.startCapture();
+      if (!result.success && result.message) {
+        toast.warning(result.message);
+      }
+    } catch (error) {
+      toast.warning(`Chrome capture error: ${formatErrorMessage(error)}`);
+    }
+  }, [chromeState?.enabled]);
+
+  const stopChromeCapture = useCallback(async () => {
+    if (!chromeState?.enabled) return;
+    try {
+      const result = await window.electronAPI.chromeMonitor.stopCapture();
+      if (!result.success && result.message) {
+        toast.warning(result.message);
+      }
+    } catch (error) {
+      toast.warning(`Chrome capture error: ${formatErrorMessage(error)}`);
+    }
+  }, [chromeState?.enabled]);
+
   const handleStopRecording = useCallback(async () => {
+    await stopChromeCapture();
     const result = await stop();
     if (result) {
       setRecordedVideo(result);
       setPreviewOpen(true);
       await window.electronAPI.screenRecording.restoreMainWindow();
     }
-  }, [stop]);
+  }, [stop, stopChromeCapture]);
 
   const toggleRecording = () => {
     isRecording ? handleStopRecording() : setPickerOpen(true);
@@ -50,6 +95,95 @@ export function ScreenRecorder() {
   }, [handleStopRecording]);
 
   useEffect(() => {
+    let isMounted = true;
+    const fetchState = async () => {
+      try {
+        const state = await window.electronAPI.chromeMonitor.getState();
+        if (isMounted) {
+          setChromeState(state);
+        }
+      } catch {
+        // silently ignore
+      }
+    };
+
+    void fetchState();
+    const unsubscribe = window.electronAPI.chromeMonitor.onStateChange((state) => {
+      setChromeState(state);
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    chromeEnabledRef.current = !!chromeState?.enabled;
+    if (!chromeState?.enabled) {
+      setChromeLogs([]);
+    }
+  }, [chromeState?.enabled]);
+
+  useEffect(() => {
+    const unsubscribe = window.electronAPI.chromeMonitor.onTelemetry((event: ChromeTelemetryEvent) => {
+      if (!chromeEnabledRef.current) {
+        return;
+      }
+      const id =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`;
+      const timestamp = event.entry.timestamp ?? Date.now();
+      const isHighPriority =
+        (event.kind === "console" && event.entry.level === "error") ||
+        (event.kind === "network" && typeof event.entry.status === "number" && event.entry.status >= 400);
+
+      if (event.kind === "console") {
+        const { level, text, url } = event.entry;
+        const message = url ? `${text} (${url})` : text;
+        addChromeLog({
+          id,
+          type: "console",
+          timestamp,
+          level,
+          message,
+          isHighPriority: isHighPriority || level === "warning",
+        });
+      } else {
+        const { method, status, url, mimeType } = event.entry;
+        const statusPart = status ? ` status=${status}` : "";
+        const mimePart = mimeType ? ` mime=${mimeType}` : "";
+        const message = `${method ?? "GET"} ${url}${statusPart}${mimePart}`;
+        addChromeLog({
+          id,
+          type: "network",
+          timestamp,
+          message,
+          isHighPriority,
+        });
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const addChromeLog = (entry: ChromeLogEntry) => {
+    setChromeLogs((prev) => trimLogs([...prev, entry]));
+  };
+
+  const trimLogs = (logs: ChromeLogEntry[]): ChromeLogEntry[] => {
+    const highPriority = logs.filter((log) => log.isHighPriority);
+    const normal = logs.filter((log) => !log.isHighPriority);
+    const maxNormal = Math.max(0, MAX_CHROME_LOGS - highPriority.length);
+    const trimmedNormal = normal.slice(-maxNormal);
+    const trimmedHighPriority = highPriority.slice(-MAX_CHROME_LOGS);
+    return [...trimmedNormal, ...trimmedHighPriority];
+  };
+
+  useEffect(() => {
     if (!isYoutubeUrlWorkflowEnabled) {
       setYoutubeUrl("");
       setIsProcessingUrl(false);
@@ -58,6 +192,7 @@ export function ScreenRecorder() {
 
   const handleStartRecording = async (sourceId: string) => {
     setPickerOpen(false);
+    await startChromeCapture();
     await start(sourceId);
   };
 
@@ -137,6 +272,23 @@ export function ScreenRecorder() {
     }
   };
 
+  const handleOpenMonitoredChrome = async () => {
+    setIsOpeningChrome(true);
+    try {
+      const result = await window.electronAPI.chromeMonitor.openMonitoredChrome();
+      if (!result.success) {
+        toast.error(result.message ?? "Failed to launch monitored Chrome");
+      } else {
+        const message = result.message ?? "Monitored Chrome launched";
+        toast.success(message);
+      }
+    } catch (error) {
+      toast.error(`Unable to launch Chrome: ${formatErrorMessage(error)}`);
+    } finally {
+      setIsOpeningChrome(false);
+    }
+  };
+
   return (
     <>
       <section className="flex flex-col gap-4 items-center w-full">
@@ -152,7 +304,69 @@ export function ScreenRecorder() {
                 ? "Transcribing..."
                 : "Start Recording"}
           </Button>
+          {chromeState?.enabled && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleOpenMonitoredChrome}
+              disabled={isProcessing || isTranscribing || isOpeningChrome}
+            >
+              {isOpeningChrome ? "Launching Chrome..." : "Open Monitored Chrome"}
+            </Button>
+          )}
         </div>
+        {chromeState?.enabled && (
+          <div className="w-full max-w-4xl rounded-xl border border-white/10 bg-black/40 p-4 shadow-inner">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-white">Chrome MCP Telemetry</p>
+                <span className="text-xs text-white/60">{chromeLogs.length} events</span>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80 transition hover:bg-white/20"
+                onClick={() => setChromeLogs([])}
+              >
+                Clear
+              </button>
+            </div>
+            <div className="mt-3 h-48 overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-3 font-mono text-xs text-white/80">
+              {chromeLogs.length === 0 ? (
+                <p className="text-white/50">Waiting for console or network activity...</p>
+              ) : (
+                [...chromeLogs]
+                  .sort((a, b) => a.timestamp - b.timestamp)
+                  .map((entry) => {
+                  const timeLabel = new Date(entry.timestamp || Date.now()).toLocaleTimeString();
+                  const badgeLabel =
+                    entry.type === "console"
+                      ? `console:${entry.level ?? "info"}`
+                      : "network";
+                  const badgeClass =
+                    entry.type === "console"
+                      ? entry.level === "error"
+                        ? "bg-red-500/20 text-red-300"
+                        : entry.level === "warning"
+                          ? "bg-amber-500/20 text-amber-200"
+                          : "bg-sky-500/20 text-sky-200"
+                      : "bg-emerald-500/20 text-emerald-200";
+                  return (
+                    <div
+                      key={entry.id}
+                      className="mb-1 flex items-start gap-3 rounded-md bg-white/5 px-2 py-1 last:mb-0"
+                    >
+                      <span className="text-white/50">{timeLabel}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase ${badgeClass}`}>
+                        {badgeLabel}
+                      </span>
+                      <span className="flex-1 text-white/80">{entry.message}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
         {!isAuthenticated && (
           <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
