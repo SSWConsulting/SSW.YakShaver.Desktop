@@ -1,4 +1,5 @@
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import type { ToolSet } from "ai";
 import type { HealthStatusInfo } from "../../types/index.js";
 import { McpStorage } from "../storage/mcp-storage";
 import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
@@ -48,7 +49,7 @@ export class MCPServerManager {
       .map((r) => (r as PromiseFulfilledResult<MCPServerClient | null>).value as MCPServerClient);
   }
 
-  public async collectToolsAsync(serverFilter?: string[]): Promise<Record<string, unknown>> {
+  public async collectToolsAsync(serverFilter?: string[]): Promise<ToolSet> {
     const normalizedFilter = serverFilter
       ?.map((name) => name.trim())
       .filter((name) => name.length > 0);
@@ -65,7 +66,7 @@ export class MCPServerManager {
     const toolMaps = results
       .filter((r) => r.status === "fulfilled")
       .map((r) => MCPServerManager.normalizeTools((r as PromiseFulfilledResult<unknown>).value));
-    const combined = Object.assign({}, ...toolMaps);
+    const combined = Object.assign({}, ...toolMaps) as ToolSet;
     if (Object.keys(combined).length === 0) {
       throw new Error("[MCPServerManager]: No tools available from selected/healthy servers");
     }

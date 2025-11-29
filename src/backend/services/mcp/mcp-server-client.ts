@@ -11,24 +11,13 @@ import {
 import { MCPUtils } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
+import type { ToolSet } from "ai";
 import getPort from "get-port";
 import { withTimeout } from "../../utils/async-utils";
 
 export interface CreateClientOptions {
   inMemoryClientTransport?: InMemoryTransport;
 }
-
-// Minimal tool interface based on MCP spec; allows additional provider-specific fields.
-export interface MCPTool {
-  name: string;
-  description?: string;
-  input_schema?: unknown;
-  // Allow arbitrary extra metadata without forcing any.
-  [key: string]: unknown;
-}
-
-// A tool set can be an array or an object keyed by tool name.
-export type MCPToolSet = MCPTool[] | Record<string, MCPTool>;
 
 export class MCPServerClient {
   public mcpClientName: string;
@@ -174,9 +163,10 @@ export class MCPServerClient {
     throw new Error(`Unsupported transport type: ${mcpConfig}`);
   }
 
-  public async listToolsAsync(): Promise<MCPToolSet> {
+  public async listToolsAsync(): Promise<ToolSet> {
     const raw = await this.mcpClient.tools();
-    return raw as MCPToolSet;
+
+    return raw as ToolSet;
   }
 
   public async toolCountAsync(): Promise<number> {

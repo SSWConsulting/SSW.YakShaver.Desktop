@@ -64,7 +64,7 @@ export class ProcessVideoIPCHandlers {
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
           const orchestrator = await MCPOrchestrator.getInstanceAsync();
-          const mcpResult = await orchestrator.processMessageAsync(
+          const mcpResult = await orchestrator.manualLoopAsync(
             intermediateOutput,
             videoUploadResult,
             { systemPrompt },
@@ -154,7 +154,7 @@ export class ProcessVideoIPCHandlers {
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
-      const mcpResult = await orchestrator.processMessageAsync(intermediateOutput, youtubeResult, {
+      const mcpResult = await orchestrator.manualLoopAsync(intermediateOutput, youtubeResult, {
         systemPrompt,
       });
 

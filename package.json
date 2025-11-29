@@ -32,7 +32,7 @@
     "@azure/openai": "^2.0.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.21.1",
-    "ai": "^5.0.92",
+    "ai": "^6.0.0-beta.114",
     "dotenv": "^17.2.3",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.6.2",
