@@ -66,44 +66,8 @@ export function useScreenRecording() {
     ) => {
       setIsProcessing(true);
       try {
-        if (!options?.micDeviceId) {
-          throw new Error("Microphone device ID is required");
-        }
-
-        // Request audio FIRST with explicit device
-        const audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: { deviceId: { exact: options.micDeviceId } },
-          video: false,
-        });
-
-        const audioTrack = audioStream.getAudioTracks()[0];
-        console.log('[Recording] Audio track acquired:', {
-          label: audioTrack.label,
-          deviceId: audioTrack.getSettings().deviceId,
-          readyState: audioTrack.readyState,
-        });
-
-        // Create AudioContext to keep audio pipeline active (prevents Windows from switching Bluetooth devices)
-        const audioContext = new AudioContext();
-        const audioSource = audioContext.createMediaStreamSource(audioStream);
-        // Connect to destination to keep the audio graph active
-        const gainNode = audioContext.createGain();
-        gainNode.gain.value = 0; // Silent, we just need to keep the pipeline active
-        audioSource.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        audioContextRef.current = audioContext;
-        audioSourceRef.current = audioSource;
-
-        console.log('[Recording] AudioContext created and connected');
-
-        // Wait for Bluetooth device to stabilize
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        // Now start backend recording and get video stream
         const result = await window.electronAPI.screenRecording.start(sourceId);
         if (!result.success) {
-          audioStream.getTracks().forEach((t) => t.stop());
           throw new Error("Failed to start recording");
         }
 
@@ -116,6 +80,27 @@ export function useScreenRecording() {
             },
           } as ElectronVideoConstraints,
         });
+
+        // Get audio stream
+        const audioConstraints = options?.micDeviceId
+          ? { deviceId: { exact: options.micDeviceId } }
+          : true;
+
+        const audioStream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+          video: false,
+        });
+
+        // Create AudioContext to keep audio pipeline active (prevents Windows from switching Bluetooth devices)
+        const audioContext = new AudioContext();
+        const audioSource = audioContext.createMediaStreamSource(audioStream);
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 0; // Silent, we just need to keep the pipeline active
+        audioSource.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        audioContextRef.current = audioContext;
+        audioSourceRef.current = audioSource;
 
         let compositeStream: MediaStream | null = null;
         if (options?.cameraDeviceId) {
@@ -167,12 +152,6 @@ export function useScreenRecording() {
           ? compositeStream.getVideoTracks()
           : videoStream.getVideoTracks();
 
-        console.log('[Recording] Creating MediaRecorder with audio track:', {
-          label: audioStream.getAudioTracks()[0].label,
-          deviceId: audioStream.getAudioTracks()[0].getSettings().deviceId,
-          readyState: audioStream.getAudioTracks()[0].readyState,
-        });
-
         const recorder = new MediaRecorder(
           new MediaStream([...videoTracks, ...audioStream.getAudioTracks()]),
           { mimeType: VIDEO_MIME_TYPE },
@@ -181,22 +160,7 @@ export function useScreenRecording() {
         chunksRef.current = [];
         recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
 
-        console.log('[Recording] Starting MediaRecorder...');
         recorder.start();
-        console.log('[Recording] MediaRecorder started');
-
-        // Check if audio track is still live after MediaRecorder starts
-        setTimeout(() => {
-          const track = audioStream.getAudioTracks()[0];
-          console.log('[Recording] Audio track after 1s of recording:', {
-            label: track.label,
-            deviceId: track.getSettings().deviceId,
-            readyState: track.readyState,
-            enabled: track.enabled,
-            muted: track.muted,
-          });
-        }, 1000);
-
         mediaRecorderRef.current = recorder;
         setIsRecording(true);
 
