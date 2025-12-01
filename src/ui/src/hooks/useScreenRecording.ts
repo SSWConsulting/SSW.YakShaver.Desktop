@@ -91,11 +91,11 @@ export function useScreenRecording() {
           video: false,
         });
 
-        // Create AudioContext to keep audio pipeline active (prevents Windows from switching Bluetooth devices)
+        // Create a silent audio pipeline to force Windows to keep the audio device active (prevents Windows from switching Bluetooth devices)
         const audioContext = new AudioContext();
         const audioSource = audioContext.createMediaStreamSource(audioStream);
         const gainNode = audioContext.createGain();
-        gainNode.gain.value = 0; // Silent, we just need to keep the pipeline active
+        gainNode.gain.value = 0;
         audioSource.connect(gainNode);
         gainNode.connect(audioContext.destination);
 
