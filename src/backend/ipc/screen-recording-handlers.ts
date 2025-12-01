@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from "electron";
 import { getMainWindow } from "../index";
 import { CameraWindow } from "../services/recording/camera-window";
+import { CountdownWindow } from "../services/recording/countdown-window";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { RecordingService } from "../services/recording/recording-service";
 import { IPC_CHANNELS } from "./channels";
@@ -9,11 +10,14 @@ export class ScreenRecordingIPCHandlers {
   private service = RecordingService.getInstance();
   private controlBar = RecordingControlBarWindow.getInstance();
   private cameraWindow = CameraWindow.getInstance();
+  private countdownWindow = CountdownWindow.getInstance();
 
   constructor() {
     const handlers = {
       [IPC_CHANNELS.START_SCREEN_RECORDING]: (_: unknown, sourceId?: string) =>
         this.service.handleStartRecording(sourceId),
+      [IPC_CHANNELS.START_RECORDING_TIMER]: () =>
+        this.service.startRecordingTimer(),
       [IPC_CHANNELS.STOP_SCREEN_RECORDING]: (
         _: unknown,
         videoData: Uint8Array
@@ -54,13 +58,16 @@ export class ScreenRecordingIPCHandlers {
   private async showControlBarWithCamera(cameraDeviceId?: string) {
     const displayId = this.service.getCurrentRecordingDisplayId();
 
-    // Show control bar
-    await this.controlBar.showForRecording(displayId);
-
-    // Show camera window if device ID provided
+    // Show camera window first if device ID provided (so it's loaded before countdown)
     if (cameraDeviceId) {
       await this.cameraWindow.show(displayId, cameraDeviceId);
     }
+
+    // Show countdown on the recording screen (this will wait 3+ seconds)
+    await this.countdownWindow.show(displayId);
+
+    // Show control bar after countdown
+    await this.controlBar.showForRecording(displayId);
 
     return { success: true };
   }

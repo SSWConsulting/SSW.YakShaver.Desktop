@@ -38,7 +38,6 @@ export class RecordingService extends EventEmitter {
       if (!selected) return { success: false, error: "Requested source not found" };
 
       this.displayId = selected.display_id;
-      this.startTimer();
 
       return { success: true, sourceId: selected.id };
     } catch (error) {
@@ -78,6 +77,11 @@ export class RecordingService extends EventEmitter {
   async cleanupAllTempFiles() {
     this.stopTimer();
     await Promise.all([...this.tempFiles.keys()].map((path) => this.cleanupTempFile(path)));
+  }
+
+  startRecordingTimer() {
+    this.startTimer();
+    return { success: true };
   }
 
   async listSources(): Promise<ScreenSource[]> {

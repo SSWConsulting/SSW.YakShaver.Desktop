@@ -99,15 +99,21 @@ export function useScreenRecording() {
         chunksRef.current = [];
         recorder.ondataavailable = (e) =>
           e.data.size > 0 && chunksRef.current.push(e.data);
-        recorder.start();
 
         mediaRecorderRef.current = recorder;
-        setIsRecording(true);
 
-        // Show control bar and camera window (if camera selected)
+        // Show control bar and camera window (if camera selected) - this includes countdown
         await window.electronAPI.screenRecording.showControlBar(
           options?.cameraDeviceId
         );
+
+        // Start recording AFTER countdown completes
+        recorder.start();
+        setIsRecording(true);
+        
+        // Start the timer now that recording has actually begun
+        await window.electronAPI.screenRecording.startTimer();
+        
         toast.success("Recording started");
       } catch (error) {
         cleanup();
