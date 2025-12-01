@@ -21,6 +21,8 @@ export function useScreenRecording() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamsRef = useRef<RecordingStreams>({});
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
   const cleanup = useCallback(() => {
     mediaRecorderRef.current?.stream
@@ -28,6 +30,15 @@ export function useScreenRecording() {
       .forEach((track) => track.stop());
     streamsRef.current.video?.getTracks().forEach((track) => track.stop());
     streamsRef.current.audio?.getTracks().forEach((track) => track.stop());
+
+    if (audioSourceRef.current) {
+      audioSourceRef.current.disconnect();
+      audioSourceRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
 
     mediaRecorderRef.current = null;
     chunksRef.current = [];
@@ -63,6 +74,17 @@ export function useScreenRecording() {
           }),
         ]);
 
+        // Create a silent audio pipeline to force Windows to keep the audio device active (prevents Windows from switching Bluetooth devices)
+        const audioContext = new AudioContext();
+        const audioSource = audioContext.createMediaStreamSource(audioStream);
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 0;
+        audioSource.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        audioContextRef.current = audioContext;
+        audioSourceRef.current = audioSource;
+        
         streamsRef.current = { video: videoStream, audio: audioStream };
 
         // Record only the screen stream
