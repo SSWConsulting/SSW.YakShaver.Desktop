@@ -44,9 +44,13 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       const mics = devices.filter((d) => d.kind === "audioinput");
       setCameraDevices(cams);
       setMicrophoneDevices(mics);
-      // Temporarily disabled: always set camera to undefined (no camera)
-      setSelectedCameraId(undefined);
+      const lastCam = localStorage.getItem(LAST_CAMERA_KEY) || undefined;
       const lastMic = localStorage.getItem("yakshaver.lastMicDeviceId") || undefined;
+      if (lastCam === "none") {
+        setSelectedCameraId(undefined);
+      } else {
+        setSelectedCameraId(cams.find((c) => c.deviceId === lastCam)?.deviceId || cams[0]?.deviceId);
+      }
       setSelectedMicrophoneId(
         mics.find((m) => m.deviceId === lastMic)?.deviceId || mics[0]?.deviceId,
       );
@@ -141,9 +145,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Camera</span>
-              {/* Temporarily disabled: always set camera to no camera */}
               <Select
-                disabled={true}
                 value={selectedCameraId ?? NO_CAMERA_VALUE}
                 onValueChange={(value) => {
                   if (value === NO_CAMERA_VALUE) {
