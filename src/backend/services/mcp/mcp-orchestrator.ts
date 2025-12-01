@@ -97,7 +97,7 @@ export class MCPOrchestrator {
     ];
 
     const McpConfigs = await McpStorage.getInstance().getMcpServerConfigsAsync();
-    const toolWhiteList = new Set(McpConfigs.map((config) => config.name));
+    const toolWhiteList = new Set(McpConfigs.flatMap((config) => config?.toolWhitelist ?? []));
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 10); i++) {
