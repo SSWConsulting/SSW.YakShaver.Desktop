@@ -77,6 +77,16 @@
           currentStream = stream;
           errorMsg.style.display = "none";
           video.style.display = "block";
+
+          // Wait for video to actually start playing
+          await new Promise((resolve) => {
+            video.onloadeddata = resolve;
+          });
+
+          // Notify that camera is ready
+          if (window.electronAPI) {
+            window.electronAPI.cameraReady();
+          }
         } catch (error) {
           console.error("Error accessing camera:", error);
           video.style.display = "none";

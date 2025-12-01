@@ -267,6 +267,7 @@ const electronAPI = {
     ipcRenderer.on("set-camera-device", listener);
     return () => ipcRenderer.removeListener("set-camera-device", listener);
   },
+  cameraReady: () => ipcRenderer.send("camera-ready"),
 };
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI);

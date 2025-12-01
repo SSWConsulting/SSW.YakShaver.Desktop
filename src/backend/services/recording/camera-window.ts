@@ -65,6 +65,22 @@ export class CameraWindow {
       this.window.webContents.send("set-camera-device", cameraDeviceId);
     }
 
+    // Wait for camera to be ready before showing and returning
+    await new Promise<void>((resolve) => {
+      const { ipcMain } = require("electron");
+      const handler = () => {
+        ipcMain.removeListener("camera-ready", handler);
+        resolve();
+      };
+      ipcMain.once("camera-ready", handler);
+
+      // Timeout after 5 seconds in case camera fails to load
+      setTimeout(() => {
+        ipcMain.removeListener("camera-ready", handler);
+        resolve();
+      }, 5000);
+    });
+
     this.window.showInactive();
   }
 
