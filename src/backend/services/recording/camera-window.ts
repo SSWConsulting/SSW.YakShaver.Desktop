@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { BrowserWindow, screen } from "electron";
 
-const WINDOW_SIZE = { width: 300, height: 225 }; // 4:3 aspect ratio
+const WINDOW_SIZE = { width: 400, height: 225 }; // 16:9 aspect ratio
 const MARGIN = 20;
 
 export class CameraWindow {
