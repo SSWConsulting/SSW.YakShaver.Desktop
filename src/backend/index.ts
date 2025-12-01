@@ -13,6 +13,7 @@ import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
+import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
@@ -72,7 +73,10 @@ const createWindow = (): void => {
     mainWindow.loadURL("http://localhost:3000");
     mainWindow.webContents.openDevTools();
   } else {
-    const indexPath = join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/index.html");
+    const indexPath = join(
+      process.resourcesPath,
+      "app.asar.unpacked/src/ui/dist/index.html"
+    );
     mainWindow.loadFile(indexPath).catch((err) => {
       console.error("Failed to load index.html:", err);
     });
@@ -93,11 +97,18 @@ let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler(() => true);
-  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
-    callback(
-      ["media", "clipboard-read", "clipboard-sanitized-write", "fullscreen"].includes(permission),
-    );
-  });
+  session.defaultSession.setPermissionRequestHandler(
+    (_, permission, callback) => {
+      callback(
+        [
+          "media",
+          "clipboard-read",
+          "clipboard-sanitized-write",
+          "fullscreen",
+        ].includes(permission)
+      );
+    }
+  );
 
   _authHandlers = new AuthIPCHandlers();
   _videoHandlers = new VideoIPCHandlers();
@@ -120,8 +131,9 @@ app.whenReady().then(async () => {
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
 
-  // Pre-initialize control bar window for faster display
+  // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
+  CameraWindow.getInstance().initialize(isDev);
 
   unregisterEventForwarders = registerEventForwarders();
   createWindow();
@@ -129,7 +141,9 @@ app.whenReady().then(async () => {
   // Auto-updates: Check only in packaged mode (dev skips)
   // Configure and check based on stored channel preference
   if (app.isPackaged) {
-    const { ReleaseChannelStorage } = await import("./services/storage/release-channel-storage");
+    const { ReleaseChannelStorage } = await import(
+      "./services/storage/release-channel-storage"
+    );
     const channelStore = ReleaseChannelStorage.getInstance();
     const channel = await channelStore.getChannel();
     _releaseChannelHandlers.configureAutoUpdater(channel, true);

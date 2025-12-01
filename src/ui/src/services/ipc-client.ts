@@ -26,7 +26,7 @@ declare global {
         processVideo: (filePath?: string) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
-          videoUploadResult: VideoUploadResult,
+          videoUploadResult: VideoUploadResult
         ) => Promise<{
           success: boolean;
           finalOutput?: string | null;
@@ -57,7 +57,7 @@ declare global {
         selectOutputDirectory: () => Promise<string | null>;
         convertVideoToMp3: (
           inputPath: string,
-          outputPath: string,
+          outputPath: string
         ) => Promise<ConvertVideoToMp3Result>;
       };
       screenRecording: {
@@ -65,7 +65,9 @@ declare global {
         stop: (videoData: Uint8Array) => Promise<ScreenRecordingStopResult>;
         listSources: () => Promise<ScreenSource[]>;
         cleanupTempFile: (filePath: string) => Promise<void>;
-        showControlBar: () => Promise<{ success: boolean }>;
+        showControlBar: (
+          cameraDeviceId?: string
+        ) => Promise<{ success: boolean }>;
         hideControlBar: () => Promise<{ success: boolean }>;
         stopFromControlBar: () => Promise<{ success: boolean }>;
         minimizeMainWindow: () => Promise<{ success: boolean }>;
@@ -82,7 +84,7 @@ declare global {
         processMessage: (
           prompt: string,
           videoUrl?: string,
-          options?: { serverFilter?: string[] },
+          options?: { serverFilter?: string[] }
         ) => Promise<{
           final: string | null;
           transcript: TranscriptEntry[];
@@ -95,14 +97,21 @@ declare global {
             message?: string;
             toolName?: string;
             serverName?: string;
-          }) => void,
+          }) => void
         ) => () => void;
         listServers: () => Promise<MCPServerConfig[]>;
-        addServerAsync: (config: MCPServerConfig) => Promise<{ success: boolean }>;
-        updateServerAsync: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
+        addServerAsync: (
+          config: MCPServerConfig
+        ) => Promise<{ success: boolean }>;
+        updateServerAsync: (
+          name: string,
+          config: MCPServerConfig
+        ) => Promise<{ success: boolean }>;
         removeServerAsync: (name: string) => Promise<{ success: boolean }>;
         checkServerHealthAsync: (name: string) => Promise<HealthStatusInfo>;
-        listServerTools: (name: string) => Promise<Array<{ name: string; description?: string }>>;
+        listServerTools: (
+          name: string
+        ) => Promise<Array<{ name: string; description?: string }>>;
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;
@@ -114,7 +123,7 @@ declare global {
         }) => Promise<CustomPrompt>;
         updatePrompt: (
           id: string,
-          updates: { name?: string; description?: string; content?: string },
+          updates: { name?: string; description?: string; content?: string }
         ) => Promise<boolean>;
         deletePrompt: (id: string) => Promise<boolean>;
         setActivePrompt: (id: string) => Promise<boolean>;
@@ -133,7 +142,11 @@ declare global {
         }>;
         getCurrentVersion: () => Promise<string>;
         onDownloadProgress: (
-          callback: (progress: { percent: number; transferred: number; total: number }) => void,
+          callback: (progress: {
+            percent: number;
+            transferred: number;
+            total: number;
+          }) => void
         ) => () => void;
       };
       githubToken: {

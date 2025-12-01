@@ -84,7 +84,7 @@ export function useScreenRecording() {
 
         audioContextRef.current = audioContext;
         audioSourceRef.current = audioSource;
-        
+
         streamsRef.current = { video: videoStream, audio: audioStream };
 
         // Record only the screen stream
@@ -104,7 +104,10 @@ export function useScreenRecording() {
         mediaRecorderRef.current = recorder;
         setIsRecording(true);
 
-        await window.electronAPI.screenRecording.showControlBar();
+        // Show control bar and camera window (if camera selected)
+        await window.electronAPI.screenRecording.showControlBar(
+          options?.cameraDeviceId
+        );
         toast.success("Recording started");
       } catch (error) {
         cleanup();
@@ -123,8 +126,11 @@ export function useScreenRecording() {
   } | null> => {
     if (!mediaRecorderRef.current) return null;
 
-    setIsProcessing(true);
+    // If already stopping or stopped, don't try again
     const recorder = mediaRecorderRef.current;
+    if (recorder.state === "inactive") return null;
+
+    setIsProcessing(true);
 
     return new Promise((resolve) => {
       recorder.onstop = async () => {
@@ -152,7 +158,10 @@ export function useScreenRecording() {
         }
       };
 
-      recorder.stop();
+      // Only stop if recording
+      if (recorder.state === "recording") {
+        recorder.stop();
+      }
     });
   }, [cleanup]);
 
