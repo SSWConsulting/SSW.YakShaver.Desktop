@@ -92,12 +92,28 @@ declare global {
         onPrefillPrompt: (callback: (text: string) => void) => () => void;
         onStepUpdate: (
           callback: (step: {
-            type: "start" | "tool_call" | "final_result";
+            type:
+              | "start"
+              | "reasoning"
+              | "tool_call"
+              | "tool_result"
+              | "final_result"
+              | "tool_approval_required"
+              | "tool_denied";
             message?: string;
             toolName?: string;
             serverName?: string;
+            reasoning?: string;
+            args?: unknown;
+            result?: unknown;
+            error?: string;
+            requestId?: string;
           }) => void,
         ) => () => void;
+        respondToToolApproval: (
+          requestId: string,
+          approved: boolean,
+        ) => Promise<{ success: boolean }>;
         listServers: () => Promise<MCPServerConfig[]>;
         addServerAsync: (config: MCPServerConfig) => Promise<{ success: boolean }>;
         updateServerAsync: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;

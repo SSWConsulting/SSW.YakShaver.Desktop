@@ -44,6 +44,7 @@ export const IPC_CHANNELS = {
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
+  MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",

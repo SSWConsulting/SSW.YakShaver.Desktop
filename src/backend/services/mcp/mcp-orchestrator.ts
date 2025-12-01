@@ -1,10 +1,19 @@
-import { GenerateTextResult, ToolCallOptions, ToolModelMessage, type ModelMessage } from "ai";
+import type { ToolCallOptions, ToolModelMessage, ModelMessage } from "ai";
+import { randomUUID } from "node:crypto";
 import type { VideoUploadResult } from "../auth/types";
 import { LLMClientProvider } from "./llm-client-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 import { BrowserWindow } from "electron";
+import { McpStorage } from "../storage/mcp-storage";
 
-type StepType = "start" | "reasoning" | "tool_call" | "tool_result" | "final_result";
+type StepType =
+  | "start"
+  | "reasoning"
+  | "tool_call"
+  | "tool_result"
+  | "final_result"
+  | "tool_approval_required"
+  | "tool_denied";
 
 interface MCPStep {
   type: StepType;
@@ -15,6 +24,7 @@ interface MCPStep {
   args?: unknown;
   result?: unknown;
   error?: string;
+  requestId?: string;
   timestamp?: number;
 }
 
@@ -30,6 +40,7 @@ export class MCPOrchestrator {
   private static instance: MCPOrchestrator;
   private static llmProvider: LLMClientProvider | null = null;
   private static mcpServerManager: MCPServerManager | null = null;
+  private pendingToolApprovals = new Map<string, (approved: boolean) => void>();
 
   private constructor() {}
 
@@ -56,7 +67,7 @@ export class MCPOrchestrator {
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
     } = {},
-  ): Promise<any> {
+  ): Promise<string | undefined> {
     // Ensure LLM has been initialized
     if (!MCPOrchestrator.llmProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
@@ -85,15 +96,17 @@ export class MCPOrchestrator {
       { role: "user", content: prompt },
     ];
 
+    const McpConfigs = await McpStorage.getInstance().getMcpServerConfigsAsync();
+    const toolWhiteList = new Set(McpConfigs.map((config) => config.name));
+
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 10); i++) {
-      let llmResponse: GenerateTextResult<any, any>;
-      try {
-        llmResponse = await MCPOrchestrator.llmProvider.generateTextWithTools(messages, tools);
-      } catch (error) {
-        console.log("[MCPOrchestrator]: Error in processMessageAsync:", error);
-        throw error;
-      }
+      const llmResponse = await MCPOrchestrator.llmProvider
+        .generateTextWithTools(messages, tools)
+        .catch((error) => {
+          console.log("[MCPOrchestrator]: Error in processMessageAsync:", error);
+          throw error;
+        });
 
       if (!llmResponse) {
         throw new Error("[MCPOrchestrator]: No response from LLM provider");
@@ -105,11 +118,36 @@ export class MCPOrchestrator {
 
       if (llmResponse.finishReason === "tool-calls") {
         for (const toolCall of llmResponse.toolCalls) {
-          // send event to UI about tool call
+          const requiresApproval = !toolWhiteList.has(toolCall.toolName);
+
+          if (requiresApproval) {
+            const { approved, requestId } = await this.requestToolApproval(
+              toolCall.toolName,
+              toolCall.input,
+            );
+
+            if (!approved) {
+              sendStepEvent({
+                type: "tool_denied",
+                toolName: toolCall.toolName,
+                args: toolCall.input,
+                requestId,
+                message: "User denied tool execution",
+              });
+              sendStepEvent({
+                type: "final_result",
+                message: "Tool execution cancelled by user",
+              });
+              return "Tool execution cancelled by user";
+            }
+          }
+
+          // send event to UI about tool call now that it is approved/whitelisted
           sendStepEvent({ type: "tool_call", toolName: toolCall.toolName, args: toolCall.input });
           console.log("Executing tool:", toolCall.toolName);
 
           const toolToCall = tools[toolCall.toolName];
+
           if (toolToCall?.execute) {
             const toolOutput = await toolToCall.execute(toolCall.input, {
               toolCallId: toolCall.toolCallId,
@@ -166,7 +204,7 @@ export class MCPOrchestrator {
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
     } = {},
-  ): Promise<any> {
+  ): Promise<string> {
     // Ensure LLM has been initialized
     if (!MCPOrchestrator.llmProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
@@ -198,5 +236,40 @@ export class MCPOrchestrator {
     //  this is the AI SDK's automatic orchestrator loop, can be used for YOLO mode
     const response = await MCPOrchestrator.llmProvider.sendMessage(messages, tools);
     return response.text;
+  }
+
+  private async requestToolApproval(
+    toolName: string,
+    args: unknown,
+  ): Promise<{ requestId: string; approved: boolean }> {
+    if (!MCPOrchestrator.instance) {
+      throw new Error("[MCPOrchestrator]: requestToolApproval called before initialization");
+    }
+
+    const requestId = randomUUID();
+    sendStepEvent({
+      type: "tool_approval_required",
+      toolName,
+      args,
+      requestId,
+      message: `Approval required to run ${toolName}`,
+    });
+
+    const approved = await new Promise<boolean>((resolve) => {
+      this.pendingToolApprovals.set(requestId, resolve);
+    });
+
+    return { requestId, approved };
+  }
+
+  public resolveToolApproval(requestId: string, approved: boolean): boolean {
+    const resolver = this.pendingToolApprovals.get(requestId);
+    if (!resolver) {
+      return false;
+    }
+
+    this.pendingToolApprovals.delete(requestId);
+    resolver(approved);
+    return true;
   }
 }

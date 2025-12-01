@@ -164,9 +164,8 @@ export class MCPServerClient {
   }
 
   public async listToolsAsync(): Promise<ToolSet> {
-    const raw = await this.mcpClient.tools();
-
-    return raw as ToolSet;
+    const ToolList: ToolSet = (await this.mcpClient.tools()) as ToolSet;
+    return ToolList;
   }
 
   public async toolCountAsync(): Promise<number> {

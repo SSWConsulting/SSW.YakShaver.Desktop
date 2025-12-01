@@ -17,7 +17,7 @@ export class McpIPCHandlers {
 
   private registerHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.MCP_LIST_SERVERS, async () => {
-      return this.mcpServerManager.listAvailableServers();
+      return await this.mcpServerManager.listAvailableServers();
     });
 
     ipcMain.handle(
@@ -93,6 +93,15 @@ export class McpIPCHandlers {
       ) => {
         const orchestrator = await MCPOrchestrator.getInstanceAsync();
         return await orchestrator.manualLoopAsync(prompt, videoUploadResult, options);
+      },
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION,
+      async (_event: IpcMainInvokeEvent, payload: { requestId: string; approved: boolean }) => {
+        const orchestrator = await MCPOrchestrator.getInstanceAsync();
+        const success = orchestrator.resolveToolApproval(payload.requestId, payload.approved);
+        return { success };
       },
     );
 

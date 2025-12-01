@@ -51,6 +51,7 @@ const IPC_CHANNELS = {
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
+  MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -169,12 +170,26 @@ const electronAPI = {
       onIpcEvent<string>(IPC_CHANNELS.MCP_PREFILL_PROMPT, callback),
     onStepUpdate: (
       callback: (step: {
-        type: "start" | "tool_call" | "final_result";
+        type:
+          | "start"
+          | "reasoning"
+          | "tool_call"
+          | "tool_result"
+          | "final_result"
+          | "tool_approval_required"
+          | "tool_denied";
         message?: string;
         toolName?: string;
         serverName?: string;
+        reasoning?: string;
+        args?: unknown;
+        result?: unknown;
+        error?: string;
+        requestId?: string;
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
+    respondToToolApproval: (requestId: string, approved: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION, { requestId, approved }),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
     addServerAsync: (config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),

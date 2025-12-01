@@ -1,4 +1,4 @@
-import { Check, Play, Wrench, X } from "lucide-react";
+import { AlertTriangle, Check, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import {
   type MetadataPreview,
@@ -12,7 +12,14 @@ import { deepParseJson } from "../../utils";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
 import { ReasoningStep } from "./ReasoningStep";
 
-type StepType = "start" | "reasoning" | "tool_call" | "tool_result" | "final_result";
+type StepType =
+  | "start"
+  | "reasoning"
+  | "tool_call"
+  | "tool_result"
+  | "final_result"
+  | "tool_approval_required"
+  | "tool_denied";
 
 interface MCPStep {
   type: StepType;
@@ -23,6 +30,7 @@ interface MCPStep {
   args?: unknown;
   result?: unknown;
   error?: string;
+  requestId?: string;
   timestamp?: number;
 }
 
@@ -67,6 +75,24 @@ function ToolResultSuccess({ result }: { result: unknown }) {
           </pre>
         </details>
       )}
+    </div>
+  );
+}
+
+function ToolApprovalPending({ toolName }: { toolName?: string }) {
+  return (
+    <div className="text-amber-300 flex items-center gap-2">
+      <AlertTriangle className="w-4 h-4" />
+      Waiting for approval to run {toolName ?? "the requested tool"}
+    </div>
+  );
+}
+
+function ToolDeniedNotice({ message }: { message?: string }) {
+  return (
+    <div className="text-red-400 flex items-center gap-2">
+      <X className="w-3 h-3" />
+      {message ?? "Tool execution denied"}
     </div>
   );
 }
@@ -223,6 +249,16 @@ export function StageWithContent({
                     args={step.args}
                   />
                 )}
+                {step.type === "tool_approval_required" && (
+                  <div className="space-y-1">
+                    <ToolApprovalPending toolName={step.toolName} />
+                    <ToolCallStep
+                      toolName={step.toolName}
+                      serverName={step.serverName}
+                      args={step.args}
+                    />
+                  </div>
+                )}
                 {step.type === "tool_result" && (
                   <div className="ml-4 space-y-1">
                     {step.error ? (
@@ -230,6 +266,11 @@ export function StageWithContent({
                     ) : (
                       <ToolResultSuccess result={step.result} />
                     )}
+                  </div>
+                )}
+                {step.type === "tool_denied" && (
+                  <div className="ml-4">
+                    <ToolDeniedNotice message={step.message} />
                   </div>
                 )}
                 {step.type === "final_result" && (
