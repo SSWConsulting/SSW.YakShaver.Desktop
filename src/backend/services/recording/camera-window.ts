@@ -85,11 +85,11 @@ export class CameraWindow {
         ) ?? screen.getPrimaryDisplay()
       : screen.getPrimaryDisplay();
 
-    const { x, y, width } = display.workArea;
-    // Position at top-right of the screen
+    const { x, y, width, height } = display.workArea;
+    // Position at bottom-right of the screen
     return {
       x: x + width - WINDOW_SIZE.width - MARGIN,
-      y: y + MARGIN,
+      y: y + height - WINDOW_SIZE.height - MARGIN,
     };
   }
 }
