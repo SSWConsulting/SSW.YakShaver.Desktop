@@ -1,0 +1,115 @@
+name: Automated Electron App Release on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  auto-release:
+    # Only run if PR was merged (not just closed)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump_version.outputs.new_version }}
+      tag_name: ${{ steps.bump_version.outputs.tag_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine version bump type
+        id: version_bump
+        run: |
+          # Always use patch bump for automated releases
+          BUMP_TYPE="patch"
+
+          echo "bump_type=${BUMP_TYPE}" >> $GITHUB_OUTPUT
+          echo "Version bump type: ${BUMP_TYPE}"
+
+      - name: Bump version in package.json
+        id: bump_version
+        run: |
+          BUMP_TYPE="${{ steps.version_bump.outputs.bump_type }}"
+
+          # Get current version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Bump version using npm version command
+          NEW_VERSION=$(npm version $BUMP_TYPE --no-git-tag-version)
+          NEW_VERSION="${NEW_VERSION#v}"  # Remove 'v' prefix if present
+
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "tag_name=v${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "Bumped version to: $NEW_VERSION"
+
+      - name: Commit version bump
+        run: |
+          NEW_VERSION="${{ steps.bump_version.outputs.new_version }}"
+
+          git add package.json
+          git commit -m "chore: bump version to ${NEW_VERSION} [skip ci]"
+          git push origin main
+          echo "Version bump committed and pushed to main"
+
+      - name: Create and push tag
+        run: |
+          TAG_NAME="${{ steps.bump_version.outputs.tag_name }}"
+
+          git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+          git push origin "$TAG_NAME"
+          echo "Tag $TAG_NAME created and pushed"
+
+      - name: Create and publish GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.bump_version.outputs.tag_name }}"
+          NEW_VERSION="${{ steps.bump_version.outputs.new_version }}"
+
+          # Create and publish the release with auto-generated notes
+          # This will trigger the "Release Electron App" workflow (release-electron-app.yml)
+          gh release create "$TAG_NAME" \
+            --title "Release $NEW_VERSION" \
+            --generate-notes \
+            --target main
+
+          echo "Release created and published"
+          echo "This will now trigger the 'Release Electron App' workflow to build binaries"
+
+      - name: Comment on PR
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ✅ **Automated Release Created Successfully**
+
+            **Release Details:**
+            - **Version:** ${{ steps.bump_version.outputs.new_version }}
+            - **Tag:** ${{ steps.bump_version.outputs.tag_name }}
+            - **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ steps.bump_version.outputs.tag_name }}
+
+            You can monitor the build progress in the [Actions tab](https://github.com/${{ github.repository }}/actions/workflows/release-electron-app.yml).
