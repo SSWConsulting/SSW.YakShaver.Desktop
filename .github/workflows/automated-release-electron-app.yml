@@ -5,6 +5,7 @@ on:
     types: [closed]
     branches:
       - test/release-trigger
+    # test to trigger pr
 
 permissions:
   contents: write
