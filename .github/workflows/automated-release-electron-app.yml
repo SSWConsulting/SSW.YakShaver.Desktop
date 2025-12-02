@@ -94,20 +94,11 @@ jobs:
 
           echo "Release created and published"
 
-      - name: Extract PR number from commit
-        id: pr_number
-        run: |
-          # Extract PR number from merge commit message (format: "Merge pull request #123 from...")
-          PR_NUMBER=$(git log -1 --pretty=%B | grep -oP '(?<=Merge pull request #)\d+' || echo "")
-          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
-          echo "Found PR number: ${PR_NUMBER}"
-
       - name: Comment on PR
-        if: steps.pr_number.outputs.pr_number != ''
         uses: peter-evans/create-or-update-comment@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ steps.pr_number.outputs.pr_number }}
+          issue-number: ${{ github.event.pull_request.number }}
           body: |
             ✅ **Automated Release Created Successfully**
 
