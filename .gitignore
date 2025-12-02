@@ -61,6 +61,11 @@ typings/
 .env
 .env.test
 
+# Encrypted credentials (generated at build time)
+credentials.enc
+credentials.key
+app-config.json
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 

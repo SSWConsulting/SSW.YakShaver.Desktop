@@ -105,25 +105,18 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
-      - name: Create .env from secrets
+      - name: Generate encrypted credentials
         shell: pwsh
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           MCP_GITHUB_CLIENT_ID: ${{ secrets.MCP_GITHUB_CLIENT_ID }}
           MCP_GITHUB_CLIENT_SECRET: ${{ secrets.MCP_GITHUB_CLIENT_SECRET }}
+          CREDENTIALS_ENCRYPTION_KEY: ${{ secrets.CREDENTIALS_ENCRYPTION_KEY }}
           MCP_CALLBACK_PORT: 8090
           MCP_AUTH_TIMEOUT_MS: 60000
           GITHUB_APP_INSTALLATION_LINK: https://github.com/apps/ssw-yakshaver-staging/installations/select_target
-        run: |
-          "YOUTUBE_CLIENT_ID=$env:YOUTUBE_CLIENT_ID" | Out-File -FilePath ".env" -Encoding utf8 -NoNewline
-          Add-Content -Path ".env" -Value "`nYOUTUBE_CLIENT_SECRET=$env:YOUTUBE_CLIENT_SECRET"
-          Add-Content -Path ".env" -Value "`nMCP_GITHUB_CLIENT_ID=$env:MCP_GITHUB_CLIENT_ID"
-          Add-Content -Path ".env" -Value "`nMCP_GITHUB_CLIENT_SECRET=$env:MCP_GITHUB_CLIENT_SECRET"
-          Add-Content -Path ".env" -Value "`nMCP_CALLBACK_PORT=$env:MCP_CALLBACK_PORT"
-          Add-Content -Path ".env" -Value "`nMCP_AUTH_TIMEOUT_MS=$env:MCP_AUTH_TIMEOUT_MS"
-          Add-Content -Path ".env" -Value "`nGITHUB_APP_INSTALLATION_LINK=$env:GITHUB_APP_INSTALLATION_LINK"
+        run: node scripts/generate-encrypted-credentials.js
 
       - name: Install dependencies
         run: npm ci --prefer-offline
@@ -186,24 +179,17 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
-      - name: Create .env from secrets
+      - name: Generate encrypted credentials
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           MCP_GITHUB_CLIENT_ID: ${{ secrets.MCP_GITHUB_CLIENT_ID }}
           MCP_GITHUB_CLIENT_SECRET: ${{ secrets.MCP_GITHUB_CLIENT_SECRET }}
+          CREDENTIALS_ENCRYPTION_KEY: ${{ secrets.CREDENTIALS_ENCRYPTION_KEY }}
           MCP_CALLBACK_PORT: 8090
           MCP_AUTH_TIMEOUT_MS: 60000
           GITHUB_APP_INSTALLATION_LINK: https://github.com/apps/ssw-yakshaver-staging/installations/select_target
-        run: |
-          printf "YOUTUBE_CLIENT_ID=%s\n" "$YOUTUBE_CLIENT_ID" > .env
-          printf "YOUTUBE_CLIENT_SECRET=%s\n" "$YOUTUBE_CLIENT_SECRET" >> .env
-          printf "MCP_GITHUB_CLIENT_ID=%s\n" "$MCP_GITHUB_CLIENT_ID" >> .env
-          printf "MCP_GITHUB_CLIENT_SECRET=%s\n" "$MCP_GITHUB_CLIENT_SECRET" >> .env
-          printf "MCP_CALLBACK_PORT=%s\n" "$MCP_CALLBACK_PORT" >> .env
-          printf "MCP_AUTH_TIMEOUT_MS=%s\n" "$MCP_AUTH_TIMEOUT_MS" >> .env
-          printf "GITHUB_APP_INSTALLATION_LINK=%s\n" "$GITHUB_APP_INSTALLATION_LINK" >> .env
+        run: node scripts/generate-encrypted-credentials.js
 
       - name: Install dependencies
         run: npm ci --prefer-offline
