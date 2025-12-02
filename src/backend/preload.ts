@@ -52,6 +52,7 @@ const IPC_CHANNELS = {
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
   MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
+  MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -190,6 +191,8 @@ const electronAPI = {
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
     respondToToolApproval: (requestId: string, approved: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION, { requestId, approved }),
+    addToolToWhitelist: (toolName: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_TOOL_TO_WHITELIST, { toolName }),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
     addServerAsync: (config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),

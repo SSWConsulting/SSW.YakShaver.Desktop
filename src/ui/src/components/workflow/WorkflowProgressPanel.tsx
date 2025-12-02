@@ -19,6 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
+import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { type MCPStep, StageWithContent } from "./StageWithContent";
 import { StageWithoutContent } from "./StageWithoutContent";
@@ -198,14 +199,26 @@ export function WorkflowProgressPanel() {
     });
   }, []);
 
-  const handleToolApprovalDecision = async (approved: boolean) => {
-    if (!pendingToolApproval) {
+  const resolveToolApproval = async (approved: boolean, options?: { whitelist?: boolean }) => {
+    if (!pendingToolApproval?.requestId) {
       return;
     }
 
     setApprovalSubmitting(true);
     setApprovalError(null);
     try {
+      if (options?.whitelist) {
+        if (!pendingToolApproval.toolName) {
+          throw new Error("Tool name missing for whitelist request.");
+        }
+        const whitelistResponse = await ipcClient.mcp.addToolToWhitelist(
+          pendingToolApproval.toolName,
+        );
+        if (!whitelistResponse?.success) {
+          throw new Error("Failed to add tool to whitelist.");
+        }
+      }
+
       const result = await ipcClient.mcp.respondToToolApproval(
         pendingToolApproval.requestId,
         approved,
@@ -261,21 +274,39 @@ export function WorkflowProgressPanel() {
           </div>
         )}
         {approvalError && <p className="text-red-400 text-sm">{approvalError}</p>}
-        <AlertDialogFooter>
+        <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <AlertDialogCancel
             disabled={approvalSubmitting}
             onClick={(event) => {
               event.preventDefault();
-              void handleToolApprovalDecision(false);
+              void resolveToolApproval(false);
             }}
           >
             Deny
           </AlertDialogCancel>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={approvalSubmitting || !pendingToolApproval?.toolName}
+            onClick={(event) => {
+              event.preventDefault();
+              void resolveToolApproval(true, { whitelist: true });
+            }}
+          >
+            {approvalSubmitting ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </span>
+            ) : (
+              "Approve & whitelist"
+            )}
+          </Button>
           <AlertDialogAction
             disabled={approvalSubmitting}
             onClick={(event) => {
               event.preventDefault();
-              void handleToolApprovalDecision(true);
+              void resolveToolApproval(true);
             }}
           >
             {approvalSubmitting ? (
@@ -284,7 +315,7 @@ export function WorkflowProgressPanel() {
                 Processing...
               </span>
             ) : (
-              "Approve & run"
+              "Approve once"
             )}
           </AlertDialogAction>
         </AlertDialogFooter>

@@ -4,7 +4,6 @@ import type { VideoUploadResult } from "../auth/types";
 import { LLMClientProvider } from "./llm-client-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 import { BrowserWindow } from "electron";
-import { McpStorage } from "../storage/mcp-storage";
 
 type StepType =
   | "start"
@@ -63,7 +62,6 @@ export class MCPOrchestrator {
     prompt: string,
     videoUploadResult?: VideoUploadResult,
     options: {
-      serverFilter?: string[]; // if provided, only include tools from these servers
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
     } = {},
@@ -80,7 +78,7 @@ export class MCPOrchestrator {
     }
 
     // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsAsync(options.serverFilter);
+    const tools = await serverManager.collectToolsWithServerPrefixAsync();
 
     let systemPrompt =
       options.systemPrompt ??
@@ -96,11 +94,12 @@ export class MCPOrchestrator {
       { role: "user", content: prompt },
     ];
 
-    const McpConfigs = await McpStorage.getInstance().getMcpServerConfigsAsync();
-    const toolWhiteList = new Set(McpConfigs.flatMap((config) => config?.toolWhitelist ?? []));
-
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 10); i++) {
+      // need to refresh the tool whitelist each iteration in case it has changed
+      const toolWhiteList = new Set(
+        (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
+      );
       const llmResponse = await MCPOrchestrator.llmProvider
         .generateTextWithTools(messages, tools)
         .catch((error) => {
@@ -116,6 +115,7 @@ export class MCPOrchestrator {
       const responseMessages = llmResponse.response.messages;
       messages.push(...responseMessages);
 
+      // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
         for (const toolCall of llmResponse.toolCalls) {
           const requiresApproval = !toolWhiteList.has(toolCall.toolName);
@@ -217,7 +217,7 @@ export class MCPOrchestrator {
     }
 
     // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsAsync(options.serverFilter);
+    const tools = await serverManager.collectToolsWithServerPrefixAsync();
 
     let systemPrompt =
       options.systemPrompt ??

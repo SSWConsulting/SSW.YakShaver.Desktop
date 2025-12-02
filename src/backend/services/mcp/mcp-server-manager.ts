@@ -47,24 +47,22 @@ export class MCPServerManager {
       .map((r) => (r as PromiseFulfilledResult<MCPServerClient | null>).value as MCPServerClient);
   }
 
-  public async collectToolsAsync(serverFilter?: string[]): Promise<ToolSet> {
-    const normalizedFilter = serverFilter
-      ?.map((name) => name.trim())
-      .filter((name) => name.length > 0);
-
-    const clients = normalizedFilter?.length
-      ? await this.getSelectedMcpServerClientsAsync(normalizedFilter)
-      : await this.getAllMcpServerClientsAsync();
+  public async collectToolsWithServerPrefixAsync(): Promise<ToolSet> {
+    const clients = await this.getAllMcpServerClientsAsync();
 
     if (!clients.length) {
       throw new Error("[MCPServerManager]: No MCP clients available");
     }
 
-    const results = await Promise.allSettled(clients.map((client) => client.listToolsAsync()));
+    const results = await Promise.allSettled(
+      clients.map((client) => client.listToolsWithServerPrefixAsync()),
+    );
     const toolMaps = results
       .filter((r) => r.status === "fulfilled")
       .map((r) => MCPServerManager.normalizeTools((r as PromiseFulfilledResult<unknown>).value));
+
     const combined = Object.assign({}, ...toolMaps) as ToolSet;
+
     if (Object.keys(combined).length === 0) {
       throw new Error("[MCPServerManager]: No tools available from selected/healthy servers");
     }
@@ -330,5 +328,37 @@ export class MCPServerManager {
 
   private static isBuiltinName(name: string): boolean {
     return MCPServerManager.internalServerConfigs.some((s) => s.name === name);
+  }
+
+  public async getWhitelistWithServerPrefixAsync(): Promise<string[]> {
+    const storage = McpStorage.getInstance();
+    const serverConfigs = await storage.getMcpServerConfigsAsync();
+
+    return serverConfigs.flatMap((config) => {
+      const sanitizedServerName = config.name.replace(/\s+/g, "_");
+      return (config.toolWhitelist ?? []).map((toolName) => `${sanitizedServerName}__${toolName}`);
+    });
+  }
+
+  public async addToolToServerWhitelistAsync(serverName: string, toolName: string): Promise<void> {
+    const storage = McpStorage.getInstance();
+    const serverConfigs = await storage.getMcpServerConfigsAsync();
+    const targetIndex = serverConfigs.findIndex((server) => server.name === serverName);
+
+    if (targetIndex === -1) {
+      throw new Error(`[McpStorage]: MCP server with name ${serverName} not found`);
+    }
+
+    const existingWhitelist = new Set(serverConfigs[targetIndex].toolWhitelist ?? []);
+    if (existingWhitelist.has(toolName)) {
+      return;
+    }
+
+    serverConfigs[targetIndex] = {
+      ...serverConfigs[targetIndex],
+      toolWhitelist: [...existingWhitelist, toolName],
+    };
+
+    await storage.storeMcpServers(serverConfigs);
   }
 }
