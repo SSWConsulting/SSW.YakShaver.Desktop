@@ -94,11 +94,28 @@ jobs:
 
           echo "Release created and published"
 
+      - name: Extract PR number from commit
+        id: pr_number
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Extract PR number from squash merge format: "title (#123)"
+          PR_NUMBER=$(git log -1 --pretty=%B | head -1 | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' || echo "")
+
+          # Fallback: use GitHub API to find PR by commit SHA
+          if [ -z "$PR_NUMBER" ]; then
+            PR_NUMBER=$(gh pr list --search "${{ github.sha }}" --state merged --json number --jq '.[0].number' 2>/dev/null || echo "")
+          fi
+
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "Found PR number: ${PR_NUMBER}"
+
       - name: Comment on PR
+        if: steps.pr_number.outputs.pr_number != ''
         uses: peter-evans/create-or-update-comment@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ github.event.pull_request.number }}
+          issue-number: ${{ steps.pr_number.outputs.pr_number }}
           body: |
             ✅ **Automated Release Created Successfully**
 
