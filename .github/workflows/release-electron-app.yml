@@ -40,6 +40,13 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
       - name: Generate encrypted credentials
         shell: pwsh
         env:
@@ -52,13 +59,6 @@ jobs:
           MCP_AUTH_TIMEOUT_MS: 60000
           GITHUB_APP_INSTALLATION_LINK: https://github.com/apps/ssw-yakshaver/installations/select_target
         run: node scripts/generate-encrypted-credentials.js
-
-      - name: Install dependencies
-        run: npm ci --prefer-offline
-
-      - name: Install UI dependencies
-        run: npm ci --prefer-offline
-        working-directory: src/ui
 
       - name: Publish Windows app
         run: npm run publish -- --win
@@ -81,6 +81,13 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
       - name: Generate encrypted credentials
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
@@ -92,13 +99,6 @@ jobs:
           MCP_AUTH_TIMEOUT_MS: 60000
           GITHUB_APP_INSTALLATION_LINK: https://github.com/apps/ssw-yakshaver/installations/select_target
         run: node scripts/generate-encrypted-credentials.js
-
-      - name: Install dependencies
-        run: npm ci --prefer-offline
-
-      - name: Install UI dependencies
-        run: npm ci --prefer-offline
-        working-directory: src/ui
 
       - name: Publish macOS app
         run: npm run publish -- --mac
