@@ -19,7 +19,12 @@
 
 import { randomBytes, createCipheriv, pbkdf2Sync } from "node:crypto";
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const ALGORITHM = "aes-256-gcm";
 const KEY_LENGTH = 32; // 256 bits
