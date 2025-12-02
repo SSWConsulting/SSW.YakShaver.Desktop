@@ -8,11 +8,13 @@ import type {
   AuthState,
   ConvertVideoToMp3Result,
   CustomPrompt,
+  GeneralSettings,
   HealthStatusInfo,
   LLMConfig,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
   ScreenSource,
+  ToolApprovalMode,
   TranscriptEntry,
   UserInfo,
   VideoUploadResult,
@@ -108,6 +110,7 @@ declare global {
             result?: unknown;
             error?: string;
             requestId?: string;
+            autoApproveAt?: number;
           }) => void,
         ) => () => void;
         respondToToolApproval: (
@@ -167,6 +170,10 @@ declare global {
           error?: string;
         }>;
         getInstallUrl: () => Promise<string>;
+      };
+      generalSettings: {
+        get: () => Promise<GeneralSettings>;
+        setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
       };
     };
   }

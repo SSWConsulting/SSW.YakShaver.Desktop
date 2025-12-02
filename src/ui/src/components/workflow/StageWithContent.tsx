@@ -32,6 +32,7 @@ interface MCPStep {
   error?: string;
   requestId?: string;
   timestamp?: number;
+  autoApproveAt?: number;
 }
 
 interface StageWithContentProps {

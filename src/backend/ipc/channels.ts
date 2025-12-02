@@ -81,4 +81,8 @@ export const IPC_CHANNELS = {
   GITHUB_TOKEN_HAS: "github-token:has",
   GITHUB_TOKEN_VERIFY: "github-token:verify",
   GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
+
+  // General Settings
+  GENERAL_SETTINGS_GET: "general-settings:get",
+  GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
 } as const;

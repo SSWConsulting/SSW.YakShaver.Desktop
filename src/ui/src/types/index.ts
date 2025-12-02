@@ -187,3 +187,9 @@ export const UNDO_EVENT_CHANNEL = "yakshaver:undo-event";
 export type UndoEventDetail = {
   type: "start" | "complete" | "error" | "reset";
 };
+
+export type ToolApprovalMode = "yolo" | "wait" | "always_ask";
+
+export interface GeneralSettings {
+  toolApprovalMode: ToolApprovalMode;
+}

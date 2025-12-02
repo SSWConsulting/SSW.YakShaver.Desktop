@@ -1,5 +1,5 @@
 import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import {
   ProgressStage,
@@ -66,9 +66,11 @@ export function WorkflowProgressPanel() {
     requestId: string;
     toolName?: string;
     args?: unknown;
+    autoApproveAt?: number;
   } | null>(null);
   const [approvalSubmitting, setApprovalSubmitting] = useState(false);
   const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [autoApprovalCountdown, setAutoApprovalCountdown] = useState<number | null>(null);
   const stepsRef = useRef<HTMLDivElement | null>(null);
   const undoStatusRef = useRef<"idle" | "in_progress" | "completed" | "error">("idle");
   const sourceOriginRef = useRef<VideoUploadOrigin | undefined>(undefined);
@@ -180,6 +182,7 @@ export function WorkflowProgressPanel() {
           requestId: step.requestId,
           toolName: step.toolName,
           args: step.args,
+          autoApproveAt: step.autoApproveAt,
         });
         setApprovalError(null);
       }
@@ -199,40 +202,69 @@ export function WorkflowProgressPanel() {
     });
   }, []);
 
-  const resolveToolApproval = async (approved: boolean, options?: { whitelist?: boolean }) => {
-    if (!pendingToolApproval?.requestId) {
+  const resolveToolApproval = useCallback(
+    async (approved: boolean, options?: { whitelist?: boolean }) => {
+      if (!pendingToolApproval?.requestId) {
+        return;
+      }
+
+      setApprovalSubmitting(true);
+      setApprovalError(null);
+      try {
+        if (options?.whitelist) {
+          if (!pendingToolApproval.toolName) {
+            throw new Error("Tool name missing for whitelist request.");
+          }
+          const whitelistResponse = await ipcClient.mcp.addToolToWhitelist(
+            pendingToolApproval.toolName,
+          );
+          if (!whitelistResponse?.success) {
+            throw new Error("Failed to add tool to whitelist.");
+          }
+        }
+
+        const result = await ipcClient.mcp.respondToToolApproval(
+          pendingToolApproval.requestId,
+          approved,
+        );
+        if (!result?.success) {
+          throw new Error("Unable to submit tool approval decision.");
+        }
+        setPendingToolApproval(null);
+      } catch (error) {
+        setApprovalError(formatErrorMessage(error));
+      } finally {
+        setApprovalSubmitting(false);
+      }
+    },
+    [pendingToolApproval],
+  );
+
+  useEffect(() => {
+    if (!pendingToolApproval?.autoApproveAt || !pendingToolApproval.requestId) {
+      setAutoApprovalCountdown(null);
       return;
     }
 
-    setApprovalSubmitting(true);
-    setApprovalError(null);
-    try {
-      if (options?.whitelist) {
-        if (!pendingToolApproval.toolName) {
-          throw new Error("Tool name missing for whitelist request.");
-        }
-        const whitelistResponse = await ipcClient.mcp.addToolToWhitelist(
-          pendingToolApproval.toolName,
-        );
-        if (!whitelistResponse?.success) {
-          throw new Error("Failed to add tool to whitelist.");
-        }
-      }
+    const deadline = pendingToolApproval.autoApproveAt;
+    const updateCountdown = () => {
+      const remainingMs = deadline - Date.now();
+      setAutoApprovalCountdown(Math.max(0, Math.ceil(remainingMs / 1000)));
+    };
 
-      const result = await ipcClient.mcp.respondToToolApproval(
-        pendingToolApproval.requestId,
-        approved,
-      );
-      if (!result?.success) {
-        throw new Error("Unable to submit tool approval decision.");
-      }
-      setPendingToolApproval(null);
-    } catch (error) {
-      setApprovalError(formatErrorMessage(error));
-    } finally {
-      setApprovalSubmitting(false);
-    }
-  };
+    updateCountdown();
+
+    const intervalId = window.setInterval(updateCountdown, 500);
+    const timeoutDelay = Math.max(0, deadline - Date.now());
+    const timeoutId = window.setTimeout(() => {
+      void resolveToolApproval(true);
+    }, timeoutDelay);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [pendingToolApproval?.autoApproveAt, pendingToolApproval?.requestId, resolveToolApproval]);
 
   const derivedOrigin = resolveWorkflowOrigin(progress);
   sourceOriginRef.current = derivedOrigin ?? sourceOriginRef.current;
@@ -266,6 +298,11 @@ export function WorkflowProgressPanel() {
             The orchestrator needs your confirmation before executing this MCP tool.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {autoApprovalCountdown !== null && (
+          <p className="text-xs text-yellow-300">
+            Auto-approving in {autoApprovalCountdown}s if no action is taken.
+          </p>
+        )}
         {approvalArgsText && (
           <div className="bg-black/30 border border-white/10 rounded-md max-h-48 overflow-y-auto">
             <pre className="text-xs text-white/80 p-3 whitespace-pre-wrap break-words">

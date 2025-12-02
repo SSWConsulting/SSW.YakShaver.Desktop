@@ -2,6 +2,7 @@ import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
+import type { ToolApprovalMode } from "./services/storage/general-settings-storage";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
 // Need to make single source of truth
@@ -88,6 +89,10 @@ const IPC_CHANNELS = {
   GITHUB_TOKEN_HAS: "github-token:has",
   GITHUB_TOKEN_VERIFY: "github-token:verify",
   GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
+
+  // General Settings
+  GENERAL_SETTINGS_GET: "general-settings:get",
+  GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -187,6 +192,7 @@ const electronAPI = {
         result?: unknown;
         error?: string;
         requestId?: string;
+        autoApproveAt?: number;
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
     respondToToolApproval: (requestId: string, approved: boolean) =>
@@ -239,6 +245,11 @@ const electronAPI = {
         error?: string;
       }>,
     getInstallUrl: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_APP_GET_INSTALL_URL),
+  },
+  generalSettings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_GET),
+    setMode: (mode: ToolApprovalMode) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE, mode),
   },
 };
 

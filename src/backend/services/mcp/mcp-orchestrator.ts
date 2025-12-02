@@ -4,6 +4,7 @@ import type { VideoUploadResult } from "../auth/types";
 import { LLMClientProvider } from "./llm-client-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 import { BrowserWindow } from "electron";
+import { GeneralSettingsStorage, type ToolApprovalMode } from "../storage/general-settings-storage";
 
 type StepType =
   | "start"
@@ -25,7 +26,10 @@ interface MCPStep {
   error?: string;
   requestId?: string;
   timestamp?: number;
+  autoApproveAt?: number;
 }
+
+const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 
 function sendStepEvent(event: MCPStep): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -79,6 +83,7 @@ export class MCPOrchestrator {
 
     // Get tools and apply the server filter if provided
     const tools = await serverManager.collectToolsWithServerPrefixAsync();
+    const generalSettingsStorage = GeneralSettingsStorage.getInstance();
 
     let systemPrompt =
       options.systemPrompt ??
@@ -96,10 +101,14 @@ export class MCPOrchestrator {
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 10); i++) {
-      // need to refresh the tool whitelist each iteration in case it has changed
-      const toolWhiteList = new Set(
-        (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
-      );
+      const generalSettings = await generalSettingsStorage.getSettingsAsync();
+      const toolApprovalMode: ToolApprovalMode = generalSettings.toolApprovalMode;
+      const bypassApprovalChecks = toolApprovalMode === "yolo";
+      const toolWhiteList = bypassApprovalChecks
+        ? new Set<string>()
+        : new Set(
+            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
+          );
       const llmResponse = await MCPOrchestrator.llmProvider
         .generateTextWithTools(messages, tools)
         .catch((error) => {
@@ -118,12 +127,17 @@ export class MCPOrchestrator {
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
         for (const toolCall of llmResponse.toolCalls) {
-          const requiresApproval = !toolWhiteList.has(toolCall.toolName);
+          const requiresApproval = !bypassApprovalChecks && !toolWhiteList.has(toolCall.toolName);
 
           if (requiresApproval) {
+            const autoApproveAt =
+              toolApprovalMode === "wait"
+                ? Date.now() + WAIT_MODE_AUTO_APPROVE_DELAY_MS
+                : undefined;
             const { approved, requestId } = await this.requestToolApproval(
               toolCall.toolName,
               toolCall.input,
+              { autoApproveAt },
             );
 
             if (!approved) {
@@ -241,6 +255,7 @@ export class MCPOrchestrator {
   private async requestToolApproval(
     toolName: string,
     args: unknown,
+    options?: { autoApproveAt?: number },
   ): Promise<{ requestId: string; approved: boolean }> {
     if (!MCPOrchestrator.instance) {
       throw new Error("[MCPOrchestrator]: requestToolApproval called before initialization");
@@ -253,6 +268,7 @@ export class MCPOrchestrator {
       args,
       requestId,
       message: `Approval required to run ${toolName}`,
+      autoApproveAt: options?.autoApproveAt,
     });
 
     const approved = await new Promise<boolean>((resolve) => {
