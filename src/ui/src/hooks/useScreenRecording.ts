@@ -55,7 +55,6 @@ export function useScreenRecording() {
         const result = await window.electronAPI.screenRecording.start(sourceId);
         if (!result.success) throw new Error("Failed to start recording");
 
-        // Get screen and audio streams only - camera is handled separately
         const [videoStream, audioStream] = await Promise.all([
           navigator.mediaDevices.getUserMedia({
             audio: false,
@@ -63,6 +62,9 @@ export function useScreenRecording() {
               mandatory: {
                 chromeMediaSource: "desktop",
                 chromeMediaSourceId: result.sourceId,
+                maxWidth: 3840,
+                maxHeight: 2160,
+                maxFrameRate: 30,
               },
             } as ElectronVideoConstraints,
           }),
@@ -74,7 +76,6 @@ export function useScreenRecording() {
           }),
         ]);
 
-        // Create a silent audio pipeline to force Windows to keep the audio device active (prevents Windows from switching Bluetooth devices)
         const audioContext = new AudioContext();
         const audioSource = audioContext.createMediaStreamSource(audioStream);
         const gainNode = audioContext.createGain();
@@ -87,7 +88,6 @@ export function useScreenRecording() {
 
         streamsRef.current = { video: videoStream, audio: audioStream };
 
-        // Record only the screen stream
         const recorder = new MediaRecorder(
           new MediaStream([
             ...videoStream.getVideoTracks(),
@@ -102,8 +102,6 @@ export function useScreenRecording() {
 
         mediaRecorderRef.current = recorder;
 
-        // Show control bar and camera window BEFORE starting the recorder
-        // This ensures the camera is visible and ready in the recording
         await window.electronAPI.screenRecording.showControlBar(
           options?.cameraDeviceId
         );
@@ -136,7 +134,12 @@ export function useScreenRecording() {
     return new Promise((resolve) => {
       recorder.onstop = async () => {
         try {
-          await window.electronAPI.screenRecording.hideControlBar();
+          // Try to hide control bar (may already be hidden if stopped from control bar)
+          try {
+            await window.electronAPI.screenRecording.hideControlBar();
+          } catch (hideError) {
+            console.log("Control bar already hidden:", hideError);
+          }
 
           const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
           const result = await window.electronAPI.screenRecording.stop(
