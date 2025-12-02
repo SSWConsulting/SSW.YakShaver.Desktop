@@ -3,6 +3,7 @@ import { BrowserWindow, screen } from "electron";
 
 const WINDOW_SIZE = { width: 400, height: 225 }; // 16:9 aspect ratio
 const MARGIN = 20;
+const SNAP_MARGIN = 10; // Minimum gap from screen edges
 
 export class CameraWindow {
   private static instance: CameraWindow;
@@ -56,6 +57,11 @@ export class CameraWindow {
       this.window = null;
     });
 
+    // Add snap-to-border functionality
+    this.window.on("moved", () => {
+      this.snapToScreenEdge();
+    });
+
     this.window.setAlwaysOnTop(true, "floating");
 
     await (this.isDev ? this.window.loadURL(url) : this.window.loadFile(url));
@@ -103,5 +109,56 @@ export class CameraWindow {
       x: x + width - WINDOW_SIZE.width - MARGIN,
       y: y + height - WINDOW_SIZE.height - MARGIN,
     };
+  }
+
+  private snapToScreenEdge() {
+    if (!this.window) return;
+
+    const [windowX, windowY] = this.window.getPosition();
+    const { width: windowWidth, height: windowHeight } = WINDOW_SIZE;
+
+    // Find which display the window is on
+    const displays = screen.getAllDisplays();
+    const currentDisplay = screen.getDisplayNearestPoint({
+      x: windowX,
+      y: windowY,
+    });
+
+    if (!currentDisplay) return;
+
+    const {
+      x: displayX,
+      y: displayY,
+      width: displayWidth,
+      height: displayHeight,
+    } = currentDisplay.workArea;
+    const displayRight = displayX + displayWidth;
+    const displayBottom = displayY + displayHeight;
+
+    let newX = windowX;
+    let newY = windowY;
+
+    // Check left edge
+    if (windowX < displayX + SNAP_MARGIN) {
+      newX = displayX + SNAP_MARGIN;
+    }
+    // Check right edge
+    else if (windowX + windowWidth > displayRight - SNAP_MARGIN) {
+      newX = displayRight - windowWidth - SNAP_MARGIN;
+    }
+
+    // Check top edge
+    if (windowY < displayY + SNAP_MARGIN) {
+      newY = displayY + SNAP_MARGIN;
+    }
+    // Check bottom edge
+    else if (windowY + windowHeight > displayBottom - SNAP_MARGIN) {
+      newY = displayBottom - windowHeight - SNAP_MARGIN;
+    }
+
+    // Only update position if it changed
+    if (newX !== windowX || newY !== windowY) {
+      this.window.setPosition(newX, newY);
+    }
   }
 }
