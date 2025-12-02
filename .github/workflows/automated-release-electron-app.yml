@@ -1,4 +1,4 @@
-name: Automated Electron App Release on PR Merge
+name: Automated Electron App Release
 
 on:
   pull_request:
@@ -59,8 +59,10 @@ jobs:
           echo "Current version: $CURRENT_VERSION"
 
           # Bump version using npm version command
-          NEW_VERSION=$(npm version $BUMP_TYPE --no-git-tag-version)
-          NEW_VERSION="${NEW_VERSION#v}"  # Remove 'v' prefix if present
+          npm version $BUMP_TYPE --no-git-tag-version
+
+          # Read the new version directly from package.json
+          NEW_VERSION=$(node -p "require('./package.json').version")
 
           echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
           echo "tag_name=v${NEW_VERSION}" >> $GITHUB_OUTPUT
@@ -72,8 +74,8 @@ jobs:
 
           git add package.json
           git commit -m "chore: bump version to ${NEW_VERSION} [skip ci]"
-          git push origin main
-          echo "Version bump committed and pushed to main"
+          git push origin test/release-trigger
+          echo "Version bump committed and pushed to test/release-trigger"
 
       - name: Create and push tag
         run: |
