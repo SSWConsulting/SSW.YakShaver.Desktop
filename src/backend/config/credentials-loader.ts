@@ -6,6 +6,7 @@ import {
   OAuthCredentialsStorage,
   type StoredOAuthCredentials,
 } from "../services/storage/oauth-credentials-storage";
+import { formatErrorMessage } from "../utils/error-utils";
 
 const ALGORITHM = "aes-256-gcm";
 const KEY_LENGTH = 32;
@@ -82,9 +83,7 @@ async function credentialsAlreadyImported(): Promise<boolean> {
  */
 export async function initializeCredentials(): Promise<boolean> {
   try {
-    // Check if already imported
     if (await credentialsAlreadyImported()) {
-      console.log("[CredentialsLoader] Credentials already in secure storage");
       return true;
     }
 
@@ -106,14 +105,17 @@ export async function initializeCredentials(): Promise<boolean> {
 
     // Decrypt and import
     const key = deriveKey(encryptionKey);
-    const decrypted = decrypt(encryptedBuffer, key);
-    const credentials: StoredOAuthCredentials = JSON.parse(decrypted);
+    let credentials: StoredOAuthCredentials;
+    try {
+      const decrypted = decrypt(encryptedBuffer, key);
+      credentials = JSON.parse(decrypted);
+    } catch (err) {
+      throw new Error(`[CredentialsLoader] Failed to decrypt or parse credentials file: ${formatErrorMessage(err)}`);
+    }
 
     // Store in secure storage
     const storage = OAuthCredentialsStorage.getInstance();
     await storage.storeCredentials(credentials);
-
-    console.log("[CredentialsLoader] Successfully imported credentials to secure storage");
 
     // Load app config into environment for non-sensitive values
     const appConfig = await loadAppConfig();
@@ -157,7 +159,6 @@ async function fallbackToEnv(): Promise<boolean> {
     if (Object.keys(credentials).length > 0) {
       const storage = OAuthCredentialsStorage.getInstance();
       await storage.storeCredentials(credentials);
-      console.log("[CredentialsLoader] Imported credentials from .env to secure storage");
       return true;
     }
 
