@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [closed]
     branches:
-      - test/releaser-trigger
+      - test/release-trigger
 
 permissions:
   contents: write
