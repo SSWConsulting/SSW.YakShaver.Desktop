@@ -83,14 +83,6 @@ jobs:
           echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
           echo "tag_name=v${NEW_VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Create and push tag
-        run: |
-          TAG_NAME="${{ steps.get_version.outputs.tag_name }}"
-
-          git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
-          git push origin "$TAG_NAME"
-          echo "Tag $TAG_NAME created and pushed"
-
       - name: Create and publish GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
