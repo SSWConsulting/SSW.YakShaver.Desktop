@@ -26,7 +26,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: main
+          ref: test/release-trigger
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -50,7 +50,6 @@ jobs:
           echo "Latest tag: $LATEST_TAG"
 
           if [ -z "$LATEST_TAG" ]; then
-            # No tags exist, start from package version
             NEW_VERSION=$PACKAGE_VERSION
           else
             # Extract version number from tag (remove 'v' prefix)
@@ -120,7 +119,7 @@ jobs:
             - **Tag:** ${{ steps.get_version.outputs.tag_name }}
             - **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag_name }}
 
-            You can monitor the build progress in the [Actions tab](https://github.com/${{ github.repository }}/actions/workflows/release-electron-app.yml).
+            You can monitor the build progress in the [Actions tab](https://github.com/${{ github.repository }}/actions/workflows/automated-release-electron-app.yml).
 
   # Trigger the release build workflow directly (bypasses GITHUB_TOKEN limitation)
   trigger-build:

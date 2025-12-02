@@ -1,5 +1,7 @@
 name: Release Electron App
 
+run-name: "Build & Release ${{ inputs.tag_name || github.event.release.tag_name }}"
+
 on:
   release:
     types: [published]
