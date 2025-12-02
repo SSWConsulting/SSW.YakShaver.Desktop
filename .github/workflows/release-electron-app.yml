@@ -1,7 +1,5 @@
 name: Release Electron App
 
-run-name: "Build & Release ${{ inputs.tag_name || github.event.release.tag_name }}"
-
 on:
   release:
     types: [published]
@@ -103,7 +101,6 @@ jobs:
           NODE_ENV: production
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # PUBLISH_FOR_PULL_REQUEST: true
 
   build-macos:
     needs: check-release
@@ -161,4 +158,3 @@ jobs:
           NODE_ENV: production
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # PUBLISH_FOR_PULL_REQUEST: true
