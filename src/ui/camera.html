@@ -81,6 +81,9 @@
           await new Promise((resolve) => {
             video.onloadeddata = resolve;
           });
+          if (window.electronAPI) {
+            window.electronAPI.cameraReady();
+          }
         } catch (error) {
           console.error("Error accessing camera:", error);
           video.style.display = "none";
