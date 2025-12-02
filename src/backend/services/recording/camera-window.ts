@@ -61,11 +61,9 @@ export class CameraWindow {
     await (this.isDev ? this.window.loadURL(url) : this.window.loadFile(url));
 
     if (!this.isDev) {
-      // Pass device ID via IPC for production mode
       this.window.webContents.send("set-camera-device", cameraDeviceId);
     }
 
-    // Wait for camera to be ready before showing and returning
     await new Promise<void>((resolve) => {
       const { ipcMain } = require("electron");
       const handler = () => {
@@ -74,7 +72,6 @@ export class CameraWindow {
       };
       ipcMain.once("camera-ready", handler);
 
-      // Timeout after 5 seconds in case camera fails to load
       setTimeout(() => {
         ipcMain.removeListener("camera-ready", handler);
         resolve();
@@ -102,7 +99,6 @@ export class CameraWindow {
       : screen.getPrimaryDisplay();
 
     const { x, y, width, height } = display.workArea;
-    // Position at bottom-right of the screen
     return {
       x: x + width - WINDOW_SIZE.width - MARGIN,
       y: y + height - WINDOW_SIZE.height - MARGIN,

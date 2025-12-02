@@ -108,7 +108,6 @@ export function useScreenRecording() {
           options?.cameraDeviceId
         );
 
-        // Now start the actual recording
         recorder.start();
         setIsRecording(true);
         toast.success("Recording started");
@@ -129,7 +128,6 @@ export function useScreenRecording() {
   } | null> => {
     if (!mediaRecorderRef.current) return null;
 
-    // If already stopping or stopped, don't try again
     const recorder = mediaRecorderRef.current;
     if (recorder.state === "inactive") return null;
 
