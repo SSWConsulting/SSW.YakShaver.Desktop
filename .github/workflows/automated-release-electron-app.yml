@@ -111,7 +111,6 @@ jobs:
           echo "Found PR number: ${PR_NUMBER}"
 
       - name: Comment on PR
-        if: steps.pr_number.outputs.pr_number != ''
         uses: peter-evans/create-or-update-comment@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
