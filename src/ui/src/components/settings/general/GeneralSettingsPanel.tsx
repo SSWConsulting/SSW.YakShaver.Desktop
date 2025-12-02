@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "@/services/ipc-client";
 import type { GeneralSettings, ToolApprovalMode } from "@/types";
 import { cn } from "@/lib/utils";
-import { Button } from "../../ui/button";
 
 interface GeneralSettingsPanelProps {
   isActive: boolean;
@@ -25,11 +24,11 @@ const MODE_OPTIONS: ModeOption[] = [
     id: "wait",
     title: "Wait",
     description:
-      "Show the approval dialog for 15 seconds. If there is no response in that window, the tool call is auto-approved.",
+      "Display tool approval dialog for 15 seconds. If there is no response, the tool call is auto-approved.",
   },
   {
-    id: "always_ask",
-    title: "Always Ask",
+    id: "ask",
+    title: "Ask",
     description:
       "Require an explicit decision for every non-whitelisted tool. The workflow pauses indefinitely until you respond.",
   },
@@ -38,11 +37,11 @@ const MODE_OPTIONS: ModeOption[] = [
 const MODE_LABELS: Record<ToolApprovalMode, string> = {
   yolo: "YOLO",
   wait: "Wait",
-  always_ask: "Always Ask",
+  ask: "Ask",
 };
 
 export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
-  const [settings, setSettings] = useState<GeneralSettings>({ toolApprovalMode: "always_ask" });
+  const [settings, setSettings] = useState<GeneralSettings>({ toolApprovalMode: "ask" });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [pendingMode, setPendingMode] = useState<ToolApprovalMode | null>(null);
 
@@ -88,27 +87,16 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
 
   const currentMode = settings.toolApprovalMode;
 
-  const helperText = useMemo(() => {
-    switch (currentMode) {
-      case "yolo":
-        return "All tool calls are executed immediately. Only use this with MCP servers you completely trust.";
-      case "wait":
-        return "You will see the approval dialog, but the tool will run automatically after 15 seconds if you do nothing.";
-      default:
-        return "You must explicitly approve each non-whitelisted tool. This is the safest option.";
-    }
-  }, [currentMode]);
-
   return (
     <div className="space-y-6">
       <div className="space-y-2">
         <h2 className="text-xl font-semibold">Tool Approval Mode</h2>
         <p className="text-sm text-white/70">
-          Choose how the orchestrator handles MCP tool approvals. You can switch modes at any time per your risk tolerance.
+          Choose how the orchestrator handles MCP tool approvals.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="flex flex-col gap-4 md:flex-row md:items-stretch">
         {MODE_OPTIONS.map((mode) => {
           const isSelected = mode.id === currentMode;
           return (
@@ -117,38 +105,24 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
               type="button"
               onClick={() => void handleModeSelect(mode.id)}
               className={cn(
-                "w-full text-left p-4 rounded-lg border transition-all",
+                "w-full text-left p-4 rounded-lg border transition-all flex h-full flex-col gap-3",
                 isSelected
                   ? "border-white/60 bg-white/10 shadow-lg"
                   : "border-white/10 hover:border-white/30 hover:bg-white/5",
                 (isLoading || pendingMode !== null) && !isSelected && "cursor-not-allowed opacity-60",
+                "md:flex-1",
               )}
               disabled={isLoading || (!!pendingMode && pendingMode !== mode.id)}
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-lg font-medium">{mode.title}</p>
-                  <p className="text-sm text-white/70">{mode.description}</p>
-                </div>
+              <div className="flex flex-col gap-2">
+                <p className="text-lg font-medium leading-tight">{mode.title}</p>
+                <p className="text-sm text-white/70 leading-relaxed">{mode.description}</p>
               </div>
             </button>
           );
         })}
       </div>
 
-      <div className="p-4 rounded-md bg-white/5 border border-white/10">
-        <p className="text-sm text-white/80">{helperText}</p>
-      </div>
-
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          disabled={isLoading}
-          onClick={() => void loadSettings()}
-        >
-          Refresh
-        </Button>
-      </div>
     </div>
   );
 }

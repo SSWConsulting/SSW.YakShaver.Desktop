@@ -1,14 +1,14 @@
 import { join } from "node:path";
 import { BaseSecureStorage } from "./base-secure-storage";
 
-export type ToolApprovalMode = "yolo" | "wait" | "always_ask";
+export type ToolApprovalMode = "yolo" | "wait" | "ask";
 
 export interface GeneralSettings {
   toolApprovalMode: ToolApprovalMode;
 }
 
 const DEFAULT_SETTINGS: GeneralSettings = {
-  toolApprovalMode: "always_ask",
+  toolApprovalMode: "ask",
 };
 
 const GENERAL_SETTINGS_FILE = "general-settings.enc";

@@ -188,7 +188,7 @@ export type UndoEventDetail = {
   type: "start" | "complete" | "error" | "reset";
 };
 
-export type ToolApprovalMode = "yolo" | "wait" | "always_ask";
+export type ToolApprovalMode = "yolo" | "wait" | "ask";
 
 export interface GeneralSettings {
   toolApprovalMode: ToolApprovalMode;
