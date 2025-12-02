@@ -46,7 +46,6 @@ jobs:
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           echo "Package version: $PACKAGE_VERSION"
 
-          # Get the highest version tag from git
           LATEST_TAG=$(git tag -l 'v*' --sort=-version:refname --merged HEAD | head -1)
           echo "Latest tag: $LATEST_TAG"
 
@@ -100,8 +99,6 @@ jobs:
           TAG_NAME="${{ steps.get_version.outputs.tag_name }}"
           VERSION="${{ steps.get_version.outputs.version }}"
 
-          # Create and publish the release with auto-generated notes
-          # This will trigger the "Release Electron App" workflow (release-electron-app.yml)
           gh release create "$TAG_NAME" \
             --title "v$VERSION" \
             --generate-notes \
@@ -109,7 +106,6 @@ jobs:
             --draft=false
 
           echo "Release created and published"
-          echo "This will now trigger the 'Release Electron App' workflow to build binaries"
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v5
@@ -125,3 +121,12 @@ jobs:
             - **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag_name }}
 
             You can monitor the build progress in the [Actions tab](https://github.com/${{ github.repository }}/actions/workflows/release-electron-app.yml).
+
+  # Trigger the release build workflow directly (bypasses GITHUB_TOKEN limitation)
+  trigger-build:
+    needs: auto-release
+    uses: ./.github/workflows/release-electron-app.yml
+    with:
+      tag_name: ${{ needs.auto-release.outputs.tag_name }}
+      target: test/release-trigger
+    secrets: inherit
