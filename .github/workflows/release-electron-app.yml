@@ -3,6 +3,16 @@ name: Release Electron App
 on:
   release:
     types: [published]
+  workflow_call:
+    inputs:
+      tag_name:
+        description: "The release tag name (e.g., v1.0.0)"
+        required: true
+        type: string
+      target:
+        description: "The target branch for the release"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -20,8 +30,16 @@ jobs:
     steps:
       - id: check
         run: |
-          TAG="${{ github.event.release.tag_name }}"
-          TARGET="${{ github.event.release.target_commitish }}"
+          # Handle both release event and workflow_call triggers
+          if [ -n "${{ inputs.tag_name }}" ]; then
+            # Called via workflow_call
+            TAG="${{ inputs.tag_name }}"
+            TARGET="${{ inputs.target }}"
+          else
+            # Called via release event
+            TAG="${{ github.event.release.tag_name }}"
+            TARGET="${{ github.event.release.target_commitish }}"
+          fi
 
           echo "version=${TAG#v}" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
