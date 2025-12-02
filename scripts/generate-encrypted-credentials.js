@@ -37,7 +37,6 @@ if (existsSync(envPath)) {
 const ALGORITHM = "aes-256-gcm";
 const KEY_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits
-const AUTH_TAG_LENGTH = 16;
 
 /**
  * Encrypts data using AES-256-GCM.
@@ -107,8 +106,6 @@ function main() {
   if (!encryptionKey) {
     encryptionKey = generateEncryptionKey();
     console.log("⚠️  No CREDENTIALS_ENCRYPTION_KEY provided, generating a new one.");
-    console.log("   Add this to your GitHub Secrets for consistent builds:\n");
-    console.log(`   CREDENTIALS_ENCRYPTION_KEY=${encryptionKey}\n`);
   }
 
   const key = deriveKey(encryptionKey);
