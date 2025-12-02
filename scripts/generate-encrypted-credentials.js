@@ -18,13 +18,21 @@
  */
 
 import { randomBytes, createCipheriv, pbkdf2Sync } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { config as dotenvConfig } from "dotenv";
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Load .env file if it exists (for local development builds)
+const envPath = join(__dirname, "..", ".env");
+if (existsSync(envPath)) {
+  dotenvConfig({ path: envPath });
+  console.log("📁 Loaded environment variables from .env file\n");
+}
 
 const ALGORITHM = "aes-256-gcm";
 const KEY_LENGTH = 32; // 256 bits
