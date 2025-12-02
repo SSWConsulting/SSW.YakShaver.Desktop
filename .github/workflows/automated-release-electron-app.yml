@@ -58,10 +58,26 @@ jobs:
             LAST_VERSION="${LATEST_TAG#v}"
             echo "Last released version: $LAST_VERSION"
 
-            # Bump patch version
+            # Bump version with logic
+            # patch < 9: bump patch
+            # patch = 9: bump minor, reset patch to 0
+            # minor = 9 and patch = 9: bump major, reset to 0.0
             NEW_VERSION=$(node -e "
               const [major, minor, patch] = '$LAST_VERSION'.split('.').map(Number);
-              console.log(\`\${major}.\${minor}.\${patch + 1}\`);
+              let newMajor = major, newMinor = minor, newPatch = patch;
+
+              if (patch < 9) {
+                newPatch = patch + 1;
+              } else if (minor < 9) {
+                newMinor = minor + 1;
+                newPatch = 0;
+              } else {
+                newMajor = major + 1;
+                newMinor = 0;
+                newPatch = 0;
+              }
+
+              console.log(\`\${newMajor}.\${newMinor}.\${newPatch}\`);
             ")
           fi
 
@@ -87,9 +103,10 @@ jobs:
           # Create and publish the release with auto-generated notes
           # This will trigger the "Release Electron App" workflow (release-electron-app.yml)
           gh release create "$TAG_NAME" \
-            --title "Release $VERSION" \
+            --title "v$VERSION" \
             --generate-notes \
-            --target main
+            --target test/release-trigger \
+            --draft=false
 
           echo "Release created and published"
           echo "This will now trigger the 'Release Electron App' workflow to build binaries"
