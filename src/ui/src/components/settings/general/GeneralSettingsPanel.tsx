@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { ipcClient } from "@/services/ipc-client";
 import type { GeneralSettings, ToolApprovalMode } from "@/types";
 import { cn } from "@/lib/utils";
+import { Button } from "../../ui/button";
 
 interface GeneralSettingsPanelProps {
   isActive: boolean;
@@ -100,7 +101,7 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
         {MODE_OPTIONS.map((mode) => {
           const isSelected = mode.id === currentMode;
           return (
-            <button
+            <Button
               key={mode.id}
               type="button"
               onClick={() => void handleModeSelect(mode.id)}
@@ -118,7 +119,7 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
                 <p className="text-lg font-medium leading-tight">{mode.title}</p>
                 <p className="text-sm text-white/70 leading-relaxed">{mode.description}</p>
               </div>
-            </button>
+            </Button>
           );
         })}
       </div>
