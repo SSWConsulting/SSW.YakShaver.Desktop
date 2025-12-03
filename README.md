@@ -11,7 +11,7 @@
 
 ## Run
 In the root folder, run
-1.  `npm install -g concurrently`, which will install the [`concurrently` package](https://www.npmjs.com/package/concurrently)
+1. `npm install -g concurrently`, which will install the [`concurrently` package](https://www.npmjs.com/package/concurrently)
 1. `npm run setup` – install dependencies
 2. `npm run dev` – start the app
 
