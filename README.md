@@ -13,7 +13,7 @@
 ## Building
 
 1. `npm run setup` – ensure all dependencies are installed
-2. `npm run make` - this will create 2 folders
+2. `npm run make:local` - this will create 2 folders
 
 - `/out/make/{target}/{arch}` - which contains the installers/distributables for end users
 - `/SSW.YakShaver-{system}-{arch}` - which contains the unpacked/portable app
