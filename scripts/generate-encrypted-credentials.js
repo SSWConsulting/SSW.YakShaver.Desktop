@@ -105,7 +105,7 @@ function main() {
     mcpAuthTimeoutMs: Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000),
     githubAppInstallationLink:
       process.env.GITHUB_APP_INSTALLATION_LINK ??
-      "https://github.com/apps/ssw-yakshaver/installations/select_target",
+      "https://github.com/apps/ssw-yakshaver-staging/installations/select_target",
   };
 
   const configPath = join(__dirname, "..", "app-config.json");
