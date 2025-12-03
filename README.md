@@ -25,7 +25,7 @@ In the root folder, run
 
 ## Configuration
 
-- Keys are stored securely on your device using the opearting system's encryption (Electron safeStorage) in the app's user data directory
+- Keys are stored securely on your device using the operating system's encryption (Electron safeStorage) in the app's user data directory
 
 - **Windows**: `%APPDATA%\SSW.YakShaver\yakshaver-tokens\*.enc`
 - **macOS**: `~/Library/Application Support/SSW.YakShaver/yakshaver-tokens/*.enc`
