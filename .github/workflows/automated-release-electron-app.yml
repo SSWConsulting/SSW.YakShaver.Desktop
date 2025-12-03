@@ -34,12 +34,14 @@ jobs:
       - name: Generate version
         id: get_version
         run: |
-          # Generate version: YYYY.MM.DD-BUILD.RUN_NUMBER.SHORT_SHA
-          DATE=$(date +'%Y.%m.%d')
+          # Generate version: YYYY.M.D-BUILD.RUN_NUMBER.SHORT_SHA
+          YEAR=$(date +'%Y')
+          MONTH=$(date +'%-m')   # Remove leading zero
+          DAY=$(date +'%-d')     # Remove leading zero
           RUN_NUMBER=${{ github.run_number }}
           SHORT_SHA=$(git rev-parse --short HEAD)
 
-          VERSION="${DATE}-BUILD.${RUN_NUMBER}.${SHORT_SHA}"
+          VERSION="${YEAR}.${MONTH}.${DAY}-BUILD.${RUN_NUMBER}.${SHORT_SHA}"
 
           echo "Generated version: $VERSION"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
