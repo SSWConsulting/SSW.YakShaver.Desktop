@@ -54,8 +54,7 @@ export class ScreenRecordingIPCHandlers {
   private async showControlBarWithCamera(cameraDeviceId?: string) {
     const displayId = this.service.getCurrentRecordingDisplayId();
     await this.controlBar.showForRecording(displayId);
-
-    if (cameraDeviceId) {
+    if (cameraDeviceId && displayId) {
       await this.cameraWindow.show(displayId, cameraDeviceId);
     }
 
