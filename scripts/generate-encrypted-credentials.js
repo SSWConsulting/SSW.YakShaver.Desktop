@@ -1,20 +1,5 @@
 /**
  * Build-time script to generate an encrypted credentials file for production builds.
- *
- * This script is run during CI/CD to create a bundled credentials file that
- * can be safely included in the app resources without exposing secrets in plain text.
- *
- * The file uses AES-256-GCM encryption with a key derived from a build-time secret.
- *
- * Usage in CI:
- *   node scripts/generate-encrypted-credentials.js
- *
- * Required environment variables:
- *   - YOUTUBE_CLIENT_ID
- *   - YOUTUBE_CLIENT_SECRET
- *   - MCP_GITHUB_CLIENT_ID
- *   - MCP_GITHUB_CLIENT_SECRET
- *   - CREDENTIALS_ENCRYPTION_KEY (optional, generated if not provided)
  */
 
 import { randomBytes, createCipheriv, pbkdf2Sync } from "node:crypto";
@@ -23,7 +8,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config as dotenvConfig } from "dotenv";
 
-// ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -35,32 +19,19 @@ if (existsSync(envPath)) {
 }
 
 const ALGORITHM = "aes-256-gcm";
-const KEY_LENGTH = 32; // 256 bits
-const IV_LENGTH = 16; // 128 bits
+const KEY_LENGTH = 32;
+const IV_LENGTH = 16;
 
-/**
- * Encrypts data using AES-256-GCM.
- * Returns a buffer containing: IV (16 bytes) + AuthTag (16 bytes) + Encrypted data
- */
 function encrypt(data, key) {
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, key, iv);
-
   const encrypted = Buffer.concat([cipher.update(data, "utf8"), cipher.final()]);
-
   const authTag = cipher.getAuthTag();
-
-  // Combine IV + AuthTag + Encrypted data
   return Buffer.concat([iv, authTag, encrypted]);
 }
 
-/**
- * Derives a 256-bit key from the encryption key using PBKDF2.
- */
 function deriveKey(secret) {
-  // Use a fixed salt for deterministic key derivation
-  // The salt is not secret - it just adds entropy to the key derivation
-  const salt = Buffer.from("YakShaver-OAuth-Credentials-v1", "utf8");
+  const salt = Buffer.from("YakShaver-OAuth-Credentials", "utf8");
   return pbkdf2Sync(secret, salt, 100000, KEY_LENGTH, "sha256");
 }
 
@@ -111,20 +82,22 @@ function main() {
   const key = deriveKey(encryptionKey);
   const jsonData = JSON.stringify(credentials);
   const encryptedBuffer = encrypt(jsonData, key);
-
-  // Write encrypted file
   const outputPath = join(__dirname, "..", "credentials.enc");
   writeFileSync(outputPath, encryptedBuffer);
 
-  console.log(`✅ Encrypted credentials written to: ${outputPath}`);
-  console.log(`   File size: ${encryptedBuffer.length} bytes`);
+  const keyTsContent = `
+    const _p1 = "${encryptionKey.slice(0, 16)}";
+    const _p2 = "${encryptionKey.slice(16, 32)}";
+    const _p3 = "${encryptionKey.slice(32, 48)}";
+    const _p4 = "${encryptionKey.slice(48)}";
 
-  // Write the key to a separate file for the app to use during first-run
-  // This key file should NOT be committed to the repo
-  const keyPath = join(__dirname, "..", "credentials.key");
-  writeFileSync(keyPath, encryptionKey);
-  console.log(`✅ Encryption key written to: ${keyPath}`);
-  console.log("   ⚠️  This file should be added to .gitignore\n");
+    export function getCredentialsKey(): string {
+      return _p1 + _p2 + _p3 + _p4;
+    }
+  `;
+
+  const keyTsPath = join(__dirname, "..", "src", "backend", "config", "credentials-key.ts");
+  writeFileSync(keyTsPath, keyTsContent);
 
   // Also create a non-sensitive config file for default values
   const appConfig = {
@@ -137,7 +110,6 @@ function main() {
 
   const configPath = join(__dirname, "..", "app-config.json");
   writeFileSync(configPath, JSON.stringify(appConfig, null, 2));
-  console.log(`✅ App config written to: ${configPath}`);
 }
 
 main();

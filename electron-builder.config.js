@@ -16,7 +16,6 @@ module.exports = {
   ],
   extraResources: [
     "credentials.enc",
-    "credentials.key",
     "app-config.json",
     "src/ui/public/**",
   ],

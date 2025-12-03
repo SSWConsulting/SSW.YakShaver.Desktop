@@ -13,35 +13,30 @@ const KEY_LENGTH = 32;
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 
-/**
- * Derives a 256-bit key from the encryption key using PBKDF2.
- * Must match the derivation in generate-encrypted-credentials.js
- */
+function getEmbeddedKey(): string | null {
+  try {
+    const { getCredentialsKey } = require("./credentials-key");
+    return getCredentialsKey();
+  } catch {
+    return null;
+  }
+}
+
 function deriveKey(secret: string): Buffer {
-  const salt = Buffer.from("YakShaver-OAuth-Credentials-v1", "utf8");
+  const salt = Buffer.from("YakShaver-OAuth-Credentials", "utf8");
   return crypto.pbkdf2Sync(secret, salt, 100000, KEY_LENGTH, "sha256");
 }
 
-/**
- * Decrypts data that was encrypted using AES-256-GCM.
- * Expects buffer format: IV (16 bytes) + AuthTag (16 bytes) + Encrypted data
- */
 function decrypt(encryptedBuffer: Buffer, key: Buffer): string {
   const iv = encryptedBuffer.subarray(0, IV_LENGTH);
   const authTag = encryptedBuffer.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
   const encrypted = encryptedBuffer.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
-
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
-
   const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-
   return decrypted.toString("utf8");
 }
 
-/**
- * Gets the path to bundled resources based on whether the app is packaged.
- */
 function getResourcePath(filename: string): string {
   if (app.isPackaged) {
     return join(process.resourcesPath, filename);
@@ -50,9 +45,6 @@ function getResourcePath(filename: string): string {
   return join(process.cwd(), filename);
 }
 
-/**
- * Reads and parses the bundled app-config.json for non-sensitive settings.
- */
 async function loadAppConfig(): Promise<{
   mcpCallbackPort: number;
   mcpAuthTimeoutMs: number;
@@ -67,9 +59,6 @@ async function loadAppConfig(): Promise<{
   }
 }
 
-/**
- * Checks if credentials have already been imported into secure storage.
- */
 async function credentialsAlreadyImported(): Promise<boolean> {
   const storage = OAuthCredentialsStorage.getInstance();
   return await storage.hasCredentials();
@@ -87,18 +76,22 @@ export async function initializeCredentials(): Promise<boolean> {
       return true;
     }
 
-    // Try to load from encrypted bundle
+    const encryptionKey = getEmbeddedKey();
+    if (!encryptionKey) {
+      // Key not available - this is expected in development without the script
+      console.warn("[CredentialsLoader] Embedded credentials key not found, falling back to .env");
+      return await fallbackToEnv();
+    }
+
+    // Try to load encrypted credentials file
     const credentialsPath = getResourcePath("credentials.enc");
-    const keyPath = getResourcePath("credentials.key");
 
     let encryptedBuffer: Buffer;
-    let encryptionKey: string;
 
     try {
       encryptedBuffer = await fs.readFile(credentialsPath);
-      encryptionKey = (await fs.readFile(keyPath, "utf8")).trim();
     } catch (error) {
-      // Files don't exist - this is expected in development without the script
+      // File doesn't exist - this is expected in development without the script
       console.warn("[CredentialsLoader] Encrypted credentials not found, falling back to .env");
       return await fallbackToEnv();
     }
@@ -110,7 +103,9 @@ export async function initializeCredentials(): Promise<boolean> {
       const decrypted = decrypt(encryptedBuffer, key);
       credentials = JSON.parse(decrypted);
     } catch (err) {
-      throw new Error(`[CredentialsLoader] Failed to decrypt or parse credentials file: ${formatErrorMessage(err)}`);
+      throw new Error(
+        `[CredentialsLoader] Failed to decrypt or parse credentials file: ${formatErrorMessage(err)}`,
+      );
     }
 
     // Store in secure storage
