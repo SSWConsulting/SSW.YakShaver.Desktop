@@ -31,37 +31,19 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Get version from package.json
+      - name: Generate version
         id: get_version
         run: |
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-          echo "Current package version: $CURRENT_VERSION"
+          # Generate version: YYYY.MM.DD-BUILD.RUN_NUMBER.SHORT_SHA
+          DATE=$(date +'%Y.%m.%d')
+          RUN_NUMBER=${{ github.run_number }}
+          SHORT_SHA=$(git rev-parse --short HEAD)
 
-          # Bump version with logic
-          # patch < 9: bump patch
-          # patch = 9: bump minor, reset patch to 0
-          # minor = 9 and patch = 9: bump major, reset to 0.0
-          NEW_VERSION=$(node -e "
-            const [major, minor, patch] = '$CURRENT_VERSION'.split('.').map(Number);
-            let newMajor = major, newMinor = minor, newPatch = patch;
+          VERSION="${DATE}-BUILD.${RUN_NUMBER}.${SHORT_SHA}"
 
-            if (patch < 9) {
-              newPatch = patch + 1;
-            } else if (minor < 9) {
-              newMinor = minor + 1;
-              newPatch = 0;
-            } else {
-              newMajor = major + 1;
-              newMinor = 0;
-              newPatch = 0;
-            }
-
-            console.log(\`\${newMajor}.\${newMinor}.\${newPatch}\`);
-          ")
-
-          echo "New version: $NEW_VERSION"
-          echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
-          echo "tag_name=v${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag_name=v${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Update package.json version
         run: |
