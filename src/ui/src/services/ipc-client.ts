@@ -101,6 +101,7 @@ declare global {
           approved: boolean
         ) => Promise<{ success: boolean }>;
         listServers: () => Promise<MCPServerConfig[]>;
+        addToolToWhitelist: (toolName: string) => Promise<{ success: boolean }>;
         addServerAsync: (
           config: MCPServerConfig
         ) => Promise<{ success: boolean }>;
