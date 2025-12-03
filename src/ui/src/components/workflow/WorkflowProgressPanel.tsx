@@ -265,7 +265,9 @@ export function WorkflowProgressPanel() {
       window.clearInterval(intervalId);
       window.clearTimeout(timeoutId);
     };
-  }, [pendingToolApproval?.autoApproveAt, pendingToolApproval?.requestId, resolveToolApproval]);
+  // It is safe to omit resolveToolApproval from dependencies because it only depends on pendingToolApproval,
+  // which is already a dependency. This prevents unnecessary effect re-runs and duplicate timers.
+  }, [pendingToolApproval?.autoApproveAt, pendingToolApproval?.requestId]);
 
   const derivedOrigin = resolveWorkflowOrigin(progress);
   sourceOriginRef.current = derivedOrigin ?? sourceOriginRef.current;
