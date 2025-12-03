@@ -45,7 +45,7 @@ jobs:
 
           echo "Generated version: $VERSION"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "tag_name=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag_name=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Create and publish GitHub Release
         env:
@@ -55,7 +55,7 @@ jobs:
           VERSION="${{ steps.get_version.outputs.version }}"
 
           gh release create "$TAG_NAME" \
-            --title "v$VERSION" \
+            --title "$VERSION" \
             --generate-notes \
             --target main \
             --draft=false

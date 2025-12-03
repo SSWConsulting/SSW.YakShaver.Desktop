@@ -6,7 +6,7 @@ on:
   workflow_call:
     inputs:
       tag_name:
-        description: "The release tag name (e.g., v1.0.0)"
+        description: "The release tag name"
         required: true
         type: string
       target:
@@ -41,7 +41,7 @@ jobs:
             TARGET="${{ github.event.release.target_commitish }}"
           fi
 
-          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "version=$TAG" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
 
   build-windows:
