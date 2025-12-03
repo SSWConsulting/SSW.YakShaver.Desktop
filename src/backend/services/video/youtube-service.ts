@@ -62,8 +62,6 @@ export class YouTubeDownloadService {
     console.log("[YouTubeDownloadService] Downloading video to:", outputPath);
     const flags: Flags = {
       output: outputPath,
-      format: "bestvideo+bestaudio/best",
-      mergeOutputFormat: "mp4",
     };
 
     try {
