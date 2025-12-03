@@ -1,7 +1,7 @@
 {
   "name": "yakshaver",
   "productName": "YakShaver",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "YakShaver, an AI agent to help you trim the fluff and get straight to the point",
   "main": "dist/index.js",
   "build": {},
