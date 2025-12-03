@@ -11,6 +11,7 @@ import type {
   GeneralSettings,
   HealthStatusInfo,
   LLMConfig,
+  MCPStep,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
   ScreenSource,
@@ -92,27 +93,7 @@ declare global {
         }>;
         prefillPrompt: (text: string) => void;
         onPrefillPrompt: (callback: (text: string) => void) => () => void;
-        onStepUpdate: (
-          callback: (step: {
-            type:
-              | "start"
-              | "reasoning"
-              | "tool_call"
-              | "tool_result"
-              | "final_result"
-              | "tool_approval_required"
-              | "tool_denied";
-            message?: string;
-            toolName?: string;
-            serverName?: string;
-            reasoning?: string;
-            args?: unknown;
-            result?: unknown;
-            error?: string;
-            requestId?: string;
-            autoApproveAt?: number;
-          }) => void,
-        ) => () => void;
+        onStepUpdate: (callback: (step: MCPStep) => void) => () => void;
         respondToToolApproval: (
           requestId: string,
           approved: boolean,

@@ -2,7 +2,9 @@ import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import {
+  MCPStepType,
   ProgressStage,
+  type MCPStep,
   type VideoUploadOrigin,
   type WorkflowProgress,
   type WorkflowStage,
@@ -21,7 +23,7 @@ import {
 } from "../ui/alert-dialog";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { type MCPStep, StageWithContent } from "./StageWithContent";
+import { StageWithContent } from "./StageWithContent";
 import { StageWithoutContent } from "./StageWithoutContent";
 import { UndoStagePanel } from "./UndoStagePanel";
 import { deepParseJson, formatErrorMessage } from "../../utils";
@@ -177,7 +179,7 @@ export function WorkflowProgressPanel() {
         return updated;
       });
 
-      if (step.type === "tool_approval_required" && step.requestId) {
+      if (step.type === MCPStepType.TOOL_APPROVAL_REQUIRED && step.requestId) {
         setPendingToolApproval({
           requestId: step.requestId,
           toolName: step.toolName,
@@ -187,7 +189,7 @@ export function WorkflowProgressPanel() {
         setApprovalError(null);
       }
 
-      if (step.type === "tool_denied") {
+      if (step.type === MCPStepType.TOOL_DENIED) {
         setPendingToolApproval((prev) => {
           if (!prev) {
             return prev;
@@ -265,9 +267,7 @@ export function WorkflowProgressPanel() {
       window.clearInterval(intervalId);
       window.clearTimeout(timeoutId);
     };
-  // It is safe to omit resolveToolApproval from dependencies because it only depends on pendingToolApproval,
-  // which is already a dependency. This prevents unnecessary effect re-runs and duplicate timers.
-  }, [pendingToolApproval?.autoApproveAt, pendingToolApproval?.requestId]);
+  }, [pendingToolApproval?.autoApproveAt, pendingToolApproval?.requestId, resolveToolApproval]);
 
   const derivedOrigin = resolveWorkflowOrigin(progress);
   sourceOriginRef.current = derivedOrigin ?? sourceOriginRef.current;

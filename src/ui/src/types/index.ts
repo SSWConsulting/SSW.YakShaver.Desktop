@@ -193,3 +193,27 @@ export type ToolApprovalMode = "yolo" | "wait" | "ask";
 export interface GeneralSettings {
   toolApprovalMode: ToolApprovalMode;
 }
+
+export enum MCPStepType {
+  START = "start",
+  REASONING = "reasoning",
+  TOOL_CALL = "tool_call",
+  TOOL_RESULT = "tool_result",
+  FINAL_RESULT = "final_result",
+  TOOL_APPROVAL_REQUIRED = "tool_approval_required",
+  TOOL_DENIED = "tool_denied",
+}
+
+export interface MCPStep {
+  type: MCPStepType;
+  message?: string;
+  reasoning?: string;
+  toolName?: string;
+  serverName?: string;
+  args?: unknown;
+  result?: unknown;
+  error?: string;
+  requestId?: string;
+  timestamp?: number;
+  autoApproveAt?: number;
+}
