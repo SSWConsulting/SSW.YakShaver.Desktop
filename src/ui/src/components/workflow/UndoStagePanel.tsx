@@ -2,7 +2,7 @@ import { Check, Loader2, Undo2, Wrench, X } from "lucide-react";
 import type React from "react";
 import { deepParseJson } from "../../utils";
 import { ReasoningStep } from "./ReasoningStep";
-import type { MCPStep } from "./StageWithContent";
+import { MCPStepType, type MCPStep } from "../../types";
 
 const handleDetailsToggle =
   (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
@@ -116,23 +116,23 @@ export function UndoStagePanel({ steps, status, stepsRef }: UndoStagePanelProps)
               key={step.timestamp}
               className="border-l-2 border-purple-400/50 pl-3 py-1 space-y-1 text-white/90"
             >
-              {step.type === "start" && (
+              {step.type === MCPStepType.START && (
                 <div className="text-purple-200 font-medium flex items-center gap-2">
                   <Undo2 className="w-4 h-4" />
                   {step.message || "Undo workflow started"}
                 </div>
               )}
-              {step.type === "reasoning" && step.reasoning && (
+              {step.type === MCPStepType.REASONING && step.reasoning && (
                 <ReasoningStep reasoning={step.reasoning} />
               )}
-              {step.type === "tool_call" && (
+              {step.type === MCPStepType.TOOL_CALL && (
                 <ToolCallStep
                   toolName={step.toolName}
                   serverName={step.serverName}
                   args={step.args}
                 />
               )}
-              {step.type === "tool_result" && (
+              {step.type === MCPStepType.TOOL_RESULT && (
                 <div className="ml-4 space-y-1">
                   {step.error ? (
                     <ToolResultError error={step.error} />
@@ -141,7 +141,7 @@ export function UndoStagePanel({ steps, status, stepsRef }: UndoStagePanelProps)
                   )}
                 </div>
               )}
-              {step.type === "final_result" && (
+              {step.type === MCPStepType.FINAL_RESULT && (
                 <div className="text-purple-100 font-medium flex items-center gap-2">
                   <Check className="w-4 h-4" />
                   {step.message || "Undo completed"}

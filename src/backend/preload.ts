@@ -2,6 +2,7 @@ import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
+import type { ToolApprovalMode } from "./services/storage/general-settings-storage";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
 // Need to make single source of truth
@@ -51,6 +52,8 @@ const IPC_CHANNELS = {
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
+  MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
+  MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -59,7 +62,8 @@ const IPC_CHANNELS = {
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
   // Video processing - the main process pipeline
-  PROCESS_VIDEO: "process-video",
+  PROCESS_VIDEO_FILE: "process-video:file",
+  PROCESS_VIDEO_URL: "process-video:url",
   RETRY_VIDEO: "retry-video",
 
   // Settings
@@ -84,6 +88,11 @@ const IPC_CHANNELS = {
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
   GITHUB_TOKEN_VERIFY: "github-token:verify",
+  GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
+
+  // General Settings
+  GENERAL_SETTINGS_GET: "general-settings:get",
+  GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -94,8 +103,10 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideo: (filePath?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO, filePath),
+    processVideoFile: (filePath: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath),
+    processVideoUrl: (url: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url),
     retryVideo: (
       intermediateOutput: string,
       videoUploadResult: VideoUploadResult
@@ -195,12 +206,32 @@ const electronAPI = {
       onIpcEvent<string>(IPC_CHANNELS.MCP_PREFILL_PROMPT, callback),
     onStepUpdate: (
       callback: (step: {
-        type: "start" | "tool_call" | "final_result";
+        type:
+          | "start"
+          | "reasoning"
+          | "tool_call"
+          | "tool_result"
+          | "final_result"
+          | "tool_approval_required"
+          | "tool_denied";
         message?: string;
         toolName?: string;
         serverName?: string;
+        reasoning?: string;
+        args?: unknown;
+        result?: unknown;
+        error?: string;
+        requestId?: string;
+        autoApproveAt?: number;
       }) => void
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
+    respondToToolApproval: (requestId: string, approved: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION, {
+        requestId,
+        approved,
+      }),
+    addToolToWhitelist: (toolName: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_TOOL_TO_WHITELIST, { toolName }),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
     addServerAsync: (config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
@@ -259,6 +290,13 @@ const electronAPI = {
         rateLimitRemaining?: number;
         error?: string;
       }>,
+    getInstallUrl: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.GITHUB_APP_GET_INSTALL_URL),
+  },
+  generalSettings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_GET),
+    setMode: (mode: ToolApprovalMode) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE, mode),
   },
   // Camera window
   onSetCameraDevice: (callback: (deviceId: string) => void) => {

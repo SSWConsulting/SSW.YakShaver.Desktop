@@ -1,19 +1,20 @@
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAI } from "@ai-sdk/openai";
-import {
-  generateText,
-  type LanguageModel,
-  type ModelMessage,
-  type StreamTextResult,
-  stepCountIs,
-  streamText,
-} from "ai";
+import { generateText, stepCountIs, streamText } from "ai";
+import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 import { BrowserWindow } from "electron";
 import type { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { LlmStorage } from "../storage/llm-storage";
 
-type StepType = "start" | "reasoning" | "tool_call" | "tool_result" | "final_result";
+type StepType =
+  | "start"
+  | "reasoning"
+  | "tool_call"
+  | "tool_result"
+  | "final_result"
+  | "tool_approval_required"
+  | "tool_denied";
 
 interface MCPStep {
   type: StepType;
@@ -95,17 +96,40 @@ export class LLMClientProvider {
     return text;
   }
 
-  public async sendMessage(
-    message: ModelMessage[],
-    tools: any,
-  ): Promise<StreamTextResult<any, any>> {
+  public async generateTextWithTools(
+    messages: ModelMessage[],
+    tools?: ToolSet,
+  ): Promise<Awaited<ReturnType<typeof generateText>>> {
     if (!LLMClientProvider.languageModel) {
       throw new Error("[LLMClientProvider]: LLM client not initialized");
     }
 
-    let response: any;
+    // remove 'execute' functions from tools before passing to generateText to prevent ai sdk auto execute the tool
+    const sanitizedTools = tools
+      ? Object.fromEntries(
+          Object.entries(tools).map(([name, { execute, ...rest }]) => [name, rest]),
+        )
+      : undefined;
+
+    const response = await generateText({
+      model: LLMClientProvider.languageModel,
+      messages: messages,
+      tools: sanitizedTools,
+    });
+
+    return response;
+  }
+
+  public async sendMessage(
+    message: ModelMessage[],
+    tools: ToolSet,
+  ): Promise<Awaited<ReturnType<typeof streamText>>> {
+    if (!LLMClientProvider.languageModel) {
+      throw new Error("[LLMClientProvider]: LLM client not initialized");
+    }
+
     try {
-      response = streamText({
+      return streamText({
         model: LLMClientProvider.languageModel,
         tools,
         messages: message,
@@ -132,8 +156,6 @@ export class LLMClientProvider {
       console.error("[LLMClientProvider]: Error in sendMessage:", error);
       throw error;
     }
-
-    return response;
   }
 
   public static async checkHealthAsync(): Promise<HealthStatusInfo> {

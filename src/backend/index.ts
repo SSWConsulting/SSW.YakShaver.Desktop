@@ -13,6 +13,7 @@ import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
+import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
 import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
@@ -93,6 +94,7 @@ let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
 let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
 let _githubTokenHandlers: GitHubTokenIPCHandlers;
+let _generalSettingsHandlers: GeneralSettingsIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
@@ -130,6 +132,7 @@ app.whenReady().then(async () => {
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
+  _generalSettingsHandlers = new GeneralSettingsIPCHandlers();
 
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);

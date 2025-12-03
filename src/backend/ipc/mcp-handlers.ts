@@ -1,11 +1,11 @@
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import type { VideoUploadResult } from "../services/auth/types";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
-import type { MCPServerManager } from "../services/mcp/mcp-server-manager";
+import { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import type { MCPServerConfig, MCPToolSummary } from "../services/mcp/types";
 import { IPC_CHANNELS } from "./channels";
 
-type ProcessMessageOptions = Parameters<MCPOrchestrator["processMessageAsync"]>[2];
+type ProcessMessageOptions = Parameters<MCPOrchestrator["manualLoopAsync"]>[2];
 
 export class McpIPCHandlers {
   private mcpServerManager: MCPServerManager;
@@ -17,7 +17,7 @@ export class McpIPCHandlers {
 
   private registerHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.MCP_LIST_SERVERS, async () => {
-      return this.mcpServerManager.listAvailableServers();
+      return await this.mcpServerManager.listAvailableServers();
     });
 
     ipcMain.handle(
@@ -72,7 +72,9 @@ export class McpIPCHandlers {
           return Object.entries(obj).map(([name, value]) => ({
             name,
             description:
-              value && typeof value === "object" && "description" in (value as { description?: string })
+              value &&
+              typeof value === "object" &&
+              "description" in (value as { description?: string })
                 ? (value as { description?: string }).description
                 : undefined,
           }));
@@ -90,7 +92,38 @@ export class McpIPCHandlers {
         options?: ProcessMessageOptions,
       ) => {
         const orchestrator = await MCPOrchestrator.getInstanceAsync();
-        return await orchestrator.processMessageAsync(prompt, videoUploadResult, options);
+        return await orchestrator.manualLoopAsync(prompt, videoUploadResult, options);
+      },
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION,
+      async (_event: IpcMainInvokeEvent, payload: { requestId: string; approved: boolean }) => {
+        const orchestrator = await MCPOrchestrator.getInstanceAsync();
+        const success = orchestrator.resolveToolApproval(payload.requestId, payload.approved);
+        return { success };
+      },
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_ADD_TOOL_TO_WHITELIST,
+      async (_event: IpcMainInvokeEvent, payload: { toolName: string }) => {
+        const s = payload.toolName.split("__");
+
+        // validate format
+        if (s.length !== 2) {
+          throw new Error(
+            `[Add tool to whitelist]: Invalid tool name format: ${payload.toolName}. Expected format: <serverName>__<toolName>`,
+          );
+        }
+        const serverName = s[0];
+        const toolName = s[1];
+
+        await (await MCPServerManager.getInstanceAsync()).addToolToServerWhitelistAsync(
+          serverName,
+          toolName,
+        );
+        return { success: true };
       },
     );
 

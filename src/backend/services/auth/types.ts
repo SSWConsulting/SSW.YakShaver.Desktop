@@ -32,6 +32,8 @@ export interface AuthState {
   error?: string;
 }
 
+export type VideoUploadOrigin = "upload" | "external";
+
 export interface VideoUploadResult {
   success: boolean;
   data?: {
@@ -40,6 +42,7 @@ export interface VideoUploadResult {
     description: string;
     url: string;
   };
+  origin?: VideoUploadOrigin;
   error?: string;
 }
 
