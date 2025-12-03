@@ -1,7 +1,10 @@
 import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import type { ToolSet } from "ai";
+import getPort from "get-port";
 import { getGitHubMcpCredentials } from "../../config/env";
+import { withTimeout } from "../../utils/async-utils";
 import { formatErrorMessage } from "../../utils/error-utils";
 import {
   authorizeWithPkceOnce,
@@ -11,9 +14,6 @@ import {
 } from "./mcp-oauth";
 import { MCPUtils } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
-import type { ToolSet } from "ai";
-import getPort from "get-port";
-import { withTimeout } from "../../utils/async-utils";
 
 export interface CreateClientOptions {
   inMemoryClientTransport?: InMemoryTransport;

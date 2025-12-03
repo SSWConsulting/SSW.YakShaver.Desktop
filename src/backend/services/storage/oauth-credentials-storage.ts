@@ -28,15 +28,6 @@ export interface AppConfig {
 
 const OAUTH_CREDENTIALS_FILE = "oauth-credentials.enc";
 
-/**
- * Securely stores and retrieves OAuth client credentials using Electron's safeStorage API.
- * This replaces the need to bundle a .env file with production builds.
- *
- * Credentials are encrypted using the OS keychain:
- * - macOS: Keychain
- * - Windows: DPAPI
- * - Linux: libsecret (GNOME Keyring, etc.)
- */
 export class OAuthCredentialsStorage extends BaseSecureStorage {
   private static instance: OAuthCredentialsStorage;
 

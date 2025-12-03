@@ -92,7 +92,9 @@ export async function initializeCredentials(): Promise<boolean> {
       encryptedBuffer = await fs.readFile(credentialsPath);
     } catch (error) {
       // File doesn't exist - this is expected in development without the script
-      console.warn("[CredentialsLoader] Encrypted credentials not found, falling back to .env");
+      console.warn(
+        `[CredentialsLoader] Encrypted credentials not found, falling back to .env: ${formatErrorMessage(error)}`,
+      );
       return await fallbackToEnv();
     }
 

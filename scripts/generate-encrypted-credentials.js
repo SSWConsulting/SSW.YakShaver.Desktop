@@ -2,7 +2,7 @@
  * Build-time script to generate an encrypted credentials file for production builds.
  */
 
-import { randomBytes, createCipheriv, pbkdf2Sync } from "node:crypto";
+import { createCipheriv, pbkdf2Sync, randomBytes } from "node:crypto";
 import { existsSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
