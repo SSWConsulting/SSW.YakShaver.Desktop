@@ -45,20 +45,6 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag_name=v${VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Update package.json version
-        run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
-          npm version $VERSION --no-git-tag-version
-          echo "Updated package.json to version $VERSION"
-
-      - name: Commit version update
-        run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
-          git add package.json package-lock.json
-          git commit -m "chore: bump version to v$VERSION [skip ci]"
-          git push origin test/release-trigger
-          echo "Committed and pushed version update to main"
-
       - name: Create and publish GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
