@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { ipcClient } from "@/services/ipc-client";
 import type { GeneralSettings, ToolApprovalMode } from "@/types";
 import { cn } from "@/lib/utils";
-import { Button } from "../../ui/button";
+import { Card, CardContent } from "../../ui/card";
 
 interface GeneralSettingsPanelProps {
   isActive: boolean;
@@ -100,26 +100,26 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
       <div className="flex flex-col gap-4 md:flex-row md:items-stretch">
         {MODE_OPTIONS.map((mode) => {
           const isSelected = mode.id === currentMode;
+          const isDisabled = isLoading || (!!pendingMode && pendingMode !== mode.id);
           return (
-            <Button
+            <Card
               key={mode.id}
-              type="button"
-              onClick={() => void handleModeSelect(mode.id)}
+              onClick={() => !isDisabled && void handleModeSelect(mode.id)}
               className={cn(
-                "w-full text-left p-4 rounded-lg border transition-all flex h-full flex-col gap-3",
+                "transition-all cursor-pointer md:flex-1",
                 isSelected
                   ? "border-white/60 bg-white/10 shadow-lg"
                   : "border-white/10 hover:border-white/30 hover:bg-white/5",
-                (isLoading || pendingMode !== null) && !isSelected && "cursor-not-allowed opacity-60",
-                "md:flex-1",
+                isDisabled && !isSelected && "cursor-not-allowed opacity-60",
               )}
-              disabled={isLoading || (!!pendingMode && pendingMode !== mode.id)}
             >
-              <div className="flex flex-col gap-2">
-                <p className="text-lg font-medium leading-tight">{mode.title}</p>
-                <p className="text-sm text-white/70 leading-relaxed">{mode.description}</p>
-              </div>
-            </Button>
+              <CardContent className="px-4 py-4">
+                <div className="flex flex-col gap-2">
+                  <p className="text-lg font-medium leading-tight">{mode.title}</p>
+                  <p className="text-sm text-white/70 leading-relaxed">{mode.description}</p>
+                </div>
+              </CardContent>
+            </Card>
           );
         })}
       </div>
