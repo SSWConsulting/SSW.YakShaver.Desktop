@@ -54,6 +54,7 @@ export class ScreenRecordingIPCHandlers {
   private async showControlBarWithCamera(cameraDeviceId?: string) {
     const displayId = this.service.getCurrentRecordingDisplayId();
     await this.controlBar.showForRecording(displayId);
+    // Only show the camera window when recording a screen, not a window
     if (cameraDeviceId && displayId) {
       await this.cameraWindow.show(displayId, cameraDeviceId);
     }
