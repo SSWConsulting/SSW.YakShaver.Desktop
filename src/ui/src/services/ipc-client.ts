@@ -8,11 +8,14 @@ import type {
   AuthState,
   ConvertVideoToMp3Result,
   CustomPrompt,
+  GeneralSettings,
   HealthStatusInfo,
   LLMConfig,
+  MCPStep,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
   ScreenSource,
+  ToolApprovalMode,
   TranscriptEntry,
   UserInfo,
   VideoUploadResult,
@@ -90,15 +93,13 @@ declare global {
         }>;
         prefillPrompt: (text: string) => void;
         onPrefillPrompt: (callback: (text: string) => void) => () => void;
-        onStepUpdate: (
-          callback: (step: {
-            type: "start" | "tool_call" | "final_result";
-            message?: string;
-            toolName?: string;
-            serverName?: string;
-          }) => void,
-        ) => () => void;
+        onStepUpdate: (callback: (step: MCPStep) => void) => () => void;
+        respondToToolApproval: (
+          requestId: string,
+          approved: boolean,
+        ) => Promise<{ success: boolean }>;
         listServers: () => Promise<MCPServerConfig[]>;
+        addToolToWhitelist: (toolName: string) => Promise<{ success: boolean }>;
         addServerAsync: (config: MCPServerConfig) => Promise<{ success: boolean }>;
         updateServerAsync: (name: string, config: MCPServerConfig) => Promise<{ success: boolean }>;
         removeServerAsync: (name: string) => Promise<{ success: boolean }>;
@@ -150,6 +151,10 @@ declare global {
           error?: string;
         }>;
         getInstallUrl: () => Promise<string>;
+      };
+      generalSettings: {
+        get: () => Promise<GeneralSettings>;
+        setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
       };
     };
   }

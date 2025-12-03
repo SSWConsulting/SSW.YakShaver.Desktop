@@ -28,9 +28,9 @@
     "url": "https://github.com/SSWConsulting/SSW.YakShaver.Desktop.git"
   },
   "dependencies": {
-    "@ai-sdk/deepseek": "^1.0.28",
+    "@ai-sdk/deepseek": "^1.0.30",
     "@ai-sdk/mcp": "^0.0.8",
-    "@ai-sdk/openai": "^2.0.72",
+    "@ai-sdk/openai": "^2.0.75",
     "@azure/openai": "^2.0.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.21.1",
@@ -56,6 +56,6 @@
     "electron": "^39.2.4",
     "electron-builder": "^26.0.12",
     "typescript": "^5.9.2",
-    "wait-on": "^9.0.1"
+    "wait-on": "^9.0.3"
   }
 }

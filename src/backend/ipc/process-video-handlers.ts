@@ -166,8 +166,8 @@ export class ProcessVideoIPCHandlers {
             const metadata = await this.metadataBuilder.build({
               transcriptVtt: transcript,
               intermediateOutput,
-              executionHistory: JSON.stringify(mcpResult.transcript ?? [], null, 2),
-              finalResult: mcpResult.final ?? undefined,
+              executionHistory: JSON.stringify(transcript ?? [], null, 2),
+              finalResult: mcpResult ?? undefined,
             });
             this.emitProgress(ProgressStage.UPDATING_METADATA, {
               metadataPreview: metadata.metadata,

@@ -1,18 +1,32 @@
 import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import {
+  MCPStepType,
   ProgressStage,
+  type MCPStep,
   type VideoUploadOrigin,
   type WorkflowProgress,
   type WorkflowStage,
 } from "../../types";
 import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
 import { Accordion, AccordionItem } from "../ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../ui/alert-dialog";
+import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { type MCPStep, StageWithContent } from "./StageWithContent";
+import { StageWithContent } from "./StageWithContent";
 import { StageWithoutContent } from "./StageWithoutContent";
 import { UndoStagePanel } from "./UndoStagePanel";
+import { deepParseJson, formatErrorMessage } from "../../utils";
 
 const WORKFLOW_CORE_STAGES: WorkflowStage[] = [
   ProgressStage.CONVERTING_AUDIO,
@@ -50,6 +64,15 @@ export function WorkflowProgressPanel() {
     "idle",
   );
   const [openAccordions, setOpenAccordions] = useState<string[]>([]);
+  const [pendingToolApproval, setPendingToolApproval] = useState<{
+    requestId: string;
+    toolName?: string;
+    args?: unknown;
+    autoApproveAt?: number;
+  } | null>(null);
+  const [approvalSubmitting, setApprovalSubmitting] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [autoApprovalCountdown, setAutoApprovalCountdown] = useState<number | null>(null);
   const stepsRef = useRef<HTMLDivElement | null>(null);
   const undoStatusRef = useRef<"idle" | "in_progress" | "completed" | "error">("idle");
   const sourceOriginRef = useRef<VideoUploadOrigin | undefined>(undefined);
@@ -107,6 +130,9 @@ export function WorkflowProgressPanel() {
       ) {
         setUndoStatus("idle");
         setUndoSteps([]);
+        setPendingToolApproval(null);
+        setApprovalSubmitting(false);
+        setApprovalError(null);
       }
     });
     const undoEventListener = (event: Event) => {
@@ -152,12 +178,190 @@ export function WorkflowProgressPanel() {
         });
         return updated;
       });
+
+      if (step.type === MCPStepType.TOOL_APPROVAL_REQUIRED && step.requestId) {
+        setPendingToolApproval({
+          requestId: step.requestId,
+          toolName: step.toolName,
+          args: step.args,
+          autoApproveAt: step.autoApproveAt,
+        });
+        setApprovalError(null);
+      }
+
+      if (step.type === MCPStepType.TOOL_DENIED) {
+        setPendingToolApproval((prev) => {
+          if (!prev) {
+            return prev;
+          }
+          if (!step.requestId || step.requestId === prev.requestId) {
+            return null;
+          }
+          return prev;
+        });
+        setApprovalSubmitting(false);
+      }
     });
   }, []);
+
+  const resolveToolApproval = useCallback(
+    async (approved: boolean, options?: { whitelist?: boolean }) => {
+      if (!pendingToolApproval?.requestId) {
+        return;
+      }
+
+      setApprovalSubmitting(true);
+      setApprovalError(null);
+      try {
+        if (options?.whitelist) {
+          if (!pendingToolApproval.toolName) {
+            throw new Error("Tool name missing for whitelist request.");
+          }
+          const whitelistResponse = await ipcClient.mcp.addToolToWhitelist(
+            pendingToolApproval.toolName,
+          );
+          if (!whitelistResponse?.success) {
+            throw new Error("Failed to add tool to whitelist.");
+          }
+        }
+
+        const result = await ipcClient.mcp.respondToToolApproval(
+          pendingToolApproval.requestId,
+          approved,
+        );
+        if (!result?.success) {
+          throw new Error("Unable to submit tool approval decision.");
+        }
+        setPendingToolApproval(null);
+      } catch (error) {
+        setApprovalError(formatErrorMessage(error));
+      } finally {
+        setApprovalSubmitting(false);
+      }
+    },
+    [pendingToolApproval],
+  );
+
+  useEffect(() => {
+    if (!pendingToolApproval?.autoApproveAt || !pendingToolApproval.requestId) {
+      setAutoApprovalCountdown(null);
+      return;
+    }
+
+    const deadline = pendingToolApproval.autoApproveAt;
+    const updateCountdown = () => {
+      const remainingMs = deadline - Date.now();
+      setAutoApprovalCountdown(Math.max(0, Math.ceil(remainingMs / 1000)));
+    };
+
+    updateCountdown();
+
+    const intervalId = window.setInterval(updateCountdown, 500);
+    const timeoutDelay = Math.max(0, deadline - Date.now());
+    const timeoutId = window.setTimeout(() => {
+      updateCountdown();
+      void resolveToolApproval(true);
+    }, timeoutDelay);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [pendingToolApproval?.autoApproveAt, pendingToolApproval?.requestId, resolveToolApproval]);
 
   const derivedOrigin = resolveWorkflowOrigin(progress);
   sourceOriginRef.current = derivedOrigin ?? sourceOriginRef.current;
   const workflowStages = getWorkflowStagesByOrigin(sourceOriginRef.current);
+
+  const approvalDialogOpen = Boolean(pendingToolApproval);
+  const approvalArgsText = pendingToolApproval?.args
+    ? (() => {
+        try {
+          return JSON.stringify(deepParseJson(pendingToolApproval.args), null, 2);
+        } catch {
+          try {
+            return JSON.stringify(pendingToolApproval.args, null, 2);
+          } catch {
+            return String(pendingToolApproval.args);
+          }
+        }
+      })()
+    : null;
+
+  const approvalDialog = (
+    <AlertDialog open={approvalDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {pendingToolApproval?.toolName
+              ? `Allow ${pendingToolApproval.toolName}?`
+              : "Approve requested tool?"}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            The orchestrator needs your confirmation before executing this MCP tool.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {autoApprovalCountdown !== null && (
+          <p className="text-xs text-yellow-300">
+            Auto-approving in {autoApprovalCountdown}s if no action is taken.
+          </p>
+        )}
+        {approvalArgsText && (
+          <div className="bg-black/30 border border-white/10 rounded-md max-h-48 overflow-y-auto">
+            <pre className="text-xs text-white/80 p-3 whitespace-pre-wrap break-words">
+              {approvalArgsText}
+            </pre>
+          </div>
+        )}
+        {approvalError && <p className="text-red-400 text-sm">{approvalError}</p>}
+        <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <AlertDialogCancel
+            disabled={approvalSubmitting}
+            onClick={(event) => {
+              event.preventDefault();
+              void resolveToolApproval(false);
+            }}
+          >
+            Deny
+          </AlertDialogCancel>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={approvalSubmitting || !pendingToolApproval?.toolName}
+            onClick={(event) => {
+              event.preventDefault();
+              void resolveToolApproval(true, { whitelist: true });
+            }}
+          >
+            {approvalSubmitting ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </span>
+            ) : (
+              "Approve & whitelist"
+            )}
+          </Button>
+          <AlertDialogAction
+            disabled={approvalSubmitting}
+            onClick={(event) => {
+              event.preventDefault();
+              void resolveToolApproval(true);
+            }}
+          >
+            {approvalSubmitting ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Processing...
+              </span>
+            ) : (
+              "Approve once"
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   const getStageIcon = (stage: WorkflowStage) => {
     const currentIndex = workflowStages.indexOf(progress.stage);
@@ -191,22 +395,26 @@ export function WorkflowProgressPanel() {
 
   if (progress.stage === ProgressStage.IDLE) {
     return (
-      <div className="w-[500px] mx-auto my-4">
-        <Card className="bg-black/20 backdrop-blur-md border-white/10">
-          <CardContent className="py-16 text-center">
-            <AlertCircle className="w-16 h-16 text-white/40 mx-auto mb-4" />
-            <h3 className="text-xl font-medium mb-2">No Active Workflow</h3>
-            <p className="text-white/60">Record a video to start the automated workflow</p>
-          </CardContent>
-        </Card>
-      </div>
+      <>
+        <div className="w-[500px] mx-auto my-4">
+          <Card className="bg-black/20 backdrop-blur-md border-white/10">
+            <CardContent className="py-16 text-center">
+              <AlertCircle className="w-16 h-16 text-white/40 mx-auto mb-4" />
+              <h3 className="text-xl font-medium mb-2">No Active Workflow</h3>
+              <p className="text-white/60">Record a video to start the automated workflow</p>
+            </CardContent>
+          </Card>
+        </div>
+        {approvalDialog}
+      </>
     );
   }
 
   const isExternalWorkflow = derivedOrigin === "external";
 
   return (
-    <div className="w-[500px] mx-auto my-4">
+    <>
+      <div className="w-[500px] mx-auto my-4">
       <Card className="bg-black/20 backdrop-blur-md border-white/10">
         <CardHeader>
           <CardTitle className=" text-xl">AI Workflow Progress</CardTitle>
@@ -268,6 +476,8 @@ export function WorkflowProgressPanel() {
           <UndoStagePanel status={undoStatus} steps={undoSteps} stepsRef={stepsRef} />
         </div>
       )}
-    </div>
+      </div>
+      {approvalDialog}
+    </>
   );
 }
