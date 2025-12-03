@@ -78,12 +78,9 @@
           errorMsg.style.display = "none";
           video.style.display = "block";
 
-          // Wait for video to actually start playing
           await new Promise((resolve) => {
             video.onloadeddata = resolve;
           });
-
-          // Notify that camera is ready
           if (window.electronAPI) {
             window.electronAPI.cameraReady();
           }
@@ -95,23 +92,19 @@
         }
       }
 
-      // Get device ID from URL params
       const urlParams = new URLSearchParams(window.location.search);
       const deviceId = urlParams.get("deviceId");
 
-      // Start camera on load
       window.addEventListener("DOMContentLoaded", () => {
         startCamera(deviceId);
       });
 
-      // Listen for device change from IPC (production mode)
       if (window.electronAPI) {
         window.electronAPI.onSetCameraDevice((deviceId) => {
           startCamera(deviceId);
         });
       }
 
-      // Cleanup on close
       window.addEventListener("beforeunload", () => {
         if (currentStream) {
           currentStream.getTracks().forEach((track) => track.stop());

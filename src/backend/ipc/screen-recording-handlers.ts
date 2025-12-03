@@ -57,8 +57,8 @@ export class ScreenRecordingIPCHandlers {
 
   private async showControlBarWithCamera(cameraDeviceId?: string) {
     const displayId = this.service.getCurrentRecordingDisplayId();
+    await this.controlBar.showForRecording(displayId);
 
-    // Show camera window first if device ID provided (so it's loaded before countdown)
     if (cameraDeviceId) {
       await this.cameraWindow.show(displayId, cameraDeviceId);
     }
@@ -79,17 +79,20 @@ export class ScreenRecordingIPCHandlers {
   }
 
   private stopRecordingFromControlBar() {
-    // Hide both camera and control bar
-    this.cameraWindow.hide();
-    this.controlBar.hide();
-    
-    // Send stop request to all windows
-    BrowserWindow.getAllWindows()
-      .filter((win) => !win.isDestroyed() && !win.webContents.isDestroyed())
-      .forEach((win) => {
-        win.webContents.send("stop-recording-request");
-      });
-    
+    const mainWindow = getMainWindow();
+    if (
+      mainWindow &&
+      !mainWindow.isDestroyed() &&
+      !mainWindow.webContents.isDestroyed()
+    ) {
+      mainWindow.webContents.send("stop-recording-request");
+    }
+
+    setTimeout(() => {
+      this.cameraWindow.hide();
+      this.controlBar.hide();
+    }, 100);
+
     return { success: true };
   }
 }
