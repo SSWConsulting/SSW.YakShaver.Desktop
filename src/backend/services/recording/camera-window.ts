@@ -59,7 +59,6 @@ export class CameraWindow {
       this.window = null;
     });
 
-    // Add snap-to-border functionality
     this.window.on("moved", () => {
       this.snapToScreenEdge();
     });
@@ -120,7 +119,6 @@ export class CameraWindow {
     const [windowX, windowY] = this.window.getPosition();
     const { width: windowWidth, height: windowHeight } = WINDOW_SIZE;
 
-    // Get the target display (the one where recording started)
     const displays = screen.getAllDisplays();
     const targetDisplay = this.targetDisplayId
       ? displays.find(

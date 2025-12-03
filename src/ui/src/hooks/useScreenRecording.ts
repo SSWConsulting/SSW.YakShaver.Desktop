@@ -134,12 +134,9 @@ export function useScreenRecording() {
     return new Promise((resolve) => {
       recorder.onstop = async () => {
         try {
-          // Try to hide control bar (may already be hidden if stopped from control bar)
-          try {
-            await window.electronAPI.screenRecording.hideControlBar();
-          } catch (hideError) {
-            console.log("Control bar already hidden:", hideError);
-          }
+          await window.electronAPI.screenRecording
+            .hideControlBar()
+            .catch(() => {});
 
           const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
           const result = await window.electronAPI.screenRecording.stop(
@@ -162,7 +159,6 @@ export function useScreenRecording() {
         }
       };
 
-      // Only stop if recording
       if (recorder.state === "recording") {
         recorder.stop();
       }
