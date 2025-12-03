@@ -271,8 +271,19 @@ export class MCPOrchestrator {
       autoApproveAt: options?.autoApproveAt,
     });
 
+    const TOOL_APPROVAL_TIMEOUT_MS = 60_000; // 60 seconds
     const approved = await new Promise<boolean>((resolve) => {
-      this.pendingToolApprovals.set(requestId, resolve);
+      // Store resolver for normal approval/denial
+      this.pendingToolApprovals.set(requestId, (result: boolean) => {
+        clearTimeout(timeoutId);
+        this.pendingToolApprovals.delete(requestId);
+        resolve(result);
+      });
+      // Timeout fallback
+      const timeoutId = setTimeout(() => {
+        this.pendingToolApprovals.delete(requestId);
+        resolve(false); // Denied by timeout
+      }, TOOL_APPROVAL_TIMEOUT_MS);
     });
 
     return { requestId, approved };
