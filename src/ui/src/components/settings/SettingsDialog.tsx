@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "../ui/scroll-area";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
+import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
 import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
 import { LLMSettingsPanel } from "./llm/LLMKeyManager";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
@@ -18,6 +19,10 @@ interface SettingsTab {
 }
 
 const TABS: SettingsTab[] = [
+  {
+    id: "general",
+    label: "General",
+  },
   {
     id: "release",
     label: "Releases",
@@ -148,6 +153,9 @@ export function SettingsDialog() {
           <section className="flex-1 h-full overflow-hidden">
             <ScrollArea className="h-full pr-1">
               <div className="pb-4 pr-2">
+                {activeTab?.id === "general" && (
+                  <GeneralSettingsPanel isActive={open && activeTabId === "general"} />
+                )}
                 {activeTab?.id === "release" && (
                   <ReleaseChannelSettingsPanel isActive={open && activeTabId === "release"} />
                 )}

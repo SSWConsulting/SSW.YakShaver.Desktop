@@ -4,7 +4,13 @@ import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
-import { ProgressStage, type WorkflowProgress, type WorkflowStage } from "../../types";
+import {
+  MCPStepType,
+  ProgressStage,
+  type MCPStep,
+  type WorkflowProgress,
+  type WorkflowStage,
+} from "../../types";
 import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -18,7 +24,6 @@ import {
 } from "../ui/dialog";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import type { MCPStep } from "./StageWithContent";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
@@ -391,17 +396,17 @@ const summarizeSteps = (steps: MCPStep[]): string => {
     .map((step, index) => {
       const prefix = `${index + 1}.`;
       switch (step.type) {
-        case "start":
+        case MCPStepType.START:
           return `${prefix} START — ${step.message ?? "Workflow execution started."}`;
-        case "reasoning": {
+        case MCPStepType.REASONING: {
           if (!step.reasoning) return null;
           return `${prefix} REASONING — ${truncateText(step.reasoning)}`;
         }
-        case "tool_call": {
+        case MCPStepType.TOOL_CALL: {
           const argsText = step.args ? truncateText(formatValue(step.args)) : "No args provided.";
           return `${prefix} TOOL CALL — ${step.toolName ?? "unknown"} (server: ${step.serverName ?? "unknown"})\nArgs: ${argsText}`;
         }
-        case "tool_result": {
+        case MCPStepType.TOOL_RESULT: {
           if (step.error) {
             return `${prefix} TOOL ERROR — ${step.error}`;
           }
@@ -410,7 +415,11 @@ const summarizeSteps = (steps: MCPStep[]): string => {
           }
           return `${prefix} TOOL RESULT — ${truncateText(formatValue(step.result))}`;
         }
-        case "final_result":
+        case MCPStepType.TOOL_APPROVAL_REQUIRED:
+          return `${prefix} TOOL APPROVAL — Awaiting permission to run ${step.toolName ?? "unknown tool"}.`;
+        case MCPStepType.TOOL_DENIED:
+          return `${prefix} TOOL DENIED — ${step.message ?? "Operator cancelled the tool call."}`;
+        case MCPStepType.FINAL_RESULT:
           return `${prefix} FINAL RESULT — ${step.message ?? "Generated final output."}`;
         default:
           return null;
