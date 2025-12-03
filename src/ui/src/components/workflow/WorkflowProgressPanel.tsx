@@ -257,6 +257,7 @@ export function WorkflowProgressPanel() {
     const intervalId = window.setInterval(updateCountdown, 500);
     const timeoutDelay = Math.max(0, deadline - Date.now());
     const timeoutId = window.setTimeout(() => {
+      updateCountdown();
       void resolveToolApproval(true);
     }, timeoutDelay);
 
