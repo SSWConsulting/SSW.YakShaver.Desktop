@@ -66,6 +66,16 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
     if (open) {
       void fetchSources();
       void fetchDevices();
+
+      const handleDeviceChange = () => {
+        void fetchDevices();
+      };
+
+      navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+
+      return () => {
+        navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+      };
     } else {
       setSources([]);
       setLoading(false);
