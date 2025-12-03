@@ -1,12 +1,17 @@
 # Desktop Electron App
 
+## Prerequisites
+
+- [Node JS](https://nodejs.org/en/download)
+
 ## Setup
 
 1. Copy `.env.example` → `.env`
 2. Copy environment from keeper: **SSW.Yakshaver Desktop .env** (just copy YouTube client id and secret values. LLM values should be set via app itself)
 
 ## Run
-
+In the root folder, run
+1.  `npm install -g concurrently`, which will install the [`concurrently` package](https://www.npmjs.com/package/concurrently)
 1. `npm run setup` – install dependencies
 2. `npm run dev` – start the app
 
@@ -20,6 +25,13 @@
 
 ## Configuration
 
+- Keys are stored securely on your device using the opearting system's encryption (Electron safeStorage) in the app's user data directory
+
+- **Windows**: `%APPDATA%\SSW.YakShaver\yakshaver-tokens\*.enc`
+- **macOS**: `~/Library/Application Support/SSW.YakShaver/yakshaver-tokens/*.enc`
+- **Linux**: `~/.config/SSW.YakShaver/yakshaver-tokens/*.enc`
+
+
 ### OpenAI API Key (User-provided)
 
 You can now set your own OpenAI API key directly in the app:
@@ -30,16 +42,9 @@ You can now set your own OpenAI API key directly in the app:
 
 Notes:
 
-- The key is stored securely on your device using the operating system's encryption (Electron safeStorage) in the app's user data directory.
 - You can clear the stored key anytime from the same dialog.
 
 ### MCP Server Configuration
-
-The MCP server configuration is automatically stored in the platform-appropriate user data directory:
-
-- **Windows**: `%APPDATA%\SSW.YakShaver\mcp-servers.json`
-- **macOS**: `~/Library/Application Support/SSW.YakShaver/mcp-servers.json`
-- **Linux**: `~/.config/SSW.YakShaver/mcp-servers.json`
 
 The configuration file is automatically created when you add your first MCP server through the Settings UI. The configuration persists across app restarts and updates.
 
