@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { ipcMain } from "electron";
 import { getMainWindow } from "../index";
 import { CameraWindow } from "../services/recording/camera-window";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
