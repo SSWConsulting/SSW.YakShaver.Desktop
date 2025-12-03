@@ -1,13 +1,13 @@
 import tmp from "tmp";
-import ytDlp, { type YtFlags } from "yt-dlp-exec";
+import youtubedl, { type Flags } from "youtube-dl-exec";
 import type { VideoUploadResult } from "../auth/types";
 
 export class YouTubeDownloadService {
   private static instance: YouTubeDownloadService;
-  private downloadClient: typeof ytDlp;
+  private downloadClient: typeof youtubedl;
 
   private constructor() {
-    this.downloadClient = ytDlp;
+    this.downloadClient = youtubedl;
   }
 
   public static getInstance(): YouTubeDownloadService {
@@ -18,7 +18,7 @@ export class YouTubeDownloadService {
   }
 
   public async getVideoMetadata(youtubeUrl: string): Promise<VideoUploadResult> {
-    const flags: YtFlags = {
+    const flags: Flags = {
       skipDownload: true,
       dumpSingleJson: true,
       noWarnings: true,
@@ -26,20 +26,29 @@ export class YouTubeDownloadService {
     };
     try {
       const metadata = await this.downloadClient(youtubeUrl, flags);
-      return {
-        success: true,
-        data: {
-          videoId: metadata.id,
-          title: metadata.title,
-          description: metadata.description,
-          url: metadata.webpage_url,
-        },
-        origin: "external",
-      };
+      if (typeof metadata !== "string") {
+        return {
+          success: true,
+          data: {
+            videoId: metadata.id,
+            title: metadata.title,
+            description: metadata.description,
+            url: metadata.webpage_url,
+          },
+          origin: "external",
+        };
+      } else {
+        return {
+          success: false,
+          error: `Failed to retrieve video metadata: ${metadata}`,
+        };
+      }
     } catch (error) {
       return {
         success: false,
-        error: `Failed to fetch video metadata: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Failed to fetch video metadata: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       };
     }
   }
@@ -50,20 +59,20 @@ export class YouTubeDownloadService {
     }
 
     outputPath ??= tmp.tmpNameSync({ postfix: ".mp4" });
-    const flags: YtFlags = {
+    console.log("[YouTubeDownloadService] Downloading video to:", outputPath);
+    const flags: Flags = {
       output: outputPath,
       format: "bestvideo+bestaudio/best",
       mergeOutputFormat: "mp4",
-      restrictFilenames: true,
-      noWarnings: true,
-      quiet: true,
     };
 
     try {
       await this.downloadClient(youtubeUrl, flags);
       return outputPath;
     } catch (error) {
-      throw new Error(`Failed to download video: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to download video: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

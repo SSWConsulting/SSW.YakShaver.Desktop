@@ -91,7 +91,9 @@ export class ProcessVideoIPCHandlers {
     }
 
     // upload to YouTube
-    this.emitProgress(ProgressStage.UPLOADING_SOURCE, { sourceOrigin: "upload" });
+    this.emitProgress(ProgressStage.UPLOADING_SOURCE, {
+      sourceOrigin: "upload",
+    });
     const youtubeResult = await this.youtube.uploadVideo(filePath);
     this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
       uploadResult: youtubeResult,
@@ -111,7 +113,9 @@ export class ProcessVideoIPCHandlers {
         uploadResult: youtubeResult,
         sourceOrigin: "external",
       });
-      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, { sourceOrigin: "external" });
+      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, {
+        sourceOrigin: "external",
+      });
       const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
       return await this.processVideoSource({
         filePath,
