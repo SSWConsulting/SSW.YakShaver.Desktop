@@ -2,13 +2,6 @@ import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
 import { app, BrowserWindow, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
-
-// Flag to track if we're in the middle of an update installation
-export let isUpdating = false;
-export function setIsUpdating(value: boolean): void {
-  isUpdating = value;
-}
-
 import tmp from "tmp";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
@@ -25,6 +18,12 @@ import { registerAllInternalMcpServers } from "./services/mcp/internal/register-
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
+
+// Flag to track if we're in the middle of an update installation
+export let isUpdating = false;
+export function setIsUpdating(value: boolean): void {
+  isUpdating = value;
+}
 
 const isDev = process.env.NODE_ENV === "development";
 
