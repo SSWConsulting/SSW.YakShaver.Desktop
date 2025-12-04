@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
+import { setIsUpdating } from "../index";
 import { GitHubTokenStorage } from "../services/storage/github-token-storage";
 import type { ReleaseChannel } from "../services/storage/release-channel-storage";
 import { ReleaseChannelStorage } from "../services/storage/release-channel-storage";
@@ -89,9 +90,13 @@ export class ReleaseChannelIPCHandlers {
         })
         .then((result) => {
           if (result.response === 0) {
+            // Set flag to allow quit during update
+            setIsUpdating(true);
+
             // Force immediate quit and install
             setImmediate(() => {
-              // isSilent: false, isForceRunAfter: true, check docs: https://www.jsdocs.io/package/electron-updater#AppUpdater.quitAndInstall
+              // isSilent: false, isForceRunAfter: true
+              // check docs: https://www.jsdocs.io/package/electron-updater#AppUpdater.quitAndInstall
               autoUpdater.quitAndInstall(false, true);
             });
           }
@@ -99,6 +104,10 @@ export class ReleaseChannelIPCHandlers {
         .catch((err) => {
           console.error("Error showing update dialog:", err);
         });
+    });
+
+    autoUpdater.on("error", (err) => {
+      console.error("Auto-updater error:", err);
     });
   }
 
