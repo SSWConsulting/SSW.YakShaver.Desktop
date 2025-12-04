@@ -3,6 +3,7 @@ import type { VideoUploadResult } from "./services/auth/types";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 import type { ToolApprovalMode } from "./services/storage/general-settings-storage";
+import type { ToolApprovalDecision } from "./services/mcp/mcp-orchestrator";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
 // Need to make single source of truth
@@ -195,8 +196,8 @@ const electronAPI = {
         autoApproveAt?: number;
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
-    respondToToolApproval: (requestId: string, approved: boolean) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION, { requestId, approved }),
+    respondToToolApproval: (requestId: string, decision: ToolApprovalDecision) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION, { requestId, decision }),
     addToolToWhitelist: (toolName: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_TOOL_TO_WHITELIST, { toolName }),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),

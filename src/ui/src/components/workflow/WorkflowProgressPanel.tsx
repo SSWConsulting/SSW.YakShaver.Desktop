@@ -23,6 +23,8 @@ import {
 } from "../ui/alert-dialog";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea";
 import { StageWithContent } from "./StageWithContent";
 import { StageWithoutContent } from "./StageWithoutContent";
 import { UndoStagePanel } from "./UndoStagePanel";
@@ -73,6 +75,8 @@ export function WorkflowProgressPanel() {
   const [approvalSubmitting, setApprovalSubmitting] = useState(false);
   const [approvalError, setApprovalError] = useState<string | null>(null);
   const [autoApprovalCountdown, setAutoApprovalCountdown] = useState<number | null>(null);
+  const [showCorrectionForm, setShowCorrectionForm] = useState(false);
+  const [correctionText, setCorrectionText] = useState("");
   const stepsRef = useRef<HTMLDivElement | null>(null);
   const undoStatusRef = useRef<"idle" | "in_progress" | "completed" | "error">("idle");
   const sourceOriginRef = useRef<VideoUploadOrigin | undefined>(undefined);
@@ -204,8 +208,13 @@ export function WorkflowProgressPanel() {
     });
   }, []);
 
+  type ApprovalAction =
+    | { kind: "approve"; whitelist?: boolean }
+    | { kind: "deny_stop"; feedback?: string }
+    | { kind: "request_changes"; feedback: string };
+
   const resolveToolApproval = useCallback(
-    async (approved: boolean, options?: { whitelist?: boolean }) => {
+    async (action: ApprovalAction) => {
       if (!pendingToolApproval?.requestId) {
         return;
       }
@@ -213,7 +222,7 @@ export function WorkflowProgressPanel() {
       setApprovalSubmitting(true);
       setApprovalError(null);
       try {
-        if (options?.whitelist) {
+        if (action.kind === "approve" && action.whitelist) {
           if (!pendingToolApproval.toolName) {
             throw new Error("Tool name missing for whitelist request.");
           }
@@ -225,9 +234,25 @@ export function WorkflowProgressPanel() {
           }
         }
 
+        const decisionPayload = (() => {
+          if (action.kind === "request_changes") {
+            const trimmed = action.feedback.trim();
+            if (!trimmed) {
+              throw new Error("Please describe what needs to change before retrying the tool.");
+            }
+            return { kind: action.kind, feedback: trimmed } as const;
+          }
+          if (action.kind === "deny_stop") {
+            return action.feedback?.trim()
+              ? { kind: action.kind, feedback: action.feedback.trim() }
+              : { kind: action.kind };
+          }
+          return { kind: "approve" } as const;
+        })();
+
         const result = await ipcClient.mcp.respondToToolApproval(
           pendingToolApproval.requestId,
-          approved,
+          decisionPayload,
         );
         if (!result?.success) {
           throw new Error("Unable to submit tool approval decision.");
@@ -260,7 +285,7 @@ export function WorkflowProgressPanel() {
     const timeoutDelay = Math.max(0, deadline - Date.now());
     const timeoutId = window.setTimeout(() => {
       updateCountdown();
-      void resolveToolApproval(true);
+      void resolveToolApproval({ kind: "approve" });
     }, timeoutDelay);
 
     return () => {
@@ -274,6 +299,13 @@ export function WorkflowProgressPanel() {
   const workflowStages = getWorkflowStagesByOrigin(sourceOriginRef.current);
 
   const approvalDialogOpen = Boolean(pendingToolApproval);
+
+  useEffect(() => {
+    if (!approvalDialogOpen) {
+      setShowCorrectionForm(false);
+      setCorrectionText("");
+    }
+  }, [approvalDialogOpen]);
   const approvalArgsText = pendingToolApproval?.args
     ? (() => {
         try {
@@ -314,50 +346,129 @@ export function WorkflowProgressPanel() {
           </div>
         )}
         {approvalError && <p className="text-red-400 text-sm">{approvalError}</p>}
+        {showCorrectionForm && (
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label htmlFor="tool-correction-text">Share corrections</Label>
+              <Textarea
+                id="tool-correction-text"
+                rows={4}
+                placeholder="Explain what needs to change before this tool runs again..."
+                value={correctionText}
+                onChange={(event) => setCorrectionText(event.target.value)}
+                disabled={approvalSubmitting}
+              />
+            </div>
+            <p className="text-xs text-white/60">
+              Your note is added to the conversation so the AI can fix the tool inputs.
+            </p>
+          </div>
+        )}
         <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <AlertDialogCancel
-            disabled={approvalSubmitting}
-            onClick={(event) => {
-              event.preventDefault();
-              void resolveToolApproval(false);
-            }}
-          >
-            Deny
-          </AlertDialogCancel>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={approvalSubmitting || !pendingToolApproval?.toolName}
-            onClick={(event) => {
-              event.preventDefault();
-              void resolveToolApproval(true, { whitelist: true });
-            }}
-          >
-            {approvalSubmitting ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Saving...
-              </span>
-            ) : (
-              "Approve & whitelist"
-            )}
-          </Button>
-          <AlertDialogAction
-            disabled={approvalSubmitting}
-            onClick={(event) => {
-              event.preventDefault();
-              void resolveToolApproval(true);
-            }}
-          >
-            {approvalSubmitting ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Processing...
-              </span>
-            ) : (
-              "Approve once"
-            )}
-          </AlertDialogAction>
+          {showCorrectionForm ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={approvalSubmitting}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setShowCorrectionForm(false);
+                  setCorrectionText("");
+                }}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={approvalSubmitting}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void resolveToolApproval({
+                    kind: "deny_stop",
+                    feedback: correctionText.trim() || undefined,
+                  });
+                }}
+              >
+                {approvalSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Cancelling...
+                  </span>
+                ) : (
+                  "Deny & stop"
+                )}
+              </Button>
+              <Button
+                type="button"
+                disabled={approvalSubmitting || !correctionText.trim().length}
+                onClick={(event) => {
+                  event.preventDefault();
+                  const trimmed = correctionText.trim();
+                  if (!trimmed) {
+                    return;
+                  }
+                  void resolveToolApproval({ kind: "request_changes", feedback: trimmed });
+                }}
+              >
+                {approvalSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sending...
+                  </span>
+                ) : (
+                  "Send correction"
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <AlertDialogCancel
+                disabled={approvalSubmitting}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setShowCorrectionForm(true);
+                }}
+              >
+                Deny
+              </AlertDialogCancel>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={approvalSubmitting || !pendingToolApproval?.toolName}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void resolveToolApproval({ kind: "approve", whitelist: true });
+                }}
+              >
+                {approvalSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </span>
+                ) : (
+                  "Approve & whitelist"
+                )}
+              </Button>
+              <AlertDialogAction
+                disabled={approvalSubmitting}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void resolveToolApproval({ kind: "approve" });
+                }}
+              >
+                {approvalSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Processing...
+                  </span>
+                ) : (
+                  "Approve once"
+                )}
+              </AlertDialogAction>
+            </>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

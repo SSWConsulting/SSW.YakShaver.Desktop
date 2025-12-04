@@ -96,7 +96,7 @@ declare global {
         onStepUpdate: (callback: (step: MCPStep) => void) => () => void;
         respondToToolApproval: (
           requestId: string,
-          approved: boolean,
+          decision: ToolApprovalDecisionPayload,
         ) => Promise<{ success: boolean }>;
         listServers: () => Promise<MCPServerConfig[]>;
         addToolToWhitelist: (toolName: string) => Promise<{ success: boolean }>;
@@ -159,5 +159,10 @@ declare global {
     };
   }
 }
+
+type ToolApprovalDecisionPayload =
+  | { kind: "approve" }
+  | { kind: "deny_stop"; feedback?: string }
+  | { kind: "request_changes"; feedback: string };
 
 export const ipcClient = window.electronAPI;

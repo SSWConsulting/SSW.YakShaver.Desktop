@@ -1,4 +1,4 @@
-import type { ToolCallOptions, ToolModelMessage, ModelMessage } from "ai";
+import type { ToolCallOptions, ToolModelMessage, ModelMessage, UserModelMessage } from "ai";
 import { randomUUID } from "node:crypto";
 import type { VideoUploadResult } from "../auth/types";
 import { LLMClientProvider } from "./llm-client-provider";
@@ -14,6 +14,11 @@ type StepType =
   | "final_result"
   | "tool_approval_required"
   | "tool_denied";
+
+export type ToolApprovalDecision =
+  | { kind: "approve" }
+  | { kind: "deny_stop"; feedback?: string }
+  | { kind: "request_changes"; feedback: string };
 
 interface MCPStep {
   type: StepType;
@@ -43,7 +48,7 @@ export class MCPOrchestrator {
   private static instance: MCPOrchestrator;
   private static llmProvider: LLMClientProvider | null = null;
   private static mcpServerManager: MCPServerManager | null = null;
-  private pendingToolApprovals = new Map<string, (approved: boolean) => void>();
+  private pendingToolApprovals = new Map<string, (decision: ToolApprovalDecision) => void>();
 
   private constructor() {}
 
@@ -100,7 +105,7 @@ export class MCPOrchestrator {
     ];
 
     // the orchestrator loop
-    for (let i = 0; i < (options.maxToolIterations || 10); i++) {
+    for (let i = 0; i < (options.maxToolIterations || 20); i++) {
       const generalSettings = await generalSettingsStorage.getSettingsAsync();
       const toolApprovalMode: ToolApprovalMode = generalSettings.toolApprovalMode;
       const bypassApprovalChecks = toolApprovalMode === "yolo";
@@ -109,6 +114,7 @@ export class MCPOrchestrator {
         : new Set(
             (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
           );
+
       const llmResponse = await MCPOrchestrator.llmProvider
         .generateTextWithTools(messages, tools)
         .catch((error) => {
@@ -126,6 +132,7 @@ export class MCPOrchestrator {
 
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
+        let retryFeedback: { message: string; userVisibleMessage: string } | null = null;
         for (const toolCall of llmResponse.toolCalls) {
           const requiresApproval = !bypassApprovalChecks && !toolWhiteList.has(toolCall.toolName);
 
@@ -134,25 +141,75 @@ export class MCPOrchestrator {
               toolApprovalMode === "wait"
                 ? Date.now() + WAIT_MODE_AUTO_APPROVE_DELAY_MS
                 : undefined;
-            const { approved, requestId } = await this.requestToolApproval(
+            const { decision, requestId } = await this.requestToolApproval(
               toolCall.toolName,
               toolCall.input,
               { autoApproveAt },
             );
 
-            if (!approved) {
+            if (decision.kind === "deny_stop") {
+              const denialMessage = decision.feedback?.trim()?.length
+                ? `User cancelled tool: ${decision.feedback.trim()}`
+                : "Tool execution cancelled by user";
               sendStepEvent({
                 type: "tool_denied",
                 toolName: toolCall.toolName,
                 args: toolCall.input,
                 requestId,
-                message: "User denied tool execution",
+                message: denialMessage,
               });
               sendStepEvent({
                 type: "final_result",
                 message: "Tool execution cancelled by user",
               });
               return "Tool execution cancelled by user";
+            }
+
+            if (decision.kind === "request_changes") {
+              const formattedFeedback = decision.feedback.trim();
+              const userVisibleMessage = formattedFeedback
+                ? `User feedback: ${formattedFeedback}`
+                : "User requested tool changes";
+              retryFeedback = {
+                message: this.formatToolCorrectionMessage(
+                  toolCall.toolName,
+                  toolCall.input,
+                  formattedFeedback,
+                ),
+                userVisibleMessage,
+              };
+              sendStepEvent({
+                type: "tool_denied",
+                toolName: toolCall.toolName,
+                args: toolCall.input,
+                requestId,
+                message: userVisibleMessage,
+              });
+
+              // construct tool result message and append to messages history
+              const toolMessage: ToolModelMessage = {
+                role: "tool",
+                content: [
+                  {
+                    type: "tool-result",
+                    toolName: toolCall.toolName,
+                    toolCallId: toolCall.toolCallId,
+                    output: {
+                      type: "error-text",
+                      value: retryFeedback.message,
+                    },
+                  },
+                ],
+              };
+
+              // LLM ignores the retry feedback in the tool result, so we need to add a user message as well
+              const userMessage: UserModelMessage = {
+                role: "user",
+                content: retryFeedback.message,
+              };
+
+              messages.push(toolMessage, userMessage);
+              continue;
             }
           }
 
@@ -252,11 +309,34 @@ export class MCPOrchestrator {
     return response.text;
   }
 
+  private formatToolCorrectionMessage(
+    toolName: string,
+    originalArgs: unknown,
+    feedback: string,
+  ): string {
+    const serializedArgs = (() => {
+      try {
+        return JSON.stringify(originalArgs, null, 2);
+      } catch {
+        return String(originalArgs ?? "");
+      }
+    })();
+
+    const feedbackLines = [
+      `Please revise the previous call to "${toolName}".`,
+      feedback ? `User feedback: ${feedback}` : undefined,
+      serializedArgs ? `Previous arguments were:\n${serializedArgs}` : undefined,
+      "Update your plan or choose a different tool before continuing.",
+    ].filter(Boolean);
+
+    return feedbackLines.join("\n\n");
+  }
+
   private async requestToolApproval(
     toolName: string,
     args: unknown,
     options?: { autoApproveAt?: number },
-  ): Promise<{ requestId: string; approved: boolean }> {
+  ): Promise<{ requestId: string; decision: ToolApprovalDecision }> {
     if (!MCPOrchestrator.instance) {
       throw new Error("[MCPOrchestrator]: requestToolApproval called before initialization");
     }
@@ -272,9 +352,9 @@ export class MCPOrchestrator {
     });
 
     const TOOL_APPROVAL_TIMEOUT_MS = 60_000; // 60 seconds
-    const approved = await new Promise<boolean>((resolve) => {
+    const decision = await new Promise<ToolApprovalDecision>((resolve) => {
       // Store resolver for normal approval/denial
-      this.pendingToolApprovals.set(requestId, (result: boolean) => {
+      this.pendingToolApprovals.set(requestId, (result: ToolApprovalDecision) => {
         clearTimeout(timeoutId);
         this.pendingToolApprovals.delete(requestId);
         resolve(result);
@@ -282,21 +362,21 @@ export class MCPOrchestrator {
       // Timeout fallback
       const timeoutId = setTimeout(() => {
         this.pendingToolApprovals.delete(requestId);
-        resolve(false); // Denied by timeout
+        resolve({ kind: "deny_stop" }); // Denied by timeout
       }, TOOL_APPROVAL_TIMEOUT_MS);
     });
 
-    return { requestId, approved };
+    return { requestId, decision };
   }
 
-  public resolveToolApproval(requestId: string, approved: boolean): boolean {
+  public resolveToolApproval(requestId: string, decision: ToolApprovalDecision): boolean {
     const resolver = this.pendingToolApprovals.get(requestId);
     if (!resolver) {
       return false;
     }
 
     this.pendingToolApprovals.delete(requestId);
-    resolver(approved);
+    resolver(decision);
     return true;
   }
 }
