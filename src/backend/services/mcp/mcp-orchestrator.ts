@@ -132,7 +132,6 @@ export class MCPOrchestrator {
 
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
-        let retryFeedback: { message: string; userVisibleMessage: string } | null = null;
         for (const toolCall of llmResponse.toolCalls) {
           const requiresApproval = !bypassApprovalChecks && !toolWhiteList.has(toolCall.toolName);
 
@@ -166,6 +165,7 @@ export class MCPOrchestrator {
             }
 
             if (decision.kind === "request_changes") {
+              let retryFeedback: { message: string; userVisibleMessage: string } | null = null;
               const formattedFeedback = decision.feedback.trim();
               const userVisibleMessage = formattedFeedback
                 ? `User feedback: ${formattedFeedback}`
