@@ -73,15 +73,25 @@ export class CameraWindow {
 
     await new Promise<void>((resolve) => {
       const { ipcMain } = require("electron");
+      let resolved = false;
+      let timeout: NodeJS.Timeout;
+
       const handler = () => {
-        ipcMain.removeListener("camera-ready", handler);
-        resolve();
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          ipcMain.removeListener("camera-ready", handler);
+          resolve();
+        }
       };
       ipcMain.once("camera-ready", handler);
 
-      setTimeout(() => {
-        ipcMain.removeListener("camera-ready", handler);
-        resolve();
+      timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          ipcMain.removeListener("camera-ready", handler);
+          resolve();
+        }
       }, 5000);
     });
 
@@ -144,28 +154,19 @@ export class CameraWindow {
 
     // Check if window has moved outside the target display and snap it back
     // Left edge
-    if (windowX < displayX) {
-      newX = displayX + SNAP_MARGIN;
-    } else if (windowX < displayX + SNAP_MARGIN) {
+    if (windowX < displayX + SNAP_MARGIN) {
       newX = displayX + SNAP_MARGIN;
     }
     // Right edge
-    else if (windowX + windowWidth > displayRight) {
-      newX = displayRight - windowWidth - SNAP_MARGIN;
-    } else if (windowX + windowWidth > displayRight - SNAP_MARGIN) {
+    else if (windowX + windowWidth > displayRight - SNAP_MARGIN) {
       newX = displayRight - windowWidth - SNAP_MARGIN;
     }
-
     // Top edge
-    if (windowY < displayY) {
-      newY = displayY + SNAP_MARGIN;
-    } else if (windowY < displayY + SNAP_MARGIN) {
+    if (windowY < displayY + SNAP_MARGIN) {
       newY = displayY + SNAP_MARGIN;
     }
     // Bottom edge
-    else if (windowY + windowHeight > displayBottom) {
-      newY = displayBottom - windowHeight - SNAP_MARGIN;
-    } else if (windowY + windowHeight > displayBottom - SNAP_MARGIN) {
+     else if (windowY + windowHeight > displayBottom - SNAP_MARGIN) {
       newY = displayBottom - windowHeight - SNAP_MARGIN;
     }
 
