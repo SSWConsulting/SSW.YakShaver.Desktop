@@ -65,9 +65,16 @@ export function ScreenRecorder() {
     }
   }, [isYoutubeUrlWorkflowEnabled]);
 
-  const handleStartRecording = async (sourceId: string) => {
+
+  const handleStartRecording = async (
+    sourceId: string,
+    devices?: { cameraId?: string; microphoneId?: string },
+  ) => {
     setPickerOpen(false);
-    await start(sourceId);
+    await start(sourceId, {
+      micDeviceId: devices?.microphoneId,
+      cameraDeviceId: devices?.cameraId,
+    });
   };
 
   const resetPreview = () => {
