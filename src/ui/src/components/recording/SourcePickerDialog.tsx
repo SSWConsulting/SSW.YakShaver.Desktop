@@ -23,7 +23,11 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   const [cameraPreviewStream, setCameraPreviewStream] = useState<MediaStream | null>(null);
   const [devicesReady, setDevicesReady] = useState(false);
   const NO_CAMERA_VALUE = "__none__";
+  const NO_CAMERA_DISABLED_VALUE = "__no_camera__";
+  const NO_MICROPHONE_DISABLED_VALUE = "__no_mic__";
   const LAST_CAMERA_KEY = "yakshaver.lastCameraDeviceId";
+  const LAST_MICROPHONE_KEY = "yakshaver.lastMicDeviceId";
+  const NO_DEVICE_STORAGE_VALUE = "none";
 
   const fetchSources = useCallback(async () => {
     setLoading(true);
@@ -45,8 +49,8 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       setCameraDevices(cams);
       setMicrophoneDevices(mics);
       const lastCam = localStorage.getItem(LAST_CAMERA_KEY) || undefined;
-      const lastMic = localStorage.getItem("yakshaver.lastMicDeviceId") || undefined;
-      if (lastCam === "none") {
+      const lastMic = localStorage.getItem(LAST_MICROPHONE_KEY) || undefined;
+      if (lastCam === NO_DEVICE_STORAGE_VALUE) {
         setSelectedCameraId(undefined);
       } else {
         setSelectedCameraId(cams.find((c) => c.deviceId === lastCam)?.deviceId || cams[0]?.deviceId);
@@ -160,7 +164,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                 onValueChange={(value) => {
                   if (value === NO_CAMERA_VALUE) {
                     setSelectedCameraId(undefined);
-                    localStorage.setItem(LAST_CAMERA_KEY, "none");
+                    localStorage.setItem(LAST_CAMERA_KEY, NO_DEVICE_STORAGE_VALUE);
                   } else {
                     setSelectedCameraId(value || undefined);
                     if (value) localStorage.setItem(LAST_CAMERA_KEY, value);
@@ -173,7 +177,9 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                 <SelectContent>
                   <SelectItem value={NO_CAMERA_VALUE} textValue="No camera">No camera</SelectItem>
                   {cameraDevices.length === 0 && (
-                    <SelectItem value="__no_camera__" disabled textValue="No camera devices">No camera devices</SelectItem>
+                    <SelectItem value={NO_CAMERA_DISABLED_VALUE} disabled textValue="No camera devices">
+                      No camera devices
+                    </SelectItem>
                   )}
                   {cameraDevices.map((d) => (
                     <SelectItem key={d.deviceId} value={d.deviceId} textValue={d.label || d.deviceId}>
@@ -189,15 +195,16 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                 value={selectedMicrophoneId ?? ""}
                 onValueChange={(v) => {
                   setSelectedMicrophoneId(v || undefined);
-                  if (v) localStorage.setItem("yakshaver.lastMicDeviceId", v);
+                  if (v) localStorage.setItem(LAST_MICROPHONE_KEY, v);
                 }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select microphone" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={NO_MICROPHONE_DISABLED_VALUE} textValue="No microphone">No microphone</SelectItem>
                   {microphoneDevices.length === 0 && (
-                    <SelectItem value="__no_mic__" disabled textValue="No microphone devices">No microphone devices</SelectItem>
+                    <SelectItem value={NO_MICROPHONE_DISABLED_VALUE} disabled textValue="No microphone devices">No microphone devices</SelectItem>
                   )}
                   {microphoneDevices.map((d) => (
                     <SelectItem key={d.deviceId} value={d.deviceId} textValue={d.label || d.deviceId}>
