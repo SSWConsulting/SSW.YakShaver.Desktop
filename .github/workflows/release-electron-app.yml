@@ -1,5 +1,6 @@
 name: Release Electron App
 
+# Keep the `release` trigger option to allow manual publishing of releases if needed.
 on:
   release:
     types: [published]
