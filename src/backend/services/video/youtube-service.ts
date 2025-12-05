@@ -1,13 +1,33 @@
+import path from "node:path";
+import { app } from "electron";
 import tmp from "tmp";
 import youtubedl, { type Flags } from "youtube-dl-exec";
 import type { VideoUploadResult } from "../auth/types";
 
+function getYtDlpPath(): string {
+  if (app.isPackaged) {
+    // In production, the binary is unpacked to app.asar.unpacked
+    return path.join(
+      process.resourcesPath,
+      "app.asar.unpacked",
+      "node_modules",
+      "youtube-dl-exec",
+      "bin",
+      process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp",
+    );
+  }
+  // In development, use the default path
+  return require("youtube-dl-exec").constants.YOUTUBE_DL_PATH;
+}
+
 export class YouTubeDownloadService {
   private static instance: YouTubeDownloadService;
-  private downloadClient: typeof youtubedl;
+  private downloadClient: ReturnType<typeof youtubedl.create>;
+  private binaryPath: string;
 
   private constructor() {
-    this.downloadClient = youtubedl;
+    this.binaryPath = getYtDlpPath();
+    this.downloadClient = youtubedl.create(this.binaryPath);
   }
 
   public static getInstance(): YouTubeDownloadService {
