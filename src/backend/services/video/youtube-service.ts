@@ -46,7 +46,12 @@ export class YouTubeDownloadService {
     };
     try {
       const metadata = await this.downloadClient(youtubeUrl, flags);
-      if (typeof metadata !== "string") {
+      if (
+        typeof metadata !== "string" &&
+        metadata &&
+        typeof metadata === "object" &&
+        "id" in metadata
+      ) {
         return {
           success: true,
           data: {
