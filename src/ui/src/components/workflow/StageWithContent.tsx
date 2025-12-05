@@ -72,7 +72,9 @@ function ToolDeniedNotice({ message }: { message?: string }) {
   return (
     <div className="text-red-400 flex items-center gap-2">
       <X className="w-3 h-3" />
-      {message ?? "Tool execution denied"}
+      <span className="whitespace-pre-line">
+        {message ?? "Tool execution denied"}
+      </span>
     </div>
   );
 }

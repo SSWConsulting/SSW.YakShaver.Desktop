@@ -16,7 +16,11 @@ module.exports = {
   ],
   extraResources: [".env", "src/ui/public/**"],
   asar: true,
-  asarUnpack: ["src/ui/dist/**", "**/@ffmpeg-installer/**"],
+  asarUnpack: [
+    "src/ui/dist/**",
+    "**/@ffmpeg-installer/**",
+    "**/youtube-dl-exec/**",
+  ],
   afterPack: "./afterPack.js",
   win: {
     icon: "src/ui/public/icons/icon.ico",
