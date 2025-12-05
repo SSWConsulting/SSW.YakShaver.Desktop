@@ -1,6 +1,6 @@
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import type { VideoUploadResult } from "../services/auth/types";
-import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
+import { MCPOrchestrator, type ToolApprovalDecision } from "../services/mcp/mcp-orchestrator";
 import { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import type { MCPServerConfig, MCPToolSummary } from "../services/mcp/types";
 import { IPC_CHANNELS } from "./channels";
@@ -98,9 +98,12 @@ export class McpIPCHandlers {
 
     ipcMain.handle(
       IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION,
-      async (_event: IpcMainInvokeEvent, payload: { requestId: string; approved: boolean }) => {
+      async (
+        _event: IpcMainInvokeEvent,
+        payload: { requestId: string; decision: ToolApprovalDecision },
+      ) => {
         const orchestrator = await MCPOrchestrator.getInstanceAsync();
-        const success = orchestrator.resolveToolApproval(payload.requestId, payload.approved);
+        const success = orchestrator.resolveToolApproval(payload.requestId, payload.decision);
         return { success };
       },
     );
