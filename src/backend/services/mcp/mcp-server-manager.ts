@@ -7,7 +7,6 @@ import type { MCPServerConfig } from "./types";
 
 export class MCPServerManager {
   private static instance: MCPServerManager;
-  private static serverConfigs: MCPServerConfig[] = [];
   private static internalServerConfigs: MCPServerConfig[] = [];
   private static internalClientTransports: Map<string, InMemoryTransport> = new Map();
   private static mcpClients: Map<string, MCPServerClient> = new Map();
@@ -20,12 +19,11 @@ export class MCPServerManager {
     }
 
     MCPServerManager.instance = new MCPServerManager();
-    MCPServerManager.serverConfigs = await McpStorage.getInstance().getMcpServerConfigsAsync();
     return MCPServerManager.instance;
   }
 
   public async getAllMcpServerClientsAsync(): Promise<MCPServerClient[]> {
-    const allConfigs = MCPServerManager.getAllServerConfigs();
+    const allConfigs = await MCPServerManager.getAllServerConfigsAsync();
     const results = await Promise.allSettled(
       allConfigs.map((config) => this.getMcpClientAsync(config.name)),
     );
@@ -49,24 +47,22 @@ export class MCPServerManager {
       .map((r) => (r as PromiseFulfilledResult<MCPServerClient | null>).value as MCPServerClient);
   }
 
-  public async collectToolsAsync(serverFilter?: string[]): Promise<ToolSet> {
-    const normalizedFilter = serverFilter
-      ?.map((name) => name.trim())
-      .filter((name) => name.length > 0);
-
-    const clients = normalizedFilter?.length
-      ? await this.getSelectedMcpServerClientsAsync(normalizedFilter)
-      : await this.getAllMcpServerClientsAsync();
+  public async collectToolsWithServerPrefixAsync(): Promise<ToolSet> {
+    const clients = await this.getAllMcpServerClientsAsync();
 
     if (!clients.length) {
       throw new Error("[MCPServerManager]: No MCP clients available");
     }
 
-    const results = await Promise.allSettled(clients.map((client) => client.listToolsAsync()));
+    const results = await Promise.allSettled(
+      clients.map((client) => client.listToolsWithServerPrefixAsync()),
+    );
     const toolMaps = results
       .filter((r) => r.status === "fulfilled")
       .map((r) => MCPServerManager.normalizeTools((r as PromiseFulfilledResult<unknown>).value));
+
     const combined = Object.assign({}, ...toolMaps) as ToolSet;
+
     if (Object.keys(combined).length === 0) {
       throw new Error("[MCPServerManager]: No tools available from selected/healthy servers");
     }
@@ -85,7 +81,7 @@ export class MCPServerManager {
       return await inFlight;
     }
 
-    const config = MCPServerManager.getAllServerConfigs().find((s) => s.name === name);
+    const config = await MCPServerManager.getServerConfigByNameAsync(name);
     if (!config) {
       throw new Error(`MCP server with name '${name}' not found`);
     }
@@ -142,9 +138,11 @@ export class MCPServerManager {
     MCPServerManager.internalClientTransports.set(config.inMemoryServerId, clientTransport);
   }
 
-  // Merge internal (built-in) and external (stored) configs, de-duplicated by name.
-  // Built-ins are always processed first, so they take precedence over external configs with the same name.
-  private static getAllServerConfigs(): MCPServerConfig[] {
+  private static async getStoredServerConfigsAsync(): Promise<MCPServerConfig[]> {
+    return await McpStorage.getInstance().getMcpServerConfigsAsync();
+  }
+
+  private static mergeWithInternalServers(externalServers: MCPServerConfig[]): MCPServerConfig[] {
     const internalServers = MCPServerManager.internalServerConfigs;
     const seen = new Set<string>();
     const result: MCPServerConfig[] = [];
@@ -154,7 +152,7 @@ export class MCPServerManager {
         result.push(s);
       }
     }
-    for (const s of MCPServerManager.serverConfigs) {
+    for (const s of externalServers) {
       if (!seen.has(s.name)) {
         seen.add(s.name);
         result.push(s);
@@ -163,25 +161,38 @@ export class MCPServerManager {
     return result;
   }
 
+  // Merge internal (built-in) and external (stored) configs, de-duplicated by name.
+  // Built-ins are always processed first, so they take precedence over external configs with the same name.
+  private static async getAllServerConfigsAsync(): Promise<MCPServerConfig[]> {
+    const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
+    return MCPServerManager.mergeWithInternalServers(storedConfigs);
+  }
+
+  private static async getServerConfigByNameAsync(
+    name: string,
+  ): Promise<MCPServerConfig | undefined> {
+    const configs = await MCPServerManager.getAllServerConfigsAsync();
+    return configs.find((s) => s.name === name);
+  }
+
   async addServerAsync(config: MCPServerConfig): Promise<void> {
     MCPServerManager.validateServerConfig(config);
-    if (MCPServerManager.serverConfigs.some((s) => s.name === config.name)) {
+    const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
+    if (storedConfigs.some((s) => s.name === config.name)) {
       throw new Error(`Server with name '${config.name}' already exists`);
     }
-    MCPServerManager.serverConfigs.push(config);
-    await this.saveConfigAsync();
+    storedConfigs.push(config);
+    await this.saveConfigAsync(storedConfigs);
   }
 
   async updateServerAsync(name: string, config: MCPServerConfig): Promise<void> {
     MCPServerManager.validateServerConfig(config);
-    const index = MCPServerManager.serverConfigs.findIndex((s) => s.name === name);
+    const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
+    const index = storedConfigs.findIndex((s) => s.name === name);
     if (index === -1) throw new Error(`Server '${name}' not found`);
-    const existing = MCPServerManager.serverConfigs[index];
+    const existing = storedConfigs[index];
     // If the name is changing, ensure the new name isn't already used
-    if (
-      config.name !== name &&
-      MCPServerManager.serverConfigs.some((s) => s.name === config.name)
-    ) {
+    if (config.name !== name && storedConfigs.some((s) => s.name === config.name)) {
       throw new Error(`Server with name '${config.name}' already exists`);
     }
 
@@ -192,34 +203,35 @@ export class MCPServerManager {
       MCPServerManager.mcpClients.delete(name);
     }
 
-    MCPServerManager.serverConfigs[index] = config;
-    await this.saveConfigAsync();
+    storedConfigs[index] = config;
+    await this.saveConfigAsync(storedConfigs);
   }
 
   async removeServerAsync(name: string): Promise<void> {
-    const index = MCPServerManager.serverConfigs.findIndex((s) => s.name === name);
+    const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
+    const index = storedConfigs.findIndex((s) => s.name === name);
     if (index === -1) throw new Error(`Server '${name}' not found`);
-    MCPServerManager.serverConfigs.splice(index, 1);
+    storedConfigs.splice(index, 1);
     await MCPServerManager.mcpClients.get(name)?.disconnectAsync();
     MCPServerManager.mcpClients.delete(name);
-    await this.saveConfigAsync();
+    await this.saveConfigAsync(storedConfigs);
   }
 
-  private async saveConfigAsync(): Promise<void> {
+  private async saveConfigAsync(configs: MCPServerConfig[]): Promise<void> {
     try {
-      await McpStorage.getInstance().storeMcpServers(MCPServerManager.serverConfigs);
+      await McpStorage.getInstance().storeMcpServers(configs);
     } catch (err) {
       console.error("[MCPOrchestrator] Failed to save config to secure storage:", err);
       throw err;
     }
   }
 
-  public listAvailableServers(): MCPServerConfig[] {
-    return MCPServerManager.getAllServerConfigs();
+  public async listAvailableServers(): Promise<MCPServerConfig[]> {
+    return await MCPServerManager.getAllServerConfigsAsync();
   }
 
   public async checkServerHealthAsync(name: string): Promise<HealthStatusInfo> {
-    const serverConfig = MCPServerManager.getAllServerConfigs().find((s) => s.name === name);
+    const serverConfig = await MCPServerManager.getServerConfigByNameAsync(name);
     if (!serverConfig) {
       throw new Error(
         `[MCPServerManager]: CheckServerHealth - MCP server with name '${name}' not found`,
@@ -316,5 +328,37 @@ export class MCPServerManager {
 
   private static isBuiltinName(name: string): boolean {
     return MCPServerManager.internalServerConfigs.some((s) => s.name === name);
+  }
+
+  public async getWhitelistWithServerPrefixAsync(): Promise<string[]> {
+    const storage = McpStorage.getInstance();
+    const serverConfigs = await storage.getMcpServerConfigsAsync();
+
+    return serverConfigs.flatMap((config) => {
+      const sanitizedServerName = config.name.replace(/\s+/g, "_");
+      return (config.toolWhitelist ?? []).map((toolName) => `${sanitizedServerName}__${toolName}`);
+    });
+  }
+
+  public async addToolToServerWhitelistAsync(serverName: string, toolName: string): Promise<void> {
+    const storage = McpStorage.getInstance();
+    const serverConfigs = await storage.getMcpServerConfigsAsync();
+    const targetIndex = serverConfigs.findIndex((server) => server.name === serverName);
+
+    if (targetIndex === -1) {
+      throw new Error(`[McpStorage]: MCP server with name ${serverName} not found`);
+    }
+
+    const existingWhitelist = new Set(serverConfigs[targetIndex].toolWhitelist ?? []);
+    if (existingWhitelist.has(toolName)) {
+      return;
+    }
+
+    serverConfigs[targetIndex] = {
+      ...serverConfigs[targetIndex],
+      toolWhitelist: [...existingWhitelist, toolName],
+    };
+
+    await storage.storeMcpServers(serverConfigs);
   }
 }

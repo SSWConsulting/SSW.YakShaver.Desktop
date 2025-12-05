@@ -91,7 +91,9 @@ export class ProcessVideoIPCHandlers {
     }
 
     // upload to YouTube
-    this.emitProgress(ProgressStage.UPLOADING_SOURCE, { sourceOrigin: "upload" });
+    this.emitProgress(ProgressStage.UPLOADING_SOURCE, {
+      sourceOrigin: "upload",
+    });
     const youtubeResult = await this.youtube.uploadVideo(filePath);
     this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
       uploadResult: youtubeResult,
@@ -111,7 +113,9 @@ export class ProcessVideoIPCHandlers {
         uploadResult: youtubeResult,
         sourceOrigin: "external",
       });
-      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, { sourceOrigin: "external" });
+      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, {
+        sourceOrigin: "external",
+      });
       const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
       return await this.processVideoSource({
         filePath,
@@ -166,8 +170,8 @@ export class ProcessVideoIPCHandlers {
             const metadata = await this.metadataBuilder.build({
               transcriptVtt: transcript,
               intermediateOutput,
-              executionHistory: JSON.stringify(mcpResult.transcript ?? [], null, 2),
-              finalResult: mcpResult.final ?? undefined,
+              executionHistory: JSON.stringify(transcript ?? [], null, 2),
+              finalResult: mcpResult ?? undefined,
             });
             this.emitProgress(ProgressStage.UPDATING_METADATA, {
               metadataPreview: metadata.metadata,

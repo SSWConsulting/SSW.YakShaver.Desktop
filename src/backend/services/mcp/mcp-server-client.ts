@@ -164,9 +164,21 @@ export class MCPServerClient {
   }
 
   public async listToolsAsync(): Promise<ToolSet> {
-    const raw = await this.mcpClient.tools();
+    const ToolList: ToolSet = (await this.mcpClient.tools()) as ToolSet;
+    return ToolList;
+  }
 
-    return raw as ToolSet;
+  public async listToolsWithServerPrefixAsync(): Promise<ToolSet> {
+    const rawTools = await this.listToolsAsync();
+    const prefixedTools: ToolSet = {};
+
+    // rename the key with server name prefix
+    for (const [toolName, data] of Object.entries(rawTools)) {
+      const sanitizedServerName = this.mcpClientName.replace(/\s+/g, "_");
+      const prefixedName = `${sanitizedServerName}__${toolName}`;
+      prefixedTools[prefixedName] = data;
+    }
+    return prefixedTools;
   }
 
   public async toolCountAsync(): Promise<number> {
