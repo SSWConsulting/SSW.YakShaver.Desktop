@@ -1,8 +1,19 @@
 name: Release Electron App
 
+# Keep the `release` trigger option to allow manual publishing of releases if needed.
 on:
   release:
     types: [published]
+  workflow_call:
+    inputs:
+      tag_name:
+        description: "The release tag name"
+        required: true
+        type: string
+      target:
+        description: "The target branch for the release"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -20,10 +31,18 @@ jobs:
     steps:
       - id: check
         run: |
-          TAG="${{ github.event.release.tag_name }}"
-          TARGET="${{ github.event.release.target_commitish }}"
+          # Handle both release event and workflow_call triggers
+          if [ -n "${{ inputs.tag_name }}" ]; then
+            # Called via workflow_call
+            TAG="${{ inputs.tag_name }}"
+            TARGET="${{ inputs.target }}"
+          else
+            # Called via release event
+            TAG="${{ github.event.release.tag_name }}"
+            TARGET="${{ github.event.release.target_commitish }}"
+          fi
 
-          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "version=$TAG" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
 
   build-windows:
@@ -66,6 +85,16 @@ jobs:
       - name: Install UI dependencies
         run: npm ci --prefer-offline
         working-directory: src/ui
+
+      - name: Update version for release
+        shell: pwsh
+        run: |
+          $version = "${{ needs.check-release.outputs.version }}"
+          if (-not $version) {
+            throw "Missing version output"
+          }
+          npm version $version --no-git-tag-version
+          Write-Host "Updated package.json version to $version"
 
       - name: Publish Windows app
         run: npm run publish -- --win
@@ -113,6 +142,16 @@ jobs:
       - name: Install UI dependencies
         run: npm ci --prefer-offline
         working-directory: src/ui
+
+      - name: Update version for release
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Missing version output"
+            exit 1
+          fi
+          npm version "$VERSION" --no-git-tag-version
+          echo "Updated package.json version to $VERSION"
 
       - name: Publish macOS app
         run: npm run publish -- --mac
