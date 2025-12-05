@@ -7,7 +7,7 @@ import { app, BrowserWindow } from "electron";
 import getPort from "get-port";
 import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
-import { config } from "../../config/env";
+import { getYouTubeCredentials } from "../../config/env";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { YoutubeStorage } from "../storage/youtube-storage";
 import type {
@@ -39,8 +39,8 @@ export class YouTubeAuthService {
     return YouTubeAuthService.instance;
   }
 
-  private getClient(port?: number) {
-    const cfg = config.youtube();
+  private async getClient(port?: number) {
+    const cfg = await getYouTubeCredentials();
     if (!cfg) throw new Error("YouTube configuration missing");
     const redirectUri = port ? `http://localhost:${port}/oauth/callback` : undefined;
     return new OAuth2Client(cfg.clientId, cfg.clientSecret, redirectUri);
@@ -50,7 +50,7 @@ export class YouTubeAuthService {
     const tokens = await this.storage.getYouTubeTokens();
     if (!tokens) throw new Error("No authentication tokens found");
 
-    const client = this.getClient();
+    const client = await this.getClient();
     client.setCredentials({
       access_token: tokens.accessToken,
       refresh_token: tokens.refreshToken,
@@ -61,7 +61,7 @@ export class YouTubeAuthService {
   async authenticate(): Promise<AuthResult> {
     try {
       const port = await getPort();
-      const client = this.getClient(port);
+      const client = await this.getClient(port);
 
       // Generate state for CSRF protection
       this.pendingState = this.generateState();
@@ -179,7 +179,7 @@ export class YouTubeAuthService {
       const tokenData = await this.storage.getYouTubeTokens();
       if (!tokenData?.refreshToken) return false;
 
-      const client = this.getClient();
+      const client = await this.getClient();
       client.setCredentials({ refresh_token: tokenData.refreshToken });
 
       const { credentials } = await client.refreshAccessToken();

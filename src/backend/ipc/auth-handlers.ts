@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { config } from "../config/env";
+import { getYouTubeCredentials } from "../config/env";
 import { type AuthState, AuthStatus } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { formatErrorMessage } from "../utils/error-utils";
@@ -22,8 +22,8 @@ export class AuthIPCHandlers {
       [IPC_CHANNELS.YOUTUBE_UPLOAD_VIDEO]: () => this.youtube.uploadVideo(),
       [IPC_CHANNELS.UPLOAD_RECORDED_VIDEO]: (_: unknown, filePath?: string) =>
         this.youtube.uploadVideo(filePath),
-      [IPC_CHANNELS.CONFIG_HAS_YOUTUBE]: () => config.youtube() !== null,
-      [IPC_CHANNELS.CONFIG_GET_YOUTUBE]: () => config.youtube(),
+      [IPC_CHANNELS.CONFIG_HAS_YOUTUBE]: async () => (await getYouTubeCredentials()) !== null,
+      [IPC_CHANNELS.CONFIG_GET_YOUTUBE]: () => getYouTubeCredentials(),
     };
 
     Object.entries(handlers).forEach(([channel, handler]) => {
@@ -33,7 +33,7 @@ export class AuthIPCHandlers {
 
   private async getAuthStatus(): Promise<AuthState> {
     try {
-      if (!config.youtube()) {
+      if (!(await getYouTubeCredentials())) {
         return {
           status: AuthStatus.ERROR,
           error: "YouTube configuration not found",

@@ -1,10 +1,35 @@
-const { env } = process;
+import { OAuthCredentialsStorage } from "../services/storage/oauth-credentials-storage";
 
-const getYouTube = () => {
-  const { YOUTUBE_CLIENT_ID: id, YOUTUBE_CLIENT_SECRET: secret } = env;
-  return id && secret ? { clientId: id, clientSecret: secret } : null;
-};
+/**
+ * Gets YouTube OAuth credentials from secure storage.
+ */
+export async function getYouTubeCredentials(): Promise<{
+  clientId: string;
+  clientSecret: string;
+} | null> {
+  const storage = OAuthCredentialsStorage.getInstance();
+  const credentials = await storage.getYouTubeCredentials();
 
-export const config = {
-  youtube: getYouTube,
-};
+  if (credentials) {
+    return credentials;
+  }
+
+  return null;
+}
+
+/**
+ * Gets GitHub MCP OAuth credentials from secure storage.
+ */
+export async function getGitHubMcpCredentials(): Promise<{
+  clientId: string;
+  clientSecret: string;
+} | null> {
+  const storage = OAuthCredentialsStorage.getInstance();
+  const credentials = await storage.getGitHubCredentials();
+
+  if (credentials) {
+    return credentials;
+  }
+
+  return null;
+}

@@ -3,9 +3,11 @@ import { config as dotenvConfig } from "dotenv";
 import { app, BrowserWindow, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
+import { initializeCredentials } from "./config/credentials-loader";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
+import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
@@ -13,25 +15,22 @@ import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
-import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
+import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
+import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
-import { MCPServerManager } from "./services/mcp/mcp-server-manager";
-import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 
 const isDev = process.env.NODE_ENV === "development";
 
-// Load .env early (before app.whenReady)
+// Load .env early for development (before app.whenReady)
+// In production, credentials are loaded from encrypted storage
 const loadEnv = () => {
-  let envPath: string;
-  if (app.isPackaged) {
-    // Production: Load from bundled resources
-    envPath = join(process.resourcesPath, ".env");
-  } else {
-    // Development: Load from project root
-    envPath = join(process.cwd(), ".env");
+  if (!app.isPackaged) {
+    // Development: Load from project root .env file
+    const envPath = join(process.cwd(), ".env");
+    dotenvConfig({ path: envPath });
   }
-  dotenvConfig({ path: envPath });
+  // Production: Credentials will be loaded from encrypted storage after app is ready
 };
 
 loadEnv();
@@ -100,6 +99,9 @@ app.whenReady().then(async () => {
       ["media", "clipboard-read", "clipboard-sanitized-write", "fullscreen"].includes(permission),
     );
   });
+
+  // Initialize credentials from encrypted storage (production) or .env (development)
+  await initializeCredentials();
 
   _authHandlers = new AuthIPCHandlers();
   _videoHandlers = new VideoIPCHandlers();

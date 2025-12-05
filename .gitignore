@@ -61,6 +61,10 @@ typings/
 .env
 .env.test
 
+credentials.enc
+app-config.json
+src/backend/config/credentials-key.ts
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 

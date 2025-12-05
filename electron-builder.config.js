@@ -14,7 +14,11 @@ module.exports = {
     "!**/*.ts",
     "!**/node_modules/**/*.md",
   ],
-  extraResources: [".env", "src/ui/public/**"],
+  extraResources: [
+    "credentials.enc",
+    "app-config.json",
+    "src/ui/public/**",
+  ],
   asar: true,
   asarUnpack: [
     "src/ui/dist/**",
