@@ -51,7 +51,9 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       if (lastCam === NO_DEVICE_STORAGE_VALUE) {
         setSelectedCameraId(undefined);
       } else {
-        setSelectedCameraId(cams.find((c) => c.deviceId === lastCam)?.deviceId || cams[0]?.deviceId);
+        setSelectedCameraId(
+          cams.find((c) => c.deviceId === lastCam)?.deviceId || cams[0]?.deviceId,
+        );
       }
       setSelectedMicrophoneId(
         mics.find((m) => m.deviceId === lastMic)?.deviceId || mics[0]?.deviceId,
@@ -156,7 +158,9 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
         <div className="max-h-[75vh] overflow-auto space-y-6 p-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Camera</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+                Camera
+              </span>
               <Select
                 value={selectedCameraId ?? NO_CAMERA_VALUE}
                 onValueChange={(value) => {
@@ -173,9 +177,15 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                   <SelectValue placeholder="Select camera" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_CAMERA_VALUE} textValue="No camera">No camera</SelectItem>
+                  <SelectItem value={NO_CAMERA_VALUE} textValue="No camera">
+                    No camera
+                  </SelectItem>
                   {cameraDevices.map((d) => (
-                    <SelectItem key={d.deviceId} value={d.deviceId} textValue={d.label || d.deviceId}>
+                    <SelectItem
+                      key={d.deviceId}
+                      value={d.deviceId}
+                      textValue={d.label || d.deviceId}
+                    >
                       {d.label || d.deviceId}
                     </SelectItem>
                   ))}
@@ -183,7 +193,9 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
               </Select>
             </div>
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Microphone</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+                Microphone
+              </span>
               <Select
                 value={selectedMicrophoneId ?? ""}
                 onValueChange={(v) => {
@@ -196,7 +208,11 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                 </SelectTrigger>
                 <SelectContent>
                   {microphoneDevices.map((d) => (
-                    <SelectItem key={d.deviceId} value={d.deviceId} textValue={d.label || d.deviceId}>
+                    <SelectItem
+                      key={d.deviceId}
+                      value={d.deviceId}
+                      textValue={d.label || d.deviceId}
+                    >
                       {d.label || d.deviceId}
                     </SelectItem>
                   ))}
@@ -207,7 +223,13 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           {selectedCameraId && (
             <div className="rounded-md overflow-hidden bg-neutral-800">
               <div className="relative aspect-video w-full">
-                <video ref={cameraPreviewRef} className="h-full w-full object-cover" autoPlay playsInline muted />
+                <video
+                  ref={cameraPreviewRef}
+                  className="h-full w-full object-cover"
+                  autoPlay
+                  playsInline
+                  muted
+                />
               </div>
             </div>
           )}
@@ -217,12 +239,16 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           <SourceSection
             label="Screens"
             sources={screens}
-            onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
+            onSelect={(id) =>
+              onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })
+            }
           />
           <SourceSection
             label="Windows"
             sources={windows}
-            onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
+            onSelect={(id) =>
+              onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })
+            }
           />
 
           {!loading && screens.length === 0 && windows.length === 0 && (

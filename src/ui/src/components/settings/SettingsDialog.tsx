@@ -21,7 +21,7 @@ interface SettingsTab {
 const TABS: SettingsTab[] = [
   {
     id: "general",
-    label: "General",
+    label: "Tool Approval",
   },
   {
     id: "release",

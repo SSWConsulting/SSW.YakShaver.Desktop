@@ -1,10 +1,10 @@
-import type { ToolCallOptions, ToolModelMessage, ModelMessage, UserModelMessage } from "ai";
 import { randomUUID } from "node:crypto";
+import type { ModelMessage, ToolCallOptions, ToolModelMessage, UserModelMessage } from "ai";
+import { BrowserWindow } from "electron";
 import type { VideoUploadResult } from "../auth/types";
+import { GeneralSettingsStorage, type ToolApprovalMode } from "../storage/general-settings-storage";
 import { LLMClientProvider } from "./llm-client-provider";
 import { MCPServerManager } from "./mcp-server-manager";
-import { BrowserWindow } from "electron";
-import { GeneralSettingsStorage, type ToolApprovalMode } from "../storage/general-settings-storage";
 
 type StepType =
   | "start"

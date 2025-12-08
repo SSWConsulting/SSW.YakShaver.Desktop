@@ -1,11 +1,11 @@
 import { AlertTriangle, Check, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import {
-  type MetadataPreview,
+  type MCPStep,
   MCPStepType,
+  type MetadataPreview,
   ProgressStage,
   STAGE_CONFIG,
-  type MCPStep,
   type VideoChapter,
   type WorkflowProgress,
   type WorkflowStage,
@@ -72,9 +72,7 @@ function ToolDeniedNotice({ message }: { message?: string }) {
   return (
     <div className="text-red-400 flex items-center gap-2">
       <X className="w-3 h-3" />
-      <span className="whitespace-pre-line">
-        {message ?? "Tool execution denied"}
-      </span>
+      <span className="whitespace-pre-line">{message ?? "Tool execution denied"}</span>
     </div>
   );
 }

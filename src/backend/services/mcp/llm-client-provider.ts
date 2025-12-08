@@ -1,7 +1,7 @@
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText, stepCountIs, streamText } from "ai";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
+import { generateText, stepCountIs, streamText } from "ai";
 import { BrowserWindow } from "electron";
 import type { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
