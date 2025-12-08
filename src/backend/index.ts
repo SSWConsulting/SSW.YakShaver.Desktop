@@ -6,6 +6,7 @@ import tmp from "tmp";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
+import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
@@ -13,12 +14,11 @@ import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
-import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
+import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
+import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
-import { MCPServerManager } from "./services/mcp/mcp-server-manager";
-import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -74,10 +74,7 @@ const createWindow = (): void => {
     mainWindow.loadURL("http://localhost:3000");
     mainWindow.webContents.openDevTools();
   } else {
-    const indexPath = join(
-      process.resourcesPath,
-      "app.asar.unpacked/src/ui/dist/index.html"
-    );
+    const indexPath = join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/index.html");
     mainWindow.loadFile(indexPath).catch((err) => {
       console.error("Failed to load index.html:", err);
     });
@@ -99,18 +96,11 @@ let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler(() => true);
-  session.defaultSession.setPermissionRequestHandler(
-    (_, permission, callback) => {
-      callback(
-        [
-          "media",
-          "clipboard-read",
-          "clipboard-sanitized-write",
-          "fullscreen",
-        ].includes(permission)
-      );
-    }
-  );
+  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
+    callback(
+      ["media", "clipboard-read", "clipboard-sanitized-write", "fullscreen"].includes(permission),
+    );
+  });
 
   _authHandlers = new AuthIPCHandlers();
   _videoHandlers = new VideoIPCHandlers();
@@ -144,9 +134,7 @@ app.whenReady().then(async () => {
   // Auto-updates: Check only in packaged mode (dev skips)
   // Configure and check based on stored channel preference
   if (app.isPackaged) {
-    const { ReleaseChannelStorage } = await import(
-      "./services/storage/release-channel-storage"
-    );
+    const { ReleaseChannelStorage } = await import("./services/storage/release-channel-storage");
     const channelStore = ReleaseChannelStorage.getInstance();
     const channel = await channelStore.getChannel();
     _releaseChannelHandlers.configureAutoUpdater(channel, true);
