@@ -1,6 +1,5 @@
 name: Automated Electron App Release
-run-name: "${{ github.event.head_commit.timestamp && format('{0}-BUILD.{1}.{2}', github.event.head_commit.timestamp, github.run_number, github.sha) || format('Build {0}', github.run_number) }}"
-# test
+run-name: "YakShaver App Release - Build #${{ github.run_number }}"
 
 on:
   push:
