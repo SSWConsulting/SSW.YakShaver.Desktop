@@ -1,4 +1,5 @@
 name: Automated Electron App Release
+run-name: "${{ github.event.head_commit.timestamp && format('{0}-BUILD.{1}.{2}', github.event.head_commit.timestamp, github.run_number, github.sha) || format('Build {0}', github.run_number) }}"
 # test
 
 on:
@@ -47,18 +48,6 @@ jobs:
           echo "Generated version: $VERSION"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag_name=${VERSION}" >> $GITHUB_OUTPUT
-
-      - name: Update workflow run name
-        run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
-          gh api \
-            --method PATCH \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            -f name="$VERSION"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create and publish GitHub Release
         env:
