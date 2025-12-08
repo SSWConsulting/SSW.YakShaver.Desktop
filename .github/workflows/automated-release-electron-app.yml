@@ -3,11 +3,7 @@ name: Automated Electron App Release
 on:
   push:
     branches:
-<<<<<<< HEAD
       - test/release-trigger
-=======
-      - main
->>>>>>> main
 
 permissions:
   contents: write
@@ -26,11 +22,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-<<<<<<< HEAD
           ref: test/release-trigger
-=======
-          ref: main
->>>>>>> main
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -65,7 +57,7 @@ jobs:
           gh release create "$TAG_NAME" \
             --title "$VERSION" \
             --generate-notes \
-            --target main \
+            --target test/release-trigger \
             --draft=false
 
           echo "Release created and published"
@@ -107,5 +99,5 @@ jobs:
     uses: ./.github/workflows/release-electron-app.yml
     with:
       tag_name: ${{ needs.auto-release.outputs.tag_name }}
-      target: main
+      target: test/release-trigger
     secrets: inherit
