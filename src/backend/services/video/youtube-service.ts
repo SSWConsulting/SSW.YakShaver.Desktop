@@ -87,6 +87,7 @@ export class YouTubeDownloadService {
     console.log("[YouTubeDownloadService] Downloading video to:", outputPath);
     const flags: Flags = {
       output: outputPath,
+      format: "mp4",
       restrictFilenames: true,
       noWarnings: true,
       quiet: true,
