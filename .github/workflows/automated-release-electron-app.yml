@@ -47,6 +47,13 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag_name=${VERSION}" >> $GITHUB_OUTPUT
 
+      - name: Update workflow run name
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          gh run set-name "$VERSION"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create and publish GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
