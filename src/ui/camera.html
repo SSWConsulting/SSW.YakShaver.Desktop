@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Camera Feed</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 400px;
+        height: 225px;
+        overflow: hidden;
+        background: transparent;
+        -webkit-app-region: drag;
+      }
+
+      #camera-container {
+        width: 100%;
+        height: 100%;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        background: #000;
+        position: relative;
+      }
+
+      #camera-video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      #error-message {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 14px;
+        text-align: center;
+        padding: 20px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="camera-container">
+      <video id="camera-video" autoplay playsinline muted></video>
+      <div id="error-message">Camera not available</div>
+    </div>
+
+    <script>
+      const video = document.getElementById("camera-video");
+      const errorMsg = document.getElementById("error-message");
+      let currentStream = null;
+
+      async function startCamera(deviceId) {
+        try {
+          if (currentStream) {
+            currentStream.getTracks().forEach((track) => track.stop());
+          }
+
+          const constraints = {
+            video: deviceId ? { deviceId: { exact: deviceId } } : true,
+            audio: false,
+          };
+
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          video.srcObject = stream;
+          currentStream = stream;
+          errorMsg.style.display = "none";
+          video.style.display = "block";
+
+          await new Promise((resolve) => {
+            video.onloadeddata = resolve;
+          });
+          if (window.electronAPI) {
+            window.electronAPI.cameraReady();
+          }
+        } catch (error) {
+          console.error("Error accessing camera:", error);
+          video.style.display = "none";
+          errorMsg.style.display = "block";
+          errorMsg.textContent = "Camera access denied";
+        }
+      }
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const deviceId = urlParams.get("deviceId");
+
+      window.addEventListener("DOMContentLoaded", () => {
+        startCamera(deviceId);
+      });
+
+      if (window.electronAPI) {
+        window.electronAPI.onSetCameraDevice((deviceId) => {
+          startCamera(deviceId);
+        });
+      }
+
+      window.addEventListener("beforeunload", () => {
+        if (currentStream) {
+          currentStream.getTracks().forEach((track) => track.stop());
+        }
+      });
+    </script>
+  </body>
+</html>

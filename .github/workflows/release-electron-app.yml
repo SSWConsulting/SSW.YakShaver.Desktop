@@ -1,12 +1,17 @@
 name: Release Electron App
 
+# Keep the `release` trigger option to allow manual publishing of releases if needed.
 on:
   release:
     types: [published]
   workflow_call:
     inputs:
       tag_name:
+<<<<<<< HEAD
         description: "The release tag name (e.g., v1.0.0)"
+=======
+        description: "The release tag name"
+>>>>>>> main
         required: true
         type: string
       target:
@@ -41,7 +46,7 @@ jobs:
             TARGET="${{ github.event.release.target_commitish }}"
           fi
 
-          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "version=$TAG" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
 
   build-windows:

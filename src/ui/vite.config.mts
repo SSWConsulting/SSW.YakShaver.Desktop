@@ -19,6 +19,7 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, "index.html"),
         "control-bar": path.resolve(__dirname, "control-bar.html"),
+        "camera": path.resolve(__dirname, "camera.html"),
       },
     },
   },
