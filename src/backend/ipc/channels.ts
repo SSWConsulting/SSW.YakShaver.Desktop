@@ -10,11 +10,6 @@ export const IPC_CHANNELS = {
   CONFIG_HAS_YOUTUBE: "config:has-youtube",
   CONFIG_GET_YOUTUBE: "config:get-youtube",
 
-  // Video conversion
-  SELECT_VIDEO_FILE: "select-video-file",
-  SELECT_OUTPUT_DIRECTORY: "select-output-directory",
-  CONVERT_VIDEO_TO_MP3: "convert-video-to-mp3",
-
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
   STOP_SCREEN_RECORDING: "stop-screen-recording",
