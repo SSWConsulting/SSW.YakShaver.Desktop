@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { ipcClient } from "@/services/ipc-client";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { LogOut } from "lucide-react";
 
 export function MicrosoftAuthManager() {
   const [status, setStatus] = useState<{ isAuthenticated: boolean; name?: string; email?: string } | null>(null);
@@ -44,19 +52,57 @@ export function MicrosoftAuthManager() {
     setLoading(false);
   };
 
+  const getInitials = (name?: string) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map(n => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  if (!status?.isAuthenticated) {
+    return (
+      <div className="flex items-center">
+        <Button 
+          disabled={loading} 
+          onClick={login}
+        >
+          Sign In
+        </Button>
+        {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-sm">Microsoft: {status?.isAuthenticated ? "Connected" : "Not Connected"}</span>
-      {!status?.isAuthenticated ? (
-        <Button disabled={loading} onClick={login}>Sign In</Button>
-      ) : (
-        <Button variant="secondary" disabled={loading} onClick={logout}>Sign Out</Button>
-      )}
-      {status?.isAuthenticated && (
-        <span className="text-xs opacity-80">{status.name} · {status.email}</span>
-      )}
-      {error && <span className="text-red-400 text-xs">{error}</span>}
+    <div className="flex items-center">
+      <DropdownMenu>
+        <DropdownMenuTrigger className="cursor-pointer">
+          <Avatar className="w-8 h-8">
+            <AvatarFallback>
+              {getInitials(status?.name)}
+            </AvatarFallback>
+          </Avatar>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <div className="p-3">
+            <div className="mb-3 pb-3 border-b border-white/10">
+              <p className="text-sm font-medium text-white truncate">{status?.name}</p>
+            </div>
+            <DropdownMenuItem 
+              onClick={logout}
+              disabled={loading}
+              className="text-red-400 hover:bg-red-500/10"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign Out</span>
+            </DropdownMenuItem>
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
     </div>
   );
 }
-
