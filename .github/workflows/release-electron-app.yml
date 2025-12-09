@@ -84,8 +84,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --prefer-offline
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
         run: npm ci --prefer-offline
@@ -145,8 +143,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --prefer-offline
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
         run: npm ci --prefer-offline
