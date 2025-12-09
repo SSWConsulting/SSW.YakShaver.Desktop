@@ -1,3 +1,5 @@
+// Followed example from Microsoft's Electron sample app
+// https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/samples/msal-node-samples/ElectronSystemBrowserTestApp/README.md
 import { join } from "node:path";
 import { shell, app } from "electron";
 import { PublicClientApplication, InteractionRequiredAuthError, LogLevel } from "@azure/msal-node";
