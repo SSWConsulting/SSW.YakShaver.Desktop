@@ -22,6 +22,7 @@ export function MyShavesDialog({ open, onOpenChange }: MyShavesDialogProps) {
   const fetchMyShaves = async () => {
     setLoading(true);
     setError(null);
+    setData(null);
     try {
       const result = await ipcClient.portal.getMyShaves();
       if (result.success) {
