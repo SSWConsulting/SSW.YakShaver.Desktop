@@ -160,15 +160,27 @@ export class MicrosoftAuthService {
   async getTokenInteractive(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
     try {
       const azure = config.azure();
-      const uiDir = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../src/ui");
+      
+      // Determine the correct path for template files based on environment
+      let uiDir: string;
+      if (app.isPackaged) {
+        // In production, templates are in extraResources in the Resources folder
+        uiDir = join(process.resourcesPath, "src/ui");
+      } else {
+        // In development, templates are in src/ui
+        uiDir = join(__dirname, "../../../src/ui");
+      }
+      
       const successPath = join(uiDir, "successTemplate.html");
       const errorPath = join(uiDir, "errorTemplate.html");
 
       // Check if files exist
       if (!fs.existsSync(successPath)) {
+        console.error(`[Auth Debug] Success template not found at: ${successPath}`);
         throw new Error(`Success template not found: ${successPath}`);
       }
       if (!fs.existsSync(errorPath)) {
+        console.error(`[Auth Debug] Error template not found at: ${errorPath}`);
         throw new Error(`Error template not found: ${errorPath}`);
       }
 
