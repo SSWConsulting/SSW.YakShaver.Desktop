@@ -27,21 +27,7 @@
         font-size: 20rem;
         font-weight: bold;
         text-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
-        animation: pulse 1s ease-in-out;
-      }
-
-      @keyframes pulse {
-        0% {
-          transform: scale(0.5);
-          opacity: 0;
-        }
-        50% {
-          transform: scale(1.1);
-        }
-        100% {
-          transform: scale(1);
-          opacity: 1;
-        }
+        will-change: transform, opacity;
       }
 
       .hidden {
@@ -56,26 +42,38 @@
       let count = 3;
       const countdownElement = document.getElementById("countdown");
 
+      function animateTick(value) {
+        countdownElement.textContent = value;
+        // Use the Web Animations API for smoother, GPU-friendly animation
+        countdownElement.animate(
+          [
+            { transform: "scale(0.6)", opacity: 0 },
+            { transform: "scale(1.05)", opacity: 1, offset: 0.55 },
+            { transform: "scale(1)", opacity: 1 },
+          ],
+          {
+            duration: 900,
+            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+            fill: "forwards",
+          }
+        );
+      }
+
       function updateCountdown() {
         if (count <= 0) {
           countdownElement.classList.add("hidden");
           return;
         }
 
-        countdownElement.textContent = count;
-        countdownElement.style.animation = "none";
-        setTimeout(() => {
-          countdownElement.style.animation = "pulse 1s ease-in-out";
-        }, 10);
-
+        animateTick(count);
         count--;
-        
+
         if (count >= 0) {
           setTimeout(updateCountdown, 1000);
         }
       }
 
-      // Start countdown after a brief delay
+      // Start countdown after a brief delay to ensure window is ready
       setTimeout(updateCountdown, 100);
     </script>
   </body>
