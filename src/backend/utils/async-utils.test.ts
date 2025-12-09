@@ -1,12 +1,13 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withTimeout } from "./async-utils";
 
 describe("withTimeout", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it("should resolve when promise completes before timeout", async () => {
@@ -19,16 +20,16 @@ describe("withTimeout", () => {
     const fastPromise = new Promise((resolve) => setTimeout(() => resolve("done"), 100));
     const timeoutPromise = withTimeout(fastPromise, 500);
 
-    jest.advanceTimersByTime(100);
+    vi.advanceTimersByTime(100);
 
-    expect(timeoutPromise).resolves.toBe("done");
+    await expect(timeoutPromise).resolves.toBe("done");
   });
 
   it("should reject with timeout error when promise takes too long", async () => {
     const slowPromise = new Promise((resolve) => setTimeout(resolve, 500));
     const timeoutPromise = withTimeout(slowPromise, 50);
 
-    jest.advanceTimersByTime(50);
+    vi.advanceTimersByTime(50);
 
     await expect(timeoutPromise).rejects.toThrow("Operation timed out");
   });
@@ -37,7 +38,7 @@ describe("withTimeout", () => {
     const slowPromise = new Promise((resolve) => setTimeout(resolve, 500));
     const timeoutPromise = withTimeout(slowPromise, 50, "database query");
 
-    jest.advanceTimersByTime(50);
+    vi.advanceTimersByTime(50);
 
     await expect(timeoutPromise).rejects.toThrow("Timeout waiting for database query");
   });
@@ -53,7 +54,7 @@ describe("withTimeout", () => {
       setTimeout(() => reject("Connection failed"), 100),
     );
 
-    jest.advanceTimersByTime(100);
+    vi.advanceTimersByTime(100);
 
     await expect(withTimeout(failingPromise, 500)).rejects.toBe("Connection failed");
   });
