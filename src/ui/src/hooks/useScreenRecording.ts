@@ -190,6 +190,7 @@ export function useScreenRecording() {
               mandatory: {
                 chromeMediaSource: "desktop",
                 chromeMediaSourceId: result.sourceId,
+                // Set to 4K resolution (3840x2160) and 30 FPS to ensure high-quality recordings.
                 maxWidth: 3840,
                 maxHeight: 2160,
                 maxFrameRate: 30,
