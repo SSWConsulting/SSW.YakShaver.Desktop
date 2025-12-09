@@ -30,7 +30,9 @@ describe("formatErrorMessage", () => {
 
   it("should handle complex objects", () => {
     const obj = { code: "ERR_001", details: { field: "email", reason: "invalid" } };
-    expect(formatErrorMessage(obj)).toBe('{"code":"ERR_001","details":{"field":"email","reason":"invalid"}}');
+    expect(formatErrorMessage(obj)).toBe(
+      '{"code":"ERR_001","details":{"field":"email","reason":"invalid"}}',
+    );
   });
 
   it("should handle arrays", () => {
