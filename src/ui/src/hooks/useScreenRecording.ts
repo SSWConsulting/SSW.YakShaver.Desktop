@@ -104,13 +104,16 @@ export function useScreenRecording() {
 
         mediaRecorderRef.current = recorder;
 
-        recorder.start();
         try {
           await window.electronAPI.screenRecording.showControlBar(
             options?.cameraDeviceId
           );
+
+          recorder.start();
         } catch (error) {
-          recorder.stop();
+          if (recorder.state !== "inactive") {
+            recorder.stop();
+          }
           cleanup();
           toast.error(`Failed to show control bar: ${error}`);
           throw error;
