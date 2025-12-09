@@ -110,6 +110,9 @@ export function useScreenRecording() {
           );
 
           recorder.start();
+
+          // Kick off the visible timer only after the countdown finishes and recording actually begins
+          await window.electronAPI.screenRecording.startTimer();
         } catch (error) {
           if (recorder.state !== "inactive") {
             recorder.stop();
