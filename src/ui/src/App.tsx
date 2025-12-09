@@ -9,6 +9,7 @@ import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
+import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
               <h1>
                 <img src={logoImage} alt="YakShaver" />
               </h1>
+              <MicrosoftAuthManager />
             </div>
           </header>
 

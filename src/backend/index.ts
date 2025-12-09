@@ -4,7 +4,9 @@ import { app, BrowserWindow, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { registerEventForwarders } from "./events/event-forwarder";
+import { config } from "./config/env";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
+import { MicrosoftAuthIPCHandlers } from "./ipc/microsoft-auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
@@ -87,6 +89,7 @@ const createWindow = (): void => {
 // Initialize IPC handlers
 let _screenRecordingHandlers: ScreenRecordingIPCHandlers;
 let _authHandlers: AuthIPCHandlers;
+let _msAuthHandlers: MicrosoftAuthIPCHandlers;
 let _videoHandlers: VideoIPCHandlers;
 let _llmSettingsHandlers: LLMSettingsIPCHandlers;
 let _mcpHandlers: McpIPCHandlers;
@@ -98,6 +101,11 @@ let _generalSettingsHandlers: GeneralSettingsIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
+  const azure = config.azure();
+  if (azure?.customProtocol) {
+    try { app.setAsDefaultProtocolClient(azure.customProtocol); } catch {}
+    app.on("open-url", (event) => { event.preventDefault(); mainWindow?.focus(); });
+  }
   session.defaultSession.setPermissionCheckHandler(() => true);
   session.defaultSession.setPermissionRequestHandler(
     (_, permission, callback) => {
@@ -113,6 +121,8 @@ app.whenReady().then(async () => {
   );
 
   _authHandlers = new AuthIPCHandlers();
+  _msAuthHandlers = new MicrosoftAuthIPCHandlers();
+  try { await (await import("./services/auth/microsoft-auth")).MicrosoftAuthService.getInstance().getAuthState(); } catch {}
   _videoHandlers = new VideoIPCHandlers();
   _processVideoHandlers = new ProcessVideoIPCHandlers();
 

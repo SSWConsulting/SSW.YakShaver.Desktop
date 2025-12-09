@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Signed In</title>
+  </head>
+  <body style="font-family: system-ui; margin: 2rem">
+    <h1>Authentication Successful</h1>
+    <p>You can return to the application.</p>
+    <p>
+        <a id="deeplink" href="msal{Your_Application/Client_Id}://auth">Open App</a>
+    </p>
+    <script>
+      const protocol = 'msal{Your_Application/Client_Id}://auth';
+      const link = document.getElementById('deeplink');
+      if (protocol && protocol !== 'msal{Your_Application/Client_Id}://auth') { 
+        link.href = protocol; 
+        link.textContent = 'Open App'; 
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          try {
+            window.location.href = protocol;
+            // Close window after a delay if still open
+            setTimeout(() => {
+              window.close();
+            }, 2000);
+          } catch (err) {
+            console.error('Failed to open app:', err);
+            alert('Please return to the YakShaver application manually.');
+          }
+        });
+      } else {
+        link.textContent = 'Protocol not configured - please return to app manually';
+        link.href = '#';
+      }
+    </script>
+  </body>
+  </html>

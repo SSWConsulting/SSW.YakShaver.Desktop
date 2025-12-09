@@ -10,6 +10,12 @@ export const IPC_CHANNELS = {
   CONFIG_HAS_YOUTUBE: "config:has-youtube",
   CONFIG_GET_YOUTUBE: "config:get-youtube",
 
+  // Microsoft auth
+  MS_AUTH_LOGIN: "msauth:login",
+  MS_AUTH_LOGOUT: "msauth:logout",
+  MS_AUTH_STATUS: "msauth:status",
+  MS_GRAPH_GET_ME: "msgraph:get-me",
+
   // Video conversion
   SELECT_VIDEO_FILE: "select-video-file",
   SELECT_OUTPUT_DIRECTORY: "select-output-directory",

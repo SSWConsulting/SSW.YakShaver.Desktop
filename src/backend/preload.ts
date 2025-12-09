@@ -20,6 +20,12 @@ const IPC_CHANNELS = {
   CONFIG_HAS_YOUTUBE: "config:has-youtube",
   CONFIG_GET_YOUTUBE: "config:get-youtube",
 
+  // Microsoft auth
+  MS_AUTH_LOGIN: "msauth:login",
+  MS_AUTH_LOGOUT: "msauth:logout",
+  MS_AUTH_STATUS: "msauth:status",
+  MS_GRAPH_GET_ME: "msgraph:get-me",
+
   // Video conversion
   SELECT_VIDEO_FILE: "select-video-file",
   SELECT_OUTPUT_DIRECTORY: "select-output-directory",
@@ -133,6 +139,14 @@ const electronAPI = {
   config: {
     hasYouTube: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIG_HAS_YOUTUBE),
     getYouTube: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIG_GET_YOUTUBE),
+  },
+  msAuth: {
+    login: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGIN),
+    logout: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGOUT),
+    status: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_STATUS),
+  },
+  msGraph: {
+    getMe: () => ipcRenderer.invoke(IPC_CHANNELS.MS_GRAPH_GET_ME),
   },
   video: {
     selectVideoFile: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_VIDEO_FILE),
