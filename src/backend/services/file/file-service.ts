@@ -15,7 +15,8 @@ export class FileService implements IFileService {
   }
 
   async mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | undefined): Promise<void> {
-    return await fs.mkdir(path, options).then(() => {});
+    await fs.mkdir(path, options);
+    return;
   }
 
   readFile(path: PathLike): Promise<Buffer> {
