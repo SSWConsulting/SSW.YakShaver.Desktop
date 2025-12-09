@@ -6,10 +6,10 @@ const getYouTube = () => {
 };
 
 const getAzure = () => {
-  const { AZURE_CLIENT_ID: clientId, AZURE_TENANT_ID: tenantId, GRAPH_SCOPES, AZURE_CUSTOM_PROTOCOL } = env;
-  const scopes = (GRAPH_SCOPES || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const { AZURE_ENTRA_APP_CLIENT_ID: clientId, AZURE_TENANT_ID: tenantId, AZURE_AUTH_SCOPE, AZURE_AUTH_CUSTOM_PROTOCOL } = env;
+  const scopes = (AZURE_AUTH_SCOPE || "").split(",").map((s) => s.trim()).filter(Boolean);
   return clientId && tenantId
-    ? { clientId, tenantId, scopes, customProtocol: AZURE_CUSTOM_PROTOCOL || null }
+    ? { clientId, tenantId, scopes, customProtocol: AZURE_AUTH_CUSTOM_PROTOCOL || null }
     : null;
 };
 
