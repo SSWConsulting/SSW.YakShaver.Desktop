@@ -10,8 +10,6 @@ import "isomorphic-fetch";
 import * as fs from "node:fs";
 import type { AccountInfo, AuthenticationResult, InteractiveRequest, SilentFlowRequest } from "@azure/msal-node";
 
-const DEFAULT_SCOPES = ["User.Read"];
-
 export class MicrosoftAuthService {
   private static instance: MicrosoftAuthService;
   private account: AccountInfo | null = null;
@@ -48,7 +46,7 @@ export class MicrosoftAuthService {
   }
 
   private getScopes(): string[] {
-    return config.azure()?.scopes ?? DEFAULT_SCOPES;
+    return config.azure()?.scopes ?? [];
   }
 
   async isAuthenticated(): Promise<boolean> {
@@ -88,7 +86,7 @@ export class MicrosoftAuthService {
   async login(): Promise<AccountInfo | null> {
     try {
       const tokenRequest: SilentFlowRequest = {
-        scopes: config.azure()?.scopes ??  DEFAULT_SCOPES,
+        scopes: this.getScopes(),
         account: null as any,
       };
       const authResult = await this.getToken(tokenRequest);

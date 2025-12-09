@@ -2,7 +2,6 @@ import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "./channels";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import { formatErrorMessage } from "../utils/error-utils";
-import { AccountInfo } from "@azure/msal-node";
 
 export class MicrosoftAuthIPCHandlers {
 
@@ -41,22 +40,11 @@ export class MicrosoftAuthIPCHandlers {
           return { status: "error", error: formatErrorMessage(error) } as any;
         }
       },
-      [IPC_CHANNELS.MS_GRAPH_GET_ME]: async () => {
+      [IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO]: async () => {
         try {
           const ms = MicrosoftAuthService.getInstance();
-          const tokenRequest = {
-            account: null as unknown as AccountInfo,
-            scopes: ["User.Read"],
-          };
-          const result = await ms.getToken(tokenRequest);
-          console.log(result.accessToken);
-          console.log(result.tenantId);
-          console.log(result.account?.username);
-          const info = await (await import("@microsoft/microsoft-graph-client")).Client
-            .init({ authProvider: (done) => done(null, result.accessToken) })
-            .api("/me")
-            .get();
-          return { success: true, data: info };
+          const accountInfo = ms.currentAccount();
+          return { success: true, data: accountInfo };
         } catch (error) {
           return { success: false, error: formatErrorMessage(error) };
         }

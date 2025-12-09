@@ -60,9 +60,7 @@ declare global {
         login: () => Promise<AuthResult>;
         logout: () => Promise<boolean>;
         status: () => Promise<AuthState>;
-      };
-      msGraph: {
-        getMe: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
+        accountInfo: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
       };
       video: {
         selectVideoFile: () => Promise<string | null>;

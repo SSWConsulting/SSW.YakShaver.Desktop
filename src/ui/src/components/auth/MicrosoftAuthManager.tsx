@@ -13,9 +13,9 @@ export function MicrosoftAuthManager() {
     try {
       const s = await ipcClient.msAuth.status();
       if (s.status === "authenticated") {
-        const me = await ipcClient.msGraph.getMe();
+        const me = await ipcClient.msAuth.accountInfo();
         const d = me.data as any;
-        setStatus({ isAuthenticated: true, name: d?.displayName, email: d?.mail || d?.userPrincipalName });
+        setStatus({ isAuthenticated: true, name: d?.name, email: d?.username });
       } else {
         setStatus({ isAuthenticated: false });
       }
