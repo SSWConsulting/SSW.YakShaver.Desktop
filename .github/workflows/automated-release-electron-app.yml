@@ -12,6 +12,7 @@ permissions:
 
 env:
   NODE_VERSION: 20
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   auto-release:
