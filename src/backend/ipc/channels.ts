@@ -91,4 +91,7 @@ export const IPC_CHANNELS = {
   // General Settings
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+
+  // Portal API
+  PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
 } as const;

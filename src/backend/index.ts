@@ -16,6 +16,7 @@ import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { VideoIPCHandlers } from "./ipc/video-handlers";
 import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
+import { registerPortalHandlers } from "./ipc/portal-handlers";
 import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
@@ -142,6 +143,7 @@ app.whenReady().then(async () => {
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _generalSettingsHandlers = new GeneralSettingsIPCHandlers();
+  registerPortalHandlers();
 
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);

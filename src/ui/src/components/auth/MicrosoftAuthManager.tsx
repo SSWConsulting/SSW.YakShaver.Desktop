@@ -9,11 +9,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOut } from "lucide-react";
+import { MyShavesDialog } from "@/components/portal/MyShavesDialog";
 
 export function MicrosoftAuthManager() {
   const [status, setStatus] = useState<{ isAuthenticated: boolean; name?: string; email?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showMyShaves, setShowMyShaves] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -66,7 +68,6 @@ export function MicrosoftAuthManager() {
     return (
       <div className="flex items-center">
         <Button 
-          disabled={loading} 
           onClick={login}
         >
           Sign In
@@ -92,6 +93,12 @@ export function MicrosoftAuthManager() {
               <p className="text-sm font-medium text-white truncate">{status?.name}</p>
             </div>
             <DropdownMenuItem 
+              onClick={() => setShowMyShaves(true)}
+              className="text-white hover:bg-white/10"
+            >
+              <span>My Shaves</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem 
               onClick={logout}
               disabled={loading}
               className="text-red-400 hover:bg-red-500/10"
@@ -103,6 +110,10 @@ export function MicrosoftAuthManager() {
         </DropdownMenuContent>
       </DropdownMenu>
       {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
+      <MyShavesDialog 
+        open={showMyShaves} 
+        onOpenChange={setShowMyShaves} 
+      />
     </div>
   );
 }

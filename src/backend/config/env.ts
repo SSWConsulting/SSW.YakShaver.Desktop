@@ -13,7 +13,13 @@ const getAzure = () => {
     : null;
 };
 
+const getPortalApi = () => {
+  const { PORTAL_API_URL: url } = env;
+  return url || 'http://localhost:7009/api';
+};
+
 export const config = {
   youtube: getYouTube,
   azure: getAzure,
+  portalApi: getPortalApi,
 };
