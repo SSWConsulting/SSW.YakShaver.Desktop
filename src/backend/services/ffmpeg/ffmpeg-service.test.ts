@@ -195,6 +195,16 @@ describe("FFmpegService", () => {
 
       await expect(resultPromise).rejects.toThrow("FFmpeg frame capture failed with code 1");
     });
+
+    it("should handle spawn error", async () => {
+      const service = new FFmpegService("/mock/ffmpeg", mockFileSystem, mockProcessSpawner);
+
+      const resultPromise = service.captureNthFrame("/input/video.mp4", "/output/frame.jpg", 10);
+
+      setImmediate(() => mockChildProcess.emit("error", new Error("spawn ENOENT")));
+
+      await expect(resultPromise).rejects.toThrow("Failed to start FFmpeg: spawn ENOENT");
+    });
   });
 
   describe("getInstance", () => {
