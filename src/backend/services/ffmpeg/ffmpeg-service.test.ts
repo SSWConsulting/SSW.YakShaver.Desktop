@@ -46,7 +46,6 @@ describe("FFmpegService", () => {
 
       const resultPromise = service.ConvertVideoToMp3("/input/video.mp4", "/output/audio.mp3");
 
-      // Simulate successful process completion after promise is set up
       setImmediate(() => mockChildProcess.emit("close", 0));
 
       const result = await resultPromise;
