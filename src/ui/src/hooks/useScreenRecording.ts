@@ -2,11 +2,22 @@ import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const VIDEO_MIME_TYPE = "video/mp4";
+const CANVAS_WIDTH = 1920;
+const CANVAS_HEIGHT = 1080;
+const CANVAS_FPS = 30;
 
 interface RecordingStreams {
   video?: MediaStream;
   audio?: MediaStream;
 }
+
+interface CanvasProxyRefs {
+  video: HTMLVideoElement | null;
+  canvas: HTMLCanvasElement | null;
+  ctx: CanvasRenderingContext2D | null;
+  intervalId: ReturnType<typeof setInterval> | null;
+}
+
 interface ElectronVideoConstraints extends MediaTrackConstraints {
   mandatory?: {
     chromeMediaSource: string;
@@ -23,6 +34,30 @@ export function useScreenRecording() {
   const streamsRef = useRef<RecordingStreams>({});
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const canvasProxyRef = useRef<CanvasProxyRefs>({
+    video: null,
+    canvas: null,
+    ctx: null,
+    intervalId: null,
+  });
+
+  const cleanupCanvasProxy = useCallback(() => {
+    const proxy = canvasProxyRef.current;
+    if (proxy.intervalId !== null) {
+      clearInterval(proxy.intervalId);
+      proxy.intervalId = null;
+    }
+    if (proxy.video) {
+      proxy.video.srcObject = null;
+      proxy.video.remove();
+      proxy.video = null;
+    }
+    if (proxy.canvas) {
+      proxy.canvas.remove();
+      proxy.canvas = null;
+    }
+    proxy.ctx = null;
+  }, []);
 
   const cleanup = useCallback(async () => {
     mediaRecorderRef.current?.stream
@@ -40,9 +75,102 @@ export function useScreenRecording() {
       audioContextRef.current = null;
     }
 
+    cleanupCanvasProxy();
+
     mediaRecorderRef.current = null;
     chunksRef.current = [];
     streamsRef.current = {};
+  }, [cleanupCanvasProxy]);
+
+  const setupCanvasProxy = useCallback((videoStream: MediaStream): MediaStream => {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    // Use visibility:hidden instead of positioning off-screen
+    // Off-screen elements may not render in some browsers/Electron
+    video.style.position = "fixed";
+    video.style.top = "0";
+    video.style.left = "0";
+    video.style.width = "1px";
+    video.style.height = "1px";
+    video.style.opacity = "0.01";
+    video.style.pointerEvents = "none";
+    video.style.zIndex = "-1";
+    document.body.appendChild(video);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = CANVAS_WIDTH;
+    canvas.height = CANVAS_HEIGHT;
+    canvas.style.position = "fixed";
+    canvas.style.top = "0";
+    canvas.style.left = "0";
+    canvas.style.width = "1px";
+    canvas.style.height = "1px";
+    canvas.style.opacity = "0.01";
+    canvas.style.pointerEvents = "none";
+    canvas.style.zIndex = "-1";
+    document.body.appendChild(canvas);
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Failed to get canvas context");
+
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    canvasProxyRef.current = { video, canvas, ctx, intervalId: null };
+
+    const drawFrame = () => {
+      const proxy = canvasProxyRef.current;
+      if (!proxy.video || !proxy.ctx || !proxy.canvas) return;
+
+      // Skip if video doesn't have valid dimensions yet
+      if (proxy.video.videoWidth === 0 || proxy.video.videoHeight === 0) {
+        return;
+      }
+
+      const videoWidth = proxy.video.videoWidth;
+      const videoHeight = proxy.video.videoHeight;
+
+      const videoAspect = videoWidth / videoHeight;
+      const canvasAspect = CANVAS_WIDTH / CANVAS_HEIGHT;
+
+      let drawWidth: number;
+      let drawHeight: number;
+      let offsetX: number;
+      let offsetY: number;
+
+      if (videoAspect > canvasAspect) {
+        drawWidth = CANVAS_WIDTH;
+        drawHeight = CANVAS_WIDTH / videoAspect;
+        offsetX = 0;
+        offsetY = (CANVAS_HEIGHT - drawHeight) / 2;
+      } else {
+        drawHeight = CANVAS_HEIGHT;
+        drawWidth = CANVAS_HEIGHT * videoAspect;
+        offsetX = (CANVAS_WIDTH - drawWidth) / 2;
+        offsetY = 0;
+      }
+
+      proxy.ctx.fillStyle = "#000000";
+      proxy.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      proxy.ctx.drawImage(proxy.video, offsetX, offsetY, drawWidth, drawHeight);
+    };
+
+    // Set srcObject first
+    video.srcObject = videoStream;
+
+    // Use setInterval instead of requestAnimationFrame
+    // requestAnimationFrame gets throttled when window is minimized/hidden
+    // setInterval continues running even when window is not visible
+    const frameInterval = Math.floor(1000 / CANVAS_FPS);
+    canvasProxyRef.current.intervalId = setInterval(drawFrame, frameInterval);
+
+    // Ensure video plays
+    video.play().catch((err) => {
+      console.error("Failed to play video:", err);
+    });
+
+    return canvas.captureStream(CANVAS_FPS);
   }, []);
 
   const start = useCallback(
@@ -62,7 +190,6 @@ export function useScreenRecording() {
               mandatory: {
                 chromeMediaSource: "desktop",
                 chromeMediaSourceId: result.sourceId,
-                // Set to 4K resolution (3840x2160) and 30 FPS to ensure high-quality recordings.
                 maxWidth: 3840,
                 maxHeight: 2160,
                 maxFrameRate: 30,
@@ -90,9 +217,12 @@ export function useScreenRecording() {
 
         streamsRef.current = { video: videoStream, audio: audioStream };
 
+        // Use Canvas Proxy to handle window resize/move during recording
+        const canvasStream = setupCanvasProxy(videoStream);
+
         const recorder = new MediaRecorder(
           new MediaStream([
-            ...videoStream.getVideoTracks(),
+            ...canvasStream.getVideoTracks(),
             ...audioStream.getAudioTracks(),
           ]),
           { mimeType: VIDEO_MIME_TYPE }
@@ -126,7 +256,7 @@ export function useScreenRecording() {
         setIsProcessing(false);
       }
     },
-    [cleanup]
+    [cleanup, setupCanvasProxy]
   );
 
   const stop = useCallback(async (): Promise<{
