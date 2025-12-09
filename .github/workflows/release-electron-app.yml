@@ -21,6 +21,7 @@ permissions:
 env:
   APP_NAME: SSW.YakShaver
   NODE_VERSION: 20
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   check-release:
