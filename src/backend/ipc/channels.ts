@@ -45,6 +45,8 @@ export const IPC_CHANNELS = {
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
+  MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
+  MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -53,7 +55,8 @@ export const IPC_CHANNELS = {
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
   // Video processing - the main process pipeline
-  PROCESS_VIDEO: "process-video",
+  PROCESS_VIDEO_FILE: "process-video:file",
+  PROCESS_VIDEO_URL: "process-video:url",
   RETRY_VIDEO: "retry-video",
 
   // Settings
@@ -78,4 +81,9 @@ export const IPC_CHANNELS = {
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
   GITHUB_TOKEN_VERIFY: "github-token:verify",
+  GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
+
+  // General Settings
+  GENERAL_SETTINGS_GET: "general-settings:get",
+  GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
 } as const;

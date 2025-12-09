@@ -3,7 +3,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
+import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
+import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
 import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
 import { LLMSettingsPanel } from "./llm/LLMKeyManager";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
@@ -17,6 +19,10 @@ interface SettingsTab {
 }
 
 const TABS: SettingsTab[] = [
+  {
+    id: "general",
+    label: "General",
+  },
   {
     id: "release",
     label: "Releases",
@@ -36,6 +42,10 @@ const TABS: SettingsTab[] = [
   {
     id: "mcp",
     label: "MCP Servers",
+  },
+  {
+    id: "advanced",
+    label: "Advanced",
   },
 ];
 
@@ -131,9 +141,7 @@ export function SettingsDialog() {
                   type="button"
                   onClick={() => attemptTabChange(tab.id)}
                   className={`text-left px-3 py-2 rounded-md transition-colors border border-transparent ${
-                    isActive
-                      ? "bg-white/10 border-white/20"
-                      : "text-white/60 hover:bg-white/5"
+                    isActive ? "bg-white/10 border-white/20" : "text-white/60 hover:bg-white/5"
                   }`}
                 >
                   <div className="text-sm font-medium">{tab.label}</div>
@@ -145,6 +153,9 @@ export function SettingsDialog() {
           <section className="flex-1 h-full overflow-hidden">
             <ScrollArea className="h-full pr-1">
               <div className="pb-4 pr-2">
+                {activeTab?.id === "general" && (
+                  <GeneralSettingsPanel isActive={open && activeTabId === "general"} />
+                )}
                 {activeTab?.id === "release" && (
                   <ReleaseChannelSettingsPanel isActive={open && activeTabId === "release"} />
                 )}
@@ -163,6 +174,7 @@ export function SettingsDialog() {
                 {activeTab?.id === "mcp" && (
                   <McpSettingsPanel isActive={open && activeTabId === "mcp"} />
                 )}
+                {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
               </div>
             </ScrollArea>
           </section>

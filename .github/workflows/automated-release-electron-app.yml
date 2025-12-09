@@ -1,0 +1,104 @@
+name: Automated Electron App Release
+run-name: "YakShaver App Release - Build #${{ github.run_number }}"
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  auto-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      tag_name: ${{ steps.get_version.outputs.tag_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Generate version
+        id: get_version
+        run: |
+          # Generate version: YYYY.M.D-BUILD.RUN_NUMBER.SHORT_SHA
+          YEAR=$(date +'%Y')
+          MONTH=$(date +'%-m')   # Remove leading zero
+          DAY=$(date +'%-d')     # Remove leading zero
+          RUN_NUMBER=${{ github.run_number }}
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          VERSION="${YEAR}.${MONTH}.${DAY}-BUILD.${RUN_NUMBER}.${SHORT_SHA}"
+
+          echo "Generated version: $VERSION"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag_name=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Create and publish GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ steps.get_version.outputs.tag_name }}"
+          VERSION="${{ steps.get_version.outputs.version }}"
+
+          gh release create "$TAG_NAME" \
+            --title "$VERSION" \
+            --generate-notes \
+            --target main \
+            --draft=false
+
+          echo "Release created and published"
+
+      - name: Extract PR number from commit
+        id: pr_number
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Extract PR number from squash merge format: "title (#123)"
+          PR_NUMBER=$(git log -1 --pretty=%B | head -1 | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' || echo "")
+
+          # Fallback: use GitHub API to find PR by commit SHA
+          if [ -z "$PR_NUMBER" ]; then
+            PR_NUMBER=$(gh pr list --search "${{ github.sha }}" --state merged --json number --jq '.[0].number' 2>/dev/null || echo "")
+          fi
+
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "Found PR number: ${PR_NUMBER}"
+
+      - name: Comment on PR
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ steps.pr_number.outputs.pr_number }}
+          body: |
+            ✅ **Automated Release Created Successfully**
+
+            **Release Details:**
+            - **Version:** ${{ steps.get_version.outputs.version }}
+            - **Tag:** ${{ steps.get_version.outputs.tag_name }}
+            - **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag_name }}
+
+            You can monitor the build progress in the [Actions tab](https://github.com/${{ github.repository }}/actions/workflows/automated-release-electron-app.yml).
+
+  # Trigger the release build workflow directly (bypasses GITHUB_TOKEN limitation)
+  trigger-build:
+    needs: auto-release
+    uses: ./.github/workflows/release-electron-app.yml
+    with:
+      tag_name: ${{ needs.auto-release.outputs.tag_name }}
+      target: main
+    secrets: inherit

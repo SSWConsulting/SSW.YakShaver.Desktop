@@ -8,11 +8,14 @@ import type {
   AuthState,
   ConvertVideoToMp3Result,
   CustomPrompt,
+  GeneralSettings,
   HealthStatusInfo,
   LLMConfig,
+  MCPStep,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
   ScreenSource,
+  ToolApprovalMode,
   TranscriptEntry,
   UserInfo,
   VideoUploadResult,
@@ -23,7 +26,8 @@ declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideo: (filePath?: string) => Promise<void>;
+        processVideoFile: (filePath: string) => Promise<void>;
+        processVideoUrl: (url: string) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult
@@ -92,15 +96,13 @@ declare global {
         }>;
         prefillPrompt: (text: string) => void;
         onPrefillPrompt: (callback: (text: string) => void) => () => void;
-        onStepUpdate: (
-          callback: (step: {
-            type: "start" | "tool_call" | "final_result";
-            message?: string;
-            toolName?: string;
-            serverName?: string;
-          }) => void
-        ) => () => void;
+        onStepUpdate: (callback: (step: MCPStep) => void) => () => void;
+        respondToToolApproval: (
+          requestId: string,
+          decision: ToolApprovalDecisionPayload
+        ) => Promise<{ success: boolean }>;
         listServers: () => Promise<MCPServerConfig[]>;
+        addToolToWhitelist: (toolName: string) => Promise<{ success: boolean }>;
         addServerAsync: (
           config: MCPServerConfig
         ) => Promise<{ success: boolean }>;
@@ -162,9 +164,19 @@ declare global {
           rateLimitRemaining?: number;
           error?: string;
         }>;
+        getInstallUrl: () => Promise<string>;
+      };
+      generalSettings: {
+        get: () => Promise<GeneralSettings>;
+        setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
       };
     };
   }
 }
+
+type ToolApprovalDecisionPayload =
+  | { kind: "approve" }
+  | { kind: "deny_stop"; feedback?: string }
+  | { kind: "request_changes"; feedback: string };
 
 export const ipcClient = window.electronAPI;

@@ -112,7 +112,7 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
   await mcpServer.connect(serverTransport);
 
   const config: MCPServerConfig = {
-    name: "Yak Video Tools",
+    name: "Yak_Video_Tools",
     description: "Built-in video frame capture and screenshot interpretation tools.",
     transport: "inMemory",
     inMemoryServerId: serverId,

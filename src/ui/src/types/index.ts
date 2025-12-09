@@ -30,6 +30,8 @@ export interface YouTubeConfig {
   clientSecret: string;
 }
 
+export type VideoUploadOrigin = "upload" | "external";
+
 export interface VideoUploadResult {
   success: boolean;
   data?: {
@@ -38,6 +40,7 @@ export interface VideoUploadResult {
     description: string;
     url: string;
   };
+  origin?: VideoUploadOrigin;
   error?: string;
 }
 
@@ -113,6 +116,8 @@ export interface MetadataPreview {
 
 export type WorkflowStage =
   | "idle"
+  | "uploading_source"
+  | "downloading_source"
   | "converting_audio"
   | "transcribing"
   | "generating_task"
@@ -123,6 +128,8 @@ export type WorkflowStage =
 
 export const STAGE_CONFIG: Record<WorkflowStage, string> = {
   idle: "Waiting for recording...",
+  uploading_source: "Uploading video",
+  downloading_source: "Downloading source video",
   converting_audio: "Converting audio",
   transcribing: "Transcribing audio",
   generating_task: "Analyzing transcript",
@@ -140,6 +147,7 @@ export interface WorkflowProgress {
   uploadResult?: VideoUploadResult;
   metadataPreview?: MetadataPreview;
   error?: string;
+  sourceOrigin?: VideoUploadOrigin;
 }
 
 export interface CustomPrompt {
@@ -161,6 +169,8 @@ export interface HealthStatusInfo {
 
 export enum ProgressStage {
   IDLE = "idle",
+  UPLOADING_SOURCE = "uploading_source",
+  DOWNLOADING_SOURCE = "downloading_source",
   UPLOAD_COMPLETED = "upload_completed",
   CONVERTING_AUDIO = "converting_audio",
   TRANSCRIBING = "transcribing",
@@ -177,3 +187,33 @@ export const UNDO_EVENT_CHANNEL = "yakshaver:undo-event";
 export type UndoEventDetail = {
   type: "start" | "complete" | "error" | "reset";
 };
+
+export type ToolApprovalMode = "yolo" | "wait" | "ask";
+
+export interface GeneralSettings {
+  toolApprovalMode: ToolApprovalMode;
+}
+
+export enum MCPStepType {
+  START = "start",
+  REASONING = "reasoning",
+  TOOL_CALL = "tool_call",
+  TOOL_RESULT = "tool_result",
+  FINAL_RESULT = "final_result",
+  TOOL_APPROVAL_REQUIRED = "tool_approval_required",
+  TOOL_DENIED = "tool_denied",
+}
+
+export interface MCPStep {
+  type: MCPStepType;
+  message?: string;
+  reasoning?: string;
+  toolName?: string;
+  serverName?: string;
+  args?: unknown;
+  result?: unknown;
+  error?: string;
+  requestId?: string;
+  timestamp?: number;
+  autoApproveAt?: number;
+}

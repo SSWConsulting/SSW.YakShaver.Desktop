@@ -1,30 +1,18 @@
-import { Check, Play, Wrench, X } from "lucide-react";
+import { AlertTriangle, Check, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import {
+  type MetadataPreview,
+  MCPStepType,
   ProgressStage,
   STAGE_CONFIG,
+  type MCPStep,
+  type VideoChapter,
   type WorkflowProgress,
   type WorkflowStage,
-  type MetadataPreview,
-  type VideoChapter,
 } from "../../types";
 import { deepParseJson } from "../../utils";
 import { AccordionContent, AccordionTrigger } from "../ui/accordion";
 import { ReasoningStep } from "./ReasoningStep";
-
-type StepType = "start" | "reasoning" | "tool_call" | "tool_result" | "final_result";
-
-interface MCPStep {
-  type: StepType;
-  message?: string;
-  reasoning?: string;
-  toolName?: string;
-  serverName?: string;
-  args?: unknown;
-  result?: unknown;
-  error?: string;
-  timestamp?: number;
-}
 
 interface StageWithContentProps {
   stage: WorkflowStage;
@@ -71,6 +59,26 @@ function ToolResultSuccess({ result }: { result: unknown }) {
   );
 }
 
+function ToolApprovalPending({ toolName }: { toolName?: string }) {
+  return (
+    <div className="text-amber-300 flex items-center gap-2">
+      <AlertTriangle className="w-4 h-4" />
+      Waiting for approval to run {toolName ?? "the requested tool"}
+    </div>
+  );
+}
+
+function ToolDeniedNotice({ message }: { message?: string }) {
+  return (
+    <div className="text-red-400 flex items-center gap-2">
+      <X className="w-3 h-3" />
+      <span className="whitespace-pre-line">
+        {message ?? "Tool execution denied"}
+      </span>
+    </div>
+  );
+}
+
 function MetadataPreviewCard({ preview }: { preview?: MetadataPreview }) {
   if (!preview) {
     return (
@@ -86,7 +94,9 @@ function MetadataPreviewCard({ preview }: { preview?: MetadataPreview }) {
         <p className="text-white font-semibold">{preview.title}</p>
       </MetadataField>
       <MetadataField label="Description">
-        <pre className="text-sm text-white/80 whitespace-pre-wrap font-sans">{preview.description}</pre>
+        <pre className="text-sm text-white/80 whitespace-pre-wrap font-sans">
+          {preview.description}
+        </pre>
       </MetadataField>
       {preview.tags && preview.tags.length > 0 && (
         <MetadataField label="Tags">
@@ -115,13 +125,7 @@ function MetadataPreviewCard({ preview }: { preview?: MetadataPreview }) {
   );
 }
 
-function MetadataField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function MetadataField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="p-3 bg-black/30 border border-white/10 rounded-md space-y-2">
       <p className="text-xs uppercase tracking-wide text-white/50">{label}</p>
@@ -157,7 +161,7 @@ function ToolCallStep({
 
   return (
     <div className="space-y-1">
-      <div className="text-secondary font-medium flex items-center gap-2">
+      <div className="font-medium flex items-center gap-2">
         <Wrench className="w-4 h-4" />
         Calling tool: {toolName}
         {serverName && <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>}
@@ -181,6 +185,8 @@ export function StageWithContent({
   stepsRef,
   getStageIcon,
 }: StageWithContentProps) {
+  const isExternalSource = progress.sourceOrigin === "external";
+
   return (
     <>
       <AccordionTrigger className="px-4 hover:no-underline">
@@ -209,23 +215,33 @@ export function StageWithContent({
           >
             {mcpSteps.map((step) => (
               <div key={step.timestamp} className="border-l-2 border-green-400/30 pl-3 py-1">
-                {step.type === "start" && (
+                {step.type === MCPStepType.START && (
                   <div className="text-secondary font-medium flex items-center gap-2">
                     <Play className="w-4 h-4" />
                     {step.message || "Start task execution"}
                   </div>
                 )}
-                {step.type === "reasoning" && step.reasoning && (
+                {step.type === MCPStepType.REASONING && step.reasoning && (
                   <ReasoningStep reasoning={step.reasoning} />
                 )}
-                {step.type === "tool_call" && (
+                {step.type === MCPStepType.TOOL_CALL && (
                   <ToolCallStep
                     toolName={step.toolName}
                     serverName={step.serverName}
                     args={step.args}
                   />
                 )}
-                {step.type === "tool_result" && (
+                {step.type === MCPStepType.TOOL_APPROVAL_REQUIRED && (
+                  <div className="space-y-1">
+                    <ToolApprovalPending toolName={step.toolName} />
+                    <ToolCallStep
+                      toolName={step.toolName}
+                      serverName={step.serverName}
+                      args={step.args}
+                    />
+                  </div>
+                )}
+                {step.type === MCPStepType.TOOL_RESULT && (
                   <div className="ml-4 space-y-1">
                     {step.error ? (
                       <ToolResultError error={step.error} />
@@ -234,8 +250,13 @@ export function StageWithContent({
                     )}
                   </div>
                 )}
-                {step.type === "final_result" && (
-                  <div className="text-secondary font-medium flex items-center gap-2">
+                {step.type === MCPStepType.TOOL_DENIED && (
+                  <div className="ml-4">
+                    <ToolDeniedNotice message={step.message} />
+                  </div>
+                )}
+                {step.type === MCPStepType.FINAL_RESULT && (
+                  <div className="font-medium flex items-center gap-2">
                     <Check className="w-4 h-4" />
                     {step.message || "Generated final result"}
                   </div>
@@ -244,7 +265,7 @@ export function StageWithContent({
             ))}
           </div>
         )}
-        {stage === ProgressStage.UPDATING_METADATA && (
+        {stage === ProgressStage.UPDATING_METADATA && !isExternalSource && (
           <MetadataPreviewCard preview={progress.metadataPreview} />
         )}
       </AccordionContent>
@@ -252,4 +273,4 @@ export function StageWithContent({
   );
 }
 
-export type { MCPStep, StageWithContentProps };
+export type { StageWithContentProps };

@@ -24,6 +24,8 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   const [devicesReady, setDevicesReady] = useState(false);
   const NO_CAMERA_VALUE = "__none__";
   const LAST_CAMERA_KEY = "yakshaver.lastCameraDeviceId";
+  const LAST_MICROPHONE_KEY = "yakshaver.lastMicDeviceId";
+  const NO_DEVICE_STORAGE_VALUE = "none";
 
   const fetchSources = useCallback(async () => {
     setLoading(true);
@@ -45,8 +47,8 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       setCameraDevices(cams);
       setMicrophoneDevices(mics);
       const lastCam = localStorage.getItem(LAST_CAMERA_KEY) || undefined;
-      const lastMic = localStorage.getItem("yakshaver.lastMicDeviceId") || undefined;
-      if (lastCam === "none") {
+      const lastMic = localStorage.getItem(LAST_MICROPHONE_KEY) || undefined;
+      if (lastCam === NO_DEVICE_STORAGE_VALUE) {
         setSelectedCameraId(undefined);
       } else {
         setSelectedCameraId(cams.find((c) => c.deviceId === lastCam)?.deviceId || cams[0]?.deviceId);
@@ -66,6 +68,16 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
     if (open) {
       void fetchSources();
       void fetchDevices();
+
+      const handleDeviceChange = () => {
+        void fetchDevices();
+      };
+
+      navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+
+      return () => {
+        navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+      };
     } else {
       setSources([]);
       setLoading(false);
@@ -80,7 +92,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
         cameraPreviewRef.current.srcObject = null;
       }
     }
-  }, [open, fetchSources, fetchDevices]);
+  }, [open, fetchSources, fetchDevices, cameraPreviewStream]);
 
   useEffect(() => {
     const startPreview = async () => {
@@ -150,7 +162,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                 onValueChange={(value) => {
                   if (value === NO_CAMERA_VALUE) {
                     setSelectedCameraId(undefined);
-                    localStorage.setItem(LAST_CAMERA_KEY, "none");
+                    localStorage.setItem(LAST_CAMERA_KEY, NO_DEVICE_STORAGE_VALUE);
                   } else {
                     setSelectedCameraId(value || undefined);
                     if (value) localStorage.setItem(LAST_CAMERA_KEY, value);
@@ -162,9 +174,6 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_CAMERA_VALUE} textValue="No camera">No camera</SelectItem>
-                  {cameraDevices.length === 0 && (
-                    <SelectItem value="__no_camera__" disabled textValue="No camera devices">No camera devices</SelectItem>
-                  )}
                   {cameraDevices.map((d) => (
                     <SelectItem key={d.deviceId} value={d.deviceId} textValue={d.label || d.deviceId}>
                       {d.label || d.deviceId}
@@ -179,16 +188,13 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                 value={selectedMicrophoneId ?? ""}
                 onValueChange={(v) => {
                   setSelectedMicrophoneId(v || undefined);
-                  if (v) localStorage.setItem("yakshaver.lastMicDeviceId", v);
+                  if (v) localStorage.setItem(LAST_MICROPHONE_KEY, v);
                 }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select microphone" />
                 </SelectTrigger>
                 <SelectContent>
-                  {microphoneDevices.length === 0 && (
-                    <SelectItem value="__no_mic__" disabled textValue="No microphone devices">No microphone devices</SelectItem>
-                  )}
                   {microphoneDevices.map((d) => (
                     <SelectItem key={d.deviceId} value={d.deviceId} textValue={d.label || d.deviceId}>
                       {d.label || d.deviceId}
