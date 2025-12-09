@@ -1,7 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { IFileService } from "../files/file-service";
+import type { IFileService } from "../file/file-service";
 import { FFmpegService } from "./ffmpeg-service";
 import type { IProcessSpawner } from "./types";
 

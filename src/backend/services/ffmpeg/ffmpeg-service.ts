@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { dirname } from "node:path";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
-import { FileService, type IFileService } from "../files/file-service";
+import { FileService, type IFileService } from "../file/file-service";
 import type { ConversionProgress, IProcessSpawner } from "./types";
 
 function getDefaultFfmpegPath(): string {
