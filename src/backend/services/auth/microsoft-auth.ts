@@ -1,33 +1,42 @@
 import { join } from "node:path";
 import { shell, app } from "electron";
-import { PublicClientApplication, InteractionRequiredAuthError } from "@azure/msal-node";
+import { PublicClientApplication, InteractionRequiredAuthError, LogLevel } from "@azure/msal-node";
 import { config } from "../../config/env";
 import { formatErrorMessage } from "../../utils/error-utils";
-import type { AuthResult, AuthState, UserInfo } from "./types";
+import type { AuthState } from "./types";
 import { AuthStatus } from "./types";
 import { MsalSecureCachePlugin } from "./msal-cache-plugin";
-import { Client } from "@microsoft/microsoft-graph-client";
 import "isomorphic-fetch";
 import * as fs from "node:fs";
-import type { InteractiveRequest } from "@azure/msal-node";
-import { CustomLoopbackClient } from "./msal-loopback-client";
+import type { AccountInfo, AuthenticationResult, InteractiveRequest, SilentFlowRequest } from "@azure/msal-node";
 
 const DEFAULT_SCOPES = ["User.Read"];
 
 export class MicrosoftAuthService {
   private static instance: MicrosoftAuthService;
+  private account: AccountInfo | null = null;
   private pca: PublicClientApplication;
 
   private constructor() {
     const azure = config.azure();
     if (!azure) throw new Error("Azure configuration missing");
     const cachePlugin = new MsalSecureCachePlugin();
+
     this.pca = new PublicClientApplication({
       auth: {
         clientId: azure.clientId,
         authority: `https://login.microsoftonline.com/${azure.tenantId}`,
       },
       cache: { cachePlugin },
+      system: {
+        loggerOptions: {
+          loggerCallback(loglevel, message, containsPii) {
+            console.log(message);
+          },
+          piiLoggingEnabled: false,
+          logLevel: LogLevel.Info,
+        },
+      },
     });
   }
 
@@ -43,86 +52,28 @@ export class MicrosoftAuthService {
   }
 
   async isAuthenticated(): Promise<boolean> {
-    const accounts = await this.pca.getTokenCache().getAllAccounts();
-    if (!accounts.length) return false;
-    try {
-      await this.pca.acquireTokenSilent({ account: accounts[0], scopes: this.getScopes() });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async login(): Promise<AuthResult> {
-    try {
-      const scopes = this.getScopes();
-      const azure = config.azure();
-      const uiDir = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../src/ui");
-      const successPath = join(uiDir, "successTemplate.html");
-      const errorPath = join(uiDir, "errorTemplate.html");
-      
-      // Check if files exist
-      if (!fs.existsSync(successPath)) {
-        throw new Error(`Success template not found: ${successPath}`);
-      }
-      if (!fs.existsSync(errorPath)) {
-        throw new Error(`Error template not found: ${errorPath}`);
-      }
-      
-      const successHtmlRaw = fs.readFileSync(successPath, "utf8");
-      const errorHtmlRaw = fs.readFileSync(errorPath, "utf8");
-      
-      const protocol = azure?.customProtocol || `msal${azure!.clientId}`;
-      
-      const successHtml = successHtmlRaw.replace(/msal\{Your_Application\/Client_Id\}/g, protocol).replace(/msal\{Your_Application\/Client_Id\}:\/\/auth/g, `${protocol}://auth`);
-      const errorHtml = errorHtmlRaw;
-
-      const loopbackClient = await CustomLoopbackClient.initialize(3874);
-      
-      const interactiveRequest: InteractiveRequest = {
-        scopes,
-        openBrowser: (url) => shell.openExternal(url),
-        successTemplate: successHtml,
-        errorTemplate: errorHtml,
-        loopbackClient,
-        prompt: "select_account", // Force account selection
-      };
-
-      const result = await this.pca.acquireTokenInteractive(interactiveRequest);
-
-      const userInfo = await this.getCurrentUserInfo(result.accessToken);
-      return { success: true, userInfo };
-    } catch (error) {
-      const code = (error as any)?.errorCode || (error as any)?.code;
-      const message =
-        code === "user_cancelled" || code === "authentication_canceled"
-          ? "Authentication cancelled by user"
-          : code === "no_network_connection"
-          ? "Network unavailable"
-          : formatErrorMessage(error);
-      return { success: false, error: message };
-    }
-  }
-
-  async logout(): Promise<boolean> {
-    try {
-      const accounts = await this.pca.getTokenCache().getAllAccounts();
-      for (const a of accounts) await this.pca.getTokenCache().removeAccount(a);
-      return true;
-    } catch {
-      return false;
-    }
+    const authState = await this.getAuthState();
+    return authState.status === AuthStatus.AUTHENTICATED;
   }
 
   async getAuthState(): Promise<AuthState> {
     try {
-      const accounts = await this.pca.getTokenCache().getAllAccounts();
-      if (!accounts.length) return { status: AuthStatus.NOT_AUTHENTICATED } as AuthState;
-      const scopes = this.getScopes();
+      const account = await this.getAccount();
+      if (!account) return {
+        status: AuthStatus.NOT_AUTHENTICATED 
+      } as AuthState;
+
       try {
-        const res = await this.pca.acquireTokenSilent({ account: accounts[0], scopes });
-        const userInfo = await this.getCurrentUserInfo(res.accessToken);
-        return { status: AuthStatus.AUTHENTICATED, userInfo } as AuthState;
+        const tokenRequest: SilentFlowRequest = {
+          scopes: this.getScopes(),
+          account: account
+        };
+        const accountInfo = await this.loginSilent(tokenRequest);
+        if (accountInfo) {
+          return { status: AuthStatus.AUTHENTICATED, accountInfo } as AuthState;
+        } else {
+          return { status: AuthStatus.NOT_AUTHENTICATED } as AuthState;
+        }
       } catch (e) {
         if (e instanceof InteractionRequiredAuthError) {
           return { status: AuthStatus.NOT_AUTHENTICATED } as AuthState;
@@ -134,58 +85,144 @@ export class MicrosoftAuthService {
     }
   }
 
-  async getAccessToken(): Promise<string> {
-    const accounts = await this.pca.getTokenCache().getAllAccounts();
-    const scopes = this.getScopes();
+  async login(): Promise<AccountInfo | null> {
     try {
-      const silent = accounts.length
-        ? await this.pca.acquireTokenSilent({ account: accounts[0], scopes })
-        : null;
-      if (silent?.accessToken) return silent.accessToken;
-      const azure = config.azure();
-      const uiDir = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../src/ui");
-      const successPath = join(uiDir, "successTemplate.html");
-      const errorPath = join(uiDir, "errorTemplate.html");
-      
-      if (!fs.existsSync(successPath)) {
-        throw new Error(`Success template not found: ${successPath}`);
-      }
-      
-      const successHtmlRaw = fs.readFileSync(successPath, "utf8");
-      const errorHtmlRaw = fs.readFileSync(errorPath, "utf8");
-      
-      const protocol = azure?.customProtocol || `msal${azure!.clientId}`;
-      
-      const successHtml = successHtmlRaw.replace(/msal\{Your_Application\/Client_Id\}/g, protocol).replace(/msal\{Your_Application\/Client_Id\}:\/\/auth/g, `${protocol}://auth`);
-      const errorHtml = errorHtmlRaw;
-
-      const loopbackClient = await CustomLoopbackClient.initialize(3874);
-      const interactiveRequest: InteractiveRequest = {
-        scopes,
-        openBrowser: (url) => shell.openExternal(url),
-        successTemplate: successHtml,
-        errorTemplate: errorHtml,
-        loopbackClient,
-        prompt: "select_account", // Force account selection
+      const tokenRequest: SilentFlowRequest = {
+        scopes: config.azure()?.scopes ??  DEFAULT_SCOPES,
+        account: null as any,
       };
-      const interactive = await this.pca.acquireTokenInteractive(interactiveRequest);
-      return interactive.accessToken;
+      const authResult = await this.getToken(tokenRequest);
+      return this.handleResponse(authResult);
     } catch (error) {
-      const code = (error as any)?.errorCode || (error as any)?.code;
-      if (code === "no_network_connection") {
-        throw new Error("Network unavailable");
+      console.error("Login failed:", error);
+      return null;
+    }
+  }
+
+  async logout(): Promise<void> {
+    try {
+      if (!this.account) {
+        return;
       }
+      await this.pca.getTokenCache().removeAccount(this.account);
+      this.account = null;
+    } catch (error) {
+      const errorMsg = formatErrorMessage(error);
+      console.error("Logout error:", errorMsg);
+    }
+  }
+
+  async loginSilent(tokenRequest: SilentFlowRequest): Promise<AccountInfo | null> {
+    let response;
+    if (!this.account) {
+      const account = await this.getAccount();
+      if (account) {
+        tokenRequest.account = account;
+        response = await this.getTokenSilent(tokenRequest);
+        this.account = response.account;
+      }
+    }
+    return this.account;
+  }
+
+  async getToken(
+    tokenRequest: SilentFlowRequest
+  ): Promise<AuthenticationResult> {
+    try {
+      let authResponse: AuthenticationResult;
+      const account = this.account || (await this.getAccount());
+      if (account) {
+        tokenRequest.account = account;
+        authResponse = await this.getTokenSilent(tokenRequest);
+      } else {
+        authResponse = await this.getTokenInteractive(tokenRequest);
+      }
+      this.account = authResponse.account;
+      return authResponse;
+    } catch (error) {
       throw error;
     }
   }
 
-  private async getCurrentUserInfo(accessToken: string): Promise<UserInfo> {
-    const client = Client.init({ authProvider: (done) => done(null, accessToken) });
-    const me = await client.api("/me").get();
-    return {
-      id: me.id || "",
-      name: me.displayName || me.userPrincipalName || "",
-      email: me.mail || me.userPrincipalName || "",
-    };
+  async getTokenSilent(
+    tokenRequest: SilentFlowRequest
+  ): Promise<AuthenticationResult> {
+    try {
+      return await this.pca.acquireTokenSilent(
+        tokenRequest
+      );
+    } catch (error) {
+      console.warn(
+        "Silent token acquisition failed, acquiring token using pop up"
+      );
+      return await this.getTokenInteractive(tokenRequest);
+    }
+  }
+
+  async getTokenInteractive(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
+    try {
+      const azure = config.azure();
+      const uiDir = app.isPackaged ? process.resourcesPath : join(__dirname, "../../../src/ui");
+      const successPath = join(uiDir, "successTemplate.html");
+      const errorPath = join(uiDir, "errorTemplate.html");
+
+      // Check if files exist
+      if (!fs.existsSync(successPath)) {
+        throw new Error(`Success template not found: ${successPath}`);
+      }
+      if (!fs.existsSync(errorPath)) {
+        throw new Error(`Error template not found: ${errorPath}`);
+      }
+
+      const successHtmlRaw = fs.readFileSync(successPath, "utf8");
+      const errorHtmlRaw = fs.readFileSync(errorPath, "utf8");
+      const protocol = azure?.customProtocol || `msal${azure!.clientId}`;
+      const successHtml = successHtmlRaw.replace(/msal\{Your_Application\/Client_Id\}/g, protocol).replace(/msal\{Your_Application\/Client_Id\}:\/\/auth/g, `${protocol}://auth`);
+      const errorHtml = errorHtmlRaw;
+
+      const openBrowser = async (url: any) => await shell.openExternal(url);
+      const interactiveRequest: InteractiveRequest = {
+        ...tokenRequest,
+        openBrowser,
+        successTemplate: successHtml,
+        errorTemplate: errorHtml,
+        prompt: "select_account", // Force account selection
+      };
+
+      const authResponse = await this.pca.acquireTokenInteractive(interactiveRequest);
+      return authResponse;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Handles the response from a popup or redirect. If response is null, will check if we have any accounts and attempt to sign in.
+   * @param response
+   */
+  private async handleResponse(response: AuthenticationResult): Promise<AccountInfo | null> {
+    this.account = response?.account || (await this.getAccount());
+    return this.account;
+  }
+
+  public currentAccount(): AccountInfo | null {
+    return this.account;
+  }
+
+  private async getAccount(): Promise<AccountInfo | null> {
+    const cache = this.pca.getTokenCache();
+    const currentAccounts = await cache.getAllAccounts();
+
+    if (currentAccounts === null) {
+      return null;
+    }
+
+    if (currentAccounts.length > 1) {
+      return currentAccounts[0];
+    } else if (currentAccounts.length === 1) {
+      return currentAccounts[0];
+    } else {
+      return null;
+    }
   }
 }

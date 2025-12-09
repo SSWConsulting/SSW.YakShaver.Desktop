@@ -122,7 +122,6 @@ app.whenReady().then(async () => {
 
   _authHandlers = new AuthIPCHandlers();
   _msAuthHandlers = new MicrosoftAuthIPCHandlers();
-  try { await (await import("./services/auth/microsoft-auth")).MicrosoftAuthService.getInstance().getAuthState(); } catch {}
   _videoHandlers = new VideoIPCHandlers();
   _processVideoHandlers = new ProcessVideoIPCHandlers();
 
