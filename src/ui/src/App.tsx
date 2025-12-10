@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
 import { DownloadProgressToast } from "./components/common/DownloadProgressToast";
+import { Button } from "./components/ui/button";
 import { VideoHostPanel } from "./components/layout/VideoHostPanel";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { ScreenRecorder } from "./components/recording/ScreenRecorder";
@@ -34,6 +35,10 @@ export default function App() {
     void checkOnboarding();
   }, []);
 
+  const handleOpenOnboarding = useCallback(() => {
+    setShowOnboarding(true);
+  }, []);
+
   const handleFinishOnboarding = useCallback(async () => {
     setShowOnboarding(false);
     try {
@@ -62,6 +67,16 @@ export default function App() {
           <div className="flex flex-col gap-8">
             <div className="absolute top-6 right-8 z-50">
               <SettingsDialog />
+            </div>
+            <div className="absolute top-6 left-8 z-50">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleOpenOnboarding}
+                aria-label="Open onboarding wizard"
+              >
+                Onboarding
+              </Button>
             </div>
             <header className="z-10 relative">
               <div className="container mx-auto flex flex-col items-center gap-8">
