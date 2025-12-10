@@ -16,11 +16,6 @@ export const IPC_CHANNELS = {
   MS_AUTH_STATUS: "msauth:status",
   MS_AUTH_ACCOUNT_INFO: "msgraph:get-me",
 
-  // Video conversion
-  SELECT_VIDEO_FILE: "select-video-file",
-  SELECT_OUTPUT_DIRECTORY: "select-output-directory",
-  CONVERT_VIDEO_TO_MP3: "convert-video-to-mp3",
-
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
   STOP_SCREEN_RECORDING: "stop-screen-recording",

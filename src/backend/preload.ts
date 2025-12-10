@@ -26,11 +26,6 @@ const IPC_CHANNELS = {
   MS_AUTH_STATUS: "msauth:status",
   MS_AUTH_ACCOUNT_INFO: "msgraph:get-me",
 
-  // Video conversion
-  SELECT_VIDEO_FILE: "select-video-file",
-  SELECT_OUTPUT_DIRECTORY: "select-output-directory",
-  CONVERT_VIDEO_TO_MP3: "convert-video-to-mp3",
-
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
   STOP_SCREEN_RECORDING: "stop-screen-recording",
@@ -140,13 +135,6 @@ const electronAPI = {
       status: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_STATUS),
       accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO),
     },
-  },
-  video: {
-    selectVideoFile: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_VIDEO_FILE),
-    selectOutputDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_OUTPUT_DIRECTORY),
-    // TODO: Should be removed. this function has been moved to processVideo pipeline
-    convertVideoToMp3: (inputPath: string, outputPath: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.CONVERT_VIDEO_TO_MP3, inputPath, outputPath),
   },
   screenRecording: {
     start: (sourceId?: string) => ipcRenderer.invoke(IPC_CHANNELS.START_SCREEN_RECORDING, sourceId),

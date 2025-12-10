@@ -1,4 +1,5 @@
 name: Automated Electron App Release
+run-name: "YakShaver App Release - Build #${{ github.run_number }}"
 
 on:
   push:

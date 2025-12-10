@@ -1,19 +1,31 @@
 import { spawn } from "node:child_process";
-import fs from "node:fs/promises";
 import { dirname } from "node:path";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
-import type { ConversionProgress } from "./types";
+import { FileService, type IFileService } from "../file/file-service";
+import type { ConversionProgress, IProcessSpawner } from "./types";
 
-// Resolve FFmpeg path; when packaged, ensure we point to app.asar.unpacked
-let ffmpegPath = ffmpeg.path;
-if (ffmpegPath.includes("app.asar")) {
-  ffmpegPath = ffmpegPath.replace("app.asar", "app.asar.unpacked");
+function getDefaultFfmpegPath(): string {
+  let ffmpegPath = ffmpeg.path;
+  if (ffmpegPath.includes("app.asar")) {
+    ffmpegPath = ffmpegPath.replace("app.asar", "app.asar.unpacked");
+  }
+  return ffmpegPath;
 }
+
+const defaultProcessSpawner: IProcessSpawner = {
+  spawn: (command, args) => spawn(command, args),
+};
 
 export class FFmpegService {
   private static instance: FFmpegService;
 
-  static getInstance() {
+  constructor(
+    private readonly ffmpegPath: string = getDefaultFfmpegPath(),
+    private readonly fileSystem: IFileService = new FileService(),
+    private readonly processSpawner: IProcessSpawner = defaultProcessSpawner,
+  ) {}
+
+  static getInstance(): FFmpegService {
     FFmpegService.instance ??= new FFmpegService();
     return FFmpegService.instance;
   }
@@ -43,12 +55,12 @@ export class FFmpegService {
         outputPath, // Output file path
       ];
 
-      const ffmpeg = spawn(ffmpegPath, args);
+      const ffmpegProcess = this.processSpawner.spawn(this.ffmpegPath, args);
 
       let stderr = "";
       let duration = 0;
 
-      ffmpeg.stderr.on("data", (data: Buffer) => {
+      ffmpegProcess.stderr?.on("data", (data: Buffer) => {
         const output = data.toString();
         stderr += output;
 
@@ -82,7 +94,7 @@ export class FFmpegService {
         }
       });
 
-      ffmpeg.on("close", (code: number | null) => {
+      ffmpegProcess.on("close", (code: number | null) => {
         if (code === 0) {
           resolve(outputPath);
         } else {
@@ -92,7 +104,7 @@ export class FFmpegService {
         }
       });
 
-      ffmpeg.on("error", (error: Error) => {
+      ffmpegProcess.on("error", (error: Error) => {
         console.error("FFmpeg spawn error:", error);
         reject(new Error(`Failed to start FFmpeg: ${error.message}`));
       });
@@ -110,16 +122,16 @@ export class FFmpegService {
 
     await this.ensureInputFileExists(inputPath);
     await this.ensureFfmpegExists();
-    await fs.mkdir(dirname(outputImagePath), { recursive: true });
+    await this.fileSystem.mkdir(dirname(outputImagePath), { recursive: true });
 
     const timeStamp = this.formatTimestamp(nSeconds);
     return new Promise((resolve, reject) => {
       const args = ["-ss", timeStamp, "-i", inputPath, "-frames:v", "1", "-y", outputImagePath];
 
-      const ffmpegProcess = spawn(ffmpegPath, args);
+      const ffmpegProcess = this.processSpawner.spawn(this.ffmpegPath, args);
       let stderr = "";
 
-      ffmpegProcess.stderr.on("data", (data: Buffer) => {
+      ffmpegProcess.stderr?.on("data", (data: Buffer) => {
         stderr += data.toString();
       });
 
@@ -142,7 +154,7 @@ export class FFmpegService {
 
   private async ensureInputFileExists(filePath: string): Promise<void> {
     try {
-      await fs.access(filePath);
+      await this.fileSystem.access(filePath);
     } catch {
       throw new Error(`The specified input file does not exist: ${filePath}`);
     }
@@ -150,9 +162,9 @@ export class FFmpegService {
 
   private async ensureFfmpegExists(): Promise<void> {
     try {
-      await fs.access(ffmpegPath);
+      await this.fileSystem.access(this.ffmpegPath);
     } catch {
-      throw new Error(`FFmpeg binary not found at: ${ffmpegPath}.`);
+      throw new Error(`FFmpeg binary not found at: ${this.ffmpegPath}.`);
     }
   }
 

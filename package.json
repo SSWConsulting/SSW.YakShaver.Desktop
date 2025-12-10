@@ -14,7 +14,8 @@
     "make": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --config electron-builder.config.js",
     "publish": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --publish always --config electron-builder.config.js",
     "lint": "biome check --write .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "test": "vitest"
   },
   "keywords": [],
   "author": {
@@ -57,6 +58,7 @@
     "electron": "^39.2.4",
     "electron-builder": "^26.0.12",
     "typescript": "^5.9.3",
+    "vitest": "^4.0.15",
     "wait-on": "^9.0.3"
   }
 }
