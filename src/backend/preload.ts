@@ -133,11 +133,13 @@ const electronAPI = {
     hasYouTube: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIG_HAS_YOUTUBE),
     getYouTube: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIG_GET_YOUTUBE),
   },
-  msAuth: {
-    login: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGIN),
-    logout: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGOUT),
-    status: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_STATUS),
-    accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO),
+  auth: {
+    microsoft: {
+      login: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGIN),
+      logout: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGOUT),
+      status: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_STATUS),
+      accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO),
+    },
   },
   video: {
     selectVideoFile: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_VIDEO_FILE),

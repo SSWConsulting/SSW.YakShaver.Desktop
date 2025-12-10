@@ -27,9 +27,9 @@ export function MicrosoftAuthManager() {
     setLoading(true);
     setError(null);
     try {
-      const result = await ipcClient.msAuth.status();
+      const result = await ipcClient.auth.microsoft.status();
       if (result.status === "authenticated") {
-        const me = await ipcClient.msAuth.accountInfo();
+        const me = await ipcClient.auth.microsoft.accountInfo();
         const data = me.data as MicrosoftAccountInfo;
         setStatus({ isAuthenticated: true, name: data?.name, email: data?.username });
       } else {
@@ -49,7 +49,7 @@ export function MicrosoftAuthManager() {
   const login = async () => {
     setLoading(true);
     setError(null);
-    const res = await ipcClient.msAuth.login();
+    const res = await ipcClient.auth.microsoft.login();
     if (res.success) {
       await refresh();
     } else {
@@ -61,7 +61,7 @@ export function MicrosoftAuthManager() {
   const logout = async () => {
     setLoading(true);
     setError(null);
-    await ipcClient.msAuth.logout();
+    await ipcClient.auth.microsoft.logout();
     await refresh();
     setLoading(false);
   };

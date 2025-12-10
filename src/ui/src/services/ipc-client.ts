@@ -57,11 +57,13 @@ declare global {
         hasYouTube: () => Promise<boolean>;
         getYouTube: () => Promise<YouTubeConfig | null>;
       };
-      msAuth: {
-        login: () => Promise<AuthResult>;
-        logout: () => Promise<boolean>;
-        status: () => Promise<AuthState>;
-        accountInfo: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      auth: {
+        microsoft: {
+          login: () => Promise<AuthResult>;
+          logout: () => Promise<boolean>;
+          status: () => Promise<AuthState>;
+          accountInfo: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
+        };
       };
       video: {
         selectVideoFile: () => Promise<string | null>;
