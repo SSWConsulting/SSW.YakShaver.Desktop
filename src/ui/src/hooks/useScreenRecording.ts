@@ -30,6 +30,7 @@ export function useScreenRecording() {
     y: number;
     width: number;
     height: number;
+    displayId?: string;
   } | null>(null);
 
   const cleanup = useCallback(async () => {
@@ -45,6 +46,12 @@ export function useScreenRecording() {
     if (cropRafRef.current !== null) {
       cancelAnimationFrame(cropRafRef.current);
       cropRafRef.current = null;
+    }
+
+    if (regionRef.current) {
+      await window.electronAPI.screenRecording
+        .hideRegionHighlight()
+        .catch(() => {});
     }
 
     regionRef.current = null;
@@ -88,6 +95,7 @@ export function useScreenRecording() {
             y: number;
             width: number;
             height: number;
+            displayId?: string;
           };
 
           if ((selection as { displayId?: string }).displayId) {
@@ -182,6 +190,12 @@ export function useScreenRecording() {
           recorder.start();
 
           await window.electronAPI.screenRecording.startTimer();
+
+          if (regionRef.current) {
+            await window.electronAPI.screenRecording
+              .showRegionHighlight(regionRef.current)
+              .catch(() => {});
+          }
         } catch (error) {
           if (recorder.state !== "inactive") {
             recorder.stop();
@@ -218,6 +232,10 @@ export function useScreenRecording() {
     return new Promise((resolve) => {
       recorder.onstop = async () => {
         try {
+          await window.electronAPI.screenRecording
+            .hideRegionHighlight()
+            .catch(() => {});
+
           await window.electronAPI.screenRecording
             .hideControlBar()
             .catch(() => {});

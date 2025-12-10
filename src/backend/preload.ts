@@ -35,6 +35,8 @@ const IPC_CHANNELS = {
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
   HIDE_CONTROL_BAR: "hide-control-bar",
+  SHOW_REGION_HIGHLIGHT: "show-region-highlight",
+  HIDE_REGION_HIGHLIGHT: "hide-region-highlight",
   START_REGION_SELECTION: "start-region-selection",
   SELECTION_OVERLAY_COMPLETE: "selection-overlay:complete",
   SELECTION_OVERLAY_CANCEL: "selection-overlay:cancel",
@@ -156,6 +158,15 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.START_SCREEN_RECORDING, sourceId),
     startRegionSelection: () =>
       ipcRenderer.invoke(IPC_CHANNELS.START_REGION_SELECTION),
+    showRegionHighlight: (selection: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      displayId?: string;
+    }) => ipcRenderer.invoke(IPC_CHANNELS.SHOW_REGION_HIGHLIGHT, selection),
+    hideRegionHighlight: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.HIDE_REGION_HIGHLIGHT),
     startTimer: () => ipcRenderer.invoke(IPC_CHANNELS.START_RECORDING_TIMER),
     stop: (videoData: Uint8Array) =>
       ipcRenderer.invoke(IPC_CHANNELS.STOP_SCREEN_RECORDING, videoData),

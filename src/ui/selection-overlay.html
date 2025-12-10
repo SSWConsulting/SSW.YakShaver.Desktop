@@ -15,7 +15,7 @@
         width: 100vw;
         height: 100vh;
         overflow: hidden;
-        background: rgba(0, 0, 0, 0.25);
+        background: rgba(0, 0, 0, 0.2);
         cursor: crosshair;
         user-select: none;
         position: relative;
@@ -23,10 +23,10 @@
 
       .selection {
         position: absolute;
-        border: 2px solid #4da3ff;
-        background: rgba(77, 163, 255, 0.1);
-        box-shadow: 0 0 0 1px rgba(77, 163, 255, 0.4),
-          0 0 12px rgba(77, 163, 255, 0.5);
+        border: 2px solid #cc4141;
+        background: rgba(255, 59, 48, 0.08);
+        box-shadow: 0 0 0 1px rgba(255, 59, 48, 0.4),
+          0 0 12px rgba(255, 59, 48, 0.4), 0 0 0 9999px rgba(0, 0, 0, 0.55);
         pointer-events: none;
       }
 
@@ -67,6 +67,11 @@
 
       const params = new URLSearchParams(window.location.search);
       const displayId = params.get("displayId") || undefined;
+      const mode = params.get("mode") || "select";
+      const presetX = Number(params.get("x"));
+      const presetY = Number(params.get("y"));
+      const presetW = Number(params.get("width"));
+      const presetH = Number(params.get("height"));
 
       function updateSelection(x1, y1, x2, y2) {
         const left = Math.min(x1, x2);
@@ -98,36 +103,56 @@
         });
       }
 
-      window.addEventListener("mousedown", (e) => {
-        isDragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        updateSelection(startX, startY, startX, startY);
-      });
-
-      window.addEventListener("mousemove", (e) => {
-        if (!isDragging) return;
-        updateSelection(startX, startY, e.clientX, e.clientY);
-      });
-
-      window.addEventListener("mouseup", (e) => {
-        if (!isDragging) return;
-        isDragging = false;
-        finishSelection(startX, startY, e.clientX, e.clientY);
-      });
-
-      window.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
-          window.electronAPI.selectionOverlay.cancel();
+      if (mode === "highlight") {
+        if (
+          Number.isFinite(presetX) &&
+          Number.isFinite(presetY) &&
+          Number.isFinite(presetW) &&
+          Number.isFinite(presetH)
+        ) {
+          updateSelection(
+            presetX,
+            presetY,
+            presetX + presetW,
+            presetY + presetH
+          );
+          selectionEl.style.pointerEvents = "none";
+          document.body.style.cursor = "default";
+          const hud = document.querySelector(".hud");
+          if (hud) hud.style.display = "none";
         }
-      });
+      } else {
+        window.addEventListener("mousedown", (e) => {
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          updateSelection(startX, startY, startX, startY);
+        });
 
-      // Ensure selection element is hidden if user right-clicks or something odd
-      window.addEventListener("blur", () => {
-        if (!isDragging) return;
-        isDragging = false;
-        selectionEl.style.display = "none";
-      });
+        window.addEventListener("mousemove", (e) => {
+          if (!isDragging) return;
+          updateSelection(startX, startY, e.clientX, e.clientY);
+        });
+
+        window.addEventListener("mouseup", (e) => {
+          if (!isDragging) return;
+          isDragging = false;
+          finishSelection(startX, startY, e.clientX, e.clientY);
+        });
+
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            window.electronAPI.selectionOverlay.cancel();
+          }
+        });
+
+        // Ensure selection element is hidden if user right-clicks or something odd
+        window.addEventListener("blur", () => {
+          if (!isDragging) return;
+          isDragging = false;
+          selectionEl.style.display = "none";
+        });
+      }
     </script>
   </body>
 </html>

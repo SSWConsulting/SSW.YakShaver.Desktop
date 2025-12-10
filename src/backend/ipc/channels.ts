@@ -25,6 +25,8 @@ export const IPC_CHANNELS = {
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
   HIDE_CONTROL_BAR: "hide-control-bar",
+  SHOW_REGION_HIGHLIGHT: "show-region-highlight",
+  HIDE_REGION_HIGHLIGHT: "hide-region-highlight",
   START_REGION_SELECTION: "start-region-selection",
   SELECTION_OVERLAY_COMPLETE: "selection-overlay:complete",
   SELECTION_OVERLAY_CANCEL: "selection-overlay:cancel",

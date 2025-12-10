@@ -77,6 +77,14 @@ declare global {
               height: number;
             }
         >;
+        showRegionHighlight: (selection: {
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          displayId?: string;
+        }) => Promise<void>;
+        hideRegionHighlight: () => Promise<void>;
         startTimer: () => Promise<void>;
         stop: (videoData: Uint8Array) => Promise<ScreenRecordingStopResult>;
         listSources: () => Promise<ScreenSource[]>;

@@ -13,6 +13,7 @@ export interface SelectionRegion {
 export class SelectionOverlayWindow {
   private static instance: SelectionOverlayWindow;
   private windows: BrowserWindow[] = [];
+  private highlightWindow: BrowserWindow | null = null;
   private isDev = false;
 
   static getInstance() {
@@ -123,6 +124,72 @@ export class SelectionOverlayWindow {
       if (!win.isDestroyed()) win.destroy();
     });
     this.windows = [];
+  }
+
+  async showHighlight(region: SelectionRegion): Promise<void> {
+    this.hideHighlight();
+
+    const target = this.getDisplayBounds(region.displayId);
+    const urlQuery = `displayId=${encodeURIComponent(
+      target.displayId
+    )}&mode=highlight&x=${region.x}&y=${region.y}&width=${
+      region.width
+    }&height=${region.height}`;
+
+    this.highlightWindow = new BrowserWindow({
+      x: target.x,
+      y: target.y,
+      width: target.width,
+      height: target.height,
+      frame: false,
+      transparent: true,
+      skipTaskbar: true,
+      resizable: false,
+      show: false,
+      alwaysOnTop: true,
+      focusable: false,
+      fullscreenable: false,
+      hasShadow: false,
+      webPreferences: {
+        preload: join(__dirname, "../../preload.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    this.highlightWindow.setIgnoreMouseEvents(true);
+
+    if (this.isDev) {
+      await this.highlightWindow.loadURL(
+        `http://localhost:3000/selection-overlay.html?${urlQuery}`
+      );
+    } else {
+      await this.highlightWindow.loadFile(
+        join(
+          process.resourcesPath,
+          "app.asar.unpacked/src/ui/dist/selection-overlay.html"
+        ),
+        {
+          query: {
+            displayId: target.displayId,
+            mode: "highlight",
+            x: region.x.toString(),
+            y: region.y.toString(),
+            width: region.width.toString(),
+            height: region.height.toString(),
+          },
+        }
+      );
+    }
+
+    this.highlightWindow.showInactive();
+  }
+
+  hideHighlight() {
+    if (this.highlightWindow && !this.highlightWindow.isDestroyed()) {
+      this.highlightWindow.destroy();
+    }
+    this.highlightWindow = null;
   }
 
   private getDisplayBounds(displayId?: string) {

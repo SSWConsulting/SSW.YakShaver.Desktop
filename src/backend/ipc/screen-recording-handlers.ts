@@ -29,6 +29,18 @@ export class ScreenRecordingIPCHandlers {
         this.service.cleanupTempFile(filePath),
       [IPC_CHANNELS.START_REGION_SELECTION]: (_: unknown, displayId?: string) =>
         this.selectionOverlay.startSelection(displayId),
+      [IPC_CHANNELS.SHOW_REGION_HIGHLIGHT]: (
+        _: unknown,
+        selection: {
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          displayId?: string;
+        }
+      ) => this.selectionOverlay.showHighlight(selection),
+      [IPC_CHANNELS.HIDE_REGION_HIGHLIGHT]: () =>
+        this.selectionOverlay.hideHighlight(),
       [IPC_CHANNELS.SHOW_CONTROL_BAR]: (_: unknown, cameraDeviceId?: string) =>
         this.showControlBarWithCamera(cameraDeviceId),
       [IPC_CHANNELS.HIDE_CONTROL_BAR]: () => this.hideControlBarAndCamera(),
