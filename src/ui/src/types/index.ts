@@ -227,3 +227,28 @@ export type MicrosoftAccountInfo = {
   loginHint?: string;
   name?: string;
 };
+
+export interface VideoFile {
+  fileName: string;
+  createdAt: string;
+  duration: string;
+  isChromeExtension: boolean;
+}
+
+export interface ShaveItem {
+  id: string;
+  title: string;
+  videoFile: VideoFile;
+  updatedAt: string;
+  createdAt: string;
+  shaveStatus: string;
+  workItemType: string;
+  projectName: string;
+  workItemUrl: string;
+  feedback: string | null;
+  videoEmbedUrl: string;
+}
+
+export interface GetMyShavesResponse {
+  items: ShaveItem[];
+}

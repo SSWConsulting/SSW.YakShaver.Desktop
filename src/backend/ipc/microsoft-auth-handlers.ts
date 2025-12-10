@@ -1,10 +1,9 @@
 import { ipcMain } from "electron";
-import { IPC_CHANNELS } from "./channels";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import { formatErrorMessage } from "../utils/error-utils";
+import { IPC_CHANNELS } from "./channels";
 
 export class MicrosoftAuthIPCHandlers {
-
   constructor() {
     this.registerHandlers();
   }
@@ -29,7 +28,7 @@ export class MicrosoftAuthIPCHandlers {
           const ms = MicrosoftAuthService.getInstance();
           return await ms.logout();
         } catch (error) {
-          return false;
+          return { success: false, error: formatErrorMessage(error) };
         }
       },
       [IPC_CHANNELS.MS_AUTH_STATUS]: async () => {
@@ -37,7 +36,7 @@ export class MicrosoftAuthIPCHandlers {
           const ms = MicrosoftAuthService.getInstance();
           return await ms.getAuthState();
         } catch (error) {
-          return { status: "error", error: formatErrorMessage(error) } as any;
+          return { status: "error", error: formatErrorMessage(error) };
         }
       },
       [IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO]: async () => {
