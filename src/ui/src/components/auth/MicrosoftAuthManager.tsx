@@ -1,31 +1,37 @@
-import { useEffect, useState } from "react";
-import { ipcClient } from "@/services/ipc-client";
-import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { MyShavesDialog } from "@/components/portal/MyShavesDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut } from "lucide-react";
-import { MyShavesDialog } from "@/components/portal/MyShavesDialog";
+import { ipcClient } from "@/services/ipc-client";
+import type { MicrosoftAccountInfo } from "@/types";
+import { getInitials } from "@/utils";
 
 export function MicrosoftAuthManager() {
-  const [status, setStatus] = useState<{ isAuthenticated: boolean; name?: string; email?: string } | null>(null);
+  const [status, setStatus] = useState<{
+    isAuthenticated: boolean;
+    name?: string;
+    email?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMyShaves, setShowMyShaves] = useState(false);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const s = await ipcClient.msAuth.status();
-      if (s.status === "authenticated") {
+      const result = await ipcClient.msAuth.status();
+      if (result.status === "authenticated") {
         const me = await ipcClient.msAuth.accountInfo();
-        const d = me.data as any;
-        setStatus({ isAuthenticated: true, name: d?.name, email: d?.username });
+        const data = me.data as MicrosoftAccountInfo;
+        setStatus({ isAuthenticated: true, name: data?.name, email: data?.username });
       } else {
         setStatus({ isAuthenticated: false });
       }
@@ -34,15 +40,21 @@ export function MicrosoftAuthManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const login = async () => {
     setLoading(true);
     setError(null);
     const res = await ipcClient.msAuth.login();
-    if (res.success) { await refresh(); } else { setError(res.error || "Authentication failed"); }
+    if (res.success) {
+      await refresh();
+    } else {
+      setError(res.error || "Authentication failed");
+    }
     setLoading(false);
   };
 
@@ -54,24 +66,10 @@ export function MicrosoftAuthManager() {
     setLoading(false);
   };
 
-  const getInitials = (name?: string) => {
-    if (!name) return "U";
-    return name
-      .split(" ")
-      .map(n => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   if (!status?.isAuthenticated) {
     return (
       <div className="flex items-center">
-        <Button 
-          onClick={login}
-        >
-          Sign In
-        </Button>
+        <Button onClick={login}>Sign In</Button>
         {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
       </div>
     );
@@ -82,9 +80,7 @@ export function MicrosoftAuthManager() {
       <DropdownMenu>
         <DropdownMenuTrigger className="cursor-pointer">
           <Avatar className="w-8 h-8">
-            <AvatarFallback>
-              {getInitials(status?.name)}
-            </AvatarFallback>
+            <AvatarFallback>{getInitials(status?.name)}</AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -92,13 +88,13 @@ export function MicrosoftAuthManager() {
             <div className="mb-3 pb-3 border-b border-white/10">
               <p className="text-sm font-medium text-white truncate">{status?.name}</p>
             </div>
-            <DropdownMenuItem 
+            <DropdownMenuItem
               onClick={() => setShowMyShaves(true)}
               className="text-white hover:bg-white/10"
             >
               <span>My Shaves</span>
             </DropdownMenuItem>
-            <DropdownMenuItem 
+            <DropdownMenuItem
               onClick={logout}
               disabled={loading}
               className="text-red-400 hover:bg-red-500/10"
@@ -110,10 +106,7 @@ export function MicrosoftAuthManager() {
         </DropdownMenuContent>
       </DropdownMenu>
       {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
-      <MyShavesDialog 
-        open={showMyShaves} 
-        onOpenChange={setShowMyShaves} 
-      />
+      <MyShavesDialog open={showMyShaves} onOpenChange={setShowMyShaves} />
     </div>
   );
 }

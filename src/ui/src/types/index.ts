@@ -217,3 +217,13 @@ export interface MCPStep {
   timestamp?: number;
   autoApproveAt?: number;
 }
+
+export type MicrosoftAccountInfo = {
+  homeAccountId: string;
+  environment: string;
+  tenantId: string;
+  username: string;
+  localAccountId: string;
+  loginHint?: string;
+  name?: string;
+};

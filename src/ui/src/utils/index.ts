@@ -47,3 +47,21 @@ export const deepParseJson = (obj: unknown): unknown => {
 export function formatErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+/**
+ * Generates initials from a name string.
+ * Returns the first letter of the first two words in uppercase.
+ * Returns "U" if the name is undefined or empty.
+ *
+ * @param name - The full name to generate initials from.
+ * @returns {string} The initials (up to 2 characters).
+ */
+export const getInitials = (name: string | undefined): string => {
+  if (!name) return "U";
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+};
