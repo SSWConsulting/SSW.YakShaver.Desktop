@@ -3,20 +3,20 @@ import { toast } from "sonner";
 import type { RegionBounds } from "../types";
 
 const VIDEO_MIME_TYPE = "video/mp4";
-const CANVAS_WIDTH = 1920;
-const CANVAS_HEIGHT = 1080;
-const CANVAS_FPS = 30;
 
 interface RecordingStreams {
   video?: MediaStream;
   audio?: MediaStream;
 }
 
-interface CanvasProxyRefs {
-  video: HTMLVideoElement | null;
-  canvas: HTMLCanvasElement | null;
-  ctx: CanvasRenderingContext2D | null;
-  intervalId: ReturnType<typeof setInterval> | null;
+interface WebCodecsProxyRefs {
+  processor: MediaStreamTrackProcessor | null;
+  generator: MediaStreamTrackGenerator | null;
+  reader: ReadableStreamDefaultReader<VideoFrame> | null;
+  writer: WritableStreamDefaultWriter<VideoFrame> | null;
+  offscreenCanvas: OffscreenCanvas | null;
+  ctx: OffscreenCanvasRenderingContext2D | null;
+  processingActive: boolean;
   region: RegionBounds | null;
 }
 
@@ -36,29 +36,48 @@ export function useScreenRecording() {
   const streamsRef = useRef<RecordingStreams>({});
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const canvasProxyRef = useRef<CanvasProxyRefs>({
-    video: null,
-    canvas: null,
+  const webCodecsProxyRef = useRef<WebCodecsProxyRefs>({
+    processor: null,
+    generator: null,
+    reader: null,
+    writer: null,
+    offscreenCanvas: null,
     ctx: null,
-    intervalId: null,
+    processingActive: false,
     region: null,
   });
 
-  const cleanupCanvasProxy = useCallback(() => {
-    const proxy = canvasProxyRef.current;
-    if (proxy.intervalId !== null) {
-      clearInterval(proxy.intervalId);
-      proxy.intervalId = null;
+  const cleanupWebCodecsProxy = useCallback(async () => {
+    const proxy = webCodecsProxyRef.current;
+
+    // Stop processing loop
+    proxy.processingActive = false;
+
+    // Cancel reader and close writer
+    try {
+      if (proxy.reader) {
+        await proxy.reader.cancel();
+        proxy.reader = null;
+      }
+      if (proxy.writer) {
+        await proxy.writer.close();
+        proxy.writer = null;
+      }
+    } catch (error) {
+      console.error("Error closing WebCodecs streams:", error);
     }
-    if (proxy.video) {
-      proxy.video.srcObject = null;
-      proxy.video.remove();
-      proxy.video = null;
+
+    // Clean up processor and generator
+    if (proxy.processor) {
+      proxy.processor = null;
     }
-    if (proxy.canvas) {
-      proxy.canvas.remove();
-      proxy.canvas = null;
+    if (proxy.generator) {
+      proxy.generator.stop();
+      proxy.generator = null;
     }
+
+    // Clean up canvas
+    proxy.offscreenCanvas = null;
     proxy.ctx = null;
     proxy.region = null;
   }, []);
@@ -79,127 +98,189 @@ export function useScreenRecording() {
       audioContextRef.current = null;
     }
 
-    cleanupCanvasProxy();
+    await cleanupWebCodecsProxy();
 
     mediaRecorderRef.current = null;
     chunksRef.current = [];
     streamsRef.current = {};
-  }, [cleanupCanvasProxy]);
+  }, [cleanupWebCodecsProxy]);
 
 
-// Canvas proxy is used only for region cropping
-// Full screen recording uses the raw video stream for better performance
-  const setupCanvasProxy = useCallback(
+  // WebCodecs proxy is used only for region cropping
+  // Full screen recording uses the raw video stream for better performance
+  const setupWebCodecsProxy = useCallback(
     (videoStream: MediaStream, region: RegionBounds): MediaStream => {
-      const video = document.createElement("video");
-      video.muted = true;
-      video.playsInline = true;
-      // Hidden video element to draw frames from
-      video.style.position = "fixed";
-      video.style.top = "0";
-      video.style.left = "0";
-      video.style.width = "1px";
-      video.style.height = "1px";
-      video.style.opacity = "0.01";
-      video.style.pointerEvents = "none";
-      video.style.zIndex = "-1";
-      document.body.appendChild(video);
+      const videoTrack = videoStream.getVideoTracks()[0];
+      if (!videoTrack) throw new Error("No video track found");
 
-      const canvas = document.createElement("canvas");
-      canvas.width = CANVAS_WIDTH;
-      canvas.height = CANVAS_HEIGHT;
-      canvas.style.position = "fixed";
-      canvas.style.top = "0";
-      canvas.style.left = "0";
-      canvas.style.width = "1px";
-      canvas.style.height = "1px";
-      canvas.style.opacity = "0.01";
-      canvas.style.pointerEvents = "none";
-      canvas.style.zIndex = "-1";
-      document.body.appendChild(canvas);
+      // Use region dimensions directly for the canvas to avoid aspect ratio issues
+      // Scale factor is already applied in the region bounds
+      const scaleFactor = region.scaleFactor || 1;
+      const canvasWidth = Math.round(region.width * scaleFactor);
+      const canvasHeight = Math.round(region.height * scaleFactor);
 
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Failed to get canvas context");
+      // Ensure dimensions are even numbers (required for most video codecs)
+      const evenWidth = canvasWidth % 2 === 0 ? canvasWidth : canvasWidth + 1;
+      const evenHeight = canvasHeight % 2 === 0 ? canvasHeight : canvasHeight + 1;
 
+      console.log(`[WebCodecs] Creating canvas: ${evenWidth}x${evenHeight} for region: ${region.width}x${region.height} (scaleFactor: ${scaleFactor})`);
+
+      // Create OffscreenCanvas for GPU-accelerated rendering
+      const offscreenCanvas = new OffscreenCanvas(evenWidth, evenHeight);
+      const ctx = offscreenCanvas.getContext("2d");
+      if (!ctx) throw new Error("Failed to get OffscreenCanvas context");
+
+      // Initialize with black background
       ctx.fillStyle = "black";
-      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      ctx.fillRect(0, 0, evenWidth, evenHeight);
 
-      canvasProxyRef.current = { video, canvas, ctx, intervalId: null, region };
+      // Create MediaStreamTrackProcessor to read frames from the video track
+      const processor = new MediaStreamTrackProcessor({ track: videoTrack });
+      const reader = processor.readable.getReader();
 
-      const drawFrame = () => {
-        const proxy = canvasProxyRef.current;
-        if (!proxy.video || !proxy.ctx || !proxy.canvas) return;
+      // Create MediaStreamTrackGenerator to output processed frames
+      const generator = new MediaStreamTrackGenerator({ kind: "video" });
+      const writer = generator.writable.getWriter();
 
-        // Skip if video doesn't have valid dimensions yet
-        if (proxy.video.videoWidth === 0 || proxy.video.videoHeight === 0) {
-          return;
-        }
+      // Store refs
+      webCodecsProxyRef.current = {
+        processor,
+        generator,
+        reader,
+        writer,
+        offscreenCanvas,
+        ctx,
+        processingActive: true,
+        region,
+      };
 
-        proxy.ctx.fillStyle = "black";
-        proxy.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      // Process frames asynchronously
+      const processFrames = async () => {
+        const proxy = webCodecsProxyRef.current;
 
-        // Region recording: crop to the selected area
-        if (proxy.region) {
-          const scaleFactor = proxy.region.scaleFactor || 1;
+        try {
+          while (proxy.processingActive) {
+            const { done, value: inputFrame } = await proxy.reader!.read();
 
-          // Convert region coordinates from screen space to video space
-          // The scaleFactor accounts for HiDPI displays (e.g., Retina displays have scaleFactor = 2)
-          const srcX = proxy.region.x * scaleFactor;
-          const srcY = proxy.region.y * scaleFactor;
-          const srcWidth = proxy.region.width * scaleFactor;
-          const srcHeight = proxy.region.height * scaleFactor;
+            if (done || !proxy.processingActive) {
+              inputFrame?.close();
+              break;
+            }
 
-          // Calculate destination dimensions maintaining aspect ratio
-          const regionAspect = proxy.region.width / proxy.region.height;
-          const canvasAspect = CANVAS_WIDTH / CANVAS_HEIGHT;
+            try {
+              const canvas = proxy.offscreenCanvas!;
+              const ctx = proxy.ctx!;
 
-          let drawWidth: number;
-          let drawHeight: number;
-          let offsetX: number;
-          let offsetY: number;
+              // Clear canvas with black background
+              ctx.fillStyle = "black";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-          if (regionAspect > canvasAspect) {
-            drawWidth = CANVAS_WIDTH;
-            drawHeight = CANVAS_WIDTH / regionAspect;
-            offsetX = 0;
-            offsetY = (CANVAS_HEIGHT - drawHeight) / 2;
-          } else {
-            drawHeight = CANVAS_HEIGHT;
-            drawWidth = CANVAS_HEIGHT * regionAspect;
-            offsetX = (CANVAS_WIDTH - drawWidth) / 2;
-            offsetY = 0;
+              // Region recording: crop to the selected area
+              if (proxy.region) {
+                const scaleFactor = proxy.region.scaleFactor || 1;
+
+                // Convert region coordinates from screen space (logical pixels) to video space (physical pixels)
+                // Include the monitor's global offset so coordinates map into the captured frame correctly
+                // The scaleFactor accounts for HiDPI displays (e.g., Retina displays have scaleFactor = 2)
+                const srcX = proxy.region.x * scaleFactor; 
+                const srcY = proxy.region.y * scaleFactor;
+                const srcWidth = proxy.region.width * scaleFactor;
+                const srcHeight = proxy.region.height * scaleFactor;
+
+                // Validate source coordinates
+                if (srcX < 0 || srcY < 0 || srcWidth <= 0 || srcHeight <= 0) {
+                  console.warn(`[WebCodecs] Invalid source coordinates: x=${srcX}, y=${srcY}, w=${srcWidth}, h=${srcHeight}`);
+                  inputFrame.close();
+                  continue;
+                }
+
+                // Check if source coordinates are within the video frame bounds
+                if (srcX + srcWidth > inputFrame.displayWidth || srcY + srcHeight > inputFrame.displayHeight) {
+                  console.warn(
+                    `[WebCodecs] Source coordinates out of bounds. ` +
+                    `Source: (${srcX}, ${srcY}, ${srcWidth}, ${srcHeight}), ` +
+                    `Frame: ${inputFrame.displayWidth}x${inputFrame.displayHeight}`
+                  );
+
+              // Check bounds
+                if (srcX + srcWidth > inputFrame.displayWidth || 
+                    srcY + srcHeight > inputFrame.displayHeight) {
+                  console.error(
+                    `[WebCodecs] Coordinates out of bounds. ` +
+                    `Region: (${srcX}, ${srcY}, ${srcWidth}, ${srcHeight}), ` +
+                    `Frame: ${inputFrame.displayWidth}x${inputFrame.displayHeight}`
+                  );
+                  inputFrame.close();
+                  continue;
+                }
+
+                  // Clamp to frame bounds
+                  const clampedWidth = Math.min(srcWidth, inputFrame.displayWidth - srcX);
+                  const clampedHeight = Math.min(srcHeight, inputFrame.displayHeight - srcY);
+
+                  ctx.drawImage(
+                    inputFrame,
+                    srcX,
+                    srcY,
+                    clampedWidth,
+                    clampedHeight,
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height
+                  );
+                } else {
+                  // Draw the cropped region directly to fill the entire canvas
+                  ctx.drawImage(
+                    inputFrame,
+                    srcX,
+                    srcY,
+                    srcWidth,
+                    srcHeight,
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height
+                  );
+                }
+              }
+
+              // Create a new VideoFrame from the canvas
+              const outputFrame = new VideoFrame(canvas, {
+                timestamp: inputFrame.timestamp,
+                duration: inputFrame.duration || undefined,
+              });
+
+              // Write the processed frame to the generator
+              await proxy.writer!.write(outputFrame);
+
+              // Close frames to free memory
+              outputFrame.close();
+            } catch (error) {
+              console.error("[WebCodecs] Error processing frame:", error, {
+                frameWidth: inputFrame?.displayWidth,
+                frameHeight: inputFrame?.displayHeight,
+                canvasWidth: proxy.offscreenCanvas?.width,
+                canvasHeight: proxy.offscreenCanvas?.height,
+                region: proxy.region,
+              });
+            } finally {
+              // Always close the input frame
+              inputFrame.close();
+            }
           }
-
-          // Draw the cropped region to the canvas
-          proxy.ctx.drawImage(
-            proxy.video,
-            srcX,
-            srcY,
-            srcWidth,
-            srcHeight,
-            offsetX,
-            offsetY,
-            drawWidth,
-            drawHeight
-          );
+        } catch (error) {
+          if (error instanceof Error && error.name !== "AbortError") {
+            console.error("[WebCodecs] Frame processing error:", error);
+          }
         }
       };
 
-      // Set srcObject first
-      video.srcObject = videoStream;
+      // Start processing frames
+      processFrames();
 
-      // Use setInterval instead of requestAnimationFrame
-      // requestAnimationFrame gets throttled when window is minimized/hidden
-      // setInterval continues running even when window is not visible
-      const frameInterval = Math.floor(1000 / CANVAS_FPS);
-      canvasProxyRef.current.intervalId = setInterval(drawFrame, frameInterval);
-
-      // Ensure video plays
-      video.play().catch((err) => {
-        console.error("Failed to play video:", err);
-      });
-
-      return canvas.captureStream(CANVAS_FPS);
+      // Return a MediaStream containing the generator track
+      return new MediaStream([generator]);
     },
     []
   );
@@ -249,9 +330,9 @@ export function useScreenRecording() {
 
         streamsRef.current = { video: videoStream, audio: audioStream };
 
-        // Use Canvas Proxy only for region cropping (not needed for full screen)
+        // Use WebCodecs Proxy only for region cropping (not needed for full screen)
         const finalVideoStream = options?.region
-          ? setupCanvasProxy(videoStream, options.region)
+          ? setupWebCodecsProxy(videoStream, options.region)
           : videoStream;
 
         const recorder = new MediaRecorder(
@@ -290,7 +371,7 @@ export function useScreenRecording() {
         setIsProcessing(false);
       }
     },
-    [cleanup, setupCanvasProxy]
+    [cleanup, setupWebCodecsProxy]
   );
 
   const stop = useCallback(async (): Promise<{

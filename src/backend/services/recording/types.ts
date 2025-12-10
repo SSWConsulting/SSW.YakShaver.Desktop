@@ -28,4 +28,7 @@ export interface RegionBounds {
   displayId?: string;
   /** Scale factor of the display (for HiDPI/Retina displays) */
   scaleFactor?: number;
+
+  globalOffsetX: number; // The x offset of the selected monitor from the primary monitor
+  globalOffsetY: number; // The y offset of the selected monitor from the primary monitor
 }

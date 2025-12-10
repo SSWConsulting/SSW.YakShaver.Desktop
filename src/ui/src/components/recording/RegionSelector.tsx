@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RegionBounds } from "../../types";
 
+// In your types file
 interface DisplayInfo {
   displayId: string;
   scaleFactor: number;
   bounds: { x: number; y: number; width: number; height: number };
+  windowBounds?: { x: number; y: number; width: number; height: number }; // Add this
 }
 
 interface SelectionRect {
@@ -20,7 +22,6 @@ export default function RegionSelector() {
   const [displayInfo, setDisplayInfo] = useState<DisplayInfo | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [selection, setSelection] = useState<SelectionRect | null>(null);
-  const [detectedWindows, setDetectedWindows] = useState<RegionBounds[]>([]);
   const [hoveredWindow, setHoveredWindow] = useState<RegionBounds | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -29,6 +30,7 @@ export default function RegionSelector() {
     const cleanup = window.electronAPI.screenRecording.onRegionSelectorInit(
       (data: DisplayInfo) => {
         setDisplayInfo(data);
+        console.log(`[RegionSelector] Initialized for display ${data.displayId} with scale factor ${data.scaleFactor}`)
       }
     );
     return cleanup;
@@ -44,6 +46,7 @@ export default function RegionSelector() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  
   const drawOverlay = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -126,11 +129,68 @@ export default function RegionSelector() {
   }, [drawOverlay]);
 
   useEffect(() => {
+  const canvas = canvasRef.current;
+  const overlay = overlayRef.current;
+  
+  if (!canvas || !displayInfo) return;
+
+  const physicalWidth = displayInfo.bounds.width * displayInfo.scaleFactor;
+  const physicalHeight = displayInfo.bounds.height * displayInfo.scaleFactor;
+
+  canvas.width = physicalWidth;
+  canvas.height = physicalHeight;
+
+  console.log('[RegionSelector] Canvas setup:', {
+    canvasInternalSize: { width: canvas.width, height: canvas.height },
+    canvasCSSSize: { 
+      width: canvas.getBoundingClientRect().width, 
+      height: canvas.getBoundingClientRect().height 
+    },
+    windowSize: { width: window.innerWidth, height: window.innerHeight },
+    documentSize: { width: document.body.clientWidth, height: document.body.clientHeight },
+    overlaySize: overlay ? { 
+      width: overlay.getBoundingClientRect().width, 
+      height: overlay.getBoundingClientRect().height 
+    } : null,
+    displayInfo,
+  });
+
+  drawOverlay();
+}, [displayInfo, drawOverlay]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !displayInfo) return;
 
-    canvas.width = displayInfo.bounds.width;
-    canvas.height = displayInfo.bounds.height;
+    // Set canvas internal dimensions to match the display's physical pixels
+    // This accounts for HiDPI displays (scaleFactor)
+    const physicalWidth = displayInfo.bounds.width * displayInfo.scaleFactor;
+    const physicalHeight = displayInfo.bounds.height * displayInfo.scaleFactor;
+
+    canvas.width = physicalWidth;
+    canvas.height = physicalHeight;
+
+    console.log(
+      `[RegionSelector] Canvas dimensions: ${canvas.width}x${canvas.height} ` +
+      `(display: ${displayInfo.bounds.width}x${displayInfo.bounds.height}, scale: ${displayInfo.scaleFactor})`
+    );
+
+    // Extra debug info to help diagnose overlay sizing issues
+    try {
+      const rect = canvas.getBoundingClientRect();
+      console.log("[RegionSelector] Canvas CSS rect:", { width: rect.width, height: rect.height, left: rect.left, top: rect.top });
+      console.log("[RegionSelector] window.inner / screen / devicePixelRatio:", {
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        screenX: (window as any).screenX ?? (window as any).screenLeft,
+        screenY: (window as any).screenY ?? (window as any).screenTop,
+        devicePixelRatio: window.devicePixelRatio,
+      });
+      console.log("[RegionSelector] overlay DOM rect:", overlayRef.current?.getBoundingClientRect());
+    } catch (err) {
+      console.warn("[RegionSelector] Failed to read DOM rects for debugging:", err);
+    }
+
     drawOverlay();
   }, [displayInfo, drawOverlay]);
 
@@ -138,11 +198,17 @@ export default function RegionSelector() {
     (e: React.MouseEvent) => {
       if (e.button !== 0) return; // Only left click
 
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
+      const canvas = canvasRef.current;
+      const rect = canvas?.getBoundingClientRect();
+      if (!canvas || !rect || !displayInfo) return;
 
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      // Convert from CSS coordinates to canvas coordinates
+      // Account for the scale factor (canvas internal size vs CSS size)
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
 
       // If clicking on a hovered window, select it immediately
       if (hoveredWindow && !selection) {
@@ -159,16 +225,21 @@ export default function RegionSelector() {
       });
       setHoveredWindow(null);
     },
-    [hoveredWindow, selection]
+    [hoveredWindow, selection, displayInfo]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
+      const canvas = canvasRef.current;
+      const rect = canvas?.getBoundingClientRect();
+      if (!canvas || !rect || !displayInfo) return;
 
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      // Convert from CSS coordinates to canvas coordinates
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
 
       if (isDrawing && selection) {
         setSelection((prev) =>
@@ -182,7 +253,7 @@ export default function RegionSelector() {
         );
       }
     },
-    [isDrawing, selection]
+    [isDrawing, selection, displayInfo]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -202,39 +273,111 @@ export default function RegionSelector() {
     // Keep the selection visible for confirmation
   }, [isDrawing, selection]);
 
-  const confirmSelection = useCallback(
-    (region?: RegionBounds) => {
-      if (region) {
-        window.electronAPI.screenRecording.confirmRegionSelection({
-          x: region.x,
-          y: region.y,
-          width: region.width,
-          height: region.height,
-          displayId: displayInfo?.displayId,
-          scaleFactor: displayInfo?.scaleFactor,
-        });
-        return;
-      }
+  // const confirmSelection = useCallback(
+  //   (region?: RegionBounds) => {
+  //     if (region) {
+  //       window.electronAPI.screenRecording.confirmRegionSelection({
+  //         x: region.x,
+  //         y: region.y,
+  //         width: region.width,
+  //         height: region.height,
+  //         displayId: displayInfo?.displayId,
+  //         scaleFactor: displayInfo?.scaleFactor,
+  //         globalOffsetX: displayInfo?.bounds.x ?? 0,
+  //         globalOffsetY: displayInfo?.bounds.y ?? 0,
+  //       });
+  //       return;
+  //     }
 
-      if (!selection || !displayInfo) return;
+  //     if (!selection || !displayInfo) return;
 
-      // Selection coordinates are relative to the display (0,0 = top-left of this display)
-      const x = Math.min(selection.startX, selection.endX);
-      const y = Math.min(selection.startY, selection.endY);
-      const width = Math.abs(selection.endX - selection.startX);
-      const height = Math.abs(selection.endY - selection.startY);
+  //     // Selection coordinates are in canvas space (physical pixels)
+  //     // Convert back to screen space (logical pixels) by dividing by scaleFactor
+  //     const canvasX = Math.min(selection.startX, selection.endX);
+  //     const canvasY = Math.min(selection.startY, selection.endY);
+  //     const canvasWidth = Math.abs(selection.endX - selection.startX);
+  //     const canvasHeight = Math.abs(selection.endY - selection.startY);
 
-      window.electronAPI.screenRecording.confirmRegionSelection({
-        x,
-        y,
-        width,
-        height,
-        displayId: displayInfo.displayId,
-        scaleFactor: displayInfo.scaleFactor,
-      });
-    },
-    [selection, displayInfo]
-  );
+  //     // Convert from canvas coordinates (physical pixels) to screen coordinates (logical pixels)
+  //     const x = canvasX / displayInfo.scaleFactor;
+  //     const y = canvasY / displayInfo.scaleFactor;
+  //     const width = canvasWidth / displayInfo.scaleFactor;
+  //     const height = canvasHeight / displayInfo.scaleFactor;
+
+  //     console.log(
+  //       `[RegionSelector] Confirming selection - Canvas: (${canvasX}, ${canvasY}, ${canvasWidth}, ${canvasHeight}), ` +
+  //       `Screen: (${x}, ${y}, ${width}, ${height}), Scale: ${displayInfo.scaleFactor}`
+  //     );
+
+  //     window.electronAPI.screenRecording.confirmRegionSelection({
+  //       x,
+  //       y,
+  //       width,
+  //       height,
+  //       displayId: displayInfo.displayId,
+  //       scaleFactor: displayInfo.scaleFactor,
+  //       globalOffsetX: displayInfo.bounds.x,
+  //       globalOffsetY: displayInfo.bounds.y,
+  //     });
+  //   },
+  //   [selection, displayInfo]
+  // );
+
+  // In RegionSelector.tsx - confirmSelection
+const confirmSelection = useCallback(
+  (region?: RegionBounds) => {
+    if (region) {
+      window.electronAPI.screenRecording.confirmRegionSelection(region);
+      return;
+    }
+
+    if (!selection || !displayInfo) return;
+
+    const canvasX = Math.min(selection.startX, selection.endX);
+    const canvasY = Math.min(selection.startY, selection.endY);
+    const canvasWidth = Math.abs(selection.endX - selection.startX);
+    const canvasHeight = Math.abs(selection.endY - selection.startY);
+
+    // Convert canvas coordinates to logical pixels
+    const logicalX = canvasX / displayInfo.scaleFactor;
+    const logicalY = canvasY / displayInfo.scaleFactor;
+    const logicalWidth = canvasWidth / displayInfo.scaleFactor;
+    const logicalHeight = canvasHeight / displayInfo.scaleFactor;
+
+    // Calculate the actual position considering window offset
+    // If Windows moved our window, we need to adjust coordinates
+    const windowOffset = displayInfo.windowBounds ? {
+      x: displayInfo.windowBounds.x - displayInfo.bounds.x,
+      y: displayInfo.windowBounds.y - displayInfo.bounds.y,
+    } : { x: 0, y: 0 };
+
+    // The selection is relative to the window, but we need it relative to the display
+    const displayRelativeX = logicalX - windowOffset.x;
+    const displayRelativeY = logicalY - windowOffset.y;
+
+    const regionData = {
+      x: displayRelativeX,
+      y: displayRelativeY,
+      width: logicalWidth,
+      height: logicalHeight,
+      displayId: displayInfo.displayId,
+      scaleFactor: displayInfo.scaleFactor,
+      globalOffsetX: displayInfo.bounds.x,
+      globalOffsetY: displayInfo.bounds.y,
+    };
+
+    console.log('[RegionSelector] Confirmed selection:', {
+      canvas: { x: canvasX, y: canvasY, width: canvasWidth, height: canvasHeight },
+      logical: { x: logicalX, y: logicalY, width: logicalWidth, height: logicalHeight },
+      windowOffset,
+      displayRelative: { x: displayRelativeX, y: displayRelativeY },
+      final: regionData,
+    });
+
+    window.electronAPI.screenRecording.confirmRegionSelection(regionData);
+  },
+  [selection, displayInfo]
+);
 
   const cancelSelection = useCallback(() => {
     if (selection) {

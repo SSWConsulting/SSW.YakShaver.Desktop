@@ -87,6 +87,10 @@ export interface RegionBounds {
   displayId?: string;
   /** Scale factor of the display (for HiDPI/Retina displays) */
   scaleFactor?: number;
+  /** Global offset of the selected display within the virtual desktop (logical pixels) */
+  globalOffsetX?: number;
+  /** Global offset of the selected display within the virtual desktop (logical pixels) */
+  globalOffsetY?: number;
 }
 
 export interface TranscriptEntry {

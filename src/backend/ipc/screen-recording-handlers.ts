@@ -31,8 +31,10 @@ export class ScreenRecordingIPCHandlers {
         this.stopRecordingFromControlBar(),
       [IPC_CHANNELS.MINIMIZE_MAIN_WINDOW]: () => this.minimizeMainWindow(),
       [IPC_CHANNELS.RESTORE_MAIN_WINDOW]: () => this.restoreMainWindow(),
-      [IPC_CHANNELS.SHOW_REGION_SELECTOR]: (_: unknown, displayId?: string) =>
-        this.regionSelector.showForDisplay(displayId),
+      [IPC_CHANNELS.SHOW_REGION_SELECTOR]: (_: unknown, displayId?: string) => {
+        console.log("[IPC] SHOW_REGION_SELECTOR invoked with displayId:", displayId);
+        return this.regionSelector.showForDisplay(displayId);
+      },
       [IPC_CHANNELS.CONFIRM_REGION_SELECTION]: (_: unknown, region: RegionBounds) =>
         this.regionSelector.confirmSelection(region),
       [IPC_CHANNELS.CANCEL_REGION_SELECTION]: () =>
