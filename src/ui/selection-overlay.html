@@ -49,6 +49,35 @@
       .hud strong {
         font-weight: 600;
       }
+
+      .screen-info-tooltip {
+        position: fixed;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        border-radius: 8px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        pointer-events: none;
+        display: none;
+        z-index: 10000;
+        line-height: 1.5;
+      }
+
+      .screen-info-tooltip.visible {
+        display: block;
+      }
+
+      .screen-info-tooltip .label {
+        opacity: 0.7;
+        font-size: 11px;
+      }
+
+      .screen-info-tooltip .value {
+        font-weight: 600;
+        color: #cc4141;
+      }
     </style>
   </head>
   <body>
@@ -58,9 +87,22 @@
       <span>Esc to cancel</span>
     </div>
     <div id="selection" class="selection" style="display: none"></div>
+    <div id="screen-info-tooltip" class="screen-info-tooltip">
+      <div>
+        <span class="label">Screen: </span>
+        <span class="value" id="screen-dimensions"></span>
+      </div>
+      <div>
+        <span class="label">Position: </span>
+        <span class="value" id="screen-position"></span>
+      </div>
+    </div>
 
     <script>
       const selectionEl = document.getElementById("selection");
+      const tooltipEl = document.getElementById("screen-info-tooltip");
+      const screenDimensionsEl = document.getElementById("screen-dimensions");
+      const screenPositionEl = document.getElementById("screen-position");
       let startX = 0;
       let startY = 0;
       let isDragging = false;
@@ -72,6 +114,22 @@
       const presetY = Number(params.get("y"));
       const presetW = Number(params.get("width"));
       const presetH = Number(params.get("height"));
+
+      // Get screen dimensions from URL parameters
+      const screenX = Number(params.get("screenX")) || 0;
+      const screenY = Number(params.get("screenY")) || 0;
+      const screenWidth =
+        Number(params.get("screenWidth")) || window.innerWidth;
+      const screenHeight =
+        Number(params.get("screenHeight")) || window.innerHeight;
+
+      // Update tooltip with screen dimensions
+      if (screenDimensionsEl) {
+        screenDimensionsEl.textContent = `${screenWidth} × ${screenHeight}`;
+      }
+      if (screenPositionEl) {
+        screenPositionEl.textContent = `(${screenX}, ${screenY})`;
+      }
 
       function updateSelection(x1, y1, x2, y2) {
         const left = Math.min(x1, x2);
@@ -122,16 +180,27 @@
           if (hud) hud.style.display = "none";
         }
       } else {
+        // Show tooltip on mouse hover
+        window.addEventListener("mousemove", (e) => {
+          if (isDragging) {
+            // Hide tooltip while dragging
+            tooltipEl.classList.remove("visible");
+            updateSelection(startX, startY, e.clientX, e.clientY);
+          } else {
+            // Show tooltip when hovering
+            tooltipEl.classList.add("visible");
+            // Position tooltip near cursor, with offset to avoid blocking view
+            tooltipEl.style.left = `${e.clientX + 15}px`;
+            tooltipEl.style.top = `${e.clientY + 15}px`;
+          }
+        });
+
         window.addEventListener("mousedown", (e) => {
           isDragging = true;
           startX = e.clientX;
           startY = e.clientY;
           updateSelection(startX, startY, startX, startY);
-        });
-
-        window.addEventListener("mousemove", (e) => {
-          if (!isDragging) return;
-          updateSelection(startX, startY, e.clientX, e.clientY);
+          tooltipEl.classList.remove("visible");
         });
 
         window.addEventListener("mouseup", (e) => {
@@ -151,6 +220,7 @@
           if (!isDragging) return;
           isDragging = false;
           selectionEl.style.display = "none";
+          tooltipEl.classList.remove("visible");
         });
       }
     </script>

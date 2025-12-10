@@ -98,7 +98,9 @@ export class SelectionOverlayWindow {
         await win.loadURL(
           `http://localhost:3000/selection-overlay.html?displayId=${encodeURIComponent(
             target.displayId
-          )}`
+          )}&screenX=${target.x}&screenY=${target.y}&screenWidth=${
+            target.width
+          }&screenHeight=${target.height}`
         );
       } else {
         await win.loadFile(
@@ -106,7 +108,15 @@ export class SelectionOverlayWindow {
             process.resourcesPath,
             "app.asar.unpacked/src/ui/dist/selection-overlay.html"
           ),
-          { query: { displayId: target.displayId } }
+          {
+            query: {
+              displayId: target.displayId,
+              screenX: target.x.toString(),
+              screenY: target.y.toString(),
+              screenWidth: target.width.toString(),
+              screenHeight: target.height.toString(),
+            },
+          }
         );
       }
       win.showInactive();
