@@ -48,6 +48,9 @@ jobs:
   build-windows:
     needs: check-release
     runs-on: windows-latest
+    
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -81,6 +84,8 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --prefer-offline
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
         run: npm ci --prefer-offline
@@ -106,6 +111,8 @@ jobs:
   build-macos:
     needs: check-release
     runs-on: macos-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -138,6 +145,8 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --prefer-offline
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
         run: npm ci --prefer-offline
