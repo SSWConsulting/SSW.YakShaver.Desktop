@@ -10,6 +10,12 @@ export const IPC_CHANNELS = {
   CONFIG_HAS_YOUTUBE: "config:has-youtube",
   CONFIG_GET_YOUTUBE: "config:get-youtube",
 
+  // Microsoft auth
+  MS_AUTH_LOGIN: "msauth:login",
+  MS_AUTH_LOGOUT: "msauth:logout",
+  MS_AUTH_STATUS: "msauth:status",
+  MS_AUTH_ACCOUNT_INFO: "msgraph:get-me",
+
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
   STOP_SCREEN_RECORDING: "stop-screen-recording",
@@ -80,4 +86,7 @@ export const IPC_CHANNELS = {
   // General Settings
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+
+  // Portal API
+  PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
 } as const;
