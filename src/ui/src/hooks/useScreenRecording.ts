@@ -52,7 +52,34 @@ export function useScreenRecording() {
     ) => {
       setIsProcessing(true);
       try {
-        const result = await window.electronAPI.screenRecording.start(sourceId);
+        const generalSettings = await window.electronAPI.generalSettings
+          .get()
+          .catch(() => null);
+
+        let selectedSourceId = sourceId;
+        if (generalSettings?.enableRegionCapture) {
+          const selection =
+            await window.electronAPI.screenRecording.startRegionSelection();
+          if ((selection as { cancelled?: boolean })?.cancelled) {
+            setIsProcessing(false);
+            return;
+          }
+
+          if ((selection as { displayId?: string }).displayId) {
+            const sources =
+              await window.electronAPI.screenRecording.listSources();
+            const matchingDisplay = sources.find(
+              (s) =>
+                s.displayId?.toString() ===
+                (selection as { displayId?: string }).displayId
+            );
+            selectedSourceId = matchingDisplay?.id ?? sourceId;
+          }
+        }
+
+        const result = await window.electronAPI.screenRecording.start(
+          selectedSourceId
+        );
         if (!result.success) throw new Error("Failed to start recording");
 
         const [videoStream, audioStream] = await Promise.all([

@@ -5,10 +5,12 @@ export type ToolApprovalMode = "yolo" | "wait" | "ask";
 
 export interface GeneralSettings {
   toolApprovalMode: ToolApprovalMode;
+  enableRegionCapture?: boolean;
 }
 
 const DEFAULT_SETTINGS: GeneralSettings = {
   toolApprovalMode: "ask",
+  enableRegionCapture: false,
 };
 
 const GENERAL_SETTINGS_FILE = "general-settings.enc";
@@ -31,7 +33,9 @@ export class GeneralSettingsStorage extends BaseSecureStorage {
     return join(this.storageDir, GENERAL_SETTINGS_FILE);
   }
 
-  private withDefaults(settings?: Partial<GeneralSettings> | null): GeneralSettings {
+  private withDefaults(
+    settings?: Partial<GeneralSettings> | null
+  ): GeneralSettings {
     if (!settings) {
       return { ...DEFAULT_SETTINGS };
     }
@@ -42,7 +46,9 @@ export class GeneralSettingsStorage extends BaseSecureStorage {
   }
 
   public async getSettingsAsync(): Promise<GeneralSettings> {
-    const stored = await this.decryptAndLoad<GeneralSettings>(this.getSettingsPath());
+    const stored = await this.decryptAndLoad<GeneralSettings>(
+      this.getSettingsPath()
+    );
     return this.withDefaults(stored);
   }
 
@@ -53,5 +59,10 @@ export class GeneralSettingsStorage extends BaseSecureStorage {
   public async setToolApprovalModeAsync(mode: ToolApprovalMode): Promise<void> {
     const current = await this.getSettingsAsync();
     await this.setSettingsAsync({ ...current, toolApprovalMode: mode });
+  }
+
+  public async setRegionCaptureEnabledAsync(enabled: boolean): Promise<void> {
+    const current = await this.getSettingsAsync();
+    await this.setSettingsAsync({ ...current, enableRegionCapture: enabled });
   }
 }

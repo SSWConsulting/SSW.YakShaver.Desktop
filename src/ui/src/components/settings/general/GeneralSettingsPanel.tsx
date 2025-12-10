@@ -4,6 +4,7 @@ import { ipcClient } from "@/services/ipc-client";
 import type { GeneralSettings, ToolApprovalMode } from "@/types";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "../../ui/card";
+import { Switch } from "../../ui/switch";
 
 interface GeneralSettingsPanelProps {
   isActive: boolean;
@@ -42,7 +43,7 @@ const MODE_LABELS: Record<ToolApprovalMode, string> = {
 };
 
 export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
-  const [settings, setSettings] = useState<GeneralSettings>({ toolApprovalMode: "ask" });
+  const [settings, setSettings] = useState<GeneralSettings>({ toolApprovalMode: "ask", enableRegionCapture: false });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [pendingMode, setPendingMode] = useState<ToolApprovalMode | null>(null);
 
@@ -86,6 +87,21 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
     [settings.toolApprovalMode],
   );
 
+  const handleToggleRegionCapture = useCallback(
+    async (enabled: boolean) => {
+      setSettings((prev) => ({ ...prev, enableRegionCapture: enabled }));
+      try {
+        await ipcClient.generalSettings.setRegionCaptureEnabled(enabled);
+        toast.success(`Region capture ${enabled ? "enabled" : "disabled"}`);
+      } catch (error) {
+        console.error("Failed to update region capture setting", error);
+        toast.error("Failed to update region capture setting");
+        setSettings((prev) => ({ ...prev, enableRegionCapture: !enabled }));
+      }
+    },
+    [],
+  );
+
   const currentMode = settings.toolApprovalMode;
 
   return (
@@ -122,6 +138,20 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
             </Card>
           );
         })}
+      </div>
+
+      <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+        <div className="space-y-1">
+          <p className="text-base font-medium">Experimental region capture</p>
+          <p className="text-sm text-white/70">
+            Enable Snagit-style region selection before recording (falls back to current flow if unavailable).
+          </p>
+        </div>
+        <Switch
+          checked={!!settings.enableRegionCapture}
+          onCheckedChange={(value) => void handleToggleRegionCapture(Boolean(value))}
+          disabled={isLoading}
+        />
       </div>
 
     </div>

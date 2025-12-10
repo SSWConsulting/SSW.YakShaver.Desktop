@@ -4,6 +4,7 @@ import { CameraWindow } from "../services/recording/camera-window";
 import { CountdownWindow } from "../services/recording/countdown-window";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { RecordingService } from "../services/recording/recording-service";
+import { SelectionOverlayWindow } from "../services/recording/selection-overlay-window";
 import { IPC_CHANNELS } from "./channels";
 
 export class ScreenRecordingIPCHandlers {
@@ -11,6 +12,7 @@ export class ScreenRecordingIPCHandlers {
   private controlBar = RecordingControlBarWindow.getInstance();
   private cameraWindow = CameraWindow.getInstance();
   private countdownWindow = CountdownWindow.getInstance();
+  private selectionOverlay = SelectionOverlayWindow.getInstance();
 
   constructor() {
     const handlers = {
@@ -25,6 +27,8 @@ export class ScreenRecordingIPCHandlers {
       [IPC_CHANNELS.LIST_SCREEN_SOURCES]: () => this.service.listSources(),
       [IPC_CHANNELS.CLEANUP_TEMP_FILE]: (_: unknown, filePath: string) =>
         this.service.cleanupTempFile(filePath),
+      [IPC_CHANNELS.START_REGION_SELECTION]: (_: unknown, displayId?: string) =>
+        this.selectionOverlay.startSelection(displayId),
       [IPC_CHANNELS.SHOW_CONTROL_BAR]: (_: unknown, cameraDeviceId?: string) =>
         this.showControlBarWithCamera(cameraDeviceId),
       [IPC_CHANNELS.HIDE_CONTROL_BAR]: () => this.hideControlBarAndCamera(),

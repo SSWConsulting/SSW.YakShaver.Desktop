@@ -35,6 +35,9 @@ const IPC_CHANNELS = {
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
   HIDE_CONTROL_BAR: "hide-control-bar",
+  START_REGION_SELECTION: "start-region-selection",
+  SELECTION_OVERLAY_COMPLETE: "selection-overlay:complete",
+  SELECTION_OVERLAY_CANCEL: "selection-overlay:cancel",
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
 
@@ -95,6 +98,7 @@ const IPC_CHANNELS = {
   // General Settings
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+  GENERAL_SETTINGS_SET_REGION_CAPTURE: "general-settings:set-region-capture",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -150,6 +154,8 @@ const electronAPI = {
   screenRecording: {
     start: (sourceId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.START_SCREEN_RECORDING, sourceId),
+    startRegionSelection: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.START_REGION_SELECTION),
     startTimer: () => ipcRenderer.invoke(IPC_CHANNELS.START_RECORDING_TIMER),
     stop: (videoData: Uint8Array) =>
       ipcRenderer.invoke(IPC_CHANNELS.STOP_SCREEN_RECORDING, videoData),
@@ -171,6 +177,16 @@ const electronAPI = {
       return () =>
         ipcRenderer.removeListener("stop-recording-request", listener);
     },
+  },
+  selectionOverlay: {
+    complete: (selection: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      displayId?: string;
+    }) => ipcRenderer.send(IPC_CHANNELS.SELECTION_OVERLAY_COMPLETE, selection),
+    cancel: () => ipcRenderer.send(IPC_CHANNELS.SELECTION_OVERLAY_CANCEL),
   },
   controlBar: {
     onTimeUpdate: (callback: (time: string) => void) => {
@@ -303,6 +319,11 @@ const electronAPI = {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_GET),
     setMode: (mode: ToolApprovalMode) =>
       ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE, mode),
+    setRegionCaptureEnabled: (enabled: boolean) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.GENERAL_SETTINGS_SET_REGION_CAPTURE,
+        enabled
+      ),
   },
   // Camera window
   onSetCameraDevice: (callback: (deviceId: string) => void) => {

@@ -23,7 +23,15 @@ export class GeneralSettingsIPCHandlers {
       async (_event: IpcMainInvokeEvent, mode: ToolApprovalMode) => {
         await this.storage.setToolApprovalModeAsync(mode);
         return { success: true };
-      },
+      }
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.GENERAL_SETTINGS_SET_REGION_CAPTURE,
+      async (_event: IpcMainInvokeEvent, enabled: boolean) => {
+        await this.storage.setRegionCaptureEnabledAsync(enabled);
+        return { success: true };
+      }
     );
   }
 }

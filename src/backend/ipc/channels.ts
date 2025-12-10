@@ -25,6 +25,9 @@ export const IPC_CHANNELS = {
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
   HIDE_CONTROL_BAR: "hide-control-bar",
+  START_REGION_SELECTION: "start-region-selection",
+  SELECTION_OVERLAY_COMPLETE: "selection-overlay:complete",
+  SELECTION_OVERLAY_CANCEL: "selection-overlay:cancel",
   RECORDING_TIME_UPDATE: "recording-time-update",
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
@@ -86,4 +89,5 @@ export const IPC_CHANNELS = {
   // General Settings
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+  GENERAL_SETTINGS_SET_REGION_CAPTURE: "general-settings:set-region-capture",
 } as const;

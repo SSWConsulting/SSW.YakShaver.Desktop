@@ -36,6 +36,7 @@ export function ScreenRecorder() {
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(
     null
   );
+  const [regionModeEnabled, setRegionModeEnabled] = useState(false);
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
@@ -67,7 +68,7 @@ export function ScreenRecorder() {
 
 
   const handleStartRecording = async (
-    sourceId: string,
+    sourceId: string | undefined,
     devices?: { cameraId?: string; microphoneId?: string },
   ) => {
     setPickerOpen(false);
@@ -76,6 +77,18 @@ export function ScreenRecorder() {
       cameraDeviceId: devices?.cameraId,
     });
   };
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const general = await window.electronAPI.generalSettings.get();
+        setRegionModeEnabled(Boolean(general?.enableRegionCapture));
+      } catch {
+        setRegionModeEnabled(false);
+      }
+    };
+    void loadSettings();
+  }, []);
 
   const resetPreview = () => {
     setPreviewOpen(false);
@@ -209,6 +222,7 @@ export function ScreenRecorder() {
           open={pickerOpen}
           onOpenChange={setPickerOpen}
           onSelect={handleStartRecording}
+          regionModeEnabled={regionModeEnabled}
         />
       </section>
 

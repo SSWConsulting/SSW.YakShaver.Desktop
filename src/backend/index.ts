@@ -19,6 +19,7 @@ import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
+import { SelectionOverlayWindow } from "./services/recording/selection-overlay-window";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 
 const isDev = process.env.NODE_ENV === "development";
@@ -139,6 +140,7 @@ app.whenReady().then(async () => {
   RecordingControlBarWindow.getInstance().initialize(isDev);
   CameraWindow.getInstance().initialize(isDev);
   CountdownWindow.getInstance().initialize(isDev);
+  SelectionOverlayWindow.getInstance().initialize(isDev);
 
   unregisterEventForwarders = registerEventForwarders();
   createWindow();

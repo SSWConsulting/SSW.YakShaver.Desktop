@@ -66,6 +66,17 @@ declare global {
       };
       screenRecording: {
         start: (sourceId?: string) => Promise<ScreenRecordingStartResult>;
+        startRegionSelection: () => Promise<
+          | { cancelled: true }
+          | {
+              cancelled?: false;
+              displayId?: string;
+              x: number;
+              y: number;
+              width: number;
+              height: number;
+            }
+        >;
         startTimer: () => Promise<void>;
         stop: (videoData: Uint8Array) => Promise<ScreenRecordingStopResult>;
         listSources: () => Promise<ScreenSource[]>;
@@ -81,6 +92,16 @@ declare global {
       };
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;
+      };
+      selectionOverlay: {
+        complete: (selection: {
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          displayId?: string;
+        }) => void;
+        cancel: () => void;
       };
       workflow: {
         onProgress: (callback: (progress: unknown) => void) => () => void;
@@ -169,6 +190,9 @@ declare global {
       generalSettings: {
         get: () => Promise<GeneralSettings>;
         setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
+        setRegionCaptureEnabled: (
+          enabled: boolean
+        ) => Promise<{ success: boolean }>;
       };
     };
   }

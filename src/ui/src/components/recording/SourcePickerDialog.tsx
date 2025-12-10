@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 type SourcePickerDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (sourceId: string, devices: { cameraId?: string; microphoneId?: string }) => void;
+  onSelect: (sourceId: string | undefined, devices: { cameraId?: string; microphoneId?: string }) => void;
+  regionModeEnabled?: boolean;
 };
 
-export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePickerDialogProps) {
+export function SourcePickerDialog({ open, onOpenChange, onSelect, regionModeEnabled }: SourcePickerDialogProps) {
   const [loading, setLoading] = useState(false);
   const [sources, setSources] = useState<ScreenSource[]>([]);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
@@ -28,6 +29,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   const NO_DEVICE_STORAGE_VALUE = "none";
 
   const fetchSources = useCallback(async () => {
+    if (regionModeEnabled) return;
     setLoading(true);
     try {
       const list = await ipcClient.screenRecording.listSources();
@@ -66,7 +68,9 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
   useEffect(() => {
     if (open) {
-      void fetchSources();
+      if (!regionModeEnabled) {
+        void fetchSources();
+      }
       void fetchDevices();
 
       const handleDeviceChange = () => {
@@ -140,8 +144,8 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
     void startPreview();
   }, [open, selectedCameraId, devicesReady]);
 
-  const screens = useMemo(() => sources.filter((s) => s.type === "screen"), [sources]);
-  const windows = useMemo(() => sources.filter((s) => s.type === "window"), [sources]);
+  const screens = useMemo(() => (regionModeEnabled ? [] : sources.filter((s) => s.type === "screen")), [sources, regionModeEnabled]);
+  const windows = useMemo(() => (regionModeEnabled ? [] : sources.filter((s) => s.type === "window")), [sources, regionModeEnabled]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -149,7 +153,9 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
         <DialogHeader>
           <DialogTitle>Choose a source to record</DialogTitle>
           <DialogDescription>
-            Select a screen or window to capture. Hover to preview and click to start recording.
+            {regionModeEnabled
+              ? "Select devices and start region capture."
+              : "Select a screen or window to capture. Hover to preview and click to start recording."}
           </DialogDescription>
         </DialogHeader>
 
@@ -211,24 +217,43 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
               </div>
             </div>
           )}
-          {loading && (
-            <div className="text-sm text-muted-foreground text-center py-2">Loading sources…</div>
-          )}
-          <SourceSection
-            label="Screens"
-            sources={screens}
-            onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
-          />
-          <SourceSection
-            label="Windows"
-            sources={windows}
-            onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
-          />
-
-          {!loading && screens.length === 0 && windows.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-8">
-              No sources available
+          {regionModeEnabled ? (
+            <div className="flex justify-center">
+              <Button
+                className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90"
+                onClick={() =>
+                  onSelect(undefined, {
+                    cameraId: selectedCameraId,
+                    microphoneId: selectedMicrophoneId,
+                  })
+                }
+                disabled={loading}
+              >
+                Start recording
+              </Button>
             </div>
+          ) : (
+            <>
+              {loading && (
+                <div className="text-sm text-muted-foreground text-center py-2">Loading sources…</div>
+              )}
+              <SourceSection
+                label="Screens"
+                sources={screens}
+                onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
+              />
+              <SourceSection
+                label="Windows"
+                sources={windows}
+                onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
+              />
+
+              {!loading && screens.length === 0 && windows.length === 0 && (
+                <div className="text-sm text-muted-foreground text-center py-8">
+                  No sources available
+                </div>
+              )}
+            </>
           )}
         </div>
       </DialogContent>
