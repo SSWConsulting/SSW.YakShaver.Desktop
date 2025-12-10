@@ -35,7 +35,7 @@ export class MicrosoftAuthService {
       cache: { cachePlugin },
       system: {
         loggerOptions: {
-          loggerCallback(loglevel, message, containsPii) {
+          loggerCallback(_loglevel, message, _containsPii) {
             console.log(message);
           },
           piiLoggingEnabled: false,
@@ -95,7 +95,7 @@ export class MicrosoftAuthService {
     try {
       const tokenRequest: SilentFlowRequest = {
         scopes: this.getScopes(),
-        account: null as any,
+        account: null as unknown as AccountInfo,
       };
       const authResult = await this.getToken(tokenRequest);
       return this.handleResponse(authResult);
@@ -119,7 +119,7 @@ export class MicrosoftAuthService {
   }
 
   async loginSilent(tokenRequest: SilentFlowRequest): Promise<AccountInfo | null> {
-    let response;
+    let response: AuthenticationResult;
     if (!this.account) {
       const account = await this.getAccount();
       if (account) {
@@ -144,6 +144,7 @@ export class MicrosoftAuthService {
       this.account = authResponse.account;
       return authResponse;
     } catch (error) {
+      console.error("Error getting token:", formatErrorMessage(error));
       throw error;
     }
   }
@@ -151,7 +152,7 @@ export class MicrosoftAuthService {
   async getTokenSilent(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
     try {
       return await this.pca.acquireTokenSilent(tokenRequest);
-    } catch (error) {
+    } catch (_error) {
       console.warn("Silent token acquisition failed, acquiring token using pop up");
       return await this.getTokenInteractive(tokenRequest);
     }
@@ -191,8 +192,7 @@ export class MicrosoftAuthService {
         .replace(/msal\{Your_Application\/Client_Id\}/g, protocol)
         .replace(/msal\{Your_Application\/Client_Id\}:\/\/auth/g, `${protocol}://auth`);
       const errorHtml = errorHtmlRaw;
-
-      const openBrowser = async (url: any) => await shell.openExternal(url);
+      const openBrowser = async (url: string) => await shell.openExternal(url);
       const interactiveRequest: InteractiveRequest = {
         ...tokenRequest,
         openBrowser,
@@ -204,6 +204,7 @@ export class MicrosoftAuthService {
       const authResponse = await this.pca.acquireTokenInteractive(interactiveRequest);
       return authResponse;
     } catch (error) {
+      console.error("Error getting token interactively:", formatErrorMessage(error));
       throw error;
     }
   }
