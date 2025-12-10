@@ -10,12 +10,12 @@
     <h1>Authentication Successful</h1>
     <p>You can return to the application.</p>
     <p>
-        <a id="deeplink" href="msal{Your_Application/Client_Id}://auth">Open App</a>
+        <a id="deeplink" href="YOUR_APP_PROTOCOL://auth">Open App</a>
     </p>
     <script>
-      const protocol = 'msal{Your_Application/Client_Id}://auth';
+      const protocol = 'YOUR_APP_PROTOCOL://auth';
       const link = document.getElementById('deeplink');
-      if (protocol && protocol !== 'msal{Your_Application/Client_Id}://auth') { 
+      if (protocol && protocol !== 'YOUR_APP_PROTOCOL://auth') { 
         link.href = protocol; 
         link.textContent = 'Open App'; 
         link.addEventListener('click', (e) => {

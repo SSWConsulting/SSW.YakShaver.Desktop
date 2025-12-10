@@ -188,9 +188,7 @@ export class MicrosoftAuthService {
       const successHtmlRaw = fs.readFileSync(successPath, "utf8");
       const errorHtmlRaw = fs.readFileSync(errorPath, "utf8");
       const protocol = azure?.customProtocol || "yakshaver-desktop";
-      const successHtml = successHtmlRaw
-        .replace(/msal\{Your_Application\/Client_Id\}/g, protocol)
-        .replace(/msal\{Your_Application\/Client_Id\}:\/\/auth/g, `${protocol}://auth`);
+      const successHtml = successHtmlRaw.replace(/YOUR_APP_PROTOCOL/g, protocol);
       const errorHtml = errorHtmlRaw;
       const openBrowser = async (url: string) => await shell.openExternal(url);
       const interactiveRequest: InteractiveRequest = {
