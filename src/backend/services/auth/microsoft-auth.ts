@@ -1,16 +1,21 @@
 // Followed example from Microsoft's Electron sample app
 // https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/samples/msal-node-samples/ElectronSystemBrowserTestApp/README.md
 import { join } from "node:path";
-import { shell, app } from "electron";
-import { PublicClientApplication, InteractionRequiredAuthError, LogLevel } from "@azure/msal-node";
+import { InteractionRequiredAuthError, LogLevel, PublicClientApplication } from "@azure/msal-node";
+import { app, shell } from "electron";
 import { config } from "../../config/env";
 import { formatErrorMessage } from "../../utils/error-utils";
+import { MsalSecureCachePlugin } from "./msal-cache-plugin";
 import type { AuthState } from "./types";
 import { AuthStatus } from "./types";
-import { MsalSecureCachePlugin } from "./msal-cache-plugin";
 import "isomorphic-fetch";
 import * as fs from "node:fs";
-import type { AccountInfo, AuthenticationResult, InteractiveRequest, SilentFlowRequest } from "@azure/msal-node";
+import type {
+  AccountInfo,
+  AuthenticationResult,
+  InteractiveRequest,
+  SilentFlowRequest,
+} from "@azure/msal-node";
 
 export class MicrosoftAuthService {
   private static instance: MicrosoftAuthService;
@@ -59,14 +64,15 @@ export class MicrosoftAuthService {
   async getAuthState(): Promise<AuthState> {
     try {
       const account = await this.getAccount();
-      if (!account) return {
-        status: AuthStatus.NOT_AUTHENTICATED 
-      } as AuthState;
+      if (!account)
+        return {
+          status: AuthStatus.NOT_AUTHENTICATED,
+        } as AuthState;
 
       try {
         const tokenRequest: SilentFlowRequest = {
           scopes: this.getScopes(),
-          account: account
+          account: account,
         };
         const accountInfo = await this.loginSilent(tokenRequest);
         if (accountInfo) {
@@ -125,9 +131,7 @@ export class MicrosoftAuthService {
     return this.account;
   }
 
-  async getToken(
-    tokenRequest: SilentFlowRequest
-  ): Promise<AuthenticationResult> {
+  async getToken(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
     try {
       let authResponse: AuthenticationResult;
       const account = this.account || (await this.getAccount());
@@ -144,17 +148,11 @@ export class MicrosoftAuthService {
     }
   }
 
-  async getTokenSilent(
-    tokenRequest: SilentFlowRequest
-  ): Promise<AuthenticationResult> {
+  async getTokenSilent(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
     try {
-      return await this.pca.acquireTokenSilent(
-        tokenRequest
-      );
+      return await this.pca.acquireTokenSilent(tokenRequest);
     } catch (error) {
-      console.warn(
-        "Silent token acquisition failed, acquiring token using pop up"
-      );
+      console.warn("Silent token acquisition failed, acquiring token using pop up");
       return await this.getTokenInteractive(tokenRequest);
     }
   }
@@ -162,7 +160,7 @@ export class MicrosoftAuthService {
   async getTokenInteractive(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
     try {
       const azure = config.azure();
-      
+
       // Determine the correct path for template files based on environment
       let uiDir: string;
       if (app.isPackaged) {
@@ -172,7 +170,7 @@ export class MicrosoftAuthService {
         // In development, templates are in src/ui
         uiDir = join(__dirname, "../../../src/ui");
       }
-      
+
       const successPath = join(uiDir, "successTemplate.html");
       const errorPath = join(uiDir, "errorTemplate.html");
 
@@ -189,7 +187,9 @@ export class MicrosoftAuthService {
       const successHtmlRaw = fs.readFileSync(successPath, "utf8");
       const errorHtmlRaw = fs.readFileSync(errorPath, "utf8");
       const protocol = azure?.customProtocol || `msal${azure!.clientId}`;
-      const successHtml = successHtmlRaw.replace(/msal\{Your_Application\/Client_Id\}/g, protocol).replace(/msal\{Your_Application\/Client_Id\}:\/\/auth/g, `${protocol}://auth`);
+      const successHtml = successHtmlRaw
+        .replace(/msal\{Your_Application\/Client_Id\}/g, protocol)
+        .replace(/msal\{Your_Application\/Client_Id\}:\/\/auth/g, `${protocol}://auth`);
       const errorHtml = errorHtmlRaw;
 
       const openBrowser = async (url: any) => await shell.openExternal(url);
