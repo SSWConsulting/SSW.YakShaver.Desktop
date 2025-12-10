@@ -85,6 +85,8 @@
       <span><strong>Click + drag</strong> to select</span>
       <span>|</span>
       <span>Esc to cancel</span>
+      <span>|</span>
+      <span>Enter for full screen</span>
     </div>
     <div id="selection" class="selection" style="display: none"></div>
     <div id="screen-info-tooltip" class="screen-info-tooltip">
@@ -106,6 +108,7 @@
       let startX = 0;
       let startY = 0;
       let isDragging = false;
+      const edgeSnap = 12;
 
       const params = new URLSearchParams(window.location.search);
       const displayId = params.get("displayId") || undefined;
@@ -144,19 +147,34 @@
       }
 
       function finishSelection(x1, y1, x2, y2) {
-        const left = Math.min(x1, x2);
-        const top = Math.min(y1, y2);
-        const width = Math.abs(x1 - x2);
-        const height = Math.abs(y1 - y2);
-        if (width < 2 || height < 2) {
+        let left = Math.min(x1, x2);
+        let top = Math.min(y1, y2);
+        let width = Math.abs(x1 - x2);
+        let height = Math.abs(y1 - y2);
+
+        const right = left + width;
+        const bottom = top + height;
+
+        if (top <= edgeSnap) top = 0;
+        if (left <= edgeSnap) left = 0;
+        if (right >= screenWidth - edgeSnap) width = screenWidth - left;
+        if (bottom >= screenHeight - edgeSnap) height = screenHeight - top;
+
+        const scale = window.devicePixelRatio || 1;
+        const pxLeft = Math.round(left * scale);
+        const pxTop = Math.round(top * scale);
+        const pxWidth = Math.round(width * scale);
+        const pxHeight = Math.round(height * scale);
+
+        if (pxWidth < 2 || pxHeight < 2) {
           window.electronAPI.selectionOverlay.cancel();
           return;
         }
         window.electronAPI.selectionOverlay.complete({
-          x: left,
-          y: top,
-          width,
-          height,
+          x: pxLeft,
+          y: pxTop,
+          width: pxWidth,
+          height: pxHeight,
           displayId,
         });
       }
@@ -212,6 +230,15 @@
         window.addEventListener("keydown", (e) => {
           if (e.key === "Escape") {
             window.electronAPI.selectionOverlay.cancel();
+          } else if (e.key === "Enter") {
+            const scale = window.devicePixelRatio || 1;
+            window.electronAPI.selectionOverlay.complete({
+              x: 0,
+              y: 0,
+              width: Math.round(screenWidth * scale),
+              height: Math.round(screenHeight * scale),
+              displayId,
+            });
           }
         });
 

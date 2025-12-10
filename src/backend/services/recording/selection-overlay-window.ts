@@ -140,11 +140,15 @@ export class SelectionOverlayWindow {
     this.hideHighlight();
 
     const target = this.getDisplayBounds(region.displayId);
+    const scale =
+      (target as unknown as { scaleFactor?: number }).scaleFactor || 1;
+    const xDip = Math.round(region.x / scale);
+    const yDip = Math.round(region.y / scale);
+    const wDip = Math.round(region.width / scale);
+    const hDip = Math.round(region.height / scale);
     const urlQuery = `displayId=${encodeURIComponent(
       target.displayId
-    )}&mode=highlight&x=${region.x}&y=${region.y}&width=${
-      region.width
-    }&height=${region.height}`;
+    )}&mode=highlight&x=${xDip}&y=${yDip}&width=${wDip}&height=${hDip}`;
 
     this.highlightWindow = new BrowserWindow({
       x: target.x,
@@ -183,10 +187,10 @@ export class SelectionOverlayWindow {
           query: {
             displayId: target.displayId,
             mode: "highlight",
-            x: region.x.toString(),
-            y: region.y.toString(),
-            width: region.width.toString(),
-            height: region.height.toString(),
+            x: xDip.toString(),
+            y: yDip.toString(),
+            width: wDip.toString(),
+            height: hDip.toString(),
           },
         }
       );
@@ -211,6 +215,13 @@ export class SelectionOverlayWindow {
       : screen.getPrimaryDisplay();
 
     const { x, y, width, height } = display.bounds;
-    return { x, y, width, height, displayId: display.id.toString() };
+    return {
+      x,
+      y,
+      width,
+      height,
+      displayId: display.id.toString(),
+      scaleFactor: display.scaleFactor,
+    };
   }
 }
