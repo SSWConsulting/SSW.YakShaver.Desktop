@@ -28,6 +28,9 @@
         font-weight: bold;
         text-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
         will-change: transform, opacity;
+        opacity: 0;
+        transform: scale(0.6);
+        visibility: hidden;
       }
 
       .hidden {
@@ -44,6 +47,7 @@
 
       function animateTick(value) {
         countdownElement.textContent = value;
+        countdownElement.style.visibility = "visible";
         // Use the Web Animations API for smoother, GPU-friendly animation
         countdownElement.animate(
           [
