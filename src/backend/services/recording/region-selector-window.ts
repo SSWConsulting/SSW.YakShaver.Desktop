@@ -163,10 +163,19 @@ async showForDisplay(displayId?: string): Promise<RegionSelectionResult> {
     const { x, y, width, height } = display.bounds;
     const scaleFactor = display.scaleFactor;
 
+    console.log('[RegionSelectorWindow] Creating window for display:', {
+      displayId: display.id,
+      bounds: { x, y, width, height },
+      scaleFactor,
+    });
+
     const url = this.isDev
       ? "http://localhost:3000/region-selector.html"
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/region-selector.html");
 
+    // CRITICAL: For negative coordinates on Windows, we need to:
+    // 1. Create window with useContentSize to avoid frame calculations interfering
+    // 2. Position it using setPosition after creation (more reliable for negative coords)
     this.window = new BrowserWindow({
       width,
       height,
@@ -180,6 +189,9 @@ async showForDisplay(displayId?: string): Promise<RegionSelectionResult> {
       maximizable: false,
       minimizable: false,
       fullscreenable: false,
+      enableLargerThanScreen: true,
+      // Use content size to prevent window chrome calculations
+      useContentSize: true,
       webPreferences: {
         preload: join(__dirname, "../../preload.js"),
         contextIsolation: true,
@@ -187,8 +199,8 @@ async showForDisplay(displayId?: string): Promise<RegionSelectionResult> {
       },
     });
 
-    this.window.setMaximumSize(width, height);
-    this.window.setMinimumSize(width, height);
+    // Set position explicitly using setPosition - this is more reliable for negative coordinates
+    this.window.setPosition(x, y, false);
 
     this.window.on("closed", () => {
       this.window = null;
@@ -203,16 +215,32 @@ async showForDisplay(displayId?: string): Promise<RegionSelectionResult> {
 
     await (this.isDev ? this.window.loadURL(url) : this.window.loadFile(url));
 
-    // Try to set the desired position
-    this.window.setBounds({ x, y, width, height }, true);
+    // Show the window first, then force position
+    // On Windows, sometimes the position only "sticks" after the window is visible
+    this.window.showInactive();
     
-    // Wait a bit for Windows to settle
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Now force the exact bounds we want
+    this.window.setBounds({ x, y, width, height }, false);
+    
+    // Small delay for Windows to process
+    await new Promise(resolve => setTimeout(resolve, 30));
     
     // Get the ACTUAL position Windows gave us
-    const actualBounds = this.window.getBounds();
+    let actualBounds = this.window.getBounds();
     
-    console.log('[RegionSelectorWindow] Position comparison:', {
+    // If Windows moved the window, try setPosition as a fallback
+    if (actualBounds.x !== x || actualBounds.y !== y) {
+      console.log('[RegionSelectorWindow] Position mismatch, trying setPosition:', {
+        requested: { x, y },
+        actual: { x: actualBounds.x, y: actualBounds.y },
+      });
+      
+      this.window.setPosition(x, y, false);
+      await new Promise(resolve => setTimeout(resolve, 30));
+      actualBounds = this.window.getBounds();
+    }
+    
+    console.log('[RegionSelectorWindow] Final position:', {
       requested: { x, y },
       actual: { x: actualBounds.x, y: actualBounds.y },
       offset: { 
@@ -236,7 +264,8 @@ async showForDisplay(displayId?: string): Promise<RegionSelectionResult> {
       }, // Actual window position
     });
 
-    this.window.show();
+    // Focus the window to ensure it receives input
+    this.window.focus();
   });
 }
   async getWindowBoundsForDisplay(displayId?: string): Promise<WindowBounds[]> {
