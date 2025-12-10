@@ -19,3 +19,13 @@ export interface ScreenSource {
   type: "screen" | "window";
   isMainWindow?: boolean;
 }
+
+export interface RegionBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  displayId?: string;
+  /** Scale factor of the display (for HiDPI/Retina displays) */
+  scaleFactor?: number;
+}

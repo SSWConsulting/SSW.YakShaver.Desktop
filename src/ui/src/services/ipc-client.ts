@@ -12,6 +12,7 @@ import type {
   HealthStatusInfo,
   LLMConfig,
   MCPStep,
+  RegionBounds,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
   ScreenSource,
@@ -77,6 +78,21 @@ declare global {
         minimizeMainWindow: () => Promise<{ success: boolean }>;
         restoreMainWindow: () => Promise<{ success: boolean }>;
         onStopRequest: (callback: () => void) => () => void;
+        showRegionSelector: (displayId?: string) => Promise<{
+          success: boolean;
+          region?: RegionBounds;
+          cancelled?: boolean;
+          error?: string;
+        }>;
+        confirmRegionSelection: (region: RegionBounds) => Promise<void>;
+        cancelRegionSelection: () => Promise<void>;
+        onRegionSelectorInit: (
+          callback: (data: {
+            displayId: string;
+            scaleFactor: number;
+            bounds: { x: number; y: number; width: number; height: number };
+          }) => void
+        ) => () => void;
       };
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;

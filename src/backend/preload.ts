@@ -37,6 +37,12 @@ const IPC_CHANNELS = {
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
 
+  // Region selection
+  SHOW_REGION_SELECTOR: "show-region-selector",
+  CONFIRM_REGION_SELECTION: "confirm-region-selection",
+  CANCEL_REGION_SELECTION: "cancel-region-selection",
+  REGION_SELECTOR_INIT: "region-selector-init",
+
   // LLM
   LLM_SET_CONFIG: "llm:set-config",
   LLM_GET_CONFIG: "llm:get-config",
@@ -169,6 +175,25 @@ const electronAPI = {
       return () =>
         ipcRenderer.removeListener("stop-recording-request", listener);
     },
+    showRegionSelector: (displayId?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SHOW_REGION_SELECTOR, displayId),
+    confirmRegionSelection: (region: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      displayId?: string;
+      scaleFactor?: number;
+    }) => ipcRenderer.invoke(IPC_CHANNELS.CONFIRM_REGION_SELECTION, region),
+    cancelRegionSelection: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.CANCEL_REGION_SELECTION),
+    onRegionSelectorInit: (
+      callback: (data: {
+        displayId: string;
+        scaleFactor: number;
+        bounds: { x: number; y: number; width: number; height: number };
+      }) => void
+    ) => onIpcEvent(IPC_CHANNELS.REGION_SELECTOR_INIT, callback),
   },
   controlBar: {
     onTimeUpdate: (callback: (time: string) => void) => {

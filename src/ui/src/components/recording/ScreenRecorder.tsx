@@ -10,7 +10,7 @@ import { formatErrorMessage } from "@/utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
-import { AuthStatus, UploadStatus } from "../../types";
+import { AuthStatus, type RegionBounds, UploadStatus } from "../../types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -69,11 +69,13 @@ export function ScreenRecorder() {
   const handleStartRecording = async (
     sourceId: string,
     devices?: { cameraId?: string; microphoneId?: string },
+    region?: RegionBounds,
   ) => {
     setPickerOpen(false);
     await start(sourceId, {
       micDeviceId: devices?.microphoneId,
       cameraDeviceId: devices?.cameraId,
+      region,
     });
   };
 

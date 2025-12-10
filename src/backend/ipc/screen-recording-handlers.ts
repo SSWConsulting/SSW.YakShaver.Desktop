@@ -3,12 +3,15 @@ import { getMainWindow } from "../index";
 import { CameraWindow } from "../services/recording/camera-window";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { RecordingService } from "../services/recording/recording-service";
+import { RegionSelectorWindow } from "../services/recording/region-selector-window";
+import type { RegionBounds } from "../services/recording/types";
 import { IPC_CHANNELS } from "./channels";
 
 export class ScreenRecordingIPCHandlers {
   private service = RecordingService.getInstance();
   private controlBar = RecordingControlBarWindow.getInstance();
   private cameraWindow = CameraWindow.getInstance();
+  private regionSelector = RegionSelectorWindow.getInstance();
 
   constructor() {
     const handlers = {
@@ -28,6 +31,12 @@ export class ScreenRecordingIPCHandlers {
         this.stopRecordingFromControlBar(),
       [IPC_CHANNELS.MINIMIZE_MAIN_WINDOW]: () => this.minimizeMainWindow(),
       [IPC_CHANNELS.RESTORE_MAIN_WINDOW]: () => this.restoreMainWindow(),
+      [IPC_CHANNELS.SHOW_REGION_SELECTOR]: (_: unknown, displayId?: string) =>
+        this.regionSelector.showForDisplay(displayId),
+      [IPC_CHANNELS.CONFIRM_REGION_SELECTION]: (_: unknown, region: RegionBounds) =>
+        this.regionSelector.confirmSelection(region),
+      [IPC_CHANNELS.CANCEL_REGION_SELECTION]: () =>
+        this.regionSelector.cancelSelection(),
     };
 
     for (const [channel, handler] of Object.entries(handlers)) {

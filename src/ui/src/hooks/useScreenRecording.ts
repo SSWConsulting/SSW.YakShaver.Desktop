@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { RegionBounds } from "../types";
 
 const VIDEO_MIME_TYPE = "video/mp4";
 const CANVAS_WIDTH = 1920;
@@ -16,6 +17,7 @@ interface CanvasProxyRefs {
   canvas: HTMLCanvasElement | null;
   ctx: CanvasRenderingContext2D | null;
   intervalId: ReturnType<typeof setInterval> | null;
+  region: RegionBounds | null;
 }
 
 interface ElectronVideoConstraints extends MediaTrackConstraints {
@@ -39,6 +41,7 @@ export function useScreenRecording() {
     canvas: null,
     ctx: null,
     intervalId: null,
+    region: null,
   });
 
   const cleanupCanvasProxy = useCallback(() => {
@@ -57,6 +60,7 @@ export function useScreenRecording() {
       proxy.canvas = null;
     }
     proxy.ctx = null;
+    proxy.region = null;
   }, []);
 
   const cleanup = useCallback(async () => {
@@ -82,101 +86,128 @@ export function useScreenRecording() {
     streamsRef.current = {};
   }, [cleanupCanvasProxy]);
 
-  const setupCanvasProxy = useCallback((videoStream: MediaStream): MediaStream => {
-    const video = document.createElement("video");
-    video.muted = true;
-    video.playsInline = true;
-    // Use visibility:hidden instead of positioning off-screen
-    // Off-screen elements may not render in some browsers/Electron
-    video.style.position = "fixed";
-    video.style.top = "0";
-    video.style.left = "0";
-    video.style.width = "1px";
-    video.style.height = "1px";
-    video.style.opacity = "0.01";
-    video.style.pointerEvents = "none";
-    video.style.zIndex = "-1";
-    document.body.appendChild(video);
 
-    const canvas = document.createElement("canvas");
-    canvas.width = CANVAS_WIDTH;
-    canvas.height = CANVAS_HEIGHT;
-    canvas.style.position = "fixed";
-    canvas.style.top = "0";
-    canvas.style.left = "0";
-    canvas.style.width = "1px";
-    canvas.style.height = "1px";
-    canvas.style.opacity = "0.01";
-    canvas.style.pointerEvents = "none";
-    canvas.style.zIndex = "-1";
-    document.body.appendChild(canvas);
+// Canvas proxy is used only for region cropping
+// Full screen recording uses the raw video stream for better performance
+  const setupCanvasProxy = useCallback(
+    (videoStream: MediaStream, region: RegionBounds): MediaStream => {
+      const video = document.createElement("video");
+      video.muted = true;
+      video.playsInline = true;
+      // Hidden video element to draw frames from
+      video.style.position = "fixed";
+      video.style.top = "0";
+      video.style.left = "0";
+      video.style.width = "1px";
+      video.style.height = "1px";
+      video.style.opacity = "0.01";
+      video.style.pointerEvents = "none";
+      video.style.zIndex = "-1";
+      document.body.appendChild(video);
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Failed to get canvas context");
+      const canvas = document.createElement("canvas");
+      canvas.width = CANVAS_WIDTH;
+      canvas.height = CANVAS_HEIGHT;
+      canvas.style.position = "fixed";
+      canvas.style.top = "0";
+      canvas.style.left = "0";
+      canvas.style.width = "1px";
+      canvas.style.height = "1px";
+      canvas.style.opacity = "0.01";
+      canvas.style.pointerEvents = "none";
+      canvas.style.zIndex = "-1";
+      document.body.appendChild(canvas);
 
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Failed to get canvas context");
 
-    canvasProxyRef.current = { video, canvas, ctx, intervalId: null };
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    const drawFrame = () => {
-      const proxy = canvasProxyRef.current;
-      if (!proxy.video || !proxy.ctx || !proxy.canvas) return;
+      canvasProxyRef.current = { video, canvas, ctx, intervalId: null, region };
 
-      // Skip if video doesn't have valid dimensions yet
-      if (proxy.video.videoWidth === 0 || proxy.video.videoHeight === 0) {
-        return;
-      }
+      const drawFrame = () => {
+        const proxy = canvasProxyRef.current;
+        if (!proxy.video || !proxy.ctx || !proxy.canvas) return;
 
-      const videoWidth = proxy.video.videoWidth;
-      const videoHeight = proxy.video.videoHeight;
+        // Skip if video doesn't have valid dimensions yet
+        if (proxy.video.videoWidth === 0 || proxy.video.videoHeight === 0) {
+          return;
+        }
 
-      const videoAspect = videoWidth / videoHeight;
-      const canvasAspect = CANVAS_WIDTH / CANVAS_HEIGHT;
+        proxy.ctx.fillStyle = "black";
+        proxy.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-      let drawWidth: number;
-      let drawHeight: number;
-      let offsetX: number;
-      let offsetY: number;
+        // Region recording: crop to the selected area
+        if (proxy.region) {
+          const scaleFactor = proxy.region.scaleFactor || 1;
 
-      if (videoAspect > canvasAspect) {
-        drawWidth = CANVAS_WIDTH;
-        drawHeight = CANVAS_WIDTH / videoAspect;
-        offsetX = 0;
-        offsetY = (CANVAS_HEIGHT - drawHeight) / 2;
-      } else {
-        drawHeight = CANVAS_HEIGHT;
-        drawWidth = CANVAS_HEIGHT * videoAspect;
-        offsetX = (CANVAS_WIDTH - drawWidth) / 2;
-        offsetY = 0;
-      }
+          // Convert region coordinates from screen space to video space
+          // The scaleFactor accounts for HiDPI displays (e.g., Retina displays have scaleFactor = 2)
+          const srcX = proxy.region.x * scaleFactor;
+          const srcY = proxy.region.y * scaleFactor;
+          const srcWidth = proxy.region.width * scaleFactor;
+          const srcHeight = proxy.region.height * scaleFactor;
 
-      proxy.ctx.fillStyle = "#000000";
-      proxy.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-      proxy.ctx.drawImage(proxy.video, offsetX, offsetY, drawWidth, drawHeight);
-    };
+          // Calculate destination dimensions maintaining aspect ratio
+          const regionAspect = proxy.region.width / proxy.region.height;
+          const canvasAspect = CANVAS_WIDTH / CANVAS_HEIGHT;
 
-    // Set srcObject first
-    video.srcObject = videoStream;
+          let drawWidth: number;
+          let drawHeight: number;
+          let offsetX: number;
+          let offsetY: number;
 
-    // Use setInterval instead of requestAnimationFrame
-    // requestAnimationFrame gets throttled when window is minimized/hidden
-    // setInterval continues running even when window is not visible
-    const frameInterval = Math.floor(1000 / CANVAS_FPS);
-    canvasProxyRef.current.intervalId = setInterval(drawFrame, frameInterval);
+          if (regionAspect > canvasAspect) {
+            drawWidth = CANVAS_WIDTH;
+            drawHeight = CANVAS_WIDTH / regionAspect;
+            offsetX = 0;
+            offsetY = (CANVAS_HEIGHT - drawHeight) / 2;
+          } else {
+            drawHeight = CANVAS_HEIGHT;
+            drawWidth = CANVAS_HEIGHT * regionAspect;
+            offsetX = (CANVAS_WIDTH - drawWidth) / 2;
+            offsetY = 0;
+          }
 
-    // Ensure video plays
-    video.play().catch((err) => {
-      console.error("Failed to play video:", err);
-    });
+          // Draw the cropped region to the canvas
+          proxy.ctx.drawImage(
+            proxy.video,
+            srcX,
+            srcY,
+            srcWidth,
+            srcHeight,
+            offsetX,
+            offsetY,
+            drawWidth,
+            drawHeight
+          );
+        }
+      };
 
-    return canvas.captureStream(CANVAS_FPS);
-  }, []);
+      // Set srcObject first
+      video.srcObject = videoStream;
+
+      // Use setInterval instead of requestAnimationFrame
+      // requestAnimationFrame gets throttled when window is minimized/hidden
+      // setInterval continues running even when window is not visible
+      const frameInterval = Math.floor(1000 / CANVAS_FPS);
+      canvasProxyRef.current.intervalId = setInterval(drawFrame, frameInterval);
+
+      // Ensure video plays
+      video.play().catch((err) => {
+        console.error("Failed to play video:", err);
+      });
+
+      return canvas.captureStream(CANVAS_FPS);
+    },
+    []
+  );
 
   const start = useCallback(
     async (
       sourceId?: string,
-      options?: { micDeviceId?: string; cameraDeviceId?: string }
+      options?: { micDeviceId?: string; cameraDeviceId?: string; region?: RegionBounds }
     ) => {
       setIsProcessing(true);
       try {
@@ -218,12 +249,14 @@ export function useScreenRecording() {
 
         streamsRef.current = { video: videoStream, audio: audioStream };
 
-        // Use Canvas Proxy to handle window resize/move during recording
-        const canvasStream = setupCanvasProxy(videoStream);
+        // Use Canvas Proxy only for region cropping (not needed for full screen)
+        const finalVideoStream = options?.region
+          ? setupCanvasProxy(videoStream, options.region)
+          : videoStream;
 
         const recorder = new MediaRecorder(
           new MediaStream([
-            ...canvasStream.getVideoTracks(),
+            ...finalVideoStream.getVideoTracks(),
             ...audioStream.getAudioTracks(),
           ]),
           { mimeType: VIDEO_MIME_TYPE }
