@@ -6,6 +6,7 @@ const VIDEO_MIME_TYPE = "video/mp4";
 interface RecordingStreams {
   video?: MediaStream;
   audio?: MediaStream;
+  croppedVideo?: MediaStream;
 }
 interface ElectronVideoConstraints extends MediaTrackConstraints {
   mandatory?: {
@@ -23,6 +24,13 @@ export function useScreenRecording() {
   const streamsRef = useRef<RecordingStreams>({});
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const cropRafRef = useRef<number | null>(null);
+  const regionRef = useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const cleanup = useCallback(async () => {
     mediaRecorderRef.current?.stream
@@ -30,6 +38,16 @@ export function useScreenRecording() {
       .forEach((track) => track.stop());
     streamsRef.current.video?.getTracks().forEach((track) => track.stop());
     streamsRef.current.audio?.getTracks().forEach((track) => track.stop());
+    streamsRef.current.croppedVideo
+      ?.getTracks()
+      .forEach((track) => track.stop());
+
+    if (cropRafRef.current !== null) {
+      cancelAnimationFrame(cropRafRef.current);
+      cropRafRef.current = null;
+    }
+
+    regionRef.current = null;
 
     if (audioSourceRef.current) {
       audioSourceRef.current.disconnect();
@@ -64,6 +82,13 @@ export function useScreenRecording() {
             setIsProcessing(false);
             return;
           }
+
+          regionRef.current = selection as {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+          };
 
           if ((selection as { displayId?: string }).displayId) {
             const sources =
@@ -104,6 +129,18 @@ export function useScreenRecording() {
           }),
         ]);
 
+        let effectiveVideoStream = videoStream;
+
+        if (regionRef.current) {
+          const cropped = await createCroppedStream(
+            videoStream,
+            regionRef.current,
+            cropRafRef
+          );
+          effectiveVideoStream = cropped;
+          streamsRef.current.croppedVideo = cropped;
+        }
+
         const audioContext = new AudioContext();
         const audioSource = audioContext.createMediaStreamSource(audioStream);
         const gainNode = audioContext.createGain();
@@ -115,11 +152,17 @@ export function useScreenRecording() {
         audioContextRef.current = audioContext;
         audioSourceRef.current = audioSource;
 
-        streamsRef.current = { video: videoStream, audio: audioStream };
+        streamsRef.current = {
+          video: videoStream,
+          audio: audioStream,
+          croppedVideo: streamsRef.current.croppedVideo,
+        };
 
         const recorder = new MediaRecorder(
           new MediaStream([
-            ...videoStream.getVideoTracks(),
+            ...(effectiveVideoStream.getVideoTracks().length
+              ? effectiveVideoStream.getVideoTracks()
+              : videoStream.getVideoTracks()),
             ...audioStream.getAudioTracks(),
           ]),
           { mimeType: VIDEO_MIME_TYPE }
@@ -212,4 +255,53 @@ export function useScreenRecording() {
     start,
     stop,
   };
+}
+
+async function createCroppedStream(
+  source: MediaStream,
+  region: { x: number; y: number; width: number; height: number },
+  cropRafRef: { current: number | null }
+): Promise<MediaStream> {
+  const videoTrack = source.getVideoTracks()[0];
+  if (!videoTrack) return source;
+
+  const video = document.createElement("video");
+  video.muted = true;
+  video.srcObject = new MediaStream([videoTrack]);
+  await video.play().catch(() => {});
+
+  const canvas = document.createElement("canvas");
+  canvas.width = region.width;
+  canvas.height = region.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return source;
+
+  const render = () => {
+    ctx.clearRect(0, 0, region.width, region.height);
+    ctx.drawImage(
+      video,
+      region.x,
+      region.y,
+      region.width,
+      region.height,
+      0,
+      0,
+      region.width,
+      region.height
+    );
+    if (typeof video.requestVideoFrameCallback === "function") {
+      video.requestVideoFrameCallback(() => render());
+    } else {
+      cropRafRef.current = requestAnimationFrame(render);
+    }
+  };
+
+  if (typeof video.requestVideoFrameCallback === "function") {
+    video.requestVideoFrameCallback(() => render());
+  } else {
+    cropRafRef.current = requestAnimationFrame(render);
+  }
+
+  const croppedStream = canvas.captureStream(30);
+  return croppedStream;
 }
