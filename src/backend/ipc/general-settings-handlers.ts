@@ -1,4 +1,4 @@
-import { ipcMain, type IpcMainInvokeEvent } from "electron";
+import { type IpcMainInvokeEvent, ipcMain } from "electron";
 import {
   GeneralSettingsStorage,
   type ToolApprovalMode,
@@ -22,6 +22,14 @@ export class GeneralSettingsIPCHandlers {
       IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE,
       async (_event: IpcMainInvokeEvent, mode: ToolApprovalMode) => {
         await this.storage.setToolApprovalModeAsync(mode);
+        return { success: true };
+      },
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.GENERAL_SETTINGS_SET_ONBOARDING,
+      async (_event: IpcMainInvokeEvent, completed: boolean) => {
+        await this.storage.setOnboardingCompletedAsync(completed);
         return { success: true };
       },
     );

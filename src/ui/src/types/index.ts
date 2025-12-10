@@ -192,6 +192,7 @@ export type ToolApprovalMode = "yolo" | "wait" | "ask";
 
 export interface GeneralSettings {
   toolApprovalMode: ToolApprovalMode;
+  onboardingCompleted: boolean;
 }
 
 export enum MCPStepType {

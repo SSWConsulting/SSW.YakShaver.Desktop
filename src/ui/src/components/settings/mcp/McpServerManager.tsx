@@ -28,9 +28,10 @@ type ServerHealthStatus<T extends string = string> = Record<T, HealthStatusInfo>
 
 interface McpSettingsPanelProps {
   isActive: boolean;
+  onServersChange?: (count: number) => void;
 }
 
-export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
+export function McpSettingsPanel({ isActive, onServersChange }: McpSettingsPanelProps) {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -103,6 +104,10 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
       void loadServers();
     }
   }, [isActive, loadServers]);
+
+  useEffect(() => {
+    onServersChange?.(servers.length);
+  }, [onServersChange, servers.length]);
 
   const showAddForm = useCallback(() => {
     setViewMode("add");
@@ -241,26 +246,32 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 </div>
 
                                 <div className="flex-1">
-                                <h3 className="text-lg font-semibold text-white">{server.name}</h3>
-                                {server.builtin ? (
-                                  <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
-                                ) : (
-                                  <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
-                                    {transportLabel}
+                                  <h3 className="text-lg font-semibold text-white">
+                                    {server.name}
+                                  </h3>
+                                  {server.builtin ? (
+                                    <p className="mt-2 text-sm text-white/50">
+                                      Built-in MCP Server
+                                    </p>
+                                  ) : (
+                                    <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
+                                      {transportLabel}
+                                    </p>
+                                  )}
+                                  {server.description && (
+                                    <p className="mt-1 text-sm text-white/70">
+                                      {server.description}
+                                    </p>
+                                  )}
+                                  <p className="mt-2 break-all font-mono text-sm text-white/50">
+                                    {server.builtin ? "" : connectionSummary || "—"}
                                   </p>
-                                )}
-                                {server.description && (
-                                  <p className="mt-1 text-sm text-white/70">{server.description}</p>
-                                )}
-                                <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                  {server.builtin ? "" : connectionSummary || "—"}
-                                </p>
-                                {cwdSummary && (
-                                  <p className="mt-1 text-xs text-white/40">
-                                    cwd: <span className="font-mono">{cwdSummary}</span>
-                                  </p>
-                                )}
-                              </div>
+                                  {cwdSummary && (
+                                    <p className="mt-1 text-xs text-white/40">
+                                      cwd: <span className="font-mono">{cwdSummary}</span>
+                                    </p>
+                                  )}
+                                </div>
                               </div>
 
                               <div className="flex gap-2 flex-shrink-0">

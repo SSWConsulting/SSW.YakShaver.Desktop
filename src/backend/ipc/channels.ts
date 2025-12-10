@@ -80,4 +80,5 @@ export const IPC_CHANNELS = {
   // General Settings
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+  GENERAL_SETTINGS_SET_ONBOARDING: "general-settings:set-onboarding",
 } as const;

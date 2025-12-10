@@ -5,10 +5,12 @@ export type ToolApprovalMode = "yolo" | "wait" | "ask";
 
 export interface GeneralSettings {
   toolApprovalMode: ToolApprovalMode;
+  onboardingCompleted: boolean;
 }
 
 const DEFAULT_SETTINGS: GeneralSettings = {
   toolApprovalMode: "ask",
+  onboardingCompleted: false,
 };
 
 const GENERAL_SETTINGS_FILE = "general-settings.enc";
@@ -53,5 +55,10 @@ export class GeneralSettingsStorage extends BaseSecureStorage {
   public async setToolApprovalModeAsync(mode: ToolApprovalMode): Promise<void> {
     const current = await this.getSettingsAsync();
     await this.setSettingsAsync({ ...current, toolApprovalMode: mode });
+  }
+
+  public async setOnboardingCompletedAsync(completed: boolean): Promise<void> {
+    const current = await this.getSettingsAsync();
+    await this.setSettingsAsync({ ...current, onboardingCompleted: completed });
   }
 }
