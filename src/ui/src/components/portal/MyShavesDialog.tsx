@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { CodeBlock } from "@/components/ui/code-block";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ipcClient } from "@/services/ipc-client";
 import type { GetMyShavesResponse } from "@/types";
 
@@ -33,7 +33,6 @@ export function MyShavesDialog({ open, onOpenChange }: MyShavesDialogProps) {
     }
   }, []);
 
-  // Auto-load data when dialog opens
   useEffect(() => {
     if (open && !data && !loading) {
       fetchMyShaves();
@@ -59,24 +58,16 @@ export function MyShavesDialog({ open, onOpenChange }: MyShavesDialogProps) {
             </div>
           )}
 
-          {data && (
-            <ScrollArea className="h-[60vh] rounded-md border">
-              <div className="p-4">
-                <pre className="text-sm text-white whitespace-pre-wrap break-all">
-                  {JSON.stringify(data, null, 2)}
-                </pre>
-              </div>
-            </ScrollArea>
-          )}
+          {data && <CodeBlock content={JSON.stringify(data, null, 2)} className="h-[60vh]" />}
 
           {!data && !error && !loading && (
-            <div className="text-center text-white/60 py-8">
+            <div className="text-center text-muted-foreground py-8">
               <p>Click "Refresh" to load your shaves</p>
             </div>
           )}
 
           {loading && (
-            <div className="text-center text-white/60 py-8">
+            <div className="text-center text-muted-foreground py-8">
               <p>Loading your shaves...</p>
             </div>
           )}
