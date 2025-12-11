@@ -1,5 +1,5 @@
 import type { AccountInfo, AuthenticationResult, PublicClientApplication } from "@azure/msal-node";
-import { describe, expect, it, type Mock, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { MicrosoftAuthService } from "./microsoft-auth";
 import { type AuthState, AuthStatus } from "./types";
 
