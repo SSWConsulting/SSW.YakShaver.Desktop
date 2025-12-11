@@ -59,7 +59,7 @@ export default function App() {
 
           <div className="flex flex-col gap-8">
             <div className="absolute top-6 right-8 z-50 flex items-center gap-4">
-              {showOnboarding && (
+              {showOnboarding && !isCheckingOnboarding && (
                 <OnboardingWizard
                   open={showOnboarding}
                   onComplete={handleFinishOnboarding}
