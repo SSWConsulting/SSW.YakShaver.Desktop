@@ -174,12 +174,30 @@ jobs:
         run: |
           mkdir -p node_modules/youtube-dl-exec/bin
 
-          # Download the binary using the GitHub CLI (Authenticated)
-          # We rename it to 'yt-dlp' so the package finds it
-          gh release download --repo yt-dlp/yt-dlp --pattern 'yt-dlp_macos' --output node_modules/youtube-dl-exec/bin/yt-dlp
+          PATTERN="yt-dlp_macos"
+          OUTPUT_FILE="node_modules/youtube-dl-exec/bin/yt-dlp"
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+
+          until gh release download \
+            --repo yt-dlp/yt-dlp \
+            --pattern "$PATTERN" \
+            --clobber \
+            --output "$OUTPUT_FILE"; do
+
+            echo "Attempt $ATTEMPT to download yt-dlp binary failed." >&2
+
+            if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+              echo "Failed to download yt-dlp binary after $MAX_ATTEMPTS attempts." >&2
+              exit 1
+            fi
+
+            ATTEMPT=$((ATTEMPT+1))
+            sleep 5
+          done
           
           # Make the binary executable
-          chmod +x node_modules/youtube-dl-exec/bin/yt-dlp
+          chmod +x "$OUTPUT_FILE"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
