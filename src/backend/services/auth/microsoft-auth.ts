@@ -3,7 +3,6 @@
 import { join } from "node:path";
 import { InteractionRequiredAuthError, LogLevel, PublicClientApplication } from "@azure/msal-node";
 import { app, shell } from "electron";
-import { config } from "../../config/env";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { MsalSecureCachePlugin } from "./msal-cache-plugin";
 import type { AuthState } from "./types";
@@ -17,43 +16,46 @@ import type {
   SilentFlowRequest,
 } from "@azure/msal-node";
 
+export interface AzureConfig {
+  clientId: string;
+  tenantId: string;
+  scopes: string[];
+  customProtocol?: string | null;
+}
+
 export class MicrosoftAuthService {
-  private static instance: MicrosoftAuthService;
   private account: AccountInfo | null = null;
   private pca: PublicClientApplication;
+  private config: AzureConfig;
 
-  private constructor() {
-    const azure = config.azure();
-    if (!azure) throw new Error("Azure configuration missing");
-    const cachePlugin = new MsalSecureCachePlugin();
+  constructor(azureConfig: AzureConfig, pca?: PublicClientApplication) {
+    this.config = azureConfig;
+    if (pca) {
+      this.pca = pca;
+    } else {
+      const cachePlugin = new MsalSecureCachePlugin();
 
-    this.pca = new PublicClientApplication({
-      auth: {
-        clientId: azure.clientId,
-        authority: `https://login.microsoftonline.com/${azure.tenantId}`,
-      },
-      cache: { cachePlugin },
-      system: {
-        loggerOptions: {
-          loggerCallback(_loglevel, message, _containsPii) {
-            console.log(message);
-          },
-          piiLoggingEnabled: false,
-          logLevel: LogLevel.Info,
+      this.pca = new PublicClientApplication({
+        auth: {
+          clientId: azureConfig.clientId,
+          authority: `https://login.microsoftonline.com/${azureConfig.tenantId}`,
         },
-      },
-    });
-  }
-
-  static getInstance(): MicrosoftAuthService {
-    if (!MicrosoftAuthService.instance) {
-      MicrosoftAuthService.instance = new MicrosoftAuthService();
+        cache: { cachePlugin },
+        system: {
+          loggerOptions: {
+            loggerCallback(_loglevel, message, _containsPii) {
+              console.log(message);
+            },
+            piiLoggingEnabled: false,
+            logLevel: LogLevel.Info,
+          },
+        },
+      });
     }
-    return MicrosoftAuthService.instance;
   }
 
   private getScopes(): string[] {
-    return config.azure()?.scopes ?? [];
+    return this.config.scopes ?? [];
   }
 
   async isAuthenticated(): Promise<boolean> {
@@ -93,11 +95,7 @@ export class MicrosoftAuthService {
 
   async login(): Promise<AccountInfo | null> {
     try {
-      const tokenRequest: SilentFlowRequest = {
-        scopes: this.getScopes(),
-        account: null as unknown as AccountInfo,
-      };
-      const authResult = await this.getToken(tokenRequest);
+      const authResult = await this.getToken();
       return this.handleResponse(authResult);
     } catch (error) {
       console.error("Login failed:", error);
@@ -131,15 +129,20 @@ export class MicrosoftAuthService {
     return this.account;
   }
 
-  async getToken(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
+  async getToken(): Promise<AuthenticationResult> {
     try {
+      const request: SilentFlowRequest = {
+        scopes: this.getScopes(),
+        account: null as unknown as AccountInfo,
+      };
+
       let authResponse: AuthenticationResult;
       const account = this.account || (await this.getAccount());
       if (account) {
-        tokenRequest.account = account;
-        authResponse = await this.getTokenSilent(tokenRequest);
+        request.account = account;
+        authResponse = await this.getTokenSilent(request);
       } else {
-        authResponse = await this.getTokenInteractive(tokenRequest);
+        authResponse = await this.getTokenInteractive(request);
       }
       this.account = authResponse.account;
       return authResponse;
@@ -160,8 +163,6 @@ export class MicrosoftAuthService {
 
   async getTokenInteractive(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
     try {
-      const azure = config.azure();
-
       // Determine the correct path for template files based on environment
       let uiDir: string;
       if (app.isPackaged) {
@@ -185,11 +186,8 @@ export class MicrosoftAuthService {
         throw new Error(`Error template not found: ${errorPath}`);
       }
 
-      const successHtmlRaw = fs.readFileSync(successPath, "utf8");
-      const errorHtmlRaw = fs.readFileSync(errorPath, "utf8");
-      const protocol = azure?.customProtocol || "yakshaver-desktop";
-      const successHtml = successHtmlRaw.replace(/YOUR_APP_PROTOCOL/g, protocol);
-      const errorHtml = errorHtmlRaw;
+      const successHtml = fs.readFileSync(successPath, "utf8");
+      const errorHtml = fs.readFileSync(errorPath, "utf8");
       const openBrowser = async (url: string) => await shell.openExternal(url);
       const interactiveRequest: InteractiveRequest = {
         ...tokenRequest,

@@ -5,7 +5,10 @@ import { BaseSecureStorage } from "../storage/base-secure-storage";
 const CACHE_FILE = "msal-cache.enc";
 
 class SecureCacheStorage extends BaseSecureStorage {
-  constructor() { super(); }
+  // biome-ignore lint/complexity/noUselessConstructor: Visibility change from protected to public
+  constructor() {
+    super();
+  }
   private getCachePath(): string {
     return join(this.storageDir, CACHE_FILE);
   }
