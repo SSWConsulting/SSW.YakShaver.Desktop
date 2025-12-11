@@ -230,7 +230,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
       # Manual download for macOS is needed because the 'youtube-dl-exec' script for Unix hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find 
