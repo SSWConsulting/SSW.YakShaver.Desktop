@@ -20,6 +20,12 @@ const IPC_CHANNELS = {
   CONFIG_HAS_YOUTUBE: "config:has-youtube",
   CONFIG_GET_YOUTUBE: "config:get-youtube",
 
+  // Microsoft auth
+  MS_AUTH_LOGIN: "msauth:login",
+  MS_AUTH_LOGOUT: "msauth:logout",
+  MS_AUTH_STATUS: "msauth:status",
+  MS_AUTH_ACCOUNT_INFO: "msgraph:get-me",
+
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
   STOP_SCREEN_RECORDING: "stop-screen-recording",
@@ -90,6 +96,9 @@ const IPC_CHANNELS = {
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
   GENERAL_SETTINGS_SET_ONBOARDING: "general-settings:set-onboarding",
+
+  // Portal API
+  PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -119,6 +128,14 @@ const electronAPI = {
   config: {
     hasYouTube: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIG_HAS_YOUTUBE),
     getYouTube: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIG_GET_YOUTUBE),
+  },
+  auth: {
+    microsoft: {
+      login: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGIN),
+      logout: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGOUT),
+      status: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_STATUS),
+      accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO),
+    },
   },
   screenRecording: {
     start: (sourceId?: string) => ipcRenderer.invoke(IPC_CHANNELS.START_SCREEN_RECORDING, sourceId),
@@ -243,6 +260,9 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE, mode),
     setOnboardingCompleted: (completed: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_ONBOARDING, completed),
+  },
+  portal: {
+    getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
   },
   // Camera window
   onSetCameraDevice: (callback: (deviceId: string) => void) => {

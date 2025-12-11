@@ -13,6 +13,7 @@ import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPan
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
 import { ipcClient } from "./services/ipc-client";
+import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -50,23 +51,21 @@ export default function App() {
 
   return (
     <AdvancedSettingsProvider>
-      <YouTubeAuthProvider>
-        <div className="relative min-h-screen py-8 text-white">
-          <Toaster />
-          <DownloadProgressToast />
-          <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
+      <div className="relative min-h-screen py-8 text-white">
+        <Toaster />
+        <DownloadProgressToast />
+        <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
 
-          {!isCheckingOnboarding && (
-            <OnboardingWizard
-              open={showOnboarding}
-              onComplete={handleFinishOnboarding}
-              onSkip={handleFinishOnboarding}
-            />
-          )}
-
-          <div className="flex flex-col gap-8">
-            <div className="absolute top-6 right-8 z-50">
-              <SettingsDialog />
+        <div className="flex flex-col gap-8">
+          <div className="absolute top-6 right-8 z-50 flex items-center gap-4">
+            <SettingsDialog />
+            <MicrosoftAuthManager />
+          </div>
+          <header className="z-10 relative">
+            <div className="container mx-auto flex flex-col items-center gap-8">
+              <h1>
+                <img src={logoImage} alt="YakShaver" />
+              </h1>
             </div>
             <div className="absolute top-6 left-8 z-50">
               <Button

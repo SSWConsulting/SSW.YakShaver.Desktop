@@ -9,6 +9,7 @@ import type {
   ConvertVideoToMp3Result,
   CustomPrompt,
   GeneralSettings,
+  GetMyShavesResponse,
   HealthStatusInfo,
   LLMConfig,
   MCPStep,
@@ -55,6 +56,14 @@ declare global {
       config: {
         hasYouTube: () => Promise<boolean>;
         getYouTube: () => Promise<YouTubeConfig | null>;
+      };
+      auth: {
+        microsoft: {
+          login: () => Promise<AuthResult>;
+          logout: () => Promise<boolean>;
+          status: () => Promise<AuthState>;
+          accountInfo: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
+        };
       };
       video: {
         selectVideoFile: () => Promise<string | null>;
@@ -156,6 +165,13 @@ declare global {
         get: () => Promise<GeneralSettings>;
         setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
         setOnboardingCompleted: (completed: boolean) => Promise<{ success: boolean }>;
+      };
+      portal: {
+        getMyShaves: () => Promise<{
+          success: boolean;
+          data?: GetMyShavesResponse;
+          error?: string;
+        }>;
       };
     };
   }
