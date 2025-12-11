@@ -1,4 +1,4 @@
-import { Bot, CheckCircle2, Circle, ServerCog, Youtube } from "lucide-react";
+import { Bot, CheckCircle2, Circle, ClipboardList, ServerCog, Youtube } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { ConnectedStatus } from "@/components/auth/ConnectedStatus";
 import { NotConnectedStatus } from "@/components/auth/NotConnectedStatus";
@@ -14,7 +14,7 @@ import { Card, CardContent } from "../ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
 
-type StepId = "youtube" | "llm" | "mcp";
+type StepId = "youtube" | "llm" | "mcp" | "issue";
 
 interface OnboardingWizardProps {
   open: boolean;
@@ -38,7 +38,7 @@ export function OnboardingWizard({ open, onComplete, onSkip }: OnboardingWizardP
   const [mcpConfigured, setMcpConfigured] = useState(false);
 
   const youtubeConnected = authState.status === AuthStatus.AUTHENTICATED && !!authState.userInfo;
-  const stepOrder: StepId[] = ["youtube", "llm", "mcp"];
+  const stepOrder: StepId[] = ["youtube", "llm", "mcp", "issue"];
 
   const refreshLlmStatus = useCallback(async () => {
     try {
@@ -74,13 +74,13 @@ export function OnboardingWizard({ open, onComplete, onSkip }: OnboardingWizardP
     }
   }, [currentStep, open, refreshLlmStatus, refreshMcpStatus]);
 
-  const steps: StepConfig[] = useMemo(
-    () => [
+  const steps: StepConfig[] = useMemo(() => {
+    const baseSteps: StepConfig[] = [
       {
         id: "youtube",
         title: "Connect to YouTube",
         description: "Sign in and authorize YakShaver to publish videos for you.",
-        status: youtubeConnected ? "complete" : currentStep === "youtube" ? "active" : "pending",
+        status: youtubeConnected ? "complete" : "pending",
         icon: <Youtube className="h-4 w-4" />,
         content: <YouTubeStep hasConfig={hasConfig} />,
       },
@@ -88,7 +88,7 @@ export function OnboardingWizard({ open, onComplete, onSkip }: OnboardingWizardP
         id: "llm",
         title: "LLM configuration",
         description: "Choose your provider and save the API credentials.",
-        status: llmConfigured ? "complete" : currentStep === "llm" ? "active" : "pending",
+        status: llmConfigured ? "complete" : "pending",
         icon: <Bot className="h-4 w-4" />,
         content: (
           <div className="space-y-3">
@@ -108,7 +108,7 @@ export function OnboardingWizard({ open, onComplete, onSkip }: OnboardingWizardP
         id: "mcp",
         title: "MCP server",
         description: "Configure or choose which MCP server YakShaver will call.",
-        status: mcpConfigured ? "complete" : currentStep === "mcp" ? "active" : "pending",
+        status: mcpConfigured ? "complete" : "pending",
         icon: <ServerCog className="h-4 w-4" />,
         content: (
           <div className="space-y-3">
@@ -124,9 +124,47 @@ export function OnboardingWizard({ open, onComplete, onSkip }: OnboardingWizardP
           </div>
         ),
       },
-    ],
-    [currentStep, hasConfig, llmConfigured, mcpConfigured, open, youtubeConnected],
-  );
+      {
+        id: "issue",
+        title: "Create issue",
+        description: "Finish setup and jump into your first request.",
+        status: "pending",
+        icon: <ClipboardList className="h-4 w-4" />,
+        content: (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              You’re ready to go. You can now create an issue or return to the main experience to
+              start a workflow. Visit Settings anytime to adjust YouTube, LLM, or MCP preferences.
+            </p>
+            <Button asChild variant="secondary" size="sm">
+              <a href="https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/new" target="_blank" rel="noreferrer">
+                Open issue form
+              </a>
+            </Button>
+          </div>
+        ),
+      },
+    ];
+
+    return baseSteps.map((step) => {
+      const stepIdx = stepOrder.indexOf(step.id);
+      const currentIdx = stepOrder.indexOf(currentStep);
+      const isActive = currentStep === step.id;
+      const isComplete =
+        step.id === "youtube"
+          ? youtubeConnected
+          : step.id === "llm"
+            ? llmConfigured
+            : step.id === "mcp"
+              ? mcpConfigured
+              : currentIdx > stepIdx;
+
+      return {
+        ...step,
+        status: isActive ? "active" : isComplete ? "complete" : "pending",
+      };
+    });
+  }, [currentStep, hasConfig, llmConfigured, mcpConfigured, open, stepOrder, youtubeConnected]);
 
   const activeStep = steps.find((step) => step.id === currentStep) ?? steps[0];
   const currentIndex = stepOrder.indexOf(currentStep);
@@ -141,7 +179,7 @@ export function OnboardingWizard({ open, onComplete, onSkip }: OnboardingWizardP
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onSkip()}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="max-w-6xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <span>Welcome to YakShaver</span>
@@ -151,101 +189,94 @@ export function OnboardingWizard({ open, onComplete, onSkip }: OnboardingWizardP
           </p>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-black/20 p-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="font-medium text-white">Setup progress</span>
-              <Badge variant="secondary">{`Step ${currentIndex + 1} of ${steps.length}`}</Badge>
-            </div>
-            <div className="flex gap-2">
-              {steps.map((step, idx) => {
-                const isComplete = step.status === "complete";
-                const isActive = step.id === currentStep;
-                return (
-                  <div
-                    key={step.id}
-                    className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
-                      isActive
-                        ? "border-white/60 bg-white/10"
-                        : "border-white/10 bg-white/5 text-white/70"
-                    }`}
-                  >
-                    {isComplete ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-400" />
-                    ) : (
-                      <Circle className="h-4 w-4 text-white/50" />
-                    )}
-                    <span className="hidden sm:inline">{`Step ${idx + 1}`}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4 md:flex-row">
-            <div className="flex w-full flex-col gap-3 md:w-64">
-              {steps.map((step) => {
-                const isActive = step.id === currentStep;
-                const isComplete = step.status === "complete";
-                return (
-                  <Card
-                    key={step.id}
-                    className={`border transition-colors ${
-                      isActive
-                        ? "border-white/60 bg-white/10"
-                        : "border-white/10 bg-white/5 hover:border-white/30"
-                    }`}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-full ${
-                            isComplete ? "bg-green-500/20 text-green-300" : "bg-white/10 text-white"
-                          }`}
-                        >
-                          {step.icon}
+        <div className="flex min-h-[520px] flex-col gap-4 md:flex-row">
+          <div className="flex w-full flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-4 md:w-1/3">
+            {steps.map((step, idx) => {
+              const isActive = step.id === currentStep;
+              const isComplete = step.status === "complete";
+              return (
+                <Card
+                  key={step.id}
+                  className={`border transition-colors ${
+                    isActive
+                      ? "border-white/60 bg-white/10"
+                      : "border-white/10 bg-white/5 hover:border-white/30"
+                  }`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-full ${
+                          isComplete ? "bg-green-500/20 text-green-300" : "bg-white/10 text-white"
+                        }`}
+                      >
+                        {step.icon}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-white">{step.title}</p>
+                          {isComplete && <Badge variant="success">Done</Badge>}
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-white">{step.title}</p>
-                            {isComplete && <Badge variant="success">Done</Badge>}
-                          </div>
-                          <p className="text-xs text-white/60">{step.description}</p>
+                        <p className="text-xs text-white/60">{step.description}</p>
+                        <div className="mt-2 flex items-center gap-1 text-[11px] text-white/50">
+                          {isComplete ? (
+                            <CheckCircle2 className="h-3 w-3 text-green-400" />
+                          ) : (
+                            <Circle className="h-3 w-3 text-white/40" />
+                          )}
+                          <span>{`Step ${idx + 1} of ${steps.length}`}</span>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          <div className="flex-1 rounded-lg border border-white/10 bg-[rgba(204,65,65,0.06)] p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <Badge variant="secondary" className="uppercase tracking-wide">
+                {`Step ${currentIndex + 1} of ${steps.length}`}
+              </Badge>
+              <div className="flex items-center gap-2 text-xs text-white/60">
+                {steps.map((step) => {
+                  const isComplete = step.status === "complete";
+                  const isActive = step.id === currentStep;
+                  return (
+                    <div
+                      key={step.id}
+                      className={`h-2 w-2 rounded-full ${
+                        isActive ? "bg-white" : isComplete ? "bg-green-400" : "bg-white/30"
+                      }`}
+                    />
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="flex-1">
-              <div className="rounded-lg border border-white/10 bg-white/5">
-                <div className="border-b border-white/5 px-5 py-4">
-                  <p className="text-base font-semibold text-white">{activeStep.title}</p>
-                  <p className="text-sm text-white/60">{activeStep.description}</p>
-                </div>
-                <ScrollArea className="max-h-[60vh]">
-                  <div className="p-5">{activeStep.content}</div>
-                </ScrollArea>
-              </div>
+            <div className="mb-4 space-y-2">
+              <h2 className="text-2xl font-semibold text-white">{activeStep.title}</h2>
+              <p className="text-sm text-white/70">{activeStep.description}</p>
+            </div>
 
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Button variant="ghost" onClick={onSkip}>
-                  Skip for now
+            <div className="rounded-lg border border-white/10 bg-white/5">
+              <ScrollArea className="max-h-[420px]">
+                <div className="p-5">{activeStep.content}</div>
+              </ScrollArea>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button variant="ghost" onClick={onSkip}>
+                Skip for now
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" disabled={currentIndex === 0} onClick={() => goToStep("prev")}>
+                  Back
                 </Button>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    disabled={currentIndex === 0}
-                    onClick={() => goToStep("prev")}
-                  >
-                    Back
-                  </Button>
-                  <Button onClick={() => (isLastStep ? onComplete() : goToStep("next"))}>
-                    {isLastStep ? "Finish" : "Next"}
-                  </Button>
-                </div>
+                <Button onClick={() => (isLastStep ? onComplete() : goToStep("next"))}>
+                  {isLastStep ? "Finish" : "Save and continue"}
+                </Button>
               </div>
             </div>
           </div>
