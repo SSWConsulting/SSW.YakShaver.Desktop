@@ -97,3 +97,5 @@ build/
 
 # MCP Config
 mcp-servers.json
+
+.trae/

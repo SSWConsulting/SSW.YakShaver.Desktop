@@ -1,31 +1,33 @@
-import { dialog } from "electron";
+import type { MakeDirectoryOptions, Mode, PathLike } from "node:fs";
+import fs from "node:fs/promises";
 
-export class FileService {
-  private static instance: FileService;
+export interface IFileService {
+  access(path: PathLike): Promise<void>;
+  mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | undefined): Promise<void>;
+  readFile(path: PathLike): Promise<Buffer>;
+  writeFile(path: PathLike, data: Buffer | string): Promise<void>;
+  unlink(path: PathLike): Promise<void>;
+}
 
-  static getInstance() {
-    FileService.instance ??= new FileService();
-    return FileService.instance;
+export class FileService implements IFileService {
+  access(path: PathLike) {
+    return fs.access(path);
   }
 
-  async selectFile(): Promise<string | null> {
-    const result = await dialog.showOpenDialog({
-      properties: ["openFile"],
-      filters: [
-        {
-          name: "Video Files",
-          extensions: ["mp4", "avi", "mov", "mkv", "webm", "flv", "m4v"],
-        },
-        { name: "All Files", extensions: ["*"] },
-      ],
-    });
-    return result.canceled ? null : result.filePaths[0];
+  async mkdir(path: PathLike, options?: Mode | MakeDirectoryOptions | undefined): Promise<void> {
+    await fs.mkdir(path, options);
+    return;
   }
 
-  async selectDirectory(): Promise<string | null> {
-    const result = await dialog.showOpenDialog({
-      properties: ["openDirectory"],
-    });
-    return result.canceled ? null : result.filePaths[0];
+  readFile(path: PathLike): Promise<Buffer> {
+    return fs.readFile(path);
+  }
+
+  writeFile(path: PathLike, data: Buffer | string): Promise<void> {
+    return fs.writeFile(path, data);
+  }
+
+  unlink(path: PathLike): Promise<void> {
+    return fs.unlink(path);
   }
 }

@@ -1,9 +1,9 @@
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
-import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
-import type { ReleaseChannel } from "./services/storage/release-channel-storage";
-import type { ToolApprovalMode } from "./services/storage/general-settings-storage";
 import type { ToolApprovalDecision } from "./services/mcp/mcp-orchestrator";
+import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
+import type { ToolApprovalMode } from "./services/storage/general-settings-storage";
+import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
 // Need to make single source of truth
@@ -20,10 +20,11 @@ const IPC_CHANNELS = {
   CONFIG_HAS_YOUTUBE: "config:has-youtube",
   CONFIG_GET_YOUTUBE: "config:get-youtube",
 
-  // Video conversion
-  SELECT_VIDEO_FILE: "select-video-file",
-  SELECT_OUTPUT_DIRECTORY: "select-output-directory",
-  CONVERT_VIDEO_TO_MP3: "convert-video-to-mp3",
+  // Microsoft auth
+  MS_AUTH_LOGIN: "msauth:login",
+  MS_AUTH_LOGOUT: "msauth:logout",
+  MS_AUTH_STATUS: "msauth:status",
+  MS_AUTH_ACCOUNT_INFO: "msgraph:get-me",
 
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
@@ -95,6 +96,9 @@ const IPC_CHANNELS = {
   // General Settings
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+
+  // Portal API
+  PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -135,17 +139,13 @@ const electronAPI = {
     hasYouTube: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIG_HAS_YOUTUBE),
     getYouTube: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIG_GET_YOUTUBE),
   },
-  video: {
-    selectVideoFile: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_VIDEO_FILE),
-    selectOutputDirectory: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.SELECT_OUTPUT_DIRECTORY),
-    // TODO: Should be removed. this function has been moved to processVideo pipeline
-    convertVideoToMp3: (inputPath: string, outputPath: string) =>
-      ipcRenderer.invoke(
-        IPC_CHANNELS.CONVERT_VIDEO_TO_MP3,
-        inputPath,
-        outputPath
-      ),
+  auth: {
+    microsoft: {
+      login: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGIN),
+      logout: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGOUT),
+      status: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_STATUS),
+      accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO),
+    },
   },
   screenRecording: {
     start: (sourceId?: string) =>
@@ -303,6 +303,9 @@ const electronAPI = {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_GET),
     setMode: (mode: ToolApprovalMode) =>
       ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE, mode),
+  },
+  portal: {
+    getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
   },
   // Camera window
   onSetCameraDevice: (callback: (deviceId: string) => void) => {

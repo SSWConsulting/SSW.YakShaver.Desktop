@@ -15,5 +15,11 @@
  * ```
  */
 export function formatErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "object" && error !== null) {
+    return JSON.stringify(error);
+  }
+  return String(error);
 }

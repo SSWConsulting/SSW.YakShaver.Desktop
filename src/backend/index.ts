@@ -3,23 +3,25 @@ import { config as dotenvConfig } from "dotenv";
 import { app, BrowserWindow, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
+import { config } from "./config/env";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
+import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
+import { MicrosoftAuthIPCHandlers } from "./ipc/microsoft-auth-handlers";
+import { registerPortalHandlers } from "./ipc/portal-handlers";
 import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
-import { VideoIPCHandlers } from "./ipc/video-handlers";
 import { CountdownWindow } from "./services/recording/countdown-window";
-import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
+import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
+import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { RecordingService } from "./services/recording/recording-service";
-import { MCPServerManager } from "./services/mcp/mcp-server-manager";
-import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -88,7 +90,7 @@ const createWindow = (): void => {
 // Initialize IPC handlers
 let _screenRecordingHandlers: ScreenRecordingIPCHandlers;
 let _authHandlers: AuthIPCHandlers;
-let _videoHandlers: VideoIPCHandlers;
+let _msAuthHandlers: MicrosoftAuthIPCHandlers;
 let _llmSettingsHandlers: LLMSettingsIPCHandlers;
 let _mcpHandlers: McpIPCHandlers;
 let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
@@ -99,6 +101,16 @@ let _generalSettingsHandlers: GeneralSettingsIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
+  const azure = config.azure();
+  if (azure?.customProtocol) {
+    try {
+      app.setAsDefaultProtocolClient(azure.customProtocol);
+    } catch {}
+    app.on("open-url", (event) => {
+      event.preventDefault();
+      mainWindow?.focus();
+    });
+  }
   session.defaultSession.setPermissionCheckHandler(() => true);
   session.defaultSession.setPermissionRequestHandler(
     (_, permission, callback) => {
@@ -114,7 +126,7 @@ app.whenReady().then(async () => {
   );
 
   _authHandlers = new AuthIPCHandlers();
-  _videoHandlers = new VideoIPCHandlers();
+  _msAuthHandlers = new MicrosoftAuthIPCHandlers();
   _processVideoHandlers = new ProcessVideoIPCHandlers();
 
   try {
@@ -134,6 +146,7 @@ app.whenReady().then(async () => {
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _generalSettingsHandlers = new GeneralSettingsIPCHandlers();
+  registerPortalHandlers();
 
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);

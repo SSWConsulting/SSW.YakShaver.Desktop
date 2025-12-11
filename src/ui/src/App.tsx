@@ -9,6 +9,7 @@ import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
+import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 
 export default function App() {
   return (
@@ -19,8 +20,9 @@ export default function App() {
         <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
 
         <div className="flex flex-col gap-8">
-          <div className="absolute top-6 right-8 z-50">
+          <div className="absolute top-6 right-8 z-50 flex items-center gap-4">
             <SettingsDialog />
+            <MicrosoftAuthManager />
           </div>
           <header className="z-10 relative">
             <div className="container mx-auto flex flex-col items-center gap-8">
