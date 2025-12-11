@@ -1,21 +1,15 @@
 import https from "node:https";
-import type { AccountInfo } from "@azure/msal-node";
 import { ipcMain } from "electron";
 import { config } from "../config/env";
-import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
+import type { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { GetMyShavesResponse } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
-export function registerPortalHandlers() {
+export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthService) {
   ipcMain.handle(IPC_CHANNELS.PORTAL_GET_MY_SHAVES, async () => {
     try {
-      const ms = MicrosoftAuthService.getInstance();
-      const tokenRequest = {
-        account: null as unknown as AccountInfo,
-        scopes: config.azure()?.scopes || [],
-      };
-      const result = await ms.getToken(tokenRequest);
+      const result = await microsoftAuthService.getToken();
 
       // Parse the portal API URL
       const apiUrl = config.portalApi();
