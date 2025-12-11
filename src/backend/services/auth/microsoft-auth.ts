@@ -186,11 +186,8 @@ export class MicrosoftAuthService {
         throw new Error(`Error template not found: ${errorPath}`);
       }
 
-      const successHtmlRaw = fs.readFileSync(successPath, "utf8");
-      const errorHtmlRaw = fs.readFileSync(errorPath, "utf8");
-      const protocol = this.config.customProtocol || "yakshaver-desktop";
-      const successHtml = successHtmlRaw.replace(/YOUR_APP_PROTOCOL/g, protocol);
-      const errorHtml = errorHtmlRaw;
+      const successHtml = fs.readFileSync(successPath, "utf8");
+      const errorHtml = fs.readFileSync(errorPath, "utf8");
       const openBrowser = async (url: string) => await shell.openExternal(url);
       const interactiveRequest: InteractiveRequest = {
         ...tokenRequest,
