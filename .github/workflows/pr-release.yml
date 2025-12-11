@@ -137,26 +137,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --prefer-offline
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
         run: npm ci --prefer-offline
         working-directory: src/ui
-
-      - name: Install yt-dlp binary manually
-        run: |
-          # 1. Ensure the target directory exists
-          mkdir -p node_modules/youtube-dl-exec/bin
-
-          # 2. Download the binary using the GitHub CLI (Authenticated)
-          # We rename it to 'yt-dlp' so the package finds it
-          gh release download --repo yt-dlp/yt-dlp --pattern 'yt-dlp_macos' --output node_modules/youtube-dl-exec/bin/yt-dlp
-          
-          # 3. Make the binary executable
-          chmod +x node_modules/youtube-dl-exec/bin/yt-dlp
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update version for pre-release
         shell: pwsh
