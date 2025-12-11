@@ -57,16 +57,13 @@ export class ScreenRecordingIPCHandlers {
 
   private async showControlBarWithCamera(cameraDeviceId?: string) {
     const displayId = this.service.getCurrentRecordingDisplayId();
-    await this.controlBar.showForRecording(displayId);
 
     if (cameraDeviceId && displayId) {
       await this.cameraWindow.show(displayId, cameraDeviceId);
     }
 
-    // Show countdown on the recording screen (this will wait 3+ seconds)
     await this.countdownWindow.show(displayId);
 
-    // Show control bar after countdown
     await this.controlBar.showForRecording(displayId);
 
     return { success: true };
