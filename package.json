@@ -29,7 +29,7 @@
   "dependencies": {
     "@ai-sdk/deepseek": "^1.0.30",
     "@ai-sdk/mcp": "^0.0.8",
-    "@ai-sdk/openai": "^2.0.75",
+    "@ai-sdk/openai": "^2.0.80",
     "@azure/msal-node": "^3.8.4",
     "@azure/openai": "^2.0.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
@@ -55,7 +55,7 @@
     "@types/tmp": "^0.2.6",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
-    "electron": "^39.2.4",
+    "electron": "^39.2.6",
     "electron-builder": "^26.0.12",
     "typescript": "^5.9.3",
     "vitest": "^4.0.15",
