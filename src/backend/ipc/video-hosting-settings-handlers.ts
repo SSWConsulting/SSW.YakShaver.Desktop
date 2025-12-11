@@ -1,7 +1,7 @@
-import { ipcMain, type IpcMainInvokeEvent } from "electron";
+import { type IpcMainInvokeEvent, ipcMain } from "electron";
 import {
-  VideoHostingSettingsStorage,
   type VideoHostingSettings,
+  VideoHostingSettingsStorage,
 } from "../services/storage/video-hosting-settings-storage";
 import { IPC_CHANNELS } from "./channels";
 

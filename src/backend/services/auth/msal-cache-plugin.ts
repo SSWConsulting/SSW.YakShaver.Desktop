@@ -5,7 +5,9 @@ import { BaseSecureStorage } from "../storage/base-secure-storage";
 const CACHE_FILE = "msal-cache.enc";
 
 class SecureCacheStorage extends BaseSecureStorage {
-  constructor() { super(); }
+  constructor() {
+    super();
+  }
   private getCachePath(): string {
     return join(this.storageDir, CACHE_FILE);
   }

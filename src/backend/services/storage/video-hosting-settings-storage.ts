@@ -47,9 +47,7 @@ export class VideoHostingSettingsStorage extends BaseSecureStorage {
     return join(this.storageDir, VIDEO_HOSTING_SETTINGS_FILE);
   }
 
-  private withDefaults(
-    settings?: Partial<VideoHostingSettings> | null,
-  ): VideoHostingSettings {
+  private withDefaults(settings?: Partial<VideoHostingSettings> | null): VideoHostingSettings {
     if (!settings) {
       return { ...DEFAULT_SETTINGS };
     }
@@ -79,7 +77,7 @@ export class VideoHostingSettingsStorage extends BaseSecureStorage {
   }> {
     try {
       const settings = await this.getSettingsAsync();
-      
+
       // Basic validation for credentials based on platform
       if (settings.platform === "youtube") {
         if (!settings.credentials.clientId || !settings.credentials.clientSecret) {

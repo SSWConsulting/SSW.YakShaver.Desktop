@@ -5,9 +5,9 @@ import { formatErrorMessage } from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import {
+  type MCPStep,
   MCPStepType,
   ProgressStage,
-  type MCPStep,
   type WorkflowProgress,
   type WorkflowStage,
 } from "../../types";

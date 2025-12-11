@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { ipcClient } from "@/services/ipc-client";
 import type { GeneralSettings, ToolApprovalMode } from "@/types";
-import { cn } from "@/lib/utils";
 import { Card, CardContent } from "../../ui/card";
 
 interface GeneralSettingsPanelProps {
@@ -19,7 +19,8 @@ const MODE_OPTIONS: ModeOption[] = [
   {
     id: "yolo",
     title: "YOLO",
-    description: "Run every MCP tool immediately. Useful for trusted servers where you accept all actions.",
+    description:
+      "Run every MCP tool immediately. Useful for trusted servers where you accept all actions.",
   },
   {
     id: "wait",
@@ -123,7 +124,6 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
           );
         })}
       </div>
-
     </div>
   );
 }

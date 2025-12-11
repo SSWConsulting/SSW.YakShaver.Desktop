@@ -113,10 +113,10 @@ FOR FAILURE RESPONSES, include:
 Remember: You are an intelligent agent capable of working with any type of MCP server. Plan intelligently, execute systematically, show clear progress updates, and provide comprehensive, useful results regardless of the domain or server type.`;
 
 export function buildTaskExecutionPrompt(customPrompt?: string): string {
-    const trimmed = customPrompt?.trim();
-    if (!trimmed) return TASK_EXECUTION_PROMPT;
+  const trimmed = customPrompt?.trim();
+  if (!trimmed) return TASK_EXECUTION_PROMPT;
 
-    return `${trimmed}
+  return `${trimmed}
   
   IMPORTANT: The above user requirements are MANDATORY and must be followed throughout the task execution process.
 

@@ -265,7 +265,8 @@ const electronAPI = {
   },
   videoHostingSettings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.VIDEO_HOSTING_SETTINGS_GET),
-    set: (settings: unknown) => ipcRenderer.invoke(IPC_CHANNELS.VIDEO_HOSTING_SETTINGS_SET, settings),
+    set: (settings: unknown) =>
+      ipcRenderer.invoke(IPC_CHANNELS.VIDEO_HOSTING_SETTINGS_SET, settings),
     testConnection: () => ipcRenderer.invoke(IPC_CHANNELS.VIDEO_HOSTING_SETTINGS_TEST_CONNECTION),
   },
   portal: {

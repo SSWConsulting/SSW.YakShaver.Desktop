@@ -1,6 +1,7 @@
 import { Toaster } from "sonner";
 import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
+import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 import { DownloadProgressToast } from "./components/common/DownloadProgressToast";
 import { VideoHostPanel } from "./components/layout/VideoHostPanel";
 import { ScreenRecorder } from "./components/recording/ScreenRecorder";
@@ -9,7 +10,6 @@ import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
-import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 
 export default function App() {
   return (

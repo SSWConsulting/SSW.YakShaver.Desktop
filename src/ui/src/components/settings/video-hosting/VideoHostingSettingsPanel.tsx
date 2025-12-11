@@ -6,13 +6,7 @@ import { Button } from "../../ui/button";
 import { Card, CardContent } from "../../ui/card";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 
 interface VideoHostingSettingsPanelProps {
   isActive: boolean;
@@ -282,11 +276,7 @@ export function VideoHostingSettingsPanel({ isActive }: VideoHostingSettingsPane
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
-            <Button
-              onClick={handleSave}
-              disabled={isLoading || isSaving}
-              className="flex-1"
-            >
+            <Button onClick={handleSave} disabled={isLoading || isSaving} className="flex-1">
               {isSaving ? "Saving..." : "Save Settings"}
             </Button>
             <Button
