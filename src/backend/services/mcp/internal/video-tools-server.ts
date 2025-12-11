@@ -33,8 +33,6 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
   const mcpServer = new McpServer({
     name: "YakShaver Video Tools",
     version: "1.0.0",
-    instructions:
-      "Built-in YakShaver utilities for extracting frames from videos and describing screenshots.",
   });
 
   mcpServer.registerTool(
