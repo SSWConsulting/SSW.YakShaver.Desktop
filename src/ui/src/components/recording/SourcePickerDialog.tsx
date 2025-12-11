@@ -141,7 +141,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   }, [open, selectedCameraId, devicesReady]);
 
   const screens = useMemo(() => sources.filter((s) => s.type === "screen"), [sources]);
-  const windows = useMemo(() => sources.filter((s) => s.type === "window"), [sources]);
+  // const windows = useMemo(() => sources.filter((s) => s.type === "window"), [sources]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -149,7 +149,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
         <DialogHeader>
           <DialogTitle>Choose a source to record</DialogTitle>
           <DialogDescription>
-            Select a screen or window to capture. Hover to preview and click to start recording.
+            Select a screen to capture. Hover to preview and click to start recording.
           </DialogDescription>
         </DialogHeader>
 
@@ -219,15 +219,19 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
             sources={screens}
             onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
           />
-          <SourceSection
-            label="Windows"
-            sources={windows}
-            onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
-          />
 
-          {!loading && screens.length === 0 && windows.length === 0 && (
+          {/**
+           * As per conversation with Calum, we'll be hiding this feature temporarily
+           * <SourceSection
+           *   label="Windows"
+           *   sources={windows}
+           *   onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
+           * />
+           */}
+
+          {!loading && screens.length === 0 && (
             <div className="text-sm text-muted-foreground text-center py-8">
-              No sources available
+              No screens available
             </div>
           )}
         </div>
