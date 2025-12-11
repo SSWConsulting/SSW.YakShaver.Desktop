@@ -10,6 +10,7 @@ import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
 import { LLMSettingsPanel } from "./llm/LLMKeyManager";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelManager";
+import { VideoHostingSettingsPanel } from "./video-hosting/VideoHostingSettingsPanel";
 
 type LeaveHandler = () => Promise<boolean>;
 
@@ -42,6 +43,10 @@ const TABS: SettingsTab[] = [
   {
     id: "mcp",
     label: "MCP Servers",
+  },
+  {
+    id: "video-hosting",
+    label: "Video Hosting",
   },
   {
     id: "advanced",
@@ -173,6 +178,9 @@ export function SettingsDialog() {
                 )}
                 {activeTab?.id === "mcp" && (
                   <McpSettingsPanel isActive={open && activeTabId === "mcp"} />
+                )}
+                {activeTab?.id === "video-hosting" && (
+                  <VideoHostingSettingsPanel isActive={open && activeTabId === "video-hosting"} />
                 )}
                 {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
               </div>

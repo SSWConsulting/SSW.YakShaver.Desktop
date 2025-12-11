@@ -16,6 +16,7 @@ import { registerPortalHandlers } from "./ipc/portal-handlers";
 import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
+import { VideoHostingSettingsIPCHandlers } from "./ipc/video-hosting-settings-handlers";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 import { CameraWindow } from "./services/recording/camera-window";
@@ -94,6 +95,7 @@ let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
 let _githubTokenHandlers: GitHubTokenIPCHandlers;
 let _generalSettingsHandlers: GeneralSettingsIPCHandlers;
+let _videoHostingSettingsHandlers: VideoHostingSettingsIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
@@ -135,6 +137,7 @@ app.whenReady().then(async () => {
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _generalSettingsHandlers = new GeneralSettingsIPCHandlers();
+  _videoHostingSettingsHandlers = new VideoHostingSettingsIPCHandlers();
   registerPortalHandlers();
 
   // Pre-initialize recording windows for faster display

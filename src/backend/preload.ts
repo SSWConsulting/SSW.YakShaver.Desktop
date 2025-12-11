@@ -96,6 +96,11 @@ const IPC_CHANNELS = {
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
 
+  // Video Hosting Settings
+  VIDEO_HOSTING_SETTINGS_GET: "video-hosting-settings:get",
+  VIDEO_HOSTING_SETTINGS_SET: "video-hosting-settings:set",
+  VIDEO_HOSTING_SETTINGS_TEST_CONNECTION: "video-hosting-settings:test-connection",
+
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
 } as const;
@@ -257,6 +262,11 @@ const electronAPI = {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_GET),
     setMode: (mode: ToolApprovalMode) =>
       ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE, mode),
+  },
+  videoHostingSettings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.VIDEO_HOSTING_SETTINGS_GET),
+    set: (settings: unknown) => ipcRenderer.invoke(IPC_CHANNELS.VIDEO_HOSTING_SETTINGS_SET, settings),
+    testConnection: () => ipcRenderer.invoke(IPC_CHANNELS.VIDEO_HOSTING_SETTINGS_TEST_CONNECTION),
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),

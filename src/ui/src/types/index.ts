@@ -252,3 +252,23 @@ export interface ShaveItem {
 export interface GetMyShavesResponse {
   items: ShaveItem[];
 }
+
+export type VideoPlatform = "youtube" | "vimeo" | "wistia" | "custom";
+
+export type VideoPrivacy = "public" | "unlisted" | "private";
+
+export interface PlatformCredentials {
+  apiKey?: string;
+  clientId?: string;
+  clientSecret?: string;
+  customEndpoint?: string;
+}
+
+export interface VideoHostingSettings {
+  platform: VideoPlatform;
+  credentials: PlatformCredentials;
+  defaultPrivacy: VideoPrivacy;
+  defaultTags: string[];
+  defaultCategory?: string;
+  descriptionTemplate?: string;
+}

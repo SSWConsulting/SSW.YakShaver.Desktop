@@ -19,6 +19,7 @@ import type {
   ToolApprovalMode,
   TranscriptEntry,
   UserInfo,
+  VideoHostingSettings,
   VideoUploadResult,
   YouTubeConfig,
 } from "../types";
@@ -164,6 +165,11 @@ declare global {
       generalSettings: {
         get: () => Promise<GeneralSettings>;
         setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
+      };
+      videoHostingSettings: {
+        get: () => Promise<VideoHostingSettings>;
+        set: (settings: VideoHostingSettings) => Promise<{ success: boolean }>;
+        testConnection: () => Promise<{ success: boolean; error?: string; message?: string }>;
       };
       portal: {
         getMyShaves: () => Promise<{

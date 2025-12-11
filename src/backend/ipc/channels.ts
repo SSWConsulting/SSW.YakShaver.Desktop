@@ -87,6 +87,11 @@ export const IPC_CHANNELS = {
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
 
+  // Video Hosting Settings
+  VIDEO_HOSTING_SETTINGS_GET: "video-hosting-settings:get",
+  VIDEO_HOSTING_SETTINGS_SET: "video-hosting-settings:set",
+  VIDEO_HOSTING_SETTINGS_TEST_CONNECTION: "video-hosting-settings:test-connection",
+
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
 } as const;
