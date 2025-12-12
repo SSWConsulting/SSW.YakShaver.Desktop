@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import path, { extname, join } from "node:path";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { FFmpegService } from "../../ffmpeg/ffmpeg-service.js";
 import { LLMClientProvider } from "../llm-client-provider.js";
 import type { MCPServerConfig } from "../types.js";
