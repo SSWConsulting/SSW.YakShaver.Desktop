@@ -16,11 +16,12 @@ import { registerPortalHandlers } from "./ipc/portal-handlers";
 import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
-import { CountdownWindow } from "./services/recording/countdown-window";
+import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
+import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
 
 const isDev = process.env.NODE_ENV === "development";
@@ -77,10 +78,7 @@ const createWindow = (): void => {
     mainWindow.loadURL("http://localhost:3000");
     mainWindow.webContents.openDevTools();
   } else {
-    const indexPath = join(
-      process.resourcesPath,
-      "app.asar.unpacked/src/ui/dist/index.html"
-    );
+    const indexPath = join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/index.html");
     mainWindow.loadFile(indexPath).catch((err) => {
       console.error("Failed to load index.html:", err);
     });
@@ -112,22 +110,18 @@ app.whenReady().then(async () => {
     });
   }
   session.defaultSession.setPermissionCheckHandler(() => true);
-  session.defaultSession.setPermissionRequestHandler(
-    (_, permission, callback) => {
-      callback(
-        [
-          "media",
-          "clipboard-read",
-          "clipboard-sanitized-write",
-          "fullscreen",
-        ].includes(permission)
-      );
-    }
-  );
+  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
+    callback(
+      ["media", "clipboard-read", "clipboard-sanitized-write", "fullscreen"].includes(permission),
+    );
+  });
 
   _authHandlers = new AuthIPCHandlers();
-  _msAuthHandlers = new MicrosoftAuthIPCHandlers();
+  if (!azure) throw new Error("Azure configuration missing");
+  const microsoftAuthService = new MicrosoftAuthService(azure);
+  _msAuthHandlers = new MicrosoftAuthIPCHandlers(microsoftAuthService);
   _processVideoHandlers = new ProcessVideoIPCHandlers();
+  registerPortalHandlers(microsoftAuthService);
 
   try {
     _llmSettingsHandlers = new LLMSettingsIPCHandlers();
@@ -146,7 +140,6 @@ app.whenReady().then(async () => {
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _generalSettingsHandlers = new GeneralSettingsIPCHandlers();
-  registerPortalHandlers();
 
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
@@ -159,9 +152,7 @@ app.whenReady().then(async () => {
   // Auto-updates: Check only in packaged mode (dev skips)
   // Configure and check based on stored channel preference
   if (app.isPackaged) {
-    const { ReleaseChannelStorage } = await import(
-      "./services/storage/release-channel-storage"
-    );
+    const { ReleaseChannelStorage } = await import("./services/storage/release-channel-storage");
     const channelStore = ReleaseChannelStorage.getInstance();
     const channel = await channelStore.getChannel();
     _releaseChannelHandlers.configureAutoUpdater(channel, true);
