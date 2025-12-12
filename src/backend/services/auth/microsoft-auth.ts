@@ -32,7 +32,7 @@ export class MicrosoftAuthService {
   private constructor() {}
 
   // Note: the azure parameter is a workaround for testing purposes,
-  // so in the testing enviroment a mock config can be passed in.
+  // so in the testing environment a mock config can be passed in.
   public static getInstance(mockAzureConfig?: AzureConfig): MicrosoftAuthService {
     if (!MicrosoftAuthService.instance) {
       const azureConfig = mockAzureConfig ?? config.azure();
