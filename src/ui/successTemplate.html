@@ -2,39 +2,52 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Signed In</title>
   </head>
   <body style="font-family: system-ui; margin: 2rem">
     <h1>Authentication Successful</h1>
-    <p>You can return to the application.</p>
+    <p>You can return to the application and close this window.</p>
     <p>
-        <a id="deeplink" href="YOUR_APP_PROTOCOL://auth">Open App</a>
+        <a id="deeplink" href="yakshaver-desktop://auth">Open App</a>
     </p>
     <script>
-      const protocol = 'YOUR_APP_PROTOCOL://auth';
-      const link = document.getElementById('deeplink');
-      if (protocol && protocol !== 'YOUR_APP_PROTOCOL://auth') { 
-        link.href = protocol; 
-        link.textContent = 'Open App'; 
-        link.addEventListener('click', (e) => {
-          e.preventDefault();
+      (() => {
+        let triggered = false;
+        const link = document.getElementById('deeplink');
+        const triggerDeeplink = () => {
+          if (triggered) {
+            return; // Prevent multiple triggers
+          }
+          triggered = true;
+          
           try {
-            window.location.href = protocol;
-            // Close window after a delay if still open
+            link.click();
             setTimeout(() => {
               window.close();
             }, 2000);
           } catch (err) {
             console.error('Failed to open app:', err);
-            alert('Please return to the YakShaver application manually.');
+          }
+        };
+        
+        // Automatically trigger on page load (only once)
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', triggerDeeplink, { once: true });
+        } else {
+          // DOM already loaded, trigger immediately
+          triggerDeeplink();
+        }
+        
+        // Handle manual clicks as fallback (only if auto-trigger failed)
+        link.addEventListener('click', (e) => {
+          if (!triggered) {
+            e.preventDefault();
+            triggerDeeplink();
           }
         });
-      } else {
-        link.textContent = 'Protocol not configured - please return to app manually';
-        link.href = '#';
-      }
+      })();
     </script>
   </body>
   </html>

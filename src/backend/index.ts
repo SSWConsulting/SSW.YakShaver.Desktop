@@ -16,6 +16,7 @@ import { registerPortalHandlers } from "./ipc/portal-handlers";
 import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
+import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 import { CameraWindow } from "./services/recording/camera-window";
@@ -115,8 +116,11 @@ app.whenReady().then(async () => {
   });
 
   _authHandlers = new AuthIPCHandlers();
-  _msAuthHandlers = new MicrosoftAuthIPCHandlers();
+  if (!azure) throw new Error("Azure configuration missing");
+  const microsoftAuthService = new MicrosoftAuthService(azure);
+  _msAuthHandlers = new MicrosoftAuthIPCHandlers(microsoftAuthService);
   _processVideoHandlers = new ProcessVideoIPCHandlers();
+  registerPortalHandlers(microsoftAuthService);
 
   try {
     _llmSettingsHandlers = new LLMSettingsIPCHandlers();
@@ -135,7 +139,6 @@ app.whenReady().then(async () => {
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _generalSettingsHandlers = new GeneralSettingsIPCHandlers();
-  registerPortalHandlers();
 
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);

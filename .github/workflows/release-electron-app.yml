@@ -166,7 +166,40 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          YOUTUBE_DL_SKIP_DOWNLOAD: true
+
+      # Manual download for macOS is needed because the 'youtube-dl-exec' script for Unix hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find 
+      # the yt-dlp binary. Windows uses an alternate method and avoids this error.
+      - name: Install yt-dlp binary manually
+        run: |
+          mkdir -p node_modules/youtube-dl-exec/bin
+
+          PATTERN="yt-dlp_macos"
+          OUTPUT_FILE="node_modules/youtube-dl-exec/bin/yt-dlp"
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+
+          until gh release download \
+            --repo yt-dlp/yt-dlp \
+            --pattern "$PATTERN" \
+            --clobber \
+            --output "$OUTPUT_FILE"; do
+
+            echo "Attempt $ATTEMPT to download yt-dlp binary failed." >&2
+
+            if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+              echo "Failed to download yt-dlp binary after $MAX_ATTEMPTS attempts." >&2
+              exit 1
+            fi
+
+            ATTEMPT=$((ATTEMPT+1))
+            sleep 5
+          done
+          
+          # Make the binary executable
+          chmod +x "$OUTPUT_FILE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
         run: npm ci --prefer-offline
