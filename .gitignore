@@ -99,3 +99,4 @@ build/
 mcp-servers.json
 
 .trae/
+.vscode/settings.json
