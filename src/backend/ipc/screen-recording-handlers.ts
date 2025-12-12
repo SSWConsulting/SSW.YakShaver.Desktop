@@ -1,8 +1,8 @@
 import { ipcMain } from "electron";
 import { getMainWindow } from "../index";
 import { CameraWindow } from "../services/recording/camera-window";
-import { CountdownWindow } from "../services/recording/countdown-window";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
+import { CountdownWindow } from "../services/recording/countdown-window";
 import { RecordingService } from "../services/recording/recording-service";
 import { IPC_CHANNELS } from "./channels";
 
@@ -16,20 +16,16 @@ export class ScreenRecordingIPCHandlers {
     const handlers = {
       [IPC_CHANNELS.START_SCREEN_RECORDING]: (_: unknown, sourceId?: string) =>
         this.service.handleStartRecording(sourceId),
-      [IPC_CHANNELS.START_RECORDING_TIMER]: () =>
-        this.service.startRecordingTimer(),
-      [IPC_CHANNELS.STOP_SCREEN_RECORDING]: (
-        _: unknown,
-        videoData: Uint8Array
-      ) => this.service.handleStopRecording(videoData),
+      [IPC_CHANNELS.START_RECORDING_TIMER]: () => this.service.startRecordingTimer(),
+      [IPC_CHANNELS.STOP_SCREEN_RECORDING]: (_: unknown, videoData: Uint8Array) =>
+        this.service.handleStopRecording(videoData),
       [IPC_CHANNELS.LIST_SCREEN_SOURCES]: () => this.service.listSources(),
       [IPC_CHANNELS.CLEANUP_TEMP_FILE]: (_: unknown, filePath: string) =>
         this.service.cleanupTempFile(filePath),
       [IPC_CHANNELS.SHOW_CONTROL_BAR]: (_: unknown, cameraDeviceId?: string) =>
         this.showControlBarWithCamera(cameraDeviceId),
       [IPC_CHANNELS.HIDE_CONTROL_BAR]: () => this.hideControlBarAndCamera(),
-      [IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR]: () =>
-        this.stopRecordingFromControlBar(),
+      [IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR]: () => this.stopRecordingFromControlBar(),
       [IPC_CHANNELS.MINIMIZE_MAIN_WINDOW]: () => this.minimizeMainWindow(),
       [IPC_CHANNELS.RESTORE_MAIN_WINDOW]: () => this.restoreMainWindow(),
     };
@@ -77,11 +73,7 @@ export class ScreenRecordingIPCHandlers {
 
   private stopRecordingFromControlBar() {
     const mainWindow = getMainWindow();
-    if (
-      mainWindow &&
-      !mainWindow.isDestroyed() &&
-      !mainWindow.webContents.isDestroyed()
-    ) {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
       mainWindow.webContents.send("stop-recording-request");
     }
 

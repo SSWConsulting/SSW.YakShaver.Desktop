@@ -106,7 +106,7 @@ declare global {
         onStepUpdate: (callback: (step: MCPStep) => void) => () => void;
         respondToToolApproval: (
           requestId: string,
-          decision: ToolApprovalDecisionPayload
+          decision: ToolApprovalDecisionPayload,
         ) => Promise<{ success: boolean }>;
         listServers: () => Promise<MCPServerConfig[]>;
         addToolToWhitelist: (toolName: string) => Promise<{ success: boolean }>;
