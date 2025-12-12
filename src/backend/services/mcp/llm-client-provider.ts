@@ -125,12 +125,18 @@ export class LLMClientProvider {
     message: string,
     schema: ZodTypeAny,
   ): Promise<GenerateObjectResult<unknown>> {
-    const response = await generateObject({
-      model: LLMClientProvider.languageModel,
-      schema: schema,
-      prompt: message,
-    });
-    return response;
+    try {
+      const response = await generateObject({
+        model: LLMClientProvider.languageModel,
+        schema: schema,
+        prompt: message,
+      });
+      return response;
+    } catch (error) {
+      throw new Error(
+        `[LLMClientProvider]: Failed to generate object matching schema. Message: "${message}". Schema: ${schema?.toString?.() || '[unknown schema]'}. Original error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   public async sendMessage(
