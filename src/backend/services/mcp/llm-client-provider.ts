@@ -1,7 +1,8 @@
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText, stepCountIs, streamText } from "ai";
-import type { LanguageModel, ModelMessage, ToolSet } from "ai";
+import { generateObject, generateText, stepCountIs, streamText } from "ai";
+import type { GenerateObjectResult, LanguageModel, ModelMessage, ToolSet } from "ai";
+import type { ZodTypeAny } from "zod";
 import { BrowserWindow } from "electron";
 import type { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
@@ -118,6 +119,24 @@ export class LLMClientProvider {
     });
 
     return response;
+  }
+
+  public async generateObject(
+    message: string,
+    schema: ZodTypeAny,
+  ): Promise<GenerateObjectResult<unknown>> {
+    try {
+      const response = await generateObject({
+        model: LLMClientProvider.languageModel,
+        schema: schema,
+        prompt: message,
+      });
+      return response;
+    } catch (error) {
+      throw new Error(
+        `[LLMClientProvider]: Failed to generate object matching schema. Message: "${message}". Schema: ${schema?.toString?.() || '[unknown schema]'}. Original error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   public async sendMessage(

@@ -6,8 +6,16 @@ const getYouTube = () => {
 };
 
 const getAzure = () => {
-  const { AZURE_ENTRA_APP_CLIENT_ID: clientId, AZURE_TENANT_ID: tenantId, AZURE_AUTH_SCOPE, AZURE_AUTH_CUSTOM_PROTOCOL } = env;
-  const scopes = (AZURE_AUTH_SCOPE || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const {
+    AZURE_ENTRA_APP_CLIENT_ID: clientId,
+    AZURE_TENANT_ID: tenantId,
+    AZURE_AUTH_SCOPE,
+    AZURE_AUTH_CUSTOM_PROTOCOL,
+  } = env;
+  const scopes = (AZURE_AUTH_SCOPE || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   return clientId && tenantId
     ? { clientId, tenantId, scopes, customProtocol: AZURE_AUTH_CUSTOM_PROTOCOL || null }
     : null;
@@ -15,7 +23,7 @@ const getAzure = () => {
 
 const getPortalApi = () => {
   const { PORTAL_API_URL: url } = env;
-  return url || 'http://localhost:7009/api';
+  return url || "http://localhost:7009/api";
 };
 
 export const config = {

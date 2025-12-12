@@ -13,6 +13,8 @@ import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
+import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -162,6 +164,19 @@ export class ProcessVideoIPCHandlers {
         systemPrompt,
       });
 
+      // if user logged in, send work item details to the portal
+      if (mcpResult && (await MicrosoftAuthService.getInstance().isAuthenticated())) {
+        const objectResult = await orchestrator.convertToObjectAsync(mcpResult, WorkItemDtoSchema);
+        const portalResult = await SendWorkItemDetailsToPortal(
+          WorkItemDtoSchema.parse(objectResult),
+        );
+        if (!portalResult.success) {
+          console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
+          const errorMessage = formatErrorMessage(portalResult.error);
+          this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+        }
+      }
+
       if (youtubeResult.origin !== "external" && youtubeResult.success) {
         const videoId = youtubeResult.data?.videoId;
         if (videoId) {
@@ -201,6 +216,10 @@ export class ProcessVideoIPCHandlers {
       });
 
       return { youtubeResult, mcpResult };
+    } catch (error) {
+      const errorMessage = formatErrorMessage(error);
+      this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+      return { success: false, error: errorMessage };
     } finally {
       try {
         if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
