@@ -28,6 +28,7 @@ const IPC_CHANNELS = {
 
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
+  START_RECORDING_TIMER: "start-recording-timer",
   STOP_SCREEN_RECORDING: "stop-screen-recording",
   STOP_RECORDING_FROM_CONTROL_BAR: "stop-recording-from-control-bar",
   LIST_SCREEN_SOURCES: "list-screen-sources",
@@ -138,6 +139,7 @@ const electronAPI = {
   },
   screenRecording: {
     start: (sourceId?: string) => ipcRenderer.invoke(IPC_CHANNELS.START_SCREEN_RECORDING, sourceId),
+    startTimer: () => ipcRenderer.invoke(IPC_CHANNELS.START_RECORDING_TIMER),
     stop: (videoData: Uint8Array) =>
       ipcRenderer.invoke(IPC_CHANNELS.STOP_SCREEN_RECORDING, videoData),
     listSources: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_SCREEN_SOURCES),
@@ -203,7 +205,10 @@ const electronAPI = {
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
     respondToToolApproval: (requestId: string, decision: ToolApprovalDecision) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION, { requestId, decision }),
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION, {
+        requestId,
+        decision,
+      }),
     addToolToWhitelist: (toolName: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_TOOL_TO_WHITELIST, { toolName }),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),

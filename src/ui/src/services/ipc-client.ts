@@ -75,6 +75,7 @@ declare global {
       };
       screenRecording: {
         start: (sourceId?: string) => Promise<ScreenRecordingStartResult>;
+        startTimer: () => Promise<void>;
         stop: (videoData: Uint8Array) => Promise<ScreenRecordingStopResult>;
         listSources: () => Promise<ScreenSource[]>;
         cleanupTempFile: (filePath: string) => Promise<void>;

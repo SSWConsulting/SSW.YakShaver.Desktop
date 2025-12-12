@@ -166,7 +166,7 @@ export class CameraWindow {
       newY = displayY + SNAP_MARGIN;
     }
     // Bottom edge
-     else if (windowY + windowHeight > displayBottom - SNAP_MARGIN) {
+    else if (windowY + windowHeight > displayBottom - SNAP_MARGIN) {
       newY = displayBottom - windowHeight - SNAP_MARGIN;
     }
 

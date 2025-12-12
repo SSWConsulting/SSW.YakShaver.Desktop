@@ -18,6 +18,7 @@ export const IPC_CHANNELS = {
 
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
+  START_RECORDING_TIMER: "start-recording-timer",
   STOP_SCREEN_RECORDING: "stop-screen-recording",
   STOP_RECORDING_FROM_CONTROL_BAR: "stop-recording-from-control-bar",
   LIST_SCREEN_SOURCES: "list-screen-sources",
