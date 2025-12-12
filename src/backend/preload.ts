@@ -95,6 +95,7 @@ const IPC_CHANNELS = {
   // General Settings
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+  GENERAL_SETTINGS_SET_ONBOARDING: "general-settings:set-onboarding",
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
@@ -257,6 +258,8 @@ const electronAPI = {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_GET),
     setMode: (mode: ToolApprovalMode) =>
       ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE, mode),
+    setOnboardingCompleted: (completed: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_ONBOARDING, completed),
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),

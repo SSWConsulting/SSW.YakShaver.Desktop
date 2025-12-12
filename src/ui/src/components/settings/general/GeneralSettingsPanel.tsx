@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+
+import { cn } from "@/lib/utils";
 import { ipcClient } from "@/services/ipc-client";
 import type { GeneralSettings, ToolApprovalMode } from "@/types";
-import { cn } from "@/lib/utils";
 import { Card, CardContent } from "../../ui/card";
 
 interface GeneralSettingsPanelProps {
@@ -19,7 +20,8 @@ const MODE_OPTIONS: ModeOption[] = [
   {
     id: "yolo",
     title: "YOLO",
-    description: "Run every MCP tool immediately. Useful for trusted servers where you accept all actions.",
+    description:
+      "Run every MCP tool immediately. Useful for trusted servers where you accept all actions.",
   },
   {
     id: "wait",
@@ -42,7 +44,10 @@ const MODE_LABELS: Record<ToolApprovalMode, string> = {
 };
 
 export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
-  const [settings, setSettings] = useState<GeneralSettings>({ toolApprovalMode: "ask" });
+  const [settings, setSettings] = useState<GeneralSettings>({
+    toolApprovalMode: "ask",
+    onboardingCompleted: false,
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [pendingMode, setPendingMode] = useState<ToolApprovalMode | null>(null);
 
@@ -123,7 +128,6 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
           );
         })}
       </div>
-
     </div>
   );
 }

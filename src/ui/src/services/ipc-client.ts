@@ -164,6 +164,7 @@ declare global {
       generalSettings: {
         get: () => Promise<GeneralSettings>;
         setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
+        setOnboardingCompleted: (completed: boolean) => Promise<{ success: boolean }>;
       };
       portal: {
         getMyShaves: () => Promise<{

@@ -31,9 +31,10 @@ export type FormValues = z.infer<typeof schema>;
 
 interface LLMSettingsPanelProps {
   isActive: boolean;
+  onStatusChange?: (hasConfig: boolean) => void;
 }
 
-export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
+export function LLMSettingsPanel({ isActive, onStatusChange }: LLMSettingsPanelProps) {
   const [hasConfig, setHasConfig] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -87,6 +88,10 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
       void checkHealth();
     }
   }, [isActive, hasConfig, checkHealth]);
+
+  useEffect(() => {
+    onStatusChange?.(hasConfig);
+  }, [hasConfig, onStatusChange]);
 
   const onSubmit = useCallback(
     async (values: FormValues) => {
