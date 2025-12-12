@@ -13,6 +13,12 @@ import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import {
+  SendWorkItemDetailsToPortal,
+  WorkItemDtoSchema,
+  type WorkItemDto,
+} from "../services/portal/actions";
+import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -161,6 +167,12 @@ export class ProcessVideoIPCHandlers {
       const mcpResult = await orchestrator.manualLoopAsync(intermediateOutput, youtubeResult, {
         systemPrompt,
       });
+
+      // if user logged in, send work item details to the portal
+      if (mcpResult && (await MicrosoftAuthService.getInstance().isAuthenticated())) {
+        const objectResult = await orchestrator.convertToObjectAsync(mcpResult, WorkItemDtoSchema);
+        await SendWorkItemDetailsToPortal(objectResult as WorkItemDto);
+      }
 
       if (youtubeResult.origin !== "external" && youtubeResult.success) {
         const videoId = youtubeResult.data?.videoId;
