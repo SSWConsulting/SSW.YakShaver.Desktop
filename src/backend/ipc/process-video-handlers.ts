@@ -13,11 +13,7 @@ import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import {
-  SendWorkItemDetailsToPortal,
-  WorkItemDtoSchema,
-  type WorkItemDto,
-} from "../services/portal/actions";
+import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 
 type VideoProcessingContext = {
@@ -176,7 +172,8 @@ export class ProcessVideoIPCHandlers {
         );
         if (!portalResult.success) {
           console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
-          this.emitProgress("PORTAL_SUBMISSION_FAILED", { error: portalResult.error });
+          const errorMessage = formatErrorMessage(portalResult.error);
+          this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
         }
       }
 
@@ -219,6 +216,10 @@ export class ProcessVideoIPCHandlers {
       });
 
       return { youtubeResult, mcpResult };
+    } catch (error) {
+      const errorMessage = formatErrorMessage(error);
+      this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+      return { success: false, error: errorMessage };
     } finally {
       try {
         if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
