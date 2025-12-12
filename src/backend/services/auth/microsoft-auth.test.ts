@@ -66,15 +66,12 @@ describe("MicrosoftAuthService", () => {
       getTokenCache: vi.fn().mockReturnValue(mockTokenCache),
     };
 
-    service = new MicrosoftAuthService(
-      {
-        clientId: "mock-client-id",
-        tenantId: "mock-tenant-id",
-        scopes: ["mock-scope"],
-        customProtocol: "mock-protocol",
-      },
-      mockPCA as unknown as PublicClientApplication,
-    );
+    service = MicrosoftAuthService.getInstance({
+      clientId: "mock-client-id",
+      tenantId: "mock-tenant-id",
+      scopes: ["mock-scope"],
+      customProtocol: "mock-protocol",
+    });
   });
 
   describe("getAuthState", () => {

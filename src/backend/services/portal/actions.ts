@@ -1,5 +1,4 @@
 import https from "node:https";
-import type { AccountInfo } from "@azure/msal-node";
 import { MicrosoftAuthService } from "../auth/microsoft-auth";
 import { config } from "../../config/env";
 import { z } from "zod";
@@ -22,11 +21,7 @@ export async function SendWorkItemDetailsToPortal(
   payload: WorkItemDto,
 ): Promise<{ success: true } | { success: false; error: string }> {
   const ms = MicrosoftAuthService.getInstance();
-  const tokenRequest = {
-    account: null as unknown as AccountInfo,
-    scopes: config.azure()?.scopes || [],
-  };
-  const result = await ms.getToken(tokenRequest);
+  const result = await ms.getToken();
 
   // Parse the portal API URL
   const apiUrl = config.portalApi();
