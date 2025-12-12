@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import path, { extname, join } from "node:path";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { FFmpegService } from "../../ffmpeg/ffmpeg-service.js";
 import { LLMClientProvider } from "../llm-client-provider.js";
 import type { MCPServerConfig } from "../types.js";
@@ -33,8 +33,6 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
   const mcpServer = new McpServer({
     name: "YakShaver Video Tools",
     version: "1.0.0",
-    instructions:
-      "Built-in YakShaver utilities for extracting frames from videos and describing screenshots.",
   });
 
   mcpServer.registerTool(
