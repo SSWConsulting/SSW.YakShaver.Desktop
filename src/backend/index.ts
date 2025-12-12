@@ -117,7 +117,7 @@ app.whenReady().then(async () => {
 
   _authHandlers = new AuthIPCHandlers();
   if (!azure) throw new Error("Azure configuration missing");
-  const microsoftAuthService = new MicrosoftAuthService(azure);
+  const microsoftAuthService = MicrosoftAuthService.getInstance(azure);
   _msAuthHandlers = new MicrosoftAuthIPCHandlers(microsoftAuthService);
   _processVideoHandlers = new ProcessVideoIPCHandlers();
   registerPortalHandlers(microsoftAuthService);

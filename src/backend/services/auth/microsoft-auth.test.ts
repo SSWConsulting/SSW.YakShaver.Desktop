@@ -66,7 +66,9 @@ describe("MicrosoftAuthService", () => {
       getTokenCache: vi.fn().mockReturnValue(mockTokenCache),
     };
 
-    service = new MicrosoftAuthService(
+    MicrosoftAuthService.resetInstanceForTest();
+
+    service = MicrosoftAuthService.getInstance(
       {
         clientId: "mock-client-id",
         tenantId: "mock-tenant-id",

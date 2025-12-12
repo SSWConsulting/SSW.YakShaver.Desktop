@@ -24,11 +24,33 @@ export interface AzureConfig {
 }
 
 export class MicrosoftAuthService {
+  private static instance: MicrosoftAuthService;
   private account: AccountInfo | null = null;
   private pca: PublicClientApplication;
   private config: AzureConfig;
 
-  constructor(azureConfig: AzureConfig, pca?: PublicClientApplication) {
+  public static getInstance(
+    azureConfig?: AzureConfig,
+    pca?: PublicClientApplication,
+  ): MicrosoftAuthService {
+    if (!MicrosoftAuthService.instance) {
+      if (!azureConfig) {
+        throw new Error(
+          "MicrosoftAuthService not initialized. AzureConfig is required for the first call.",
+        );
+      }
+      MicrosoftAuthService.instance = new MicrosoftAuthService(azureConfig, pca);
+    }
+    return MicrosoftAuthService.instance;
+  }
+
+  /** @internal */
+  public static resetInstanceForTest(): void {
+    // @ts-expect-error
+    MicrosoftAuthService.instance = undefined;
+  }
+
+  private constructor(azureConfig: AzureConfig, pca?: PublicClientApplication) {
     this.config = azureConfig;
     if (pca) {
       this.pca = pca;
