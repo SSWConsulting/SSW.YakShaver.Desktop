@@ -47,7 +47,6 @@ export async function SendWorkItemDetailsToPortal(
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body),
         },
-        rejectUnauthorized: false, // Allow self-signed certificates for development
       };
 
       const req = https.request(options, (res) => {
