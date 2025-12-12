@@ -222,6 +222,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
           {/**
            * As per conversation with Calum, we'll be hiding this feature temporarily
+           * See GitHub issue: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/287
            * <SourceSection
            *   label="Windows"
            *   sources={windows}
