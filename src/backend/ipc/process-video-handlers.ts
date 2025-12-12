@@ -171,7 +171,11 @@ export class ProcessVideoIPCHandlers {
       // if user logged in, send work item details to the portal
       if (mcpResult && (await MicrosoftAuthService.getInstance().isAuthenticated())) {
         const objectResult = await orchestrator.convertToObjectAsync(mcpResult, WorkItemDtoSchema);
-        await SendWorkItemDetailsToPortal(objectResult as WorkItemDto);
+        const portalResult = await SendWorkItemDetailsToPortal(objectResult as WorkItemDto);
+        if (!portalResult.success) {
+          console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
+          this.emitProgress("PORTAL_SUBMISSION_FAILED", { error: portalResult.error });
+        }
       }
 
       if (youtubeResult.origin !== "external" && youtubeResult.success) {
