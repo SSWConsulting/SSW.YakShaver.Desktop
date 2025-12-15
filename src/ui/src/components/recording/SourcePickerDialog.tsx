@@ -272,11 +272,14 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
            * />
            */}
 
-          {!loading && screens.length === 0 && !selectedCameraId && (
-            <div className="text-sm text-muted-foreground text-center py-8">
-              No screens available
-            </div>
-          )}
+          {(() => {
+            const shouldShowNoScreensMessage = !loading && screens.length === 0 && !selectedCameraId;
+            return shouldShowNoScreensMessage ? (
+              <div className="text-sm text-muted-foreground text-center py-8">
+                No screens available
+              </div>
+            ) : null;
+          })()}
         </div>
       </DialogContent>
     </Dialog>
@@ -347,6 +350,7 @@ function CameraOnlyTile({ onClick }: { onClick: () => void }) {
       className="group relative block aspect-video w-full h-auto overflow-hidden rounded-lg bg-neutral-800 p-4 ring-offset-neutral-900 transition-all hover:ring-2 hover:ring-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 hover:bg-neutral-800"
     >
       <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-neutral-400">
+        {/* Icon: Crossed-out pin/thumbtack representing "no screen attachment" */}
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="48"

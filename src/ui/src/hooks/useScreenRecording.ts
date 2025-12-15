@@ -78,9 +78,9 @@ export function useScreenRecording() {
   }, []);
 
   const startRecorder = useCallback(
-    async (recorder: MediaRecorder, cameraDeviceId?: string) => {
+    async (recorder: MediaRecorder, cameraDeviceId?: string | null) => {
       try {
-        await window.electronAPI.screenRecording.showControlBar(cameraDeviceId);
+        await window.electronAPI.screenRecording.showControlBar(cameraDeviceId ?? undefined);
         recorder.start();
         await window.electronAPI.screenRecording.startTimer();
       } catch (error) {
@@ -124,7 +124,8 @@ export function useScreenRecording() {
 
           setupAudioContext(audioStream);
           const recorder = setupRecorder(cameraStream, audioStream);
-          await startRecorder(recorder, undefined);
+          // Pass null for camera device ID to indicate no camera PIP should be shown
+          await startRecorder(recorder, null);
 
           setIsRecording(true);
           toast.success("Recording started");
