@@ -15,6 +15,7 @@ import type {
   InteractiveRequest,
   SilentFlowRequest,
 } from "@azure/msal-node";
+import { config } from "../../config/env";
 
 export interface AzureConfig {
   clientId: string;
@@ -24,18 +25,24 @@ export interface AzureConfig {
 }
 
 export class MicrosoftAuthService {
-  private account: AccountInfo | null = null;
-  private pca: PublicClientApplication;
-  private config: AzureConfig;
+  private static account: AccountInfo | null = null;
+  private static pca: PublicClientApplication;
+  private static instance: MicrosoftAuthService;
 
-  constructor(azureConfig: AzureConfig, pca?: PublicClientApplication) {
-    this.config = azureConfig;
-    if (pca) {
-      this.pca = pca;
-    } else {
+  private constructor() {}
+
+  // Note: the azure parameter is a workaround for testing purposes,
+  // so in the testing environment a mock config can be passed in.
+  public static getInstance(mockAzureConfig?: AzureConfig): MicrosoftAuthService {
+    if (!MicrosoftAuthService.instance) {
+      const azureConfig = mockAzureConfig ?? config.azure();
+      if (!azureConfig) {
+        throw new Error("Azure configuration is not set.");
+      }
+
       const cachePlugin = new MsalSecureCachePlugin();
-
-      this.pca = new PublicClientApplication({
+      MicrosoftAuthService.instance = new MicrosoftAuthService();
+      MicrosoftAuthService.pca = new PublicClientApplication({
         auth: {
           clientId: azureConfig.clientId,
           authority: `https://login.microsoftonline.com/${azureConfig.tenantId}`,
@@ -52,10 +59,12 @@ export class MicrosoftAuthService {
         },
       });
     }
+
+    return MicrosoftAuthService.instance;
   }
 
   private getScopes(): string[] {
-    return this.config.scopes ?? [];
+    return config.azure()?.scopes ?? [];
   }
 
   async isAuthenticated(): Promise<boolean> {
@@ -105,11 +114,11 @@ export class MicrosoftAuthService {
 
   async logout(): Promise<void> {
     try {
-      if (!this.account) {
+      if (!MicrosoftAuthService.account) {
         return;
       }
-      await this.pca.getTokenCache().removeAccount(this.account);
-      this.account = null;
+      await MicrosoftAuthService.pca.getTokenCache().removeAccount(MicrosoftAuthService.account);
+      MicrosoftAuthService.account = null;
     } catch (error) {
       const errorMsg = formatErrorMessage(error);
       console.error("Logout error:", errorMsg);
@@ -118,15 +127,15 @@ export class MicrosoftAuthService {
 
   async loginSilent(tokenRequest: SilentFlowRequest): Promise<AccountInfo | null> {
     let response: AuthenticationResult;
-    if (!this.account) {
+    if (!MicrosoftAuthService.account) {
       const account = await this.getAccount();
       if (account) {
         tokenRequest.account = account;
         response = await this.getTokenSilent(tokenRequest);
-        this.account = response.account;
+        MicrosoftAuthService.account = response.account;
       }
     }
-    return this.account;
+    return MicrosoftAuthService.account;
   }
 
   async getToken(): Promise<AuthenticationResult> {
@@ -137,14 +146,14 @@ export class MicrosoftAuthService {
       };
 
       let authResponse: AuthenticationResult;
-      const account = this.account || (await this.getAccount());
+      const account = MicrosoftAuthService.account || (await this.getAccount());
       if (account) {
         request.account = account;
         authResponse = await this.getTokenSilent(request);
       } else {
         authResponse = await this.getTokenInteractive(request);
       }
-      this.account = authResponse.account;
+      MicrosoftAuthService.account = authResponse.account;
       return authResponse;
     } catch (error) {
       console.error("Error getting token:", formatErrorMessage(error));
@@ -154,7 +163,7 @@ export class MicrosoftAuthService {
 
   async getTokenSilent(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
     try {
-      return await this.pca.acquireTokenSilent(tokenRequest);
+      return await MicrosoftAuthService.pca.acquireTokenSilent(tokenRequest);
     } catch (_error) {
       console.warn("Silent token acquisition failed, acquiring token using pop up");
       return await this.getTokenInteractive(tokenRequest);
@@ -197,7 +206,8 @@ export class MicrosoftAuthService {
         prompt: "select_account", // Force account selection
       };
 
-      const authResponse = await this.pca.acquireTokenInteractive(interactiveRequest);
+      const authResponse =
+        await MicrosoftAuthService.pca.acquireTokenInteractive(interactiveRequest);
       return authResponse;
     } catch (error) {
       console.error("Error getting token interactively:", formatErrorMessage(error));
@@ -210,16 +220,16 @@ export class MicrosoftAuthService {
    * @param response
    */
   private async handleResponse(response: AuthenticationResult): Promise<AccountInfo | null> {
-    this.account = response?.account || (await this.getAccount());
-    return this.account;
+    MicrosoftAuthService.account = response?.account || (await this.getAccount());
+    return MicrosoftAuthService.account;
   }
 
   public currentAccount(): AccountInfo | null {
-    return this.account;
+    return MicrosoftAuthService.account;
   }
 
   private async getAccount(): Promise<AccountInfo | null> {
-    const cache = this.pca.getTokenCache();
+    const cache = MicrosoftAuthService.pca.getTokenCache();
     const currentAccounts = await cache.getAllAccounts();
 
     if (currentAccounts === null) {

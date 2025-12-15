@@ -29,7 +29,6 @@ export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthServic
             Authorization: `Bearer ${result.accessToken}`,
             "Content-Type": "application/json",
           },
-          rejectUnauthorized: false, // Allow self-signed certificates for development
         };
 
         const req = https.request(options, (res) => {
