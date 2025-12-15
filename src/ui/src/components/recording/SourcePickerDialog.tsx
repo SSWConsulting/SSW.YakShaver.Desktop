@@ -139,6 +139,8 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   const screens = useMemo(() => sources.filter((s) => s.type === "screen"), [sources]);
   // const windows = useMemo(() => sources.filter((s) => s.type === "window"), [sources]);
 
+  const CAMERA_ONLY_SOURCE_ID = "__camera_only__";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl p-4">
@@ -230,6 +232,25 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           {loading && (
             <div className="text-sm text-muted-foreground text-center py-2">Loading sources…</div>
           )}
+          
+          {selectedCameraId && (
+            <section>
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
+                Camera Only
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-5">
+                <CameraOnlyTile
+                  onClick={() =>
+                    onSelect(CAMERA_ONLY_SOURCE_ID, {
+                      cameraId: selectedCameraId,
+                      microphoneId: selectedMicrophoneId,
+                    })
+                  }
+                />
+              </div>
+            </section>
+          )}
+          
           <SourceSection
             label="Screens"
             sources={screens}
@@ -251,7 +272,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
            * />
            */}
 
-          {!loading && screens.length === 0 && (
+          {!loading && screens.length === 0 && !selectedCameraId && (
             <div className="text-sm text-muted-foreground text-center py-8">
               No screens available
             </div>
@@ -308,6 +329,43 @@ function ImageTile({ source, onClick }: { source: ScreenSource; onClick: () => v
       ) : (
         <div className="h-full w-full bg-neutral-800" />
       )}
+    </Button>
+  );
+}
+
+function CameraOnlyTile({ onClick }: { onClick: () => void }) {
+  const handleClick = async () => {
+    await window.electronAPI.screenRecording.minimizeMainWindow();
+    onClick();
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      onClick={handleClick}
+      title="Camera Only - No Screen"
+      className="group relative block aspect-video w-full h-auto overflow-hidden rounded-lg bg-neutral-800 p-4 ring-offset-neutral-900 transition-all hover:ring-2 hover:ring-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 hover:bg-neutral-800"
+    >
+      <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-neutral-400">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m15 10-4 4 6.5 6.5a2.828 2.828 0 1 0 4-4L15 10Z" />
+          <path d="M14.5 15.5 9 21" />
+          <path d="m2.5 2.5 19 19" />
+          <path d="M8.707 8.707 3 14.5a2.828 2.828 0 1 0 4 4l5.793-5.793" />
+        </svg>
+        <span className="text-sm font-medium">No Screen / Camera Only</span>
+        <span className="text-xs text-neutral-500">Record camera feed without screen capture</span>
+      </div>
     </Button>
   );
 }
