@@ -4,7 +4,6 @@ run-name: 'YakShaver App Release - Build #${{ github.run_number }} - ${{ github.
 on:
   push:
     branches:
-      - main
       - test/release-trigger
 
 permissions:
@@ -59,7 +58,7 @@ jobs:
           gh release create "$TAG_NAME" \
             --title "$VERSION" \
             --generate-notes \
-            --target main \
+            --target test/release-trigger \
             --draft=false
 
           echo "Release created and published"
