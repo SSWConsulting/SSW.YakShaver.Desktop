@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CAMERA_ONLY_SOURCE_ID } from "../constants/recording";
 
 const VIDEO_MIME_TYPE = "video/mp4";
 
@@ -99,7 +100,7 @@ export function useScreenRecording() {
     async (sourceId?: string, options?: { micDeviceId?: string; cameraDeviceId?: string }) => {
       setIsProcessing(true);
       try {
-        const isCameraOnly = sourceId === "__camera_only__";
+        const isCameraOnly = sourceId === CAMERA_ONLY_SOURCE_ID;
         
         if (isCameraOnly) {
           // Camera-only mode: use camera as main video source

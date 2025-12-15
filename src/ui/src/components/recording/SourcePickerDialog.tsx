@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CAMERA_ONLY_SOURCE_ID } from "../../constants/recording";
 import { ipcClient } from "../../services/ipc-client";
 import type { ScreenSource } from "../../types";
 import { Button } from "../ui/button";
@@ -139,8 +140,6 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   const screens = useMemo(() => sources.filter((s) => s.type === "screen"), [sources]);
   // const windows = useMemo(() => sources.filter((s) => s.type === "window"), [sources]);
 
-  const CAMERA_ONLY_SOURCE_ID = "__camera_only__";
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl p-4">
@@ -272,14 +271,11 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
            * />
            */}
 
-          {(() => {
-            const shouldShowNoScreensMessage = !loading && screens.length === 0 && !selectedCameraId;
-            return shouldShowNoScreensMessage ? (
-              <div className="text-sm text-muted-foreground text-center py-8">
-                No screens available
-              </div>
-            ) : null;
-          })()}
+          {!loading && screens.length === 0 && !selectedCameraId && (
+            <div className="text-sm text-muted-foreground text-center py-8">
+              No screens available
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
