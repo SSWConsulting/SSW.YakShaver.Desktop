@@ -25,11 +25,15 @@ export function useScreenRecording() {
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
   const cleanup = useCallback(async () => {
-    mediaRecorderRef.current?.stream
-      .getTracks()
-      .forEach((track) => track.stop());
-    streamsRef.current.video?.getTracks().forEach((track) => track.stop());
-    streamsRef.current.audio?.getTracks().forEach((track) => track.stop());
+    mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
+      track.stop();
+    });
+    streamsRef.current.video?.getTracks().forEach((track) => {
+      track.stop();
+    });
+    streamsRef.current.audio?.getTracks().forEach((track) => {
+      track.stop();
+    });
 
     if (audioSourceRef.current) {
       audioSourceRef.current.disconnect();
@@ -46,10 +50,7 @@ export function useScreenRecording() {
   }, []);
 
   const start = useCallback(
-    async (
-      sourceId?: string,
-      options?: { micDeviceId?: string; cameraDeviceId?: string }
-    ) => {
+    async (sourceId?: string, options?: { micDeviceId?: string; cameraDeviceId?: string }) => {
       setIsProcessing(true);
       try {
         const result = await window.electronAPI.screenRecording.start(sourceId);
@@ -70,9 +71,7 @@ export function useScreenRecording() {
             } as ElectronVideoConstraints,
           }),
           navigator.mediaDevices.getUserMedia({
-            audio: options?.micDeviceId
-              ? { deviceId: { exact: options.micDeviceId } }
-              : true,
+            audio: options?.micDeviceId ? { deviceId: { exact: options.micDeviceId } } : true,
             video: false,
           }),
         ]);
@@ -91,26 +90,25 @@ export function useScreenRecording() {
         streamsRef.current = { video: videoStream, audio: audioStream };
 
         const recorder = new MediaRecorder(
-          new MediaStream([
-            ...videoStream.getVideoTracks(),
-            ...audioStream.getAudioTracks(),
-          ]),
-          { mimeType: VIDEO_MIME_TYPE }
+          new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]),
+          { mimeType: VIDEO_MIME_TYPE },
         );
 
         chunksRef.current = [];
-        recorder.ondataavailable = (e) =>
-          e.data.size > 0 && chunksRef.current.push(e.data);
+        recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
 
         mediaRecorderRef.current = recorder;
 
-        recorder.start();
         try {
-          await window.electronAPI.screenRecording.showControlBar(
-            options?.cameraDeviceId
-          );
+          await window.electronAPI.screenRecording.showControlBar(options?.cameraDeviceId);
+
+          recorder.start();
+
+          await window.electronAPI.screenRecording.startTimer();
         } catch (error) {
-          recorder.stop();
+          if (recorder.state !== "inactive") {
+            recorder.stop();
+          }
           cleanup();
           toast.error(`Failed to show control bar: ${error}`);
           throw error;
@@ -126,7 +124,7 @@ export function useScreenRecording() {
         setIsProcessing(false);
       }
     },
-    [cleanup]
+    [cleanup],
   );
 
   const stop = useCallback(async (): Promise<{
@@ -143,13 +141,11 @@ export function useScreenRecording() {
     return new Promise((resolve) => {
       recorder.onstop = async () => {
         try {
-          await window.electronAPI.screenRecording
-            .hideControlBar()
-            .catch(() => {});
+          await window.electronAPI.screenRecording.hideControlBar().catch(() => {});
 
           const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
           const result = await window.electronAPI.screenRecording.stop(
-            new Uint8Array(await blob.arrayBuffer())
+            new Uint8Array(await blob.arrayBuffer()),
           );
 
           if (!result.success || !result.filePath) {

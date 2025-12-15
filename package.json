@@ -14,7 +14,8 @@
     "make": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --config electron-builder.config.js",
     "publish": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --publish always --config electron-builder.config.js",
     "lint": "biome check --write .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "test": "vitest"
   },
   "keywords": [],
   "author": {
@@ -26,21 +27,24 @@
     "url": "https://github.com/SSWConsulting/SSW.YakShaver.Desktop.git"
   },
   "dependencies": {
-    "@ai-sdk/deepseek": "^1.0.30",
-    "@ai-sdk/mcp": "^0.0.8",
-    "@ai-sdk/openai": "^2.0.75",
+    "@ai-sdk/deepseek": "^2.0.0-beta.49",
+    "@ai-sdk/mcp": "^1.0.0-beta.32",
+    "@ai-sdk/openai": "^3.0.0-beta.90",
+    "@azure/msal-node": "^3.8.4",
     "@azure/openai": "^2.0.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
-    "@modelcontextprotocol/sdk": "^1.21.1",
-    "ai": "^6.0.0-beta.114",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@modelcontextprotocol/sdk": "^1.24.3",
+    "ai": "^6.0.0-beta.139",
     "dotenv": "^17.2.3",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.6.2",
     "get-port": "^7.1.0",
     "google-auth-library": "^10.5.0",
     "googleapis": "^166.0.0",
+    "isomorphic-fetch": "^3.0.0",
     "json-schema-to-zod": "^2.6.1",
-    "openai": "^6.3.0",
+    "openai": "^6.10.0",
     "tmp": "^0.2.5",
     "youtube-dl-exec": "^3.0.27"
   },
@@ -51,9 +55,10 @@
     "@types/tmp": "^0.2.6",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
-    "electron": "^39.2.4",
+    "electron": "^39.2.6",
     "electron-builder": "^26.0.12",
     "typescript": "^5.9.3",
+    "vitest": "^4.0.15",
     "wait-on": "^9.0.3"
   }
 }

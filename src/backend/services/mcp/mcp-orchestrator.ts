@@ -5,6 +5,7 @@ import { LLMClientProvider } from "./llm-client-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 import { BrowserWindow } from "electron";
 import { GeneralSettingsStorage, type ToolApprovalMode } from "../storage/general-settings-storage";
+import { ZodTypeAny } from "zod";
 
 type StepType =
   | "start"
@@ -264,6 +265,20 @@ export class MCPOrchestrator {
         console.log(llmResponse.finishReason);
         break;
       }
+    }
+  }
+
+  public async convertToObjectAsync(prompt: string, schema: ZodTypeAny): Promise<unknown> {
+    if (!MCPOrchestrator.llmProvider) {
+      throw new Error("[MCPOrchestrator]: LLM client not initialized");
+    }
+
+    try {
+      const objResult = await MCPOrchestrator.llmProvider.generateObject(prompt, schema);
+      return objResult.object;
+    } catch (error) {
+      console.error("[MCPOrchestrator]: Error in convertToObjectAsync:", error);
+      throw error;
     }
   }
 

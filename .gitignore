@@ -97,3 +97,6 @@ build/
 
 # MCP Config
 mcp-servers.json
+
+.trae/
+.vscode/settings.json

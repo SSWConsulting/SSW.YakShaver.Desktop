@@ -1,10 +1,4 @@
-import {
-  type ChangeEvent,
-  useCallback,
-  useEffect,
-  useId,
-  useState,
-} from "react";
+import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
@@ -33,9 +27,7 @@ export function ScreenRecorder() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(
-    null
-  );
+  const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
@@ -53,8 +45,7 @@ export function ScreenRecorder() {
   };
 
   useEffect(() => {
-    const cleanup =
-      window.electronAPI.screenRecording.onStopRequest(handleStopRecording);
+    const cleanup = window.electronAPI.screenRecording.onStopRequest(handleStopRecording);
     return cleanup;
   }, [handleStopRecording]);
 
@@ -64,7 +55,6 @@ export function ScreenRecorder() {
       setIsProcessingUrl(false);
     }
   }, [isYoutubeUrlWorkflowEnabled]);
-
 
   const handleStartRecording = async (
     sourceId: string,
@@ -165,8 +155,8 @@ export function ScreenRecorder() {
             {isRecording
               ? "Stop Recording"
               : isTranscribing
-              ? "Transcribing..."
-              : "Start Recording"}
+                ? "Transcribing..."
+                : "Start Recording"}
           </Button>
         </div>
         {!isAuthenticated && (
@@ -200,8 +190,7 @@ export function ScreenRecorder() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Paste any published YouTube URL to kick off workflow processing
-              without recording.
+              Paste any published YouTube URL to kick off workflow processing without recording.
             </p>
           </div>
         )}

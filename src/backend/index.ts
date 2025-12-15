@@ -3,22 +3,26 @@ import { config as dotenvConfig } from "dotenv";
 import { app, BrowserWindow, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
+import { config } from "./config/env";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
+import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
+import { MicrosoftAuthIPCHandlers } from "./ipc/microsoft-auth-handlers";
+import { registerPortalHandlers } from "./ipc/portal-handlers";
 import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
-import { VideoIPCHandlers } from "./ipc/video-handlers";
-import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
+import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
+import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
+import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
+import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
-import { MCPServerManager } from "./services/mcp/mcp-server-manager";
-import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -74,10 +78,7 @@ const createWindow = (): void => {
     mainWindow.loadURL("http://localhost:3000");
     mainWindow.webContents.openDevTools();
   } else {
-    const indexPath = join(
-      process.resourcesPath,
-      "app.asar.unpacked/src/ui/dist/index.html"
-    );
+    const indexPath = join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/index.html");
     mainWindow.loadFile(indexPath).catch((err) => {
       console.error("Failed to load index.html:", err);
     });
@@ -87,7 +88,7 @@ const createWindow = (): void => {
 // Initialize IPC handlers
 let _screenRecordingHandlers: ScreenRecordingIPCHandlers;
 let _authHandlers: AuthIPCHandlers;
-let _videoHandlers: VideoIPCHandlers;
+let _msAuthHandlers: MicrosoftAuthIPCHandlers;
 let _llmSettingsHandlers: LLMSettingsIPCHandlers;
 let _mcpHandlers: McpIPCHandlers;
 let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
@@ -98,23 +99,28 @@ let _generalSettingsHandlers: GeneralSettingsIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
+  const azure = config.azure();
+  if (azure?.customProtocol) {
+    try {
+      app.setAsDefaultProtocolClient(azure.customProtocol);
+    } catch {}
+    app.on("open-url", (event) => {
+      event.preventDefault();
+      mainWindow?.focus();
+    });
+  }
   session.defaultSession.setPermissionCheckHandler(() => true);
-  session.defaultSession.setPermissionRequestHandler(
-    (_, permission, callback) => {
-      callback(
-        [
-          "media",
-          "clipboard-read",
-          "clipboard-sanitized-write",
-          "fullscreen",
-        ].includes(permission)
-      );
-    }
-  );
+  session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
+    callback(
+      ["media", "clipboard-read", "clipboard-sanitized-write", "fullscreen"].includes(permission),
+    );
+  });
 
   _authHandlers = new AuthIPCHandlers();
-  _videoHandlers = new VideoIPCHandlers();
+  const microsoftAuthService = MicrosoftAuthService.getInstance();
+  _msAuthHandlers = new MicrosoftAuthIPCHandlers(microsoftAuthService);
   _processVideoHandlers = new ProcessVideoIPCHandlers();
+  registerPortalHandlers(microsoftAuthService);
 
   try {
     _llmSettingsHandlers = new LLMSettingsIPCHandlers();
@@ -137,6 +143,7 @@ app.whenReady().then(async () => {
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
   CameraWindow.getInstance().initialize(isDev);
+  CountdownWindow.getInstance().initialize(isDev);
 
   unregisterEventForwarders = registerEventForwarders();
   createWindow();
@@ -144,9 +151,7 @@ app.whenReady().then(async () => {
   // Auto-updates: Check only in packaged mode (dev skips)
   // Configure and check based on stored channel preference
   if (app.isPackaged) {
-    const { ReleaseChannelStorage } = await import(
-      "./services/storage/release-channel-storage"
-    );
+    const { ReleaseChannelStorage } = await import("./services/storage/release-channel-storage");
     const channelStore = ReleaseChannelStorage.getInstance();
     const channel = await channelStore.getChannel();
     _releaseChannelHandlers.configureAutoUpdater(channel, true);
