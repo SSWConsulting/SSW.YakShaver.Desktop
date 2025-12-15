@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - test/release-trigger
 
 permissions:
   contents: write
@@ -23,7 +24,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: main
+          ref: test/release-trigger
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -100,5 +101,5 @@ jobs:
     uses: ./.github/workflows/release-electron-app.yml
     with:
       tag_name: ${{ needs.auto-release.outputs.tag_name }}
-      target: main
+      target: test/release-trigger
     secrets: inherit
