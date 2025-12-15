@@ -49,6 +49,52 @@ export function useScreenRecording() {
     streamsRef.current = {};
   }, []);
 
+  const setupAudioContext = useCallback((audioStream: MediaStream) => {
+    const audioContext = new AudioContext();
+    const audioSource = audioContext.createMediaStreamSource(audioStream);
+    const gainNode = audioContext.createGain();
+    // Create a silent audio pipeline to force Windows to keep the audio device active (prevents Windows from switching Bluetooth devices)
+    gainNode.gain.value = 0;
+    audioSource.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    audioContextRef.current = audioContext;
+    audioSourceRef.current = audioSource;
+  }, []);
+
+  const setupRecorder = useCallback((videoStream: MediaStream, audioStream: MediaStream) => {
+    streamsRef.current = { video: videoStream, audio: audioStream };
+
+    const recorder = new MediaRecorder(
+      new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]),
+      { mimeType: VIDEO_MIME_TYPE },
+    );
+
+    chunksRef.current = [];
+    recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
+
+    mediaRecorderRef.current = recorder;
+    return recorder;
+  }, []);
+
+  const startRecorder = useCallback(
+    async (recorder: MediaRecorder, cameraDeviceId?: string) => {
+      try {
+        await window.electronAPI.screenRecording.showControlBar(cameraDeviceId);
+        recorder.start();
+        await window.electronAPI.screenRecording.startTimer();
+      } catch (error) {
+        if (recorder.state !== "inactive") {
+          recorder.stop();
+        }
+        cleanup();
+        toast.error(`Failed to show control bar: ${error}`);
+        throw error;
+      }
+    },
+    [cleanup],
+  );
+
   const start = useCallback(
     async (sourceId?: string, options?: { micDeviceId?: string; cameraDeviceId?: string }) => {
       setIsProcessing(true);
@@ -76,44 +122,9 @@ export function useScreenRecording() {
             }),
           ]);
 
-          const audioContext = new AudioContext();
-          const audioSource = audioContext.createMediaStreamSource(audioStream);
-          const gainNode = audioContext.createGain();
-          // Create a silent audio pipeline to force Windows to keep the audio device active (prevents Windows from switching Bluetooth devices)
-          gainNode.gain.value = 0;
-          audioSource.connect(gainNode);
-          gainNode.connect(audioContext.destination);
-
-          audioContextRef.current = audioContext;
-          audioSourceRef.current = audioSource;
-
-          streamsRef.current = { video: cameraStream, audio: audioStream };
-
-          const recorder = new MediaRecorder(
-            new MediaStream([...cameraStream.getVideoTracks(), ...audioStream.getAudioTracks()]),
-            { mimeType: VIDEO_MIME_TYPE },
-          );
-
-          chunksRef.current = [];
-          recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
-
-          mediaRecorderRef.current = recorder;
-
-          try {
-            // Don't show camera window for camera-only mode, just show control bar
-            await window.electronAPI.screenRecording.showControlBar(undefined);
-
-            recorder.start();
-
-            await window.electronAPI.screenRecording.startTimer();
-          } catch (error) {
-            if (recorder.state !== "inactive") {
-              recorder.stop();
-            }
-            cleanup();
-            toast.error(`Failed to show control bar: ${error}`);
-            throw error;
-          }
+          setupAudioContext(audioStream);
+          const recorder = setupRecorder(cameraStream, audioStream);
+          await startRecorder(recorder, undefined);
 
           setIsRecording(true);
           toast.success("Recording started");
@@ -142,43 +153,9 @@ export function useScreenRecording() {
             }),
           ]);
 
-          const audioContext = new AudioContext();
-          const audioSource = audioContext.createMediaStreamSource(audioStream);
-          const gainNode = audioContext.createGain();
-          // Create a silent audio pipeline to force Windows to keep the audio device active (prevents Windows from switching Bluetooth devices)
-          gainNode.gain.value = 0;
-          audioSource.connect(gainNode);
-          gainNode.connect(audioContext.destination);
-
-          audioContextRef.current = audioContext;
-          audioSourceRef.current = audioSource;
-
-          streamsRef.current = { video: videoStream, audio: audioStream };
-
-          const recorder = new MediaRecorder(
-            new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]),
-            { mimeType: VIDEO_MIME_TYPE },
-          );
-
-          chunksRef.current = [];
-          recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
-
-          mediaRecorderRef.current = recorder;
-
-          try {
-            await window.electronAPI.screenRecording.showControlBar(options?.cameraDeviceId);
-
-            recorder.start();
-
-            await window.electronAPI.screenRecording.startTimer();
-          } catch (error) {
-            if (recorder.state !== "inactive") {
-              recorder.stop();
-            }
-            cleanup();
-            toast.error(`Failed to show control bar: ${error}`);
-            throw error;
-          }
+          setupAudioContext(audioStream);
+          const recorder = setupRecorder(videoStream, audioStream);
+          await startRecorder(recorder, options?.cameraDeviceId);
 
           setIsRecording(true);
           toast.success("Recording started");
@@ -191,7 +168,7 @@ export function useScreenRecording() {
         setIsProcessing(false);
       }
     },
-    [cleanup],
+    [cleanup, setupAudioContext, setupRecorder, startRecorder],
   );
 
   const stop = useCallback(async (): Promise<{
