@@ -112,6 +112,7 @@ export function useScreenRecording() {
               audio: false,
               video: {
                 deviceId: { exact: options.cameraDeviceId },
+                // Most cameras don't support 4K, so we use Full HD (1920x1080) as a reasonable default.
                 width: { ideal: 1920 },
                 height: { ideal: 1080 },
               },
