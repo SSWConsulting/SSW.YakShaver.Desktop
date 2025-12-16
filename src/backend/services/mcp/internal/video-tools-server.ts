@@ -1,11 +1,13 @@
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import path, { extname, join } from "node:path";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
+import { MicrosoftAuthService } from "../../auth/microsoft-auth.js";
 import { FFmpegService } from "../../ffmpeg/ffmpeg-service.js";
+import { UploadScreenshotToPortal } from "../../portal/actions.js";
 import { LLMClientProvider } from "../llm-client-provider.js";
 import type { MCPServerConfig } from "../types.js";
 import type { InternalMcpServerRegistration } from "./internal-server-types.js";
@@ -13,8 +15,11 @@ import type { InternalMcpServerRegistration } from "./internal-server-types.js";
 const captureInputShape = {
   videoPath: z.string().min(1).describe("Absolute path to the source video"),
   timestamp: z
-    .union([z.number().nonnegative(), z.string().min(1)])
-    .describe("Timestamp to capture (seconds or HH:MM:SS.mmm)"),
+    .string()
+    .min(1)
+    .describe(
+      "Timestamp to capture - accepts seconds as string (e.g. '30', '90.5') or HH:MM:SS.mmm format",
+    ),
   outputPath: z.string().optional().describe("Optional output path for the screenshot"),
 };
 const captureInputSchema = z.object(captureInputShape);
@@ -24,6 +29,18 @@ const describeInputShape = {
   prompt: z.string().optional().describe("Optional custom prompt for the vision model"),
 };
 const describeInputSchema = z.object(describeInputShape);
+
+const uploadScreenshotInputShape = {
+  screenshotPath: z
+    .string()
+    .min(1)
+    .describe("Absolute path to the screenshot/image file to upload"),
+};
+const uploadScreenshotInputSchema = z.object(uploadScreenshotInputShape);
+
+type CaptureInput = z.infer<typeof captureInputSchema>;
+type DescribeInput = z.infer<typeof describeInputSchema>;
+type UploadScreenshotInput = z.infer<typeof uploadScreenshotInputSchema>;
 
 export async function createInternalVideoToolsServer(): Promise<InternalMcpServerRegistration> {
   const ffmpegService = FFmpegService.getInstance();
@@ -38,10 +55,11 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
   mcpServer.registerTool(
     "capture_video_frame",
     {
-      description: "Capture a PNG screenshot from a local video at the specified timestamp.",
+      description:
+        "Capture a PNG screenshot from a local video at the specified timestamp. Returns the local file path of the captured screenshot. Use upload_screenshot tool to upload it and get a public URL.",
       inputSchema: captureInputShape,
     },
-    async (input) => {
+    async (input: CaptureInput) => {
       validatePath(input.videoPath);
       const { videoPath, timestamp, outputPath } = captureInputSchema.parse(input);
       await ensureFileExists(videoPath, "video");
@@ -69,13 +87,72 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
   );
 
   mcpServer.registerTool(
+    "upload_screenshot",
+    {
+      description:
+        "Upload a screenshot/image to the portal and get a public URL. Requires user to be authenticated with Microsoft. Use this URL when creating issues to include visual context.",
+      inputSchema: uploadScreenshotInputShape,
+    },
+    async (input: UploadScreenshotInput) => {
+      validatePath(input.screenshotPath);
+      const { screenshotPath } = uploadScreenshotInputSchema.parse(input);
+      await ensureFileExists(screenshotPath, "screenshot");
+
+      const msAuth = MicrosoftAuthService.getInstance();
+      if (!(await msAuth.isAuthenticated())) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: false,
+                error:
+                  "User is not authenticated with Microsoft. Screenshot upload requires authentication.",
+              }),
+            },
+          ],
+        };
+      }
+
+      const uploadResult = await UploadScreenshotToPortal(screenshotPath);
+      if (uploadResult.success) {
+        console.log("[upload_screenshot] Screenshot uploaded to portal:", uploadResult.url);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                screenshotUrl: uploadResult.url,
+              }),
+            },
+          ],
+        };
+      }
+
+      console.warn("[upload_screenshot] Failed to upload screenshot:", uploadResult.error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: false,
+              error: uploadResult.error,
+            }),
+          },
+        ],
+      };
+    },
+  );
+
+  mcpServer.registerTool(
     "describe_image",
     {
       description:
         "Use the configured multimodal LLM to describe the contents of a screenshot or image.",
       inputSchema: describeInputShape,
     },
-    async (input) => {
+    async (input: DescribeInput) => {
       validatePath(input.imagePath);
       const { imagePath, prompt } = describeInputSchema.parse(input);
       await ensureFileExists(imagePath, "image");
@@ -128,20 +205,18 @@ async function ensureFileExists(filePath: string, label: string): Promise<void> 
   }
 }
 
-function parseTimestamp(value: number | string): number {
-  if (typeof value === "number") {
-    return value;
-  }
-
+function parseTimestamp(value: string): number {
   const trimmed = value.trim();
   if (!trimmed) {
     throw new Error("Timestamp cannot be empty");
   }
 
+  // Check if it's a plain number (seconds)
   if (/^\d+(\.\d+)?$/.test(trimmed)) {
     return Number.parseFloat(trimmed);
   }
 
+  // Parse HH:MM:SS.mmm format
   const parts = trimmed.split(":").map((part) => Number.parseFloat(part));
   if (parts.some((part) => Number.isNaN(part))) {
     throw new Error(`Invalid timestamp format: ${value}`);

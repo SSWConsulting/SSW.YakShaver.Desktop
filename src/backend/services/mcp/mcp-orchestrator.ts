@@ -1,11 +1,11 @@
-import type { ToolCallOptions, ToolModelMessage, ModelMessage, UserModelMessage } from "ai";
 import { randomUUID } from "node:crypto";
+import type { ModelMessage, ToolCallOptions, ToolModelMessage, UserModelMessage } from "ai";
+import { BrowserWindow } from "electron";
+import type { ZodTypeAny } from "zod";
 import type { VideoUploadResult } from "../auth/types";
+import { GeneralSettingsStorage, type ToolApprovalMode } from "../storage/general-settings-storage";
 import { LLMClientProvider } from "./llm-client-provider";
 import { MCPServerManager } from "./mcp-server-manager";
-import { BrowserWindow } from "electron";
-import { GeneralSettingsStorage, type ToolApprovalMode } from "../storage/general-settings-storage";
-import { ZodTypeAny } from "zod";
 
 type StepType =
   | "start"
@@ -74,6 +74,7 @@ export class MCPOrchestrator {
     options: {
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
+      videoFilePath?: string; // local video file path for screenshot capture
     } = {},
   ): Promise<string | undefined> {
     // Ensure LLM has been initialized
@@ -98,6 +99,11 @@ export class MCPOrchestrator {
     const videoUrl = videoUploadResult?.data?.url;
     if (videoUrl) {
       systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.\nPlease include this URL in the task content that you create.`;
+    }
+
+    // If a video file path is provided, add it to the system prompt for screenshot capture
+    if (options.videoFilePath) {
+      systemPrompt += `\n\nVideo file available for screenshot capture: ${options.videoFilePath}.`;
     }
 
     const messages: ModelMessage[] = [

@@ -1,20 +1,20 @@
 import fs from "node:fs";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
+import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
+import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
-import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -162,6 +162,7 @@ export class ProcessVideoIPCHandlers {
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
       const mcpResult = await orchestrator.manualLoopAsync(intermediateOutput, youtubeResult, {
         systemPrompt,
+        videoFilePath: filePath,
       });
 
       // if user logged in, send work item details to the portal
