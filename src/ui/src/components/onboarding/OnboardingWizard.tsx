@@ -2,6 +2,33 @@ import { useState } from "react";
 import { FaYoutube } from "react-icons/fa";
 import { Button } from "../ui/button";
 
+const STEPS = [
+  {
+    id: 1,
+    icon: "/onboarding/monitor-play.svg",
+    title: "Video Hosting",
+    description: "Sign in and Authorise YakShaver to publish videos for you.",
+  },
+  {
+    id: 2,
+    icon: "/onboarding/cpu.svg",
+    title: "Connecting an LLM",
+    description: "Choose your provider and save the API details",
+  },
+  {
+    id: 3,
+    icon: "/onboarding/monitor-play.svg",
+    title: "Connecting an MCP",
+    description: "Configure or choose which MCP server YakShaver will call.",
+  },
+  {
+    id: 4,
+    icon: "/onboarding/play.svg",
+    title: "Record your first Video",
+    description: "Finish setup and jump into your first request.",
+  },
+];
+
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
 
@@ -65,142 +92,48 @@ export function OnboardingWizard() {
 
                 {/* Step Icons */}
                 <div className="flex flex-col items-center gap-[60px] relative z-10">
-                  {/* Step 1 - Video Hosting */}
-                  <div className="flex flex-col items-center gap-2 h-[60px]">
+                  {STEPS.map((step, index) => (
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                        getStepStatus(1) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                      }`}
+                      key={step.id}
+                      className={`flex flex-col items-center gap-2 ${index < STEPS.length - 1 ? "h-[60px]" : ""}`}
                     >
-                      <img
-                        src="/onboarding/monitor-play.svg"
-                        alt="Video Hosting"
-                        className={`w-6 h-6 transition-opacity duration-300 ${
-                          getStepStatus(1) === "pending" ? "opacity-40" : "opacity-100"
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
+                          getStepStatus(step.id) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
                         }`}
-                      />
+                      >
+                        <img
+                          src={step.icon}
+                          alt={step.title}
+                          className={`w-6 h-6 transition-opacity duration-300 ${
+                            getStepStatus(step.id) === "pending" ? "opacity-40" : "opacity-100"
+                          }`}
+                        />
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Step 2 - LLM */}
-                  <div className="flex flex-col items-center gap-2 h-[60px]">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                        getStepStatus(2) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                      }`}
-                    >
-                      <img
-                        src="/onboarding/cpu.svg"
-                        alt="LLM"
-                        className={`w-6 h-6 transition-opacity duration-300 ${
-                          getStepStatus(2) === "pending" ? "opacity-40" : "opacity-100"
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Step 3 - MCP */}
-                  <div className="flex flex-col items-center gap-2 h-[60px]">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                        getStepStatus(3) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                      }`}
-                    >
-                      <img
-                        src="/onboarding/monitor-play.svg"
-                        alt="MCP"
-                        className={`w-6 h-6 transition-opacity duration-300 ${
-                          getStepStatus(3) === "pending" ? "opacity-40" : "opacity-100"
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Step 4 - Record */}
-                  <div className="flex flex-col items-center gap-2">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                        getStepStatus(4) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                      }`}
-                    >
-                      <img
-                        src="/onboarding/play.svg"
-                        alt="Record"
-                        className={`w-6 h-6 transition-opacity duration-300 ${
-                          getStepStatus(4) === "pending" ? "opacity-40" : "opacity-100"
-                        }`}
-                      />
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
 
             {/* Step Labels */}
             <div className="flex flex-col gap-[60px] w-[219px]">
-              {/* Step 1 */}
-              <div className="flex items-center w-[200px]">
-                <div className="flex flex-col justify-center">
-                  <p
-                    className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                      getStepStatus(1) === "pending" ? "text-white/[0.56]" : "text-white/[0.98]"
-                    }`}
-                  >
-                    Video Hosting
-                  </p>
-                  <p className="text-sm font-normal leading-5 text-white/[0.56]">
-                    Sign in and Authorise YakShaver to publish videos for you.
-                  </p>
+              {STEPS.map((step) => (
+                <div key={step.id} className="flex items-center w-[200px]">
+                  <div className="flex flex-col justify-center">
+                    <p
+                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
+                        getStepStatus(step.id) === "pending" ? "text-white/[0.56]" : "text-white/[0.98]"
+                      }`}
+                    >
+                      {step.title}
+                    </p>
+                    <p className="text-sm font-normal leading-5 text-white/[0.56]">
+                      {step.description}
+                    </p>
+                  </div>
                 </div>
-              </div>
-
-              {/* Step 2 */}
-              <div className="flex items-center w-[200px]">
-                <div className="flex flex-col justify-center">
-                  <p
-                    className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                      getStepStatus(2) === "pending" ? "text-white/[0.56]" : "text-white/[0.98]"
-                    }`}
-                  >
-                    Connecting an LLM
-                  </p>
-                  <p className="text-sm font-normal leading-5 text-white/[0.56]">
-                    Choose your provider and save the API details
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 3 */}
-              <div className="flex items-center w-full">
-                <div className="flex flex-col justify-center">
-                  <p
-                    className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                      getStepStatus(3) === "pending" ? "text-white/[0.56]" : "text-white/[0.98]"
-                    }`}
-                  >
-                    Connecting an MCP
-                  </p>
-                  <p className="text-sm font-normal leading-5 text-white/[0.56]">
-                    Configure or choose which MCP server YakShaver will call.
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 4 */}
-              <div className="flex items-center w-[220px]">
-                <div className="flex flex-col justify-center">
-                  <p
-                    className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                      getStepStatus(4) === "pending" ? "text-white/[0.56]" : "text-white/[0.98]"
-                    }`}
-                  >
-                    Record your first Video
-                  </p>
-                  <p className="text-sm font-normal leading-5 text-white/[0.56]">
-                    Finish setup and jump into your first request.
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
