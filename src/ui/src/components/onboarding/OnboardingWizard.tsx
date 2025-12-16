@@ -8,8 +8,21 @@ export function OnboardingWizard() {
 
       <div className="relative flex w-full max-w-[1295px] h-[840px] bg-black/[0.44] border border-white/[0.24] rounded-lg shadow-sm p-2.5 gap-10">
         {/* Left Sidebar */}
-        <div className="flex w-[440px] h-full bg-[#1C0D05] rounded-md px-5 py-10 items-center justify-center">
-          <div className="flex gap-8 items-center justify-center relative">
+        <div className="flex flex-col w-[440px] h-full bg-[#1C0D05] rounded-md px-5 py-10">
+          {/* Logo */}
+          <div className="w-full">
+            <div className="flex items-center">
+              <img
+                src="/logos/SQ-YakShaver-LogoIcon-Red.svg"
+                alt="YakShaver"
+                className="w-18 h-auto pr-2.5"
+              />
+              <span className="text-3xl font-bold text-ssw-red">Yak</span>
+              <span className="text-3xl">Shaver</span>
+            </div>
+          </div>
+
+          <div className="flex gap-8 items-center justify-center flex-1">
             {/* Timeline and Icons */}
             <div className="flex flex-row items-center">
               <div className="relative flex flex-col items-center justify-between w-[41px] h-full">
@@ -100,19 +113,6 @@ export function OnboardingWizard() {
               </div>
             </div>
           </div>
-
-          {/* Logo */}
-          <div className="absolute top-[8.29%] w-[300px]">
-            <div className="flex items-center">
-              <img
-                src="/logos/SQ-YakShaver-LogoIcon-Red.svg"
-                alt="YakShaver"
-                className="w-18 h-auto pr-2.5"
-              />
-              <span className="text-3xl font-bold text-ssw-red">Yak</span>
-              <span className="text-3xl">Shaver</span>
-            </div>
-          </div>
         </div>
 
         {/* Right Content Area */}
@@ -166,9 +166,9 @@ export function OnboardingWizard() {
                   Skip for now
                 </Button>
 
-                <div className="flex h-10 w-[162px] relative">
+                <div className="flex gap-2 h-10">
                   <Button
-                    className="absolute left-0 top-0 flex items-center justify-center px-4 py-2 "
+                    className="flex items-center justify-center px-4 py-2"
                     type="button"
                     variant="outline"
                     size="sm"
@@ -176,10 +176,7 @@ export function OnboardingWizard() {
                     Previous
                   </Button>
 
-                  <Button
-                    className="absolute left-[98px] top-0 flex items-center justify-center px-4 py-2"
-                    size="sm"
-                  >
+                  <Button className="flex items-center justify-center px-4 py-2" size="sm">
                     Next
                   </Button>
                 </div>
