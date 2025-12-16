@@ -1,4 +1,5 @@
-import { Play } from "lucide-react";
+import { FaYoutube } from "react-icons/fa";
+import { Button } from "../ui/button";
 
 export function OnboardingWizard() {
   return (
@@ -22,162 +23,28 @@ export function OnboardingWizard() {
                   {/* Step 1 - Video Hosting */}
                   <div className="flex flex-col items-center gap-2 h-[60px]">
                     <div className="w-10 h-10 rounded-full bg-[#75594B] flex items-center justify-center">
-                      <svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="text-[#FEF2F2]"
-                      >
-                        <rect
-                          x="2"
-                          y="7"
-                          width="20"
-                          height="10"
-                          rx="2"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M12 17v4M8 21h8"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <rect
-                          x="10"
-                          y="3"
-                          width="4"
-                          height="4"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <img src="/onboarding/monitor-play.svg" alt="Monitor" className="w-6 h-6" />
                     </div>
                   </div>
 
                   {/* Step 2 - LLM */}
                   <div className="flex flex-col items-center gap-2 h-[60px]">
                     <div className="w-10 h-10 rounded-full bg-[#75594B] flex items-center justify-center">
-                      <svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="text-[#FEF2F2]"
-                      >
-                        <rect
-                          x="4"
-                          y="4"
-                          width="16"
-                          height="16"
-                          rx="2"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        />
-                        <rect
-                          x="9"
-                          y="9"
-                          width="6"
-                          height="6"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        />
-                        <line x1="12" y1="2" x2="12" y2="4" stroke="currentColor" strokeWidth="2" />
-                        <line
-                          x1="12"
-                          y1="20"
-                          x2="12"
-                          y2="22"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        />
-                        <line x1="17" y1="2" x2="17" y2="4" stroke="currentColor" strokeWidth="2" />
-                        <line
-                          x1="17"
-                          y1="20"
-                          x2="17"
-                          y2="22"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        />
-                        <line x1="7" y1="2" x2="7" y2="4" stroke="currentColor" strokeWidth="2" />
-                        <line x1="7" y1="20" x2="7" y2="22" stroke="currentColor" strokeWidth="2" />
-                        <line x1="2" y1="12" x2="4" y2="12" stroke="currentColor" strokeWidth="2" />
-                        <line
-                          x1="20"
-                          y1="12"
-                          x2="22"
-                          y2="12"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        />
-                        <line x1="2" y1="17" x2="4" y2="17" stroke="currentColor" strokeWidth="2" />
-                        <line
-                          x1="20"
-                          y1="17"
-                          x2="22"
-                          y2="17"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        />
-                        <line x1="2" y1="7" x2="4" y2="7" stroke="currentColor" strokeWidth="2" />
-                        <line x1="20" y1="7" x2="22" y2="7" stroke="currentColor" strokeWidth="2" />
-                      </svg>
+                      <img src="/onboarding/cpu.svg" alt="Monitor" className="w-6 h-6" />
                     </div>
                   </div>
 
                   {/* Step 3 - MCP */}
                   <div className="flex flex-col items-center gap-2 h-[60px]">
                     <div className="w-10 h-10 rounded-full bg-[#75594B] flex items-center justify-center">
-                      <svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        className="text-[#FEF2F2]"
-                      >
-                        <rect
-                          x="2"
-                          y="7"
-                          width="20"
-                          height="10"
-                          rx="2"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M12 17v4M8 21h8"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <rect
-                          x="10"
-                          y="3"
-                          width="4"
-                          height="4"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <img src="/onboarding/monitor-play.svg" alt="Monitor" className="w-6 h-6" />
                     </div>
                   </div>
 
                   {/* Step 4 - Record */}
                   <div className="flex flex-col items-center gap-2 h-[60px]">
                     <div className="w-10 h-10 rounded-full bg-[#432A1D] flex items-center justify-center">
-                      <Play className="w-6 h-6 text-[#75594B]" fill="#75594B" />
+                      <img src="/onboarding/play.svg" alt="Monitor" className="w-6 h-6" />
                     </div>
                   </div>
                 </div>
@@ -235,25 +102,15 @@ export function OnboardingWizard() {
           </div>
 
           {/* Logo */}
-          <div className="absolute top-[8.29%] left-[12.05%] w-[300px]">
-            <div className="flex items-center gap-3">
-              <svg width="53" height="24" viewBox="0 0 53 24" fill="none">
-                <path
-                  d="M8 4L4 8L8 12"
-                  stroke="#CC4141"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M12 4L16 8L12 12"
-                  stroke="#CC4141"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="text-xl font-semibold text-white">YakShaver</span>
+          <div className="absolute top-[8.29%] w-[300px]">
+            <div className="flex items-center">
+              <img
+                src="/logos/SQ-YakShaver-LogoIcon-Red.svg"
+                alt="YakShaver"
+                className="w-18 h-auto pr-2.5"
+              />
+              <span className="text-3xl font-bold text-ssw-red">Yak</span>
+              <span className="text-3xl">Shaver</span>
             </div>
           </div>
         </div>
@@ -284,9 +141,7 @@ export function OnboardingWizard() {
             <div className="flex flex-col gap-4 px-6 pb-6 w-full">
               <div className="flex items-center justify-between px-6 py-4 bg-white/[0.04] border border-white/[0.24] rounded-lg w-full">
                 <div className="flex gap-6 items-center">
-                  <button className="bg-[#DC2626] flex items-center justify-center px-4 py-2 rounded-md min-h-[40px] max-h-[40px]">
-                    <Play className="w-4 h-4 text-white" fill="white" />
-                  </button>
+                  <FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />
                 </div>
 
                 <div className="flex items-start px-6">
@@ -294,9 +149,7 @@ export function OnboardingWizard() {
                 </div>
 
                 <div className="flex gap-6 items-center">
-                  <button className="bg-[#FAFAFA] flex items-center justify-center px-4 py-2 rounded-md min-h-[40px] max-h-[40px]">
-                    <span className="text-sm font-medium text-[#18181B]">Connect</span>
-                  </button>
+                  <Button size="lg">Connect</Button>
                 </div>
               </div>
             </div>
@@ -304,21 +157,31 @@ export function OnboardingWizard() {
             {/* Card footer */}
             <div className="flex h-16 items-start justify-end px-6 pb-6 w-full">
               <div className="flex items-center justify-between w-full">
-                <button className="flex items-center justify-center px-4 py-2">
-                  <span className="text-sm font-medium leading-6 text-white/[0.98]">
-                    Skip for now
-                  </span>
-                </button>
+                <Button
+                  className="flex items-center justify-center px-4 py-2"
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                >
+                  Skip for now
+                </Button>
 
                 <div className="flex h-10 w-[162px] relative">
-                  <button className="absolute left-0 top-0 flex items-center justify-center px-4 py-2 border border-white/[0.24]">
-                    <span className="text-sm font-medium leading-6 text-white/[0.98]">
-                      Previous
-                    </span>
-                  </button>
-                  <button className="absolute left-[98px] top-0 flex items-center justify-center px-4 py-2 bg-white/[0.92]">
-                    <span className="text-sm font-medium leading-6 text-[#24150D]">Next</span>
-                  </button>
+                  <Button
+                    className="absolute left-0 top-0 flex items-center justify-center px-4 py-2 "
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                  >
+                    Previous
+                  </Button>
+
+                  <Button
+                    className="absolute left-[98px] top-0 flex items-center justify-center px-4 py-2"
+                    size="sm"
+                  >
+                    Next
+                  </Button>
                 </div>
               </div>
             </div>
