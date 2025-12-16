@@ -23,6 +23,35 @@ import type {
   YouTubeConfig,
 } from "../types";
 
+export type VideoFileMetadata = {
+  fileName: string;
+  createdAt: string;
+  duration: number;
+};
+
+export type ShaveStatus = "pending" | "processing" | "completed" | "failed";
+
+export type Shave = {
+  id: number;
+  workItemSource: string;
+  title: string;
+  videoFile: VideoFileMetadata;
+  shaveStatus: ShaveStatus;
+  projectName: string | null;
+  workItemUrl: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+};
+
+export type CreateShaveInput = {
+  workItemSource: string;
+  title: string;
+  videoFile: VideoFileMetadata;
+  projectName?: string;
+  workItemUrl?: string;
+  shaveStatus?: ShaveStatus;
+};
+
 declare global {
   interface Window {
     electronAPI: {
@@ -172,6 +201,14 @@ declare global {
           data?: GetMyShavesResponse;
           error?: string;
         }>;
+      };
+      shave: {
+        create: (data: CreateShaveInput) => Promise<Shave>;
+        getById: (id: number) => Promise<Shave | undefined>;
+        getAll: () => Promise<Shave[]>;
+        update: (id: number, data: Partial<CreateShaveInput>) => Promise<Shave | undefined>;
+        updateStatus: (id: number, status: ShaveStatus) => Promise<Shave | undefined>;
+        delete: (id: number) => Promise<void>;
       };
     };
   }
