@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6bea0bad-194a-4391-9acf-09e0bb77d6ea",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "c6c1d260-5975-44e2-a2cd-ce256980248a",
+  "prevId": "6bea0bad-194a-4391-9acf-09e0bb77d6ea",
   "tables": {
     "shaves": {
       "name": "shaves",
@@ -25,7 +25,7 @@
           "name": "title",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "video_file": {

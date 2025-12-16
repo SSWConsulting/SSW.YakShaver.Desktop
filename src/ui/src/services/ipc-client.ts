@@ -39,6 +39,7 @@ export type Shave = {
   shaveStatus: ShaveStatus;
   projectName: string | null;
   workItemUrl: string | null;
+  videoEmbedUrl: string | null;
   createdAt: string;
   updatedAt: string | null;
 };
@@ -50,6 +51,7 @@ export type CreateShaveInput = {
   projectName?: string;
   workItemUrl?: string;
   shaveStatus?: ShaveStatus;
+  videoEmbedUrl?: string;
 };
 
 declare global {

@@ -26,13 +26,20 @@ export function useSaveShaveOnCompletion() {
         const videoUrl = uploadResult.data?.url;
         const uploadKey = `${videoUrl || videoTitle || Date.now()}`;
 
+        console.log("\n=== SHAVE CREATION START ===");
+        console.log("[Shave] Progress stage:", progressData.stage);
+        console.log("[Shave] Video title:", videoTitle);
+        console.log("[Shave] Video URL (YouTube):", videoUrl);
+        console.log("[Shave] Upload origin:", uploadResult.origin);
+
         // Prevent duplicate saves for the same video
         if (lastSavedRef.current === uploadKey) {
+          console.log("[Shave] ⚠ Skipping duplicate save for:", uploadKey);
           return;
         }
 
         try {
-          const shave = await ipcClient.shave.create({
+          const shaveData = {
             workItemSource: "YakShaver Desktop",
             title: videoTitle,
             videoFile: {
@@ -40,22 +47,38 @@ export function useSaveShaveOnCompletion() {
               createdAt: new Date().toISOString(),
               duration: 0, // Will be updated when completed
             },
-            shaveStatus: "processing",
+            shaveStatus: "processing" as const,
             projectName: undefined,
             workItemUrl: undefined, // Will be updated when completed
-          });
+            videoEmbedUrl: videoUrl, // Store YouTube URL
+          };
+
+          console.log("[Shave] Creating shave with data:", JSON.stringify(shaveData, null, 2));
+
+          const shave = await ipcClient.shave.create(shaveData);
 
           currentShaveIdRef.current = shave.id;
           lastSavedRef.current = uploadKey;
-          console.log(`Shave record created with ID: ${shave.id}`);
+
+          console.log("[Shave] ✓ Shave record created successfully!");
+          console.log("[Shave] - Shave ID:", shave.id);
+          console.log("[Shave] - Title:", shave.title);
+          console.log("[Shave] - Video Embed URL:", shave.videoEmbedUrl);
+          console.log("[Shave] - Status:", shave.shaveStatus);
+          console.log("=== SHAVE CREATION END ===\n");
         } catch (error) {
-          console.error("Failed to create shave record:", error);
+          console.error("\n[Shave] ✗ Failed to create shave record:");
+          console.error("[Shave] Error:", error);
+          console.error("=== SHAVE CREATION END (FAILED) ===\n");
           toast.error("Failed to save shave record");
         }
       }
 
       // Case 1 & 2: Update shave when entire process is completed
       if (progressData.stage === ProgressStage.COMPLETED && currentShaveIdRef.current) {
+        console.log("\n=== SHAVE UPDATE START ===");
+        console.log("[Shave] Updating shave ID:", currentShaveIdRef.current);
+
         try {
           const { uploadResult, metadataPreview, finalOutput } = progressData;
 
@@ -75,16 +98,24 @@ export function useSaveShaveOnCompletion() {
           const title =
             finalTitle || uploadResult?.data?.title || metadataPreview?.title || "Unknown Video";
 
+          console.log("[Shave] Update data:");
+          console.log("[Shave] - Title:", title);
+          console.log("[Shave] - Work Item URL:", workItemUrl || "(none)");
+          console.log("[Shave] - Status: completed");
+
           await ipcClient.shave.update(currentShaveIdRef.current, {
             title,
             shaveStatus: "completed",
             workItemUrl,
           });
 
-          console.log(`Shave record updated with ID: ${currentShaveIdRef.current}`);
+          console.log("[Shave] ✓ Shave record updated successfully!");
+          console.log("=== SHAVE UPDATE END ===\n");
           currentShaveIdRef.current = null;
         } catch (error) {
-          console.error("Failed to update shave record:", error);
+          console.error("\n[Shave] ✗ Failed to update shave record:");
+          console.error("[Shave] Error:", error);
+          console.error("=== SHAVE UPDATE END (FAILED) ===\n");
           toast.error("Failed to update shave record");
         }
       }
