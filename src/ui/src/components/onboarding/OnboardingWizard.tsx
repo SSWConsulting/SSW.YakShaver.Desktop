@@ -117,7 +117,7 @@ export function OnboardingWizard() {
                   </div>
 
                   {/* Step 4 - Record */}
-                  <div className="flex flex-col items-center gap-2 h-[60px]">
+                  <div className="flex flex-col items-center gap-2">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
                         getStepStatus(4) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
