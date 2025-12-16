@@ -249,7 +249,32 @@ function detectImageMimeType(imagePath: string): string {
 
 function validatePath(filePath: string, allowedDirs: string[] = [tmpdir()]): void {
   const normalized = path.resolve(filePath);
-  if (!allowedDirs.some((dir) => normalized.startsWith(path.resolve(dir)))) {
+  const isWindows = process.platform === "win32";
+
+  const expandedAllowedDirs = [...allowedDirs];
+
+  if (isWindows) {
+    expandedAllowedDirs.push(tmpdir());
+    expandedAllowedDirs.push("C:\\Windows\\Temp");
+  } else {
+    expandedAllowedDirs.push("/tmp", "/private/tmp", "/private/var/folders");
+  }
+
+  const isAllowed = expandedAllowedDirs.some((dir) => {
+    const resolvedDir = path.resolve(dir);
+
+    if (isWindows) {
+      return normalized.toLowerCase().startsWith(resolvedDir.toLowerCase());
+    }
+
+    return (
+      normalized.startsWith(resolvedDir) ||
+      normalized.startsWith(`/private${resolvedDir}`) ||
+      normalized.replace("/private", "").startsWith(resolvedDir)
+    );
+  });
+
+  if (!isAllowed) {
     throw new Error(`Access denied: Path must be within allowed directories`);
   }
 }

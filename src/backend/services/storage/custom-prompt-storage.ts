@@ -39,14 +39,15 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - YOU ARE INTELLIGENT MCP, SO USE YOUR TOOLS TO SEARCH AND FIND THE ISSUE TEMPLATE THAT MATCHES CONTEXT
 - THEN READ CONTENT OF TEMPLATE AND USE IT WHEN FORMATTING THE ISSUE
 
-4. SCREENSHOTS FROM VIDEO:
+4. SCREENSHOTS FROM VIDEO (MANDATORY when video file path is available):
 
-- If you have access to a video file path, use the capture_video_frame tool to capture screenshots at relevant moments in the video that help illustrate the issue.
+- ALWAYS capture at least one screenshot from the video using capture_video_frame tool.
 - Choose timestamps where important UI elements, errors, or context is visible.
-- After capturing a screenshot, use the upload_screenshot tool to upload it and get a public URL.
-- When the upload_screenshot tool returns a screenshotUrl, USE THIS URL in the issue description to provide visual context.
-- Format the screenshot in the issue description as: ![Screenshot description](screenshotUrl)
-- Screenshots help reviewers understand the issue better, so include them when relevant.`,
+- IMPORTANT: After capturing EACH screenshot, you MUST call the upload_screenshot tool to upload it and get a public URL.
+- The workflow is: capture_video_frame → get screenshotPath → upload_screenshot with that path → get screenshotUrl
+- When upload_screenshot returns a screenshotUrl, USE THIS URL in the issue description.
+- Format screenshots in the issue description as: ![Screenshot description](screenshotUrl)
+- DO NOT skip the upload step - screenshots without URLs cannot be viewed by others.`,
 
   isDefault: true,
   createdAt: Date.now(),
