@@ -1,15 +1,16 @@
 import { Toaster } from "sonner";
 import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
+import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 import { DownloadProgressToast } from "./components/common/DownloadProgressToast";
 import { VideoHostPanel } from "./components/layout/VideoHostPanel";
+import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { ScreenRecorder } from "./components/recording/ScreenRecorder";
 import { SettingsDialog } from "./components/settings/SettingsDialog";
 import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
-import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
       <div className="relative min-h-screen py-8 text-white">
         <Toaster />
         <DownloadProgressToast />
+        <OnboardingWizard />
         <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
 
         <div className="flex flex-col gap-8">
