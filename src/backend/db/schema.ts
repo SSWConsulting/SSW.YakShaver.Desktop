@@ -14,7 +14,7 @@ export type VideoFileMetadata = {
 
 export const shaves = sqliteTable("shaves", {
   id: integer("id").primaryKey({ autoIncrement: true }).notNull(),
-  workItemSource: text("work_item_source"),
+  workItemSource: text("work_item_source").notNull(),
   title: text("title").notNull(),
   videoFile: text("video_file", { mode: "json" }).$type<VideoFileMetadata>().notNull(),
   projectName: text("project_name"),
