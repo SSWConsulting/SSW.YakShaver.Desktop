@@ -33,28 +33,14 @@ function getMigrationsPath(): string {
 }
 
 export function runMigrations(): void {
-  console.log("[DB] Running database migrations...");
   const migrationsFolder = getMigrationsPath();
-  console.log(`[DB] Migrations folder: ${migrationsFolder}`);
-
   migrate(db, { migrationsFolder });
-  console.log("[DB] ✓ Database migrations completed successfully");
 
-  // Verify tables were created
-  const tables = db.all<{ name: string }>(
-    sql`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`,
-  );
-  console.log(`[DB] ✓ Tables in database: ${tables.map((t) => t.name).join(", ")}`);
-
-  // Verify shaves table specifically
+  // Verify shaves table exists
   const shavesTable = db.all<{ name: string }>(
     sql`SELECT name FROM sqlite_master WHERE type='table' AND name='shaves'`,
   );
-  if (shavesTable.length > 0) {
-    console.log("[DB] ✓ 'shaves' table verified");
-    const count = db.get<{ count: number }>(sql`SELECT COUNT(*) as count FROM shaves`);
-    console.log(`[DB] Current shave records: ${count?.count || 0}`);
-  } else {
+  if (shavesTable.length === 0) {
     console.warn("[DB] ⚠ 'shaves' table not found!");
   }
 }
@@ -64,13 +50,8 @@ export function runMigrations(): void {
  * This is synchronous as better-sqlite3 is a sync driver.
  */
 export function initDatabase(): void {
-  console.log("\n=== DATABASE INITIALIZATION START ===");
-  console.log(`[DB] Environment: ${process.env.NODE_ENV || "production"}`);
-  console.log(`[DB] Node version: ${process.version}`);
-
   try {
     runMigrations();
-    console.log("\n[DB] ✓✓✓ DATABASE INITIALIZED SUCCESSFULLY ✓✓✓\n");
   } catch (error) {
     console.error("\n[DB] ✗✗✗ DATABASE INITIALIZATION FAILED ✗✗✗");
     console.error("[DB] Error details:", error);
@@ -81,6 +62,4 @@ export function initDatabase(): void {
     console.error("\n=== DATABASE INITIALIZATION END (FAILED) ===\n");
     throw error;
   }
-
-  console.log("=== DATABASE INITIALIZATION END ===\n");
 }
