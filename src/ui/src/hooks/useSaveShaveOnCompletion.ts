@@ -14,9 +14,10 @@ export function useSaveShaveOnCompletion() {
     return ipcClient.workflow.onProgress(async (data: unknown) => {
       const progressData = data as WorkflowProgress;
 
-      // Case 1 & 2: Create shave when recording finishes uploading OR when external video is downloaded
+      // Case 1 & 2: Create shave when recording finishes uploading OR when external video is uploaded
       const shouldCreateShave =
-        (progressData.stage === ProgressStage.UPLOADING_SOURCE ||
+        ((progressData.stage === ProgressStage.UPLOADING_SOURCE &&
+          progressData.uploadResult?.origin === "external") ||
           progressData.stage === ProgressStage.DOWNLOADING_SOURCE) &&
         progressData.uploadResult;
 
@@ -75,7 +76,7 @@ export function useSaveShaveOnCompletion() {
       }
 
       // Case 1 & 2: Update shave when entire process is completed
-      if (progressData.stage === ProgressStage.COMPLETED && currentShaveIdRef.current) {
+      if (progressData.stage === "completed" && currentShaveIdRef.current) {
         console.log("\n=== SHAVE UPDATE START ===");
         console.log("[Shave] Updating shave ID:", currentShaveIdRef.current);
 
@@ -121,7 +122,7 @@ export function useSaveShaveOnCompletion() {
       }
 
       // Reset on error
-      if (progressData.stage === ProgressStage.ERROR) {
+      if (progressData.stage === "error") {
         if (currentShaveIdRef.current) {
           try {
             await ipcClient.shave.updateStatus(currentShaveIdRef.current, "failed");

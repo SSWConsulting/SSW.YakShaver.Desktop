@@ -1,20 +1,20 @@
 import fs from "node:fs";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
+import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
+import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
-import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -110,6 +110,21 @@ export class ProcessVideoIPCHandlers {
 
   private async processUrlVideo(url: string) {
     try {
+      // Emit initial progress to trigger shave creation immediately
+      const initialUploadResult = {
+        success: true,
+        origin: "external" as const,
+        data: {
+          videoId: "",
+          title: url,
+          description: "",
+          url: url,
+        },
+      };
+      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, {
+        sourceOrigin: "external",
+        uploadResult: initialUploadResult,
+      });
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
       this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
