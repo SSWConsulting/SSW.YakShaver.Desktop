@@ -1,5 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FaYoutube } from "react-icons/fa";
+import { Badge } from "@/components/ui/badge";
+import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
+import { useCountdown } from "../../hooks/useCountdown";
+import { AuthStatus } from "../../types";
 import { Button } from "../ui/button";
 
 const STEPS = [
@@ -31,6 +35,27 @@ const STEPS = [
 
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
+  const [hasYouTubeConfig] = useState(true); // TODO: Get from settings/config
+
+  const { authState, startAuth, disconnect } = useYouTubeAuth();
+  const {
+    countdown,
+    isActive: isConnecting,
+    start: startCountdown,
+    reset: resetCountdown,
+  } = useCountdown({
+    initialSeconds: 60,
+  });
+
+  const { status, userInfo } = authState;
+  const isConnected = status === AuthStatus.AUTHENTICATED;
+
+  // Reset countdown when user successfully connects
+  useEffect(() => {
+    if (isConnected) {
+      resetCountdown();
+    }
+  }, [isConnected, resetCountdown]);
 
   const handleNext = () => {
     if (currentStep < 4) {
@@ -42,6 +67,25 @@ export function OnboardingWizard() {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
+  };
+
+  const handleYouTubeAction = async () => {
+    if (isConnected) {
+      await disconnect();
+    } else {
+      startCountdown();
+      try {
+        await startAuth();
+      } finally {
+        resetCountdown();
+      }
+    }
+  };
+
+  const getYouTubeButtonText = () => {
+    if (isConnected) return "Disconnect";
+    if (isConnecting) return `Connecting... (${countdown}s)`;
+    return "Connect";
   };
 
   const getStepStatus = (step: number) => {
@@ -123,7 +167,9 @@ export function OnboardingWizard() {
                   <div className="flex flex-col justify-center">
                     <p
                       className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                        getStepStatus(step.id) === "pending" ? "text-white/[0.56]" : "text-white/[0.98]"
+                        getStepStatus(step.id) === "pending"
+                          ? "text-white/[0.56]"
+                          : "text-white/[0.98]"
                       }`}
                     >
                       {step.title}
@@ -162,19 +208,35 @@ export function OnboardingWizard() {
 
             {/* Card content */}
             <div className="flex flex-col gap-4 px-6 pb-6 w-full">
-              <div className="flex items-center justify-between px-6 py-4 bg-white/[0.04] border border-white/[0.24] rounded-lg w-full">
-                <div className="flex gap-6 items-center">
-                  <FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />
-                </div>
+              {hasYouTubeConfig ? (
+                <div className="flex items-center justify-between px-6 py-4 bg-white/[0.04] border border-white/[0.24] rounded-lg w-full">
+                  <div className="flex items-center gap-4">
+                    <FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />
+                    <div>
+                      <p className="text-sm font-medium leading-6 text-white">YouTube</p>
+                      {isConnected && userInfo && (
+                        <p className="text-xs text-white/[0.56] font-medium">{userInfo.name}</p>
+                      )}
+                    </div>
+                  </div>
 
-                <div className="flex items-start px-6">
-                  <p className="text-sm font-medium leading-6 text-white">Youtube</p>
+                  <div className="flex items-center gap-4">
+                    {isConnected && <Badge variant="success">Connected</Badge>}
+                    <Button
+                      size="lg"
+                      onClick={handleYouTubeAction}
+                      disabled={isConnecting && !isConnected}
+                    >
+                      {getYouTubeButtonText()}
+                    </Button>
+                  </div>
                 </div>
-
-                <div className="flex gap-6 items-center">
-                  <Button size="lg">Connect</Button>
+              ) : (
+                <div className="text-center py-8 px-4 text-white/[0.56]">
+                  <p className="mb-2 text-sm">No platforms available</p>
+                  <p className="text-xs italic">Configure YouTube API credentials to get started</p>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Card footer */}

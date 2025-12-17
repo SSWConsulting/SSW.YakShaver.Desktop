@@ -15,35 +15,35 @@ import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
 export default function App() {
   return (
     <AdvancedSettingsProvider>
-      <div className="relative min-h-screen py-8 text-white">
-        <Toaster />
-        <DownloadProgressToast />
-        <OnboardingWizard />
-        <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
+      <YouTubeAuthProvider>
+        <div className="relative min-h-screen py-8 text-white">
+          <Toaster />
+          <DownloadProgressToast />
+          <OnboardingWizard />
+          <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
 
-        <div className="flex flex-col gap-8">
-          <div className="absolute top-6 right-8 z-50 flex items-center gap-4">
-            <SettingsDialog />
-            <MicrosoftAuthManager />
-          </div>
-          <header className="z-10 relative">
-            <div className="container mx-auto flex flex-col items-center gap-8">
-              <h1>
-                <img src={logoImage} alt="YakShaver" />
-              </h1>
+          <div className="flex flex-col gap-8">
+            <div className="absolute top-6 right-8 z-50 flex items-center gap-4">
+              <SettingsDialog />
+              <MicrosoftAuthManager />
             </div>
-          </header>
+            <header className="z-10 relative">
+              <div className="container mx-auto flex flex-col items-center gap-8">
+                <h1>
+                  <img src={logoImage} alt="YakShaver" />
+                </h1>
+              </div>
+            </header>
 
-          <main className="z-10 relative">
-            <YouTubeAuthProvider>
+            <main className="z-10 relative">
               <ScreenRecorder />
               <VideoHostPanel />
-            </YouTubeAuthProvider>
-            <WorkflowProgressPanel />
-            <FinalResultPanel />
-          </main>
+              <WorkflowProgressPanel />
+              <FinalResultPanel />
+            </main>
+          </div>
         </div>
-      </div>
+      </YouTubeAuthProvider>
     </AdvancedSettingsProvider>
   );
 }
