@@ -41,15 +41,15 @@ const DEFAULT_PROMPT: CustomPrompt = {
 
 4. SCREENSHOTS FROM VIDEO (RECOMMENDED when video file path is available):
 
-- ALWAYS capture at least one screenshot from the video using capture_video_frame tool.
+- ALWAYS capture single screenshot from the video using capture_video_frame tool.
 - Choose timestamps where important UI elements, errors, or context is visible.
-- IMPORTANT: After capturing EACH screenshot, you MUST call the upload_screenshot tool to upload it and get a public URL.
+- IMPORTANT: After capturing screenshot, you MUST call the upload_screenshot tool to upload it and get a public URL.
 - The workflow is: capture_video_frame ➡️ get screenshotPath ➡️ upload_screenshot with that path ➡️ get screenshotUrl
 - When upload_screenshot returns a screenshotUrl, USE THIS URL in the issue description.
-- Format screenshots in the issue description as: ![Screenshot description](screenshotUrl)
-- CRITICAL RULE: If upload_screenshot returns an empty URL (user not authenticated), DO NOT mention screenshots AT ALL in the issue description. No exceptions.
-- NEVER include text like "No screenshots attached" or "screenshots captured but upload failed" - just create the issue as if screenshots were never attempted.
-- Screenshots are helpful but not strictly required - continue with issue creation even if uploads fail.`,
+- Format screenshot in the issue description as: ![Screenshot description](screenshotUrl)
+- CRITICAL RULE: If upload_screenshot returns an empty URL (user not authenticated), DO NOT mention screenshot AT ALL in the issue description. No exceptions.
+- NEVER include text like "No screenshot attached" or "screenshot captured but upload failed" - just create the issue as if screenshot was never attempted.
+- Screenshot is helpful but not strictly required - continue with issue creation even if uploads fail.`,
 
   isDefault: true,
   createdAt: Date.now(),
