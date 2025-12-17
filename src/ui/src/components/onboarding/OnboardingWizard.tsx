@@ -1,10 +1,36 @@
-import { useEffect, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
+import { toast } from "sonner";
+import * as z from "zod";
 import { Badge } from "@/components/ui/badge";
+import { formatErrorMessage } from "@/utils";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useCountdown } from "../../hooks/useCountdown";
+import { ipcClient } from "../../services/ipc-client";
+import type { HealthStatusInfo, LLMConfig } from "../../types";
 import { AuthStatus } from "../../types";
+import { HealthStatus } from "../health-status/health-status";
 import { Button } from "../ui/button";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../ui/form";
+import { Input } from "../ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+
+type LLMProvider = "openai" | "deepseek";
+
+const llmSchema = z.discriminatedUnion("provider", [
+  z.object({
+    provider: z.literal("openai"),
+    apiKey: z.string().min(1, "API key is required"),
+  }),
+  z.object({
+    provider: z.literal("deepseek"),
+    apiKey: z.string().min(1, "API key is required"),
+  }),
+]);
+
+type LLMFormValues = z.infer<typeof llmSchema>;
 
 const ONBOARDING_COMPLETED_KEY = "hasCompletedOnboarding";
 
@@ -43,10 +69,21 @@ const STEPS = [
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [hasYouTubeConfig] = useState(true); // TODO: Get from settings/config
+  const [hasLLMConfig, setHasLLMConfig] = useState(false);
+  const [isLLMSaving, setIsLLMSaving] = useState(false);
+  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
   const [isVisible, setIsVisible] = useState(() => {
     // Check if user has completed onboarding before
     const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
     return completed !== "true";
+  });
+
+  const llmForm = useForm<LLMFormValues>({
+    resolver: zodResolver(llmSchema),
+    defaultValues: {
+      provider: "openai",
+      apiKey: "",
+    },
   });
 
   const { authState, startAuth, disconnect } = useYouTubeAuth();
@@ -69,8 +106,106 @@ export function OnboardingWizard() {
     }
   }, [isConnected, resetCountdown]);
 
-  const handleNext = () => {
-    if (currentStep < 4) {
+  // Check LLM configuration status when on step 2
+  useEffect(() => {
+    const checkLLMConfig = async () => {
+      try {
+        const cfg = await ipcClient.llm.getConfig();
+        setHasLLMConfig(!!cfg);
+        if (cfg) {
+          llmForm.reset(cfg as LLMFormValues);
+        }
+      } catch (_error) {
+        setHasLLMConfig(false);
+      }
+    };
+
+    if (currentStep === 2) {
+      void checkLLMConfig();
+    }
+  }, [currentStep, llmForm]);
+
+  const handleLLMSubmit = useCallback(async (values: LLMFormValues) => {
+    setIsLLMSaving(true);
+    try {
+      await ipcClient.llm.setConfig(values as LLMConfig);
+      toast.success(
+        values.provider === "openai"
+          ? "OpenAI configuration saved"
+          : "DeepSeek configuration saved",
+      );
+      setHasLLMConfig(true);
+    } catch (e) {
+      toast.error(`Failed to save configuration: ${formatErrorMessage(e)}`);
+    } finally {
+      setIsLLMSaving(false);
+    }
+  }, []);
+
+  const handleProviderChange = (value: LLMProvider) => {
+    llmForm.reset({
+      provider: value,
+      apiKey: "",
+    } as LLMFormValues);
+  };
+
+  const handleNext = async () => {
+    if (currentStep === 2) {
+      // For step 2, validate and submit the LLM form first
+      const isValid = await llmForm.trigger();
+      if (!isValid) return;
+
+      setIsLLMSaving(true);
+      setHealthStatus({
+        isHealthy: false,
+        isChecking: true,
+      });
+
+      try {
+        const values = llmForm.getValues();
+
+        // Save the configuration first
+        await ipcClient.llm.setConfig(values as LLMConfig);
+
+        // Then check health to validate the API key
+        const healthResult = await ipcClient.llm.checkHealth();
+
+        if (!healthResult.isHealthy) {
+          setHealthStatus({
+            isHealthy: false,
+            isChecking: false,
+            error: healthResult.error || "Failed to connect to LLM provider",
+          });
+          toast.error(
+            `Invalid API key: ${healthResult.error || "Failed to connect to LLM provider"}`,
+          );
+          setIsLLMSaving(false);
+          return;
+        }
+
+        setHealthStatus({
+          isHealthy: true,
+          isChecking: false,
+          successMessage: healthResult.successMessage || "API key validated successfully",
+        });
+        toast.success(
+          values.provider === "openai"
+            ? "OpenAI configuration saved"
+            : "DeepSeek configuration saved",
+        );
+        setHasLLMConfig(true);
+        setCurrentStep(currentStep + 1);
+      } catch (e) {
+        setHealthStatus({
+          isHealthy: false,
+          isChecking: false,
+          error: formatErrorMessage(e),
+        });
+        toast.error(`Failed to validate API key: ${formatErrorMessage(e)}`);
+      } finally {
+        setIsLLMSaving(false);
+      }
+    } else if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     } else {
       // User completed all steps
@@ -223,45 +358,143 @@ export function OnboardingWizard() {
             <div className="flex flex-col gap-1.5 p-6 w-full">
               <div className="flex items-center justify-center">
                 <p className="text-2xl font-semibold leading-6 tracking-[-0.015em] text-white/[0.98]">
-                  Video Hosting
+                  {STEPS[currentStep - 1].title}
                 </p>
               </div>
               <div className="flex items-center justify-center w-full">
                 <p className="text-sm font-normal leading-5 text-white/[0.56]">
-                  Choose a platform to host your videos.
+                  {currentStep === 1
+                    ? "Choose a platform to host your videos."
+                    : currentStep === 2
+                      ? "Choose your provider and save the API details"
+                      : currentStep === 3
+                        ? "Configure or choose which MCP server YakShaver will call."
+                        : "Finish setup and jump into your first request."}
                 </p>
               </div>
             </div>
 
             {/* Card content */}
             <div className="flex flex-col gap-4 px-6 pb-6 w-full">
-              {hasYouTubeConfig ? (
-                <div className="flex items-center justify-between px-6 py-4 bg-white/[0.04] border border-white/[0.24] rounded-lg w-full">
-                  <div className="flex items-center gap-4">
-                    <FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />
-                    <div>
-                      <p className="text-sm font-medium leading-6 text-white">YouTube</p>
-                      {isConnected && userInfo && (
-                        <p className="text-xs text-white/[0.56] font-medium">{userInfo.name}</p>
-                      )}
-                    </div>
-                  </div>
+              {currentStep === 1 && (
+                <>
+                  {hasYouTubeConfig ? (
+                    <div className="flex items-center justify-between px-6 py-4 bg-white/[0.04] border border-white/[0.24] rounded-lg w-full">
+                      <div className="flex items-center gap-4">
+                        <FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />
+                        <div>
+                          <p className="text-sm font-medium leading-6 text-white">YouTube</p>
+                          {isConnected && userInfo && (
+                            <p className="text-xs text-white/[0.56] font-medium">{userInfo.name}</p>
+                          )}
+                        </div>
+                      </div>
 
-                  <div className="flex items-center gap-4">
-                    {isConnected && <Badge variant="success">Connected</Badge>}
-                    <Button
-                      size="lg"
-                      onClick={handleYouTubeAction}
-                      disabled={isConnecting && !isConnected}
+                      <div className="flex items-center gap-4">
+                        {isConnected && <Badge variant="success">Connected</Badge>}
+                        <Button
+                          size="lg"
+                          onClick={handleYouTubeAction}
+                          disabled={isConnecting && !isConnected}
+                        >
+                          {getYouTubeButtonText()}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 px-4 text-white/[0.56]">
+                      <p className="mb-2 text-sm">No platforms available</p>
+                      <p className="text-xs italic">
+                        Configure YouTube API credentials to get started
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {currentStep === 2 && (
+                <div className="w-full">
+                  <Form {...llmForm}>
+                    <form
+                      onSubmit={llmForm.handleSubmit(handleLLMSubmit)}
+                      className="flex flex-col gap-4"
                     >
-                      {getYouTubeButtonText()}
-                    </Button>
-                  </div>
+                      {/* Provider Dropdown */}
+                      <FormField
+                        control={llmForm.control}
+                        name="provider"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-white">Provider</FormLabel>
+                            <Select
+                              onValueChange={(v: LLMProvider) => {
+                                field.onChange(v);
+                                handleProviderChange(v);
+                              }}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="cursor-pointer">
+                                  <SelectValue placeholder="Select provider" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="z-[70]">
+                                <SelectItem value="openai">OpenAI</SelectItem>
+                                <SelectItem value="deepseek">DeepSeek</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* API Key Input */}
+                      <FormField
+                        control={llmForm.control}
+                        name="apiKey"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-white">API Key</FormLabel>
+                            <div className="relative">
+                              {healthStatus && (
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
+                                  <HealthStatus
+                                    isChecking={healthStatus.isChecking ?? false}
+                                    isHealthy={healthStatus.isHealthy ?? false}
+                                    successMessage={healthStatus.successMessage}
+                                    error={healthStatus.error}
+                                  />
+                                </div>
+                              )}
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  placeholder="sk-..."
+                                  type="password"
+                                  className={healthStatus ? "pl-10" : ""}
+                                />
+                              </FormControl>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </form>
+                  </Form>
                 </div>
-              ) : (
+              )}
+
+              {currentStep === 3 && (
                 <div className="text-center py-8 px-4 text-white/[0.56]">
-                  <p className="mb-2 text-sm">No platforms available</p>
-                  <p className="text-xs italic">Configure YouTube API credentials to get started</p>
+                  <p className="mb-2 text-sm">MCP Configuration</p>
+                  <p className="text-xs italic">Coming soon...</p>
+                </div>
+              )}
+
+              {currentStep === 4 && (
+                <div className="text-center py-8 px-4 text-white/[0.56]">
+                  <p className="mb-2 text-sm">You're all set!</p>
+                  <p className="text-xs italic">Click Finish to start recording.</p>
                 </div>
               )}
             </div>
@@ -296,9 +529,15 @@ export function OnboardingWizard() {
                     className="flex items-center justify-center px-4 py-2"
                     size="sm"
                     onClick={handleNext}
-                    disabled={currentStep === 1 && !isConnected}
+                    disabled={
+                      (currentStep === 1 && !isConnected) || (currentStep === 2 && isLLMSaving)
+                    }
                   >
-                    {currentStep === 4 ? "Finish" : "Next"}
+                    {currentStep === 2 && isLLMSaving
+                      ? "Saving..."
+                      : currentStep === 4
+                        ? "Finish"
+                        : "Next"}
                   </Button>
                 </div>
               </div>
