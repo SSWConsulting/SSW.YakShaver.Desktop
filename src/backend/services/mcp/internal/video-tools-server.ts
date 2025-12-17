@@ -90,7 +90,7 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
     "upload_screenshot",
     {
       description:
-        "Upload a screenshot/image to the portal and get a public URL. Requires user to be authenticated with Microsoft. Use this URL when creating issues to include visual context.",
+        "Upload a screenshot/image to the portal and get a public URL. Requires user to be authenticated with Microsoft. Use this URL when creating issues to include visual context. Returns success=true with empty URL if user is not authenticated.",
       inputSchema: uploadScreenshotInputShape,
     },
     async (input: UploadScreenshotInput) => {
@@ -100,14 +100,15 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
 
       const msAuth = MicrosoftAuthService.getInstance();
       if (!(await msAuth.isAuthenticated())) {
+        console.log("[upload_screenshot] User not authenticated, returning empty URL");
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify({
-                success: false,
-                error:
-                  "User is not authenticated with Microsoft. Screenshot upload requires authentication.",
+                success: true,
+                screenshotUrl: "",
+                note: "User not authenticated with Microsoft - screenshot upload skipped",
               }),
             },
           ],
@@ -131,13 +132,15 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
       }
 
       console.warn("[upload_screenshot] Failed to upload screenshot:", uploadResult.error);
+      // Return success=true with empty URL on failure to allow workflow to continue
       return {
         content: [
           {
             type: "text",
             text: JSON.stringify({
-              success: false,
-              error: uploadResult.error,
+              success: true,
+              screenshotUrl: "",
+              note: `Upload failed: ${uploadResult.error}`,
             }),
           },
         ],
