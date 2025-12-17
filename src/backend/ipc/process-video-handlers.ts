@@ -111,10 +111,6 @@ export class ProcessVideoIPCHandlers {
 
   private async processUrlVideo(url: string) {
     try {
-      // Emit initial progress to trigger shave creation immediately
-      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, {
-        sourceOrigin: "external",
-      });
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
       this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,

@@ -1,4 +1,3 @@
-import { formatDistanceToNow } from "date-fns";
 import { Database } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -39,16 +38,16 @@ export function MyShavesDialog() {
     }
   }, [open, loadShaves]);
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string) => {
     switch (status) {
       case "Completed":
-        return "text-green-500";
+        return "bg-chart-2/20 text-chart-2 border-chart-2/50";
       case "Processing":
-        return "text-blue-500";
+        return "bg-chart-1/20 text-chart-1 border-chart-1/50";
       case "Failed":
-        return "text-red-500";
+        return "bg-destructive/20 text-destructive border-destructive/50";
       default:
-        return "text-yellow-500";
+        return "bg-chart-3/20 text-chart-3 border-chart-3/50";
     }
   };
 
@@ -107,14 +106,11 @@ export function MyShavesDialog() {
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
                       <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(
+                        className={`px-2 py-1 rounded border text-xs font-medium ${getStatusVariant(
                           shave.shaveStatus,
                         )}`}
                       >
                         {shave.shaveStatus}
-                      </span>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatDistanceToNow(new Date(shave.createdAt), { addSuffix: true })}
                       </span>
                     </div>
                   </div>
