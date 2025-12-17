@@ -69,19 +69,12 @@ export function useSaveShaveOnCompletion() {
 
           console.log("[Shave] Creating shave with data:", JSON.stringify(shaveData, null, 2));
 
-          const shave = await ipcClient.shave.create(shaveData);
+          await ipcClient.shave.create(shaveData);
 
           if (videoUrl) {
             lastSavedRef.current = videoUrl;
           }
-
           console.log("[Shave] ✓ Shave record created successfully!");
-          console.log("[Shave] - Shave ID:", shave.id);
-          console.log("[Shave] - Title:", shave.title);
-          console.log("[Shave] - Video URL:", shave.videoEmbedUrl);
-          console.log("[Shave] - Work Item URL:", shave.workItemUrl || "(none)");
-          console.log("[Shave] - Status:", shave.shaveStatus);
-          console.log("=== SHAVE CREATION END ===\n");
         } catch (error) {
           console.error("\n[Shave] ✗ Failed to create shave record:");
           console.error("[Shave] Error:", error);

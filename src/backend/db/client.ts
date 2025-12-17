@@ -15,30 +15,13 @@ const getDbPath = (): string => {
 const ensureDbDirectory = (): void => {
   const dbPath = getDbPath();
   const dbDir = path.dirname(dbPath);
-  console.log(`[DB] Database path: ${dbPath}`);
-  console.log(`[DB] Database directory: ${dbDir}`);
 
   if (!fs.existsSync(dbDir)) {
-    console.log(`[DB] Creating database directory...`);
     fs.mkdirSync(dbDir, { recursive: true });
-    console.log(`[DB] ✓ Database directory created`);
-  } else {
-    console.log(`[DB] ✓ Database directory already exists`);
   }
 };
 
 ensureDbDirectory();
 
-const dbPath = getDbPath();
-const dbExists = fs.existsSync(dbPath);
-if (dbExists) {
-  console.log(`[DB] ✓ Database file exists at ${dbPath}`);
-} else {
-  console.log(`[DB] Database file does not exist yet, will be created at ${dbPath}`);
-}
-
 const sqlite = new Database(getDbPath());
-console.log(`[DB] ✓ SQLite connection established`);
-
 export const db = drizzle(sqlite, { schema });
-console.log(`[DB] ✓ Drizzle ORM initialized`);

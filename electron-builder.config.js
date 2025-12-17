@@ -11,7 +11,6 @@ module.exports = {
     "!src/ui/**",
     "src/ui/dist/**",
     "!src/backend/**",
-    "dist/**",
     "!**/*.ts",
     "!**/node_modules/**/*.md",
   ],

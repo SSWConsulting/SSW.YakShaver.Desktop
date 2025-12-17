@@ -1,6 +1,10 @@
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
+/**
+ * After modifying this schema, must run: npm run db:generate
+ * This will generate the migration files in src/backend/db/migrations/
+ */
 export type VideoFileMetadata = {
   fileName: string;
   filePath?: string;
