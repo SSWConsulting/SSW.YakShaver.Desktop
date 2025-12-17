@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6bea0bad-194a-4391-9acf-09e0bb77d6ea",
+  "id": "7977480c-b35d-4689-a287-6121aac85ce5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "shaves": {
@@ -18,14 +18,14 @@
           "name": "work_item_source",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "title": {
           "name": "title",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "video_file": {
@@ -55,7 +55,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'pending'"
+          "default": "'Pending'"
         },
         "created_at": {
           "name": "created_at",

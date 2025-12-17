@@ -102,9 +102,9 @@ let _shaveHandlers: ShaveIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
-  // Initialize database on startup
+  // Initialize database on startup (synchronous - better-sqlite3 is sync)
   try {
-    await initDatabase();
+    initDatabase();
   } catch (error) {
     console.error("Failed to initialize database:", error);
 

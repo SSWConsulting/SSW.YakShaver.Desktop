@@ -17,7 +17,7 @@ const ensureDbDirectory = (): void => {
   const dbDir = path.dirname(dbPath);
   console.log(`[DB] Database path: ${dbPath}`);
   console.log(`[DB] Database directory: ${dbDir}`);
-  
+
   if (!fs.existsSync(dbDir)) {
     console.log(`[DB] Creating database directory...`);
     fs.mkdirSync(dbDir, { recursive: true });
