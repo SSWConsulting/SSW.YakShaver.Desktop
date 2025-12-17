@@ -95,7 +95,6 @@ export class ProcessVideoIPCHandlers {
     // upload to YouTube
     this.emitProgress(ProgressStage.UPLOADING_SOURCE, {
       sourceOrigin: "upload",
-      filePath,
     });
     const youtubeResult = await this.youtube.uploadVideo(filePath);
     this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
