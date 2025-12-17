@@ -280,16 +280,17 @@ export function OnboardingWizard() {
                 </Button>
 
                 <div className="flex gap-2 h-10">
-                  <Button
-                    className="flex items-center justify-center px-4 py-2"
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handlePrevious}
-                    disabled={currentStep === 1}
-                  >
-                    Previous
-                  </Button>
+                  {currentStep > 1 && (
+                    <Button
+                      className="flex items-center justify-center px-4 py-2"
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePrevious}
+                    >
+                      Previous
+                    </Button>
+                  )}
 
                   <Button
                     className="flex items-center justify-center px-4 py-2"
