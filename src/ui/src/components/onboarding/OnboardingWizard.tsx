@@ -6,6 +6,13 @@ import { useCountdown } from "../../hooks/useCountdown";
 import { AuthStatus } from "../../types";
 import { Button } from "../ui/button";
 
+const ONBOARDING_COMPLETED_KEY = "hasCompletedOnboarding";
+
+// Utility function to reset onboarding (can be called from settings)
+export const resetOnboarding = () => {
+  localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
+};
+
 const STEPS = [
   {
     id: 1,
@@ -36,6 +43,11 @@ const STEPS = [
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [hasYouTubeConfig] = useState(true); // TODO: Get from settings/config
+  const [isVisible, setIsVisible] = useState(() => {
+    // Check if user has completed onboarding before
+    const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
+    return completed !== "true";
+  });
 
   const { authState, startAuth, disconnect } = useYouTubeAuth();
   const {
@@ -60,6 +72,10 @@ export function OnboardingWizard() {
   const handleNext = () => {
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
+    } else {
+      // User completed all steps
+      localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
+      setIsVisible(false);
     }
   };
 
@@ -93,6 +109,17 @@ export function OnboardingWizard() {
     if (step === currentStep) return "current";
     return "pending";
   };
+
+  const handleSkip = () => {
+    if (currentStep < 4) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
+      setIsVisible(false);
+    }
+  };
+
+  if (!isVisible) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
@@ -247,6 +274,7 @@ export function OnboardingWizard() {
                   type="button"
                   variant="ghost"
                   size="sm"
+                  onClick={handleSkip}
                 >
                   Skip for now
                 </Button>
@@ -267,9 +295,9 @@ export function OnboardingWizard() {
                     className="flex items-center justify-center px-4 py-2"
                     size="sm"
                     onClick={handleNext}
-                    disabled={currentStep === 4}
+                    disabled={currentStep === 1 && !isConnected}
                   >
-                    Next
+                    {currentStep === 4 ? "Finish" : "Next"}
                   </Button>
                 </div>
               </div>
