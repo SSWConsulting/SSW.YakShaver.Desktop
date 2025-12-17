@@ -41,7 +41,7 @@ export async function updateShave(
  */
 export async function updateShaveStatus(
   id: number,
-  status: "pending" | "processing" | "completed" | "failed",
+  status: "Pending" | "Processing" | "Completed" | "Failed",
 ): Promise<Shave | undefined> {
   return updateShave(id, { shaveStatus: status });
 }

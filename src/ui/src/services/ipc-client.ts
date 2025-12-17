@@ -25,11 +25,12 @@ import type {
 
 export type VideoFileMetadata = {
   fileName: string;
+  filePath?: string;
   createdAt: string;
   duration: number;
 };
 
-export type ShaveStatus = "pending" | "processing" | "completed" | "failed";
+export type ShaveStatus = "Pending" | "Processing" | "Completed" | "Failed";
 
 export type Shave = {
   id: number;

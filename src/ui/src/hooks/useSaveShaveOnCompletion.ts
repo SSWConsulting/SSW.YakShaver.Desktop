@@ -13,25 +13,24 @@ export function useSaveShaveOnCompletion() {
   useEffect(() => {
     return ipcClient.workflow.onProgress(async (data: unknown) => {
       const progressData = data as WorkflowProgress;
+      console.log(`[Shave] Progress Event: ${progressData.stage}`, progressData);
 
-      // Case 1 & 2: Create shave when recording finishes uploading OR when external video is uploaded
+      // Case 1 & 2: Create shave when when external video is uploaded OR finishes recording
       const shouldCreateShave =
-        ((progressData.stage === ProgressStage.UPLOADING_SOURCE &&
-          progressData.uploadResult?.origin === "external") ||
-          progressData.stage === ProgressStage.DOWNLOADING_SOURCE) &&
-        progressData.uploadResult;
-
-      if (shouldCreateShave && progressData.uploadResult) {
-        const { uploadResult, metadataPreview } = progressData;
-        const videoTitle = uploadResult.data?.title || metadataPreview?.title || "Unknown Video";
-        const videoUrl = uploadResult.data?.url;
-        const uploadKey = `${videoUrl || videoTitle || Date.now()}`;
+        progressData.stage === ProgressStage.UPLOADING_SOURCE ||
+        progressData.stage === ProgressStage.DOWNLOADING_SOURCE;
+      if (shouldCreateShave) {
+        const { uploadResult, metadataPreview, filePath } = progressData;
+        const videoTitle = uploadResult?.data?.title || metadataPreview?.title || "Untitled Video";
+        const videoUrl = uploadResult?.data?.url;
+        const uploadKey = `${videoUrl || Date.now()}`;
 
         console.log("\n=== SHAVE CREATION START ===");
         console.log("[Shave] Progress stage:", progressData.stage);
         console.log("[Shave] Video title:", videoTitle);
         console.log("[Shave] Video URL (YouTube):", videoUrl);
-        console.log("[Shave] Upload origin:", uploadResult.origin);
+        console.log("[Shave] Upload origin:", uploadResult?.origin);
+        console.log("[Shave] File path:", filePath);
 
         // Prevent duplicate saves for the same video
         if (lastSavedRef.current === uploadKey) {
@@ -45,10 +44,11 @@ export function useSaveShaveOnCompletion() {
             title: videoTitle,
             videoFile: {
               fileName: videoTitle,
+              filePath: filePath,
               createdAt: new Date().toISOString(),
-              duration: 0, // Will be updated when completed
+              duration: 0, // need to be updated
             },
-            shaveStatus: "processing" as const,
+            shaveStatus: "Processing" as const,
             projectName: undefined,
             workItemUrl: undefined, // Will be updated when completed
             videoEmbedUrl: videoUrl, // Store YouTube URL
@@ -75,38 +75,80 @@ export function useSaveShaveOnCompletion() {
         }
       }
 
+      // Update shave after uploading youtube is finished
+      if (progressData.stage === ProgressStage.UPLOAD_COMPLETED && currentShaveIdRef.current) {
+        const { uploadResult } = progressData;
+        const videoUrl = uploadResult?.data?.url;
+        const videoTitle = uploadResult?.data?.title || "Untitled Video";
+
+        if (videoUrl) {
+          console.log("\n=== SHAVE UPDATE (UPLOAD COMPLETED) START ===");
+          console.log("[Shave] Updating shave ID:", currentShaveIdRef.current);
+          console.log("[Shave] New Video URL:", videoUrl);
+
+          try {
+            const currentShave = await ipcClient.shave.getById(currentShaveIdRef.current);
+            if (currentShave) {
+              const updatedVideoFile = {
+                ...currentShave.videoFile,
+                fileName: videoTitle,
+                filePath: videoUrl,
+              };
+
+              await ipcClient.shave.update(currentShaveIdRef.current, {
+                videoEmbedUrl: videoUrl,
+                videoFile: updatedVideoFile,
+              });
+              console.log("[Shave] ✓ Shave record updated with video URL and metadata!");
+            }
+          } catch (error) {
+            console.error("[Shave] ✗ Failed to update shave with video URL:", error);
+          }
+          console.log("=== SHAVE UPDATE (UPLOAD COMPLETED) END ===\n");
+        }
+      }
+
       // Case 1 & 2: Update shave when entire process is completed
-      if (progressData.stage === "completed" && currentShaveIdRef.current) {
+      if (progressData.stage === ProgressStage.COMPLETED && currentShaveIdRef.current) {
         console.log("\n=== SHAVE UPDATE START ===");
         console.log("[Shave] Updating shave ID:", currentShaveIdRef.current);
 
         try {
-          const { uploadResult, metadataPreview, finalOutput } = progressData;
+          const { finalOutput } = progressData;
 
-          // Extract GitHub issue URL from final output
-          const githubIssueMatch = finalOutput?.match(
-            /https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+/,
-          );
-          const workItemUrl = githubIssueMatch?.[0];
-
-          // Extract title from final output (first line or heading)
-          let finalTitle: string | undefined;
-          if (finalOutput) {
-            const titleMatch = finalOutput.match(/^#\s+(.+)$/m) || finalOutput.match(/^(.+)$/m);
-            finalTitle = titleMatch?.[1]?.trim();
+          let parsedOutput: {
+            Title?: string;
+            URL?: string;
+            Status?: string;
+          } = {};
+          try {
+            if (finalOutput) {
+              // Handle potential markdown code blocks if the LLM wraps the JSON
+              const cleanOutput = finalOutput.replace(/```json\n?|\n?```/g, "").trim();
+              parsedOutput = JSON.parse(cleanOutput);
+            }
+          } catch (e) {
+            console.warn("[Shave] Failed to parse finalOutput as JSON:", e);
           }
 
-          const title =
-            finalTitle || uploadResult?.data?.title || metadataPreview?.title || "Unknown Video";
+          const workItemUrl = parsedOutput.URL;
+          const finalTitle = parsedOutput.Title;
+
+          // Determine status
+          let shaveStatus: "Completed" | "Failed" = "Completed";
+          const statusStr = parsedOutput.Status;
+          if (statusStr && statusStr.toLowerCase() === "failed") {
+            shaveStatus = "Failed";
+          }
 
           console.log("[Shave] Update data:");
-          console.log("[Shave] - Title:", title);
+          console.log("[Shave] - Title:", finalTitle);
           console.log("[Shave] - Work Item URL:", workItemUrl || "(none)");
-          console.log("[Shave] - Status: completed");
+          console.log("[Shave] - Status:", shaveStatus);
 
           await ipcClient.shave.update(currentShaveIdRef.current, {
-            title,
-            shaveStatus: "completed",
+            title: finalTitle,
+            shaveStatus,
             workItemUrl,
           });
 
@@ -122,10 +164,14 @@ export function useSaveShaveOnCompletion() {
       }
 
       // Reset on error
-      if (progressData.stage === "error") {
+      if (progressData.stage === ProgressStage.ERROR) {
+        console.log(
+          "[Shave] Workflow error occurred. Full data:",
+          JSON.stringify(progressData, null, 2),
+        );
         if (currentShaveIdRef.current) {
           try {
-            await ipcClient.shave.updateStatus(currentShaveIdRef.current, "failed");
+            await ipcClient.shave.updateStatus(currentShaveIdRef.current, "Failed");
             console.log(`Shave record marked as failed: ${currentShaveIdRef.current}`);
           } catch (error) {
             console.error("Failed to update shave status to failed:", error);

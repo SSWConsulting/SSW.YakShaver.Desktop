@@ -278,10 +278,10 @@ const electronAPI = {
     create: (data: {
       workItemSource: string;
       title: string;
-      videoFile: { fileName: string; createdAt: string; duration: number };
+      videoFile: { fileName: string; filePath?: string; createdAt: string; duration: number };
       projectName?: string;
       workItemUrl?: string;
-      shaveStatus?: "pending" | "processing" | "completed" | "failed";
+      shaveStatus?: "Pending" | "Processing" | "Completed" | "Failed";
     }) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_CREATE, data),
     getById: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_BY_ID, id),
     getAll: () => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_ALL),
@@ -290,13 +290,13 @@ const electronAPI = {
       data: {
         workItemSource?: string;
         title?: string;
-        videoFile?: { fileName: string; createdAt: string; duration: number };
+        videoFile?: { fileName: string; filePath?: string; createdAt: string; duration: number };
         projectName?: string;
         workItemUrl?: string;
-        shaveStatus?: "pending" | "processing" | "completed" | "failed";
+        shaveStatus?: "Pending" | "Processing" | "Completed" | "Failed";
       },
     ) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_UPDATE, id, data),
-    updateStatus: (id: number, status: "pending" | "processing" | "completed" | "failed") =>
+    updateStatus: (id: number, status: "Pending" | "Processing" | "Completed" | "Failed") =>
       ipcRenderer.invoke(IPC_CHANNELS.SHAVE_UPDATE_STATUS, id, status),
     delete: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_DELETE, id),
   },

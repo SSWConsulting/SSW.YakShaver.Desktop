@@ -21,6 +21,7 @@ export enum ProgressStage {
 
 export interface VideoFile {
   fileName: string;
+  filePath?: string;
   createdAt: string;
   duration: string;
   isChromeExtension: boolean;

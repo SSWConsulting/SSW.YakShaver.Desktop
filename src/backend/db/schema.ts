@@ -3,6 +3,7 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export type VideoFileMetadata = {
   fileName: string;
+  filePath?: string;
   createdAt: string; // ISO string date
   duration: number; // in seconds
 };
@@ -15,9 +16,9 @@ export const shaves = sqliteTable("shaves", {
   projectName: text("project_name"),
   workItemUrl: text("work_item_url"),
   shaveStatus: text("shave_status", {
-    enum: ["pending", "processing", "completed", "failed"],
+    enum: ["Pending", "Processing", "Completed", "Failed"],
   })
-    .default("pending")
+    .default("Pending")
     .notNull(),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),

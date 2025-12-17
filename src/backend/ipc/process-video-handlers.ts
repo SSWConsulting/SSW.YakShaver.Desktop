@@ -95,6 +95,7 @@ export class ProcessVideoIPCHandlers {
     // upload to YouTube
     this.emitProgress(ProgressStage.UPLOADING_SOURCE, {
       sourceOrigin: "upload",
+      filePath,
     });
     const youtubeResult = await this.youtube.uploadVideo(filePath);
     this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
@@ -111,19 +112,8 @@ export class ProcessVideoIPCHandlers {
   private async processUrlVideo(url: string) {
     try {
       // Emit initial progress to trigger shave creation immediately
-      const initialUploadResult = {
-        success: true,
-        origin: "external" as const,
-        data: {
-          videoId: "",
-          title: url,
-          description: "",
-          url: url,
-        },
-      };
       this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, {
         sourceOrigin: "external",
-        uploadResult: initialUploadResult,
       });
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
       this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {

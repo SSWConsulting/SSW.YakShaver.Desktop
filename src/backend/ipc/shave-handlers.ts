@@ -24,7 +24,7 @@ export class ShaveIPCHandlers {
     );
     ipcMain.handle(
       IPC_CHANNELS.SHAVE_UPDATE_STATUS,
-      (_, id: number, status: "pending" | "processing" | "completed" | "failed") =>
+      (_, id: number, status: "Pending" | "Processing" | "Completed" | "Failed") =>
         this.updateShaveStatus(id, status),
     );
     ipcMain.handle(IPC_CHANNELS.SHAVE_DELETE, (_, id: number) => this.deleteShave(id));
@@ -67,7 +67,7 @@ export class ShaveIPCHandlers {
 
   private async updateShaveStatus(
     id: number,
-    status: "pending" | "processing" | "completed" | "failed",
+    status: "Pending" | "Processing" | "Completed" | "Failed",
   ): Promise<Shave | undefined> {
     try {
       return await updateShaveStatus(id, status);
