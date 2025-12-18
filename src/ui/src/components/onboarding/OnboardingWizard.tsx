@@ -114,7 +114,7 @@ export function OnboardingWizard() {
         setHasLLMConfig(!!cfg);
         if (cfg) {
           llmForm.reset(cfg as LLMFormValues);
-          
+
           // If there's a config with API key, validate it
           if (cfg.apiKey) {
             setIsLLMSaving(true);
@@ -202,7 +202,7 @@ export function OnboardingWizard() {
 
           try {
             const values = llmForm.getValues();
-            
+
             // Save the configuration first
             await ipcClient.llm.setConfig(values as LLMConfig);
 
@@ -409,18 +409,18 @@ export function OnboardingWizard() {
         <div className="flex flex-col w-[759px] px-20 py-40">
           <div className="flex flex-col h-[330px] w-full">
             {/* Step indicator */}
-            <div className="flex items-center justify-center px-6">
+            <div className="px-6">
               <p className="text-sm font-medium leading-6 text-white">Step {currentStep} of 4</p>
             </div>
 
             {/* Card header */}
             <div className="flex flex-col gap-1.5 p-6 w-full">
-              <div className="flex items-center justify-center">
+              <div className="flex ">
                 <p className="text-2xl font-semibold leading-6 tracking-[-0.015em] text-white/[0.98]">
                   {STEPS[currentStep - 1].title}
                 </p>
               </div>
-              <div className="flex items-center justify-center w-full">
+              <div className="flex w-full">
                 <p className="text-sm font-normal leading-5 text-white/[0.56]">
                   {currentStep === 1
                     ? "Choose a platform to host your videos."
