@@ -45,7 +45,7 @@ A mature, feature-rich ORM with its own schema definition language (DSL). <!-- o
 - ✅ Very mature ecosystem and excellent GUI tools
 - ❌ Requires forking a child process to run migrations in production.
 - ❌ Adds 15–50MB to the bundle due to the required Query Engine and Migration Engine binaries.
-- ❌ The engine binaries are platform specific, need matching them to OS.
+- ❌ The engine binaries are platform specific and need to match the OS.
 
 ### Drizzle
 
