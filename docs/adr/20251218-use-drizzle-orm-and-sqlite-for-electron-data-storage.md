@@ -33,7 +33,7 @@ Chosen option: "**Drizzle**", because it offers significantly smaller bundle siz
 
 - ✅ Reduces app size by ~15–50MB compared to Prisma.
 - ✅ Native migrate() function allows for a simple Promise-based startup sequence.
-- ✅ No need to manage platform-specific engine binaries for cross-compilation..
+- ✅ No need to manage platform-specific engine binaries for cross-compilation.
 - ❌ Less familiar for most developers. Smaller community and fewer third-party GUI tools compared to Prisma.
 
 ## Pros and Cons of the Options <!-- optional -->
