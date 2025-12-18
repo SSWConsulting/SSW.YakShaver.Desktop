@@ -741,16 +741,20 @@ export function OnboardingWizard() {
 
             {/* Card footer */}
             <div className="flex h-16 items-start justify-end px-6 pb-6 w-full">
-              <div className="flex items-center justify-between w-full">
-                <Button
-                  className="flex items-center justify-center px-4 py-2"
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSkip}
-                >
-                  Skip for now
-                </Button>
+              <div
+                className={`flex items-center w-full ${currentStep < 4 ? "justify-between" : "justify-end"}`}
+              >
+                {currentStep < 4 && (
+                  <Button
+                    className="flex items-center justify-center px-4 py-2"
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSkip}
+                  >
+                    Skip for now
+                  </Button>
+                )}
 
                 <div className="flex gap-2 h-10">
                   {currentStep > 1 && (
