@@ -28,6 +28,7 @@ export class ProcessVideoIPCHandlers {
   private readonly customPromptStorage = CustomPromptStorage.getInstance();
   private readonly metadataBuilder: VideoMetadataBuilder;
   private readonly youtubeDownloadService = YouTubeDownloadService.getInstance();
+  private lastVideoFilePath: string | undefined;
 
   constructor() {
     this.metadataBuilder = new VideoMetadataBuilder(this.llmClient);
@@ -65,11 +66,21 @@ export class ProcessVideoIPCHandlers {
           const customPrompt = await this.customPromptStorage.getActivePrompt();
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
+          const filePath =
+            this.lastVideoFilePath && fs.existsSync(this.lastVideoFilePath)
+              ? this.lastVideoFilePath
+              : undefined;
+
           const orchestrator = await MCPOrchestrator.getInstanceAsync();
           const mcpResult = await orchestrator.manualLoopAsync(
             intermediateOutput,
             videoUploadResult,
-            { systemPrompt },
+            filePath
+              ? {
+                  systemPrompt,
+                  videoFilePath: filePath,
+                }
+              : { systemPrompt },
           );
 
           this.emitProgress(ProgressStage.COMPLETED, {
@@ -137,6 +148,7 @@ export class ProcessVideoIPCHandlers {
     }
 
     try {
+      this.lastVideoFilePath = filePath;
       this.emitProgress(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
@@ -221,12 +233,6 @@ export class ProcessVideoIPCHandlers {
       const errorMessage = formatErrorMessage(error);
       this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
-    } finally {
-      try {
-        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      } catch (cleanupError) {
-        console.warn("[ProcessVideo] Failed to clean up source file", cleanupError);
-      }
     }
   }
 
