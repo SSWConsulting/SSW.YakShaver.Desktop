@@ -2,7 +2,7 @@
 
 - Status: proposed <!-- optional: draft | proposed | rejected | accepted | deprecated | … | superseded by [xxx](yyyymmdd-xxx.md) -->
 - Deciders: @tomek-i @yaqi-lyu 
-- Date: {{ LAST MODIFIED 2025-12-18 }} 
+- Date: 2025-12-18
 - Tags:  ORM, SQLITE, database 
 
 Technical Story:   
