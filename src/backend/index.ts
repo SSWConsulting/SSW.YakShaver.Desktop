@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, session, shell } from "electron";
+import { app, BrowserWindow, dialog, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { config } from "./config/env";
@@ -109,7 +109,6 @@ app.whenReady().then(async () => {
     console.error("Failed to initialize database:", error);
 
     // Show error dialog to user
-    const { dialog } = require("electron");
     dialog.showErrorBox(
       "Database Initialization Failed",
       `Failed to initialize the database. You can continue using the app, but Your shaves will not be saved.\n\nError: ${error instanceof Error ? error.message : String(error)}`,

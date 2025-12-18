@@ -30,55 +30,55 @@ export class ShaveIPCHandlers {
     ipcMain.handle(IPC_CHANNELS.SHAVE_DELETE, (_, id: number) => this.deleteShave(id));
   }
 
-  private async createShave(data: Omit<NewShave, "id">): Promise<Shave> {
+  private createShave(data: Omit<NewShave, "id">): Shave {
     try {
-      return await createShave(data);
+      return createShave(data);
     } catch (error) {
       throw new Error(formatErrorMessage(error));
     }
   }
 
-  private async getShaveById(id: number): Promise<Shave | undefined> {
+  private getShaveById(id: number): Shave | undefined {
     try {
-      return await getShaveById(id);
+      return getShaveById(id);
     } catch (error) {
       throw new Error(formatErrorMessage(error));
     }
   }
 
-  private async getAllShaves(): Promise<Shave[]> {
+  private getAllShaves(): Shave[] {
     try {
-      return await getAllShaves();
+      return getAllShaves();
     } catch (error) {
       throw new Error(formatErrorMessage(error));
     }
   }
 
-  private async updateShave(
+  private updateShave(
     id: number,
     data: Partial<Omit<NewShave, "id">>,
-  ): Promise<Shave | undefined> {
+  ): Shave | undefined {
     try {
-      return await updateShave(id, data);
+      return updateShave(id, data);
     } catch (error) {
       throw new Error(formatErrorMessage(error));
     }
   }
 
-  private async updateShaveStatus(
+  private updateShaveStatus(
     id: number,
     status: "Pending" | "Processing" | "Completed" | "Failed",
-  ): Promise<Shave | undefined> {
+  ): Shave | undefined {
     try {
-      return await updateShaveStatus(id, status);
+      return updateShaveStatus(id, status);
     } catch (error) {
       throw new Error(formatErrorMessage(error));
     }
   }
 
-  private async deleteShave(id: number): Promise<void> {
+  private deleteShave(id: number): void {
     try {
-      await deleteShave(id);
+      deleteShave(id);
     } catch (error) {
       throw new Error(formatErrorMessage(error));
     }
