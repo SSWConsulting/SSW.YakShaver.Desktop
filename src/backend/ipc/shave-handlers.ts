@@ -3,6 +3,7 @@ import type { NewShave, Shave } from "../db/schema";
 import {
   createShave,
   deleteShave,
+  findShaveByVideoUrl,
   getAllShaves,
   getShaveById,
   updateShave,
@@ -18,6 +19,9 @@ export class ShaveIPCHandlers {
     );
     ipcMain.handle(IPC_CHANNELS.SHAVE_GET_BY_ID, (_, id: number) => this.getShaveById(id));
     ipcMain.handle(IPC_CHANNELS.SHAVE_GET_ALL, () => this.getAllShaves());
+    ipcMain.handle(IPC_CHANNELS.SHAVE_FIND_BY_VIDEO_URL, (_, videoEmbedUrl: string) =>
+      this.findByVideoUrl(videoEmbedUrl),
+    );
     ipcMain.handle(
       IPC_CHANNELS.SHAVE_UPDATE,
       (_, id: number, data: Partial<Omit<NewShave, "id">>) => this.updateShave(id, data),
@@ -49,6 +53,14 @@ export class ShaveIPCHandlers {
   private getAllShaves(): Shave[] {
     try {
       return getAllShaves();
+    } catch (error) {
+      throw new Error(formatErrorMessage(error));
+    }
+  }
+
+  private findByVideoUrl(videoEmbedUrl: string): Shave | undefined {
+    try {
+      return findShaveByVideoUrl(videoEmbedUrl);
     } catch (error) {
       throw new Error(formatErrorMessage(error));
     }

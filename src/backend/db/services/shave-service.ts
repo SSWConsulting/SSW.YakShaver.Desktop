@@ -26,6 +26,13 @@ export function getAllShaves(): Shave[] {
 }
 
 /**
+ * Find a shave by video embed URL
+ */
+export function findShaveByVideoUrl(videoEmbedUrl: string): Shave | undefined {
+  return db.select().from(shaves).where(eq(shaves.videoEmbedUrl, videoEmbedUrl)).get();
+}
+
+/**
  * Update a shave record
  */
 export function updateShave(id: number, data: Partial<Omit<NewShave, "id">>): Shave | undefined {

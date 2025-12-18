@@ -105,6 +105,7 @@ const IPC_CHANNELS = {
   SHAVE_CREATE: "shave:create",
   SHAVE_GET_BY_ID: "shave:get-by-id",
   SHAVE_GET_ALL: "shave:get-all",
+  SHAVE_FIND_BY_VIDEO_URL: "shave:find-by-video-url",
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
@@ -286,6 +287,8 @@ const electronAPI = {
     }) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_CREATE, data),
     getById: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_BY_ID, id),
     getAll: () => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_ALL),
+    findByVideoUrl: (videoEmbedUrl: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SHAVE_FIND_BY_VIDEO_URL, videoEmbedUrl),
     update: (
       id: number,
       data: {

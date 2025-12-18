@@ -1,11 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../services/ipc-client";
 import { ProgressStage, type WorkflowProgress } from "../types";
 
 export function useSaveShaveOnCompletion() {
-  const lastSavedRef = useRef<string | null>(null);
-
   useEffect(() => {
     return ipcClient.workflow.onProgress(async (data: unknown) => {
       const progressData = data as WorkflowProgress;
@@ -15,9 +13,12 @@ export function useSaveShaveOnCompletion() {
         const { uploadResult, finalOutput } = progressData;
         const videoUrl = uploadResult?.data?.url;
 
-        // Check for duplicates using the final YouTube link
-        if (videoUrl && lastSavedRef.current === videoUrl) {
-          return;
+        // Check if this video URL already exists in the database
+        if (videoUrl) {
+          const existingShave = await ipcClient.shave.findByVideoUrl(videoUrl);
+          if (existingShave) {
+            return;
+          }
         }
 
         try {
@@ -63,10 +64,6 @@ export function useSaveShaveOnCompletion() {
           };
 
           await ipcClient.shave.create(shaveData);
-
-          if (videoUrl) {
-            lastSavedRef.current = videoUrl;
-          }
         } catch (error) {
           console.error("\n[Shave] ✗ Failed to create shave record:");
           console.error("[Shave] Error:", error);
