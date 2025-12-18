@@ -16,7 +16,9 @@ export const shaves = sqliteTable("shaves", {
   workItemUrl: text("work_item_url"),
   shaveStatus: text("shave_status").$type<ShaveStatus>().default("Pending").notNull(),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at")
+    .default(sql`CURRENT_TIMESTAMP`)
+    .$onUpdate(() => sql`CURRENT_TIMESTAMP`),
   videoEmbedUrl: text("video_embed_url"),
 });
 

@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1765952979876,
-      "tag": "0000_naive_diamondback",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1765965626895,
-      "tag": "0001_real_unus",
+      "when": 1766025482946,
+      "tag": "0000_adorable_tombstone",
       "breakpoints": true
     }
   ]

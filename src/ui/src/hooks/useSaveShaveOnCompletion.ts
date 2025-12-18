@@ -77,10 +77,9 @@ export function useSaveShaveOnCompletion() {
 
       // Reset on error
       if (progressData.stage === ProgressStage.ERROR) {
-        console.log(
-          "[Shave] Workflow error occurred. Full data:",
-          JSON.stringify(progressData, null, 2),
-        );
+        console.error("Workflow error occurred. Full data:", JSON.stringify(progressData, null, 2));
+        const errorMessage = progressData.error || "An unknown error occurred";
+        toast.error(`Workflow Progress error: ${errorMessage}`);
       }
     });
   }, []);

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7977480c-b35d-4689-a287-6121aac85ce5",
+  "id": "703b5c37-81cc-4cf8-b6b2-40db6ad13775",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "shaves": {
@@ -18,7 +18,7 @@
           "name": "work_item_source",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "title": {

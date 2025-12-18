@@ -1,6 +1,6 @@
 CREATE TABLE `shaves` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`work_item_source` text,
+	`work_item_source` text NOT NULL,
 	`title` text NOT NULL,
 	`video_file` text NOT NULL,
 	`project_name` text,
