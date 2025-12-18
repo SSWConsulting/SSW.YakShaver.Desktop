@@ -45,7 +45,8 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - Choose timestamps where important UI elements, errors, or context is visible.
 - IMPORTANT: After capturing screenshot, you MUST call the upload_screenshot tool to upload it and get a public URL.
 - The workflow is: capture_video_frame ➡️ get screenshotPath ➡️ upload_screenshot with that path ➡️ get screenshotUrl
-- When upload_screenshot returns a screenshotUrl, USE THIS URL in the issue description.
+- When upload_screenshot returns a screenshotUrl, USE THIS EXACT URL (including ALL query parameters) in the issue description.
+- CRITICAL: Preserve the complete URL with all query parameters - DO NOT truncate or remove any part of the URL.
 - Format screenshot in the issue description as: ![Screenshot description](screenshotUrl)
 - CRITICAL RULE: If upload_screenshot returns an empty URL (user not authenticated), DO NOT mention screenshot AT ALL in the issue description. No exceptions.
 - NEVER include text like "No screenshot attached" or "screenshot captured but upload failed" - just create the issue as if screenshot was never attempted.
