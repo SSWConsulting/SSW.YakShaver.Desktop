@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
 import { toast } from "sonner";
 import * as z from "zod";
@@ -12,6 +12,7 @@ import { ipcClient } from "../../services/ipc-client";
 import type { HealthStatusInfo, LLMConfig } from "../../types";
 import { AuthStatus } from "../../types";
 import { HealthStatus } from "../health-status/health-status";
+import type { MCPServerConfig } from "../settings/mcp/McpServerForm";
 import { Button } from "../ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../ui/form";
 import { Input } from "../ui/input";
@@ -31,6 +32,15 @@ const llmSchema = z.discriminatedUnion("provider", [
 ]);
 
 type LLMFormValues = z.infer<typeof llmSchema>;
+
+const mcpSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
+  transport: z.enum(["streamableHttp"]),
+  url: z.string().url("Must be a valid URL"),
+});
+
+type MCPFormValues = z.infer<typeof mcpSchema>;
 
 const ONBOARDING_COMPLETED_KEY = "hasCompletedOnboarding";
 
@@ -72,6 +82,9 @@ export function OnboardingWizard() {
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
+  const [hasMCPConfig, setHasMCPConfig] = useState(false);
+  const [isMCPSaving, setIsMCPSaving] = useState(false);
+  const [editingMcpServerName, setEditingMcpServerName] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(() => {
     // Check if user has completed onboarding before
     const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
@@ -84,6 +97,21 @@ export function OnboardingWizard() {
       provider: "openai",
       apiKey: "",
     },
+  });
+
+  const mcpForm = useForm<MCPFormValues>({
+    resolver: zodResolver(mcpSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      transport: "streamableHttp",
+      url: "",
+    },
+  });
+
+  const [watchedMcpName, watchedMcpUrl] = useWatch({
+    control: mcpForm.control,
+    name: ["name", "url"],
   });
 
   const { authState, startAuth, disconnect } = useYouTubeAuth();
@@ -163,6 +191,47 @@ export function OnboardingWizard() {
     }
   }, [currentStep, llmForm]);
 
+  useEffect(() => {
+    if (currentStep !== 3) {
+      return;
+    }
+
+    const loadMcpConfig = async () => {
+      try {
+        const servers = await ipcClient.mcp.listServers();
+        const userServer =
+          servers.find((server) => !server.builtin && server.transport === "streamableHttp") ??
+          servers.find((server) => server.transport === "streamableHttp");
+
+        if (userServer && userServer.transport === "streamableHttp") {
+          mcpForm.reset({
+            name: userServer.name,
+            description: userServer.description ?? "",
+            transport: "streamableHttp",
+            url: userServer.url ?? "",
+          });
+          setHasMCPConfig(true);
+          setEditingMcpServerName(userServer.name);
+        } else {
+          setHasMCPConfig(false);
+          setEditingMcpServerName(null);
+          mcpForm.reset({
+            name: "",
+            description: "",
+            transport: "streamableHttp",
+            url: "",
+          });
+        }
+      } catch (error) {
+        setHasMCPConfig(false);
+        setEditingMcpServerName(null);
+        toast.error(`Failed to load MCP servers: ${formatErrorMessage(error)}`);
+      }
+    };
+
+    void loadMcpConfig();
+  }, [currentStep, mcpForm]);
+
   const handleLLMSubmit = useCallback(async (values: LLMFormValues) => {
     setIsLLMSaving(true);
     try {
@@ -187,6 +256,37 @@ export function OnboardingWizard() {
     } as LLMFormValues);
     setHealthStatus(null);
   };
+
+  const saveMcpConfig = useCallback(
+    async (values: MCPFormValues) => {
+      setIsMCPSaving(true);
+
+      const config: MCPServerConfig = {
+        name: values.name.trim(),
+        transport: "streamableHttp",
+        url: values.url.trim(),
+        description: values.description?.trim() || undefined,
+      };
+
+      try {
+        if (editingMcpServerName) {
+          await ipcClient.mcp.updateServerAsync(editingMcpServerName, config);
+        } else {
+          await ipcClient.mcp.addServerAsync(config);
+        }
+        toast.success(`MCP server '${config.name}' saved`);
+        setHasMCPConfig(true);
+        setEditingMcpServerName(config.name);
+        return true;
+      } catch (error) {
+        toast.error(`Failed to save MCP server: ${formatErrorMessage(error)}`);
+        return false;
+      } finally {
+        setIsMCPSaving(false);
+      }
+    },
+    [editingMcpServerName],
+  );
 
   // Auto-validate API key on input change
   useEffect(() => {
@@ -264,6 +364,14 @@ export function OnboardingWizard() {
           : "DeepSeek configuration saved",
       );
       setCurrentStep(currentStep + 1);
+    } else if (currentStep === 3) {
+      const isValid = await mcpForm.trigger();
+      if (!isValid) return;
+
+      const saved = await saveMcpConfig(mcpForm.getValues());
+      if (!saved) return;
+
+      setCurrentStep(currentStep + 1);
     } else if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -312,6 +420,12 @@ export function OnboardingWizard() {
       setIsVisible(false);
     }
   };
+
+  const isMcpFormIncomplete = !watchedMcpName?.trim() || !watchedMcpUrl?.trim();
+  const isNextDisabled =
+    (currentStep === 1 && !isConnected) ||
+    (currentStep === 2 && isLLMSaving) ||
+    (currentStep === 3 && (isMCPSaving || isMcpFormIncomplete));
 
   if (!isVisible) return null;
 
@@ -541,10 +655,80 @@ export function OnboardingWizard() {
               )}
 
               {currentStep === 3 && (
-                <div className="text-center py-8 px-4 text-white/[0.56]">
-                  <p className="mb-2 text-sm">MCP Configuration</p>
-                  <p className="text-xs italic">Coming soon...</p>
-                </div>
+                <Form {...mcpForm}>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                    }}
+                    className="flex flex-col gap-4"
+                  >
+                    <FormField
+                      control={mcpForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-white">Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="e.g., GitHub" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={mcpForm.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-white">Description</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Explain what this MCP server does" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={mcpForm.control}
+                      name="transport"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-white">Transport</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="cursor-pointer">
+                                <SelectValue placeholder="Select transport" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="z-[70]">
+                              <SelectItem value="streamableHttp">HTTP (streamableHttp)</SelectItem>
+                              <SelectItem value="stdio" disabled>
+                                STDIO (coming soon)
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={mcpForm.control}
+                      name="url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-white">URL</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="https://api.example.com/mcp" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </form>
+                </Form>
               )}
 
               {currentStep === 4 && (
@@ -585,15 +769,15 @@ export function OnboardingWizard() {
                     className="flex items-center justify-center px-4 py-2"
                     size="sm"
                     onClick={handleNext}
-                    disabled={
-                      (currentStep === 1 && !isConnected) || (currentStep === 2 && isLLMSaving)
-                    }
+                    disabled={isNextDisabled}
                   >
                     {currentStep === 2 && isLLMSaving
                       ? "Checking..."
-                      : currentStep === 4
-                        ? "Finish"
-                        : "Next"}
+                      : currentStep === 3 && isMCPSaving
+                        ? "Saving..."
+                        : currentStep === 4
+                          ? "Finish"
+                          : "Next"}
                   </Button>
                 </div>
               </div>
