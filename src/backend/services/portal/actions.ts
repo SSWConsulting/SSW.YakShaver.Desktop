@@ -7,12 +7,12 @@ export const WorkItemDtoSchema = z.object({
   projectName: z.string(),
   title: z.string(),
   description: z.string(),
-  workItemUrl: z.string().url().nullable(),
-  imageUrl: z.string().url().nullable(),
+  workItemUrl: z.string().nullable(),
+  imageUrl: z.string().nullable(),
   imageFigure: z.string().nullable(),
   uploadedVideoProvider: z.string().nullable(),
-  uploadedVideoEmbedUrl: z.string().url().nullable(),
-  uploadedVideoUrl: z.string().url().nullable(),
+  uploadedVideoEmbedUrl: z.string().nullable(),
+  uploadedVideoUrl: z.string().nullable(),
 });
 
 export type WorkItemDto = z.infer<typeof WorkItemDtoSchema>;
