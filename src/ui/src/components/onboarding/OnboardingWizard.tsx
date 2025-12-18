@@ -114,6 +114,44 @@ export function OnboardingWizard() {
         setHasLLMConfig(!!cfg);
         if (cfg) {
           llmForm.reset(cfg as LLMFormValues);
+          
+          // If there's a config with API key, validate it
+          if (cfg.apiKey) {
+            setIsLLMSaving(true);
+            setHealthStatus({
+              isHealthy: false,
+              isChecking: true,
+            });
+
+            try {
+              const healthResult = await ipcClient.llm.checkHealth();
+
+              if (!healthResult.isHealthy) {
+                setHealthStatus({
+                  isHealthy: false,
+                  isChecking: false,
+                  error: healthResult.error || "Failed to connect to LLM provider",
+                });
+                setHasLLMConfig(false);
+              } else {
+                setHealthStatus({
+                  isHealthy: true,
+                  isChecking: false,
+                  successMessage: healthResult.successMessage || "API key validated successfully",
+                });
+                setHasLLMConfig(true);
+              }
+            } catch (e) {
+              setHealthStatus({
+                isHealthy: false,
+                isChecking: false,
+                error: formatErrorMessage(e),
+              });
+              setHasLLMConfig(false);
+            } finally {
+              setIsLLMSaving(false);
+            }
+          }
         }
       } catch (_error) {
         setHasLLMConfig(false);
@@ -147,64 +185,85 @@ export function OnboardingWizard() {
       provider: value,
       apiKey: "",
     } as LLMFormValues);
+    setHealthStatus(null);
   };
+
+  // Auto-validate API key on input change
+  useEffect(() => {
+    const subscription = llmForm.watch(async (value, { name }) => {
+      if (name === "apiKey" && value.apiKey && value.apiKey.length > 10) {
+        // Debounce the validation
+        const timeoutId = setTimeout(async () => {
+          setIsLLMSaving(true);
+          setHealthStatus({
+            isHealthy: false,
+            isChecking: true,
+          });
+
+          try {
+            const values = llmForm.getValues();
+            
+            // Save the configuration first
+            await ipcClient.llm.setConfig(values as LLMConfig);
+
+            // Then check health to validate the API key
+            const healthResult = await ipcClient.llm.checkHealth();
+
+            if (!healthResult.isHealthy) {
+              setHealthStatus({
+                isHealthy: false,
+                isChecking: false,
+                error: healthResult.error || "Failed to connect to LLM provider",
+              });
+              setHasLLMConfig(false);
+            } else {
+              setHealthStatus({
+                isHealthy: true,
+                isChecking: false,
+                successMessage: healthResult.successMessage || "API key validated successfully",
+              });
+              setHasLLMConfig(true);
+            }
+          } catch (e) {
+            setHealthStatus({
+              isHealthy: false,
+              isChecking: false,
+              error: formatErrorMessage(e),
+            });
+            setHasLLMConfig(false);
+          } finally {
+            setIsLLMSaving(false);
+          }
+        }, 500); // 500ms debounce
+
+        return () => clearTimeout(timeoutId);
+      } else if (name === "apiKey") {
+        // Reset health status if API key is too short
+        setHealthStatus(null);
+        setHasLLMConfig(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [llmForm]);
 
   const handleNext = async () => {
     if (currentStep === 2) {
-      // For step 2, validate and submit the LLM form first
+      // For step 2, check if LLM config is valid
       const isValid = await llmForm.trigger();
       if (!isValid) return;
 
-      setIsLLMSaving(true);
-      setHealthStatus({
-        isHealthy: false,
-        isChecking: true,
-      });
-
-      try {
-        const values = llmForm.getValues();
-
-        // Save the configuration first
-        await ipcClient.llm.setConfig(values as LLMConfig);
-
-        // Then check health to validate the API key
-        const healthResult = await ipcClient.llm.checkHealth();
-
-        if (!healthResult.isHealthy) {
-          setHealthStatus({
-            isHealthy: false,
-            isChecking: false,
-            error: healthResult.error || "Failed to connect to LLM provider",
-          });
-          toast.error(
-            `Invalid API key: ${healthResult.error || "Failed to connect to LLM provider"}`,
-          );
-          setIsLLMSaving(false);
-          return;
-        }
-
-        setHealthStatus({
-          isHealthy: true,
-          isChecking: false,
-          successMessage: healthResult.successMessage || "API key validated successfully",
-        });
-        toast.success(
-          values.provider === "openai"
-            ? "OpenAI configuration saved"
-            : "DeepSeek configuration saved",
-        );
-        setHasLLMConfig(true);
-        setCurrentStep(currentStep + 1);
-      } catch (e) {
-        setHealthStatus({
-          isHealthy: false,
-          isChecking: false,
-          error: formatErrorMessage(e),
-        });
-        toast.error(`Failed to validate API key: ${formatErrorMessage(e)}`);
-      } finally {
-        setIsLLMSaving(false);
+      if (!hasLLMConfig || !healthStatus?.isHealthy) {
+        toast.error("Please enter a valid API key before proceeding");
+        return;
       }
+
+      toast.success(
+        llmForm.getValues().provider === "openai"
+          ? "OpenAI configuration saved"
+          : "DeepSeek configuration saved",
+      );
+      setCurrentStep(currentStep + 1);
     } else if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     } else {
