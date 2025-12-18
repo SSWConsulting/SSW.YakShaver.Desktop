@@ -1,6 +1,7 @@
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
+import { ONBOARDING_FINISHED_EVENT, RECORD_BUTTON_HIGHLIGHT_KEY } from "../../constants/onboarding";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
@@ -28,6 +29,7 @@ export function ScreenRecorder() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
+  const [shouldHighlightRecordButton, setShouldHighlightRecordButton] = useState(false);
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
@@ -40,9 +42,44 @@ export function ScreenRecorder() {
     }
   }, [stop]);
 
+  const clearRecordHighlight = useCallback(() => {
+    if (!shouldHighlightRecordButton) return;
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(RECORD_BUTTON_HIGHLIGHT_KEY);
+    }
+    setShouldHighlightRecordButton(false);
+  }, [shouldHighlightRecordButton]);
+
   const toggleRecording = () => {
+    clearRecordHighlight();
     isRecording ? handleStopRecording() : setPickerOpen(true);
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const updateHighlightState = () => {
+      setShouldHighlightRecordButton(localStorage.getItem(RECORD_BUTTON_HIGHLIGHT_KEY) === "true");
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === RECORD_BUTTON_HIGHLIGHT_KEY) {
+        updateHighlightState();
+      }
+    };
+
+    updateHighlightState();
+
+    window.addEventListener(ONBOARDING_FINISHED_EVENT, updateHighlightState);
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener(ONBOARDING_FINISHED_EVENT, updateHighlightState);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
 
   useEffect(() => {
     const cleanup = window.electronAPI.screenRecording.onStopRequest(handleStopRecording);
@@ -145,10 +182,13 @@ export function ScreenRecorder() {
 
   return (
     <>
+      {shouldHighlightRecordButton && (
+        <div className="fixed inset-0 z-40 bg-gray-500/10 backdrop-blur-[1px] transition-opacity pointer-events-none" />
+      )}
       <section className="flex flex-col gap-4 items-center w-full">
-        <div className="flex flex-row items-center gap-2">
+        <div className="flex flex-row items-center gap-2 relative z-50">
           <Button
-            className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90"
+            className={`bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 transition-all duration-300 ${shouldHighlightRecordButton ? "scale-105 ring-3 ring-ssw-red/80 ring-offset-3 ring-offset-black shadow-[0_0_45px_rgba(220,50,50,0.85)] animate-pulse" : ""}`}
             onClick={toggleRecording}
             disabled={isProcessing || isTranscribing || !isAuthenticated}
           >

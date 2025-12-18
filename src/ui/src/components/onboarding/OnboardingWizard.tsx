@@ -6,6 +6,11 @@ import { toast } from "sonner";
 import * as z from "zod";
 import { Badge } from "@/components/ui/badge";
 import { formatErrorMessage } from "@/utils";
+import {
+  ONBOARDING_COMPLETED_KEY,
+  ONBOARDING_FINISHED_EVENT,
+  RECORD_BUTTON_HIGHLIGHT_KEY,
+} from "../../constants/onboarding";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useCountdown } from "../../hooks/useCountdown";
 import { ipcClient } from "../../services/ipc-client";
@@ -42,11 +47,10 @@ const mcpSchema = z.object({
 
 type MCPFormValues = z.infer<typeof mcpSchema>;
 
-const ONBOARDING_COMPLETED_KEY = "hasCompletedOnboarding";
-
 // Utility function to reset onboarding (can be called from settings)
 export const resetOnboarding = () => {
   localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
+  localStorage.removeItem(RECORD_BUTTON_HIGHLIGHT_KEY);
 };
 
 const STEPS = [
@@ -377,6 +381,8 @@ export function OnboardingWizard() {
     } else {
       // User completed all steps
       localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
+      localStorage.setItem(RECORD_BUTTON_HIGHLIGHT_KEY, "true");
+      window.dispatchEvent(new Event(ONBOARDING_FINISHED_EVENT));
       setIsVisible(false);
     }
   };
