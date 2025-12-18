@@ -26,7 +26,7 @@ module.exports = {
     },
   ],
   asar: true,
-  asarUnpack: ["src/ui/dist/**", "**/@ffmpeg-installer/**", "**/youtube-dl-exec/**"],
+  asarUnpack: ["src/ui/dist/**", "**/@ffmpeg-installer/**", "**/youtube-dl-exec/**", "**/better-sqlite3/**"],
   afterPack: "./afterPack.js",
   win: {
     icon: "src/ui/public/icons/icon.ico",
