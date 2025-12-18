@@ -112,7 +112,7 @@ app.whenReady().then(async () => {
     const { dialog } = require("electron");
     dialog.showErrorBox(
       "Database Initialization Failed",
-      `Failed to initialize the database. The app may not function correctly.\n\nError: ${error instanceof Error ? error.message : String(error)}`,
+      `Failed to initialize the database. You can continue using the app, but Your shaves will not be saved.\n\nError: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 

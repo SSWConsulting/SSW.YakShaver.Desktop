@@ -4,6 +4,7 @@ import type { ToolApprovalDecision } from "./services/mcp/mcp-orchestrator";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ToolApprovalMode } from "./services/storage/general-settings-storage";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
+import type { ShaveStatus, VideoFileMetadata } from "./types";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
 // Need to make single source of truth
@@ -278,10 +279,10 @@ const electronAPI = {
     create: (data: {
       workItemSource: string;
       title: string;
-      videoFile: { fileName: string; filePath?: string; createdAt: string; duration: number };
+      videoFile: VideoFileMetadata;
       projectName?: string;
       workItemUrl?: string;
-      shaveStatus?: "Pending" | "Processing" | "Completed" | "Failed";
+      shaveStatus?: ShaveStatus;
     }) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_CREATE, data),
     getById: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_BY_ID, id),
     getAll: () => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_ALL),
@@ -290,13 +291,13 @@ const electronAPI = {
       data: {
         workItemSource?: string;
         title?: string;
-        videoFile?: { fileName: string; filePath?: string; createdAt: string; duration: number };
+        videoFile?: VideoFileMetadata;
         projectName?: string;
         workItemUrl?: string;
-        shaveStatus?: "Pending" | "Processing" | "Completed" | "Failed";
+        shaveStatus?: ShaveStatus;
       },
     ) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_UPDATE, id, data),
-    updateStatus: (id: number, status: "Pending" | "Processing" | "Completed" | "Failed") =>
+    updateStatus: (id: number, status: ShaveStatus) =>
       ipcRenderer.invoke(IPC_CHANNELS.SHAVE_UPDATE_STATUS, id, status),
     delete: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_DELETE, id),
   },

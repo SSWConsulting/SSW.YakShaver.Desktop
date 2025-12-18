@@ -9,19 +9,14 @@ export function useSaveShaveOnCompletion() {
   useEffect(() => {
     return ipcClient.workflow.onProgress(async (data: unknown) => {
       const progressData = data as WorkflowProgress;
-      console.log(`[Shave] Progress Event: ${progressData.stage}`, progressData);
 
       // Save shave when workflow is completed
       if (progressData.stage === ProgressStage.COMPLETED) {
         const { uploadResult, finalOutput } = progressData;
         const videoUrl = uploadResult?.data?.url;
 
-        console.log("\n=== SHAVE CREATION START ===");
-        console.log("[Shave] Final YouTube URL:", videoUrl);
-
         // Check for duplicates using the final YouTube link
         if (videoUrl && lastSavedRef.current === videoUrl) {
-          console.log("[Shave] ⚠ Skipping duplicate save for YouTube URL:", videoUrl);
           return;
         }
 
@@ -67,14 +62,11 @@ export function useSaveShaveOnCompletion() {
             videoEmbedUrl: videoUrl,
           };
 
-          console.log("[Shave] Creating shave with data:", JSON.stringify(shaveData, null, 2));
-
           await ipcClient.shave.create(shaveData);
 
           if (videoUrl) {
             lastSavedRef.current = videoUrl;
           }
-          console.log("[Shave] ✓ Shave record created successfully!");
         } catch (error) {
           console.error("\n[Shave] ✗ Failed to create shave record:");
           console.error("[Shave] Error:", error);

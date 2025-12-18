@@ -26,6 +26,15 @@ export interface VideoFile {
   isChromeExtension: boolean;
 }
 
+export interface VideoFileMetadata {
+  fileName: string;
+  filePath?: string;
+  createdAt: string; // ISO string date
+  duration: number; // in seconds
+}
+
+export type ShaveStatus = "Pending" | "Processing" | "Completed" | "Failed";
+
 export interface ShaveItem {
   id: string;
   title: string;
