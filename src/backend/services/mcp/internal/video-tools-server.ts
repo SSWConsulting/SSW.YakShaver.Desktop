@@ -141,6 +141,7 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
       }
 
       // Return success=true with empty URL on failure to allow workflow to continue
+      // https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/417
       console.warn("[upload_screenshot] Failed to upload screenshot:", uploadResult.error);
       return {
         content: [
