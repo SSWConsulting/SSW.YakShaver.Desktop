@@ -9,6 +9,7 @@ import {
   updateShave,
   updateShaveStatus,
 } from "../db/services/shave-service";
+import type { ShaveStatus } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
@@ -26,10 +27,8 @@ export class ShaveIPCHandlers {
       IPC_CHANNELS.SHAVE_UPDATE,
       (_, id: number, data: Partial<Omit<NewShave, "id">>) => this.updateShave(id, data),
     );
-    ipcMain.handle(
-      IPC_CHANNELS.SHAVE_UPDATE_STATUS,
-      (_, id: number, status: "Pending" | "Processing" | "Completed" | "Failed") =>
-        this.updateShaveStatus(id, status),
+    ipcMain.handle(IPC_CHANNELS.SHAVE_UPDATE_STATUS, (_, id: number, status: ShaveStatus) =>
+      this.updateShaveStatus(id, status),
     );
     ipcMain.handle(IPC_CHANNELS.SHAVE_DELETE, (_, id: number) => this.deleteShave(id));
   }
@@ -66,10 +65,7 @@ export class ShaveIPCHandlers {
     }
   }
 
-  private updateShave(
-    id: number,
-    data: Partial<Omit<NewShave, "id">>,
-  ): Shave | undefined {
+  private updateShave(id: number, data: Partial<Omit<NewShave, "id">>): Shave | undefined {
     try {
       return updateShave(id, data);
     } catch (error) {
@@ -77,10 +73,7 @@ export class ShaveIPCHandlers {
     }
   }
 
-  private updateShaveStatus(
-    id: number,
-    status: "Pending" | "Processing" | "Completed" | "Failed",
-  ): Shave | undefined {
+  private updateShaveStatus(id: number, status: ShaveStatus): Shave | undefined {
     try {
       return updateShaveStatus(id, status);
     } catch (error) {
