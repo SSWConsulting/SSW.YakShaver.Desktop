@@ -6,10 +6,11 @@ import { app } from "electron";
 import * as schema from "./schema";
 
 const getDbPath = (): string => {
+const databaseFileName = "database.sqlite";
   if (process.env.NODE_ENV === "development") {
-    return path.join(process.cwd(), "data", "database.sqlite");
+    return path.join(process.cwd(), "data",databaseFileName);
   }
-  return path.join(app.getPath("userData"), "database.sqlite");
+  return path.join(app.getPath("userData"), databaseFileName);
 };
 
 const ensureDbDirectory = (): void => {
