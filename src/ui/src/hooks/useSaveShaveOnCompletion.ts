@@ -80,14 +80,9 @@ export function useSaveShaveOnCompletion() {
           const shaveData = {
             workItemSource: "YakShaver Desktop",
             title: finalTitle,
-            videoFile: {
-              fileName: finalTitle,
-              filePath: videoUrl,
-              createdAt: new Date().toISOString(),
-              duration: 0,
-            },
+            videoFile: null,
             shaveStatus,
-            projectName: undefined,
+            projectName: null,
             workItemUrl: parsedOutput.workItemUrl,
             videoEmbedUrl: videoUrl,
           };

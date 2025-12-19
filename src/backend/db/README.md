@@ -34,11 +34,12 @@ When setting up the project, the postinstall script will automatically rebuild b
 ### 2. Generate Database Files
 
 If you modify the schema (`schema.ts`), you must generate new migrations:
+If don't specify the name, drizzle will generate some random string as the migration name.
 
 ```bash
-npm run db:generate
+npm run db:generate -- --name=<migration_name>
 ```
-
+(e.g., npm run db:generate -- --name=add_shave_table)
 This creates SQL migration files in `src/backend/db/migrations/`.
 
 **Important**: Always commit generated migration files to version control.
@@ -88,7 +89,7 @@ For production builds, migrations are included in `extraResources` (outside the 
 ### Modifying the Schema
 
 1. Edit `src/backend/db/schema.ts`
-2. Run `npm run db:generate`
+2. Run `npm run db:generate -- --name=<migration_name>`
 3. Review the generated migration file in `src/backend/db/migrations/`
 4. Commit both the schema and migration files
 5. Test migrations locally
@@ -107,7 +108,7 @@ export type NewTableRecord = typeof newTable.$inferSelect;
 export type NewTableInsert = typeof newTable.$inferInsert;
 ```
 
-Then run `npm run db:generate`.
+Then run `npm run db:generate -- --name=<migration_name>`.
 
 ## Important Notes
 

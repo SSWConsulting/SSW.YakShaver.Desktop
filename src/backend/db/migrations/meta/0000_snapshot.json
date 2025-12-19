@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "703b5c37-81cc-4cf8-b6b2-40db6ad13775",
+  "id": "d964655d-837c-44d9-b282-45888d1eca64",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "shaves": {
@@ -32,7 +32,7 @@
           "name": "video_file",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "project_name": {

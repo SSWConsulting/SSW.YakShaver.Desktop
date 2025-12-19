@@ -271,7 +271,7 @@ export type Shave = {
   id: number;
   workItemSource: string;
   title: string;
-  videoFile: VideoFileMetadata;
+  videoFile: VideoFileMetadata | null;
   shaveStatus: ShaveStatus;
   projectName: string | null;
   workItemUrl: string | null;
@@ -283,8 +283,8 @@ export type Shave = {
 export type CreateShaveInput = {
   workItemSource: string;
   title: string;
-  videoFile: VideoFileMetadata;
-  projectName?: string;
+  videoFile: VideoFileMetadata | null;
+  projectName?: string | null;
   workItemUrl?: string;
   shaveStatus?: ShaveStatus;
   videoEmbedUrl?: string;
