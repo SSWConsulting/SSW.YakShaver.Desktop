@@ -72,6 +72,15 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
 
       await ffmpegService.captureNthFrame(videoPath, resolvedOutput, timestampSeconds);
 
+      // Verify the file was actually created
+      try {
+        await fs.access(resolvedOutput);
+      } catch (fileError) {
+        throw new Error(
+          `Capture failed - file was not created: ${fileError instanceof Error ? fileError.message : String(fileError)}`,
+        );
+      }
+
       return {
         content: [
           {
@@ -250,28 +259,23 @@ function detectImageMimeType(imagePath: string): string {
   }
 }
 
-function validatePath(filePath: string, allowedDirs: string[] = [tmpdir()]): void {
+function validatePath(filePath: string): void {
   const normalized = path.resolve(filePath);
-  const isWindows = process.platform === "win32";
+  const tmpDir = path.resolve(tmpdir());
 
-  const expandedAllowedDirs = [...allowedDirs];
+  // Check if path starts with tmpdir() (handling macOS /private symlink)
+  if (process.platform === "darwin") {
+    // On macOS, check both /var/folders/... and /private/var/folders/...
+    const startsWithTmpdir = normalized.startsWith(tmpDir);
+    const startsWithPrivateTmpdir = normalized.startsWith(`/private${tmpDir}`);
 
-  if (isWindows) {
-    expandedAllowedDirs.push(tmpdir());
-    expandedAllowedDirs.push("C:\\Windows\\Temp");
-  } else {
-    expandedAllowedDirs.push("/tmp", "/private/tmp", "/private/var/folders");
-  }
-
-  const isAllowed = expandedAllowedDirs.some((dir) => {
-    const resolvedDir = path.resolve(dir);
-    if (isWindows) {
-      return normalized.toLowerCase().startsWith(resolvedDir.toLowerCase());
+    if (!startsWithTmpdir && !startsWithPrivateTmpdir) {
+      throw new Error(`Access denied: Path must be within tmpdir: ${tmpdir()}`);
     }
-    return normalized.startsWith(resolvedDir);
-  });
-
-  if (!isAllowed) {
-    throw new Error(`Access denied: Path must be within allowed directories`);
+  } else {
+    // Windows and Linux - just check tmpdir()
+    if (!normalized.startsWith(tmpDir)) {
+      throw new Error(`Access denied: Path must be within tmpdir: ${tmpdir()}`);
+    }
   }
 }
