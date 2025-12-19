@@ -1,15 +1,15 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../services/ipc-client";
-import { ProgressStage, type WorkflowProgress } from "../types";
+import type { WorkflowProgress } from "../types";
 
 export function useSaveShaveOnCompletion() {
   useEffect(() => {
     return ipcClient.workflow.onProgress(async (data: unknown) => {
       const progressData = data as WorkflowProgress;
 
-      // Save shave when workflow is completed
-      if (progressData.stage === ProgressStage.COMPLETED) {
+      // Save shave when there's final output
+      if (typeof progressData.finalOutput !== "undefined") {
         const { uploadResult, finalOutput } = progressData;
         const videoUrl = uploadResult?.data?.url;
 
@@ -70,13 +70,6 @@ export function useSaveShaveOnCompletion() {
           console.error("=== SHAVE CREATION END (FAILED) ===\n");
           toast.error("Failed to save shave record");
         }
-      }
-
-      // Reset on error
-      if (progressData.stage === ProgressStage.ERROR) {
-        console.error("Workflow error occurred. Full data:", JSON.stringify(progressData, null, 2));
-        const errorMessage = progressData.error || "An unknown error occurred";
-        toast.error(`Workflow Progress error: ${errorMessage}`);
       }
     });
   }, []);
