@@ -37,7 +37,20 @@ const DEFAULT_PROMPT: CustomPrompt = {
 
 - SEARCH ISSUE TEMPLATES ON THE TARGET REPOSITORY (TEMPLATE MARKDOWN FILES USUALLY LOCATED IN .github/ISSUE_TEMPLATE/* PATH ON TARGET REPOSITORY)
 - YOU ARE INTELLIGENT MCP, SO USE YOUR TOOLS TO SEARCH AND FIND THE ISSUE TEMPLATE THAT MATCHES CONTEXT
-- THEN READ CONTENT OF TEMPLATE AND USE IT WHEN FORMATTING THE ISSUE`,
+- THEN READ CONTENT OF TEMPLATE AND USE IT WHEN FORMATTING THE ISSUE
+
+4. SCREENSHOTS FROM VIDEO (RECOMMENDED when video file path is available):
+
+- ALWAYS capture single screenshot from the video using capture_video_frame tool.
+- Choose timestamps where important UI elements, errors, or context is visible.
+- IMPORTANT: After capturing screenshot, you MUST call the upload_screenshot tool to upload it and get a public URL.
+- The workflow is: capture_video_frame ➡️ get screenshotPath ➡️ upload_screenshot with that path ➡️ get screenshotUrl
+- When upload_screenshot returns a screenshotUrl, USE THIS EXACT URL (including ALL query parameters) in the issue description.
+- CRITICAL: Preserve the complete URL with all query parameters - DO NOT truncate or remove any part of the URL.
+- The screenshot should be displayed using the appropriate format depending on the output location (markdown, html etc)
+- CRITICAL RULE: If upload_screenshot returns an empty URL (user not authenticated), DO NOT mention screenshot AT ALL in the issue description. No exceptions.
+- NEVER include text like "No screenshot attached" or "screenshot captured but upload failed" - just create the issue as if screenshot was never attempted.
+- Screenshot is helpful but not strictly required - continue with issue creation even if uploads fail.`,
 
   isDefault: true,
   createdAt: Date.now(),
