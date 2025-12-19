@@ -55,19 +55,27 @@ export function useSaveShaveOnCompletion() {
         const { uploadResult, finalOutput } = progressData;
         const videoUrl = uploadResult?.data?.url;
 
-        // Check if this video URL already exists in the database
-        if (videoUrl) {
-          const existingShave = await ipcClient.shave.findByVideoUrl(videoUrl);
-          if (existingShave) {
-            return;
-          }
-        }
-
         try {
           const parsedOutput = parseFinalOutput(finalOutput);
           const finalTitle =
             parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
           const shaveStatus = (parsedOutput.status as ShaveStatus) || ShaveStatus.Completed;
+
+          // Check if this video URL already exists in the database
+          if (videoUrl) {
+            const existingShave = await ipcClient.shave.findByVideoUrl(videoUrl);
+            if (existingShave) {
+              await ipcClient.shave.update(existingShave.id, {
+                title: finalTitle,
+                shaveStatus,
+                workItemUrl: parsedOutput.workItemUrl,
+              });
+              toast.success("Shave updated", {
+                description: "The work item has been updated in My Shaves with the new PBI.",
+              });
+              return;
+            }
+          }
 
           const shaveData = {
             workItemSource: "YakShaver Desktop",
@@ -86,9 +94,9 @@ export function useSaveShaveOnCompletion() {
 
           await ipcClient.shave.create(shaveData);
         } catch (error) {
-          console.error("\n[Shave] ✗ Failed to create shave record:");
+          console.error("\n[Shave] ✗ Failed to save/update shave record:");
           console.error("[Shave] Error:", error);
-          console.error("=== SHAVE CREATION END (FAILED) ===\n");
+          console.error("=== SHAVE SAVE END (FAILED) ===\n");
           toast.error("Failed to save shave record");
         }
       }

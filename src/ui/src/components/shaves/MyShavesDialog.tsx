@@ -90,7 +90,7 @@ export function MyShavesDialog() {
                     rel="noopener noreferrer"
                     className="text-xs text-blue-500 hover:underline mt-1 inline-block"
                   >
-                    View Work Item →
+                    View Backlog
                   </a>
                 )}
               </div>
@@ -125,9 +125,9 @@ export function MyShavesDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon" className="h-10 w-10">
-          <Database className="h-5 w-5" />
-          <span className="sr-only">My Shaves</span>
+        <Button size="sm" className="flex items-center gap-2" aria-label="Open My Shaves">
+          <Database className="h-4 w-4" />
+          <span>My Shaves</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[80vh]">

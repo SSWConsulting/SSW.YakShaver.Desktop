@@ -51,6 +51,7 @@ export function updateShaveStatus(id: number, status: ShaveStatus): Shave | unde
 /**
  * Delete a shave record
  */
-export function deleteShave(id: number): void {
-  db.delete(shaves).where(eq(shaves.id, id)).run();
+export function deleteShave(id: number): boolean {
+  const result = db.delete(shaves).where(eq(shaves.id, id)).run();
+  return result.changes > 0;
 }
