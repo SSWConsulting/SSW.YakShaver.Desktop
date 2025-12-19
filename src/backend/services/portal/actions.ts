@@ -1,9 +1,71 @@
 import { promises as fs } from "node:fs";
 import https from "node:https";
 import { basename } from "node:path";
+import FormData from "form-data";
 import { z } from "zod";
 import { config } from "../../config/env";
 import { MicrosoftAuthService } from "../auth/microsoft-auth";
+
+/**
+ * Makes an HTTP request to the portal API using Node.js https module
+ * This provides better SSL certificate handling for localhost development
+ */
+async function makePortalRequest(
+  endpoint: string,
+  options: { body?: string | Buffer; headers?: Record<string, string> },
+  accessToken: string,
+): Promise<string> {
+  const apiUrl = config.portalApi();
+  if (!apiUrl) {
+    throw new Error("Portal API url is not configured.");
+  }
+
+  const url = new URL(apiUrl);
+  const hostname = url.hostname;
+  const port = url.port ? parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
+  const path = `${url.pathname.replace(/\/$/, "")}${endpoint}`;
+
+  return new Promise<string>((resolve, reject) => {
+    const requestOptions = {
+      hostname: hostname,
+      port: port,
+      path: path,
+      method: "POST",
+      headers: {
+        ...options.headers,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      rejectUnauthorized: !apiUrl.includes("localhost"),
+    };
+
+    const req = https.request(requestOptions, (res) => {
+      let data = "";
+
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+
+      res.on("end", () => {
+        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(data);
+          return;
+        }
+
+        const reason = data || res.statusMessage || "Unknown error";
+        reject(new Error(`Portal API call failed (${res.statusCode ?? "N/A"}): ${reason}`));
+      });
+    });
+
+    req.on("error", (error) => {
+      reject(error);
+    });
+
+    if (options.body) {
+      req.write(options.body);
+    }
+    req.end();
+  });
+}
 
 export const WorkItemDtoSchema = z.object({
   projectName: z.string(),
@@ -16,72 +78,31 @@ export const WorkItemDtoSchema = z.object({
   uploadedVideoEmbedUrl: z.string().nullable(),
   uploadedVideoUrl: z.string().nullable(),
 });
-
 export type WorkItemDto = z.infer<typeof WorkItemDtoSchema>;
 
-export const ScreenshotUploadResponseSchema = z.object({
-  url: z.string().url(),
-});
-
-export type ScreenshotUploadResponse = z.infer<typeof ScreenshotUploadResponseSchema>;
-
+/**
+ * Sends work item details to the portal API.
+ * Requires the user to be authenticated with Microsoft.
+ */
 export async function SendWorkItemDetailsToPortal(
   payload: WorkItemDto,
 ): Promise<{ success: true } | { success: false; error: string }> {
   const ms = MicrosoftAuthService.getInstance();
   const result = await ms.getToken();
 
-  // Parse the portal API URL
-  const apiUrl = config.portalApi();
-  if (!apiUrl) {
-    throw new Error("Portal API url is not configured.");
-  }
-  const url = new URL(apiUrl);
-  const hostname = url.hostname;
-  const port = url.port ? parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
-  const path = `${url.pathname.replace(/\/$/, "")}/desktopapp/post-task-record`; // Ensure no double slashes
-
   const body = JSON.stringify(payload);
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      const options = {
-        hostname: hostname,
-        port: port,
-        path: path,
-        method: "POST",
+    await makePortalRequest(
+      "/desktopapp/post-task-record",
+      {
         headers: {
-          Authorization: `Bearer ${result.accessToken}`,
           "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(body),
         },
-      };
-
-      const req = https.request(options, (res) => {
-        let responseData = "";
-
-        res.on("data", (chunk) => {
-          responseData += chunk;
-        });
-
-        res.on("end", () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            resolve();
-            return;
-          }
-
-          const reason = responseData || res.statusMessage || "Unknown error";
-          reject(new Error(`Portal API call failed (${res.statusCode ?? "N/A"}): ${reason}`));
-        });
-      });
-
-      req.on("error", (error) => {
-        reject(error);
-      });
-
-      req.write(body);
-      req.end();
-    });
+        body: body,
+      },
+      result.accessToken,
+    );
 
     return { success: true } as const;
   } catch (error) {
@@ -89,6 +110,11 @@ export async function SendWorkItemDetailsToPortal(
     return { success: false, error: message } as const;
   }
 }
+
+export const ScreenshotUploadResponseSchema = z.object({
+  url: z.string().url(),
+});
+export type ScreenshotUploadResponse = z.infer<typeof ScreenshotUploadResponseSchema>;
 
 /**
  * Uploads a screenshot to the portal's Azure Blob Storage and returns the public URL.
@@ -98,12 +124,9 @@ export async function UploadScreenshotToPortal(
   screenshotPath: string,
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
   const ms = MicrosoftAuthService.getInstance();
-
-  // Check if user is authenticated
   if (!(await ms.isAuthenticated())) {
     return { success: false, error: "User is not authenticated with Microsoft" };
   }
-
   const result = await ms.getToken();
 
   // Parse the portal API URL
@@ -116,76 +139,31 @@ export async function UploadScreenshotToPortal(
     // Read the file
     const fileBuffer = await fs.readFile(screenshotPath);
     const fileName = basename(screenshotPath);
-
-    const url = new URL(apiUrl);
-    const hostname = url.hostname;
-    const port = url.port ? Number.parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
-    const path = `${url.pathname.replace(/\/$/, "")}/desktopapp/upload-screenshot`;
-
-    // Create multipart form data boundary
-    const boundary = `----FormBoundary${Date.now()}`;
     const contentType = screenshotPath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
 
-    // Build multipart body
-    const bodyParts: Buffer[] = [];
-
-    // File field
-    bodyParts.push(Buffer.from(`--${boundary}\r\n`));
-    bodyParts.push(
-      Buffer.from(`Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n`),
-    );
-    bodyParts.push(Buffer.from(`Content-Type: ${contentType}\r\n\r\n`));
-    bodyParts.push(fileBuffer);
-    bodyParts.push(Buffer.from("\r\n"));
-
-    // End boundary
-    bodyParts.push(Buffer.from(`--${boundary}--\r\n`));
-
-    const body = Buffer.concat(bodyParts);
-
-    const responseData = await new Promise<string>((resolve, reject) => {
-      const options = {
-        hostname: hostname,
-        port: port,
-        path: path,
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${result.accessToken}`,
-          "Content-Type": `multipart/form-data; boundary=${boundary}`,
-          "Content-Length": body.length,
-        },
-        rejectUnauthorized: !apiUrl.includes("localhost"),
-      };
-
-      const req = https.request(options, (res) => {
-        let data = "";
-
-        res.on("data", (chunk) => {
-          data += chunk;
-        });
-
-        res.on("end", () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            resolve(data);
-            return;
-          }
-
-          const reason = data || res.statusMessage || "Unknown error";
-          reject(
-            new Error(`Portal screenshot upload failed (${res.statusCode ?? "N/A"}): ${reason}`),
-          );
-        });
-      });
-
-      req.on("error", (error) => {
-        reject(error);
-      });
-
-      req.write(body);
-      req.end();
+    // Create FormData using the form-data library
+    const form = new FormData();
+    form.append("file", fileBuffer, {
+      filename: fileName,
+      contentType: contentType,
     });
 
-    // Parse the response to get the URL
+    // Get the buffer and headers from FormData
+    const body = form.getBuffer();
+    const formHeaders = form.getHeaders();
+
+    const responseData = await makePortalRequest(
+      "/desktopapp/upload-screenshot",
+      {
+        headers: {
+          ...formHeaders,
+          "Content-Length": body.length.toString(),
+        },
+        body: body,
+      },
+      result.accessToken,
+    );
+
     const parsed = JSON.parse(responseData);
     const validatedResponse = ScreenshotUploadResponseSchema.parse(parsed);
 
