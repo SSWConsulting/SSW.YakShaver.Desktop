@@ -1,7 +1,49 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../services/ipc-client";
-import type { WorkflowProgress } from "../types";
+import { ShaveStatus, type WorkflowProgress } from "../types";
+
+interface FinalOutput {
+  Status?: string;
+  Repository?: string;
+  Title?: string;
+  URL?: string;
+  Description?: string;
+  Labels?: string[];
+}
+
+interface ParsedShaveOutput {
+  status: string;
+  title: string;
+  workItemUrl: string;
+}
+
+function parseFinalOutput(finalOutput: string): ParsedShaveOutput {
+  const emptyOutput: ParsedShaveOutput = {
+    status: "",
+    title: "",
+    workItemUrl: "",
+  };
+
+  if (!finalOutput) {
+    return emptyOutput;
+  }
+
+  try {
+    const cleanOutput = finalOutput.replace(/```json\n?|\n?```/g, "").trim();
+    const llmOutput: FinalOutput = JSON.parse(cleanOutput);
+
+    return {
+      status:
+        llmOutput.Status?.toLowerCase() === "fail" ? ShaveStatus.Failed : ShaveStatus.Completed,
+      title: llmOutput.Title || "",
+      workItemUrl: llmOutput.URL || "",
+    };
+  } catch (e) {
+    console.warn("[Shave] Failed to parse finalOutput as JSON:", e);
+    return emptyOutput;
+  }
+}
 
 export function useSaveShaveOnCompletion() {
   useEffect(() => {
@@ -22,31 +64,10 @@ export function useSaveShaveOnCompletion() {
         }
 
         try {
-          // Parse final output
-          let parsedOutput: {
-            Title?: string;
-            URL?: string;
-            Status?: string;
-          } = {};
-          try {
-            if (finalOutput) {
-              const cleanOutput = finalOutput.replace(/```json\n?|\n?```/g, "").trim();
-              parsedOutput = JSON.parse(cleanOutput);
-            }
-          } catch (e) {
-            console.warn("[Shave] Failed to parse finalOutput as JSON:", e);
-          }
-
-          const workItemUrl = parsedOutput.URL;
+          const parsedOutput = parseFinalOutput(finalOutput);
           const finalTitle =
-            parsedOutput.Title || uploadResult?.data?.title || "Untitled Work Item";
-
-          // Determine status
-          let shaveStatus: "Completed" | "Failed" = "Completed";
-          const statusStr = parsedOutput.Status;
-          if (statusStr && statusStr.toLowerCase() === "failed") {
-            shaveStatus = "Failed";
-          }
+            parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
+          const shaveStatus = (parsedOutput.status as ShaveStatus) || ShaveStatus.Completed;
 
           const shaveData = {
             workItemSource: "YakShaver Desktop",
@@ -59,7 +80,7 @@ export function useSaveShaveOnCompletion() {
             },
             shaveStatus,
             projectName: undefined,
-            workItemUrl,
+            workItemUrl: parsedOutput.workItemUrl,
             videoEmbedUrl: videoUrl,
           };
 

@@ -7,6 +7,7 @@ import type {
   AuthResult,
   AuthState,
   ConvertVideoToMp3Result,
+  CreateShaveInput,
   CustomPrompt,
   GeneralSettings,
   GetMyShavesResponse,
@@ -16,44 +17,14 @@ import type {
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
   ScreenSource,
+  Shave,
+  ShaveStatus,
   ToolApprovalMode,
   TranscriptEntry,
   UserInfo,
   VideoUploadResult,
   YouTubeConfig,
 } from "../types";
-
-export type VideoFileMetadata = {
-  fileName: string;
-  filePath?: string;
-  createdAt: string;
-  duration: number;
-};
-
-export type ShaveStatus = "Pending" | "Processing" | "Completed" | "Failed";
-
-export type Shave = {
-  id: number;
-  workItemSource: string;
-  title: string;
-  videoFile: VideoFileMetadata;
-  shaveStatus: ShaveStatus;
-  projectName: string | null;
-  workItemUrl: string | null;
-  videoEmbedUrl: string | null;
-  createdAt: string;
-  updatedAt: string | null;
-};
-
-export type CreateShaveInput = {
-  workItemSource: string;
-  title: string;
-  videoFile: VideoFileMetadata;
-  projectName?: string;
-  workItemUrl?: string;
-  shaveStatus?: ShaveStatus;
-  videoEmbedUrl?: string;
-};
 
 declare global {
   interface Window {
