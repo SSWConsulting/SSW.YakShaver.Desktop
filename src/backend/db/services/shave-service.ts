@@ -1,4 +1,5 @@
 import { desc, eq } from "drizzle-orm";
+import type { ShaveStatus } from "../../types";
 import { db } from "../client";
 import { type NewShave, type Shave, shaves } from "../schema";
 
@@ -43,10 +44,7 @@ export function updateShave(id: number, data: Partial<Omit<NewShave, "id">>): Sh
 /**
  * Update shave status
  */
-export function updateShaveStatus(
-  id: number,
-  status: "Pending" | "Processing" | "Completed" | "Failed",
-): Shave | undefined {
+export function updateShaveStatus(id: number, status: ShaveStatus): Shave | undefined {
   return updateShave(id, { shaveStatus: status });
 }
 

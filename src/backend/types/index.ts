@@ -33,7 +33,12 @@ export interface VideoFileMetadata {
   duration: number; // in seconds
 }
 
-export type ShaveStatus = "Pending" | "Processing" | "Completed" | "Failed";
+export enum ShaveStatus {
+  Pending = "Pending",
+  Processing = "Processing",
+  Completed = "Completed",
+  Failed = "Failed",
+}
 
 export interface ShaveItem {
   id: string;

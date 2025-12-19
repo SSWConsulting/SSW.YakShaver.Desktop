@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import type { ShaveStatus, VideoFileMetadata } from "../types";
+import { ShaveStatus, type VideoFileMetadata } from "../types";
 
 /**
  * After modifying this schema, must run: npm run db:generate
@@ -14,7 +14,7 @@ export const shaves = sqliteTable("shaves", {
   videoFile: text("video_file", { mode: "json" }).$type<VideoFileMetadata>().notNull(),
   projectName: text("project_name"),
   workItemUrl: text("work_item_url"),
-  shaveStatus: text("shave_status").$type<ShaveStatus>().default("Pending").notNull(),
+  shaveStatus: text("shave_status").$type<ShaveStatus>().default(ShaveStatus.Pending).notNull(),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: text("updated_at")
     .default(sql`CURRENT_TIMESTAMP`)
