@@ -131,8 +131,8 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
         };
       }
 
-      console.warn("[upload_screenshot] Failed to upload screenshot:", uploadResult.error);
       // Return success=true with empty URL on failure to allow workflow to continue
+      console.warn("[upload_screenshot] Failed to upload screenshot:", uploadResult.error);
       return {
         content: [
           {
@@ -271,9 +271,9 @@ function validatePath(filePath: string, allowedDirs: string[] = [tmpdir()]): voi
     }
 
     return (
-      normalized.startsWith(resolvedDir) ||
-      normalized.startsWith(`/private${resolvedDir}`) ||
-      normalized.replace("/private", "").startsWith(resolvedDir)
+      normalized.includes(resolvedDir) ||
+      normalized.includes(`/private${resolvedDir}`) ||
+      normalized.replace("/private", "").includes(resolvedDir)
     );
   });
 
