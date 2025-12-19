@@ -265,16 +265,10 @@ function validatePath(filePath: string, allowedDirs: string[] = [tmpdir()]): voi
 
   const isAllowed = expandedAllowedDirs.some((dir) => {
     const resolvedDir = path.resolve(dir);
-
     if (isWindows) {
       return normalized.toLowerCase().startsWith(resolvedDir.toLowerCase());
     }
-
-    return (
-      normalized.includes(resolvedDir) ||
-      normalized.includes(`/private${resolvedDir}`) ||
-      normalized.replace("/private", "").includes(resolvedDir)
-    );
+    return normalized.startsWith(resolvedDir);
   });
 
   if (!isAllowed) {
