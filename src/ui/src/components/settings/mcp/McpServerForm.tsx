@@ -366,6 +366,7 @@ export function McpServerFormWrapper({
 }: McpServerFormWrapperProps) {
   const form = useForm<MCPServerFormData>({
     resolver: zodResolver(mcpServerSchema),
+    mode: "onChange",
     defaultValues: {
       name: initialData?.name ?? "",
       description: initialData?.description ?? "",
