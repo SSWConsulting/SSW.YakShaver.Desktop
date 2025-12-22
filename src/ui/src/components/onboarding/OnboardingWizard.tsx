@@ -4,7 +4,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
 import { toast } from "sonner";
 import * as z from "zod";
-import { Badge } from "@/components/ui/badge";
+import { PlatformConnectionCard } from "@/components/auth/PlatformConnectionCard";
 import { formatErrorMessage } from "@/utils";
 import { ONBOARDING_COMPLETED_KEY, ONBOARDING_FINISHED_EVENT } from "../../constants/onboarding";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
@@ -599,28 +599,16 @@ export function OnboardingWizard() {
             <div className="flex flex-col gap-4 px-6 pb-6 w-full">
               {currentStep === 1 &&
                 (hasYouTubeConfig ? (
-                  <div className="flex items-center justify-between px-6 py-4 bg-white/[0.04] border border-white/[0.24] rounded-lg w-full">
-                    <div className="flex items-center gap-4">
-                      <FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />
-                      <div>
-                        <p className="text-sm font-medium leading-6 text-white">YouTube</p>
-                        {isConnected && userInfo && (
-                          <p className="text-xs text-white/[0.56] font-medium">{userInfo.name}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      {isConnected && <Badge variant="success">Connected</Badge>}
-                      <Button
-                        size="lg"
-                        onClick={handleYouTubeAction}
-                        disabled={isConnecting && !isConnected}
-                      >
-                        {getYouTubeButtonText()}
-                      </Button>
-                    </div>
-                  </div>
+                  <PlatformConnectionCard
+                    icon={<FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />}
+                    title="YouTube"
+                    subtitle={isConnected && userInfo?.name ? userInfo.name : undefined}
+                    badgeText={isConnected ? "Connected" : undefined}
+                    onAction={handleYouTubeAction}
+                    actionLabel={getYouTubeButtonText()}
+                    actionDisabled={isConnecting && !isConnected}
+                    buttonSize="lg"
+                  />
                 ) : (
                   <div className="text-center py-8 px-4 text-white/[0.56]">
                     <p className="mb-2 text-sm">No platforms available</p>
