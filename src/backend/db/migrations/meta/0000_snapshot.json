@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d964655d-837c-44d9-b282-45888d1eca64",
+  "id": "60987411-208d-4159-88f2-f08f98e04d96",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "shaves": {
@@ -28,9 +28,9 @@
           "notNull": true,
           "autoincrement": false
         },
-        "video_file": {
-          "name": "video_file",
-          "type": "text",
+        "video_file_id": {
+          "name": "video_file_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -55,7 +55,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'Pending'"
+          "default": "'Unknown'"
         },
         "created_at": {
           "name": "created_at",
@@ -63,7 +63,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
+          "default": "(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"
         },
         "updated_at": {
           "name": "updated_at",
@@ -71,7 +71,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "CURRENT_TIMESTAMP"
+          "default": "(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"
         },
         "video_embed_url": {
           "name": "video_embed_url",
@@ -79,6 +79,66 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "shaves_video_file_id_video_files_id_fk": {
+          "name": "shaves_video_file_id_video_files_id_fk",
+          "tableFrom": "shaves",
+          "tableTo": "video_files",
+          "columnsFrom": [
+            "video_file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "video_files": {
+      "name": "video_files",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_path": {
+          "name": "file_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "duration": {
+          "name": "duration",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"
         }
       },
       "indexes": {},

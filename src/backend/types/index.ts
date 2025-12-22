@@ -34,6 +34,7 @@ export interface VideoFileMetadata {
 }
 
 export enum ShaveStatus {
+  Unknown = "Unknown",
   Pending = "Pending",
   Processing = "Processing",
   Completed = "Completed",

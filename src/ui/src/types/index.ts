@@ -261,6 +261,7 @@ export type VideoFileMetadata = {
 };
 
 export enum ShaveStatus {
+  Unknown = "Unknown",
   Pending = "Pending",
   Processing = "Processing",
   Completed = "Completed",
@@ -289,3 +290,5 @@ export type CreateShaveInput = {
   shaveStatus?: ShaveStatus;
   videoEmbedUrl?: string;
 };
+
+export type BadgeVariant = "success" | "destructive" | "secondary" | "default";

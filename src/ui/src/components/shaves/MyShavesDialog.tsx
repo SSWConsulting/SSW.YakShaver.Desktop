@@ -2,7 +2,7 @@ import { Database, Video, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../../services/ipc-client";
-import type { Shave } from "../../types";
+import type { BadgeVariant, Shave } from "../../types";
 import { LoadingState } from "../common/LoadingState";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -48,9 +48,7 @@ export function MyShavesDialog() {
     }
   }, [open, loadShaves]);
 
-  const getStatusVariant = (
-    status: string,
-  ): "success" | "destructive" | "secondary" | "default" => {
+  const getStatusVariant = (status: string): BadgeVariant => {
     switch (status) {
       case "Completed":
         return "success";
