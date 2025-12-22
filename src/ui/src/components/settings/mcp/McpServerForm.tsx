@@ -56,9 +56,12 @@ const mcpServerSchema = z
       .string()
       .min(1, "Name is required")
       .regex(
-        /^[a-zA-Z0-9 _-]+$/,
-        "Only letters, numbers, spaces, underscores, and hyphens allowed",
-      ),
+        /^[a-zA-Z0-9_.-]+$/,
+        "Only letters, numbers, underscores, hyphens, and dots allowed (no spaces)",
+      )
+      .refine((val) => !val.includes("__"), {
+        message: "Double underscores (__) are not allowed",
+      }),
     description: z.string().optional(),
     transport: z.enum(["streamableHttp", "stdio", "inMemory"]),
     url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
@@ -363,6 +366,7 @@ export function McpServerFormWrapper({
 }: McpServerFormWrapperProps) {
   const form = useForm<MCPServerFormData>({
     resolver: zodResolver(mcpServerSchema),
+    mode: "onChange",
     defaultValues: {
       name: initialData?.name ?? "",
       description: initialData?.description ?? "",

@@ -5,9 +5,9 @@ import { formatErrorMessage } from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import {
+  type MCPStep,
   MCPStepType,
   ProgressStage,
-  type MCPStep,
   type WorkflowProgress,
   type WorkflowStage,
 } from "../../types";
@@ -160,7 +160,7 @@ function LinkifiedText({ text }: LinkifiedTextProps) {
               href={part}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 underline"
+              className="text-blue-400 hover:text-blue-300 underline break-all"
               onClick={(e) => {
                 e.preventDefault();
                 window.open(part, "_blank");
@@ -228,7 +228,7 @@ function ValueRenderer({ value, onCopy }: ValueRendererProps): React.ReactNode {
     }
     if (containsUrl(value)) {
       return (
-        <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
+        <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
           <LinkifiedText text={value} />
         </p>
       );

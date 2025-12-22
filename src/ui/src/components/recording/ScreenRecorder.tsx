@@ -50,9 +50,22 @@ export function ScreenRecorder() {
     setShouldHighlightRecordButton(false);
   }, [shouldHighlightRecordButton]);
 
-  const toggleRecording = () => {
+  const toggleRecording = async () => {
     clearRecordHighlight();
-    isRecording ? handleStopRecording() : setPickerOpen(true);
+    if (isRecording) {
+      await handleStopRecording();
+      return;
+    }
+
+    if (recordedVideo?.filePath) {
+      try {
+        await window.electronAPI.screenRecording.cleanupTempFile(recordedVideo.filePath);
+      } catch {}
+      setRecordedVideo(null);
+      setPreviewOpen(false);
+    }
+
+    setPickerOpen(true);
   };
 
   useEffect(() => {
