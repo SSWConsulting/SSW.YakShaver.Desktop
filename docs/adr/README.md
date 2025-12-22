@@ -1,11 +1,5 @@
 # Architecture Decision Records
 
-ADRs are automatically published to our Log4brains architecture knowledge base:  
-
-N/A  
-
-Please use this link to browse them.
-
 ## Development
 
 If not already done, install Log4brains:
