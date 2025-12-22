@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
 import { toast } from "sonner";
@@ -46,6 +46,12 @@ const mcpSchema = z.object({
 });
 
 type MCPFormValues = z.infer<typeof mcpSchema>;
+
+type ConnectorPosition = {
+  top: number;
+  height: number;
+  left: number;
+};
 
 // Utility function to reset onboarding (can be called from settings)
 export const resetOnboarding = () => {
@@ -94,6 +100,9 @@ export function OnboardingWizard() {
     const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
     return completed !== "true";
   });
+  const stepListRef = useRef<HTMLDivElement | null>(null);
+  const stepIconRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [connectorPositions, setConnectorPositions] = useState<ConnectorPosition[]>([]);
 
   const llmForm = useForm<LLMFormValues>({
     resolver: zodResolver(llmSchema),
@@ -130,6 +139,37 @@ export function OnboardingWizard() {
 
   const { status, userInfo } = authState;
   const isConnected = status === AuthStatus.AUTHENTICATED;
+  const updateConnectorPositions = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const container = stepListRef.current;
+      if (!container) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const positions: ConnectorPosition[] = [];
+
+      for (let index = 0; index < stepIconRefs.current.length - 1; index++) {
+        const currentIcon = stepIconRefs.current[index];
+        const nextIcon = stepIconRefs.current[index + 1];
+
+        if (!currentIcon || !nextIcon) {
+          continue;
+        }
+
+        const currentRect = currentIcon.getBoundingClientRect();
+        const nextRect = nextIcon.getBoundingClientRect();
+
+        const top = currentRect.bottom - containerRect.top;
+        const height = nextRect.top - currentRect.bottom;
+        const left = currentRect.left - containerRect.left + currentRect.width / 2 - 0.5;
+
+        if (height > 0) {
+          positions.push({ top, height, left });
+        }
+      }
+
+      setConnectorPositions(positions);
+    });
+  }, []);
 
   // Reset countdown when user successfully connects
   useEffect(() => {
@@ -137,6 +177,17 @@ export function OnboardingWizard() {
       resetCountdown();
     }
   }, [isConnected, resetCountdown]);
+
+  useEffect(() => {
+    updateConnectorPositions();
+  }, [currentStep, isVisible, updateConnectorPositions]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updateConnectorPositions);
+    return () => {
+      window.removeEventListener("resize", updateConnectorPositions);
+    };
+  }, [updateConnectorPositions]);
 
   // Check LLM configuration status when on step 2
   useEffect(() => {
@@ -456,37 +507,35 @@ export function OnboardingWizard() {
           </div>
 
           <div className="flex items-center justify-center flex-1">
-            <div className="flex gap-10 flex-col ">
+            <div ref={stepListRef} className="relative flex gap-10 flex-col ">
+              {connectorPositions.map((position, index) => {
+                const nextStep = STEPS[index + 1];
+                if (!nextStep) return null;
+
+                const status = getStepStatus(nextStep.id);
+
+                return (
+                  <div
+                    key={`connector-${nextStep.id}`}
+                    className={`absolute w-px transition-colors duration-300 ${
+                      status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
+                    }`}
+                    style={{
+                      left: position.left,
+                      top: position.top,
+                      height: position.height,
+                    }}
+                  ></div>
+                );
+              })}
+
               {STEPS.map((step, index) => (
-                <div key={step.id} className="flex items-start gap-8">
-                  <div className="relative flex flex-col items-center h-full">
-                    {index !== 0 && (
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <div className="relative w-px h-5">
-                          <div className="absolute inset-0 bg-[#432A1D]" />
-                          <div
-                            className={`absolute inset-0 transition-colors duration-300 ${
-                              currentStep >= step.id ? "bg-[#75594B]" : "bg-transparent"
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {index !== STEPS.length - 1 && (
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2">
-                        <div className="relative w-px h-5">
-                          <div className="absolute inset-0 bg-[#432A1D]" />
-                          <div
-                            className={`absolute inset-0 transition-colors duration-300 ${
-                              currentStep > step.id ? "bg-[#75594B]" : "bg-transparent"
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    )}
-
+                <div key={step.id} className="flex gap-8">
+                  <div className="flex flex-col items-center">
                     <div
+                      ref={(element) => {
+                        stepIconRefs.current[index] = element;
+                      }}
                       className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
                         getStepStatus(step.id) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
                       }`}
