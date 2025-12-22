@@ -5,6 +5,7 @@ import { FaYoutube } from "react-icons/fa";
 import { toast } from "sonner";
 import * as z from "zod";
 import { PlatformConnectionCard } from "@/components/auth/PlatformConnectionCard";
+import { LLMProviderFields } from "@/components/llm/LLMProviderFields";
 import { formatErrorMessage } from "@/utils";
 import { ONBOARDING_COMPLETED_KEY, ONBOARDING_FINISHED_EVENT } from "../../constants/onboarding";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
@@ -12,7 +13,6 @@ import { useCountdown } from "../../hooks/useCountdown";
 import { ipcClient } from "../../services/ipc-client";
 import type { HealthStatusInfo, LLMConfig } from "../../types";
 import { AuthStatus } from "../../types";
-import { HealthStatus } from "../health-status/health-status";
 import type { MCPServerConfig } from "../settings/mcp/McpServerForm";
 import { Button } from "../ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../ui/form";
@@ -79,6 +79,11 @@ const STEPS = [
     title: "Record your first Video",
     description: "Finish setup and jump into your first request.",
   },
+];
+
+const LLM_PROVIDER_OPTIONS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "deepseek", label: "DeepSeek" },
 ];
 
 export function OnboardingWizard() {
@@ -625,65 +630,14 @@ export function OnboardingWizard() {
                       onSubmit={llmForm.handleSubmit(handleLLMSubmit)}
                       className="flex flex-col gap-4"
                     >
-                      {/* Provider Dropdown */}
-                      <FormField
+                      <LLMProviderFields
                         control={llmForm.control}
-                        name="provider"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-white">Provider</FormLabel>
-                            <Select
-                              onValueChange={(v: LLMProvider) => {
-                                field.onChange(v);
-                                handleProviderChange(v);
-                              }}
-                              value={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger className="cursor-pointer">
-                                  <SelectValue placeholder="Select provider" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent className="z-[70]">
-                                <SelectItem value="openai">OpenAI</SelectItem>
-                                <SelectItem value="deepseek">DeepSeek</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      {/* API Key Input */}
-                      <FormField
-                        control={llmForm.control}
-                        name="apiKey"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-white">API Key</FormLabel>
-                            <div className="relative">
-                              {healthStatus && (
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
-                                  <HealthStatus
-                                    isChecking={healthStatus.isChecking ?? false}
-                                    isHealthy={healthStatus.isHealthy ?? false}
-                                    successMessage={healthStatus.successMessage}
-                                    error={healthStatus.error}
-                                  />
-                                </div>
-                              )}
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  placeholder="sk-..."
-                                  type="password"
-                                  className={healthStatus ? "pl-10" : ""}
-                                />
-                              </FormControl>
-                            </div>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        providerField="provider"
+                        apiKeyField="apiKey"
+                        providerOptions={LLM_PROVIDER_OPTIONS}
+                        onProviderChange={(value) => handleProviderChange(value as LLMProvider)}
+                        healthStatus={healthStatus}
+                        selectContentClassName="z-[70]"
                       />
                     </form>
                   </Form>

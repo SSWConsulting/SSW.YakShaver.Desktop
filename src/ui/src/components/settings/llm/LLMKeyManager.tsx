@@ -141,23 +141,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
           Configure API access for OpenAI or Azure OpenAI providers.
         </p>
       </header>
-      {hasConfig && (
-        <div className="flex items-center gap-3">
-          <p className="text-sm">API Key Status:</p>
-          <span className="text-green-400 text-sm">Saved</span>
-          <HealthStatus
-            isChecking={healthStatus?.isChecking ?? false}
-            isHealthy={healthStatus?.isHealthy ?? false}
-            successMessage={healthStatus?.successMessage}
-            error={healthStatus?.error}
-          />
-        </div>
-      )}
-      {!hasConfig && (
-        <p className="text-sm">
-          Status: <span className="text-ssw-red">Not Saved</span>
-        </p>
-      )}
+
       <LLMProviderForm
         form={form}
         onSubmit={onSubmit}
@@ -165,6 +149,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         isLoading={isLoading}
         hasConfig={hasConfig}
         handleProviderChange={handleProviderChange}
+        healthStatus={healthStatus}
       />
     </div>
   );
