@@ -92,7 +92,7 @@ export function OnboardingWizard() {
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
-  const [hasMCPConfig, setHasMCPConfig] = useState(false);
+  const [_hasMCPConfig, setHasMCPConfig] = useState(false);
   const [isMCPSaving, setIsMCPSaving] = useState(false);
   const [editingMcpServerName, setEditingMcpServerName] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(() => {
@@ -179,8 +179,11 @@ export function OnboardingWizard() {
   }, [isConnected, resetCountdown]);
 
   useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
     updateConnectorPositions();
-  }, [currentStep, isVisible, updateConnectorPositions]);
+  }, [isVisible, updateConnectorPositions]);
 
   useEffect(() => {
     window.addEventListener("resize", updateConnectorPositions);
