@@ -1,17 +1,21 @@
-import { Database } from "lucide-react";
+import { Database, Video, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../../services/ipc-client";
 import type { Shave } from "../../types";
+import { LoadingState } from "../common/LoadingState";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../ui/dialog";
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "../ui/drawer";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "../ui/empty";
 import { ScrollArea } from "../ui/scroll-area";
 
 export function MyShavesDialog() {
@@ -23,7 +27,13 @@ export function MyShavesDialog() {
     setLoading(true);
     try {
       const data = await ipcClient.shave.getAll();
-      setShaves(data);
+      // Sort by updatedAt, newest first
+      const sortedData = data.sort((a, b) => {
+        const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+        const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+        return dateB - dateA;
+      });
+      setShaves(sortedData);
     } catch (error) {
       toast.error("Failed to load shaves");
       console.error(error);
@@ -38,70 +48,86 @@ export function MyShavesDialog() {
     }
   }, [open, loadShaves]);
 
-  const getStatusVariant = (status: string) => {
+  const getStatusVariant = (
+    status: string,
+  ): "success" | "destructive" | "secondary" | "default" => {
     switch (status) {
       case "Completed":
-        return "bg-chart-2/20 text-chart-2 border-chart-2/50";
+        return "success";
       case "Processing":
-        return "bg-chart-1/20 text-chart-1 border-chart-1/50";
+        return "secondary";
       case "Failed":
-        return "bg-destructive/20 text-destructive border-destructive/50";
+        return "destructive";
       default:
-        return "bg-chart-3/20 text-chart-3 border-chart-3/50";
+        return "default";
     }
   };
 
-  const renderLoadingState = () => (
-    <div className="flex items-center justify-center py-8">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-    </div>
-  );
-
   const renderEmptyState = () => (
-    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-      <Database className="h-16 w-16 mb-4 opacity-50" />
-      <p className="text-lg">No shaves yet</p>
-      <p className="text-sm">Start recording or upload a video to create your first shave</p>
-    </div>
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Database />
+        </EmptyMedia>
+        <EmptyTitle>No shaves yet</EmptyTitle>
+        <EmptyDescription>
+          Start recording or upload a video to create your first shave
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 
   const renderShavesContent = () => (
-    <ScrollArea className="h-[500px] pr-4">
-      <div className="space-y-4">
+    <ScrollArea className="h-full">
+      <div className="space-y-3">
         {shaves.map((shave) => (
-          <div
-            key={shave.id}
-            className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"
-          >
-            <div className="grid grid-cols-[1fr_auto] gap-4 items-start">
-              <div className="min-w-0">
-                <h3 className="font-semibold text-lg truncate" title={shave.title}>
+          <div key={shave.id} className="border rounded-lg p-4 max-w-full overflow-hidden">
+            <div className="flex gap-3 items-start min-w-0">
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={!shave.videoEmbedUrl}
+                onClick={() => {
+                  if (shave.videoEmbedUrl) {
+                    window.open(shave.videoEmbedUrl, "_blank");
+                  }
+                }}
+                title={shave.videoEmbedUrl ? "Open video" : "No video available"}
+              >
+                <Video className="h-5 w-5" />
+              </Button>
+              <div className="w-0 flex-1">
+                <h3
+                  className="font-semibold text-base mb-1 overflow-hidden text-ellipsis whitespace-nowrap"
+                  title={shave.title}
+                >
                   {shave.title}
                 </h3>
-                {shave.projectName && (
-                  <div className="mt-2 text-sm text-muted-foreground truncate">
-                    {shave.projectName}
+                <div className="flex items-center flex-wrap gap-2 text-xs text-muted-foreground mb-2">
+                  <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
+                  <span>•</span>
+                  <span className="whitespace-nowrap">
+                    {new Date(shave.updatedAt || shave.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                {shave.workItemUrl && (
+                  <div className="text-xs mb-1 truncate">
+                    <span className="text-muted-foreground">Backlog: </span>
+                    <a
+                      href={shave.workItemUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:underline"
+                    >
+                      View Backlog
+                    </a>
                   </div>
                 )}
-                {shave.workItemUrl && (
-                  <a
-                    href={shave.workItemUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-500 hover:underline mt-1 inline-block"
-                  >
-                    View Backlog
-                  </a>
+                {shave.projectName && (
+                  <div className="text-xs text-muted-foreground truncate">
+                    Project: <span className="text-foreground">{shave.projectName}</span>
+                  </div>
                 )}
-              </div>
-              <div className="flex flex-col items-end gap-2 shrink-0">
-                <span
-                  className={`px-2 py-1 rounded border text-xs font-medium ${getStatusVariant(
-                    shave.shaveStatus,
-                  )}`}
-                >
-                  {shave.shaveStatus}
-                </span>
               </div>
             </div>
           </div>
@@ -112,7 +138,7 @@ export function MyShavesDialog() {
 
   const renderContent = () => {
     if (loading) {
-      return renderLoadingState();
+      return <LoadingState />;
     }
 
     if (shaves.length === 0) {
@@ -123,20 +149,31 @@ export function MyShavesDialog() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <Drawer open={open} onOpenChange={setOpen} direction="right">
+      <DrawerTrigger asChild>
         <Button size="sm" className="flex items-center gap-2" aria-label="Open My Shaves">
           <Database className="h-4 w-4" />
           <span>My Shaves</span>
         </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle>My Shaves</DialogTitle>
-          <DialogDescription>View all your recorded and processed shaves</DialogDescription>
-        </DialogHeader>
-        {renderContent()}
-      </DialogContent>
-    </Dialog>
+      </DrawerTrigger>
+      <DrawerContent className="h-screen top-0 right-0 left-auto mt-0 w-[40%] rounded-none">
+        <div className="flex flex-col h-full">
+          <DrawerHeader className="border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <DrawerTitle>My Shaves</DrawerTitle>
+                <DrawerDescription>View all your recorded and processed shaves</DrawerDescription>
+              </div>
+              <DrawerClose asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <X className="h-4 w-4" />
+                </Button>
+              </DrawerClose>
+            </div>
+          </DrawerHeader>
+          <div className="flex-1 overflow-hidden p-4">{renderContent()}</div>
+        </div>
+      </DrawerContent>
+    </Drawer>
   );
 }

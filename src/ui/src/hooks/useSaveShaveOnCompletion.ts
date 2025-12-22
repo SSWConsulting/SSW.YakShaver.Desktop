@@ -40,8 +40,10 @@ function parseFinalOutput(finalOutput: string): ParsedShaveOutput {
       workItemUrl: llmOutput.URL || "",
     };
   } catch (e) {
-    console.warn("[Shave] Failed to parse finalOutput as JSON:", e);
-    return emptyOutput;
+    console.error("[Shave] Failed to parse finalOutput as JSON:", e);
+    throw new Error(
+      `Invalid shave output format: Unable to parse LLM response. This prevents saving the shave record. ${e instanceof Error ? e.message : String(e)}`,
+    );
   }
 }
 
