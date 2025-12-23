@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ModelMessage, ToolCallOptions, ToolModelMessage, UserModelMessage } from "ai";
+import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodTypeAny } from "zod";
 import type { VideoUploadResult } from "../auth/types";
@@ -107,7 +107,10 @@ export class MCPOrchestrator {
     }
 
     const messages: ModelMessage[] = [
-      { role: "system", content: systemPrompt },
+      {
+        role: "system",
+        content: `${systemPrompt}`,
+      },
       { role: "user", content: prompt },
     ];
 
@@ -137,8 +140,17 @@ export class MCPOrchestrator {
       const responseMessages = llmResponse.response.messages;
       messages.push(...responseMessages);
 
+      const reasoningContent = llmResponse.content.find((resp) => resp.type === "text");
+      if (reasoningContent && llmResponse.finishReason !== "stop") {
+        sendStepEvent({
+          type: "reasoning",
+          reasoning: JSON.stringify(reasoningContent),
+        });
+      }
+
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
+        console.log(`llmResponse ${JSON.stringify(llmResponse.content)}`);
         for (const toolCall of llmResponse.toolCalls) {
           const requiresApproval = !bypassApprovalChecks && !toolWhiteList.has(toolCall.toolName);
 
@@ -221,7 +233,11 @@ export class MCPOrchestrator {
           }
 
           // send event to UI about tool call now that it is approved/whitelisted
-          sendStepEvent({ type: "tool_call", toolName: toolCall.toolName, args: toolCall.input });
+          sendStepEvent({
+            type: "tool_call",
+            toolName: toolCall.toolName,
+            args: toolCall.input,
+          });
           console.log("Executing tool:", toolCall.toolName);
 
           const toolToCall = tools[toolCall.toolName];
@@ -229,10 +245,14 @@ export class MCPOrchestrator {
           if (toolToCall?.execute) {
             const toolOutput = await toolToCall.execute(toolCall.input, {
               toolCallId: toolCall.toolCallId,
-            } as ToolCallOptions);
+            } as ToolExecutionOptions);
 
             // send event to UI about tool result
-            sendStepEvent({ type: "tool_result", toolName: toolCall.toolName, result: toolOutput });
+            sendStepEvent({
+              type: "tool_result",
+              toolName: toolCall.toolName,
+              result: toolOutput,
+            });
 
             // construct tool result message and append to messages history
             const toolMessage: ToolModelMessage = {
@@ -258,7 +278,11 @@ export class MCPOrchestrator {
         console.log(llmResponse.text);
 
         // send final result event to UI
-        sendStepEvent({ type: "final_result", message: llmResponse.finishReason });
+        sendStepEvent({
+          type: "final_result",
+          reasoning: llmResponse.reasoningText,
+          message: llmResponse.finishReason,
+        });
         return llmResponse.text;
       } else if (llmResponse.finishReason === "content-filter") {
         console.log("Conversation ended due to content filter. ");
