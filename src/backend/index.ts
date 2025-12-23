@@ -84,6 +84,8 @@ const createWindow = (): void => {
     mainWindow.loadFile(indexPath).catch((err) => {
       console.error("Failed to load index.html:", err);
     });
+    // Temporarily enable dev tools in prod for debugging
+    mainWindow.webContents.openDevTools();
   }
 };
 
