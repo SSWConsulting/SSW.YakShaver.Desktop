@@ -45,6 +45,9 @@ type ConnectorPosition = {
 
 // Utility function to reset onboarding (can be called from settings)
 export const resetOnboarding = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
   localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
 };
 
@@ -66,12 +69,6 @@ const STEPS = [
     icon: "/onboarding/monitor-play.svg",
     title: "Connecting an MCP",
     description: "Configure or choose which MCP server YakShaver will call.",
-  },
-  {
-    id: 4,
-    icon: "/onboarding/play.svg",
-    title: "Record your first Video",
-    description: "Finish setup and jump into your first request.",
   },
 ];
 
@@ -460,14 +457,12 @@ export function OnboardingWizard() {
       const saved = await saveMcpConfig(mcpForm.getValues());
       if (!saved) return;
 
-      setCurrentStep(currentStep + 1);
-    } else if (currentStep < 4) {
-      setCurrentStep(currentStep + 1);
-    } else {
       // User completed all steps
       localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
       window.dispatchEvent(new Event(ONBOARDING_FINISHED_EVENT));
       setIsVisible(false);
+    } else if (currentStep < STEPS.length) {
+      setCurrentStep(currentStep + 1);
     }
   };
 
@@ -503,7 +498,7 @@ export function OnboardingWizard() {
   };
 
   const handleSkip = () => {
-    if (currentStep < 4) {
+    if (currentStep < STEPS.length) {
       setCurrentStep(currentStep + 1);
     } else {
       localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
@@ -612,7 +607,9 @@ export function OnboardingWizard() {
           >
             {/* Step indicator */}
             <div className="px-6">
-              <p className="text-sm font-medium leading-6 text-white">Step {currentStep} of 4</p>
+              <p className="text-sm font-medium leading-6 text-white">
+                Step {currentStep} of {STEPS.length}
+              </p>
             </div>
 
             {/* Card header */}
@@ -628,9 +625,7 @@ export function OnboardingWizard() {
                     ? "Choose a platform to host your videos."
                     : currentStep === 2
                       ? "Choose your provider and save the API details"
-                      : currentStep === 3
-                        ? "Configure or choose which MCP server YakShaver will call."
-                        : "Finish setup and jump into your first request."}
+                      : "Configure or choose which MCP server YakShaver will call."}
                 </p>
               </div>
             </div>
@@ -695,21 +690,14 @@ export function OnboardingWizard() {
                   </form>
                 </Form>
               )}
-
-              {currentStep === 4 && (
-                <div className="text-center py-8 px-4 text-white/[0.56]">
-                  <p className="mb-2 text-sm">You're all set!</p>
-                  <p className="text-xs italic">Click Finish to start recording.</p>
-                </div>
-              )}
             </div>
 
             {/* Card footer */}
             <div className="flex h-16 items-start justify-end px-6 pb-6 w-full">
               <div
-                className={`flex items-center w-full ${currentStep < 4 ? "justify-between" : "justify-end"}`}
+                className={`flex items-center w-full ${currentStep < STEPS.length ? "justify-between" : "justify-end"}`}
               >
-                {currentStep < 4 && (
+                {currentStep < STEPS.length && (
                   <Button
                     className="flex items-center justify-center px-4 py-2"
                     type="button"
@@ -744,7 +732,7 @@ export function OnboardingWizard() {
                       ? "Checking..."
                       : currentStep === 3 && isMCPSaving
                         ? "Saving..."
-                        : currentStep === 4
+                        : currentStep === STEPS.length
                           ? "Finish"
                           : "Next"}
                   </Button>
