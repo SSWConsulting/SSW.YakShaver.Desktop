@@ -60,3 +60,6 @@ in your terminal.
 #### Template
 
 The template used for this repo is from the [SSW.GitHub.Template](https://github.com/SSWConsulting/SSW.GitHub.Template) repo.
+
+# 📓Architecture Decision Records
+We use ADRs to track important architectural changes. See the full history in [/docs/adr](./docs/adr/README.md)

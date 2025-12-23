@@ -4,6 +4,7 @@ import type { ToolApprovalDecision } from "./services/mcp/mcp-orchestrator";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ToolApprovalMode } from "./services/storage/general-settings-storage";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
+import type { ShaveStatus, VideoFileMetadata } from "./types";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
 // Need to make single source of truth
@@ -99,6 +100,15 @@ const IPC_CHANNELS = {
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
+
+  // Shave Management
+  SHAVE_CREATE: "shave:create",
+  SHAVE_GET_BY_ID: "shave:get-by-id",
+  SHAVE_GET_ALL: "shave:get-all",
+  SHAVE_FIND_BY_VIDEO_URL: "shave:find-by-video-url",
+  SHAVE_UPDATE: "shave:update",
+  SHAVE_UPDATE_STATUS: "shave:update-status",
+  SHAVE_DELETE: "shave:delete",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -265,6 +275,34 @@ const electronAPI = {
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
+  },
+  shave: {
+    create: (data: {
+      workItemSource: string;
+      title: string;
+      videoFile: VideoFileMetadata;
+      projectName?: string;
+      workItemUrl?: string;
+      shaveStatus?: ShaveStatus;
+    }) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_CREATE, data),
+    getById: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_BY_ID, id),
+    getAll: () => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_ALL),
+    findByVideoUrl: (videoEmbedUrl: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SHAVE_FIND_BY_VIDEO_URL, videoEmbedUrl),
+    update: (
+      id: number,
+      data: {
+        workItemSource?: string;
+        title?: string;
+        videoFile?: VideoFileMetadata;
+        projectName?: string;
+        workItemUrl?: string;
+        shaveStatus?: ShaveStatus;
+      },
+    ) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_UPDATE, id, data),
+    updateStatus: (id: number, status: ShaveStatus) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SHAVE_UPDATE_STATUS, id, status),
+    delete: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_DELETE, id),
   },
   // Camera window
   onSetCameraDevice: (callback: (deviceId: string) => void) => {
