@@ -63,7 +63,7 @@ export function RawTextDisplay({ content }: RawTextDisplayProps) {
   );
 }
 
-export function JsonResultDisplay({ data }: { data: ParsedResult }) {
+function JsonResultDisplay({ data }: { data: ParsedResult }) {
   const { copyToClipboard } = useClipboard();
 
   // Parse and restructure the data to separate label patterns like "Type: Bug"
