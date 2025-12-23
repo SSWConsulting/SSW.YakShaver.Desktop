@@ -24,7 +24,7 @@ export function ReasoningStep({ reasoning }: ReasoningStepProps) {
         <summary className="text-zinc-400 cursor-pointer hover:text-zinc-400/80">
           View details
         </summary>
-        <RawTextDisplay content={parsed.text as string} />
+        <RawTextDisplay content={(parsed.text ?? "") as string} />
       </details>
     </div>
   );
