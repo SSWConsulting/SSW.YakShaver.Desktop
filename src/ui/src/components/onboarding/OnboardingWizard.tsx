@@ -430,7 +430,7 @@ export function OnboardingWizard() {
 
   const completeOnboarding = useCallback(() => {
     localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
-    window.dispatchEvent(new Event(ONBOARDING_FINISHED_EVENT));
+    window.dispatchEvent(new CustomEvent(ONBOARDING_FINISHED_EVENT));
     setIsVisible(false);
   }, []);
 
