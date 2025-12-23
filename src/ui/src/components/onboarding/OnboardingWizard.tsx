@@ -13,11 +13,14 @@ import { useCountdown } from "../../hooks/useCountdown";
 import { ipcClient } from "../../services/ipc-client";
 import type { HealthStatusInfo, LLMConfig } from "../../types";
 import { AuthStatus } from "../../types";
-import type { MCPServerConfig } from "../settings/mcp/McpServerForm";
+import {
+  type MCPServerConfig,
+  type MCPServerFormData,
+  McpServerForm,
+  mcpServerSchema,
+} from "../settings/mcp/McpServerForm";
 import { Button } from "../ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../ui/form";
-import { Input } from "../ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Form } from "../ui/form";
 
 type LLMProvider = "openai" | "deepseek";
 
@@ -33,15 +36,6 @@ const llmSchema = z.discriminatedUnion("provider", [
 ]);
 
 type LLMFormValues = z.infer<typeof llmSchema>;
-
-const mcpSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().optional(),
-  transport: z.enum(["streamableHttp"]),
-  url: z.string().url("Must be a valid URL"),
-});
-
-type MCPFormValues = z.infer<typeof mcpSchema>;
 
 type ConnectorPosition = {
   top: number;
@@ -86,6 +80,21 @@ const LLM_PROVIDER_OPTIONS = [
   { value: "deepseek", label: "DeepSeek" },
 ];
 
+const DEFAULT_MCP_VALUES: MCPServerFormData = {
+  name: "",
+  description: "",
+  transport: "streamableHttp",
+  url: "",
+  headers: "",
+  version: "",
+  timeoutMs: "",
+  command: "",
+  args: "",
+  env: "",
+  cwd: "",
+  stderr: "inherit",
+};
+
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [hasYouTubeConfig] = useState(true); // TODO: Get from settings/config
@@ -112,14 +121,9 @@ export function OnboardingWizard() {
     },
   });
 
-  const mcpForm = useForm<MCPFormValues>({
-    resolver: zodResolver(mcpSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      transport: "streamableHttp",
-      url: "",
-    },
+  const mcpForm = useForm<MCPServerFormData>({
+    resolver: zodResolver(mcpServerSchema),
+    defaultValues: { ...DEFAULT_MCP_VALUES },
   });
 
   const [watchedMcpName, watchedMcpUrl] = useWatch({
@@ -263,22 +267,21 @@ export function OnboardingWizard() {
 
         if (userServer && userServer.transport === "streamableHttp") {
           mcpForm.reset({
+            ...DEFAULT_MCP_VALUES,
             name: userServer.name,
             description: userServer.description ?? "",
             transport: "streamableHttp",
             url: userServer.url ?? "",
+            headers: userServer.headers ? JSON.stringify(userServer.headers, null, 2) : "",
+            version: userServer.version ?? "",
+            timeoutMs: userServer.timeoutMs ?? "",
           });
           setHasMCPConfig(true);
           setEditingMcpServerName(userServer.name);
         } else {
           setHasMCPConfig(false);
           setEditingMcpServerName(null);
-          mcpForm.reset({
-            name: "",
-            description: "",
-            transport: "streamableHttp",
-            url: "",
-          });
+          mcpForm.reset({ ...DEFAULT_MCP_VALUES });
         }
       } catch (error) {
         setHasMCPConfig(false);
@@ -316,14 +319,42 @@ export function OnboardingWizard() {
   };
 
   const saveMcpConfig = useCallback(
-    async (values: MCPFormValues) => {
+    async (values: MCPServerFormData) => {
       setIsMCPSaving(true);
+
+      let headers: Record<string, string> | undefined;
+      if (values.headers?.trim()) {
+        try {
+          const parsedHeaders = JSON.parse(values.headers);
+          if (
+            !parsedHeaders ||
+            typeof parsedHeaders !== "object" ||
+            Array.isArray(parsedHeaders) ||
+            !Object.entries(parsedHeaders).every(([, value]) => typeof value === "string")
+          ) {
+            throw new Error("Headers must be a JSON object with string values");
+          }
+          headers = parsedHeaders as Record<string, string>;
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Headers must be a JSON object with string values";
+          mcpForm.setError("headers", { message });
+          toast.error(message);
+          setIsMCPSaving(false);
+          return false;
+        }
+      }
 
       const config: MCPServerConfig = {
         name: values.name.trim(),
         transport: "streamableHttp",
-        url: values.url.trim(),
+        url: (values.url ?? "").trim(),
         description: values.description?.trim() || undefined,
+        headers,
+        version: values.version?.trim() || undefined,
+        timeoutMs: typeof values.timeoutMs === "number" ? values.timeoutMs : undefined,
       };
 
       try {
@@ -343,7 +374,7 @@ export function OnboardingWizard() {
         setIsMCPSaving(false);
       }
     },
-    [editingMcpServerName],
+    [editingMcpServerName, mcpForm],
   );
 
   // Auto-validate API key on input change
@@ -652,70 +683,10 @@ export function OnboardingWizard() {
                     }}
                     className="flex flex-col gap-4"
                   >
-                    <FormField
-                      control={mcpForm.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-white">Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="e.g., GitHub" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={mcpForm.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-white">Description</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="Explain what this MCP server does" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={mcpForm.control}
-                      name="transport"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-white">Transport</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="cursor-pointer">
-                                <SelectValue placeholder="Select transport" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="z-[70]">
-                              <SelectItem value="streamableHttp">HTTP (streamableHttp)</SelectItem>
-                              <SelectItem value="stdio" disabled>
-                                STDIO (coming soon)
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={mcpForm.control}
-                      name="url"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-white">URL</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="https://api.example.com/mcp" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                    <McpServerForm
+                      form={mcpForm}
+                      allowedTransports={["streamableHttp"]}
+                      showAdvancedOptions={true}
                     />
                   </form>
                 </Form>
