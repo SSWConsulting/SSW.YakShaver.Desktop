@@ -28,6 +28,12 @@ import { RecordingService } from "./services/recording/recording-service";
 
 const isDev = process.env.NODE_ENV === "development";
 
+// Set different app name for dev to enable separate single instance locks
+// This allows dev and prod to run simultaneously
+if (isDev) {
+  app.name = "YakShaver-Dev";
+}
+
 // Load .env early (before app.whenReady)
 const loadEnv = () => {
   let envPath: string;
@@ -101,11 +107,24 @@ let _generalSettingsHandlers: GeneralSettingsIPCHandlers;
 let _shaveHandlers: ShaveIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
-// Register protocol handler only in packaged mode (doesn't work correctly in dev)
+// Register protocol handler for OAuth redirects
+// Dev uses a different protocol to avoid conflicts with prod
 const azure = config.azure();
-if (azure?.customProtocol) {
+const protocolName =
+  isDev && azure?.customProtocol ? `${azure.customProtocol}-dev` : azure?.customProtocol;
+
+if (protocolName) {
   try {
-    app.setAsDefaultProtocolClient(azure.customProtocol);
+    if (isDev) {
+      // In dev, provide electron executable and app path
+      // Pass the path to the compiled index.js
+      const appPath = join(__dirname, "index.js");
+      console.log(`Registering protocol ${protocolName} for dev mode`, process.execPath, appPath);
+      app.setAsDefaultProtocolClient(protocolName, process.execPath, [appPath]);
+    } else {
+      // In prod, the app itself is the executable
+      app.setAsDefaultProtocolClient(protocolName);
+    }
   } catch (err) {
     console.error("Failed to set default protocol client:", err);
   }
@@ -115,14 +134,17 @@ if (azure?.customProtocol) {
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  // Another instance is already running, quit this one
-  app.quit();
+  // Another instance is already running, quit this one immediately
+  // Use process.exit() to prevent any further initialization
+  process.exit(0);
 } else {
   // Handle second instance attempts - focus the existing window
   app.on("second-instance", () => {
     // Someone tried to run a second instance, focus our window instead
     if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
       mainWindow.focus();
     }
   });
@@ -131,7 +153,9 @@ if (!gotTheLock) {
   app.on("open-url", (event) => {
     event.preventDefault();
     if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
       mainWindow.focus();
     }
   });
