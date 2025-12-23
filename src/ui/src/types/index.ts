@@ -1,3 +1,10 @@
+export type {
+  CreateShaveInput,
+  Shave,
+  VideoFileMetadata,
+} from "@shared/types";
+export { ProgressStage, ShaveStatus } from "@shared/types";
+
 export interface UserInfo {
   id: string;
   name: string;
@@ -167,21 +174,6 @@ export interface HealthStatusInfo {
   isChecking?: boolean;
 }
 
-export enum ProgressStage {
-  IDLE = "idle",
-  UPLOADING_SOURCE = "uploading_source",
-  DOWNLOADING_SOURCE = "downloading_source",
-  UPLOAD_COMPLETED = "upload_completed",
-  CONVERTING_AUDIO = "converting_audio",
-  TRANSCRIBING = "transcribing",
-  TRANSCRIPTION_COMPLETED = "transcription_completed",
-  GENERATING_TASK = "generating_task",
-  EXECUTING_TASK = "executing_task",
-  UPDATING_METADATA = "updating_metadata",
-  ERROR = "error",
-  COMPLETED = "completed",
-}
-
 export const UNDO_EVENT_CHANNEL = "yakshaver:undo-event";
 
 export type UndoEventDetail = {
@@ -252,43 +244,5 @@ export interface ShaveItem {
 export interface GetMyShavesResponse {
   items: ShaveItem[];
 }
-
-export type VideoFileMetadata = {
-  fileName: string;
-  filePath?: string;
-  createdAt: string;
-  duration: number;
-};
-
-export enum ShaveStatus {
-  Unknown = "Unknown",
-  Pending = "Pending",
-  Processing = "Processing",
-  Completed = "Completed",
-  Failed = "Failed",
-}
-
-export type Shave = {
-  id: number;
-  workItemSource: string;
-  title: string;
-  videoFile: VideoFileMetadata | null;
-  shaveStatus: ShaveStatus;
-  projectName: string | null;
-  workItemUrl: string | null;
-  videoEmbedUrl: string | null;
-  createdAt: string;
-  updatedAt: string | null;
-};
-
-export type CreateShaveInput = {
-  workItemSource: string;
-  title: string;
-  videoFile: VideoFileMetadata | null;
-  projectName?: string | null;
-  workItemUrl?: string;
-  shaveStatus?: ShaveStatus;
-  videoEmbedUrl?: string;
-};
 
 export type BadgeVariant = "success" | "destructive" | "secondary" | "default";
