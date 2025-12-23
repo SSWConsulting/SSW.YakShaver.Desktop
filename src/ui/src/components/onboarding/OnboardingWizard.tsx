@@ -21,6 +21,7 @@ import {
 } from "../settings/mcp/McpServerForm";
 import { Button } from "../ui/button";
 import { Form } from "../ui/form";
+import { ScrollArea } from "../ui/scroll-area";
 
 type LLMProvider = "openai" | "deepseek";
 
@@ -527,6 +528,143 @@ export function OnboardingWizard() {
 
   if (!isVisible) return null;
 
+  const rightPanelContent = (
+    <div className={`flex flex-col w-full`}>
+      {/* Step indicator */}
+      <div className="px-6">
+        <p className="text-sm font-medium leading-6 text-white">
+          Step {currentStep} of {STEPS.length}
+        </p>
+      </div>
+
+      {/* Card header */}
+      <div className="flex flex-col gap-1.5 p-6 w-full">
+        <div className="flex ">
+          <p className="text-2xl font-semibold leading-6 tracking-[-0.015em] text-white/[0.98]">
+            {STEPS[currentStep - 1].title}
+          </p>
+        </div>
+        <div className="flex w-full">
+          <p className="text-sm font-normal leading-5 text-white/[0.56]">
+            {currentStep === 1
+              ? "Choose a platform to host your videos."
+              : currentStep === 2
+                ? "Choose your provider and save the API details"
+                : "Configure or choose which MCP server YakShaver will call."}
+          </p>
+        </div>
+      </div>
+
+      {/* Card content */}
+      <div className="flex flex-col gap-4 px-6 pb-6 w-full">
+        {currentStep === 1 &&
+          (hasYouTubeConfig ? (
+            <PlatformConnectionCard
+              icon={<FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />}
+              title="YouTube"
+              subtitle={isConnected && userInfo?.name ? userInfo.name : undefined}
+              badgeText={isConnected ? "Connected" : undefined}
+              onAction={handleYouTubeAction}
+              actionLabel={getYouTubeButtonText()}
+              actionDisabled={isConnecting && !isConnected}
+              buttonSize="lg"
+            />
+          ) : (
+            <div className="text-center py-8 px-4 text-white/[0.56]">
+              <p className="mb-2 text-sm">No platforms available</p>
+              <p className="text-xs italic">Configure YouTube API credentials to get started</p>
+            </div>
+          ))}
+
+        {currentStep === 2 && (
+          <div className="w-full">
+            <Form {...llmForm}>
+              <form
+                onSubmit={llmForm.handleSubmit(handleLLMSubmit)}
+                className="flex flex-col gap-4"
+              >
+                <LLMProviderFields
+                  control={llmForm.control}
+                  providerField="provider"
+                  apiKeyField="apiKey"
+                  providerOptions={LLM_PROVIDER_OPTIONS}
+                  onProviderChange={(value) => handleProviderChange(value as LLMProvider)}
+                  healthStatus={healthStatus}
+                  selectContentClassName="z-[70]"
+                />
+              </form>
+            </Form>
+          </div>
+        )}
+
+        {currentStep === 3 && (
+          <Form {...mcpForm}>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+              }}
+              className="flex flex-col gap-4"
+            >
+              <McpServerForm
+                form={mcpForm}
+                allowedTransports={["streamableHttp"]}
+                showAdvancedOptions={true}
+              />
+            </form>
+          </Form>
+        )}
+      </div>
+
+      {/* Card footer */}
+      <div className="flex h-16 items-start justify-end px-6 pb-6 w-full">
+        <div
+          className={`flex items-center w-full ${currentStep < STEPS.length ? "justify-between" : "justify-end"}`}
+        >
+          {currentStep < STEPS.length && (
+            <Button
+              className="flex items-center justify-center px-4 py-2"
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleSkip}
+            >
+              Skip for now
+            </Button>
+          )}
+
+          <div className="flex gap-2 h-10">
+            {currentStep > 1 && (
+              <Button
+                className="flex items-center justify-center px-4 py-2"
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handlePrevious}
+              >
+                Previous
+              </Button>
+            )}
+
+            <Button
+              className="flex items-center justify-center px-4 py-2"
+              size="sm"
+              onClick={handleNext}
+              disabled={isNextDisabled}
+            >
+              {currentStep === 2 && isLLMSaving
+                ? "Checking..."
+                : currentStep === 3 && isMCPSaving
+                  ? "Saving..."
+                  : currentStep === STEPS.length
+                    ? "Finish"
+                    : "Next"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
@@ -612,148 +750,13 @@ export function OnboardingWizard() {
         </div>
 
         {/* Right Content Area */}
-        <div
-          className={`flex flex-col w-[759px] px-20 py-40 ${currentStep === 3 ? "h-full min-h-0 overflow-y-auto" : ""}`}
-        >
-          <div
-            className={`flex flex-col w-full ${currentStep === 3 ? "min-h-[330px]" : "h-[330px]"}`}
-          >
-            {/* Step indicator */}
-            <div className="px-6">
-              <p className="text-sm font-medium leading-6 text-white">
-                Step {currentStep} of {STEPS.length}
-              </p>
-            </div>
-
-            {/* Card header */}
-            <div className="flex flex-col gap-1.5 p-6 w-full">
-              <div className="flex ">
-                <p className="text-2xl font-semibold leading-6 tracking-[-0.015em] text-white/[0.98]">
-                  {STEPS[currentStep - 1].title}
-                </p>
-              </div>
-              <div className="flex w-full">
-                <p className="text-sm font-normal leading-5 text-white/[0.56]">
-                  {currentStep === 1
-                    ? "Choose a platform to host your videos."
-                    : currentStep === 2
-                      ? "Choose your provider and save the API details"
-                      : "Configure or choose which MCP server YakShaver will call."}
-                </p>
-              </div>
-            </div>
-
-            {/* Card content */}
-            <div className="flex flex-col gap-4 px-6 pb-6 w-full">
-              {currentStep === 1 &&
-                (hasYouTubeConfig ? (
-                  <PlatformConnectionCard
-                    icon={<FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />}
-                    title="YouTube"
-                    subtitle={isConnected && userInfo?.name ? userInfo.name : undefined}
-                    badgeText={isConnected ? "Connected" : undefined}
-                    onAction={handleYouTubeAction}
-                    actionLabel={getYouTubeButtonText()}
-                    actionDisabled={isConnecting && !isConnected}
-                    buttonSize="lg"
-                  />
-                ) : (
-                  <div className="text-center py-8 px-4 text-white/[0.56]">
-                    <p className="mb-2 text-sm">No platforms available</p>
-                    <p className="text-xs italic">
-                      Configure YouTube API credentials to get started
-                    </p>
-                  </div>
-                ))}
-
-              {currentStep === 2 && (
-                <div className="w-full">
-                  <Form {...llmForm}>
-                    <form
-                      onSubmit={llmForm.handleSubmit(handleLLMSubmit)}
-                      className="flex flex-col gap-4"
-                    >
-                      <LLMProviderFields
-                        control={llmForm.control}
-                        providerField="provider"
-                        apiKeyField="apiKey"
-                        providerOptions={LLM_PROVIDER_OPTIONS}
-                        onProviderChange={(value) => handleProviderChange(value as LLMProvider)}
-                        healthStatus={healthStatus}
-                        selectContentClassName="z-[70]"
-                      />
-                    </form>
-                  </Form>
-                </div>
-              )}
-
-              {currentStep === 3 && (
-                <Form {...mcpForm}>
-                  <form
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                    }}
-                    className="flex flex-col gap-4"
-                  >
-                    <McpServerForm
-                      form={mcpForm}
-                      allowedTransports={["streamableHttp"]}
-                      showAdvancedOptions={true}
-                    />
-                  </form>
-                </Form>
-              )}
-            </div>
-
-            {/* Card footer */}
-            <div className="flex h-16 items-start justify-end px-6 pb-6 w-full">
-              <div
-                className={`flex items-center w-full ${currentStep < STEPS.length ? "justify-between" : "justify-end"}`}
-              >
-                {currentStep < STEPS.length && (
-                  <Button
-                    className="flex items-center justify-center px-4 py-2"
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSkip}
-                  >
-                    Skip for now
-                  </Button>
-                )}
-
-                <div className="flex gap-2 h-10">
-                  {currentStep > 1 && (
-                    <Button
-                      className="flex items-center justify-center px-4 py-2"
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handlePrevious}
-                    >
-                      Previous
-                    </Button>
-                  )}
-
-                  <Button
-                    className="flex items-center justify-center px-4 py-2"
-                    size="sm"
-                    onClick={handleNext}
-                    disabled={isNextDisabled}
-                  >
-                    {currentStep === 2 && isLLMSaving
-                      ? "Checking..."
-                      : currentStep === 3 && isMCPSaving
-                        ? "Saving..."
-                        : currentStep === STEPS.length
-                          ? "Finish"
-                          : "Next"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {currentStep === 3 ? (
+          <ScrollArea className="w-[759px] h-full">
+            <div className="flex flex-col px-20 py-40">{rightPanelContent}</div>
+          </ScrollArea>
+        ) : (
+          <div className="flex flex-col w-[759px] px-20 py-40">{rightPanelContent}</div>
+        )}
       </div>
     </div>
   );
