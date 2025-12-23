@@ -1,9 +1,10 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, session, shell } from "electron";
+import { app, BrowserWindow, dialog, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { config } from "./config/env";
+import { initDatabase } from "./db";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
@@ -16,6 +17,7 @@ import { registerPortalHandlers } from "./ipc/portal-handlers";
 import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
+import { ShaveIPCHandlers } from "./ipc/shave-handlers";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
@@ -96,9 +98,23 @@ let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
 let _githubTokenHandlers: GitHubTokenIPCHandlers;
 let _generalSettingsHandlers: GeneralSettingsIPCHandlers;
+let _shaveHandlers: ShaveIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 app.whenReady().then(async () => {
+  // Initialize database on startup (synchronous - better-sqlite3 is sync)
+  try {
+    initDatabase();
+  } catch (error) {
+    console.error("Failed to initialize database:", error);
+
+    // Show error dialog to user
+    dialog.showErrorBox(
+      "Database Initialization Failed",
+      `Failed to initialize the database. You can continue using the app, but Your shaves will not be saved.\n\nError: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
   const azure = config.azure();
   if (azure?.customProtocol) {
     try {
@@ -139,12 +155,12 @@ app.whenReady().then(async () => {
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _generalSettingsHandlers = new GeneralSettingsIPCHandlers();
+  _shaveHandlers = new ShaveIPCHandlers();
 
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
   CameraWindow.getInstance().initialize(isDev);
   CountdownWindow.getInstance().initialize(isDev);
-
   unregisterEventForwarders = registerEventForwarders();
   createWindow();
 

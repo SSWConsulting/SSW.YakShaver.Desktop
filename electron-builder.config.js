@@ -14,13 +14,19 @@ module.exports = {
     "!**/*.ts",
     "!**/node_modules/**/*.md",
   ],
-  extraResources: [".env", "src/ui/public/**", "src/ui/successTemplate.html", "src/ui/errorTemplate.html"],
-  asar: true,
-  asarUnpack: [
-    "src/ui/dist/**",
-    "**/@ffmpeg-installer/**",
-    "**/youtube-dl-exec/**",
+  extraResources: [
+    ".env",
+    "src/ui/public/**",
+    "src/ui/successTemplate.html",
+    "src/ui/errorTemplate.html",
+    {
+      from: "src/backend/db/migrations",
+      to: "migrations",
+      filter: ["**/*"],
+    },
   ],
+  asar: true,
+  asarUnpack: ["src/ui/dist/**", "**/@ffmpeg-installer/**", "**/youtube-dl-exec/**", "**/better-sqlite3/**"],
   afterPack: "./afterPack.js",
   win: {
     icon: "src/ui/public/icons/icon.ico",
