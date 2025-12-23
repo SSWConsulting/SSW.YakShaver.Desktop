@@ -252,3 +252,43 @@ export interface ShaveItem {
 export interface GetMyShavesResponse {
   items: ShaveItem[];
 }
+
+export type VideoFileMetadata = {
+  fileName: string;
+  filePath?: string;
+  createdAt: string;
+  duration: number;
+};
+
+export enum ShaveStatus {
+  Unknown = "Unknown",
+  Pending = "Pending",
+  Processing = "Processing",
+  Completed = "Completed",
+  Failed = "Failed",
+}
+
+export type Shave = {
+  id: number;
+  workItemSource: string;
+  title: string;
+  videoFile: VideoFileMetadata | null;
+  shaveStatus: ShaveStatus;
+  projectName: string | null;
+  workItemUrl: string | null;
+  videoEmbedUrl: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+};
+
+export type CreateShaveInput = {
+  workItemSource: string;
+  title: string;
+  videoFile: VideoFileMetadata | null;
+  projectName?: string | null;
+  workItemUrl?: string;
+  shaveStatus?: ShaveStatus;
+  videoEmbedUrl?: string;
+};
+
+export type BadgeVariant = "success" | "destructive" | "secondary" | "default";

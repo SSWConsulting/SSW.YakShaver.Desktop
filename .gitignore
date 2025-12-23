@@ -100,3 +100,9 @@ mcp-servers.json
 
 .trae/
 .vscode/settings.json
+
+# SQLite database
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

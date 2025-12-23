@@ -1,17 +1,22 @@
 import { Toaster } from "sonner";
 import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
+import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 import { DownloadProgressToast } from "./components/common/DownloadProgressToast";
 import { VideoHostPanel } from "./components/layout/VideoHostPanel";
 import { ScreenRecorder } from "./components/recording/ScreenRecorder";
 import { SettingsDialog } from "./components/settings/SettingsDialog";
+import { MyShavesDialog } from "./components/shaves/MyShavesDialog";
 import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
-import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
+import { useSaveShaveOnCompletion } from "./hooks/useSaveShaveOnCompletion";
 
 export default function App() {
+  // Auto-save shaves when workflow completes
+  useSaveShaveOnCompletion();
+
   return (
     <AdvancedSettingsProvider>
       <div className="relative min-h-screen py-8 text-white">
@@ -21,6 +26,7 @@ export default function App() {
 
         <div className="flex flex-col gap-8">
           <div className="absolute top-6 right-8 z-50 flex items-center gap-4">
+            <MyShavesDialog />
             <SettingsDialog />
             <MicrosoftAuthManager />
           </div>
