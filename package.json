@@ -53,7 +53,7 @@
     "json-schema-to-zod": "^2.6.1",
     "openai": "^6.15.0",
     "tmp": "^0.2.5",
-    "youtube-dl-exec": "^3.0.27"
+    "youtube-dl-exec": "^3.0.28"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.9",
