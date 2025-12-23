@@ -604,8 +604,12 @@ export function OnboardingWizard() {
         </div>
 
         {/* Right Content Area */}
-        <div className="flex flex-col w-[759px] px-20 py-40">
-          <div className="flex flex-col h-[330px] w-full">
+        <div
+          className={`flex flex-col w-[759px] px-20 py-40 ${currentStep === 3 ? "h-full min-h-0 overflow-y-auto" : ""}`}
+        >
+          <div
+            className={`flex flex-col w-full ${currentStep === 3 ? "min-h-[330px]" : "h-[330px]"}`}
+          >
             {/* Step indicator */}
             <div className="px-6">
               <p className="text-sm font-medium leading-6 text-white">Step {currentStep} of 4</p>
