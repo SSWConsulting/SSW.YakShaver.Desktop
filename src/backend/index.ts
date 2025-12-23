@@ -138,6 +138,19 @@ if (!gotTheLock) {
 }
 
 app.whenReady().then(async () => {
+  // Initialize database on startup (synchronous - better-sqlite3 is sync)
+  try {
+    initDatabase();
+  } catch (error) {
+    console.error("Failed to initialize database:", error);
+
+    // Show error dialog to user
+    dialog.showErrorBox(
+      "Database Initialization Failed",
+      `Failed to initialize the database. You can continue using the app, but Your shaves will not be saved.\n\nError: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
   session.defaultSession.setPermissionCheckHandler(() => true);
   session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
     callback(
