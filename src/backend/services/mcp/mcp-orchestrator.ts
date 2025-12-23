@@ -109,7 +109,12 @@ export class MCPOrchestrator {
     const messages: ModelMessage[] = [
       {
         role: "system",
-        content: `${systemPrompt}`,
+        content: systemPrompt,
+      },
+      // Reason why it has to be done like this right now: see https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/420#issuecomment-3684664177
+      {
+        role: "system",
+        content: "When selecting tools, briefly explain the reason for choosing them.",
       },
       { role: "user", content: prompt },
     ];
