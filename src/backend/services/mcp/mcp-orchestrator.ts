@@ -155,7 +155,6 @@ export class MCPOrchestrator {
 
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
-        console.log(`llmResponse ${JSON.stringify(llmResponse.content)}`);
         for (const toolCall of llmResponse.toolCalls) {
           const requiresApproval = !bypassApprovalChecks && !toolWhiteList.has(toolCall.toolName);
 
@@ -285,7 +284,6 @@ export class MCPOrchestrator {
         // send final result event to UI
         sendStepEvent({
           type: "final_result",
-          reasoning: llmResponse.reasoningText,
           message: llmResponse.finishReason,
         });
         return llmResponse.text;
