@@ -7,12 +7,17 @@ import { VideoHostPanel } from "./components/layout/VideoHostPanel";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { ScreenRecorder } from "./components/recording/ScreenRecorder";
 import { SettingsDialog } from "./components/settings/SettingsDialog";
+import { MyShavesDialog } from "./components/shaves/MyShavesDialog";
 import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
+import { useSaveShaveOnCompletion } from "./hooks/useSaveShaveOnCompletion";
 
 export default function App() {
+  // Auto-save shaves when workflow completes
+  useSaveShaveOnCompletion();
+
   return (
     <AdvancedSettingsProvider>
       <YouTubeAuthProvider>
@@ -24,6 +29,7 @@ export default function App() {
 
           <div className="flex flex-col gap-8">
             <div className="absolute top-6 right-8 z-50 flex items-center gap-4">
+              <MyShavesDialog />
               <SettingsDialog />
               <MicrosoftAuthManager />
             </div>

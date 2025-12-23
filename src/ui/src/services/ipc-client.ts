@@ -7,6 +7,7 @@ import type {
   AuthResult,
   AuthState,
   ConvertVideoToMp3Result,
+  CreateShaveInput,
   CustomPrompt,
   GeneralSettings,
   GetMyShavesResponse,
@@ -16,6 +17,8 @@ import type {
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,
   ScreenSource,
+  Shave,
+  ShaveStatus,
   ToolApprovalMode,
   TranscriptEntry,
   UserInfo,
@@ -172,6 +175,15 @@ declare global {
           data?: GetMyShavesResponse;
           error?: string;
         }>;
+      };
+      shave: {
+        create: (data: CreateShaveInput) => Promise<Shave>;
+        getById: (id: number) => Promise<Shave | undefined>;
+        getAll: () => Promise<Shave[]>;
+        findByVideoUrl: (videoEmbedUrl: string) => Promise<Shave | undefined>;
+        update: (id: number, data: Partial<CreateShaveInput>) => Promise<Shave | undefined>;
+        updateStatus: (id: number, status: ShaveStatus) => Promise<Shave | undefined>;
+        delete: (id: number) => Promise<void>;
       };
     };
   }

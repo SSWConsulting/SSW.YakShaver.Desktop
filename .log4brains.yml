@@ -1,0 +1,5 @@
+project:
+  name: YakShaver Desktop
+  tz: Australia/Sydney
+  adrFolder: ./docs/adr
+  packages: []
