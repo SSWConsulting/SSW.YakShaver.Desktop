@@ -1,0 +1,79 @@
+export enum ProgressStage {
+  IDLE = "idle",
+  UPLOADING_SOURCE = "uploading_source",
+  DOWNLOADING_SOURCE = "downloading_source",
+  UPLOAD_COMPLETED = "upload_completed",
+  CONVERTING_AUDIO = "converting_audio",
+  TRANSCRIBING = "transcribing",
+  TRANSCRIPTION_COMPLETED = "transcription_completed",
+  GENERATING_TASK = "generating_task",
+  EXECUTING_TASK = "executing_task",
+  UPDATING_METADATA = "updating_metadata",
+  ERROR = "error",
+  COMPLETED = "completed",
+}
+
+// ==================== Shave Types ====================
+export enum ShaveStatus {
+  Unknown = "Unknown",
+  Pending = "Pending",
+  Processing = "Processing",
+  Completed = "Completed",
+  Failed = "Failed",
+}
+
+export interface VideoFileMetadata {
+  fileName: string;
+  filePath?: string;
+  createdAt: string; // ISO string date
+  duration: number; // in seconds
+}
+
+export type Shave = {
+  id: number;
+  workItemSource: string;
+  title: string;
+  videoFile: VideoFileMetadata | null;
+  shaveStatus: ShaveStatus;
+  projectName: string | null;
+  workItemUrl: string | null;
+  videoEmbedUrl: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+};
+
+export type CreateShaveInput = {
+  workItemSource: string;
+  title: string;
+  videoFile: VideoFileMetadata | null;
+  projectName?: string | null;
+  workItemUrl?: string;
+  shaveStatus?: ShaveStatus;
+  videoEmbedUrl?: string;
+};
+
+// ==================== Types From Portal ====================
+export interface VideoFile {
+  fileName: string;
+  createdAt: string;
+  duration: string;
+  isChromeExtension: boolean;
+}
+
+export interface ShaveItem {
+  id: string;
+  title: string;
+  videoFile: VideoFile;
+  updatedAt: string;
+  createdAt: string;
+  shaveStatus: string;
+  workItemType: string;
+  projectName: string;
+  workItemUrl: string;
+  feedback: string | null;
+  videoEmbedUrl: string;
+}
+
+export interface GetMyShavesResponse {
+  items: ShaveItem[];
+}

@@ -1,22 +1,10 @@
+export type { VideoFileMetadata } from "@shared/types";
+export { ProgressStage, ShaveStatus } from "@shared/types";
+
 export interface HealthStatusInfo {
   isHealthy: boolean;
   error?: string;
   successMessage?: string;
-}
-
-export enum ProgressStage {
-  IDLE = "idle",
-  UPLOADING_SOURCE = "uploading_source",
-  DOWNLOADING_SOURCE = "downloading_source",
-  UPLOAD_COMPLETED = "upload_completed",
-  CONVERTING_AUDIO = "converting_audio",
-  TRANSCRIBING = "transcribing",
-  TRANSCRIPTION_COMPLETED = "transcription_completed",
-  GENERATING_TASK = "generating_task",
-  EXECUTING_TASK = "executing_task",
-  UPDATING_METADATA = "updating_metadata",
-  ERROR = "error",
-  COMPLETED = "completed",
 }
 
 export interface VideoFile {
@@ -24,21 +12,6 @@ export interface VideoFile {
   createdAt: string;
   duration: string;
   isChromeExtension: boolean;
-}
-
-export interface VideoFileMetadata {
-  fileName: string;
-  filePath?: string;
-  createdAt: string; // ISO string date
-  duration: number; // in seconds
-}
-
-export enum ShaveStatus {
-  Unknown = "Unknown",
-  Pending = "Pending",
-  Processing = "Processing",
-  Completed = "Completed",
-  Failed = "Failed",
 }
 
 export interface ShaveItem {

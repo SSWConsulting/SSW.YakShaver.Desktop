@@ -7,8 +7,13 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["src/shared/*"]
+    }
   },
   "include": ["src/backend/**/*"],
-  "exclude": ["node_modules", "dist", "src/ui"]
+  "exclude": ["node_modules", "dist", "src/ui"],
+  "references": [{ "path": "./src/shared" }]
 }
