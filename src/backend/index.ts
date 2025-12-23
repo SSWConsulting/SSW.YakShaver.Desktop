@@ -103,7 +103,7 @@ let unregisterEventForwarders: (() => void) | undefined;
 
 // Register protocol handler only in packaged mode (doesn't work correctly in dev)
 const azure = config.azure();
-if (app.isPackaged && azure?.customProtocol) {
+if (azure?.customProtocol) {
   try {
     app.setAsDefaultProtocolClient(azure.customProtocol);
   } catch (err) {
