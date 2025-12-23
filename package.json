@@ -31,7 +31,7 @@
     "url": "https://github.com/SSWConsulting/SSW.YakShaver.Desktop.git"
   },
   "dependencies": {
-    "@ai-sdk/deepseek": "^2.0.0-beta.49",
+    "@ai-sdk/deepseek": "^2.0.1",
     "@ai-sdk/mcp": "^1.0.0",
     "@ai-sdk/openai": "^3.0.1",
     "@azure/msal-node": "^3.8.4",
@@ -39,7 +39,7 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "@modelcontextprotocol/sdk": "^1.24.3",
-    "ai": "^6.0.0-beta.139",
+    "ai": "^6.0.3",
     "better-sqlite3": "^12.5.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
