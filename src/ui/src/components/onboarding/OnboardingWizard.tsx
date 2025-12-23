@@ -388,11 +388,7 @@ export function OnboardingWizard() {
 
           try {
             const values = llmForm.getValues();
-
-            // Save the configuration first
             await ipcClient.llm.setConfig(values as LLMConfig);
-
-            // Then check health to validate the API key
             const healthResult = await ipcClient.llm.checkHealth();
 
             if (!healthResult.isHealthy) {
@@ -424,7 +420,6 @@ export function OnboardingWizard() {
 
         return () => clearTimeout(timeoutId);
       } else if (name === "apiKey") {
-        // Reset health status if API key is too short
         setHealthStatus(null);
         setHasLLMConfig(false);
       }
@@ -433,36 +428,54 @@ export function OnboardingWizard() {
     return () => subscription.unsubscribe();
   }, [llmForm]);
 
+  const completeOnboarding = useCallback(() => {
+    localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
+    window.dispatchEvent(new Event(ONBOARDING_FINISHED_EVENT));
+    setIsVisible(false);
+  }, []);
+
+  const handleStep2Next = useCallback(async () => {
+    const isValid = await llmForm.trigger();
+    if (!isValid) return false;
+
+    if (!hasLLMConfig || !healthStatus?.isHealthy) {
+      toast.error("Please enter a valid API key before proceeding");
+      return false;
+    }
+
+    toast.success(
+      llmForm.getValues().provider === "openai"
+        ? "OpenAI configuration saved"
+        : "DeepSeek configuration saved",
+    );
+    setCurrentStep(3);
+    return true;
+  }, [hasLLMConfig, healthStatus?.isHealthy, llmForm]);
+
+  const handleStep3Next = useCallback(async () => {
+    const isValid = await mcpForm.trigger();
+    if (!isValid) return false;
+
+    const saved = await saveMcpConfig(mcpForm.getValues());
+    if (!saved) return false;
+
+    completeOnboarding();
+    return true;
+  }, [completeOnboarding, mcpForm, saveMcpConfig]);
+
   const handleNext = async () => {
     if (currentStep === 2) {
-      // For step 2, check if LLM config is valid
-      const isValid = await llmForm.trigger();
-      if (!isValid) return;
+      await handleStep2Next();
+      return;
+    }
 
-      if (!hasLLMConfig || !healthStatus?.isHealthy) {
-        toast.error("Please enter a valid API key before proceeding");
-        return;
-      }
+    if (currentStep === 3) {
+      await handleStep3Next();
+      return;
+    }
 
-      toast.success(
-        llmForm.getValues().provider === "openai"
-          ? "OpenAI configuration saved"
-          : "DeepSeek configuration saved",
-      );
-      setCurrentStep(currentStep + 1);
-    } else if (currentStep === 3) {
-      const isValid = await mcpForm.trigger();
-      if (!isValid) return;
-
-      const saved = await saveMcpConfig(mcpForm.getValues());
-      if (!saved) return;
-
-      // User completed all steps
-      localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
-      window.dispatchEvent(new Event(ONBOARDING_FINISHED_EVENT));
-      setIsVisible(false);
-    } else if (currentStep < STEPS.length) {
-      setCurrentStep(currentStep + 1);
+    if (currentStep < STEPS.length) {
+      setCurrentStep((step) => step + 1);
     }
   };
 
@@ -534,7 +547,7 @@ export function OnboardingWizard() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center flex-1">
+          <div className="flex mt-25 justify-center flex-1">
             <div ref={stepListRef} className="relative flex gap-10 flex-col ">
               {connectorPositions.map((position, index) => {
                 const nextStep = STEPS[index + 1];
