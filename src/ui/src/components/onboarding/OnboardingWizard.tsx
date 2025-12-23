@@ -95,6 +95,7 @@ const DEFAULT_MCP_VALUES: MCPServerFormData = {
 
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isMcpAdvancedOpen, setIsMcpAdvancedOpen] = useState(false);
   const [hasYouTubeConfig] = useState(true); // TODO: Get from settings/config
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
@@ -193,6 +194,12 @@ export function OnboardingWizard() {
       window.removeEventListener("resize", updateConnectorPositions);
     };
   }, [updateConnectorPositions]);
+
+  useEffect(() => {
+    if (currentStep !== 3) {
+      setIsMcpAdvancedOpen(false);
+    }
+  }, [currentStep]);
 
   // Check LLM configuration status when on step 2
   useEffect(() => {
@@ -609,6 +616,8 @@ export function OnboardingWizard() {
                 form={mcpForm}
                 allowedTransports={["streamableHttp"]}
                 showAdvancedOptions={true}
+                advancedOpen={isMcpAdvancedOpen}
+                onAdvancedOpenChange={setIsMcpAdvancedOpen}
               />
             </form>
           </Form>
@@ -750,7 +759,7 @@ export function OnboardingWizard() {
         </div>
 
         {/* Right Content Area */}
-        {currentStep === 3 ? (
+        {currentStep === 3 && isMcpAdvancedOpen ? (
           <ScrollArea className="w-[759px] h-full">
             <div className="flex flex-col px-20 py-40">{rightPanelContent}</div>
           </ScrollArea>

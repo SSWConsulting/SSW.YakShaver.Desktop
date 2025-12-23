@@ -107,12 +107,16 @@ type McpServerFormProps = {
   form: UseFormReturn<MCPServerFormData>;
   allowedTransports?: Transport[];
   showAdvancedOptions?: boolean;
+  advancedOpen?: boolean;
+  onAdvancedOpenChange?: (isOpen: boolean) => void;
 };
 
 export function McpServerForm({
   form,
   allowedTransports,
   showAdvancedOptions = true,
+  advancedOpen,
+  onAdvancedOpenChange,
 }: McpServerFormProps) {
   const transport = form.watch("transport");
   const transportOptions = (allowedTransports?.length ? allowedTransports : undefined)
@@ -215,7 +219,14 @@ export function McpServerForm({
       )}
 
       {showAdvancedOptions && (
-        <Accordion type="single" collapsible>
+        <Accordion
+          type="single"
+          collapsible
+          value={advancedOpen === undefined ? undefined : advancedOpen ? "advanced" : ""}
+          onValueChange={(value) => {
+            onAdvancedOpenChange?.(value === "advanced");
+          }}
+        >
           <AccordionItem value="advanced">
             <AccordionTrigger className="text-base font-medium text-white/90">
               Advanced Options
