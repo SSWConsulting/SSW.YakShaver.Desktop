@@ -720,8 +720,6 @@ export function OnboardingWizard() {
             </div>
           </div>
         </div>
-
-        {/* Right Content Area - always visible and scales */}
         <div className="flex flex-col flex-1 min-w-0 h-full">
           {currentStep === 3 && isMcpAdvancedOpen ? (
             <ScrollArea className="w-full h-full">
