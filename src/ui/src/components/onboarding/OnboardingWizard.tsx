@@ -683,7 +683,7 @@ export function OnboardingWizard() {
         <div className="flex flex-col w-[440px] h-full bg-[#1C0D05] rounded-md px-5 py-10">
           {/* Logo */}
           <div className="w-full">
-            <div className="flex items-center">
+            <div className="flex items-center ml-10">
               <img
                 src="/logos/SQ-YakShaver-LogoIcon-Red.svg"
                 alt="YakShaver"
