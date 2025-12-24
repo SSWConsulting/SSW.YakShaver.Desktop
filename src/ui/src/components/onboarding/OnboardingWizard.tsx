@@ -7,6 +7,7 @@ import * as z from "zod";
 import { PlatformConnectionCard } from "@/components/auth/PlatformConnectionCard";
 import { LLMProviderFields } from "@/components/llm/LLMProviderFields";
 import { formatErrorMessage } from "@/utils";
+import logo from "/logos/SQ-YakShaver-LogoIcon-Red.svg?url";
 import cpu from "/onboarding/cpu.svg?url";
 import monitorPlay from "/onboarding/monitor-play.svg?url";
 import { ONBOARDING_COMPLETED_KEY, ONBOARDING_FINISHED_EVENT } from "../../constants/onboarding";
@@ -98,7 +99,7 @@ const DEFAULT_MCP_VALUES: MCPServerFormData = {
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isMcpAdvancedOpen, setIsMcpAdvancedOpen] = useState(false);
-  const [hasYouTubeConfig] = useState(true); // TODO: Get from settings/config
+  const [hasYouTubeConfig] = useState(true);
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
@@ -650,11 +651,7 @@ export function OnboardingWizard() {
           {/* Logo */}
           <div className="w-full">
             <div className="flex items-center ml-10">
-              <img
-                src="/logos/SQ-YakShaver-LogoIcon-Red.svg"
-                alt="YakShaver"
-                className="w-18 h-auto pr-2.5"
-              />
+              <img src={logo} alt="YakShaver" className="w-18 h-auto pr-2.5" />
               <span className="text-3xl font-bold text-ssw-red">Yak</span>
               <span className="text-3xl">Shaver</span>
             </div>
