@@ -50,7 +50,9 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - Format screenshot in the issue description as: ![Screenshot description](screenshotUrl)
 - CRITICAL RULE: If upload_screenshot returns an empty URL (user not authenticated), DO NOT mention screenshot AT ALL in the issue description. No exceptions.
 - NEVER include text like "No screenshot attached" or "screenshot captured but upload failed" - just create the issue as if screenshot was never attempted.
-- Screenshot is helpful but not strictly required - continue with issue creation even if uploads fail.`,
+- Screenshot is helpful but not strictly required - continue with issue creation even if uploads fail.
+
+5. CRITICAL: NEVER MENTION LOCAL VIDEO OR LOCAL SCREENSHOT FILES IN THE ISSUE DESCRIPTION.`,
 
   isDefault: true,
   createdAt: Date.now(),
