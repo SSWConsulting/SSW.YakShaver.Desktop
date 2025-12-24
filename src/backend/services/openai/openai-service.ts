@@ -9,8 +9,6 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/index";
 import { ERROR_MESSAGES } from "../../constants/error-messages";
-import type { HealthStatusInfo } from "../../types";
-import { formatErrorMessage } from "../../utils/error-utils";
 import { type LLMConfig, LlmStorage } from "../storage/llm-storage";
 
 export class OpenAIService {
