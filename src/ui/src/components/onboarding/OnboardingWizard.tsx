@@ -104,7 +104,6 @@ export function OnboardingWizard() {
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
   const [_hasMCPConfig, setHasMCPConfig] = useState(false);
   const [isMCPSaving, setIsMCPSaving] = useState(false);
-  const [editingMcpServerName, setEditingMcpServerName] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(() => {
     // Check if user has completed onboarding before
     const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
@@ -264,40 +263,10 @@ export function OnboardingWizard() {
     if (currentStep !== 3) {
       return;
     }
-
-    const loadMcpConfig = async () => {
-      try {
-        const servers = await ipcClient.mcp.listServers();
-        const userServer =
-          servers.find((server) => !server.builtin && server.transport === "streamableHttp") ??
-          servers.find((server) => server.transport === "streamableHttp");
-
-        if (userServer && userServer.transport === "streamableHttp") {
-          mcpForm.reset({
-            ...DEFAULT_MCP_VALUES,
-            name: userServer.name,
-            description: userServer.description ?? "",
-            transport: "streamableHttp",
-            url: userServer.url ?? "",
-            headers: userServer.headers ? JSON.stringify(userServer.headers, null, 2) : "",
-            version: userServer.version ?? "",
-            timeoutMs: userServer.timeoutMs ?? "",
-          });
-          setHasMCPConfig(true);
-          setEditingMcpServerName(userServer.name);
-        } else {
-          setHasMCPConfig(false);
-          setEditingMcpServerName(null);
-          mcpForm.reset({ ...DEFAULT_MCP_VALUES });
-        }
-      } catch (error) {
-        setHasMCPConfig(false);
-        setEditingMcpServerName(null);
-        toast.error(`Failed to load MCP servers: ${formatErrorMessage(error)}`);
-      }
-    };
-
-    void loadMcpConfig();
+    // Onboarding should always ADD a new MCP server (never edit an existing one).
+    // Start with a blank form each time the user reaches step 3.
+    setHasMCPConfig(false);
+    mcpForm.reset({ ...DEFAULT_MCP_VALUES });
   }, [currentStep, mcpForm]);
 
   const handleLLMSubmit = useCallback(async (values: LLMFormValues) => {
@@ -365,14 +334,9 @@ export function OnboardingWizard() {
       };
 
       try {
-        if (editingMcpServerName) {
-          await ipcClient.mcp.updateServerAsync(editingMcpServerName, config);
-        } else {
-          await ipcClient.mcp.addServerAsync(config);
-        }
+        await ipcClient.mcp.addServerAsync(config);
         toast.success(`MCP server '${config.name}' saved`);
         setHasMCPConfig(true);
-        setEditingMcpServerName(config.name);
         return true;
       } catch (error) {
         toast.error(`Failed to save MCP server: ${formatErrorMessage(error)}`);
@@ -381,7 +345,7 @@ export function OnboardingWizard() {
         setIsMCPSaving(false);
       }
     },
-    [editingMcpServerName, mcpForm],
+    [mcpForm],
   );
 
   // Auto-validate API key on input change
