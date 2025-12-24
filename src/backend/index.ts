@@ -105,7 +105,13 @@ let unregisterEventForwarders: (() => void) | undefined;
 const azure = config.azure();
 if (azure?.customProtocol) {
   try {
-    app.setAsDefaultProtocolClient(azure.customProtocol);
+    if (isDev) {
+      // In dev mode, need to provide the electron executable and app path
+      app.setAsDefaultProtocolClient(azure.customProtocol, process.execPath, [app.getAppPath()]);
+    } else {
+      // In production, the app itself is the executable
+      app.setAsDefaultProtocolClient(azure.customProtocol);
+    }
   } catch (err) {
     console.error("Failed to set default protocol client:", err);
   }
@@ -115,8 +121,8 @@ if (azure?.customProtocol) {
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  // Another instance is already running, quit this one
-  app.quit();
+  // Another instance is already running, exit immediately
+  process.exit(0);
 } else {
   // Handle second instance attempts - focus the existing window
   app.on("second-instance", () => {
