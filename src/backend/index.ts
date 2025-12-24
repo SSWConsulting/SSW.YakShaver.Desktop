@@ -44,6 +44,7 @@ const loadEnv = () => {
 loadEnv();
 
 let mainWindow: BrowserWindow | null = null;
+let pendingProtocolUrl: string | null = null;
 
 const createWindow = (): void => {
   // Fix icon path for packaged mode
@@ -125,24 +126,40 @@ if (!gotTheLock) {
   process.exit(0);
 } else {
   // Handle second instance attempts - focus the existing window
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, commandLine) => {
     // Someone tried to run a second instance, focus our window instead
     if (mainWindow) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
       }
       mainWindow.focus();
+
+      // Check for protocol URL in command line (Windows)
+      const url = commandLine.find((arg) => arg.startsWith(`${azure?.customProtocol}://`));
+      if (url) {
+        mainWindow.webContents.send("protocol-url", url);
+      }
+    } else {
+      // Store for later if window not ready yet
+      const url = commandLine.find((arg) => arg.startsWith(`${azure?.customProtocol}://`));
+      if (url) {
+        pendingProtocolUrl = url;
+      }
     }
   });
 
   // Handle protocol URLs on macOS
-  app.on("open-url", (event) => {
+  app.on("open-url", (event, url) => {
     event.preventDefault();
     if (mainWindow) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
       }
       mainWindow.focus();
+      mainWindow.webContents.send("protocol-url", url);
+    } else {
+      // Store for later if window not ready yet
+      pendingProtocolUrl = url;
     }
   });
 }
@@ -199,6 +216,12 @@ app.whenReady().then(async () => {
   CountdownWindow.getInstance().initialize(isDev);
   unregisterEventForwarders = registerEventForwarders();
   createWindow();
+
+  // Process any pending protocol URL that arrived during initialization
+  if (pendingProtocolUrl && mainWindow) {
+    mainWindow.webContents.send("protocol-url", pendingProtocolUrl);
+    pendingProtocolUrl = null;
+  }
 
   // Auto-updates: Check only in packaged mode (dev skips)
   // Configure and check based on stored channel preference
