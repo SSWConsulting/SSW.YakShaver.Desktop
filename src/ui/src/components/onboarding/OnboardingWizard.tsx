@@ -98,6 +98,17 @@ const DEFAULT_MCP_VALUES: MCPServerFormData = {
 
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
+  const [windowWidth, setWindowWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1920,
+  );
+
+  useEffect(() => {
+    function handleResize() {
+      setWindowWidth(window.innerWidth);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const [isMcpAdvancedOpen, setIsMcpAdvancedOpen] = useState(false);
   const [hasYouTubeConfig] = useState(true);
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
@@ -646,89 +657,93 @@ export function OnboardingWizard() {
       <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
 
       <div className="relative flex w-full max-w-[1295px] h-[840px] bg-black/[0.44] border border-white/[0.24] rounded-lg shadow-sm p-2.5 gap-10">
-        {/* Left Sidebar */}
-        <div className="flex flex-col w-[440px] h-full bg-[#1C0D05] rounded-md px-5 py-10">
-          {/* Logo */}
-          <div className="w-full">
-            <div className="flex items-center ml-10">
-              <img src={logo} alt="YakShaver" className="w-18 h-auto pr-2.5" />
-              <span className="text-3xl font-bold text-ssw-red">Yak</span>
-              <span className="text-3xl">Shaver</span>
+        {/* Left Sidebar - hidden on small screens */}
+        {windowWidth >= 900 && (
+          <div className="flex flex-col w-[440px] h-full bg-[#1C0D05] rounded-md px-5 py-10">
+            {/* Logo */}
+            <div className="w-full">
+              <div className="flex items-center ml-10">
+                <img src={logo} alt="YakShaver" className="w-18 h-auto pr-2.5" />
+                <span className="text-3xl font-bold text-ssw-red">Yak</span>
+                <span className="text-3xl">Shaver</span>
+              </div>
             </div>
-          </div>
 
-          <div className="flex mt-25 justify-center flex-1">
-            <div ref={stepListRef} className="relative flex gap-10 flex-col ">
-              {connectorPositions.map((position, index) => {
-                const nextStep = STEPS[index + 1];
-                if (!nextStep) return null;
+            <div className="flex mt-25 justify-center flex-1">
+              <div ref={stepListRef} className="relative flex gap-10 flex-col ">
+                {connectorPositions.map((position, index) => {
+                  const nextStep = STEPS[index + 1];
+                  if (!nextStep) return null;
 
-                const status = getStepStatus(nextStep.id);
+                  const status = getStepStatus(nextStep.id);
 
-                return (
-                  <div
-                    key={`connector-${nextStep.id}`}
-                    className={`absolute w-px transition-colors duration-300 ${
-                      status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                    }`}
-                    style={{
-                      left: position.left,
-                      top: position.top,
-                      height: position.height,
-                    }}
-                  ></div>
-                );
-              })}
-
-              {STEPS.map((step, index) => (
-                <div key={step.id} className="flex gap-8">
-                  <div className="flex flex-col items-center">
+                  return (
                     <div
-                      ref={(element) => {
-                        stepIconRefs.current[index] = element;
-                      }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                        getStepStatus(step.id) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
+                      key={`connector-${nextStep.id}`}
+                      className={`absolute w-px transition-colors duration-300 ${
+                        status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
                       }`}
-                    >
-                      <img
-                        src={step.icon}
-                        alt={step.title}
-                        className={`w-6 h-6 transition-opacity duration-300 ${
-                          getStepStatus(step.id) === "pending" ? "opacity-40" : "opacity-100"
+                      style={{
+                        left: position.left,
+                        top: position.top,
+                        height: position.height,
+                      }}
+                    ></div>
+                  );
+                })}
+
+                {STEPS.map((step, index) => (
+                  <div key={step.id} className="flex gap-8">
+                    <div className="flex flex-col items-center">
+                      <div
+                        ref={(element) => {
+                          stepIconRefs.current[index] = element;
+                        }}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
+                          getStepStatus(step.id) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
                         }`}
-                      />
+                      >
+                        <img
+                          src={step.icon}
+                          alt={step.title}
+                          className={`w-6 h-6 transition-opacity duration-300 ${
+                            getStepStatus(step.id) === "pending" ? "opacity-40" : "opacity-100"
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col justify-center w-[219px]">
+                      <p
+                        className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
+                          getStepStatus(step.id) === "pending"
+                            ? "text-white/[0.56]"
+                            : "text-white/[0.98]"
+                        }`}
+                      >
+                        {step.title}
+                      </p>
+                      <p className="text-sm font-normal leading-5 text-white/[0.76]">
+                        {step.description}
+                      </p>
                     </div>
                   </div>
-
-                  <div className="flex flex-col justify-center w-[219px]">
-                    <p
-                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                        getStepStatus(step.id) === "pending"
-                          ? "text-white/[0.56]"
-                          : "text-white/[0.98]"
-                      }`}
-                    >
-                      {step.title}
-                    </p>
-                    <p className="text-sm font-normal leading-5 text-white/[0.76]">
-                      {step.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Right Content Area */}
-        {currentStep === 3 && isMcpAdvancedOpen ? (
-          <ScrollArea className="w-[759px] h-full">
-            <div className="flex flex-col px-20 py-40">{rightPanelContent}</div>
-          </ScrollArea>
-        ) : (
-          <div className="flex flex-col w-[759px] px-20 py-40">{rightPanelContent}</div>
         )}
+
+        {/* Right Content Area - always visible and scales */}
+        <div className="flex flex-col flex-1 min-w-0 h-full">
+          {currentStep === 3 && isMcpAdvancedOpen ? (
+            <ScrollArea className="w-full h-full">
+              <div className="flex flex-col px-20 py-40">{rightPanelContent}</div>
+            </ScrollArea>
+          ) : (
+            <div className="flex flex-col w-full px-20 py-40">{rightPanelContent}</div>
+          )}
+        </div>
       </div>
     </div>
   );
