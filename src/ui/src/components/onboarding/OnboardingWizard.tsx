@@ -7,6 +7,8 @@ import * as z from "zod";
 import { PlatformConnectionCard } from "@/components/auth/PlatformConnectionCard";
 import { LLMProviderFields } from "@/components/llm/LLMProviderFields";
 import { formatErrorMessage } from "@/utils";
+import cpu from "/onboarding/cpu.svg?url";
+import monitorPlay from "/onboarding/monitor-play.svg?url";
 import { ONBOARDING_COMPLETED_KEY, ONBOARDING_FINISHED_EVENT } from "../../constants/onboarding";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useCountdown } from "../../hooks/useCountdown";
@@ -55,19 +57,19 @@ export const resetOnboarding = () => {
 const STEPS = [
   {
     id: 1,
-    icon: "/onboarding/monitor-play.svg",
+    icon: monitorPlay,
     title: "Video Hosting",
     description: "Sign in and Authorise YakShaver to publish videos for you.",
   },
   {
     id: 2,
-    icon: "/onboarding/cpu.svg",
+    icon: cpu,
     title: "Connecting an LLM",
     description: "Choose your provider and save the API details",
   },
   {
     id: 3,
-    icon: "/onboarding/monitor-play.svg",
+    icon: monitorPlay,
     title: "Connecting an MCP",
     description: "Configure or choose which MCP server YakShaver will call.",
   },
