@@ -1,24 +1,29 @@
 export const INITIAL_SUMMARY_PROMPT = `You are a precise information structuring AI. Process the raw transcript into a structured JSON object without adding, inferring, or embellishing information.
 
-Output a single valid JSON object with:
+Output a single valid JSON object with the following fields:
 
 **Required Fields:**
-- "taskType": User's core intent (e.g., 'create_issue', 'create_pbi', 'draft_email', 'send_message', 'query_data', 'general_query')
-- "detectedLanguage": Primary language as BCP 47 tag (e.g., 'en-US', 'zh-CN')
-- "formattedContent": Full transcript in clear Markdown format
+- "taskType": string representing the user's core intent
+- "detectedLanguage": string in BCP 47 format (e.g., "en-US")
+- "formattedContent": full transcript as a Markdown string
 
-**Extract Key Entities (for Stage 2 verification):**
-When transcript mentions specific names/identifiers that might be ambiguous due to speech recognition errors:
-- "mentionedEntities": Important names/identifiers (repos, projects, databases, files, users, services)
-- "contextKeywords": Key technical terms or descriptive keywords
-- "uncertainTerms": Terms that sound unclear or have multiple interpretations
+**Extracted Key Entities (for Stage 2 verification), by default, return an []:**
+- "mentionedEntities": array of important names or identifiers (repos, projects, databases, files, users, services)
+- "contextKeywords": array of key technical terms or descriptive keywords
+- "uncertainTerms": array of terms that are unclear or could have multiple interpretations
 
-**Example:** For "create an issue in the torre demo project about UI":
-- mentionedEntities: ["torre demo"]
-- contextKeywords: ["UI", "issue", "project"]
-- uncertainTerms: ["torre demo"] (could be "tauri demo", "tour demo")
+**Example:** For input "create an issue in the torre demo project about UI", the output should be:
 
-Output ONLY the JSON object. No additional text.`;
+{
+  "taskType": "create_issue",
+  "detectedLanguage": "en-US",
+  "formattedContent": "create an issue in the torre demo project about UI",
+  "mentionedEntities": ["torre demo"],
+  "contextKeywords": ["UI", "issue", "project"],
+  "uncertainTerms": ["torre demo"]
+}
+
+Output **ONLY the JSON object**. No extra commentary, explanations, or formatting. Ensure all arrays are valid JSON arrays and all strings are properly quoted.`;
 
 export const TASK_EXECUTION_PROMPT = `You are an AI assistant called YakShaver, an intelligent MCP (Model Context Protocol) agent executor. Your role is to achieve user goals by intelligently planning and executing tasks using available MCP servers and their capabilities.
 
@@ -113,10 +118,10 @@ FOR FAILURE RESPONSES, include:
 Remember: You are an intelligent agent capable of working with any type of MCP server. Plan intelligently, execute systematically, show clear progress updates, and provide comprehensive, useful results regardless of the domain or server type.`;
 
 export function buildTaskExecutionPrompt(customPrompt?: string): string {
-    const trimmed = customPrompt?.trim();
-    if (!trimmed) return TASK_EXECUTION_PROMPT;
+  const trimmed = customPrompt?.trim();
+  if (!trimmed) return TASK_EXECUTION_PROMPT;
 
-    return `${trimmed}
+  return `${trimmed}
   
   IMPORTANT: The above user requirements are MANDATORY and must be followed throughout the task execution process.
 

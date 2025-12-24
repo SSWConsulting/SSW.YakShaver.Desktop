@@ -1,5 +1,6 @@
 import type { YouTubeSnippetUpdate } from "../auth/types.js";
-import { OpenAIService } from "../openai/openai-service.js";
+import { LLMClientProvider } from "../mcp/llm-client-provider.js";
+import { z } from "zod";
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s)]+/gi;
 
@@ -8,29 +9,32 @@ interface LinkCandidate {
   url: string;
 }
 
-interface ChapterCandidate {
-  label: string;
-  timestamp: string;
-}
+export const ChapterCandidateSchema = z.object({
+  label: z.string(),
+  timestamp: z.string(),
+});
 
-interface TranscriptSegment {
+type ChapterCandidate = z.infer<typeof ChapterCandidateSchema>;
+
+export interface TranscriptSegment {
   startSeconds: number;
   text: string;
 }
 
 export interface MetadataBuilderInput {
   transcriptVtt: string;
-  intermediateOutput: string;
   executionHistory: string;
   finalResult?: string | null;
 }
 
-interface MetadataModelResponse {
-  title?: string;
-  description?: string;
-  tags?: string[];
-  chapters?: ChapterCandidate[];
-}
+export const MetadataModelResponseSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  chapters: z.array(ChapterCandidateSchema).optional(),
+});
+
+type MetadataModelResponse = z.infer<typeof MetadataModelResponseSchema>;
 
 export interface MetadataBuilderResult {
   snippet: YouTubeSnippetUpdate;
@@ -41,18 +45,14 @@ const DEFAULT_TAGS = ["yakshaver", "automation", "workflow"];
 const MIN_CHAPTER_GAP_SECONDS = 5;
 
 export class VideoMetadataBuilder {
-  constructor(private readonly llmClient: OpenAIService = OpenAIService.getInstance()) {}
-
   async build(input: MetadataBuilderInput): Promise<MetadataBuilderResult> {
     const transcriptSegments = parseVtt(input.transcriptVtt);
     const transcriptForPrompt = buildTranscriptExcerpt(transcriptSegments);
     const executionHistorySnippet = truncateText(input.executionHistory, 6000);
 
     const fallbackLinks = dedupeLinks([
-      ...extractLinksFromText(input.intermediateOutput),
       ...extractLinksFromText(input.finalResult ?? ""),
       ...extractLinksFromText(executionHistorySnippet),
-      ...extractLinksFromStructuredData(input.intermediateOutput),
       ...extractLinksFromStructuredData(input.finalResult ?? ""),
       ...extractLinksFromStructuredData(executionHistorySnippet),
     ]);
@@ -64,9 +64,6 @@ export class VideoMetadataBuilder {
       "### Transcript (timestamp + text)",
       transcriptForPrompt || "No transcript available.",
       "",
-      "### Intermediate Structured Output",
-      input.intermediateOutput || "No intermediate summary provided.",
-      "",
       "### Final Result JSON (if available)",
       input.finalResult ?? "No final result provided.",
       "",
@@ -76,13 +73,24 @@ export class VideoMetadataBuilder {
         : "None",
     ].join("\n");
 
-    const rawResponse = await this.llmClient.generateOutput(METADATA_SYSTEM_PROMPT, promptPayload, {
-      jsonMode: true,
-    });
+    const llmClientProvider = await LLMClientProvider.getInstanceAsync();
+    if (!llmClientProvider) {
+      throw new Error("LLM Client Provider is not initialized");
+    }
 
-    const parsedResponse = safeJsonParse<MetadataModelResponse>(rawResponse) || {};
+    const response = await llmClientProvider.generateObject(
+      promptPayload,
+      MetadataModelResponseSchema,
+      METADATA_SYSTEM_PROMPT,
+    );
+
+    // const rawResponse = await this.llmClient.generateOutput(METADATA_SYSTEM_PROMPT, promptPayload, {
+    //   jsonMode: true,
+    // });
+
+    // const parsedResponse = safeJsonParse<MetadataModelResponse>(rawResponse) || {};
     const metadata = normalizeModelResponse(
-      parsedResponse,
+      response,
       fallbackLinks,
       transcriptSegments,
       executionHistorySnippet,
@@ -114,7 +122,7 @@ Rules:
 - Write descriptions suitable for YouTube (no markdown code fences)
 - If information is missing, fall back to clear defaults rather than hallucinating.`;
 
-function parseVtt(vtt: string): TranscriptSegment[] {
+export function parseVtt(vtt: string): TranscriptSegment[] {
   if (!vtt) return [];
   const segments: TranscriptSegment[] = [];
   const lines = vtt.replace(/\r/g, "").split("\n");

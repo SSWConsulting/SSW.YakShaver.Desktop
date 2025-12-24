@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { z } from "zod";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
@@ -10,16 +11,32 @@ import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
-import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
+import {
+  parseVtt,
+  type TranscriptSegment,
+  VideoMetadataBuilder,
+} from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import { LLMClientProvider } from "../services/mcp/llm-client-provider";
 
 type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
 };
+
+export const TranscriptSummarySchema = z.object({
+  taskType: z.string(),
+  detectedLanguage: z
+    .string()
+    .regex(/^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/, "Must be a valid BCP 47 language tag"),
+  formattedContent: z.string(),
+  mentionedEntities: z.array(z.string()).optional().default([]),
+  contextKeywords: z.array(z.string()).optional().default([]),
+  uncertainTerms: z.array(z.string()).optional().default([]),
+});
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
@@ -31,7 +48,7 @@ export class ProcessVideoIPCHandlers {
   private lastVideoFilePath: string | undefined;
 
   constructor() {
-    this.metadataBuilder = new VideoMetadataBuilder(this.llmClient);
+    this.metadataBuilder = new VideoMetadataBuilder();
     this.registerHandlers();
   }
 
@@ -153,26 +170,39 @@ export class ProcessVideoIPCHandlers {
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
       this.emitProgress(ProgressStage.TRANSCRIBING);
-      const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
+      let transcript = await this.llmClient.transcribeAudio(mp3FilePath);
       this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
+
+      transcript = parseVtt(transcript)
+        .map((segment: TranscriptSegment) => segment.text)
+        .join(" ");
 
       this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
 
-      const intermediateOutput = await this.llmClient.generateOutput(
-        INITIAL_SUMMARY_PROMPT,
-        transcript,
-        { jsonMode: true },
-      );
+      const llmClientProvider = await LLMClientProvider.getInstanceAsync();
+      if (!llmClientProvider) {
+        throw new Error("LLM Client Provider is not initialized");
+      }
+
+      // const intermediateOutput = await this.llmClient.generateOutput(
+      //   INITIAL_SUMMARY_PROMPT,
+      //   transcript,
+      //   { jsonMode: true },
+      // );
+
+      const intermediateOutput = await llmClientProvider.generateJson(INITIAL_SUMMARY_PROMPT);
+      console.log(intermediateOutput);
+
       this.emitProgress(ProgressStage.EXECUTING_TASK, {
         transcript,
-        intermediateOutput,
+        intermediateOutput: intermediateOutput,
       });
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
-      const mcpResult = await orchestrator.manualLoopAsync(intermediateOutput, youtubeResult, {
+      const mcpResult = await orchestrator.manualLoopAsync(transcript, youtubeResult, {
         systemPrompt,
         videoFilePath: filePath,
       });
@@ -197,7 +227,6 @@ export class ProcessVideoIPCHandlers {
             this.emitProgress(ProgressStage.UPDATING_METADATA);
             const metadata = await this.metadataBuilder.build({
               transcriptVtt: transcript,
-              intermediateOutput,
               executionHistory: JSON.stringify(transcript ?? [], null, 2),
               finalResult: mcpResult ?? undefined,
             });
