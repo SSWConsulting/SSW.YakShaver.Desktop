@@ -41,38 +41,38 @@ export const PlatformConnectionCard = ({
   return (
     <div
       className={cn(
-        "flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4 lg:gap-5 xl:gap-6 px-6 md:px-6 lg:px-8 xl:px-10 py-4 md:py-4 lg:py-5 xl:py-6 bg-white/[0.04] border border-white/[0.24] rounded-lg w-full",
+        "flex flex-col min-[1140px]:flex-row min-[1140px]:items-center min-[1140px]:justify-between min-[1140px]:flex-wrap min-[1140px]:gap-y-2 gap-3 min-[1140px]:gap-4 xl:gap-6 px-6 min-[1140px]:px-8 xl:px-10 py-4 min-[1140px]:py-5 xl:py-6 bg-white/[0.04] border border-white/[0.24] rounded-lg w-full min-w-0",
         className,
       )}
     >
-      <div className="flex items-start gap-4 md:gap-5 lg:gap-6">
+      <div className="flex items-start gap-4 min-[1140px]:gap-6 flex-1 min-w-0">
         <div className="flex items-center justify-center">{icon}</div>
-        <div className="flex flex-col">
+        <div className="flex flex-col flex-1 min-w-0">
           {label && (
             <span className="text-xs uppercase font-medium leading-4 text-white/60">{label}</span>
           )}
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm md:text-base lg:text-lg xl:text-xl font-medium leading-6 md:leading-6 lg:leading-7 text-white">
+            <p className="text-sm min-[1140px]:text-lg xl:text-xl font-medium leading-6 min-[1140px]:leading-7 text-white">
               {title}
             </p>
             {badgeText && (
-              <Badge className="md:hidden flex items-center" variant={badgeVariant}>
+              <Badge className="min-[1140px]:hidden flex items-center" variant={badgeVariant}>
                 {badgeText}
               </Badge>
             )}
           </div>
           {subtitle && (
-            <p className="text-xs md:text-sm text-white/[0.56] font-medium">{subtitle}</p>
+            <p className="text-xs min-[1140px]:text-sm text-white/[0.56] font-medium">{subtitle}</p>
           )}
           {description && (
-            <p className="text-xs md:text-sm text-white/[0.56] italic">{description}</p>
+            <p className="text-xs min-[1140px]:text-sm text-white/[0.56] italic">{description}</p>
           )}
         </div>
       </div>
 
-      <div className="hidden md:flex items-center gap-3 lg:gap-4 xl:gap-6">
+      <div className="hidden min-[1140px]:flex items-center gap-3 min-[1140px]:gap-4 xl:gap-6 min-[1140px]:flex-shrink-0 min-[1140px]:self-start">
         {badgeText && (
-          <Badge className="hidden md:inline-flex" variant={badgeVariant}>
+          <Badge className="hidden min-[1140px]:inline-flex" variant={badgeVariant}>
             {badgeText}
           </Badge>
         )}
@@ -81,13 +81,13 @@ export const PlatformConnectionCard = ({
           variant={buttonVariant}
           onClick={onAction}
           disabled={actionDisabled}
-          className="md:h-9 md:px-4 lg:h-10 lg:px-5 xl:h-11 xl:px-6"
+          className="min-[1140px]:h-10 min-[1140px]:px-5 xl:h-11 xl:px-6"
         >
           {actionLabel}
         </Button>
       </div>
 
-      <div className="mt-2 md:hidden">
+      <div className="mt-2 min-[1140px]:hidden">
         <Button
           size={buttonSize}
           variant={buttonVariant}
