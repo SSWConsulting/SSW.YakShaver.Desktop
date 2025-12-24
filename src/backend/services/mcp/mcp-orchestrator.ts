@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import { BrowserWindow } from "electron";
-import type { ZodTypeAny } from "zod";
+import type { ZodType } from "zod";
 import type { VideoUploadResult } from "../auth/types";
 import { GeneralSettingsStorage, type ToolApprovalMode } from "../storage/general-settings-storage";
 import { LLMClientProvider } from "./llm-client-provider";
@@ -301,14 +301,14 @@ export class MCPOrchestrator {
     }
   }
 
-  public async convertToObjectAsync(prompt: string, schema: ZodTypeAny): Promise<unknown> {
+  public async convertToObjectAsync(prompt: string, schema: ZodType): Promise<unknown> {
     if (!MCPOrchestrator.llmProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
 
     try {
       const objResult = await MCPOrchestrator.llmProvider.generateObject(prompt, schema);
-      return objResult.object;
+      return objResult;
     } catch (error) {
       console.error("[MCPOrchestrator]: Error in convertToObjectAsync:", error);
       throw error;
