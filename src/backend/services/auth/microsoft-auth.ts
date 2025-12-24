@@ -195,20 +195,8 @@ export class MicrosoftAuthService {
         throw new Error(`Error template not found: ${errorPath}`);
       }
 
-      let successHtml = fs.readFileSync(successPath, "utf8");
+      const successHtml = fs.readFileSync(successPath, "utf8");
       const errorHtml = fs.readFileSync(errorPath, "utf8");
-
-      // Replace protocol placeholder in success template
-      // Dev uses yakshaver-desktop-dev://, prod uses yakshaver-desktop://
-      const azureConfig = config.azure();
-      const isDev = process.env.NODE_ENV === "development";
-
-      let protocol = azureConfig?.customProtocol || "yakshaver-desktop";
-      if (isDev && azureConfig?.customProtocol) {
-        protocol = `${azureConfig.customProtocol}-dev`;
-      }
-
-      successHtml = successHtml.replace("{{PROTOCOL}}", protocol);
 
       const openBrowser = async (url: string) => await shell.openExternal(url);
       const interactiveRequest: InteractiveRequest = {

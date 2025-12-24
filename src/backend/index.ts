@@ -28,12 +28,6 @@ import { RecordingService } from "./services/recording/recording-service";
 
 const isDev = process.env.NODE_ENV === "development";
 
-// Set different app name for dev to enable separate single instance locks
-// This allows dev and prod to run simultaneously
-if (isDev) {
-  app.name = "YakShaver-Dev";
-}
-
 // Load .env early (before app.whenReady)
 const loadEnv = () => {
   let envPath: string;
@@ -107,24 +101,11 @@ let _generalSettingsHandlers: GeneralSettingsIPCHandlers;
 let _shaveHandlers: ShaveIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
-// Register protocol handler for OAuth redirects
-// Dev uses a different protocol to avoid conflicts with prod
+// Register protocol handler
 const azure = config.azure();
-const protocolName =
-  isDev && azure?.customProtocol ? `${azure.customProtocol}-dev` : azure?.customProtocol;
-
-if (protocolName) {
+if (azure?.customProtocol) {
   try {
-    if (isDev) {
-      // In dev, provide electron executable and app path
-      // Pass the path to the compiled index.js
-      const appPath = join(__dirname, "index.js");
-      console.log(`Registering protocol ${protocolName} for dev mode`, process.execPath, appPath);
-      app.setAsDefaultProtocolClient(protocolName, process.execPath, [appPath]);
-    } else {
-      // In prod, the app itself is the executable
-      app.setAsDefaultProtocolClient(protocolName);
-    }
+    app.setAsDefaultProtocolClient(azure.customProtocol);
   } catch (err) {
     console.error("Failed to set default protocol client:", err);
   }
@@ -134,9 +115,8 @@ if (protocolName) {
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  // Another instance is already running, quit this one immediately
-  // Use process.exit() to prevent any further initialization
-  process.exit(0);
+  // Another instance is already running, quit this one
+  app.quit();
 } else {
   // Handle second instance attempts - focus the existing window
   app.on("second-instance", () => {
