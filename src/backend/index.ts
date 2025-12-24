@@ -219,8 +219,20 @@ app.whenReady().then(async () => {
 
   // Process any pending protocol URL that arrived during initialization
   if (pendingProtocolUrl && mainWindow) {
-    mainWindow.webContents.send("protocol-url", pendingProtocolUrl);
+    const urlToSend = pendingProtocolUrl;
     pendingProtocolUrl = null;
+
+    const sendProtocolUrl = () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("protocol-url", urlToSend);
+      }
+    };
+
+    if (mainWindow.webContents.isLoading()) {
+      mainWindow.webContents.once("did-finish-load", sendProtocolUrl);
+    } else {
+      sendProtocolUrl();
+    }
   }
 
   // Auto-updates: Check only in packaged mode (dev skips)
