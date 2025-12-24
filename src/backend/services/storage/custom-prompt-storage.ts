@@ -47,10 +47,12 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - The workflow is: capture_video_frame ➡️ get screenshotPath ➡️ upload_screenshot with that path ➡️ get screenshotUrl
 - When upload_screenshot returns a screenshotUrl, USE THIS EXACT URL (including ALL query parameters) in the issue description.
 - CRITICAL: Preserve the complete URL with all query parameters - DO NOT truncate or remove any part of the URL.
-- The screenshot should be displayed using the appropriate format depending on the output location (markdown, html etc)
+- Format screenshot in the issue description as: ![Screenshot description](screenshotUrl)
 - CRITICAL RULE: If upload_screenshot returns an empty URL (user not authenticated), DO NOT mention screenshot AT ALL in the issue description. No exceptions.
 - NEVER include text like "No screenshot attached" or "screenshot captured but upload failed" - just create the issue as if screenshot was never attempted.
-- Screenshot is helpful but not strictly required - continue with issue creation even if uploads fail.`,
+- Screenshot is helpful but not strictly required - continue with issue creation even if uploads fail.
+
+5. CRITICAL: NEVER MENTION LOCAL VIDEO OR LOCAL SCREENSHOT FILES IN THE ISSUE DESCRIPTION.`,
 
   isDefault: true,
   createdAt: Date.now(),
