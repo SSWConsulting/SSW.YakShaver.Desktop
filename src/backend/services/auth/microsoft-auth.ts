@@ -197,7 +197,6 @@ export class MicrosoftAuthService {
 
       const successHtml = fs.readFileSync(successPath, "utf8");
       const errorHtml = fs.readFileSync(errorPath, "utf8");
-
       const openBrowser = async (url: string) => await shell.openExternal(url);
       const interactiveRequest: InteractiveRequest = {
         ...tokenRequest,

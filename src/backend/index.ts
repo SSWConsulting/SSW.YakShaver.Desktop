@@ -88,6 +88,19 @@ const createWindow = (): void => {
   }
 };
 
+// Helper to safely send protocol URL to renderer
+const sendProtocolUrlToRenderer = (window: BrowserWindow, url: string): void => {
+  if (window.webContents.isLoading()) {
+    // Queue until content finishes loading
+    window.webContents.once("did-finish-load", () => {
+      window.webContents.send("protocol-url", url);
+    });
+  } else {
+    // Send immediately if already loaded
+    window.webContents.send("protocol-url", url);
+  }
+};
+
 // Initialize IPC handlers
 let _screenRecordingHandlers: ScreenRecordingIPCHandlers;
 let _authHandlers: AuthIPCHandlers;
@@ -137,7 +150,7 @@ if (!gotTheLock) {
       // Check for protocol URL in command line (Windows)
       const url = commandLine.find((arg) => arg.startsWith(`${azure?.customProtocol}://`));
       if (url) {
-        mainWindow.webContents.send("protocol-url", url);
+        sendProtocolUrlToRenderer(mainWindow, url);
       }
     } else {
       // Store for later if window not ready yet
@@ -156,7 +169,7 @@ if (!gotTheLock) {
         mainWindow.restore();
       }
       mainWindow.focus();
-      mainWindow.webContents.send("protocol-url", url);
+      sendProtocolUrlToRenderer(mainWindow, url);
     } else {
       // Store for later if window not ready yet
       pendingProtocolUrl = url;
@@ -219,20 +232,8 @@ app.whenReady().then(async () => {
 
   // Process any pending protocol URL that arrived during initialization
   if (pendingProtocolUrl && mainWindow) {
-    const urlToSend = pendingProtocolUrl;
+    sendProtocolUrlToRenderer(mainWindow, pendingProtocolUrl);
     pendingProtocolUrl = null;
-
-    const sendProtocolUrl = () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("protocol-url", urlToSend);
-      }
-    };
-
-    if (mainWindow.webContents.isLoading()) {
-      mainWindow.webContents.once("did-finish-load", sendProtocolUrl);
-    } else {
-      sendProtocolUrl();
-    }
   }
 
   // Auto-updates: Check only in packaged mode (dev skips)
