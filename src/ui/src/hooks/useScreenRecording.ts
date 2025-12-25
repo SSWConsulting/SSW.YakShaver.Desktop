@@ -101,7 +101,7 @@ export function useScreenRecording() {
       setIsProcessing(true);
       try {
         const isCameraOnly = sourceId === CAMERA_ONLY_SOURCE_ID;
-        
+
         if (isCameraOnly) {
           // Camera-only mode: use camera as main video source
           if (!options?.cameraDeviceId) {
