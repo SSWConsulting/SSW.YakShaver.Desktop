@@ -50,15 +50,18 @@ type MCPInternalServerConfig = MCPBaseConfig & {
 
 export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig | MCPInternalServerConfig;
 
-const mcpServerSchema = z
+export const mcpServerSchema = z
   .object({
     name: z
       .string()
       .min(1, "Name is required")
       .regex(
-        /^[a-zA-Z0-9 _-]+$/,
-        "Only letters, numbers, spaces, underscores, and hyphens allowed",
-      ),
+        /^[a-zA-Z0-9_.-]+$/,
+        "Only letters, numbers, underscores, hyphens, and dots allowed (no spaces)",
+      )
+      .refine((val) => !val.includes("__"), {
+        message: "Double underscores (__) are not allowed",
+      }),
     description: z.string().optional(),
     transport: z.enum(["streamableHttp", "stdio", "inMemory"]),
     url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
@@ -93,14 +96,32 @@ const mcpServerSchema = z
     }
   });
 
-type MCPServerFormData = z.infer<typeof mcpServerSchema>;
+export type MCPServerFormData = z.infer<typeof mcpServerSchema>;
+
+const TRANSPORT_OPTIONS: Array<{ value: Transport; label: string }> = [
+  { value: "streamableHttp", label: "HTTP (streamableHttp)" },
+  { value: "stdio", label: "STDIO (local process)" },
+];
 
 type McpServerFormProps = {
   form: UseFormReturn<MCPServerFormData>;
+  allowedTransports?: Transport[];
+  showAdvancedOptions?: boolean;
+  advancedOpen?: boolean;
+  onAdvancedOpenChange?: (isOpen: boolean) => void;
 };
 
-export function McpServerForm({ form }: McpServerFormProps) {
+export function McpServerForm({
+  form,
+  allowedTransports,
+  showAdvancedOptions = true,
+  advancedOpen,
+  onAdvancedOpenChange,
+}: McpServerFormProps) {
   const transport = form.watch("transport");
+  const transportOptions = (allowedTransports?.length ? allowedTransports : undefined)
+    ? TRANSPORT_OPTIONS.filter((option) => allowedTransports?.includes(option.value))
+    : TRANSPORT_OPTIONS;
 
   return (
     <>
@@ -148,8 +169,11 @@ export function McpServerForm({ form }: McpServerFormProps) {
                   <SelectValue placeholder="Transport" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="streamableHttp">HTTP (streamableHttp)</SelectItem>
-                  <SelectItem value="stdio">STDIO (local process)</SelectItem>
+                  {transportOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </FormControl>
@@ -194,154 +218,163 @@ export function McpServerForm({ form }: McpServerFormProps) {
         />
       )}
 
-      <Accordion type="single" collapsible>
-        <AccordionItem value="advanced">
-          <AccordionTrigger className="text-base font-medium text-white/90">
-            Advanced Options
-          </AccordionTrigger>
-          <AccordionContent className="flex flex-col gap-4 pt-4">
-            {transport === "streamableHttp" && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="headers"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Headers</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          placeholder='{"Authorization": "Bearer YOUR_TOKEN"}'
-                          rows={4}
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        JSON format, e.g., Authorization headers
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+      {showAdvancedOptions && (
+        <Accordion
+          type="single"
+          collapsible
+          value={advancedOpen === undefined ? undefined : advancedOpen ? "advanced" : ""}
+          onValueChange={(value) => {
+            onAdvancedOpenChange?.(value === "advanced");
+          }}
+        >
+          <AccordionItem value="advanced">
+            <AccordionTrigger className="text-base font-medium text-white/90">
+              Advanced Options
+            </AccordionTrigger>
+            <AccordionContent className="flex flex-col gap-4 pt-4">
+              {transport === "streamableHttp" && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="headers"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Headers</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            placeholder='{"Authorization": "Bearer YOUR_TOKEN"}'
+                            rows={4}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          JSON format, e.g., Authorization headers
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="version"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Version</FormLabel>
-                      <FormControl>
-                        <Input {...field} type="text" placeholder="e.g., 1.0.0" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="version"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Version</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="text" placeholder="e.g., 1.0.0" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="timeoutMs"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Timeout (ms)</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          value={field.value ?? ""}
-                          onChange={(event) =>
-                            field.onChange(event.target.value ? Number(event.target.value) : "")
-                          }
-                          type="number"
-                          placeholder="60000"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
+                  <FormField
+                    control={form.control}
+                    name="timeoutMs"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Timeout (ms)</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                            onChange={(event) =>
+                              field.onChange(event.target.value ? Number(event.target.value) : "")
+                            }
+                            type="number"
+                            placeholder="60000"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
 
-            {transport === "stdio" && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="args"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Arguments</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          rows={4}
-                          placeholder={`-y\n@modelcontextprotocol/server-filesystem\n.`}
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        One flag per line, or provide a JSON array such as ["-y","package"]
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {transport === "stdio" && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="args"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Arguments</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            rows={4}
+                            placeholder={`-y\n@modelcontextprotocol/server-filesystem\n.`}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          One flag per line, or provide a JSON array such as ["-y","package"]
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="env"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Environment Variables</FormLabel>
-                      <FormControl>
-                        <Textarea {...field} rows={4} placeholder='{"NODE_ENV": "production"}' />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        JSON object mapping variable name to value
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="env"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Environment Variables</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} rows={4} placeholder='{"NODE_ENV": "production"}' />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          JSON object mapping variable name to value
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="cwd"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Working Directory</FormLabel>
-                      <FormControl>
-                        <Input {...field} type="text" placeholder="Optional working directory" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="cwd"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Working Directory</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="text" placeholder="Optional working directory" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="stderr"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>stderr Handling</FormLabel>
-                      <FormControl>
-                        <Select onValueChange={field.onChange} value={field.value ?? "inherit"}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="inherit">inherit (default)</SelectItem>
-                            <SelectItem value="ignore">ignore</SelectItem>
-                            <SelectItem value="pipe">pipe</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+                  <FormField
+                    control={form.control}
+                    name="stderr"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>stderr Handling</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={field.onChange} value={field.value ?? "inherit"}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="inherit">inherit (default)</SelectItem>
+                              <SelectItem value="ignore">ignore</SelectItem>
+                              <SelectItem value="pipe">pipe</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      )}
     </>
   );
 }
@@ -363,6 +396,7 @@ export function McpServerFormWrapper({
 }: McpServerFormWrapperProps) {
   const form = useForm<MCPServerFormData>({
     resolver: zodResolver(mcpServerSchema),
+    mode: "onChange",
     defaultValues: {
       name: initialData?.name ?? "",
       description: initialData?.description ?? "",

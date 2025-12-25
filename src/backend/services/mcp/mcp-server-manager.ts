@@ -342,11 +342,26 @@ export class MCPServerManager {
 
   public async addToolToServerWhitelistAsync(serverName: string, toolName: string): Promise<void> {
     const storage = McpStorage.getInstance();
-    const serverConfigs = await storage.getMcpServerConfigsAsync();
+    let serverConfigs = await storage.getMcpServerConfigsAsync();
     const targetIndex = serverConfigs.findIndex((server) => server.name === serverName);
 
     if (targetIndex === -1) {
-      throw new Error(`[McpStorage]: MCP server with name ${serverName} not found`);
+      const internalConfig = MCPServerManager.internalServerConfigs.find(
+        (s) => s.name === serverName,
+      );
+
+      if (!internalConfig) {
+        throw new Error(`[McpStorage]: MCP server with name ${serverName} not found`);
+      }
+
+      const newConfig = {
+        ...internalConfig,
+        toolWhitelist: [toolName],
+      };
+
+      serverConfigs = [...serverConfigs, newConfig];
+      await storage.storeMcpServers(serverConfigs);
+      return;
     }
 
     const existingWhitelist = new Set(serverConfigs[targetIndex].toolWhitelist ?? []);

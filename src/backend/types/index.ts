@@ -26,6 +26,21 @@ export interface VideoFile {
   isChromeExtension: boolean;
 }
 
+export interface VideoFileMetadata {
+  fileName: string;
+  filePath?: string;
+  createdAt: string; // ISO string date
+  duration: number; // in seconds
+}
+
+export enum ShaveStatus {
+  Unknown = "Unknown",
+  Pending = "Pending",
+  Processing = "Processing",
+  Completed = "Completed",
+  Failed = "Failed",
+}
+
 export interface ShaveItem {
   id: string;
   title: string;

@@ -1,9 +1,8 @@
 import { User } from "lucide-react";
 import { FaYoutube } from "react-icons/fa";
+import { PlatformConnectionCard } from "@/components/auth/PlatformConnectionCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import type { UserInfo } from "../../types";
 
 interface ConnectedStatusProps {
@@ -31,8 +30,8 @@ export const ConnectedStatus = ({ userInfo, platform, onSwitch }: ConnectedStatu
 
   return (
     <Card className="w-full bg-black/20 backdrop-blur-sm border-white/10">
-      <CardContent>
-        <div className="flex items-center gap-4 mb-6">
+      <CardContent className="space-y-6">
+        <div className="flex items-center gap-4">
           <Avatar className="w-12 h-12 bg-white/10">
             <AvatarImage src={avatar} alt={name} />
             <AvatarFallback className="bg-white/10 text-lg font-semibold text-white">
@@ -45,25 +44,17 @@ export const ConnectedStatus = ({ userInfo, platform, onSwitch }: ConnectedStatu
             {channelName && <p className="text-xs text-white/60 italic">{channelName}</p>}
           </div>
         </div>
-
-        <div className="flex justify-between items-center p-4 bg-white/5 rounded-md border border-white/10">
-          <div className="flex flex-col gap-2">
-            <span className="text-xs uppercase font-medium">Connected to</span>
-            <div className="flex items-center gap-2">
-              <FaYoutube className="w-4 h-4 text-ssw-red" />
-              <span className="text-sm font-medium">{platform}</span>
-            </div>
-          </div>
-
-          <Badge variant="success">Active</Badge>
-        </div>
+        <PlatformConnectionCard
+          icon={<FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />}
+          title={platform}
+          label="Connected to"
+          badgeText="Active"
+          onAction={onSwitch}
+          actionLabel="Switch Platform"
+          buttonVariant="outline"
+          buttonSize="lg"
+        />
       </CardContent>
-
-      <CardFooter className="flex flex-col gap-3">
-        <Button variant="outline" onClick={onSwitch} className="w-full">
-          Switch Platform
-        </Button>
-      </CardFooter>
     </Card>
   );
 };

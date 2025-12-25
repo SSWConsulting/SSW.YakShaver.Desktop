@@ -1,11 +1,11 @@
 import { AlertTriangle, Check, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import {
-  type MetadataPreview,
+  type MCPStep,
   MCPStepType,
+  type MetadataPreview,
   ProgressStage,
   STAGE_CONFIG,
-  type MCPStep,
   type VideoChapter,
   type WorkflowProgress,
   type WorkflowStage,
@@ -50,7 +50,7 @@ function ToolResultSuccess({ result }: { result: unknown }) {
           <summary className="text-zinc-400 cursor-pointer hover:text-zinc-400/80">
             View result
           </summary>
-          <pre className="mt-1 p-2 bg-black rounded text-zinc-400 overflow-x-auto max-h-[200px] overflow-y-auto">
+          <pre className="mt-1 p-2 bg-black rounded text-zinc-400 overflow-x-auto max-h-[200px] overflow-y-auto whitespace-pre-wrap break-all">
             Loading...
           </pre>
         </details>
@@ -72,9 +72,7 @@ function ToolDeniedNotice({ message }: { message?: string }) {
   return (
     <div className="text-red-400 flex items-center gap-2">
       <X className="w-3 h-3" />
-      <span className="whitespace-pre-line">
-        {message ?? "Tool execution denied"}
-      </span>
+      <span className="whitespace-pre-line">{message ?? "Tool execution denied"}</span>
     </div>
   );
 }
@@ -94,7 +92,7 @@ function MetadataPreviewCard({ preview }: { preview?: MetadataPreview }) {
         <p className="text-white font-semibold">{preview.title}</p>
       </MetadataField>
       <MetadataField label="Description">
-        <pre className="text-sm text-white/80 whitespace-pre-wrap font-sans">
+        <pre className="text-sm text-white/80 whitespace-pre-wrap break-words font-sans overflow-hidden">
           {preview.description}
         </pre>
       </MetadataField>
@@ -171,7 +169,9 @@ function ToolCallStep({
           <summary className="text-zinc-400 cursor-pointer hover:text-zinc-400/80">
             Arguments
           </summary>
-          <pre className="mt-1 p-2 bg-black rounded text-zinc-400 overflow-x-auto">Loading...</pre>
+          <pre className="mt-1 p-2 bg-black rounded text-zinc-400 overflow-x-auto whitespace-pre-wrap break-all">
+            Loading...
+          </pre>
         </details>
       )}
     </div>
@@ -197,14 +197,14 @@ export function StageWithContent({
       </AccordionTrigger>
       <AccordionContent className="px-4 pb-2">
         {stage === ProgressStage.TRANSCRIBING && progress.transcript && (
-          <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm whitespace-pre-wrap">
+          <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm whitespace-pre-wrap break-words overflow-hidden">
             {progress.transcript}
           </div>
         )}
         {stage === ProgressStage.GENERATING_TASK &&
           progress.intermediateOutput &&
           progress.stage !== ProgressStage.GENERATING_TASK && (
-            <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-xs font-mono whitespace-pre-wrap">
+            <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
               {progress.intermediateOutput}
             </div>
           )}

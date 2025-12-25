@@ -1,11 +1,11 @@
-import type { ToolCallOptions, ToolModelMessage, ModelMessage, UserModelMessage } from "ai";
 import { randomUUID } from "node:crypto";
+import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
+import { BrowserWindow } from "electron";
+import type { ZodType } from "zod";
 import type { VideoUploadResult } from "../auth/types";
+import { GeneralSettingsStorage, type ToolApprovalMode } from "../storage/general-settings-storage";
 import { LLMClientProvider } from "./llm-client-provider";
 import { MCPServerManager } from "./mcp-server-manager";
-import { BrowserWindow } from "electron";
-import { GeneralSettingsStorage, type ToolApprovalMode } from "../storage/general-settings-storage";
-import { ZodTypeAny } from "zod";
 
 type StepType =
   | "start"
@@ -74,6 +74,7 @@ export class MCPOrchestrator {
     options: {
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
+      videoFilePath?: string; // local video file path for screenshot capture
     } = {},
   ): Promise<string | undefined> {
     // Ensure LLM has been initialized
@@ -100,8 +101,21 @@ export class MCPOrchestrator {
       systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.\nPlease include this URL in the task content that you create.`;
     }
 
+    // If a video file path is provided, add it to the system prompt for screenshot capture
+    if (options.videoFilePath) {
+      systemPrompt += `\n\nVideo file available for screenshot capture: ${options.videoFilePath}.`;
+    }
+
     const messages: ModelMessage[] = [
-      { role: "system", content: systemPrompt },
+      {
+        role: "system",
+        content: systemPrompt,
+      },
+      // Reason why it has to be done like this right now: see https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/420#issuecomment-3684664177
+      {
+        role: "system",
+        content: "When selecting tools, briefly explain the reason for choosing them.",
+      },
       { role: "user", content: prompt },
     ];
 
@@ -130,6 +144,14 @@ export class MCPOrchestrator {
       // Add LLM generated messages to the message history
       const responseMessages = llmResponse.response.messages;
       messages.push(...responseMessages);
+
+      const reasoningContent = llmResponse.content.find((resp) => resp.type === "text");
+      if (reasoningContent && llmResponse.finishReason !== "stop") {
+        sendStepEvent({
+          type: "reasoning",
+          reasoning: JSON.stringify(reasoningContent),
+        });
+      }
 
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
@@ -215,7 +237,11 @@ export class MCPOrchestrator {
           }
 
           // send event to UI about tool call now that it is approved/whitelisted
-          sendStepEvent({ type: "tool_call", toolName: toolCall.toolName, args: toolCall.input });
+          sendStepEvent({
+            type: "tool_call",
+            toolName: toolCall.toolName,
+            args: toolCall.input,
+          });
           console.log("Executing tool:", toolCall.toolName);
 
           const toolToCall = tools[toolCall.toolName];
@@ -223,10 +249,14 @@ export class MCPOrchestrator {
           if (toolToCall?.execute) {
             const toolOutput = await toolToCall.execute(toolCall.input, {
               toolCallId: toolCall.toolCallId,
-            } as ToolCallOptions);
+            } as ToolExecutionOptions);
 
             // send event to UI about tool result
-            sendStepEvent({ type: "tool_result", toolName: toolCall.toolName, result: toolOutput });
+            sendStepEvent({
+              type: "tool_result",
+              toolName: toolCall.toolName,
+              result: toolOutput,
+            });
 
             // construct tool result message and append to messages history
             const toolMessage: ToolModelMessage = {
@@ -252,7 +282,10 @@ export class MCPOrchestrator {
         console.log(llmResponse.text);
 
         // send final result event to UI
-        sendStepEvent({ type: "final_result", message: llmResponse.finishReason });
+        sendStepEvent({
+          type: "final_result",
+          message: llmResponse.finishReason,
+        });
         return llmResponse.text;
       } else if (llmResponse.finishReason === "content-filter") {
         console.log("Conversation ended due to content filter. ");
@@ -268,14 +301,14 @@ export class MCPOrchestrator {
     }
   }
 
-  public async convertToObjectAsync(prompt: string, schema: ZodTypeAny): Promise<unknown> {
+  public async convertToObjectAsync(prompt: string, schema: ZodType): Promise<unknown> {
     if (!MCPOrchestrator.llmProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
 
     try {
       const objResult = await MCPOrchestrator.llmProvider.generateObject(prompt, schema);
-      return objResult.object;
+      return objResult;
     } catch (error) {
       console.error("[MCPOrchestrator]: Error in convertToObjectAsync:", error);
       throw error;

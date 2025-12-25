@@ -1,9 +1,10 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, session, shell } from "electron";
+import { app, BrowserWindow, dialog, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { config } from "./config/env";
+import { initDatabase } from "./db";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
@@ -16,6 +17,7 @@ import { registerPortalHandlers } from "./ipc/portal-handlers";
 import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
+import { ShaveIPCHandlers } from "./ipc/shave-handlers";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
@@ -42,6 +44,7 @@ const loadEnv = () => {
 loadEnv();
 
 let mainWindow: BrowserWindow | null = null;
+let pendingProtocolUrl: string | null = null;
 
 const createWindow = (): void => {
   // Fix icon path for packaged mode
@@ -85,6 +88,19 @@ const createWindow = (): void => {
   }
 };
 
+// Helper to safely send protocol URL to renderer
+const sendProtocolUrlToRenderer = (window: BrowserWindow, url: string): void => {
+  if (window.webContents.isLoading()) {
+    // Queue until content finishes loading
+    window.webContents.once("did-finish-load", () => {
+      window.webContents.send("protocol-url", url);
+    });
+  } else {
+    // Send immediately if already loaded
+    window.webContents.send("protocol-url", url);
+  }
+};
+
 // Initialize IPC handlers
 let _screenRecordingHandlers: ScreenRecordingIPCHandlers;
 let _authHandlers: AuthIPCHandlers;
@@ -96,19 +112,85 @@ let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
 let _githubTokenHandlers: GitHubTokenIPCHandlers;
 let _generalSettingsHandlers: GeneralSettingsIPCHandlers;
+let _shaveHandlers: ShaveIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
-app.whenReady().then(async () => {
-  const azure = config.azure();
-  if (azure?.customProtocol) {
-    try {
+// Register protocol handler
+const azure = config.azure();
+if (azure?.customProtocol) {
+  try {
+    if (isDev) {
+      // In dev mode, need to provide the electron executable and app path
+      app.setAsDefaultProtocolClient(azure.customProtocol, process.execPath, [app.getAppPath()]);
+    } else {
+      // In production, the app itself is the executable
       app.setAsDefaultProtocolClient(azure.customProtocol);
-    } catch {}
-    app.on("open-url", (event) => {
-      event.preventDefault();
-      mainWindow?.focus();
-    });
+    }
+  } catch (err) {
+    console.error("Failed to set default protocol client:", err);
   }
+}
+
+// Single instance lock - prevents multiple instances of the app
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // Another instance is already running, exit immediately
+  process.exit(0);
+} else {
+  // Handle second instance attempts - focus the existing window
+  app.on("second-instance", (_event, commandLine) => {
+    // Someone tried to run a second instance, focus our window instead
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+
+      // Check for protocol URL in command line (Windows)
+      const url = commandLine.find((arg) => arg.startsWith(`${azure?.customProtocol}://`));
+      if (url) {
+        sendProtocolUrlToRenderer(mainWindow, url);
+      }
+    } else {
+      // Store for later if window not ready yet
+      const url = commandLine.find((arg) => arg.startsWith(`${azure?.customProtocol}://`));
+      if (url) {
+        pendingProtocolUrl = url;
+      }
+    }
+  });
+
+  // Handle protocol URLs on macOS
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+      sendProtocolUrlToRenderer(mainWindow, url);
+    } else {
+      // Store for later if window not ready yet
+      pendingProtocolUrl = url;
+    }
+  });
+}
+
+app.whenReady().then(async () => {
+  // Initialize database on startup (synchronous - better-sqlite3 is sync)
+  try {
+    initDatabase();
+  } catch (error) {
+    console.error("Failed to initialize database:", error);
+
+    // Show error dialog to user
+    dialog.showErrorBox(
+      "Database Initialization Failed",
+      `Failed to initialize the database. You can continue using the app, but Your shaves will not be saved.\n\nError: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
   session.defaultSession.setPermissionCheckHandler(() => true);
   session.defaultSession.setPermissionRequestHandler((_, permission, callback) => {
     callback(
@@ -139,14 +221,20 @@ app.whenReady().then(async () => {
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _generalSettingsHandlers = new GeneralSettingsIPCHandlers();
+  _shaveHandlers = new ShaveIPCHandlers();
 
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
   CameraWindow.getInstance().initialize(isDev);
   CountdownWindow.getInstance().initialize(isDev);
-
   unregisterEventForwarders = registerEventForwarders();
   createWindow();
+
+  // Process any pending protocol URL that arrived during initialization
+  if (pendingProtocolUrl && mainWindow) {
+    sendProtocolUrlToRenderer(mainWindow, pendingProtocolUrl);
+    pendingProtocolUrl = null;
+  }
 
   // Auto-updates: Check only in packaged mode (dev skips)
   // Configure and check based on stored channel preference

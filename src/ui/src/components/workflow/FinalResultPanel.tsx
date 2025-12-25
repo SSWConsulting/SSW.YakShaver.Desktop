@@ -5,9 +5,9 @@ import { formatErrorMessage } from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import {
+  type MCPStep,
   MCPStepType,
   ProgressStage,
-  type MCPStep,
   type WorkflowProgress,
   type WorkflowStage,
 } from "../../types";
@@ -27,7 +27,7 @@ import { Textarea } from "../ui/textarea";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
-interface ParsedResult {
+export interface ParsedResult {
   Status?: "success" | "fail";
   [key: string]: unknown;
 }
@@ -55,7 +55,7 @@ const containsUrl = (text: string): boolean => {
   return regex.test(text);
 };
 
-function RawTextDisplay({ content }: RawTextDisplayProps) {
+export function RawTextDisplay({ content }: RawTextDisplayProps) {
   return (
     <div className="text-white/80 text-sm font-mono whitespace-pre-wrap bg-white/5 p-4 rounded-md border border-white/10">
       {content}
@@ -160,7 +160,7 @@ function LinkifiedText({ text }: LinkifiedTextProps) {
               href={part}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 underline"
+              className="text-blue-400 hover:text-blue-300 underline break-all"
               onClick={(e) => {
                 e.preventDefault();
                 window.open(part, "_blank");
@@ -170,7 +170,9 @@ function LinkifiedText({ text }: LinkifiedTextProps) {
             </a>
           );
         }
-        return part ? <span key={`text-${part.slice(0, 50)}-${index}`}>{part}</span> : null;
+        return part ? (
+          <span key={`text-${part.slice(0, 50)}-${index}`}>{part}</span>
+        ) : null;
       })}
     </>
   );
@@ -228,12 +230,16 @@ function ValueRenderer({ value, onCopy }: ValueRendererProps): React.ReactNode {
     }
     if (containsUrl(value)) {
       return (
-        <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
+        <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
           <LinkifiedText text={value} />
         </p>
       );
     }
-    return <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">{value}</p>;
+    return (
+      <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap">
+        {value}
+      </p>
+    );
   }
 
   if (Array.isArray(value)) {
@@ -244,14 +250,19 @@ function ValueRenderer({ value, onCopy }: ValueRendererProps): React.ReactNode {
           {value.map((item, index) => {
             const itemKey = `obj-${JSON.stringify(item).slice(0, 50)}-${index}`;
             return (
-              <div key={itemKey} className="bg-white/5 p-4 rounded-md border border-white/10">
+              <div
+                key={itemKey}
+                className="bg-white/5 p-4 rounded-md border border-white/10"
+              >
                 <div className="space-y-3">
-                  {Object.entries(item as Record<string, unknown>).map(([itemKey, itemValue]) => (
-                    <div key={itemKey}>
-                      <SectionHeader title={itemKey} />
-                      <ValueRenderer value={itemValue} onCopy={onCopy} />
-                    </div>
-                  ))}
+                  {Object.entries(item as Record<string, unknown>).map(
+                    ([itemKey, itemValue]) => (
+                      <div key={itemKey}>
+                        <SectionHeader title={itemKey} />
+                        <ValueRenderer value={itemValue} onCopy={onCopy} />
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
             );
@@ -262,7 +273,8 @@ function ValueRenderer({ value, onCopy }: ValueRendererProps): React.ReactNode {
 
     // Check if all items are simple strings without URLs (like labels/tags)
     const allSimpleStrings = value.every(
-      (item) => typeof item === "string" && !isValidUrl(item) && !containsUrl(item),
+      (item) =>
+        typeof item === "string" && !isValidUrl(item) && !containsUrl(item)
     );
 
     if (allSimpleStrings) {
@@ -332,16 +344,20 @@ function StatusBadge({ status }: StatusBadgeProps) {
 }
 
 const parseFinalOutput = (
-  finalOutput: string | undefined,
+  finalOutput: string | undefined
 ): { parsed: ParsedResult | null; raw: string; isJson: boolean } => {
   if (!finalOutput) {
     return { parsed: null, raw: "", isJson: false };
   }
 
-  const raw = typeof finalOutput === "string" ? finalOutput : JSON.stringify(finalOutput, null, 2);
+  const raw =
+    typeof finalOutput === "string"
+      ? finalOutput
+      : JSON.stringify(finalOutput, null, 2);
 
   try {
-    const parsed = typeof finalOutput === "string" ? JSON.parse(finalOutput) : finalOutput;
+    const parsed =
+      typeof finalOutput === "string" ? JSON.parse(finalOutput) : finalOutput;
     return { parsed, raw, isJson: true };
   } catch {
     return { parsed: null, raw, isJson: false };
@@ -357,13 +373,17 @@ const REPROCESS_MODES = {
       "Provide corrective instructions for YakShaver, then submit to rerun the MCP workflow.",
     placeholder:
       "Explain what needs to change. e.g. Wrong repo, please redo in xyz repo and use branch main.",
-    success: "Reprocess request finished. Review the refreshed workflow output.",
+    success:
+      "Reprocess request finished. Review the refreshed workflow output.",
   },
   undo: {
     title: "Rerun undo workflow",
-    description: "Add guidance for YakShaver before it attempts to undo the previous run again.",
-    placeholder: "Explain what went wrong when undoing. e.g. Close issue instead of deleting.",
-    success: "Undo reprocess request finished. Review the undo panel for updates.",
+    description:
+      "Add guidance for YakShaver before it attempts to undo the previous run again.",
+    placeholder:
+      "Explain what went wrong when undoing. e.g. Close issue instead of deleting.",
+    success:
+      "Undo reprocess request finished. Review the undo panel for updates.",
   },
 } as const;
 
@@ -397,14 +417,20 @@ const summarizeSteps = (steps: MCPStep[]): string => {
       const prefix = `${index + 1}.`;
       switch (step.type) {
         case MCPStepType.START:
-          return `${prefix} START — ${step.message ?? "Workflow execution started."}`;
+          return `${prefix} START — ${
+            step.message ?? "Workflow execution started."
+          }`;
         case MCPStepType.REASONING: {
           if (!step.reasoning) return null;
           return `${prefix} REASONING — ${truncateText(step.reasoning)}`;
         }
         case MCPStepType.TOOL_CALL: {
-          const argsText = step.args ? truncateText(formatValue(step.args)) : "No args provided.";
-          return `${prefix} TOOL CALL — ${step.toolName ?? "unknown"} (server: ${step.serverName ?? "unknown"})\nArgs: ${argsText}`;
+          const argsText = step.args
+            ? truncateText(formatValue(step.args))
+            : "No args provided.";
+          return `${prefix} TOOL CALL — ${
+            step.toolName ?? "unknown"
+          } (server: ${step.serverName ?? "unknown"})\nArgs: ${argsText}`;
         }
         case MCPStepType.TOOL_RESULT: {
           if (step.error) {
@@ -413,14 +439,22 @@ const summarizeSteps = (steps: MCPStep[]): string => {
           if (step.result === undefined) {
             return `${prefix} TOOL RESULT — No result payload returned.`;
           }
-          return `${prefix} TOOL RESULT — ${truncateText(formatValue(step.result))}`;
+          return `${prefix} TOOL RESULT — ${truncateText(
+            formatValue(step.result)
+          )}`;
         }
         case MCPStepType.TOOL_APPROVAL_REQUIRED:
-          return `${prefix} TOOL APPROVAL — Awaiting permission to run ${step.toolName ?? "unknown tool"}.`;
+          return `${prefix} TOOL APPROVAL — Awaiting permission to run ${
+            step.toolName ?? "unknown tool"
+          }.`;
         case MCPStepType.TOOL_DENIED:
-          return `${prefix} TOOL DENIED — ${step.message ?? "Operator cancelled the tool call."}`;
+          return `${prefix} TOOL DENIED — ${
+            step.message ?? "Operator cancelled the tool call."
+          }`;
         case MCPStepType.FINAL_RESULT:
-          return `${prefix} FINAL RESULT — ${step.message ?? "Generated final output."}`;
+          return `${prefix} FINAL RESULT — ${
+            step.message ?? "Generated final output."
+          }`;
         default:
           return null;
       }
@@ -443,7 +477,9 @@ const buildUndoPrompt = ({
   ];
 
   if (intermediateOutput) {
-    sections.push(`Original operator brief / intermediate output:\n${intermediateOutput}`);
+    sections.push(
+      `Original operator brief / intermediate output:\n${intermediateOutput}`
+    );
   }
 
   if (finalOutput) {
@@ -455,12 +491,12 @@ const buildUndoPrompt = ({
     sections.push(`Recorded actions from the last run:\n${stepSummary}`);
   } else {
     sections.push(
-      "No granular step log is available. Undo any persisted changes created by the most recent run.",
+      "No granular step log is available. Undo any persisted changes created by the most recent run."
     );
   }
 
   sections.push(
-    "Use the same MCP tools (and only those tools) to reverse those actions. Return a JSON summary describing the undo steps performed, tools used, and any follow-up required.",
+    "Use the same MCP tools (and only those tools) to reverse those actions. Return a JSON summary describing the undo steps performed, tools used, and any follow-up required."
   );
 
   return sections.join("\n\n");
@@ -471,12 +507,14 @@ const normalizeCorrections = (value: unknown): string[] => {
   if (Array.isArray(value)) {
     return value.map((entry) => {
       if (typeof entry === "string") return entry;
-      if (typeof entry === "object" && entry !== null) return JSON.stringify(entry);
+      if (typeof entry === "object" && entry !== null)
+        return JSON.stringify(entry);
       return String(entry);
     });
   }
   if (typeof value === "string") return [value];
-  if (typeof value === "object" && value !== null) return [JSON.stringify(value)];
+  if (typeof value === "object" && value !== null)
+    return [JSON.stringify(value)];
   return [String(value)];
 };
 
@@ -486,7 +524,9 @@ const mergeReprocessInstructions = (base: string, extra: string): string => {
 
   try {
     const parsed = JSON.parse(base) as Record<string, unknown>;
-    const existingCorrections = normalizeCorrections(parsed.operatorCorrections);
+    const existingCorrections = normalizeCorrections(
+      parsed.operatorCorrections
+    );
     const merged = {
       ...parsed,
       operatorCorrections: [...existingCorrections, trimmedExtra],
@@ -506,13 +546,18 @@ const mergeUndoPrompt = (base: string, extra: string): string => {
 };
 
 const emitUndoEvent = (type: UndoEventDetail["type"]) => {
-  window.dispatchEvent(new CustomEvent(UNDO_EVENT_CHANNEL, { detail: { type } }));
+  window.dispatchEvent(
+    new CustomEvent(UNDO_EVENT_CHANNEL, { detail: { type } })
+  );
 };
 
 export function FinalResultPanel() {
   const [finalOutput, setFinalOutput] = useState<string | undefined>();
-  const [intermediateOutput, setIntermediateOutput] = useState<string | undefined>();
-  const [uploadResult, setUploadResult] = useState<WorkflowProgress["uploadResult"]>();
+  const [intermediateOutput, setIntermediateOutput] = useState<
+    string | undefined
+  >();
+  const [uploadResult, setUploadResult] =
+    useState<WorkflowProgress["uploadResult"]>();
   const [mcpSteps, setMcpSteps] = useState<MCPStep[]>([]);
   const [reprocessDialogOpen, setReprocessDialogOpen] = useState(false);
   const [reprocessMode, setReprocessMode] = useState<ReprocessMode>("original");
@@ -595,8 +640,14 @@ export function FinalResultPanel() {
     setReprocessError(null);
 
     try {
-      const mergedOutput = mergeReprocessInstructions(intermediateOutput, reprocessInstructions);
-      const result = await ipcClient.pipelines.retryVideo(mergedOutput, uploadResult);
+      const mergedOutput = mergeReprocessInstructions(
+        intermediateOutput,
+        reprocessInstructions
+      );
+      const result = await ipcClient.pipelines.retryVideo(
+        mergedOutput,
+        uploadResult
+      );
 
       if (!result?.success) {
         throw new Error(result?.error ?? "Reprocess failed");
@@ -604,7 +655,9 @@ export function FinalResultPanel() {
 
       setIntermediateOutput(mergedOutput);
       setReprocessDialogOpen(false);
-      toast.success("Reprocess request sent. Watch the workflow panel for updates.");
+      toast.success(
+        "Reprocess request sent. Watch the workflow panel for updates."
+      );
     } catch (error) {
       setReprocessError(formatErrorMessage(error));
     } finally {
@@ -622,12 +675,17 @@ export function FinalResultPanel() {
 
     try {
       emitUndoEvent("start");
-      const mergedPrompt = mergeUndoPrompt(lastUndoPrompt, reprocessInstructions);
+      const mergedPrompt = mergeUndoPrompt(
+        lastUndoPrompt,
+        reprocessInstructions
+      );
       await ipcClient.mcp.processMessage(mergedPrompt);
       emitUndoEvent("complete");
       setLastUndoPrompt(mergedPrompt);
       setReprocessDialogOpen(false);
-      toast.success("Undo reprocess request sent. Monitor the purple undo panel.");
+      toast.success(
+        "Undo reprocess request sent. Monitor the purple undo panel."
+      );
     } catch (error) {
       emitUndoEvent("error");
       setReprocessError(formatErrorMessage(error));
@@ -673,7 +731,8 @@ export function FinalResultPanel() {
   const { parsed, raw, isJson } = parseFinalOutput(finalOutput);
   const status = (isJson && parsed?.Status) as "success" | "fail" | undefined;
   const showActions = Boolean(finalOutput);
-  const canReprocessOriginal = showActions && Boolean(intermediateOutput && uploadResult);
+  const canReprocessOriginal =
+    showActions && Boolean(intermediateOutput && uploadResult);
   const canReprocessUndo = hasUndoCompleted && Boolean(lastUndoPrompt);
   const canUndo = showActions && !hasUndoCompleted && mcpSteps.length > 0;
   const dialogCopy = REPROCESS_MODES[reprocessMode];
@@ -683,7 +742,9 @@ export function FinalResultPanel() {
       <Card className="bg-black/30 backdrop-blur-sm border-white/20 shadow-xl">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-2xl font-semibold">Final Result</CardTitle>
+            <CardTitle className="text-2xl font-semibold">
+              Final Result
+            </CardTitle>
             {status && <StatusBadge status={status} />}
           </div>
         </CardHeader>
@@ -741,26 +802,38 @@ export function FinalResultPanel() {
                   </Button>
                 )}
               </div>
-              <Dialog open={reprocessDialogOpen} onOpenChange={handleReprocessDialogChange}>
+              <Dialog
+                open={reprocessDialogOpen}
+                onOpenChange={handleReprocessDialogChange}
+              >
                 <DialogContent className="bg-black/95 border-white/20 text-white">
                   <DialogHeader>
-                    <DialogTitle className="text-white">{dialogCopy.title}</DialogTitle>
+                    <DialogTitle className="text-white">
+                      {dialogCopy.title}
+                    </DialogTitle>
                     <DialogDescription className="text-white/70">
                       {dialogCopy.description}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-2">
-                    <Label htmlFor="reprocess-instructions" className="text-white/80">
+                    <Label
+                      htmlFor="reprocess-instructions"
+                      className="text-white/80"
+                    >
                       Additional instructions
                     </Label>
                     <Textarea
                       value={reprocessInstructions}
-                      onChange={(event) => setReprocessInstructions(event.target.value)}
+                      onChange={(event) =>
+                        setReprocessInstructions(event.target.value)
+                      }
                       placeholder={dialogCopy.placeholder}
                       disabled={reprocessLoading}
                       className="text-white placeholder:text-white/40 border-white/20 bg-white/5"
                     />
-                    {reprocessError && <p className="text-sm text-red-300">{reprocessError}</p>}
+                    {reprocessError && (
+                      <p className="text-sm text-red-300">{reprocessError}</p>
+                    )}
                   </div>
                   <DialogFooter>
                     <Button
@@ -772,8 +845,14 @@ export function FinalResultPanel() {
                     >
                       Cancel
                     </Button>
-                    <Button type="button" onClick={handleReprocess} disabled={reprocessLoading}>
-                      {reprocessLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    <Button
+                      type="button"
+                      onClick={handleReprocess}
+                      disabled={reprocessLoading}
+                    >
+                      {reprocessLoading && (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )}
                       Run reprocess
                     </Button>
                   </DialogFooter>
@@ -783,7 +862,8 @@ export function FinalResultPanel() {
               {undoError && <p className="text-sm text-red-400">{undoError}</p>}
               {!canUndo && showActions && !hasUndoCompleted && (
                 <p className="text-xs text-white/50">
-                  Undo becomes available after YakShaver logs the tool calls for this run.
+                  Undo becomes available after YakShaver logs the tool calls for
+                  this run.
                 </p>
               )}
             </div>
