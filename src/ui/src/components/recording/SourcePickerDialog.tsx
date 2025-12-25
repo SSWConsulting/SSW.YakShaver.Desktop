@@ -1,3 +1,4 @@
+import { Camera } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CAMERA_ONLY_SOURCE_ID } from "../../constants/recording";
@@ -231,7 +232,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           {loading && (
             <div className="text-sm text-muted-foreground text-center py-2">Loading sources…</div>
           )}
-          
+
           {selectedCameraId && (
             <section>
               <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
@@ -249,7 +250,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
               </div>
             </section>
           )}
-          
+
           <SourceSection
             label="Screens"
             sources={screens}
@@ -346,25 +347,13 @@ function CameraOnlyTile({ onClick }: { onClick: () => void }) {
       className="group relative block aspect-video w-full h-auto overflow-hidden rounded-lg bg-neutral-800 p-4 ring-offset-neutral-900 transition-all hover:ring-2 hover:ring-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 hover:bg-neutral-800"
     >
       <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-neutral-400">
-        {/* Icon: Crossed-out pin/thumbtack representing "no screen attachment" */}
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="48"
-          height="48"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="m15 10-4 4 6.5 6.5a2.828 2.828 0 1 0 4-4L15 10Z" />
-          <path d="M14.5 15.5 9 21" />
-          <path d="m2.5 2.5 19 19" />
-          <path d="M8.707 8.707 3 14.5a2.828 2.828 0 1 0 4 4l5.793-5.793" />
-        </svg>
-        <span className="text-sm font-medium">No Screen / Camera Only</span>
-        <span className="text-xs text-neutral-500">Record camera feed without screen capture</span>
+        <Camera className="h-12 w-12" />
+        <span className="w-full max-w-full text-center text-sm font-medium">
+          No Screen / Camera Only
+        </span>
+        <span className="w-full max-w-full text-center text-xs text-neutral-500 whitespace-normal break-words">
+          Record camera feed without screen capture
+        </span>
       </div>
     </Button>
   );
