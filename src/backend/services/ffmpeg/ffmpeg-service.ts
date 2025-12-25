@@ -179,4 +179,43 @@ export class FFmpegService {
 
     return `${pad(hrs)}:${pad(mins)}:${pad(secs)}${millisPart}`;
   }
+
+  async getVideoDuration(inputPath: string): Promise<number> {
+    await this.ensureInputFileExists(inputPath);
+    await this.ensureFfmpegExists();
+
+    return new Promise((resolve, reject) => {
+      const args = ["-i", inputPath];
+      const ffmpegProcess = this.processSpawner.spawn(this.ffmpegPath, args);
+      let stderr = "";
+
+      ffmpegProcess.stderr?.on("data", (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      ffmpegProcess.on("close", () => {
+        // ffmpeg -i input without output usually exits with 1, but prints metadata to stderr
+        const durationMatch = stderr.match(/Duration: (\d{2}):(\d{2}):(\d{2})\.\d{2}/);
+        if (durationMatch) {
+          const hours = parseInt(durationMatch[1], 10);
+          const minutes = parseInt(durationMatch[2], 10);
+          const seconds = parseInt(durationMatch[3], 10);
+          const duration = hours * 3600 + minutes * 60 + seconds;
+          resolve(duration);
+        } else {
+          // Resolving with 0 is safer for now to avoid breaking flow
+          console.warn(`Could not parse duration from ffmpeg output for ${inputPath}`);
+          resolve(0);
+        }
+      });
+
+      ffmpegProcess.on("error", (error: Error) => {
+        console.error("FFmpeg spawn error:", error);
+        reject(new Error(`Failed to start FFmpeg: ${error.message}`));
+      });
+    });
+  }
 }
+
+export const getVideoDuration = (inputPath: string) =>
+  FFmpegService.getInstance().getVideoDuration(inputPath);

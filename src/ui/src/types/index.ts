@@ -66,6 +66,8 @@ export interface ScreenRecordingStartResult {
 export interface ScreenRecordingStopResult {
   success: boolean;
   filePath?: string;
+  fileName?: string;
+  duration?: number;
   error?: string;
 }
 
@@ -279,16 +281,6 @@ export type Shave = {
   videoEmbedUrl: string | null;
   createdAt: string;
   updatedAt: string | null;
-};
-
-export type CreateShaveInput = {
-  workItemSource: string;
-  title: string;
-  videoFile: VideoFileMetadata | null;
-  projectName?: string | null;
-  workItemUrl?: string;
-  shaveStatus?: ShaveStatus;
-  videoEmbedUrl?: string;
 };
 
 export type BadgeVariant = "success" | "destructive" | "secondary" | "default";

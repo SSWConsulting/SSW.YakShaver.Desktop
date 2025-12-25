@@ -1,10 +1,11 @@
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
+import { useShaveManager } from "@/hooks/useSaveShaveOnCompletion";
 import { formatErrorMessage } from "@/utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
-import { AuthStatus, UploadStatus } from "../../types";
+import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -14,6 +15,8 @@ import { VideoPreviewModal } from "./VideoPreviewModal";
 interface RecordedVideo {
   blob: Blob;
   filePath: string;
+  fileName: string;
+  duration: number;
 }
 
 export function ScreenRecorder() {
@@ -28,6 +31,7 @@ export function ScreenRecorder() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
+  const { saveRecording } = useShaveManager();
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
@@ -93,12 +97,24 @@ export function ScreenRecorder() {
   const handleContinue = async () => {
     if (!recordedVideo) return;
 
-    const { filePath } = recordedVideo;
+    const { filePath, fileName, duration } = recordedVideo;
     resetPreview();
 
     try {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
+      saveRecording(
+        {
+          workItemSource: "YakShaver Desktop",
+          title: "Screen Recording",
+          shaveStatus: ShaveStatus.Pending,
+        },
+        {
+          fileName,
+          filePath,
+          duration,
+        },
+      );
       await window.electronAPI.pipelines.processVideoFile(filePath);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);

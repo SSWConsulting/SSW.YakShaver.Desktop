@@ -130,6 +130,8 @@ export function useScreenRecording() {
   const stop = useCallback(async (): Promise<{
     blob: Blob;
     filePath: string;
+    fileName: string;
+    duration: number;
   } | null> => {
     if (!mediaRecorderRef.current) return null;
 
@@ -153,7 +155,12 @@ export function useScreenRecording() {
           }
 
           toast.success("Recording completed! Review your video.");
-          resolve({ blob, filePath: result.filePath });
+          resolve({
+            blob,
+            filePath: result.filePath,
+            fileName: result.fileName || result.filePath,
+            duration: result.duration || 0,
+          });
         } catch (error) {
           toast.error(`Failed to save recording: ${error}`);
           resolve(null);

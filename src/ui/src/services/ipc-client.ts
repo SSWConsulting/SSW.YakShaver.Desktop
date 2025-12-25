@@ -3,11 +3,11 @@ import type {
   ProcessedRelease,
   ReleaseChannel,
 } from "@/components/settings/release-channels/ReleaseChannelManager";
+import type { NewShave, NewVideoFile } from "../../../backend/db/schema";
 import type {
   AuthResult,
   AuthState,
   ConvertVideoToMp3Result,
-  CreateShaveInput,
   CustomPrompt,
   GeneralSettings,
   GetMyShavesResponse,
@@ -177,13 +177,29 @@ declare global {
         }>;
       };
       shave: {
-        create: (data: CreateShaveInput) => Promise<Shave>;
-        getById: (id: number) => Promise<Shave | undefined>;
-        getAll: () => Promise<Shave[]>;
-        findByVideoUrl: (videoEmbedUrl: string) => Promise<Shave | undefined>;
-        update: (id: number, data: Partial<CreateShaveInput>) => Promise<Shave | undefined>;
-        updateStatus: (id: number, status: ShaveStatus) => Promise<Shave | undefined>;
-        delete: (id: number) => Promise<void>;
+        create: (
+          data: Omit<NewShave, "id">,
+        ) => Promise<{ success: boolean; data?: Shave; error?: string }>;
+        createWithRecording: (
+          shaveData: Omit<NewShave, "id">,
+          recordingFile: Omit<NewVideoFile, "id">,
+        ) => Promise<{ success: boolean; data?: Shave; error?: string }>;
+        getById: (
+          id: number,
+        ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
+        getAll: () => Promise<{ success: boolean; data?: Shave[]; error?: string }>;
+        findByVideoUrl: (
+          videoEmbedUrl: string,
+        ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
+        update: (
+          id: number,
+          data: Partial<Omit<NewShave, "id">>,
+        ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
+        updateStatus: (
+          id: number,
+          status: ShaveStatus,
+        ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
+        delete: (id: number) => Promise<{ success: boolean; data?: boolean; error?: string }>;
       };
     };
   }

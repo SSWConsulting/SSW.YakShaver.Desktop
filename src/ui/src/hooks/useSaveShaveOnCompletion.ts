@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
+import type { NewShave, NewVideoFile } from "../../../backend/db/schema";
 import { ipcClient } from "../services/ipc-client";
 import { ShaveStatus, type WorkflowProgress } from "../types";
 
@@ -47,7 +48,30 @@ function parseFinalOutput(finalOutput: string): ParsedShaveOutput {
   }
 }
 
-export function useSaveShaveOnCompletion() {
+export function useShaveManager() {
+  /**
+   * Save a recording with video file metadata and shave information
+   */
+  const saveRecording = useCallback(
+    async (shaveData: Omit<NewShave, "id">, recordingFile: Omit<NewVideoFile, "id">) => {
+      try {
+        const result = await ipcClient.shave.createWithRecording(shaveData, recordingFile);
+        toast.success("Shave saved", {
+          description: "The work item has been saved with video metadata.",
+        });
+        return result;
+      } catch (error) {
+        console.error("[Shave] Failed to save recording:", error);
+        toast.error("Failed to save shave recording");
+        throw error;
+      }
+    },
+    [],
+  );
+
+  /**
+   * Listen for workflow completion and save shave
+   */
   useEffect(() => {
     return ipcClient.workflow.onProgress(async (data: unknown) => {
       const progressData = data as WorkflowProgress;
@@ -65,7 +89,8 @@ export function useSaveShaveOnCompletion() {
 
           // Check if this video URL already exists in the database
           if (videoUrl) {
-            const existingShave = await ipcClient.shave.findByVideoUrl(videoUrl);
+            const result = await ipcClient.shave.findByVideoUrl(videoUrl);
+            const existingShave = result.data;
             if (existingShave) {
               await ipcClient.shave.update(existingShave.id, {
                 title: finalTitle,
@@ -79,10 +104,9 @@ export function useSaveShaveOnCompletion() {
             }
           }
 
-          const shaveData = {
+          const shaveData: Omit<NewShave, "id"> = {
             workItemSource: "YakShaver Desktop",
             title: finalTitle,
-            videoFile: null,
             shaveStatus,
             projectName: null,
             workItemUrl: parsedOutput.workItemUrl,
@@ -99,4 +123,8 @@ export function useSaveShaveOnCompletion() {
       }
     });
   }, []);
+
+  return {
+    saveRecording,
+  };
 }
