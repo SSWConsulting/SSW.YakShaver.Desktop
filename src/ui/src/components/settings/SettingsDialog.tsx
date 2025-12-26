@@ -20,8 +20,8 @@ interface SettingsTab {
 
 const TABS: SettingsTab[] = [
   {
-    id: "general",
-    label: "General",
+    id: "toolApproval",
+    label: "Tool approval",
   },
   {
     id: "release",
@@ -153,8 +153,8 @@ export function SettingsDialog() {
           <section className="flex-1 h-full overflow-hidden">
             <ScrollArea className="h-full pr-1">
               <div className="pb-4 pr-2">
-                {activeTab?.id === "general" && (
-                  <GeneralSettingsPanel isActive={open && activeTabId === "general"} />
+                {activeTab?.id === "toolApproval" && (
+                  <GeneralSettingsPanel isActive={open && activeTabId === "toolApproval"} />
                 )}
                 {activeTab?.id === "release" && (
                   <ReleaseChannelSettingsPanel isActive={open && activeTabId === "release"} />
