@@ -57,20 +57,23 @@ export function useShaveManager() {
       try {
         const result = await ipcClient.shave.createWithRecording(shaveData, recordingFile);
         toast.success("Shave saved", {
-          description: "The work item has been saved with video metadata.",
+          description: "The shave has been saved.",
         });
         return result;
       } catch (error) {
+        //
         console.error("[Shave] Failed to save recording:", error);
-        toast.error("Failed to save shave recording");
-        throw error;
+        toast.error("Failed to save shave", {
+          description: "Video is processing, but it won't be saved in 'My Shaves'.",
+        });
+        return null;
       }
     },
     [],
   );
 
   /**
-   * Listen for workflow completion and save shave
+   * Listen for workflow completion and update shave
    */
   useEffect(() => {
     return ipcClient.workflow.onProgress(async (data: unknown) => {
@@ -85,7 +88,7 @@ export function useShaveManager() {
           const parsedOutput = parseFinalOutput(finalOutput);
           const finalTitle =
             parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
-          const shaveStatus = (parsedOutput.status as ShaveStatus) || ShaveStatus.Completed;
+          const shaveStatus = parsedOutput.status as ShaveStatus;
 
           // Check if this video URL already exists in the database
           if (videoUrl) {

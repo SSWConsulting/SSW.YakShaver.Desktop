@@ -19,6 +19,7 @@ import { IPC_CHANNELS } from "./channels";
 type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
+  shaveId?: number;
 };
 
 export class ProcessVideoIPCHandlers {
@@ -29,6 +30,7 @@ export class ProcessVideoIPCHandlers {
   private readonly metadataBuilder: VideoMetadataBuilder;
   private readonly youtubeDownloadService = YouTubeDownloadService.getInstance();
   private lastVideoFilePath: string | undefined;
+  private currentShaveId: number | undefined;
 
   constructor() {
     this.metadataBuilder = new VideoMetadataBuilder(this.llmClient);
@@ -36,13 +38,16 @@ export class ProcessVideoIPCHandlers {
   }
 
   private registerHandlers(): void {
-    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO_FILE, async (_event, filePath?: string) => {
-      if (!filePath) {
-        throw new Error("video-process-handler: Video file path is required");
-      }
+    ipcMain.handle(
+      IPC_CHANNELS.PROCESS_VIDEO_FILE,
+      async (_event, filePath?: string, shaveId?: number) => {
+        if (!filePath) {
+          throw new Error("video-process-handler: Video file path is required");
+        }
 
-      return await this.processFileVideo(filePath);
-    });
+        return await this.processFileVideo(filePath, shaveId);
+      },
+    );
 
     ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO_URL, async (_event, url?: string) => {
       if (!url) {
@@ -97,26 +102,32 @@ export class ProcessVideoIPCHandlers {
     );
   }
 
-  private async processFileVideo(filePath: string) {
-    // check file exists
-    if (!fs.existsSync(filePath)) {
-      throw new Error("video-process-handler: Video file does not exist");
+  private async processFileVideo(filePath: string, shaveId?: number) {
+    this.currentShaveId = shaveId;
+    try {
+      // check file exists
+      if (!fs.existsSync(filePath)) {
+        throw new Error("video-process-handler: Video file does not exist");
+      }
+
+      // upload to YouTube
+      this.emitProgress(ProgressStage.UPLOADING_SOURCE, {
+        sourceOrigin: "upload",
+      });
+      const youtubeResult = await this.youtube.uploadVideo(filePath);
+      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
+        uploadResult: youtubeResult,
+        sourceOrigin: youtubeResult.origin,
+      });
+
+      return await this.processVideoSource({
+        filePath,
+        youtubeResult,
+        shaveId,
+      });
+    } finally {
+      this.currentShaveId = undefined;
     }
-
-    // upload to YouTube
-    this.emitProgress(ProgressStage.UPLOADING_SOURCE, {
-      sourceOrigin: "upload",
-    });
-    const youtubeResult = await this.youtube.uploadVideo(filePath);
-    this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
-      uploadResult: youtubeResult,
-      sourceOrigin: youtubeResult.origin,
-    });
-
-    return await this.processVideoSource({
-      filePath,
-      youtubeResult,
-    });
   }
 
   private async processUrlVideo(url: string) {
@@ -141,7 +152,7 @@ export class ProcessVideoIPCHandlers {
     }
   }
 
-  private async processVideoSource({ filePath, youtubeResult }: VideoProcessingContext) {
+  private async processVideoSource({ filePath, youtubeResult, shaveId }: VideoProcessingContext) {
     // check file exists
     if (!fs.existsSync(filePath)) {
       throw new Error("video-process-handler: Video file does not exist");
@@ -248,6 +259,7 @@ export class ProcessVideoIPCHandlers {
       .forEach((win) => {
         win.webContents.send(IPC_CHANNELS.WORKFLOW_PROGRESS, {
           stage,
+          shaveId: this.currentShaveId,
           ...data,
         });
       });

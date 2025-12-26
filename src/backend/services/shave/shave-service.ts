@@ -18,13 +18,14 @@ export class ShaveService {
     shave: Omit<NewShave, "id">,
     recordingFile: Omit<NewVideoFile, "id">,
   ): Shave {
+    console.log("[ShaveService] Creating shave with recording..., ", shave, recordingFile);
     try {
       let videoFileId: number | null = null;
       try {
         const videoFile = dbVideoFileService.createVideoFile(recordingFile);
         videoFileId = videoFile.id;
       } catch (err) {
-        console.error("Failed to create video file:", formatErrorMessage(err));
+        console.error("[ShaveService] Failed to create video file:", formatErrorMessage(err));
       }
       // Create shave with videoFileId (null if video file creation failed)
       const newShave = dbShaveService.createShave({
