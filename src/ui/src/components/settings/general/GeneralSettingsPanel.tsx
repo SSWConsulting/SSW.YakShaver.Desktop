@@ -1,8 +1,9 @@
+import { TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { ipcClient } from "@/services/ipc-client";
 import type { GeneralSettings, ToolApprovalMode } from "@/types";
-import { cn } from "@/lib/utils";
 import { Card, CardContent } from "../../ui/card";
 
 interface GeneralSettingsPanelProps {
@@ -17,9 +18,10 @@ interface ModeOption {
 
 const MODE_OPTIONS: ModeOption[] = [
   {
-    id: "yolo",
-    title: "YOLO",
-    description: "Run every MCP tool immediately. Useful for trusted servers where you accept all actions.",
+    id: "ask",
+    title: "Ask",
+    description:
+      "Require an explicit decision for every non-whitelisted tool. The workflow pauses indefinitely until you respond.",
   },
   {
     id: "wait",
@@ -28,10 +30,10 @@ const MODE_OPTIONS: ModeOption[] = [
       "Display tool approval dialog for 15 seconds. If there is no response, the tool call is auto-approved.",
   },
   {
-    id: "ask",
-    title: "Ask",
+    id: "yolo",
+    title: "YOLO",
     description:
-      "Require an explicit decision for every non-whitelisted tool. The workflow pauses indefinitely until you respond.",
+      "Run every MCP tool immediately. Useful for trusted servers where you accept all actions.",
   },
 ];
 
@@ -101,21 +103,32 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
         {MODE_OPTIONS.map((mode) => {
           const isSelected = mode.id === currentMode;
           const isDisabled = isLoading || (!!pendingMode && pendingMode !== mode.id);
+          const isYolo = mode.id === "yolo";
           return (
             <Card
               key={mode.id}
               onClick={() => !isDisabled && void handleModeSelect(mode.id)}
               className={cn(
                 "transition-all cursor-pointer md:flex-1",
-                isSelected
-                  ? "border-white/60 bg-white/10 shadow-lg"
-                  : "border-white/10 hover:border-white/30 hover:bg-white/5",
+                isSelected && !isYolo && "border-white/60 bg-white/10 shadow-lg",
+                isSelected && isYolo && "border-red-500/60 bg-red-500/10 shadow-lg",
+                !isSelected && !isYolo && "border-white/10 hover:border-white/30 hover:bg-white/5",
+                !isSelected &&
+                  isYolo &&
+                  "border-red-500/30 hover:border-red-500/50 hover:bg-red-500/5",
                 isDisabled && !isSelected && "cursor-not-allowed opacity-60",
               )}
             >
               <CardContent className="px-4 py-4">
                 <div className="flex flex-col gap-2">
-                  <p className="text-lg font-medium leading-tight">{mode.title}</p>
+                  <div className="flex items-center gap-2">
+                    <p
+                      className={cn("text-lg font-medium leading-tight", isYolo && "text-red-400")}
+                    >
+                      {mode.title}
+                    </p>
+                    {isYolo && <TriangleAlert className="h-4 w-4 text-red-400" />}
+                  </div>
                   <p className="text-sm text-white/70 leading-relaxed">{mode.description}</p>
                 </div>
               </CardContent>
@@ -123,7 +136,6 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
           );
         })}
       </div>
-
     </div>
   );
 }
