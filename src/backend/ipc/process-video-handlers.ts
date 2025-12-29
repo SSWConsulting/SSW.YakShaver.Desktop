@@ -1,11 +1,12 @@
 import fs from "node:fs";
-import { z } from "zod";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
+import { z } from "zod";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
+import { LLMClientProvider } from "../services/mcp/llm-client-provider";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
@@ -20,7 +21,6 @@ import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { LLMClientProvider } from "../services/mcp/llm-client-provider";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -183,12 +183,6 @@ export class ProcessVideoIPCHandlers {
       if (!llmClientProvider) {
         throw new Error("LLM Client Provider is not initialized");
       }
-
-      // const intermediateOutput = await this.llmClient.generateOutput(
-      //   INITIAL_SUMMARY_PROMPT,
-      //   transcript,
-      //   { jsonMode: true },
-      // );
 
       const intermediateOutput = await llmClientProvider.generateJson(INITIAL_SUMMARY_PROMPT);
       console.log(intermediateOutput);
