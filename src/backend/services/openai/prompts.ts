@@ -2,18 +2,28 @@ export const INITIAL_SUMMARY_PROMPT = `You are a precise information structuring
 
 Output a single valid JSON object with the following fields:
 
-**Required Fields:**
+## Required Fields:
 - "taskType": string representing the user's core intent
 - "detectedLanguage": string in BCP 47 format (e.g., "en-US")
 - "formattedContent": full transcript as a Markdown string
 
-**Extracted Key Entities (for Stage 2 verification), by default, return an []:**
+ ## Extracted Key Entities (for Stage 2 verification), by default, return an []:
 - "mentionedEntities": array of important names or identifiers (repos, projects, databases, files, users, services)
 - "contextKeywords": array of key technical terms or descriptive keywords
 - "uncertainTerms": array of terms that are unclear or could have multiple interpretations
 
-**Example:** For input "create an issue in the torre demo project about UI", the output should be:
+## Output Rules
 
+- Output ONLY the JSON object
+- No extra commentary, explanations, or formatting
+- Ensure all arrays are valid JSON arrays
+- Ensure all strings are properly quoted
+
+### Example
+
+Input: "create an issue in the torre demo project about UI", the output should be:
+
+Output:
 {
   "taskType": "create_issue",
   "detectedLanguage": "en-US",
@@ -21,9 +31,7 @@ Output a single valid JSON object with the following fields:
   "mentionedEntities": ["torre demo"],
   "contextKeywords": ["UI", "issue", "project"],
   "uncertainTerms": ["torre demo"]
-}
-
-Output **ONLY the JSON object**. No extra commentary, explanations, or formatting. Ensure all arrays are valid JSON arrays and all strings are properly quoted.`;
+}`;
 
 export const TASK_EXECUTION_PROMPT = `You are an AI assistant called YakShaver, an intelligent MCP (Model Context Protocol) agent executor. Your role is to achieve user goals by intelligently planning and executing tasks using available MCP servers and their capabilities.
 

@@ -184,7 +184,14 @@ export class ProcessVideoIPCHandlers {
         throw new Error("LLM Client Provider is not initialized");
       }
 
-      const intermediateOutput = await llmClientProvider.generateJson(INITIAL_SUMMARY_PROMPT);
+      const userPrompt = `Process the following transcript into a structured JSON object:
+      
+      ${transcript}`;
+
+      const intermediateOutput = await llmClientProvider.generateJson(
+        userPrompt,
+        INITIAL_SUMMARY_PROMPT,
+      );
 
       this.emitProgress(ProgressStage.EXECUTING_TASK, {
         transcript,
