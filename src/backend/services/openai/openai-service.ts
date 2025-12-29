@@ -42,44 +42,6 @@ export class OpenAIService {
     return this.configured;
   }
 
-  // async sendMessage(
-  //   message: ChatCompletionMessageParam[],
-  //   tools: ChatCompletionTool[] = [],
-  // ): Promise<ChatCompletion> {
-  //   await this.ensureClient();
-  //   if (!this.configured || !this.client) {
-  //     throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
-  //   }
-  //   const response = await this.client.chat.completions.create({
-  //     model: await this.getModel(),
-  //     messages: message,
-  //     tools: tools,
-  //   });
-  //   return response;
-  // }
-
-  // async generateOutput(
-  //   systemPrompt: string,
-  //   userInput: string,
-  //   options?: { jsonMode?: boolean },
-  // ): Promise<string> {
-  //   await this.ensureClient();
-  //   if (!this.configured || !this.client) {
-  //     throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
-  //   }
-
-  //   const response = await this.client.chat.completions.create({
-  //     model: await this.getModel(),
-  //     messages: [
-  //       { role: "system", content: systemPrompt },
-  //       { role: "user", content: userInput },
-  //     ],
-  //     ...(options?.jsonMode && { response_format: { type: "json_object" } }),
-  //   });
-
-  //   return response.choices[0]?.message?.content || "";
-  // }
-
   async transcribeAudio(filePath: string) {
     await this.ensureClient();
     if (!this.client) {
@@ -92,23 +54,4 @@ export class OpenAIService {
       prompt: "The name of this app is called YakShaver",
     });
   }
-
-  // private async getModel(): Promise<string> {
-  //   const cfg = await this.storage.getLLMConfig();
-  //   if (!cfg) {
-  //     throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
-  //   }
-  //   if (cfg.provider === "openai") {
-  //     return "gpt-4o";
-  //   }
-
-  //   if (cfg.provider === "azure") {
-  //     if (!cfg.deployment) {
-  //       throw new Error(ERROR_MESSAGES.AZURE_DEPLOYMENT_MISSING);
-  //     }
-  //     return cfg.deployment;
-  //   }
-
-  //   throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
-  // }
 }

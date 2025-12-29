@@ -185,7 +185,6 @@ export class ProcessVideoIPCHandlers {
       }
 
       const intermediateOutput = await llmClientProvider.generateJson(INITIAL_SUMMARY_PROMPT);
-      console.log(intermediateOutput);
 
       this.emitProgress(ProgressStage.EXECUTING_TASK, {
         transcript,
