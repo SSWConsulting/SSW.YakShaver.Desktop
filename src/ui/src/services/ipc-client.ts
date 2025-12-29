@@ -31,7 +31,7 @@ declare global {
     electronAPI: {
       pipelines: {
         processVideoFile: (filePath: string, shaveId?: number) => Promise<void>;
-        processVideoUrl: (url: string) => Promise<void>;
+        processVideoUrl: (url: string, shaveId?: number) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
@@ -178,11 +178,8 @@ declare global {
       };
       shave: {
         create: (
-          data: Omit<NewShave, "id">,
-        ) => Promise<{ success: boolean; data?: Shave; error?: string }>;
-        createWithRecording: (
           shaveData: Omit<NewShave, "id">,
-          recordingFile: Omit<NewVideoFile, "id">,
+          videoFile?: Omit<NewVideoFile, "id">,
         ) => Promise<{ success: boolean; data?: Shave; error?: string }>;
         getById: (
           id: number,

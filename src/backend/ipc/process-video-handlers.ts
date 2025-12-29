@@ -30,7 +30,6 @@ export class ProcessVideoIPCHandlers {
   private readonly metadataBuilder: VideoMetadataBuilder;
   private readonly youtubeDownloadService = YouTubeDownloadService.getInstance();
   private lastVideoFilePath: string | undefined;
-  private currentShaveId: number | undefined;
 
   constructor() {
     this.metadataBuilder = new VideoMetadataBuilder(this.llmClient);
@@ -103,41 +102,44 @@ export class ProcessVideoIPCHandlers {
   }
 
   private async processFileVideo(filePath: string, shaveId?: number) {
-    this.currentShaveId = shaveId;
-    try {
-      // check file exists
-      if (!fs.existsSync(filePath)) {
-        throw new Error("video-process-handler: Video file does not exist");
-      }
+    const notify = (stage: string, data?: Record<string, unknown>) => {
+      this.emitProgress(stage, data, shaveId);
+    };
 
-      // upload to YouTube
-      this.emitProgress(ProgressStage.UPLOADING_SOURCE, {
-        sourceOrigin: "upload",
-      });
-      const youtubeResult = await this.youtube.uploadVideo(filePath);
-      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
-        uploadResult: youtubeResult,
-        sourceOrigin: youtubeResult.origin,
-      });
-
-      return await this.processVideoSource({
-        filePath,
-        youtubeResult,
-        shaveId,
-      });
-    } finally {
-      this.currentShaveId = undefined;
+    // check file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error("video-process-handler: Video file does not exist");
     }
+
+    // upload to YouTube
+    notify(ProgressStage.UPLOADING_SOURCE, {
+      sourceOrigin: "upload",
+    });
+    const youtubeResult = await this.youtube.uploadVideo(filePath);
+    notify(ProgressStage.UPLOAD_COMPLETED, {
+      uploadResult: youtubeResult,
+      sourceOrigin: youtubeResult.origin,
+    });
+
+    return await this.processVideoSource({
+      filePath,
+      youtubeResult,
+      shaveId,
+    });
   }
 
-  private async processUrlVideo(url: string) {
+  private async processUrlVideo(url: string, shaveId?: number) {
+    const notify = (stage: string, data?: Record<string, unknown>) => {
+      this.emitProgress(stage, data, shaveId);
+    };
+
     try {
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
-      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
+      notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
         sourceOrigin: "external",
       });
-      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, {
+      notify(ProgressStage.DOWNLOADING_SOURCE, {
         sourceOrigin: "external",
       });
       const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
@@ -147,34 +149,43 @@ export class ProcessVideoIPCHandlers {
       });
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
-      this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+      notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     }
   }
 
   private async processVideoSource({ filePath, youtubeResult, shaveId }: VideoProcessingContext) {
+    console.log("[ProcessVideo] Starting processing for video source:", {
+      filePath,
+      youtubeResult,
+      shaveId,
+    });
     // check file exists
     if (!fs.existsSync(filePath)) {
       throw new Error("video-process-handler: Video file does not exist");
     }
 
+    const notify = (stage: string, data?: Record<string, unknown>) => {
+      this.emitProgress(stage, data, shaveId);
+    };
+
     try {
       this.lastVideoFilePath = filePath;
-      this.emitProgress(ProgressStage.CONVERTING_AUDIO);
+      notify(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
-      this.emitProgress(ProgressStage.TRANSCRIBING);
+      notify(ProgressStage.TRANSCRIBING);
       const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
-      this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
+      notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
+      notify(ProgressStage.GENERATING_TASK, { transcript });
 
       const intermediateOutput = await this.llmClient.generateOutput(
         INITIAL_SUMMARY_PROMPT,
         transcript,
         { jsonMode: true },
       );
-      this.emitProgress(ProgressStage.EXECUTING_TASK, {
+      notify(ProgressStage.EXECUTING_TASK, {
         transcript,
         intermediateOutput,
       });
@@ -197,7 +208,7 @@ export class ProcessVideoIPCHandlers {
         if (!portalResult.success) {
           console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
           const errorMessage = formatErrorMessage(portalResult.error);
-          this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+          notify(ProgressStage.ERROR, { error: errorMessage });
         }
       }
 
@@ -205,14 +216,14 @@ export class ProcessVideoIPCHandlers {
         const videoId = youtubeResult.data?.videoId;
         if (videoId) {
           try {
-            this.emitProgress(ProgressStage.UPDATING_METADATA);
+            notify(ProgressStage.UPDATING_METADATA);
             const metadata = await this.metadataBuilder.build({
               transcriptVtt: transcript,
               intermediateOutput,
               executionHistory: JSON.stringify(transcript ?? [], null, 2),
               finalResult: mcpResult ?? undefined,
             });
-            this.emitProgress(ProgressStage.UPDATING_METADATA, {
+            notify(ProgressStage.UPDATING_METADATA, {
               metadataPreview: metadata.metadata,
             });
             const updateResult = await this.youtube.updateVideoMetadata(
@@ -231,7 +242,7 @@ export class ProcessVideoIPCHandlers {
         }
       }
 
-      this.emitProgress(ProgressStage.COMPLETED, {
+      notify(ProgressStage.COMPLETED, {
         transcript,
         intermediateOutput,
         mcpResult,
@@ -242,7 +253,7 @@ export class ProcessVideoIPCHandlers {
       return { youtubeResult, mcpResult };
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
-      this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+      notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     }
   }
@@ -253,13 +264,13 @@ export class ProcessVideoIPCHandlers {
     return result;
   }
 
-  private emitProgress(stage: string, data?: Record<string, unknown>) {
+  private emitProgress(stage: string, data?: Record<string, unknown>, shaveId?: number) {
     BrowserWindow.getAllWindows()
       .filter((win) => !win.isDestroyed())
       .forEach((win) => {
         win.webContents.send(IPC_CHANNELS.WORKFLOW_PROGRESS, {
           stage,
-          shaveId: this.currentShaveId,
+          shaveId,
           ...data,
         });
       });

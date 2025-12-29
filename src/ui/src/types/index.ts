@@ -120,6 +120,7 @@ export type WorkflowStage =
   | "idle"
   | "uploading_source"
   | "downloading_source"
+  | "upload_completed"
   | "converting_audio"
   | "transcribing"
   | "generating_task"
@@ -132,6 +133,7 @@ export const STAGE_CONFIG: Record<WorkflowStage, string> = {
   idle: "Waiting for recording...",
   uploading_source: "Uploading video",
   downloading_source: "Downloading source video",
+  upload_completed: "Video upload completed",
   converting_audio: "Converting audio",
   transcribing: "Transcribing audio",
   generating_task: "Analyzing transcript",
@@ -142,6 +144,7 @@ export const STAGE_CONFIG: Record<WorkflowStage, string> = {
 };
 
 export interface WorkflowProgress {
+  shaveId?: number;
   stage: WorkflowStage;
   transcript?: string;
   intermediateOutput?: string;

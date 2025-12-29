@@ -53,15 +53,14 @@ export function useShaveManager() {
    * Save a recording with video file metadata and shave information
    */
   const saveRecording = useCallback(
-    async (shaveData: Omit<NewShave, "id">, recordingFile: Omit<NewVideoFile, "id">) => {
+    async (shaveData: Omit<NewShave, "id">, recordingFile?: Omit<NewVideoFile, "id">) => {
       try {
-        const result = await ipcClient.shave.createWithRecording(shaveData, recordingFile);
+        const result = await ipcClient.shave.create(shaveData, recordingFile);
         toast.success("Shave saved", {
           description: "The shave has been saved.",
         });
         return result;
       } catch (error) {
-        //
         console.error("[Shave] Failed to save recording:", error);
         toast.error("Failed to save shave", {
           description: "Video is processing, but it won't be saved in 'My Shaves'.",
@@ -78,11 +77,25 @@ export function useShaveManager() {
   useEffect(() => {
     return ipcClient.workflow.onProgress(async (data: unknown) => {
       const progressData = data as WorkflowProgress;
+      const { shaveId } = progressData;
 
-      // Save shave when there's final output
-      if (typeof progressData.finalOutput !== "undefined") {
+      if (progressData.stage === "upload_completed" && typeof shaveId === "number") {
+        const { uploadResult } = progressData;
+
+        try {
+          await ipcClient.shave.update(shaveId, {
+            videoEmbedUrl: uploadResult?.data?.url || null,
+          });
+        } catch (err) {
+          console.error("[Shave] Error updating shave video URL (by id):", err);
+        }
+
+        return;
+      }
+
+      // Update shave when there's final output
+      if (typeof progressData.finalOutput !== "undefined" && typeof shaveId === "number") {
         const { uploadResult, finalOutput } = progressData;
-        const videoUrl = uploadResult?.data?.url;
 
         try {
           const parsedOutput = parseFinalOutput(finalOutput);
@@ -91,32 +104,27 @@ export function useShaveManager() {
           const shaveStatus = parsedOutput.status as ShaveStatus;
 
           // Check if this video URL already exists in the database
-          if (videoUrl) {
-            const result = await ipcClient.shave.findByVideoUrl(videoUrl);
-            const existingShave = result.data;
-            if (existingShave) {
-              await ipcClient.shave.update(existingShave.id, {
-                title: finalTitle,
-                shaveStatus,
-                workItemUrl: parsedOutput.workItemUrl,
-              });
-              toast.success("Shave updated", {
-                description: "The work item has been updated in My Shaves with the new PBI.",
-              });
-              return;
-            }
-          }
+          // if (videoUrl) {
+          //   const result = await ipcClient.shave.findByVideoUrl(videoUrl);
+          //   const existingShave = result.data;
+          //   if (existingShave) {
+          //     await ipcClient.shave.update(existingShave.id, {
+          //       title: finalTitle,
+          //       shaveStatus,
+          //       workItemUrl: parsedOutput.workItemUrl,
+          //     });
+          //     toast.success("Shave updated", {
+          //       description: "The work item has been updated in My Shaves with the new PBI.",
+          //     });
+          //     return;
+          //   }
+          // }
 
-          const shaveData: Omit<NewShave, "id"> = {
-            workItemSource: "YakShaver Desktop",
+          await ipcClient.shave.update(shaveId, {
             title: finalTitle,
             shaveStatus,
-            projectName: null,
             workItemUrl: parsedOutput.workItemUrl,
-            videoEmbedUrl: videoUrl,
-          };
-
-          await ipcClient.shave.create(shaveData);
+          });
         } catch (error) {
           console.error("\n[Shave] ✗ Failed to save/update shave record:");
           console.error("[Shave] Error:", error);

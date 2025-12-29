@@ -14,33 +14,27 @@ export class ShaveService {
     return ShaveService.instance;
   }
 
-  public createShaveWithRecording(
-    shave: Omit<NewShave, "id">,
-    recordingFile: Omit<NewVideoFile, "id">,
-  ): Shave {
-    console.log("[ShaveService] Creating shave with recording..., ", shave, recordingFile);
+  public createShave(shave: Omit<NewShave, "id">, videoFile?: Omit<NewVideoFile, "id">): Shave {
+    console.log("[ShaveService] Creating shave...", shave, videoFile);
     try {
       let videoFileId: number | null = null;
-      try {
-        const videoFile = dbVideoFileService.createVideoFile(recordingFile);
-        videoFileId = videoFile.id;
-      } catch (err) {
-        console.error("[ShaveService] Failed to create video file:", formatErrorMessage(err));
+
+      // If recording file is provided, try to create it
+      if (videoFile) {
+        try {
+          const videoFileResult = dbVideoFileService.createVideoFile(videoFile);
+          videoFileId = videoFileResult.id;
+        } catch (err) {
+          console.error("[ShaveService] Failed to create video file:", formatErrorMessage(err));
+        }
       }
-      // Create shave with videoFileId (null if video file creation failed)
+
+      // Create shave with videoFileId (null if not provided or creation failed)
       const newShave = dbShaveService.createShave({
         ...shave,
         videoFileId: videoFileId ?? null,
       });
       return newShave;
-    } catch (err) {
-      throw new Error(formatErrorMessage(err));
-    }
-  }
-
-  public createShave(data: Omit<NewShave, "id">): Shave {
-    try {
-      return dbShaveService.createShave(data);
     } catch (err) {
       throw new Error(formatErrorMessage(err));
     }

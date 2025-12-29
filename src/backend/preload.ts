@@ -122,7 +122,8 @@ const electronAPI = {
   pipelines: {
     processVideoFile: (filePath: string, shaveId?: number) =>
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId),
-    processVideoUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url),
+    processVideoUrl: (url: string, shaveId?: number) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url, shaveId),
     retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
   },
@@ -278,15 +279,7 @@ const electronAPI = {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
   },
   shave: {
-    create: (data: {
-      workItemSource: string;
-      title: string;
-      videoFile: VideoFileMetadata;
-      projectName?: string;
-      workItemUrl?: string;
-      shaveStatus?: ShaveStatus;
-    }) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_CREATE, data),
-    createWithRecording: (
+    create: (
       shaveData: {
         workItemSource: string;
         title: string;
@@ -296,8 +289,8 @@ const electronAPI = {
         videoEmbedUrl?: string;
         videoFileId?: number | null;
       },
-      recordingFile: { fileName: string; filePath?: string; duration: number },
-    ) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_CREATE_WITH_RECORDING, shaveData, recordingFile),
+      videoFile?: { fileName: string; filePath?: string; duration: number },
+    ) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_CREATE, shaveData, videoFile),
     getById: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_BY_ID, id),
     getAll: () => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_ALL),
     findByVideoUrl: (videoEmbedUrl: string) =>

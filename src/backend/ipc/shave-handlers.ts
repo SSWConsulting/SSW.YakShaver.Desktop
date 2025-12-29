@@ -9,13 +9,10 @@ export class ShaveIPCHandlers {
   private service = ShaveService.getInstance();
 
   constructor() {
-    ipcMain.handle(IPC_CHANNELS.SHAVE_CREATE, (_, data: Omit<NewShave, "id">) =>
-      this.createShave(data),
-    );
     ipcMain.handle(
-      IPC_CHANNELS.SHAVE_CREATE_WITH_RECORDING,
-      (_, shave: Omit<NewShave, "id">, recordingFile: Omit<NewVideoFile, "id">) =>
-        this.createShaveWithRecording(shave, recordingFile),
+      IPC_CHANNELS.SHAVE_CREATE,
+      (_, shave: Omit<NewShave, "id">, videoFile?: Omit<NewVideoFile, "id">) =>
+        this.createShave(shave, videoFile),
     );
     ipcMain.handle(IPC_CHANNELS.SHAVE_GET_BY_ID, (_, id: number) => this.getShaveById(id));
     ipcMain.handle(IPC_CHANNELS.SHAVE_GET_ALL, () => this.getAllShaves());
@@ -32,20 +29,9 @@ export class ShaveIPCHandlers {
     ipcMain.handle(IPC_CHANNELS.SHAVE_DELETE, (_, id: number) => this.deleteShave(id));
   }
 
-  private createShave(data: Omit<NewShave, "id">) {
+  private createShave(shave: Omit<NewShave, "id">, videoFile?: Omit<NewVideoFile, "id">) {
     try {
-      return { success: true, data: this.service.createShave(data) };
-    } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
-    }
-  }
-
-  private createShaveWithRecording(
-    shave: Omit<NewShave, "id">,
-    recordingFile: Omit<NewVideoFile, "id">,
-  ) {
-    try {
-      return { success: true, data: this.service.createShaveWithRecording(shave, recordingFile) };
+      return { success: true, data: this.service.createShave(shave, videoFile) };
     } catch (error) {
       return { success: false, error: formatErrorMessage(error) };
     }

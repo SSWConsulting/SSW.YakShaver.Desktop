@@ -1,6 +1,6 @@
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
-import { useShaveManager } from "@/hooks/useSaveManager";
+import { useShaveManager } from "@/hooks/useShaveManager";
 import { formatErrorMessage } from "@/utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
@@ -146,7 +146,13 @@ export function ScreenRecorder() {
     setUploadResult(null);
 
     try {
-      await window.electronAPI.pipelines.processVideoUrl(trimmedUrl);
+      const result = await saveRecording({
+        workItemSource: "YakShaver Desktop",
+        title: "YouTube Video",
+        shaveStatus: ShaveStatus.Pending,
+      });
+      const newShave = result?.data;
+      await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, newShave?.id);
       setYoutubeUrl("");
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
