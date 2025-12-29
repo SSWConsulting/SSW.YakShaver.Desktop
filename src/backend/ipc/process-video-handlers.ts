@@ -188,7 +188,7 @@ export class ProcessVideoIPCHandlers {
 
       this.emitProgress(ProgressStage.EXECUTING_TASK, {
         transcript,
-        intermediateOutput: intermediateOutput,
+        intermediateOutput,
       });
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
