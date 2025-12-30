@@ -1,6 +1,6 @@
+import { z } from "zod";
 import type { YouTubeSnippetUpdate } from "../auth/types.js";
 import { LLMClientProvider } from "../mcp/llm-client-provider.js";
-import { z } from "zod";
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s)]+/gi;
 
