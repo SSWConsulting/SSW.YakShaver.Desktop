@@ -117,6 +117,7 @@ export function ScreenRecorder() {
         },
       );
       const newShave = result?.data;
+      //Process video even if shave creation failed, not block user
       await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
@@ -147,7 +148,7 @@ export function ScreenRecorder() {
     setUploadResult(null);
 
     try {
-      let shaveId: number | null | undefined = null;
+      let shaveId: number | undefined;
       const existingShaveId = await checkExistingShave(trimmedUrl);
       if (existingShaveId) {
         shaveId = existingShaveId;
@@ -158,11 +159,8 @@ export function ScreenRecorder() {
           shaveStatus: ShaveStatus.Pending,
           videoEmbedUrl: normalizeYouTubeUrl(trimmedUrl),
         });
-        const newShave = result?.data;
-        console.log("Created new shave for YouTube URL:", newShave);
-        shaveId = newShave?.id;
+        shaveId = result?.data?.id;
       }
-      console.log("Processing YouTube URL with shaveId:", shaveId);
       await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, shaveId);
       setYoutubeUrl("");
     } catch (error) {

@@ -5,7 +5,6 @@ import { normalizeYouTubeUrl } from "../../../backend/utils/youtube-url-utils";
 import { ipcClient } from "../services/ipc-client";
 import { ShaveStatus, type WorkflowProgress } from "../types";
 
-//todo: check youtube url with shaveid
 interface FinalOutput {
   Status?: string;
   Repository?: string;
@@ -186,10 +185,12 @@ export function useShaveManager() {
             workItemUrl: parsedOutput.workItemUrl,
           });
         } catch (error) {
-          console.error("\n[Shave] ✗ Failed to save/update shave record:");
-          console.error("[Shave] Error:", error);
-          console.error("=== SHAVE SAVE END (FAILED) ===\n");
-          toast.error("Couldn't update shave record");
+          console.error("[Shave] Failed to save/update shave record::", error);
+          const updateErrorMsg = error instanceof Error ? error.message : "Unknown error";
+          toast.error("Failed to update shave record", {
+            description: `There was an error updating the shave record with the final output from the workflow. ${updateErrorMsg}`,
+          });
+          return;
         }
       }
     });

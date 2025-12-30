@@ -16,7 +16,6 @@ export class ShaveService {
   }
 
   public createShave(shave: Omit<NewShave, "id">, videoFile?: Omit<NewVideoFile, "id">): Shave {
-    console.log("[ShaveService] Creating shave...", shave, videoFile);
     try {
       let videoFileId: number | null = null;
 
@@ -26,7 +25,8 @@ export class ShaveService {
           const videoFileResult = dbVideoFileService.createVideoFile(videoFile);
           videoFileId = videoFileResult.id;
         } catch (err) {
-          console.error("[ShaveService] Failed to create video file:", formatErrorMessage(err));
+          const errorMsg = formatErrorMessage(err);
+          console.error("[ShaveService] Failed to create video file:", errorMsg);
         }
       }
 

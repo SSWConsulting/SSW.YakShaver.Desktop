@@ -137,14 +137,12 @@ export class ProcessVideoIPCHandlers {
   }
 
   private async processUrlVideo(url: string, shaveId?: number) {
-    console.log("[ProcessVideo] Starting processing for video URL:", { url, shaveId });
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
 
     try {
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
-      console.log("[ProcessVideo] Retrieved YouTube metadata:", youtubeResult);
       notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
         sourceOrigin: "external",
@@ -166,11 +164,6 @@ export class ProcessVideoIPCHandlers {
   }
 
   private async processVideoSource({ filePath, youtubeResult, shaveId }: VideoProcessingContext) {
-    console.log("[ProcessVideo] Starting processing for video source:", {
-      filePath,
-      youtubeResult,
-      shaveId,
-    });
     // check file exists
     if (!fs.existsSync(filePath)) {
       throw new Error("video-process-handler: Video file does not exist");

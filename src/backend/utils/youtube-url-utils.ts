@@ -7,7 +7,7 @@
  * - Shorts: https://www.youtube.com/shorts/VIDEO_ID
  * - Live: https://www.youtube.com/live/VIDEO_ID
  * - Mobile: https://m.youtube.com
- * * @param urlInput - The YouTube URL to normalize
+ * @param urlInput - The YouTube URL to normalize
  * @returns The normalized URL (https://www.youtube.com/watch?v=ID) or original if invalid
  */
 export function normalizeYouTubeUrl(urlInput: string | null | undefined): string | null {
