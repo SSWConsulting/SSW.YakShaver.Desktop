@@ -92,9 +92,6 @@ export class YouTubeDownloadService {
       restrictFilenames: true,
       noWarnings: true,
       quiet: true,
-      verbose: true,
-      cookies:
-        "C:\\DataWillowLyu\\ProjectsGitHub\\SSW.YakShaver.Desktop\\src\\backend\\services\\video\\cookie.txt",
     };
 
     try {

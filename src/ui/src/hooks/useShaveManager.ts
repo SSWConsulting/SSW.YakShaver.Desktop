@@ -86,14 +86,15 @@ export function useShaveManager() {
     async (shaveData: Omit<NewShave, "id">, recordingFile?: Omit<NewVideoFile, "id">) => {
       try {
         const result = await ipcClient.shave.create(shaveData, recordingFile);
-        toast.success("Shave saved", {
-          description: "The shave has been saved.",
+        toast.success("Saved to My Shaves", {
+          description: "Your video was saved to My Shaves.",
         });
         return result;
       } catch (error) {
         console.error("[Shave] Failed to save recording:", error);
-        toast.error("Failed to save shave", {
-          description: "Video is processing, but it won't be saved in 'My Shaves'.",
+        toast.error("Could not save to My Shaves", {
+          description:
+            "Video processing will continue, but we couldn't save this shave to My Shaves.",
         });
         return null;
       }
@@ -188,7 +189,7 @@ export function useShaveManager() {
           console.error("\n[Shave] ✗ Failed to save/update shave record:");
           console.error("[Shave] Error:", error);
           console.error("=== SHAVE SAVE END (FAILED) ===\n");
-          toast.error("Failed to save shave record");
+          toast.error("Couldn't update shave record");
         }
       }
     });
