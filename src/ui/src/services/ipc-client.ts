@@ -35,6 +35,7 @@ declare global {
         retryVideo: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
+          shaveId?: number,
         ) => Promise<{
           success: boolean;
           finalOutput?: string | null;
@@ -187,6 +188,10 @@ declare global {
         getAll: () => Promise<{ success: boolean; data?: Shave[]; error?: string }>;
         findByVideoUrl: (
           videoEmbedUrl: string,
+        ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
+        attachVideoFile: (
+          shaveId: number,
+          videoFile: Omit<NewVideoFile, "id">,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         update: (
           id: number,

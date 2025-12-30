@@ -63,9 +63,14 @@ export class ProcessVideoIPCHandlers {
         _event: IpcMainInvokeEvent,
         intermediateOutput: string,
         videoUploadResult: VideoUploadResult,
+        shaveId?: number,
       ) => {
+        const notify = (stage: string, data?: Record<string, unknown>) => {
+          this.emitProgress(stage, data, shaveId);
+        };
+
         try {
-          this.emitProgress(ProgressStage.EXECUTING_TASK);
+          notify(ProgressStage.EXECUTING_TASK);
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
@@ -87,14 +92,14 @@ export class ProcessVideoIPCHandlers {
               : { systemPrompt },
           );
 
-          this.emitProgress(ProgressStage.COMPLETED, {
+          notify(ProgressStage.COMPLETED, {
             mcpResult,
             finalOutput: mcpResult,
           });
           return { success: true, finalOutput: mcpResult };
         } catch (error) {
           const errorMessage = formatErrorMessage(error);
-          this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+          notify(ProgressStage.ERROR, { error: errorMessage });
           return { success: false, error: errorMessage };
         }
       },

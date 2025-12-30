@@ -2,6 +2,7 @@ import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
 import { formatErrorMessage } from "@/utils";
+import { normalizeYouTubeUrl } from "../../../../backend/utils/youtube-url-utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
@@ -31,7 +32,7 @@ export function ScreenRecorder() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
-  const { saveRecording } = useShaveManager();
+  const { saveRecording, checkExistingShave } = useShaveManager();
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
@@ -146,13 +147,21 @@ export function ScreenRecorder() {
     setUploadResult(null);
 
     try {
-      const result = await saveRecording({
-        workItemSource: "YakShaver Desktop",
-        title: "YouTube Video",
-        shaveStatus: ShaveStatus.Pending,
-      });
-      const newShave = result?.data;
-      await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, newShave?.id);
+      let shaveId: number | null | undefined = null;
+      const existingShaveId = await checkExistingShave(trimmedUrl);
+      if (existingShaveId) {
+        shaveId = existingShaveId;
+      } else {
+        const result = await saveRecording({
+          workItemSource: "YakShaver Desktop",
+          title: "YouTube Video",
+          shaveStatus: ShaveStatus.Pending,
+          videoEmbedUrl: normalizeYouTubeUrl(trimmedUrl),
+        });
+        const newShave = result?.data;
+        shaveId = newShave?.id;
+      }
+      await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, shaveId);
       setYoutubeUrl("");
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);

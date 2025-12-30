@@ -1,9 +1,11 @@
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import type { NewShave, NewVideoFile } from "../../../backend/db/schema";
+import { normalizeYouTubeUrl } from "../../../backend/utils/youtube-url-utils";
 import { ipcClient } from "../services/ipc-client";
 import { ShaveStatus, type WorkflowProgress } from "../types";
 
+//todo: check youtube url with shaveid
 interface FinalOutput {
   Status?: string;
   Repository?: string;
@@ -50,6 +52,33 @@ function parseFinalOutput(finalOutput: string): ParsedShaveOutput {
 
 export function useShaveManager() {
   /**
+   * Check if a video URL already has a shave in the database.
+   */
+  const checkExistingShave = useCallback(async (videoUrl: string): Promise<number | null> => {
+    if (!videoUrl) return null;
+
+    try {
+      // Normalize the URL (especially for YouTube links)
+      const normalizedUrl = normalizeYouTubeUrl(videoUrl);
+      console.log("[Shave] Checking existing shave for URL:", normalizedUrl);
+      if (!normalizedUrl) return null;
+
+      // Check if a shave exists with this URL
+      const result = await ipcClient.shave.findByVideoUrl(normalizedUrl);
+
+      if (result.success && result.data) {
+        console.log(`[Shave] Found existing shave (ID: ${result.data.id}) for URL:`, normalizedUrl);
+        return result.data.id;
+      }
+
+      return null;
+    } catch (error) {
+      console.error("[Shave] Error checking for existing shave:", error);
+      return null;
+    }
+  }, []);
+
+  /**
    * Save a recording with video file metadata and shave information
    */
   const saveRecording = useCallback(
@@ -79,8 +108,36 @@ export function useShaveManager() {
       const progressData = data as WorkflowProgress;
       const { shaveId } = progressData;
 
+      // Update shave status to Processing when upload/download starts
+      if (
+        (progressData.stage === "uploading_source" ||
+          progressData.stage === "downloading_source") &&
+        typeof shaveId === "number"
+      ) {
+        try {
+          await ipcClient.shave.update(shaveId, {
+            shaveStatus: ShaveStatus.Processing,
+          });
+        } catch (err) {
+          console.error("[Shave] Error updating shave status to Processing (by id):", err);
+        }
+      }
+
+      // Update shave when finished uploading video
       if (progressData.stage === "upload_completed" && typeof shaveId === "number") {
-        const { uploadResult } = progressData;
+        const { uploadResult, sourceOrigin } = progressData;
+
+        if (sourceOrigin === "external") {
+          try {
+            ipcClient.shave.attachVideoFile(shaveId, {
+              fileName: uploadResult?.data?.title || "external-video",
+              filePath: uploadResult?.data?.url || "",
+              duration: uploadResult?.data?.duration || 0,
+            });
+          } catch (err) {
+            console.error("[Shave] Error attaching external video file to shave:", err);
+          }
+        }
 
         try {
           await ipcClient.shave.update(shaveId, {
@@ -103,23 +160,6 @@ export function useShaveManager() {
             parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
           const shaveStatus = parsedOutput.status as ShaveStatus;
 
-          // Check if this video URL already exists in the database
-          // if (videoUrl) {
-          //   const result = await ipcClient.shave.findByVideoUrl(videoUrl);
-          //   const existingShave = result.data;
-          //   if (existingShave) {
-          //     await ipcClient.shave.update(existingShave.id, {
-          //       title: finalTitle,
-          //       shaveStatus,
-          //       workItemUrl: parsedOutput.workItemUrl,
-          //     });
-          //     toast.success("Shave updated", {
-          //       description: "The work item has been updated in My Shaves with the new PBI.",
-          //     });
-          //     return;
-          //   }
-          // }
-
           await ipcClient.shave.update(shaveId, {
             title: finalTitle,
             shaveStatus,
@@ -137,5 +177,6 @@ export function useShaveManager() {
 
   return {
     saveRecording,
+    checkExistingShave,
   };
 }

@@ -16,6 +16,11 @@ export class ShaveIPCHandlers {
     );
     ipcMain.handle(IPC_CHANNELS.SHAVE_GET_BY_ID, (_, id: number) => this.getShaveById(id));
     ipcMain.handle(IPC_CHANNELS.SHAVE_GET_ALL, () => this.getAllShaves());
+    ipcMain.handle(
+      IPC_CHANNELS.SHAVE_ATTACH_VIDEO_FILE,
+      (_, shaveId: number, videoFile: Omit<NewVideoFile, "id">) =>
+        this.attachVideoFileToShave(shaveId, videoFile),
+    );
     ipcMain.handle(IPC_CHANNELS.SHAVE_FIND_BY_VIDEO_URL, (_, videoEmbedUrl: string) =>
       this.findByVideoUrl(videoEmbedUrl),
     );
@@ -76,6 +81,15 @@ export class ShaveIPCHandlers {
   private updateShaveStatus(id: number, status: ShaveStatus) {
     try {
       const result = this.service.updateShaveStatus(id, status);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: formatErrorMessage(error) };
+    }
+  }
+
+  private attachVideoFileToShave(shaveId: number, videoFile: Omit<NewVideoFile, "id">) {
+    try {
+      const result = this.service.attachVideoFileToShave(shaveId, videoFile);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: formatErrorMessage(error) };

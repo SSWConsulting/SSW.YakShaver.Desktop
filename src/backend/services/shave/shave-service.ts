@@ -3,6 +3,7 @@ import * as dbShaveService from "../../db/services/shave-service";
 import * as dbVideoFileService from "../../db/services/video-files-service";
 import type { ShaveStatus } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
+import { normalizeYouTubeUrl } from "../../utils/youtube-url-utils";
 
 export class ShaveService {
   private static instance: ShaveService;
@@ -29,11 +30,15 @@ export class ShaveService {
         }
       }
 
-      // Create shave with videoFileId (null if not provided or creation failed)
-      const newShave = dbShaveService.createShave({
+      // Normalize YouTube URL before saving
+      const normalizedShave = {
         ...shave,
         videoFileId: videoFileId ?? null,
-      });
+        videoEmbedUrl: shave.videoEmbedUrl ? normalizeYouTubeUrl(shave.videoEmbedUrl) : null,
+      };
+
+      // Create shave with videoFileId (null if not provided or creation failed)
+      const newShave = dbShaveService.createShave(normalizedShave);
       return newShave;
     } catch (err) {
       throw new Error(formatErrorMessage(err));
@@ -58,7 +63,11 @@ export class ShaveService {
 
   public findShaveByVideoUrl(videoEmbedUrl: string): Shave | undefined {
     try {
-      return dbShaveService.findShaveByVideoUrl(videoEmbedUrl);
+      // Normalize YouTube URL before searching
+      const normalizedUrl = normalizeYouTubeUrl(videoEmbedUrl);
+      if (!normalizedUrl) return undefined;
+
+      return dbShaveService.findShaveByVideoUrl(normalizedUrl);
     } catch (err) {
       throw new Error(formatErrorMessage(err));
     }
@@ -66,7 +75,25 @@ export class ShaveService {
 
   public updateShave(id: number, data: Partial<Omit<NewShave, "id">>): Shave | undefined {
     try {
-      return dbShaveService.updateShave(id, data);
+      // Normalize YouTube URL if videoEmbedUrl is being updated
+      const normalizedData = { ...data };
+      if ("videoEmbedUrl" in data) {
+        normalizedData.videoEmbedUrl = normalizeYouTubeUrl(data.videoEmbedUrl);
+      }
+
+      return dbShaveService.updateShave(id, normalizedData);
+    } catch (err) {
+      throw new Error(formatErrorMessage(err));
+    }
+  }
+
+  public attachVideoFileToShave(
+    shaveId: number,
+    videoFile: Omit<NewVideoFile, "id">,
+  ): Shave | undefined {
+    try {
+      const videoFileResult = dbVideoFileService.createVideoFile(videoFile);
+      return dbShaveService.updateShave(shaveId, { videoFileId: videoFileResult.id });
     } catch (err) {
       throw new Error(formatErrorMessage(err));
     }

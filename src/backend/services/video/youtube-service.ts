@@ -92,6 +92,7 @@ export class YouTubeDownloadService {
       restrictFilenames: true,
       noWarnings: true,
       quiet: true,
+      verbose: true,
     };
 
     try {
