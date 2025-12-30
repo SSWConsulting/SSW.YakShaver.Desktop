@@ -23,6 +23,7 @@ export interface TranscriptSegment {
 
 export interface MetadataBuilderInput {
   transcriptVtt: string;
+  intermediateOutput: string;
   executionHistory: string;
   finalResult?: string | null;
 }
@@ -51,13 +52,16 @@ export class VideoMetadataBuilder {
     const executionHistorySnippet = truncateText(input.executionHistory, 6000);
 
     const fallbackLinks = dedupeLinks([
+      ...extractLinksFromText(input.intermediateOutput),
       ...extractLinksFromText(input.finalResult ?? ""),
       ...extractLinksFromText(executionHistorySnippet),
+      ...extractLinksFromStructuredData(input.intermediateOutput),
       ...extractLinksFromStructuredData(input.finalResult ?? ""),
       ...extractLinksFromStructuredData(executionHistorySnippet),
     ]);
 
     const promptPayload = [
+      "Generate the JSON object based on the following information:",
       "### Execution History",
       executionHistorySnippet || "No execution history available.",
       "",
@@ -78,14 +82,14 @@ export class VideoMetadataBuilder {
       throw new Error("LLM Client Provider is not initialized");
     }
 
-    const response = await llmClientProvider.generateObject(
-      promptPayload,
-      MetadataModelResponseSchema,
-      METADATA_SYSTEM_PROMPT,
-    );
+    const response = await llmClientProvider.generateJson(promptPayload, METADATA_SYSTEM_PROMPT);
+    console.log("Metadata model response:", JSON.stringify(response));
+
+    const parsedResponse = safeJsonParse<MetadataModelResponse>(response);
+    console.log("Parsed response:", JSON.stringify(parsedResponse));
 
     const metadata = normalizeModelResponse(
-      response,
+      parsedResponse || {},
       fallbackLinks,
       transcriptSegments,
       executionHistorySnippet,
@@ -115,7 +119,8 @@ Rules:
 - Use specific, descriptive chapter names that reflect the actual content
 - Highlight concrete issues/resources from the execution history
 - Write descriptions suitable for YouTube (no markdown code fences)
-- If information is missing, fall back to clear defaults rather than hallucinating.`;
+- If information is missing, fall back to clear defaults rather than hallucinating.
+- DO NOT reference any local files or folders`;
 
 export function parseVtt(vtt: string): TranscriptSegment[] {
   if (!vtt) return [];
@@ -365,9 +370,12 @@ function appendChapters(description: string, chapters: ChapterCandidate[]): stri
 
   if (chapters.length) {
     lines.push("", "Chapters:");
-    for (const chapter of chapters) {
-      lines.push(`${chapter.timestamp.replace(/^00:/, "")} - ${chapter.label}`);
-    }
+    chapters.forEach((chapter, i) => {
+      const start = chapter.timestamp.replace(/^00:/, "");
+      const end = chapters[i + 1]?.timestamp.replace(/^00:/, "");
+      const time = end ? `${start}-${end}` : start;
+      lines.push(`${time} - ${chapter.label}`);
+    });
   }
 
   return lines.join("\n").trim();
