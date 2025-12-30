@@ -83,10 +83,8 @@ export class VideoMetadataBuilder {
     }
 
     const response = await llmClientProvider.generateJson(promptPayload, METADATA_SYSTEM_PROMPT);
-    console.log("Metadata model response:", JSON.stringify(response));
 
     const parsedResponse = safeJsonParse<MetadataModelResponse>(response);
-    console.log("Parsed response:", JSON.stringify(parsedResponse));
 
     const metadata = normalizeModelResponse(
       parsedResponse || {},
