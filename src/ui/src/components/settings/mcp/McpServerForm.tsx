@@ -218,11 +218,9 @@ export function McpServerForm({
               </Button>
             ))}
           </div>
-          {selectedPreset && selectedPreset !== "Custom" && (
-            <h4 className="text-sm font-normal leading-5 text-white/[0.56]">
-              Presets will auto-fill the form below
-            </h4>
-          )}
+          <h4 className="text-sm font-normal leading-5 text-white/[0.56]">
+            Presets will auto-fill the form below
+          </h4>
         </div>
       )}
 
