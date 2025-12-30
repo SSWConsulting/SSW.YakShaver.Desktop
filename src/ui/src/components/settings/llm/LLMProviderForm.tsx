@@ -1,169 +1,19 @@
 import { Loader2 } from "lucide-react";
-import type { Control, UseFormReturn } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
+import { LLMProviderFields, type ProviderOption } from "@/components/llm/LLMProviderFields";
+import type { HealthStatusInfo } from "../../../types";
 import { Button } from "../../ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "../../ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../../ui/form";
 import { Input } from "../../ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import type { FormValues } from "./LLMKeyManager";
 
 export type LLMProvider = "openai" | "deepseek" | "azure";
 
-type LLMProviderSelectProps = {
-  control: Control<FormValues>;
-  handleProviderChange: (value: LLMProvider) => void;
-};
-
-function LLMProviderSelect({ control, handleProviderChange }: LLMProviderSelectProps) {
-  return (
-    <FormField
-      control={control}
-      name="provider"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Provider</FormLabel>
-          <Select
-            onValueChange={(v: LLMProvider) => {
-              field.onChange(v);
-              handleProviderChange(v);
-            }}
-            defaultValue={field.value}
-          >
-            <FormControl>
-              <SelectTrigger className="cursor-pointer">
-                <SelectValue placeholder="Select provider" />
-              </SelectTrigger>
-            </FormControl>
-            <SelectContent>
-              <SelectItem value="openai">OpenAI</SelectItem>
-              <SelectItem value="deepseek">DeepSeek</SelectItem>
-              <SelectItem value="azure" disabled={true}>
-                Azure OpenAI
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
-}
-
-type OpenAIProviderFormProps = {
-  control: Control<FormValues>;
-};
-
-type DeepSeekProviderFormProps = {
-  control: Control<FormValues>;
-};
-
-type AzureOpenAIProviderFormProps = {
-  control: Control<FormValues>;
-};
-
-function OpenAIProviderForm({ control }: OpenAIProviderFormProps) {
-  return (
-    <FormField
-      control={control}
-      name="apiKey"
-      render={({ field }) => (
-        <FormItem className="flex flex-col gap-2">
-          <FormLabel>API Key</FormLabel>
-          <FormControl>
-            <Input {...field} placeholder="sk-..." type="password" />
-          </FormControl>
-          <FormDescription className="text-xs">Stored securely on this device.</FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
-}
-
-function DeepSeekProviderForm({ control }: DeepSeekProviderFormProps) {
-  return (
-    <FormField
-      control={control}
-      name="apiKey"
-      render={({ field }) => (
-        <FormItem className="flex flex-col gap-2">
-          <FormLabel>API Key</FormLabel>
-          <FormControl>
-            <Input {...field} placeholder="sk-..." type="password" />
-          </FormControl>
-          <FormDescription className="text-xs">Stored securely on this device.</FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
-}
-
-function AzureOpenAIProviderForm({ control }: AzureOpenAIProviderFormProps) {
-  return (
-    <div className="flex flex-col gap-3">
-      <FormField
-        control={control}
-        name="apiKey"
-        render={({ field }) => (
-          <FormItem className="flex flex-col gap-2">
-            <FormLabel>API Key</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="Azure OpenAI API Key" type="password" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={control}
-        name="endpoint"
-        render={({ field }) => (
-          <FormItem className="flex flex-col gap-2">
-            <FormLabel>Endpoint</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="https://<resource>.openai.azure.com" type="text" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={control}
-        name="version"
-        render={({ field }) => (
-          <FormItem className="flex flex-col gap-2">
-            <FormLabel>API Version</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="e.g. 2024-08-01-preview" type="text" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={control}
-        name="deployment"
-        render={({ field }) => (
-          <FormItem className="flex flex-col gap-2">
-            <FormLabel>Deployment Name</FormLabel>
-            <FormControl>
-              <Input {...field} placeholder="e.g. Whisper" type="text" />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </div>
-  );
-}
+const PROVIDER_OPTIONS: ProviderOption[] = [
+  { value: "openai", label: "OpenAI" },
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "azure", label: "Azure OpenAI", disabled: true },
+];
 
 type LLMProviderFormProps = {
   form: UseFormReturn<FormValues>;
@@ -172,6 +22,7 @@ type LLMProviderFormProps = {
   isLoading: boolean;
   hasConfig: boolean;
   handleProviderChange: (value: "openai" | "deepseek" | "azure") => void;
+  healthStatus?: HealthStatusInfo | null;
 };
 
 export function LLMProviderForm({
@@ -181,20 +32,74 @@ export function LLMProviderForm({
   isLoading,
   hasConfig,
   handleProviderChange,
+  healthStatus,
 }: LLMProviderFormProps) {
   const provider = form.watch("provider");
+  const isAzureProvider = provider === "azure";
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <LLMProviderSelect control={form.control} handleProviderChange={handleProviderChange} />
-        {provider === "openai" ? (
-          <OpenAIProviderForm control={form.control} />
-        ) : provider === "deepseek" ? (
-          <DeepSeekProviderForm control={form.control} />
-        ) : (
-          <AzureOpenAIProviderForm control={form.control} />
+        <LLMProviderFields
+          control={form.control}
+          providerField="provider"
+          apiKeyField="apiKey"
+          providerOptions={PROVIDER_OPTIONS}
+          onProviderChange={(value) => handleProviderChange(value as LLMProvider)}
+          healthStatus={healthStatus}
+          apiKeyDescription="Stored securely on this device."
+          apiKeyPlaceholder={isAzureProvider ? "Azure OpenAI API Key" : "sk-..."}
+          selectContentClassName="z-[70]"
+        />
+
+        {isAzureProvider && (
+          <div className="grid gap-3">
+            <FormField
+              control={form.control}
+              name="endpoint"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel className="text-white">Endpoint</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="https://<resource>.openai.azure.com"
+                      type="text"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="version"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel className="text-white">API Version</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="e.g. 2024-08-01-preview" type="text" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="deployment"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <FormLabel className="text-white">Deployment Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="e.g. Whisper" type="text" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         )}
+
         <div className="flex justify-start gap-2">
           <Button
             type="button"

@@ -1,5 +1,7 @@
+import { Camera } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CAMERA_ONLY_SOURCE_ID } from "../../constants/recording";
 import { ipcClient } from "../../services/ipc-client";
 import type { ScreenSource } from "../../types";
 import { Button } from "../ui/button";
@@ -230,6 +232,25 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           {loading && (
             <div className="text-sm text-muted-foreground text-center py-2">Loading sources…</div>
           )}
+
+          {selectedCameraId && (
+            <section>
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
+                Camera Only
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-5">
+                <CameraOnlyTile
+                  onClick={() =>
+                    onSelect(CAMERA_ONLY_SOURCE_ID, {
+                      cameraId: selectedCameraId,
+                      microphoneId: selectedMicrophoneId,
+                    })
+                  }
+                />
+              </div>
+            </section>
+          )}
+
           <SourceSection
             label="Screens"
             sources={screens}
@@ -251,7 +272,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
            * />
            */}
 
-          {!loading && screens.length === 0 && (
+          {!loading && screens.length === 0 && !selectedCameraId && (
             <div className="text-sm text-muted-foreground text-center py-8">
               No screens available
             </div>
@@ -308,6 +329,32 @@ function ImageTile({ source, onClick }: { source: ScreenSource; onClick: () => v
       ) : (
         <div className="h-full w-full bg-neutral-800" />
       )}
+    </Button>
+  );
+}
+
+function CameraOnlyTile({ onClick }: { onClick: () => void }) {
+  const handleClick = async () => {
+    await window.electronAPI.screenRecording.minimizeMainWindow();
+    onClick();
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      onClick={handleClick}
+      title="Camera Only - No Screen"
+      className="group relative block aspect-video w-full h-auto overflow-hidden rounded-lg bg-neutral-800 p-4 ring-offset-neutral-900 transition-all hover:ring-2 hover:ring-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 hover:bg-neutral-800"
+    >
+      <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-neutral-400">
+        <Camera className="h-12 w-12" />
+        <span className="w-full max-w-full text-center text-sm font-medium">
+          No Screen / Camera Only
+        </span>
+        <span className="w-full max-w-full text-center text-xs text-neutral-500 whitespace-normal break-words">
+          Record camera feed without screen capture
+        </span>
+      </div>
     </Button>
   );
 }

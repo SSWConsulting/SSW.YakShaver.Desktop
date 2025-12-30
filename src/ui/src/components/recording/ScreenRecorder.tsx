@@ -49,21 +49,8 @@ export function ScreenRecorder() {
     setDuration(calculatedDuration);
   }, []);
 
-  const toggleRecording = async () => {
-    if (isRecording) {
-      await handleStopRecording();
-      return;
-    }
-
-    if (recordedVideo?.filePath) {
-      try {
-        await window.electronAPI.screenRecording.cleanupTempFile(recordedVideo.filePath);
-      } catch {}
-      setRecordedVideo(null);
-      setPreviewOpen(false);
-    }
-
-    setPickerOpen(true);
+  const toggleRecording = () => {
+    isRecording ? handleStopRecording() : setPickerOpen(true);
   };
 
   useEffect(() => {
