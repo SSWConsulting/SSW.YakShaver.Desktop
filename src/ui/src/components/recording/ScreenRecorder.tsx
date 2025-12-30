@@ -159,8 +159,10 @@ export function ScreenRecorder() {
           videoEmbedUrl: normalizeYouTubeUrl(trimmedUrl),
         });
         const newShave = result?.data;
+        console.log("Created new shave for YouTube URL:", newShave);
         shaveId = newShave?.id;
       }
+      console.log("Processing YouTube URL with shaveId:", shaveId);
       await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, shaveId);
       setYoutubeUrl("");
     } catch (error) {

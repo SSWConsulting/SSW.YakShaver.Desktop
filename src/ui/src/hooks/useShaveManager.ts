@@ -65,6 +65,7 @@ export function useShaveManager() {
 
       // Check if a shave exists with this URL
       const result = await ipcClient.shave.findByVideoUrl(normalizedUrl);
+      console.log("[Shave] Existing shave check result:", result);
 
       if (result.success && result.data) {
         console.log(`[Shave] Found existing shave (ID: ${result.data.id}) for URL:`, normalizedUrl);
@@ -123,28 +124,44 @@ export function useShaveManager() {
         }
       }
 
-      // Update shave when finished uploading video
       if (progressData.stage === "upload_completed" && typeof shaveId === "number") {
         const { uploadResult, sourceOrigin } = progressData;
 
-        if (sourceOrigin === "external") {
-          try {
-            ipcClient.shave.attachVideoFile(shaveId, {
-              fileName: uploadResult?.data?.title || "external-video",
-              filePath: uploadResult?.data?.url || "",
-              duration: uploadResult?.data?.duration || 0,
-            });
-          } catch (err) {
-            console.error("[Shave] Error attaching external video file to shave:", err);
-          }
-        }
+        console.log("[Shave] Upload completed for shave ID:", shaveId, {
+          uploadResult,
+          sourceOrigin,
+        });
 
-        try {
-          await ipcClient.shave.update(shaveId, {
-            videoEmbedUrl: uploadResult?.data?.url || null,
-          });
-        } catch (err) {
-          console.error("[Shave] Error updating shave video URL (by id):", err);
+        // Only attach or update if we actually have an upload result with data
+        if (uploadResult?.data) {
+          // Attach video file if source is external (e.g., YouTube)
+          if (sourceOrigin === "external") {
+            try {
+              await ipcClient.shave.attachVideoFile(shaveId, {
+                fileName: uploadResult.data.title,
+                filePath: uploadResult.data.url,
+                duration: uploadResult.data.duration || 0,
+              });
+            } catch (err) {
+              console.error("[Shave] Error attaching external video file to shave:", err);
+            }
+          }
+
+          // Only update the video embed URL for local recordings when finished uploading video
+          if (sourceOrigin !== "external") {
+            try {
+              await ipcClient.shave.update(shaveId, {
+                videoEmbedUrl: uploadResult.data.url,
+              });
+            } catch (err) {
+              console.error("[Shave] Error updating shave video URL (by id):", err);
+            }
+          }
+        } else {
+          console.log(
+            "[Shave] No uploadResult available; skipping video URL update for shave:",
+            shaveId,
+          );
         }
 
         return;
@@ -152,6 +169,8 @@ export function useShaveManager() {
 
       // Update shave when there's final output
       if (typeof progressData.finalOutput !== "undefined" && typeof shaveId === "number") {
+        console.log("=== SHAVE Final Update START ===");
+        console.log("[Shave] Finalizing shave record for ID:", shaveId, progressData.finalOutput);
         const { uploadResult, finalOutput } = progressData;
 
         try {

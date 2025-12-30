@@ -605,7 +605,6 @@ export function FinalResultPanel() {
 
     try {
       const mergedOutput = mergeReprocessInstructions(intermediateOutput, reprocessInstructions);
-      console.log("[FinalResultPanel] Merged reprocess instructions:", shaveId);
       const result = await ipcClient.pipelines.retryVideo(mergedOutput, uploadResult, shaveId);
 
       if (!result?.success) {

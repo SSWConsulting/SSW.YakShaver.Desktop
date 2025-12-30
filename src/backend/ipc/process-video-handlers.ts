@@ -48,13 +48,16 @@ export class ProcessVideoIPCHandlers {
       },
     );
 
-    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO_URL, async (_event, url?: string) => {
-      if (!url) {
-        throw new Error("video-process-handler: Video URL is required");
-      }
+    ipcMain.handle(
+      IPC_CHANNELS.PROCESS_VIDEO_URL,
+      async (_event, url?: string, shaveId?: number) => {
+        if (!url) {
+          throw new Error("video-process-handler: Video URL is required");
+        }
 
-      return await this.processUrlVideo(url);
-    });
+        return await this.processUrlVideo(url, shaveId);
+      },
+    );
 
     // Retry video pipeline
     ipcMain.handle(
@@ -134,12 +137,14 @@ export class ProcessVideoIPCHandlers {
   }
 
   private async processUrlVideo(url: string, shaveId?: number) {
+    console.log("[ProcessVideo] Starting processing for video URL:", { url, shaveId });
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
 
     try {
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
+      console.log("[ProcessVideo] Retrieved YouTube metadata:", youtubeResult);
       notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
         sourceOrigin: "external",
@@ -151,6 +156,7 @@ export class ProcessVideoIPCHandlers {
       return await this.processVideoSource({
         filePath,
         youtubeResult,
+        shaveId,
       });
     } catch (error) {
       const errorMessage = formatErrorMessage(error);

@@ -92,6 +92,11 @@ export class ShaveService {
     videoFile: Omit<NewVideoFile, "id">,
   ): Shave | undefined {
     try {
+      const existingShave = dbShaveService.getShaveById(shaveId);
+      if (existingShave?.videoFileId) {
+        return existingShave;
+      }
+
       const videoFileResult = dbVideoFileService.createVideoFile(videoFile);
       return dbShaveService.updateShave(shaveId, { videoFileId: videoFileResult.id });
     } catch (err) {
