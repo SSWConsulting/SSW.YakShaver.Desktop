@@ -170,15 +170,14 @@ export class ProcessVideoIPCHandlers {
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
       this.emitProgress(ProgressStage.TRANSCRIBING);
-      let transcript = await this.llmClient.transcribeAudio(mp3FilePath);
+      const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
       this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      transcript = parseVtt(transcript)
+      const transcriptText = parseVtt(transcript)
         .map((segment: TranscriptSegment) => segment.text)
         .join(" ");
 
-      this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
-
+      this.emitProgress(ProgressStage.GENERATING_TASK, { transcript: transcriptText });
       const llmClientProvider = await LLMClientProvider.getInstanceAsync();
       if (!llmClientProvider) {
         throw new Error("LLM Client Provider is not initialized");
@@ -186,7 +185,7 @@ export class ProcessVideoIPCHandlers {
 
       const userPrompt = `Process the following transcript into a structured JSON object:
       
-      ${transcript}`;
+      ${transcriptText}`;
 
       const intermediateOutput = await llmClientProvider.generateJson(
         userPrompt,
@@ -194,7 +193,7 @@ export class ProcessVideoIPCHandlers {
       );
 
       this.emitProgress(ProgressStage.EXECUTING_TASK, {
-        transcript,
+        transcriptText,
         intermediateOutput,
       });
 
@@ -202,7 +201,7 @@ export class ProcessVideoIPCHandlers {
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
-      const mcpResult = await orchestrator.manualLoopAsync(transcript, youtubeResult, {
+      const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
         systemPrompt,
         videoFilePath: filePath,
       });
@@ -227,6 +226,7 @@ export class ProcessVideoIPCHandlers {
             this.emitProgress(ProgressStage.UPDATING_METADATA);
             const metadata = await this.metadataBuilder.build({
               transcriptVtt: transcript,
+              intermediateOutput,
               executionHistory: JSON.stringify(transcript ?? [], null, 2),
               finalResult: mcpResult ?? undefined,
             });
@@ -250,7 +250,7 @@ export class ProcessVideoIPCHandlers {
       }
 
       this.emitProgress(ProgressStage.COMPLETED, {
-        transcript,
+        transcriptText,
         intermediateOutput,
         mcpResult,
         finalOutput: mcpResult,
