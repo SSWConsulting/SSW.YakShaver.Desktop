@@ -1,6 +1,6 @@
 import type { MCPServerConfig } from "./McpServerForm";
 
-export const DEFAULT_SERVERS: MCPServerConfig[] = [
+export const DEFAULT_MCP_SERVERS: MCPServerConfig[] = [
   {
     name: "GitHub",
     description: "GitHub MCP Server",

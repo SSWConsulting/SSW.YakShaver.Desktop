@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
-import { DEFAULT_SERVERS } from "./default-servers";
+import { DEFAULT_MCP_SERVERS } from "./default-mcp-servers";
 
 export type Transport = "streamableHttp" | "stdio" | "inMemory";
 
@@ -179,7 +179,7 @@ export function McpServerForm({
     }
   };
 
-  const presetServers = DEFAULT_SERVERS.filter((server) => {
+  const presetServers = DEFAULT_MCP_SERVERS.filter((server) => {
     const isAllowed =
       !allowedTransports || allowedTransports.includes(server.transport);
     const notExists = !existingServerNames.includes(server.name);
