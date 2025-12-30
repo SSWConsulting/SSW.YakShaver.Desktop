@@ -59,15 +59,12 @@ export function useShaveManager() {
     try {
       // Normalize the URL (especially for YouTube links)
       const normalizedUrl = normalizeYouTubeUrl(videoUrl);
-      console.log("[Shave] Checking existing shave for URL:", normalizedUrl);
       if (!normalizedUrl) return null;
 
       // Check if a shave exists with this URL
       const result = await ipcClient.shave.findByVideoUrl(normalizedUrl);
-      console.log("[Shave] Existing shave check result:", result);
 
       if (result.success && result.data) {
-        console.log(`[Shave] Found existing shave (ID: ${result.data.id}) for URL:`, normalizedUrl);
         return result.data.id;
       }
 
@@ -127,11 +124,6 @@ export function useShaveManager() {
       if (progressData.stage === "upload_completed" && typeof shaveId === "number") {
         const { uploadResult, sourceOrigin } = progressData;
 
-        console.log("[Shave] Upload completed for shave ID:", shaveId, {
-          uploadResult,
-          sourceOrigin,
-        });
-
         if (uploadResult?.data) {
           // Attach video file if source is external (e.g., YouTube)
           if (sourceOrigin === "external") {
@@ -156,20 +148,12 @@ export function useShaveManager() {
               console.error("[Shave] Error updating shave video URL (by id):", err);
             }
           }
-        } else {
-          console.log(
-            "[Shave] No uploadResult available; skipping video URL update for shave:",
-            shaveId,
-          );
         }
-
         return;
       }
 
       // Update shave when there's final output
       if (typeof progressData.finalOutput !== "undefined" && typeof shaveId === "number") {
-        console.log("=== SHAVE Final Update START ===");
-        console.log("[Shave] Finalizing shave record for ID:", shaveId, progressData.finalOutput);
         const { uploadResult, finalOutput } = progressData;
 
         try {

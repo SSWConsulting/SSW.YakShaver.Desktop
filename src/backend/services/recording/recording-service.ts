@@ -6,7 +6,6 @@ import tmp from "tmp";
 import { getMainWindow } from "../../index";
 import { formatErrorMessage } from "../../utils/error-utils";
 import type { VideoUploadResult } from "../auth/types";
-// import { getVideoDuration } from "../ffmpeg/ffmpeg-service";
 import type { ScreenSource, StartRecordingResult, StopRecordingResult } from "./types";
 
 export class RecordingService extends EventEmitter {
