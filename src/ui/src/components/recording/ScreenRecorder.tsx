@@ -114,7 +114,7 @@ export function ScreenRecorder() {
         },
       );
       const newShave = result?.data;
-      //Process video even if shave creation failed, not block user
+      //Process video even if Shave creation failed, do not block user
       await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);

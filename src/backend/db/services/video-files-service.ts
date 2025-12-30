@@ -4,7 +4,7 @@ import { type NewVideoFile, type VideoFile, videoFiles } from "../schema";
 
 /**
  * Create a new video file record.
- * Note: better-sqlite3 is synchronous, so no async/await needed.
+ * Note: better-sqlite3 is synchronous
  */
 export function createVideoFile(data: Omit<NewVideoFile, "id">): VideoFile {
   const result = db.insert(videoFiles).values(data).returning().get();

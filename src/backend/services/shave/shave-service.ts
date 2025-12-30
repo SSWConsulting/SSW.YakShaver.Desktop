@@ -92,6 +92,7 @@ export class ShaveService {
     videoFile: Omit<NewVideoFile, "id">,
   ): Shave | undefined {
     try {
+      //In case user tries to shave the same video again, avoid overwriting existing videoFileId
       const existingShave = dbShaveService.getShaveById(shaveId);
       if (existingShave?.videoFileId) {
         return existingShave;

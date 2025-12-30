@@ -100,6 +100,8 @@ export function useShaveManager() {
 
   /**
    * Listen for workflow completion and update shave
+   * For Recordings: finish recording -> create shave with video file metadata -> update youtube url after upload completes -> update shave with final output
+   * For YouTube URLs: input youtube url -> create shave with url, without video file metadata -> attach video file after upload completes -> update shave with final output
    */
   useEffect(() => {
     return ipcClient.workflow.onProgress(async (data: unknown) => {
@@ -131,7 +133,7 @@ export function useShaveManager() {
               await ipcClient.shave.attachVideoFile(shaveId, {
                 fileName: uploadResult.data.title,
                 filePath: uploadResult.data.url,
-                duration: uploadResult.data.duration || 0,
+                duration: uploadResult.data.duration || -1,
               });
             } catch (err) {
               console.error("[Shave] Error attaching external video file to shave:", err);
