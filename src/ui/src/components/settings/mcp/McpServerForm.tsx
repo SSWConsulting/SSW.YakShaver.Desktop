@@ -192,7 +192,7 @@ export function McpServerForm({
                 URL <span className="text-red-400">*</span>
               </FormLabel>
               <FormControl>
-                <Input {...field} type="text" placeholder="e.g., https://api.example.com/mcp/" />
+                <Input {...field} type="text" placeholder="e.g., https://api.githubcopilot.com/mcp/" />
               </FormControl>
               <FormMessage />
             </FormItem>
