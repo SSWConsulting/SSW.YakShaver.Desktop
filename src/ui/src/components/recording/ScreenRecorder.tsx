@@ -17,7 +17,6 @@ interface RecordedVideo {
   blob: Blob;
   filePath: string;
   fileName: string;
-  duration: number;
 }
 
 export function ScreenRecorder() {
@@ -32,6 +31,7 @@ export function ScreenRecorder() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
+  const [duration, setDuration] = useState<number>(0);
   const { saveRecording, checkExistingShave } = useShaveManager();
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
@@ -44,6 +44,10 @@ export function ScreenRecorder() {
       await window.electronAPI.screenRecording.restoreMainWindow();
     }
   }, [stop]);
+
+  const handleDurationLoad = useCallback((calculatedDuration: number) => {
+    setDuration(calculatedDuration);
+  }, []);
 
   const toggleRecording = async () => {
     if (isRecording) {
@@ -98,7 +102,13 @@ export function ScreenRecorder() {
   const handleContinue = async () => {
     if (!recordedVideo) return;
 
-    const { filePath, fileName, duration } = recordedVideo;
+    // Validate that duration was loaded
+    if (duration === undefined) {
+      toast.error("Video duration not loaded. Please wait a moment and try again.");
+      return;
+    }
+
+    const { filePath, fileName } = recordedVideo;
     resetPreview();
 
     try {
@@ -254,6 +264,7 @@ export function ScreenRecorder() {
           onClose={resetPreview}
           onRetry={handleRetry}
           onContinue={handleContinue}
+          onDurationLoad={handleDurationLoad}
         />
       )}
     </>

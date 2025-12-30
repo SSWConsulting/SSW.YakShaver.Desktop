@@ -3,12 +3,12 @@ import { useEffect, useRef, useState } from "react";
 interface VideoPlayerProps {
   videoUrl: string;
   videoBlob: Blob;
-  duration?: number; // Duration in seconds (optional, calculated from blob if not provided)
+  onDurationLoad?: (duration: number) => void;
 }
 
-export function VideoPlayer({ videoUrl, videoBlob, duration }: VideoPlayerProps) {
+export function VideoPlayer({ videoUrl, videoBlob, onDurationLoad }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [displayDuration, setDisplayDuration] = useState<string>("");
+  const [duration, setDuration] = useState<string>("");
   const [fileSize, setFileSize] = useState<string>("");
 
   useEffect(() => {
@@ -16,28 +16,15 @@ export function VideoPlayer({ videoUrl, videoBlob, duration }: VideoPlayerProps)
     setFileSize(`${sizeMB} MB`);
   }, [videoBlob]);
 
-  // Use provided duration if available, otherwise calculate from video element
   const handleLoadedMetadata = () => {
-    if (duration !== undefined) {
-      const minutes = Math.floor(duration / 60);
-      const seconds = Math.floor(duration % 60);
-      setDisplayDuration(`${minutes}:${seconds.toString().padStart(2, "0")}`);
-    } else if (videoRef.current) {
+    if (videoRef.current) {
       const dur = videoRef.current.duration;
       const minutes = Math.floor(dur / 60);
       const seconds = Math.floor(dur % 60);
-      setDisplayDuration(`${minutes}:${seconds.toString().padStart(2, "0")}`);
+      setDuration(`${minutes}:${seconds.toString().padStart(2, "0")}`);
+      onDurationLoad?.(Math.floor(dur));
     }
   };
-
-  useEffect(() => {
-    // If duration prop is provided, format it immediately without waiting for video load
-    if (duration !== undefined) {
-      const minutes = Math.floor(duration / 60);
-      const seconds = Math.floor(duration % 60);
-      setDisplayDuration(`${minutes}:${seconds.toString().padStart(2, "0")}`);
-    }
-  }, [duration]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -49,11 +36,11 @@ export function VideoPlayer({ videoUrl, videoBlob, duration }: VideoPlayerProps)
           className="w-full max-h-[500px]"
           onLoadedMetadata={handleLoadedMetadata}
         >
-          <track kind="captions" srcLang="en" label="English Captions" />
+          <track kind="captions" srcLang="en" label="English" />
         </video>
       </div>
       <div className="flex justify-between text-sm text-white/60">
-        <span>Duration: {displayDuration || "Loading..."}</span>
+        <span>Duration: {duration || "Loading..."}</span>
         <span>Size: {fileSize}</span>
       </div>
     </div>

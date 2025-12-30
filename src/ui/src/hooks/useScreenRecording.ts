@@ -131,7 +131,6 @@ export function useScreenRecording() {
     blob: Blob;
     filePath: string;
     fileName: string;
-    duration: number;
   } | null> => {
     if (!mediaRecorderRef.current) return null;
 
@@ -159,7 +158,6 @@ export function useScreenRecording() {
             blob,
             filePath: result.filePath,
             fileName: result.fileName || result.filePath,
-            duration: result.duration || 0,
           });
         } catch (error) {
           toast.error(`Failed to save recording: ${error}`);

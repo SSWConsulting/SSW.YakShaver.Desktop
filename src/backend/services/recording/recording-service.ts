@@ -6,7 +6,7 @@ import tmp from "tmp";
 import { getMainWindow } from "../../index";
 import { formatErrorMessage } from "../../utils/error-utils";
 import type { VideoUploadResult } from "../auth/types";
-import { getVideoDuration } from "../ffmpeg/ffmpeg-service";
+// import { getVideoDuration } from "../ffmpeg/ffmpeg-service";
 import type { ScreenSource, StartRecordingResult, StopRecordingResult } from "./types";
 
 export class RecordingService extends EventEmitter {
@@ -58,18 +58,7 @@ export class RecordingService extends EventEmitter {
 
       // Extract filename from filepath
       const fileName = basename(tempFile.name);
-
-      // Get video duration using ffprobe
-      let duration = 0;
-      try {
-        duration = await getVideoDuration(tempFile.name);
-      } catch (err) {
-        console.warn("Failed to get video duration:", err);
-      }
-      console.log(
-        `Recording saved to ${tempFile.name}, filename: ${fileName} (Duration: ${duration}s)`,
-      );
-      return { success: true, filePath: tempFile.name, fileName, duration };
+      return { success: true, filePath: tempFile.name, fileName };
     } catch (error) {
       return { success: false, error: formatErrorMessage(error) };
     }

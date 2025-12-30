@@ -132,7 +132,6 @@ export function useShaveManager() {
           sourceOrigin,
         });
 
-        // Only attach or update if we actually have an upload result with data
         if (uploadResult?.data) {
           // Attach video file if source is external (e.g., YouTube)
           if (sourceOrigin === "external") {
