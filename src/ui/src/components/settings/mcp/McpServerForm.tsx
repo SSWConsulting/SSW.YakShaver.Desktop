@@ -313,7 +313,7 @@ export function McpServerForm({
                       disabled={disableInput}
                       {...field}
                       type="text"
-                      placeholder="e.g., https://api.example.com/mcp/"
+                      placeholder="e.g., https://api.githubcopilot.com/mcp/"
                     />
                   </FormControl>
                   <FormMessage />
