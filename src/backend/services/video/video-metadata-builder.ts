@@ -4,10 +4,12 @@ import { LLMClientProvider } from "../mcp/llm-client-provider.js";
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s)]+/gi;
 
-interface LinkCandidate {
-  label: string;
-  url: string;
-}
+const LinkCandidateSchema = z.object({
+  label: z.string(),
+  url: z.url(),
+});
+
+type LinkCandidate = z.infer<typeof LinkCandidateSchema>;
 
 export const ChapterCandidateSchema = z.object({
   label: z.string(),
@@ -29,7 +31,7 @@ export interface MetadataBuilderInput {
 }
 
 export const MetadataModelResponseSchema = z.object({
-  title: z.string().optional(),
+  title: z.string().max(100).optional(),
   description: z.string().optional(),
   tags: z.array(z.string()).optional(),
   chapters: z.array(ChapterCandidateSchema).optional(),
