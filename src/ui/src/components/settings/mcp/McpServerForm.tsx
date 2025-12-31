@@ -155,28 +155,40 @@ export function McpServerForm({
 
   const handleQuickAdd = (server: MCPServerConfig) => {
     setSelectedPreset(server.name);
-    form.setValue("name", server.name);
-    form.setValue("description", server.description ?? "");
-    form.setValue("transport", server.transport);
 
-    if (server.transport === "stdio" && "command" in server) {
-      form.setValue("command", server.command);
-      form.setValue("args", server.args?.join("\n") ?? "");
-      form.setValue(
-        "env",
-        server.env ? JSON.stringify(server.env, null, 2) : ""
-      );
-      form.setValue("cwd", server.cwd ?? "");
-      form.setValue("stderr", server.stderr ?? "inherit");
-    } else if (server.transport === "streamableHttp" && "url" in server) {
-      form.setValue("url", server.url);
-      form.setValue(
-        "headers",
-        server.headers ? JSON.stringify(server.headers, null, 2) : ""
-      );
-      form.setValue("version", server.version ?? "");
-      form.setValue("timeoutMs", server.timeoutMs ?? "");
+    const formValues = buildFormValues(server);
+    form.reset(formValues);
+  };
+
+  const buildFormValues = (server: MCPServerConfig): MCPServerFormData => {
+    const baseValues = {
+      name: server.name,
+      description: server.description ?? "",
+      transport: server.transport,
+    };
+
+    if (server.transport === "stdio") {
+      return {
+        ...baseValues,
+        command: server.command,
+        args: server.args?.join("\n") ?? "",
+        env: server.env ? JSON.stringify(server.env, null, 2) : "",
+        cwd: server.cwd ?? "",
+        stderr: server.stderr ?? "inherit",
+      };
     }
+
+    if (server.transport === "streamableHttp") {
+      return {
+        ...baseValues,
+        url: server.url,
+        headers: server.headers ? JSON.stringify(server.headers, null, 2) : "",
+        version: server.version ?? "",
+        timeoutMs: server.timeoutMs ?? "",
+      };
+    }
+
+    return baseValues;
   };
 
   const presetServers = DEFAULT_MCP_SERVERS.filter((server) => {
@@ -753,6 +765,7 @@ export function McpServerFormWrapper({
           <Button
             type="button"
             variant="outline"
+            className="cursor-pointer"
             onClick={onCancel}
             disabled={isLoading}
           >
@@ -760,9 +773,10 @@ export function McpServerFormWrapper({
           </Button>
           <Button
             type="submit"
-            disabled={!isLoading && !form.formState.isValid}
+            className="cursor-pointer"
+            disabled={isLoading || !form.formState.isValid}
           >
-            {isLoading ? "Saving..." : "Save Server"}
+            Save Server
           </Button>
         </div>
       </form>
