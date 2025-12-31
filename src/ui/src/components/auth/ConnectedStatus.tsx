@@ -15,7 +15,7 @@ export const ConnectedStatus = ({ userInfo, platform, onSwitch }: ConnectedStatu
     <PlatformConnectionCard
       icon={<FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />}
       title={platform}
-      subtitle={channelName}
+      subtitle={channelName ?? undefined}
       label="Connected to"
       badgeText="Active"
       onAction={onSwitch}
