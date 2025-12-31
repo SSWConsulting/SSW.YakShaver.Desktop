@@ -16,7 +16,12 @@ import {
 } from "../../ui/alert-dialog";
 import { Button } from "../../ui/button";
 import { Card, CardContent } from "../../ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "../../ui/empty";
 import { ScrollArea } from "../../ui/scroll-area";
 import { GitHubAppInstallGuide } from "./GitHubAppInstallGuide";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
@@ -24,7 +29,10 @@ import { McpWhitelistDialog } from "./McpWhitelistDialog";
 
 type ViewMode = "list" | "add" | "edit";
 
-type ServerHealthStatus<T extends string = string> = Record<T, HealthStatusInfo>;
+type ServerHealthStatus<T extends string = string> = Record<
+  T,
+  HealthStatusInfo
+>;
 
 interface McpSettingsPanelProps {
   isActive: boolean;
@@ -34,11 +42,16 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null);
+  const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(
+    null
+  );
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [serverToDelete, setServerToDelete] = useState<string | null>(null);
-  const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
-  const [whitelistServer, setWhitelistServer] = useState<MCPServerConfig | null>(null);
+  const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>(
+    {}
+  );
+  const [whitelistServer, setWhitelistServer] =
+    useState<MCPServerConfig | null>(null);
   const [appInstallUrl, setAppInstallUrl] = useState<string>("");
 
   // Load GitHub install URL
@@ -56,34 +69,37 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     }
   }, [isActive, appInstallUrl]);
 
-  const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
-    const initialStatus: ServerHealthStatus<string> = {};
-    serverList.forEach((server) => {
-      initialStatus[server.name] = { isHealthy: false, isChecking: true };
-    });
-    setHealthStatus(initialStatus);
+  const checkAllServersHealth = useCallback(
+    async (serverList: MCPServerConfig[]) => {
+      const initialStatus: ServerHealthStatus<string> = {};
+      serverList.forEach((server) => {
+        initialStatus[server.name] = { isHealthy: false, isChecking: true };
+      });
+      setHealthStatus(initialStatus);
 
-    for (const server of serverList) {
-      try {
-        const result = (await ipcClient.mcp.checkServerHealthAsync(
-          server.name,
-        )) as HealthStatusInfo;
-        setHealthStatus((prev) => ({
-          ...prev,
-          [server.name]: { ...result, isChecking: false },
-        }));
-      } catch (e) {
-        setHealthStatus((prev) => ({
-          ...prev,
-          [server.name]: {
-            isHealthy: false,
-            error: formatErrorMessage(e),
-            isChecking: false,
-          },
-        }));
+      for (const server of serverList) {
+        try {
+          const result = (await ipcClient.mcp.checkServerHealthAsync(
+            server.name
+          )) as HealthStatusInfo;
+          setHealthStatus((prev) => ({
+            ...prev,
+            [server.name]: { ...result, isChecking: false },
+          }));
+        } catch (e) {
+          setHealthStatus((prev) => ({
+            ...prev,
+            [server.name]: {
+              isHealthy: false,
+              error: formatErrorMessage(e),
+              isChecking: false,
+            },
+          }));
+        }
       }
-    }
-  }, []);
+    },
+    []
+  );
 
   const loadServers = useCallback(async () => {
     setIsLoading(true);
@@ -138,7 +154,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
         setIsLoading(false);
       }
     },
-    [viewMode, editingServer, showList, loadServers],
+    [viewMode, editingServer, showList, loadServers]
   );
 
   const confirmDeleteServer = useCallback((name: string) => {
@@ -196,8 +212,8 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                   <EmptyHeader>
                     <EmptyTitle>No MCP servers configured</EmptyTitle>
                     <EmptyDescription>
-                      You don't have any MCP servers configured. Click "Add Server" to configure
-                      one.
+                      You don't have any MCP servers configured. Click "Add
+                      Server" to configure one.
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -207,17 +223,20 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                 <div className="flex flex-col gap-4">
                   {sortedServers.map((server) => {
                     const status = healthStatus[server.name] || {};
-                    const transportLabel = server.transport === "streamableHttp" ? "http" : "stdio";
+                    const transportLabel =
+                      server.transport === "streamableHttp" ? "http" : "stdio";
                     const connectionSummary =
                       server.transport === "streamableHttp"
-                        ? (server.url ?? "")
+                        ? server.url ?? ""
                         : "command" in server
-                          ? [server.command, ...(server.args ?? [])]
-                              .filter((part) => part && part.length > 0)
-                              .join(" ")
-                          : "";
+                        ? [server.command, ...(server.args ?? [])]
+                            .filter((part) => part && part.length > 0)
+                            .join(" ")
+                        : "";
                     const cwdSummary =
-                      server.transport === "stdio" && "cwd" in server ? server.cwd : undefined;
+                      server.transport === "stdio" && "cwd" in server
+                        ? server.cwd
+                        : undefined;
 
                     // Check if this is a GitHub MCP server
                     const isGitHubServer =
@@ -241,26 +260,37 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 </div>
 
                                 <div className="flex-1">
-                                <h3 className="text-lg font-semibold text-white">{server.name}</h3>
-                                {server.builtin ? (
-                                  <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
-                                ) : (
-                                  <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
-                                    {transportLabel}
+                                  <h3 className="text-lg font-semibold text-white">
+                                    {server.name}
+                                  </h3>
+                                  {server.builtin ? (
+                                    <p className="mt-2 text-sm text-white/50">
+                                      Built-in MCP Server
+                                    </p>
+                                  ) : (
+                                    <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
+                                      {transportLabel}
+                                    </p>
+                                  )}
+                                  {server.description && (
+                                    <p className="mt-1 text-sm text-white/70">
+                                      {server.description}
+                                    </p>
+                                  )}
+                                  <p className="mt-2 break-all font-mono text-sm text-white/50">
+                                    {server.builtin
+                                      ? ""
+                                      : connectionSummary || "—"}
                                   </p>
-                                )}
-                                {server.description && (
-                                  <p className="mt-1 text-sm text-white/70">{server.description}</p>
-                                )}
-                                <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                  {server.builtin ? "" : connectionSummary || "—"}
-                                </p>
-                                {cwdSummary && (
-                                  <p className="mt-1 text-xs text-white/40">
-                                    cwd: <span className="font-mono">{cwdSummary}</span>
-                                  </p>
-                                )}
-                              </div>
+                                  {cwdSummary && (
+                                    <p className="mt-1 text-xs text-white/40">
+                                      cwd:{" "}
+                                      <span className="font-mono">
+                                        {cwdSummary}
+                                      </span>
+                                    </p>
+                                  )}
+                                </div>
                               </div>
 
                               <div className="flex gap-2 flex-shrink-0">
@@ -283,7 +313,9 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 <Button
                                   variant="destructive"
                                   size="sm"
-                                  onClick={() => confirmDeleteServer(server.name)}
+                                  onClick={() =>
+                                    confirmDeleteServer(server.name)
+                                  }
                                   disabled={server.builtin}
                                 >
                                   Delete
@@ -293,7 +325,9 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
 
                             {/* Show GitHub App install guide for GitHub MCP servers */}
                             {isGitHubServer && appInstallUrl && (
-                              <GitHubAppInstallGuide appInstallUrl={appInstallUrl} />
+                              <GitHubAppInstallGuide
+                                appInstallUrl={appInstallUrl}
+                              />
                             )}
                           </div>
                         </CardContent>
@@ -312,6 +346,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
               onSubmit={handleSubmit}
               onCancel={showList}
               isLoading={isLoading}
+              existingServerNames={servers.map((s) => s.name)}
             />
           )}
         </div>
@@ -322,13 +357,15 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {serverToDelete}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove server '{serverToDelete}'? This action cannot be
-              undone.
+              Are you sure you want to remove server '{serverToDelete}'? This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm}>Delete Server</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteConfirm}>
+              Delete Server
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
