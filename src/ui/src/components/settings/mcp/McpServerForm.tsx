@@ -155,40 +155,29 @@ export function McpServerForm({
 
   const handleQuickAdd = (server: MCPServerConfig) => {
     setSelectedPreset(server.name);
-
-    const formValues = buildFormValues(server);
-    form.reset(formValues);
-  };
-
-  const buildFormValues = (server: MCPServerConfig): MCPServerFormData => {
-    const baseValues = {
-      name: server.name,
-      description: server.description ?? "",
-      transport: server.transport,
-    };
+    form.reset();
+    form.setValue("name", server.name);
+    form.setValue("description", server.description ?? "");
+    form.setValue("transport", server.transport);
 
     if (server.transport === "stdio") {
-      return {
-        ...baseValues,
-        command: server.command,
-        args: server.args?.join("\n") ?? "",
-        env: server.env ? JSON.stringify(server.env, null, 2) : "",
-        cwd: server.cwd ?? "",
-        stderr: server.stderr ?? "inherit",
-      };
+      form.setValue("command", server.command);
+      form.setValue("args", server.args?.join("\n") ?? "");
+      form.setValue(
+        "env",
+        server.env ? JSON.stringify(server.env, null, 2) : ""
+      );
+      form.setValue("cwd", server.cwd ?? "");
+      form.setValue("stderr", server.stderr ?? "inherit");
+    } else if (server.transport === "streamableHttp") {
+      form.setValue("url", server.url);
+      form.setValue(
+        "headers",
+        server.headers ? JSON.stringify(server.headers, null, 2) : ""
+      );
+      form.setValue("version", server.version ?? "");
+      form.setValue("timeoutMs", server.timeoutMs ?? "");
     }
-
-    if (server.transport === "streamableHttp") {
-      return {
-        ...baseValues,
-        url: server.url,
-        headers: server.headers ? JSON.stringify(server.headers, null, 2) : "",
-        version: server.version ?? "",
-        timeoutMs: server.timeoutMs ?? "",
-      };
-    }
-
-    return baseValues;
   };
 
   const presetServers = DEFAULT_MCP_SERVERS.filter((server) => {
