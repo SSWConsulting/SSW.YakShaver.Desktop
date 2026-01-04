@@ -121,7 +121,6 @@ export function OnboardingWizard() {
   const [connectorPositions, setConnectorPositions] = useState<
     ConnectorPosition[]
   >([]);
-  const [existingServers, setExistingServers] = useState<string[]>([]);
 
   const llmForm = useForm<LLMFormValues>({
     resolver: zodResolver(llmSchema),
@@ -281,17 +280,6 @@ export function OnboardingWizard() {
     // Start with a blank form each time the user reaches step 3.
     setHasMCPConfig(false);
     mcpForm.reset({ ...DEFAULT_MCP_VALUES });
-
-    // Fetch existing servers to filter quick add options
-    const fetchServers = async () => {
-      try {
-        const servers = await ipcClient.mcp.listServers();
-        setExistingServers(servers.map((s) => s.name));
-      } catch (error) {
-        console.error("Failed to fetch MCP servers:", error);
-      }
-    };
-    void fetchServers();
   }, [currentStep, mcpForm]);
 
   const handleLLMSubmit = useCallback(async (values: LLMFormValues) => {
@@ -611,7 +599,6 @@ export function OnboardingWizard() {
                 showAdvancedOptions={true}
                 advancedOpen={isMcpAdvancedOpen}
                 onAdvancedOpenChange={setIsMcpAdvancedOpen}
-                existingServerNames={existingServers}
               />
             </form>
           </Form>

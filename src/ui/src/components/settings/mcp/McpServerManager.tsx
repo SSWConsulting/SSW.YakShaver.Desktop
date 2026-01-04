@@ -23,6 +23,7 @@ import {
   EmptyTitle,
 } from "../../ui/empty";
 import { ScrollArea } from "../../ui/scroll-area";
+import { Switch } from "../../ui/switch";
 import { GitHubAppInstallGuide } from "./GitHubAppInstallGuide";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 import { McpWhitelistDialog } from "./McpWhitelistDialog";
@@ -73,11 +74,20 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     async (serverList: MCPServerConfig[]) => {
       const initialStatus: ServerHealthStatus<string> = {};
       serverList.forEach((server) => {
-        initialStatus[server.name] = { isHealthy: false, isChecking: true };
+        if (server.enabled !== false) {
+          initialStatus[server.name] = { isHealthy: false, isChecking: true };
+        } else {
+          initialStatus[server.name] = {
+            isHealthy: false,
+            isChecking: false,
+            successMessage: "Disabled",
+          };
+        }
       });
       setHealthStatus(initialStatus);
 
       for (const server of serverList) {
+        if (server.enabled === false) continue;
         try {
           const result = (await ipcClient.mcp.checkServerHealthAsync(
             server.name
@@ -185,6 +195,32 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     }
   }, [serverToDelete, loadServers]);
 
+  const handleToggleEnabled = useCallback(
+    async (server: MCPServerConfig, enabled: boolean) => {
+      try {
+        const updatedServer = { ...server, enabled };
+        await ipcClient.mcp.updateServerAsync(server.name, updatedServer);
+
+        // Optimistic update
+        setServers((prev) =>
+          prev.map((s) => (s.name === server.name ? updatedServer : s))
+        );
+
+        toast.success(
+          `Server '${server.name}' ${enabled ? "enabled" : "disabled"}`
+        );
+
+        // Reload to ensure sync and re-check health if enabled
+        await loadServers();
+      } catch (e) {
+        toast.error(`Failed to update server: ${formatErrorMessage(e)}`);
+        // Revert on error
+        await loadServers();
+      }
+    },
+    [loadServers]
+  );
+
   const sortedServers = useMemo(() => {
     return [...servers].sort((a, b) => a.name.localeCompare(b.name));
   }, [servers]);
@@ -252,6 +288,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                               <div className="flex items-start gap-3">
                                 <div className="group relative mt-1 flex-shrink-0">
                                   <HealthStatus
+                                    isDisabled={server.enabled === false}
                                     isHealthy={!!status.isHealthy}
                                     isChecking={!!status.isChecking}
                                     successMessage={status.successMessage}
@@ -293,33 +330,44 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 </div>
                               </div>
 
-                              <div className="flex gap-2 flex-shrink-0">
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => showEditForm(server)}
-                                  disabled={server.builtin}
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => openWhitelistDialog(server)}
-                                  disabled={server.builtin}
-                                >
-                                  Configure Whitelist
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() =>
-                                    confirmDeleteServer(server.name)
-                                  }
-                                  disabled={server.builtin}
-                                >
-                                  Delete
-                                </Button>
+                              <div className="flex items-start gap-4 flex-shrink-0">
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Switch
+                                    checked={server.enabled !== false}
+                                    onCheckedChange={(checked) =>
+                                      handleToggleEnabled(server, checked)
+                                    }
+                                    disabled={server.builtin}
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => showEditForm(server)}
+                                    disabled={server.builtin}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => openWhitelistDialog(server)}
+                                    disabled={server.builtin}
+                                  >
+                                    Configure Whitelist
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() =>
+                                      confirmDeleteServer(server.name)
+                                    }
+                                    disabled={server.builtin}
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
                               </div>
                             </div>
 

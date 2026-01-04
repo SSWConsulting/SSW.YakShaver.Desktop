@@ -24,8 +24,9 @@ export class MCPServerManager {
 
   public async getAllMcpServerClientsAsync(): Promise<MCPServerClient[]> {
     const allConfigs = await MCPServerManager.getAllServerConfigsAsync();
+    const enabledConfigs = allConfigs.filter((c) => c.enabled !== false);
     const results = await Promise.allSettled(
-      allConfigs.map((config) => this.getMcpClientAsync(config.name)),
+      enabledConfigs.map((config) => this.getMcpClientAsync(config.name)),
     );
     return results
       .filter((r) => r.status === "fulfilled" && r.value)
