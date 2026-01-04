@@ -121,17 +121,41 @@ export class LLMClientProvider {
     return response;
   }
 
-  public async generateObject<T extends ZodType>(message: string, schema: T): Promise<z.infer<T>> {
+  public async generateObject<T extends ZodType>(
+    prompt: string,
+    schema: T,
+    systemPrompt?: string,
+  ): Promise<z.infer<T>> {
     try {
       const { output } = await generateText({
+        system: systemPrompt,
         model: LLMClientProvider.languageModel,
         output: Output.object({ schema }),
-        prompt: message,
+        prompt: prompt,
       });
       return schema.parse(output);
     } catch (error) {
       throw new Error(
-        `[LLMClientProvider]: Failed to generate object matching schema. Message: "${message}". Schema: ${schema?.toString?.() || "[unknown schema]"}. Original error: ${error instanceof Error ? error.message : String(error)}`,
+        `[LLMClientProvider]: Failed to generate object matching schema. Prompt: "${prompt}". Schema: ${schema?.toString?.() || "[unknown schema]"}. Original error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  public async generateJson(prompt: string, systemPrompt?: string): Promise<string> {
+    try {
+      const { output } = await generateText({
+        system: systemPrompt,
+        model: LLMClientProvider.languageModel,
+        output: Output.json(),
+        prompt: prompt,
+      });
+      if (!output) {
+        throw new Error("No output received from LLM when generating JSON");
+      }
+      return JSON.stringify(output);
+    } catch (error) {
+      throw new Error(
+        `[LLMClientProvider]: Failed to generate object matching schema. Prompt: "${prompt}". Original error: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

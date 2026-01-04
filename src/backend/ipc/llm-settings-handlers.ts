@@ -1,11 +1,9 @@
 import { type IpcMainInvokeEvent, ipcMain } from "electron";
 import { LLMClientProvider } from "../services/mcp/llm-client-provider";
-import { OpenAIService } from "../services/openai/openai-service";
 import { type LLMConfig, LlmStorage } from "../services/storage/llm-storage";
 import { IPC_CHANNELS } from "./channels";
 
 export class LLMSettingsIPCHandlers {
-  private openAiService = OpenAIService.getInstance();
   private secureStorage = LlmStorage.getInstance();
 
   constructor() {
@@ -29,7 +27,6 @@ export class LLMSettingsIPCHandlers {
 
     ipcMain.handle(IPC_CHANNELS.LLM_CLEAR_CONFIG, async () => {
       await this.secureStorage.clearLLMConfig();
-      this.openAiService.clearOpenAIClient();
       return { success: true };
     });
 
