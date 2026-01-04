@@ -12,11 +12,11 @@ import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
-import { useSaveShaveOnCompletion } from "./hooks/useSaveShaveOnCompletion";
+import { useShaveManager } from "./hooks/useShaveManager";
 
 export default function App() {
   // Auto-save shaves when workflow completes
-  useSaveShaveOnCompletion();
+  useShaveManager();
 
   return (
     <AdvancedSettingsProvider>

@@ -26,13 +26,14 @@ export function MyShavesDialog() {
   const loadShaves = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await ipcClient.shave.getAll();
+      const result = await ipcClient.shave.getAll();
       // Sort by updatedAt, newest first
-      const sortedData = data.sort((a, b) => {
-        const dateA = new Date(a.updatedAt || a.createdAt).getTime();
-        const dateB = new Date(b.updatedAt || b.createdAt).getTime();
-        return dateB - dateA;
-      });
+      const sortedData =
+        result.data?.sort((a, b) => {
+          const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+          const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+          return dateB - dateA;
+        }) ?? [];
       setShaves(sortedData);
     } catch (error) {
       toast.error("Failed to load shaves");

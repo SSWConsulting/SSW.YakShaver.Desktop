@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from "react";
 interface VideoPlayerProps {
   videoUrl: string;
   videoBlob: Blob;
+  onDurationLoad?: (duration: number) => void;
 }
 
-export function VideoPlayer({ videoUrl, videoBlob }: VideoPlayerProps) {
+export function VideoPlayer({ videoUrl, videoBlob, onDurationLoad }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState<string>("");
   const [fileSize, setFileSize] = useState<string>("");
@@ -21,6 +22,7 @@ export function VideoPlayer({ videoUrl, videoBlob }: VideoPlayerProps) {
       const minutes = Math.floor(dur / 60);
       const seconds = Math.floor(dur % 60);
       setDuration(`${minutes}:${seconds.toString().padStart(2, "0")}`);
+      onDurationLoad?.(Math.floor(dur));
     }
   };
 
@@ -33,7 +35,9 @@ export function VideoPlayer({ videoUrl, videoBlob }: VideoPlayerProps) {
           controls
           className="w-full max-h-[500px]"
           onLoadedMetadata={handleLoadedMetadata}
-        />
+        >
+          <track kind="captions" srcLang="en" label="English" />
+        </video>
       </div>
       <div className="flex justify-between text-sm text-white/60">
         <span>Duration: {duration || "Loading..."}</span>

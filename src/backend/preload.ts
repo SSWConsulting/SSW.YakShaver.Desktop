@@ -103,6 +103,7 @@ const IPC_CHANNELS = {
 
   // Shave Management
   SHAVE_CREATE: "shave:create",
+  SHAVE_ATTACH_VIDEO_FILE: "shave:attach-video-file",
   SHAVE_GET_BY_ID: "shave:get-by-id",
   SHAVE_GET_ALL: "shave:get-all",
   SHAVE_FIND_BY_VIDEO_URL: "shave:find-by-video-url",
@@ -119,11 +120,16 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideoFile: (filePath: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath),
-    processVideoUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url),
-    retryVideo: (intermediateOutput: string, videoUploadResult: VideoUploadResult) =>
-      ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult),
+    processVideoFile: (filePath: string, shaveId?: number) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId),
+    processVideoUrl: (url: string, shaveId?: number) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url, shaveId),
+    retryVideo: (
+      intermediateOutput: string,
+      videoUploadResult: VideoUploadResult,
+      shaveId?: number,
+    ) =>
+      ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult, shaveId),
   },
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),
@@ -277,14 +283,22 @@ const electronAPI = {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
   },
   shave: {
-    create: (data: {
-      workItemSource: string;
-      title: string;
-      videoFile: VideoFileMetadata;
-      projectName?: string;
-      workItemUrl?: string;
-      shaveStatus?: ShaveStatus;
-    }) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_CREATE, data),
+    create: (
+      shaveData: {
+        workItemSource: string;
+        title: string;
+        projectName?: string;
+        workItemUrl?: string;
+        shaveStatus?: ShaveStatus;
+        videoEmbedUrl?: string;
+        videoFileId?: number | null;
+      },
+      videoFile?: { fileName: string; filePath?: string; duration: number },
+    ) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_CREATE, shaveData, videoFile),
+    attachVideoFile: (
+      shaveId: number,
+      videoFile: { fileName: string; filePath?: string; duration: number },
+    ) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_ATTACH_VIDEO_FILE, shaveId, videoFile),
     getById: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_BY_ID, id),
     getAll: () => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_GET_ALL),
     findByVideoUrl: (videoEmbedUrl: string) =>

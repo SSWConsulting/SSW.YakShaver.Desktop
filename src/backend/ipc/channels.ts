@@ -93,6 +93,7 @@ export const IPC_CHANNELS = {
 
   // Shave Management
   SHAVE_CREATE: "shave:create",
+  SHAVE_ATTACH_VIDEO_FILE: "shave:attach-video-file",
   SHAVE_GET_BY_ID: "shave:get-by-id",
   SHAVE_GET_ALL: "shave:get-all",
   SHAVE_FIND_BY_VIDEO_URL: "shave:find-by-video-url",
