@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
-import type { NewShave, NewVideoFile } from "../../../backend/db/schema";
+import type { CreateShaveData, CreateVideoData } from "../../../backend/db/schema";
 import { normalizeYouTubeUrl } from "../../../backend/utils/youtube-url-utils";
 import { ipcClient } from "../services/ipc-client";
 import { ShaveStatus, type WorkflowProgress } from "../types";
@@ -79,7 +79,7 @@ export function useShaveManager() {
    * Save a recording with video file metadata and shave information
    */
   const saveRecording = useCallback(
-    async (shaveData: Omit<NewShave, "id">, recordingFile?: Omit<NewVideoFile, "id">) => {
+    async (shaveData: CreateShaveData, recordingFile?: CreateVideoData) => {
       try {
         const result = await ipcClient.shave.create(shaveData, recordingFile);
         toast.success("Saved to My Shaves", {

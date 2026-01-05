@@ -1,12 +1,12 @@
 import { eq } from "drizzle-orm";
 import { db } from "../client";
-import { type NewVideoFile, type VideoFile, videoFiles } from "../schema";
+import { type CreateVideoData, type UpdateVideoData, type VideoFile, videoFiles } from "../schema";
 
 /**
  * Create a new video file record.
  * Note: better-sqlite3 is synchronous
  */
-export function createVideoFile(data: Omit<NewVideoFile, "id">): VideoFile {
+export function createVideoFile(data: CreateVideoData): VideoFile {
   const result = db.insert(videoFiles).values(data).returning().get();
   return result;
 }
@@ -28,10 +28,7 @@ export function findVideoFileByName(fileName: string): VideoFile | undefined {
 /**
  * Update a video file record
  */
-export function updateVideoFile(
-  id: number,
-  data: Partial<Omit<NewVideoFile, "id">>,
-): VideoFile | undefined {
+export function updateVideoFile(id: number, data: UpdateVideoData): VideoFile | undefined {
   const result = db.update(videoFiles).set(data).where(eq(videoFiles.id, id)).returning().get();
   return result;
 }

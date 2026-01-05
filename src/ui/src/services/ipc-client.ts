@@ -3,7 +3,7 @@ import type {
   ProcessedRelease,
   ReleaseChannel,
 } from "@/components/settings/release-channels/ReleaseChannelManager";
-import type { NewShave, NewVideoFile } from "../../../backend/db/schema";
+import type { CreateShaveData, CreateVideoData, UpdateShaveData } from "../../../backend/db/schema";
 import type {
   AuthResult,
   AuthState,
@@ -179,8 +179,8 @@ declare global {
       };
       shave: {
         create: (
-          shaveData: Omit<NewShave, "id">,
-          videoFile?: Omit<NewVideoFile, "id">,
+          shaveData: CreateShaveData,
+          videoFile?: CreateVideoData,
         ) => Promise<{ success: boolean; data?: Shave; error?: string }>;
         getById: (
           id: number,
@@ -191,11 +191,11 @@ declare global {
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         attachVideoFile: (
           shaveId: number,
-          videoFile: Omit<NewVideoFile, "id">,
+          videoFile: CreateVideoData,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         update: (
           id: number,
-          data: Partial<Omit<NewShave, "id">>,
+          data: UpdateShaveData,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         updateStatus: (
           id: number,

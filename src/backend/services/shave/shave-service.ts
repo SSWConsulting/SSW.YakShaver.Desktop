@@ -1,4 +1,4 @@
-import type { NewShave, NewVideoFile, Shave } from "../../db/schema";
+import type { CreateShaveData, CreateVideoData, Shave, UpdateShaveData } from "../../db/schema";
 import * as dbShaveService from "../../db/services/shave-service";
 import * as dbVideoFileService from "../../db/services/video-files-service";
 import type { ShaveStatus } from "../../types";
@@ -15,7 +15,7 @@ export class ShaveService {
     return ShaveService.instance;
   }
 
-  public createShave(shave: Omit<NewShave, "id">, videoFile?: Omit<NewVideoFile, "id">): Shave {
+  public createShave(shave: CreateShaveData, videoFile?: CreateVideoData): Shave {
     try {
       let videoFileId: number | null = null;
 
@@ -73,7 +73,7 @@ export class ShaveService {
     }
   }
 
-  public updateShave(id: number, data: Partial<Omit<NewShave, "id">>): Shave | undefined {
+  public updateShave(id: number, data: UpdateShaveData): Shave | undefined {
     try {
       // Normalize YouTube URL if videoEmbedUrl is being updated
       const normalizedData = { ...data };
@@ -87,10 +87,7 @@ export class ShaveService {
     }
   }
 
-  public attachVideoFileToShave(
-    shaveId: number,
-    videoFile: Omit<NewVideoFile, "id">,
-  ): Shave | undefined {
+  public attachVideoFileToShave(shaveId: number, videoFile: CreateVideoData): Shave | undefined {
     try {
       //In case user tries to shave the same video again, avoid overwriting existing videoFileId
       const existingShave = dbShaveService.getShaveById(shaveId);
