@@ -39,7 +39,7 @@ export interface VideoUploadResult {
     title: string;
     description: string;
     url: string;
-    duration?: number;
+    duration: number;
   };
   origin?: VideoUploadOrigin;
   error?: string;

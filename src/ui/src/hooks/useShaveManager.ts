@@ -82,11 +82,12 @@ export function useShaveManager() {
         return result;
       } catch (error) {
         console.error("[Shave] Failed to save recording:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         toast.error("Could not save to My Shaves", {
           description:
             "Video processing will continue, but we couldn't save this shave to My Shaves.",
         });
-        return null;
+        return { success: false, error: errorMessage };
       }
     },
     [],
@@ -109,9 +110,12 @@ export function useShaveManager() {
         typeof shaveId === "number"
       ) {
         try {
-          await ipcClient.shave.update(shaveId, {
-            shaveStatus: ShaveStatus.Processing,
-          });
+          const shave = await ipcClient.shave.getById(shaveId);
+          if (shave?.success && shave.data && shave.data.shaveStatus === ShaveStatus.Pending) {
+            await ipcClient.shave.update(shaveId, {
+              shaveStatus: ShaveStatus.Processing,
+            });
+          }
         } catch (err) {
           console.error("[Shave] Error updating shave status to Processing (by id):", err);
         }
@@ -127,7 +131,8 @@ export function useShaveManager() {
               await ipcClient.shave.attachVideoFile(shaveId, {
                 fileName: uploadResult.data.title,
                 filePath: uploadResult.data.url,
-                duration: uploadResult.data.duration || -1,
+                // Use -1 to explicitly indicate unknown duration
+                duration: uploadResult.data.duration ?? -1,
               });
             } catch (err) {
               console.error("[Shave] Error attaching external video file to shave:", err);

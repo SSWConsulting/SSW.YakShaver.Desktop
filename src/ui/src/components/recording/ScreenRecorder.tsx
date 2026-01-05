@@ -90,7 +90,7 @@ export function ScreenRecorder() {
     if (!recordedVideo) return;
 
     // Validate that duration was loaded
-    if (duration === undefined) {
+    if (duration === undefined || duration === 0) {
       toast.error("Video duration not loaded. Please wait a moment and try again.");
       return;
     }
