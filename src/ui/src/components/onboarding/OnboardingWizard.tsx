@@ -486,14 +486,6 @@ export function OnboardingWizard() {
     return "pending";
   };
 
-  const handleSkip = () => {
-    if (currentStep < STEPS.length) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
-      setIsVisible(false);
-    }
-  };
 
   const isMcpFormIncomplete = !watchedMcpName?.trim() || !watchedMcpUrl?.trim();
   const isNextDisabled =
@@ -537,7 +529,7 @@ export function OnboardingWizard() {
             <PlatformConnectionCard
               icon={<FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />}
               title="YouTube"
-              subtitle={isConnected && userInfo?.name ? userInfo.name : undefined}
+              subtitle={isConnected && userInfo?.channelName ? userInfo.channelName : undefined}
               badgeText={isConnected ? "Connected" : undefined}
               onAction={handleYouTubeAction}
               actionLabel={getYouTubeButtonText()}
@@ -593,34 +585,23 @@ export function OnboardingWizard() {
       </div>
 
       {/* Card footer */}
-      <div className="flex h-16 items-start justify-end px-6 pb-6 w-full">
+      <div className="flex h-16 items-center justify-end px-6 pb-6 w-full">
         <div
-          className={`flex items-center w-full ${currentStep < STEPS.length ? "justify-between" : "justify-end"}`}
+          className={`flex items-center w-full ${
+            currentStep > 1 ? "justify-between" : "justify-end"
+          }`}
         >
-          {currentStep < STEPS.length && (
+          {currentStep > 1 && (
             <Button
               className="flex items-center justify-center px-4 py-2"
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
-              onClick={handleSkip}
+              onClick={handlePrevious}
             >
-              Skip for now
+              Previous
             </Button>
           )}
-
-          <div className="flex gap-2 h-10">
-            {currentStep > 1 && (
-              <Button
-                className="flex items-center justify-center px-4 py-2"
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handlePrevious}
-              >
-                Previous
-              </Button>
-            )}
 
             <Button
               className="flex items-center justify-center px-4 py-2"
@@ -636,7 +617,6 @@ export function OnboardingWizard() {
                     ? "Finish"
                     : "Next"}
             </Button>
-          </div>
         </div>
       </div>
     </div>
