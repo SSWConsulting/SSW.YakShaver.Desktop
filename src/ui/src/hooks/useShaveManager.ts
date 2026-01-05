@@ -20,15 +20,9 @@ interface ParsedShaveOutput {
   workItemUrl: string;
 }
 
-function parseFinalOutput(finalOutput: string): ParsedShaveOutput {
-  const emptyOutput: ParsedShaveOutput = {
-    status: "",
-    title: "",
-    workItemUrl: "",
-  };
-
+function parseFinalOutput(finalOutput: string): ParsedShaveOutput | null {
   if (!finalOutput) {
-    return emptyOutput;
+    return null;
   }
 
   try {
@@ -160,15 +154,18 @@ export function useShaveManager() {
 
         try {
           const parsedOutput = parseFinalOutput(finalOutput);
-          const finalTitle =
-            parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
-          const shaveStatus = parsedOutput.status as ShaveStatus;
 
-          await ipcClient.shave.update(shaveId, {
-            title: finalTitle,
-            shaveStatus,
-            workItemUrl: parsedOutput.workItemUrl,
-          });
+          if (parsedOutput) {
+            const finalTitle =
+              parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
+            const shaveStatus = parsedOutput.status as ShaveStatus;
+
+            await ipcClient.shave.update(shaveId, {
+              title: finalTitle,
+              shaveStatus,
+              workItemUrl: parsedOutput.workItemUrl,
+            });
+          }
         } catch (error) {
           console.error("[Shave] Failed to save/update shave record::", error);
           const updateErrorMsg = error instanceof Error ? error.message : "Unknown error";

@@ -8,7 +8,8 @@ export interface StopRecordingResult {
   success: boolean;
   filePath?: string;
   fileName?: string;
-  duration?: number; // Duration in seconds
+  /** Recording duration in seconds (only present on success) */
+  duration?: number;
   error?: string;
 }
 
