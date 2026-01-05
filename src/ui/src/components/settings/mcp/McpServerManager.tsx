@@ -37,12 +37,16 @@ type ServerHealthStatus<T extends string = string> = Record<
 
 interface McpSettingsPanelProps {
   isActive?: boolean;
-  onFormOpen?: (isOpen: boolean) => void;
+  onFormOpenChange?: (isOpen: boolean) => void;
+  onHasEnabledServers?: (hasEnabled: boolean) => void;
+  includeBuiltin?: boolean;
 }
 
 export function McpSettingsPanel({
   isActive = true,
-  onFormOpen,
+  onFormOpenChange,
+  onHasEnabledServers,
+  includeBuiltin = true,
 }: McpSettingsPanelProps) {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,6 +77,14 @@ export function McpSettingsPanel({
       void loadGitHubInstallUrl();
     }
   }, [isActive, appInstallUrl]);
+
+  useEffect(() => {
+    const hasEnabled = servers.some(
+      (server) =>
+        (includeBuiltin || !server.builtin) && server.enabled !== false
+    );
+    onHasEnabledServers?.(hasEnabled);
+  }, [servers, onHasEnabledServers, includeBuiltin]);
 
   const checkAllServersHealth = useCallback(
     async (serverList: MCPServerConfig[]) => {
@@ -115,39 +127,45 @@ export function McpSettingsPanel({
     []
   );
 
-  const loadServers = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const list = await ipcClient.mcp.listServers();
-      setServers(list);
-      await checkAllServersHealth(list);
-    } catch (e) {
-      toast.error(`Failed to load servers: ${formatErrorMessage(e)}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [checkAllServersHealth]);
+  const loadServers = useCallback(
+    async (includeBuiltin: boolean = true) => {
+      setIsLoading(true);
+      try {
+        const list = await ipcClient.mcp.listServers();
+        const filteredList = includeBuiltin
+          ? list
+          : list.filter((server) => !server.builtin);
+        setServers(filteredList);
+        await checkAllServersHealth(filteredList);
+      } catch (e) {
+        toast.error(`Failed to load servers: ${formatErrorMessage(e)}`);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [checkAllServersHealth]
+  );
 
   useEffect(() => {
     if (isActive) {
-      void loadServers();
+      void loadServers(includeBuiltin);
     }
-  }, [isActive, loadServers]);
+  }, [isActive, includeBuiltin, loadServers]);
 
   const showForm = useCallback(
     (server?: MCPServerConfig | null) => {
       setViewMode(server ? "edit" : "add");
       setEditingServer(server ?? null);
-      onFormOpen?.(true);
+      onFormOpenChange?.(true);
     },
-    [onFormOpen]
+    [onFormOpenChange]
   );
 
   const showList = useCallback(() => {
     setViewMode("list");
     setEditingServer(null);
-    onFormOpen?.(false);
-  }, [onFormOpen]);
+    onFormOpenChange?.(false);
+  }, [onFormOpenChange]);
 
   const handleSubmit = useCallback(
     async (config: MCPServerConfig) => {

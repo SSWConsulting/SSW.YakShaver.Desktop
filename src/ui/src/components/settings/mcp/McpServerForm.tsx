@@ -134,9 +134,7 @@ export function McpServerForm({
   onAdvancedOpenChange,
 }: McpServerFormProps) {
   const transport = form.watch("transport");
-  const transportOptions = (
-    allowedTransports?.length ? allowedTransports : undefined
-  )
+  const transportOptions = allowedTransports?.length
     ? TRANSPORT_OPTIONS.filter((option) =>
         allowedTransports?.includes(option.value)
       )

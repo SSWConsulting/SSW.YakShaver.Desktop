@@ -83,6 +83,7 @@ export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
 
   const [isMcpFormOpen, setIsMcpFormOpen] = useState(false);
+  const [hasEnabledMcpServers, setHasEnabledMcpServers] = useState(false);
   const [hasYouTubeConfig] = useState(true);
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
@@ -395,7 +396,7 @@ export function OnboardingWizard() {
   const isNextDisabled =
     (currentStep === 1 && !isConnected) ||
     (currentStep === 2 && isLLMSaving) ||
-    currentStep === 3;
+    (currentStep === 3 && hasEnabledMcpServers);
 
   if (!isVisible) return null;
 
@@ -475,7 +476,11 @@ export function OnboardingWizard() {
         )}
 
         {currentStep === 3 && (
-          <McpSettingsPanel onFormOpen={setIsMcpFormOpen} />
+          <McpSettingsPanel
+            onFormOpenChange={setIsMcpFormOpen}
+            onHasEnabledServers={setHasEnabledMcpServers}
+            includeBuiltin={false}
+          />
         )}
       </div>
 
