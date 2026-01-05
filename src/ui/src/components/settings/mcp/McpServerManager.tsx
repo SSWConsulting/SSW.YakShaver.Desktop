@@ -36,10 +36,14 @@ type ServerHealthStatus<T extends string = string> = Record<
 >;
 
 interface McpSettingsPanelProps {
-  isActive: boolean;
+  isActive?: boolean;
+  onFormOpen?: (isOpen: boolean) => void;
 }
 
-export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
+export function McpSettingsPanel({
+  isActive = true,
+  onFormOpen,
+}: McpSettingsPanelProps) {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -130,20 +134,20 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     }
   }, [isActive, loadServers]);
 
-  const showAddForm = useCallback(() => {
-    setViewMode("add");
-    setEditingServer(null);
-  }, []);
-
-  const showEditForm = useCallback((server: MCPServerConfig) => {
-    setViewMode("edit");
-    setEditingServer(server);
-  }, []);
+  const showForm = useCallback(
+    (server?: MCPServerConfig | null) => {
+      setViewMode(server ? "edit" : "add");
+      setEditingServer(server ?? null);
+      onFormOpen?.(true);
+    },
+    [onFormOpen]
+  );
 
   const showList = useCallback(() => {
     setViewMode("list");
     setEditingServer(null);
-  }, []);
+    onFormOpen?.(false);
+  }, [onFormOpen]);
 
   const handleSubmit = useCallback(
     async (config: MCPServerConfig) => {
@@ -238,7 +242,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           {viewMode === "list" && (
             <div className="flex flex-col gap-6">
               <div className="flex justify-end">
-                <Button onClick={showAddForm} size="lg">
+                <Button onClick={() => showForm()} size="lg">
                   Add Server
                 </Button>
               </div>
@@ -344,7 +348,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                   <Button
                                     variant="secondary"
                                     size="sm"
-                                    onClick={() => showEditForm(server)}
+                                    onClick={() => showForm(server)}
                                     disabled={server.builtin}
                                   >
                                     Edit
