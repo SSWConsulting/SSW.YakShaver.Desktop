@@ -240,11 +240,16 @@ export class ProcessVideoIPCHandlers {
             );
             if (updateResult.success) {
               youtubeResult = updateResult;
-            } else if (updateResult.error) {
-              console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+            } else {
+              throw new Error(
+                `[ProcessVideo] YouTube metadata update failed: ${updateResult.error}`,
+              );
             }
           } catch (metadataError) {
-            console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
+            // Should throw ERROR instead: See https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/417
+            this.emitProgress(ProgressStage.UPDATING_METADATA, {
+              error: formatErrorMessage(metadataError),
+            });
           }
         }
       }
