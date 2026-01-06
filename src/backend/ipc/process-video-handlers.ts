@@ -242,7 +242,7 @@ export class ProcessVideoIPCHandlers {
               youtubeResult = updateResult;
             } else {
               throw new Error(
-                `[ProcessVideo] YouTube metadata update failed: ${updateResult.error}`,
+                `[ProcessVideo] YouTube metadata update failed: ${updateResult.error || "Unknown error"}`,
               );
             }
           } catch (metadataError) {
