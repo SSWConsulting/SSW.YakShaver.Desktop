@@ -1,13 +1,13 @@
 import { desc, eq } from "drizzle-orm";
 import type { ShaveStatus } from "../../types";
 import { db } from "../client";
-import { type NewShave, type Shave, shaves } from "../schema";
+import { type CreateShaveData, type Shave, shaves, type UpdateShaveData } from "../schema";
 
 /**
  * Create a new shave record.
  * Note: better-sqlite3 is synchronous, so no async/await needed.
  */
-export function createShave(data: Omit<NewShave, "id">): Shave {
+export function createShave(data: CreateShaveData): Shave {
   const result = db.insert(shaves).values(data).returning().get();
   return result;
 }
@@ -36,7 +36,7 @@ export function findShaveByVideoUrl(videoEmbedUrl: string): Shave | undefined {
 /**
  * Update a shave record
  */
-export function updateShave(id: number, data: Partial<Omit<NewShave, "id">>): Shave | undefined {
+export function updateShave(id: number, data: UpdateShaveData): Shave | undefined {
   const result = db.update(shaves).set(data).where(eq(shaves.id, id)).returning().get();
   return result;
 }

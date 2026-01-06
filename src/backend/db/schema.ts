@@ -33,6 +33,10 @@ export const shaves = sqliteTable("shaves", {
 
 export type VideoFile = typeof videoFiles.$inferSelect;
 export type NewVideoFile = typeof videoFiles.$inferInsert;
+export type CreateVideoData = Omit<NewVideoFile, "id">;
+export type UpdateVideoData = Partial<CreateVideoData>;
 
 export type Shave = typeof shaves.$inferSelect;
 export type NewShave = typeof shaves.$inferInsert;
+export type CreateShaveData = Omit<NewShave, "id">;
+export type UpdateShaveData = Partial<CreateShaveData>;

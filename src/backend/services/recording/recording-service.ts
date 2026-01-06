@@ -1,5 +1,6 @@
 import EventEmitter from "node:events";
 import { unlink, writeFile } from "node:fs/promises";
+import { basename } from "node:path";
 import { desktopCapturer } from "electron";
 import tmp from "tmp";
 import { getMainWindow } from "../../index";
@@ -54,7 +55,9 @@ export class RecordingService extends EventEmitter {
       await writeFile(tempFile.name, videoData);
       this.tempFiles.set(tempFile.name, tempFile);
 
-      return { success: true, filePath: tempFile.name };
+      // Extract filename from filepath
+      const fileName = basename(tempFile.name);
+      return { success: true, filePath: tempFile.name, fileName };
     } catch (error) {
       return { success: false, error: formatErrorMessage(error) };
     }
