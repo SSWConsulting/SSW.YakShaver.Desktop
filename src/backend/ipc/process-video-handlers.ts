@@ -264,11 +264,16 @@ export class ProcessVideoIPCHandlers {
             );
             if (updateResult.success) {
               youtubeResult = updateResult;
-            } else if (updateResult.error) {
-              console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+            } else {
+              throw new Error(
+                `[ProcessVideo] YouTube metadata update failed: ${updateResult.error || "Unknown error"}`,
+              );
             }
           } catch (metadataError) {
-            console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
+            // TODO: This should emit an ERROR stage instead of continuing. See https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/417 (need support for marking steps as optional)
+            this.emitProgress(ProgressStage.UPDATING_METADATA, {
+              error: formatErrorMessage(metadataError),
+            });
           }
         }
       }
