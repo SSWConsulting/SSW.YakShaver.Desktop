@@ -90,8 +90,7 @@ function MetadataPreviewCard({
   if (error) {
     return (
       <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm">
-        Failed to generate metadata preview: {error}. Skipping metadata
-        generation step.
+        Failed to update metadata: {error}. Skipping metadata update step.
       </div>
     );
   }
