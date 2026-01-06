@@ -246,7 +246,7 @@ export class ProcessVideoIPCHandlers {
               );
             }
           } catch (metadataError) {
-            // Should throw ERROR instead: See https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/417
+            // TODO: This should emit an ERROR stage instead of continuing. See https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/417 (need support for marking steps as optional)
             this.emitProgress(ProgressStage.UPDATING_METADATA, {
               error: formatErrorMessage(metadataError),
             });
