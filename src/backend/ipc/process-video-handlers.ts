@@ -273,7 +273,7 @@ export class ProcessVideoIPCHandlers {
         }
       }
 
-      this.emitProgress(ProgressStage.COMPLETED, {
+      notify(ProgressStage.COMPLETED, {
         transcript,
         intermediateOutput,
         mcpResult,
