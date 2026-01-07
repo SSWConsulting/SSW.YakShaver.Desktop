@@ -59,23 +59,23 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
   const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
     const initialStatus: ServerHealthStatus<string> = {};
     serverList.forEach((server) => {
-      initialStatus[server.name] = { isHealthy: false, isChecking: true };
+      initialStatus[server.id ?? server.name] = { isHealthy: false, isChecking: true };
     });
     setHealthStatus(initialStatus);
 
     for (const server of serverList) {
       try {
         const result = (await ipcClient.mcp.checkServerHealthAsync(
-          server.name,
+          server.id ?? server.name,
         )) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
-          [server.name]: { ...result, isChecking: false },
+          [server.id ?? server.name]: { ...result, isChecking: false },
         }));
       } catch (e) {
         setHealthStatus((prev) => ({
           ...prev,
-          [server.name]: {
+          [server.id ?? server.name]: {
             isHealthy: false,
             error: formatErrorMessage(e),
             isChecking: false,
@@ -127,7 +127,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           await ipcClient.mcp.addServerAsync(config);
           toast.success(`Server '${config.name}' added`);
         } else if (viewMode === "edit" && editingServer) {
-          await ipcClient.mcp.updateServerAsync(editingServer.name, config);
+          await ipcClient.mcp.updateServerAsync(editingServer.id ?? editingServer.name, config);
           toast.success(`Server '${config.name}' updated`);
         }
         showList();
@@ -141,8 +141,8 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     [viewMode, editingServer, showList, loadServers],
   );
 
-  const confirmDeleteServer = useCallback((name: string) => {
-    setServerToDelete(name);
+  const confirmDeleteServer = useCallback((serverIdOrName: string) => {
+    setServerToDelete(serverIdOrName);
     setDeleteConfirmOpen(true);
   }, []);
 
@@ -206,7 +206,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
               {servers.length > 0 && (
                 <div className="flex flex-col gap-4">
                   {sortedServers.map((server) => {
-                    const status = healthStatus[server.name] || {};
+                    const status = healthStatus[server.id ?? server.name] || {};
                     const transportLabel = server.transport === "streamableHttp" ? "http" : "stdio";
                     const connectionSummary =
                       server.transport === "streamableHttp"
@@ -226,7 +226,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                       server.url.includes("github");
 
                     return (
-                      <Card key={server.name} className="overflow-hidden">
+                      <Card key={server.id ?? server.name} className="overflow-hidden">
                         <CardContent className="p-6">
                           <div className="flex flex-col gap-3">
                             <div className="flex items-start justify-between gap-4">
@@ -241,29 +241,29 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 </div>
 
                                 <div className="flex-1">
-                                <h3 className="text-lg font-semibold text-white">{server.name}</h3>
-                                {server.builtin ? (
-                                  <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
-                                ) : (
-                                  <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
-                                    {transportLabel}
+                                  <h3 className="text-lg font-semibold text-white">{server.name}</h3>
+                                  {server.builtin ? (
+                                    <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
+                                  ) : (
+                                    <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
+                                      {transportLabel}
+                                    </p>
+                                  )}
+                                  {server.description && (
+                                    <p className="mt-1 text-sm text-white/70">{server.description}</p>
+                                  )}
+                                  <p className="mt-2 break-all font-mono text-sm text-white/50">
+                                    {server.builtin ? "" : connectionSummary || "—"}
                                   </p>
-                                )}
-                                {server.description && (
-                                  <p className="mt-1 text-sm text-white/70">{server.description}</p>
-                                )}
-                                <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                  {server.builtin ? "" : connectionSummary || "—"}
-                                </p>
-                                {cwdSummary && (
-                                  <p className="mt-1 text-xs text-white/40">
-                                    cwd: <span className="font-mono">{cwdSummary}</span>
-                                  </p>
-                                )}
-                              </div>
+                                  {cwdSummary && (
+                                    <p className="mt-1 text-xs text-white/40">
+                                      cwd: <span className="font-mono">{cwdSummary}</span>
+                                    </p>
+                                  )}
+                                </div>
                               </div>
 
-                              <div className="flex gap-2 flex-shrink-0">
+                              <div className="flex flex-shrink-0 gap-2">
                                 <Button
                                   variant="secondary"
                                   size="sm"
@@ -273,7 +273,7 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                   Edit
                                 </Button>
                                 <Button
-                                  variant="secondary"
+                                  variant="outline"
                                   size="sm"
                                   onClick={() => openWhitelistDialog(server)}
                                   disabled={server.builtin}
@@ -283,7 +283,9 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
                                 <Button
                                   variant="destructive"
                                   size="sm"
-                                  onClick={() => confirmDeleteServer(server.name)}
+                                  onClick={() =>
+                                    confirmDeleteServer(server.id ?? server.name)
+                                  }
                                   disabled={server.builtin}
                                 >
                                   Delete

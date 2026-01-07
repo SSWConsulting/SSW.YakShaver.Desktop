@@ -230,13 +230,14 @@ const electronAPI = {
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
     addServerAsync: (config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
-    updateServerAsync: (name: string, config: MCPServerConfig) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, name, config),
-    removeServerAsync: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, name),
-    checkServerHealthAsync: (name: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, name),
-    listServerTools: (name: string): Promise<MCPToolSummary[]> =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, name),
+    updateServerAsync: (serverIdOrName: string, config: MCPServerConfig) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, serverIdOrName, config),
+    removeServerAsync: (serverIdOrName: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, serverIdOrName),
+    checkServerHealthAsync: (serverIdOrName: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, serverIdOrName),
+    listServerTools: (serverIdOrName: string): Promise<MCPToolSummary[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, serverIdOrName),
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),

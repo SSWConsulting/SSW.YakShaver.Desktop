@@ -30,31 +30,31 @@ export class McpIPCHandlers {
 
     ipcMain.handle(
       IPC_CHANNELS.MCP_UPDATE_SERVER,
-      async (_event: IpcMainInvokeEvent, name: string, config: MCPServerConfig) => {
-        await this.mcpServerManager.updateServerAsync(name, config);
+      async (_event: IpcMainInvokeEvent, serverIdOrName: string, config: MCPServerConfig) => {
+        await this.mcpServerManager.updateServerAsync(serverIdOrName, config);
         return { success: true };
       },
     );
 
     ipcMain.handle(
       IPC_CHANNELS.MCP_REMOVE_SERVER,
-      async (_event: IpcMainInvokeEvent, name: string) => {
-        await this.mcpServerManager.removeServerAsync(name);
+      async (_event: IpcMainInvokeEvent, serverIdOrName: string) => {
+        await this.mcpServerManager.removeServerAsync(serverIdOrName);
         return { success: true };
       },
     );
 
     ipcMain.handle(
       IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH,
-      async (_event: IpcMainInvokeEvent, name: string) => {
-        return await this.mcpServerManager.checkServerHealthAsync(name);
+      async (_event: IpcMainInvokeEvent, serverIdOrName: string) => {
+        return await this.mcpServerManager.checkServerHealthAsync(serverIdOrName);
       },
     );
 
     ipcMain.handle(
       IPC_CHANNELS.MCP_LIST_SERVER_TOOLS,
-      async (_event: IpcMainInvokeEvent, name: string) => {
-        const client = await this.mcpServerManager.getMcpClientAsync(name);
+      async (_event: IpcMainInvokeEvent, serverIdOrName: string) => {
+        const client = await this.mcpServerManager.getMcpClientAsync(serverIdOrName);
         if (!client) {
           return [] as MCPToolSummary[];
         }

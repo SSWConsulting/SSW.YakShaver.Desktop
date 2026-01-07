@@ -10,36 +10,63 @@ import type {
 import { auth } from "@ai-sdk/mcp";
 import { shell } from "electron";
 import { formatErrorMessage } from "../../utils/error-utils";
+import type { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
+
+type TokenEndpointAuthMethod = "client_secret_post" | "client_secret_basic" | "none";
+
+type ClientInfoInternal = OAuthClientInformation & {
+  client_secret?: string;
+  token_endpoint_auth_method?: TokenEndpointAuthMethod;
+};
 
 export class InMemoryOAuthClientProvider implements OAuthClientProvider {
   private _tokens?: OAuthTokens;
   private _codeVerifier?: string;
   private _clientInformation?: OAuthClientInformation;
   private _redirectUrl: string | URL;
+  private _tokenStorage?: McpOAuthTokenStorage;
+  private _tokenKey?: string;
 
-  constructor(opts: { clientId?: string; clientSecret?: string; callbackPort: number }) {
+  constructor(opts: {
+    clientId?: string;
+    clientSecret?: string;
+    callbackPort: number;
+    tokenStorage?: McpOAuthTokenStorage;
+    tokenKey?: string;
+  }) {
     this._redirectUrl = `http://localhost:${opts.callbackPort}/callback`;
+    this._tokenStorage = opts.tokenStorage;
+    this._tokenKey = opts.tokenKey;
 
     if (opts.clientId) {
       this._clientInformation = {
         client_id: opts.clientId,
       } as OAuthClientInformation;
 
+      const info = this._clientInformation as ClientInfoInternal;
+
       if (opts.clientSecret) {
-        (this._clientInformation as any).client_secret = opts.clientSecret;
-        (this._clientInformation as any).token_endpoint_auth_method = "client_secret_post";
+        info.client_secret = opts.clientSecret;
+        info.token_endpoint_auth_method = "client_secret_post";
       } else {
-        (this._clientInformation as any).token_endpoint_auth_method = "none";
+        info.token_endpoint_auth_method = "none";
       }
     }
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
-    return this._tokens;
+    if (this._tokens) return this._tokens;
+    if (!this._tokenStorage || !this._tokenKey) return undefined;
+    const stored = await this._tokenStorage.getTokensAsync(this._tokenKey);
+    this._tokens = stored;
+    return stored;
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
     this._tokens = tokens;
+    if (this._tokenStorage && this._tokenKey) {
+      await this._tokenStorage.saveTokensAsync(this._tokenKey, tokens);
+    }
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
@@ -75,9 +102,8 @@ export class InMemoryOAuthClientProvider implements OAuthClientProvider {
   }
 
   get clientMetadata(): OAuthClientMetadata {
-    const hasSecret = this._clientInformation
-      ? Boolean((this._clientInformation as any).client_secret)
-      : false;
+    const info = this._clientInformation as ClientInfoInternal | undefined;
+    const hasSecret = Boolean(info?.client_secret);
 
     return {
       client_name: "YakShaver MCP OAuth",
@@ -109,14 +135,12 @@ export class InMemoryOAuthClientProvider implements OAuthClientProvider {
   ): Promise<void> => {
     const info = this._clientInformation;
     if (!info) return;
-    const method = (info as any).token_endpoint_auth_method as
-      | "client_secret_post"
-      | "client_secret_basic"
-      | "none"
-      | undefined;
-    const hasSecret = Boolean((info as any).client_secret);
+
+    const internal = info as ClientInfoInternal;
+    const method = internal.token_endpoint_auth_method;
+    const hasSecret = Boolean(internal.client_secret);
     const clientId = info.client_id;
-    const clientSecret = (info as any).client_secret as string | undefined;
+    const clientSecret = internal.client_secret;
     const chosen = method ?? (hasSecret ? "client_secret_post" : "none");
     if (chosen === "client_secret_basic") {
       if (!clientSecret) {
@@ -136,7 +160,12 @@ export class InMemoryOAuthClientProvider implements OAuthClientProvider {
   };
 
   async invalidateCredentials(scope: "all" | "client" | "tokens" | "verifier") {
-    if (scope === "all" || scope === "tokens") this._tokens = undefined;
+    if (scope === "all" || scope === "tokens") {
+      this._tokens = undefined;
+      if (this._tokenStorage && this._tokenKey) {
+        await this._tokenStorage.clearTokensAsync(this._tokenKey);
+      }
+    }
     if (scope === "all" || scope === "client") this._clientInformation = undefined;
     if (scope === "all" || scope === "verifier") this._codeVerifier = undefined;
   }
@@ -184,7 +213,7 @@ export function waitForAuthorizationCode(port: number): Promise<string> {
         reject(new Error(`Authorization failed: ${err ?? "missing code"}`));
       }
     });
-    server.on("error", (err: any) => {
+    server.on("error", (err: NodeJS.ErrnoException) => {
       if (err?.code === "EADDRINUSE") {
         reject(new Error(`OAuth callback port ${port} is already in use`));
       } else {
