@@ -14,6 +14,7 @@ export const LLM_PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
     defaultTranscriptionModel: "whisper-1",
     defaultProcessingModel: "gpt-5-mini",
   },
+  // TODO: This will need to be expanded when Azure is enabled as a provider.
   azure: {
     factory: createAzure,
   },
