@@ -9,7 +9,6 @@ import type {
   AuthState,
   ConvertVideoToMp3Result,
   CustomPrompt,
-  GeneralSettings,
   GetMyShavesResponse,
   HealthStatusInfo,
   LLMConfig,
@@ -20,6 +19,7 @@ import type {
   Shave,
   ShaveStatus,
   ToolApprovalMode,
+  ToolApprovalSettings,
   TranscriptEntry,
   UserInfo,
   VideoUploadResult,
@@ -167,8 +167,8 @@ declare global {
         }>;
         getInstallUrl: () => Promise<string>;
       };
-      generalSettings: {
-        get: () => Promise<GeneralSettings>;
+      toolApprovalSettings: {
+        get: () => Promise<ToolApprovalSettings>;
         setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
       };
       app: {

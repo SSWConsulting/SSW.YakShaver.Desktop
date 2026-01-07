@@ -2,8 +2,8 @@ import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
 import type { ToolApprovalDecision } from "./services/mcp/mcp-orchestrator";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
-import type { ToolApprovalMode } from "./services/storage/general-settings-storage";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
+import type { ToolApprovalMode } from "./services/storage/tool-approval-settings-storage";
 import type { ShaveStatus, VideoFileMetadata } from "./types";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
@@ -95,9 +95,9 @@ const IPC_CHANNELS = {
   GITHUB_TOKEN_VERIFY: "github-token:verify",
   GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
 
-  // General Settings
-  GENERAL_SETTINGS_GET: "general-settings:get",
-  GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+  // Tool Approval Settings
+  TOOL_APPROVAL_SETTINGS_GET: "tool-approval-settings:get",
+  TOOL_APPROVAL_SETTINGS_SET_MODE: "tool-approval-settings:set-mode",
 
   // App Control
   APP_RESTART: "app:restart",
@@ -279,10 +279,10 @@ const electronAPI = {
       }>,
     getInstallUrl: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_APP_GET_INSTALL_URL),
   },
-  generalSettings: {
-    get: () => ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_GET),
+  toolApprovalSettings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.TOOL_APPROVAL_SETTINGS_GET),
     setMode: (mode: ToolApprovalMode) =>
-      ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE, mode),
+      ipcRenderer.invoke(IPC_CHANNELS.TOOL_APPROVAL_SETTINGS_SET_MODE, mode),
   },
   app: {
     restart: () => ipcRenderer.invoke(IPC_CHANNELS.APP_RESTART),

@@ -85,9 +85,9 @@ export const IPC_CHANNELS = {
   GITHUB_TOKEN_VERIFY: "github-token:verify",
   GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
 
-  // General Settings
-  GENERAL_SETTINGS_GET: "general-settings:get",
-  GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+  // Tool Approval Settings
+  TOOL_APPROVAL_SETTINGS_GET: "tool-approval-settings:get",
+  TOOL_APPROVAL_SETTINGS_SET_MODE: "tool-approval-settings:set-mode",
 
   // App Control
   APP_RESTART: "app:restart",

@@ -71,7 +71,7 @@ export function AccountSettingsPanel({ isActive }: AccountSettingsPanelProps) {
       await ipcClient.auth.microsoft.logout();
 
       // Reset tool approval mode to "Ask" (default/safe mode)
-      await ipcClient.generalSettings.setMode("ask");
+      await ipcClient.toolApprovalSettings.setMode("ask");
 
       // Reset onboarding
       resetOnboarding();

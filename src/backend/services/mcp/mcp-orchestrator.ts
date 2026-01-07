@@ -3,7 +3,10 @@ import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMes
 import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
 import type { VideoUploadResult } from "../auth/types";
-import { GeneralSettingsStorage, type ToolApprovalMode } from "../storage/general-settings-storage";
+import {
+  type ToolApprovalMode,
+  ToolApprovalSettingsStorage,
+} from "../storage/tool-approval-settings-storage";
 import { LLMClientProvider } from "./llm-client-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 
@@ -90,7 +93,7 @@ export class MCPOrchestrator {
 
     // Get tools and apply the server filter if provided
     const tools = await serverManager.collectToolsWithServerPrefixAsync();
-    const generalSettingsStorage = GeneralSettingsStorage.getInstance();
+    const toolApprovalSettingsStorage = ToolApprovalSettingsStorage.getInstance();
 
     let systemPrompt =
       options.systemPrompt ??
@@ -121,8 +124,8 @@ export class MCPOrchestrator {
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
-      const generalSettings = await generalSettingsStorage.getSettingsAsync();
-      const toolApprovalMode: ToolApprovalMode = generalSettings.toolApprovalMode;
+      const toolApprovalSettings = await toolApprovalSettingsStorage.getSettingsAsync();
+      const toolApprovalMode: ToolApprovalMode = toolApprovalSettings.toolApprovalMode;
       const bypassApprovalChecks = toolApprovalMode === "yolo";
       const toolWhiteList = bypassApprovalChecks
         ? new Set<string>()
