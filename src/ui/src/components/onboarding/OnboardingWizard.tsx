@@ -544,8 +544,8 @@ export function OnboardingWizard() {
             {currentStep === 1
               ? "Choose a platform to host your videos."
               : currentStep === 2
-              ? "Choose your provider and save the API details"
-              : "Configure or choose which MCP server YakShaver will call."}
+                ? "Choose your provider and save the API details"
+                : "Configure or choose which MCP server YakShaver will call."}
           </p>
         </div>
       </div>
@@ -557,9 +557,7 @@ export function OnboardingWizard() {
             <PlatformConnectionCard
               icon={<FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />}
               title="YouTube"
-              subtitle={
-                isConnected && userInfo?.name ? userInfo.name : undefined
-              }
+              subtitle={isConnected && userInfo?.channelName ? userInfo.channelName : undefined}
               badgeText={isConnected ? "Connected" : undefined}
               onAction={handleYouTubeAction}
               actionLabel={getYouTubeButtonText()}
@@ -621,9 +619,8 @@ export function OnboardingWizard() {
       {/* Card footer */}
       <div className="flex h-16 items-center justify-end px-6 pb-6 w-full">
         <div
-          className={`flex items-center w-full ${
-            currentStep > 1 ? "justify-between" : "justify-end"
-          }`}
+          className={`flex items-center w-full ${currentStep > 1 ? "justify-between" : "justify-end"
+            }`}
         >
           {currentStep > 1 && (
             <Button
@@ -646,10 +643,10 @@ export function OnboardingWizard() {
             {currentStep === 2 && isLLMSaving
               ? "Checking..."
               : currentStep === 3 && isMCPSaving
-              ? "Saving..."
-              : currentStep === STEPS.length
-              ? "Finish"
-              : "Next"}
+                ? "Saving..."
+                : currentStep === STEPS.length
+                  ? "Finish"
+                  : "Next"}
           </Button>
         </div>
       </div>
@@ -682,9 +679,8 @@ export function OnboardingWizard() {
                 return (
                   <div
                     key={`connector-${nextStep.id}`}
-                    className={`absolute w-px transition-colors duration-300 ${
-                      status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                    }`}
+                    className={`absolute w-px transition-colors duration-300 ${status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
+                      }`}
                     style={{
                       left: position.left,
                       top: position.top,
@@ -701,31 +697,28 @@ export function OnboardingWizard() {
                       ref={(element) => {
                         stepIconRefs.current[index] = element;
                       }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                        getStepStatus(step.id) === "pending"
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${getStepStatus(step.id) === "pending"
                           ? "bg-[#432A1D]"
                           : "bg-[#75594B]"
-                      }`}
+                        }`}
                     >
                       <img
                         src={step.icon}
                         alt={step.title}
-                        className={`w-6 h-6 transition-opacity duration-300 ${
-                          getStepStatus(step.id) === "pending"
+                        className={`w-6 h-6 transition-opacity duration-300 ${getStepStatus(step.id) === "pending"
                             ? "opacity-40"
                             : "opacity-100"
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
 
                   <div className="flex flex-col justify-center w-[219px]">
                     <p
-                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                        getStepStatus(step.id) === "pending"
+                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${getStepStatus(step.id) === "pending"
                           ? "text-white/[0.56]"
                           : "text-white/[0.98]"
-                      }`}
+                        }`}
                     >
                       {step.title}
                     </p>

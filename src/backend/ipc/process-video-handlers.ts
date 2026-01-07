@@ -1,16 +1,22 @@
 import fs from "node:fs";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
+import { z } from "zod";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
+import { LLMClientProvider } from "../services/mcp/llm-client-provider";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
-import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
+import {
+  parseVtt,
+  type TranscriptSegment,
+  VideoMetadataBuilder,
+} from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
@@ -19,7 +25,19 @@ import { IPC_CHANNELS } from "./channels";
 type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
+  shaveId?: number;
 };
+
+export const TranscriptSummarySchema = z.object({
+  taskType: z.string(),
+  detectedLanguage: z
+    .string()
+    .regex(/^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/, "Must be a valid BCP 47 language tag"),
+  formattedContent: z.string(),
+  mentionedEntities: z.array(z.string()).optional().default([]),
+  contextKeywords: z.array(z.string()).optional().default([]),
+  uncertainTerms: z.array(z.string()).optional().default([]),
+});
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
@@ -31,26 +49,32 @@ export class ProcessVideoIPCHandlers {
   private lastVideoFilePath: string | undefined;
 
   constructor() {
-    this.metadataBuilder = new VideoMetadataBuilder(this.llmClient);
+    this.metadataBuilder = new VideoMetadataBuilder();
     this.registerHandlers();
   }
 
   private registerHandlers(): void {
-    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO_FILE, async (_event, filePath?: string) => {
-      if (!filePath) {
-        throw new Error("video-process-handler: Video file path is required");
-      }
+    ipcMain.handle(
+      IPC_CHANNELS.PROCESS_VIDEO_FILE,
+      async (_event, filePath?: string, shaveId?: number) => {
+        if (!filePath) {
+          throw new Error("video-process-handler: Video file path is required");
+        }
 
-      return await this.processFileVideo(filePath);
-    });
+        return await this.processFileVideo(filePath, shaveId);
+      },
+    );
 
-    ipcMain.handle(IPC_CHANNELS.PROCESS_VIDEO_URL, async (_event, url?: string) => {
-      if (!url) {
-        throw new Error("video-process-handler: Video URL is required");
-      }
+    ipcMain.handle(
+      IPC_CHANNELS.PROCESS_VIDEO_URL,
+      async (_event, url?: string, shaveId?: number) => {
+        if (!url) {
+          throw new Error("video-process-handler: Video URL is required");
+        }
 
-      return await this.processUrlVideo(url);
-    });
+        return await this.processUrlVideo(url, shaveId);
+      },
+    );
 
     // Retry video pipeline
     ipcMain.handle(
@@ -59,9 +83,14 @@ export class ProcessVideoIPCHandlers {
         _event: IpcMainInvokeEvent,
         intermediateOutput: string,
         videoUploadResult: VideoUploadResult,
+        shaveId?: number,
       ) => {
+        const notify = (stage: string, data?: Record<string, unknown>) => {
+          this.emitProgress(stage, data, shaveId);
+        };
+
         try {
-          this.emitProgress(ProgressStage.EXECUTING_TASK);
+          notify(ProgressStage.EXECUTING_TASK);
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
@@ -83,32 +112,36 @@ export class ProcessVideoIPCHandlers {
               : { systemPrompt },
           );
 
-          this.emitProgress(ProgressStage.COMPLETED, {
+          notify(ProgressStage.COMPLETED, {
             mcpResult,
             finalOutput: mcpResult,
           });
           return { success: true, finalOutput: mcpResult };
         } catch (error) {
           const errorMessage = formatErrorMessage(error);
-          this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+          notify(ProgressStage.ERROR, { error: errorMessage });
           return { success: false, error: errorMessage };
         }
       },
     );
   }
 
-  private async processFileVideo(filePath: string) {
+  private async processFileVideo(filePath: string, shaveId?: number) {
+    const notify = (stage: string, data?: Record<string, unknown>) => {
+      this.emitProgress(stage, data, shaveId);
+    };
+
     // check file exists
     if (!fs.existsSync(filePath)) {
       throw new Error("video-process-handler: Video file does not exist");
     }
 
     // upload to YouTube
-    this.emitProgress(ProgressStage.UPLOADING_SOURCE, {
+    notify(ProgressStage.UPLOADING_SOURCE, {
       sourceOrigin: "upload",
     });
     const youtubeResult = await this.youtube.uploadVideo(filePath);
-    this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
+    notify(ProgressStage.UPLOAD_COMPLETED, {
       uploadResult: youtubeResult,
       sourceOrigin: youtubeResult.origin,
     });
@@ -116,63 +149,83 @@ export class ProcessVideoIPCHandlers {
     return await this.processVideoSource({
       filePath,
       youtubeResult,
+      shaveId,
     });
   }
 
-  private async processUrlVideo(url: string) {
+  private async processUrlVideo(url: string, shaveId?: number) {
+    const notify = (stage: string, data?: Record<string, unknown>) => {
+      this.emitProgress(stage, data, shaveId);
+    };
+
     try {
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
-      this.emitProgress(ProgressStage.UPLOAD_COMPLETED, {
+      notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
         sourceOrigin: "external",
       });
-      this.emitProgress(ProgressStage.DOWNLOADING_SOURCE, {
+      notify(ProgressStage.DOWNLOADING_SOURCE, {
         sourceOrigin: "external",
       });
       const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
       return await this.processVideoSource({
         filePath,
         youtubeResult,
+        shaveId,
       });
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
-      this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+      notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     }
   }
 
-  private async processVideoSource({ filePath, youtubeResult }: VideoProcessingContext) {
+  private async processVideoSource({ filePath, youtubeResult, shaveId }: VideoProcessingContext) {
     // check file exists
     if (!fs.existsSync(filePath)) {
       throw new Error("video-process-handler: Video file does not exist");
     }
 
+    const notify = (stage: string, data?: Record<string, unknown>) => {
+      this.emitProgress(stage, data, shaveId);
+    };
+
     try {
       this.lastVideoFilePath = filePath;
-      this.emitProgress(ProgressStage.CONVERTING_AUDIO);
+      notify(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
-      this.emitProgress(ProgressStage.TRANSCRIBING);
+      notify(ProgressStage.TRANSCRIBING);
       const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
-      this.emitProgress(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
+      notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      this.emitProgress(ProgressStage.GENERATING_TASK, { transcript });
+      const transcriptText = parseVtt(transcript)
+        .map((segment: TranscriptSegment) => segment.text)
+        .join(" ");
 
-      const intermediateOutput = await this.llmClient.generateOutput(
+      notify(ProgressStage.GENERATING_TASK, { transcript: transcriptText });
+
+      const llmClientProvider = await LLMClientProvider.getInstanceAsync();
+      if (!llmClientProvider) {
+        throw new Error("LLM Client Provider is not initialized");
+      }
+
+      const userPrompt = `Process the following transcript into a structured JSON object:
+      
+      ${transcriptText}`;
+
+      const intermediateOutput = await llmClientProvider.generateJson(
+        userPrompt,
         INITIAL_SUMMARY_PROMPT,
-        transcript,
-        { jsonMode: true },
       );
-      this.emitProgress(ProgressStage.EXECUTING_TASK, {
-        transcript,
-        intermediateOutput,
-      });
+
+      notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
-      const mcpResult = await orchestrator.manualLoopAsync(intermediateOutput, youtubeResult, {
+      const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
         systemPrompt,
         videoFilePath: filePath,
       });
@@ -186,7 +239,7 @@ export class ProcessVideoIPCHandlers {
         if (!portalResult.success) {
           console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
           const errorMessage = formatErrorMessage(portalResult.error);
-          this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+          notify(ProgressStage.ERROR, { error: errorMessage });
         }
       }
 
@@ -194,14 +247,14 @@ export class ProcessVideoIPCHandlers {
         const videoId = youtubeResult.data?.videoId;
         if (videoId) {
           try {
-            this.emitProgress(ProgressStage.UPDATING_METADATA);
+            notify(ProgressStage.UPDATING_METADATA);
             const metadata = await this.metadataBuilder.build({
               transcriptVtt: transcript,
               intermediateOutput,
               executionHistory: JSON.stringify(transcript ?? [], null, 2),
               finalResult: mcpResult ?? undefined,
             });
-            this.emitProgress(ProgressStage.UPDATING_METADATA, {
+            notify(ProgressStage.UPDATING_METADATA, {
               metadataPreview: metadata.metadata,
             });
             const updateResult = await this.youtube.updateVideoMetadata(
@@ -211,16 +264,21 @@ export class ProcessVideoIPCHandlers {
             );
             if (updateResult.success) {
               youtubeResult = updateResult;
-            } else if (updateResult.error) {
-              console.warn("[ProcessVideo] YouTube metadata update failed:", updateResult.error);
+            } else {
+              throw new Error(
+                `[ProcessVideo] YouTube metadata update failed: ${updateResult.error || "Unknown error"}`,
+              );
             }
           } catch (metadataError) {
-            console.warn("[ProcessVideo] Failed to update YouTube metadata", metadataError);
+            // TODO: This should emit an ERROR stage instead of continuing. See https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/417 (need support for marking steps as optional)
+            this.emitProgress(ProgressStage.UPDATING_METADATA, {
+              error: formatErrorMessage(metadataError),
+            });
           }
         }
       }
 
-      this.emitProgress(ProgressStage.COMPLETED, {
+      notify(ProgressStage.COMPLETED, {
         transcript,
         intermediateOutput,
         mcpResult,
@@ -231,7 +289,7 @@ export class ProcessVideoIPCHandlers {
       return { youtubeResult, mcpResult };
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
-      this.emitProgress(ProgressStage.ERROR, { error: errorMessage });
+      notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     }
   }
@@ -242,12 +300,13 @@ export class ProcessVideoIPCHandlers {
     return result;
   }
 
-  private emitProgress(stage: string, data?: Record<string, unknown>) {
+  private emitProgress(stage: string, data?: Record<string, unknown>, shaveId?: number) {
     BrowserWindow.getAllWindows()
       .filter((win) => !win.isDestroyed())
       .forEach((win) => {
         win.webContents.send(IPC_CHANNELS.WORKFLOW_PROGRESS, {
           stage,
+          shaveId,
           ...data,
         });
       });

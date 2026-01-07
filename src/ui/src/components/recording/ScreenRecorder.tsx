@@ -1,10 +1,12 @@
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
+import { useShaveManager } from "@/hooks/useShaveManager";
 import { formatErrorMessage } from "@/utils";
+import { normalizeYouTubeUrl } from "../../../../backend/utils/youtube-url-utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
-import { AuthStatus, UploadStatus } from "../../types";
+import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -14,6 +16,7 @@ import { VideoPreviewModal } from "./VideoPreviewModal";
 interface RecordedVideo {
   blob: Blob;
   filePath: string;
+  fileName: string;
 }
 
 export function ScreenRecorder() {
@@ -28,6 +31,8 @@ export function ScreenRecorder() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
+  const [duration, setDuration] = useState<number>(0);
+  const { saveRecording, checkExistingShave } = useShaveManager();
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
@@ -39,6 +44,10 @@ export function ScreenRecorder() {
       await window.electronAPI.screenRecording.restoreMainWindow();
     }
   }, [stop]);
+
+  const handleDurationLoad = useCallback((calculatedDuration: number) => {
+    setDuration(calculatedDuration);
+  }, []);
 
   const toggleRecording = () => {
     isRecording ? handleStopRecording() : setPickerOpen(true);
@@ -80,13 +89,33 @@ export function ScreenRecorder() {
   const handleContinue = async () => {
     if (!recordedVideo) return;
 
-    const { filePath } = recordedVideo;
+    // Validate that duration was loaded
+    if (duration === undefined || duration === 0) {
+      toast.error("Video duration not loaded. Please wait a moment and try again.");
+      return;
+    }
+
+    const { filePath, fileName } = recordedVideo;
     resetPreview();
 
     try {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
-      await window.electronAPI.pipelines.processVideoFile(filePath);
+      const result = await saveRecording(
+        {
+          workItemSource: "YakShaver Desktop",
+          title: "Screen Recording",
+          shaveStatus: ShaveStatus.Pending,
+        },
+        {
+          fileName,
+          filePath,
+          duration,
+        },
+      );
+      const newShave = result?.data;
+      //Process video even if Shave creation failed, do not block user
+      await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = formatErrorMessage(error);
@@ -116,7 +145,20 @@ export function ScreenRecorder() {
     setUploadResult(null);
 
     try {
-      await window.electronAPI.pipelines.processVideoUrl(trimmedUrl);
+      let shaveId: number | undefined;
+      const existingShaveId = await checkExistingShave(trimmedUrl);
+      if (existingShaveId) {
+        shaveId = existingShaveId;
+      } else {
+        const result = await saveRecording({
+          workItemSource: "YakShaver Desktop",
+          title: "YouTube Video",
+          shaveStatus: ShaveStatus.Pending,
+          videoEmbedUrl: normalizeYouTubeUrl(trimmedUrl),
+        });
+        shaveId = result?.data?.id;
+      }
+      await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, shaveId);
       setYoutubeUrl("");
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
@@ -209,6 +251,7 @@ export function ScreenRecorder() {
           onClose={resetPreview}
           onRetry={handleRetry}
           onContinue={handleContinue}
+          onDurationLoad={handleDurationLoad}
         />
       )}
     </>
