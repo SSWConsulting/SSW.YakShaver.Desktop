@@ -1,3 +1,4 @@
+import type { LLMConfig } from "@shared/types/llm";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 import { generateText, Output, stepCountIs, streamText } from "ai";
 import { BrowserWindow } from "electron";
@@ -57,7 +58,7 @@ export class LLMClientProvider {
       LLMClientProvider.llmClient = new LLMClientProvider();
     }
     // retrieve LLM configuration
-    const llmConfig =
+    const llmConfig: LLMConfig =
       (await LlmStorage.getInstance().getLLMConfig()) ??
       (() => {
         throw new Error("[LLMClientProvider]: LLM configuration not found");

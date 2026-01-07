@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { LLMConfig } from "../../types/llm";
+import type { LLMConfig } from "@shared/types/llm";
 import { BaseSecureStorage } from "./base-secure-storage";
 
 const LLM_CONFIG_FILE = "llm-config.enc";

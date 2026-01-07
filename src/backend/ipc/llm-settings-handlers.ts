@@ -1,7 +1,7 @@
+import type { LLMConfig } from "@shared/types/llm";
 import { type IpcMainInvokeEvent, ipcMain } from "electron";
 import { LLMClientProvider } from "../services/mcp/llm-client-provider";
 import { LlmStorage } from "../services/storage/llm-storage";
-import type { LLMConfig } from "../types/llm";
 import { IPC_CHANNELS } from "./channels";
 
 export class LLMSettingsIPCHandlers {

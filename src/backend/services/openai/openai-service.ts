@@ -2,9 +2,9 @@
 // TODO: Remove this class after separating transcribe from OpenAI service
 //
 import { createReadStream } from "node:fs";
+import type { LLMConfig } from "@shared/types/llm";
 import { OpenAI } from "openai";
 import { ERROR_MESSAGES } from "../../constants/error-messages";
-import type { LLMConfig } from "../../types/llm";
 import { LlmStorage } from "../storage/llm-storage";
 
 export class OpenAIService {

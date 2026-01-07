@@ -1,7 +1,8 @@
 import { createAzure } from "@ai-sdk/azure";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAI } from "@ai-sdk/openai";
-import type { ProviderConfig, ProviderName } from "../../types/llm";
+import type { ProviderName } from "@shared/types/llm";
+import type { ProviderConfig } from "../../types/llm";
 
 export const LLM_PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
   deepseek: {
