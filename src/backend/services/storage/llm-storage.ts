@@ -1,30 +1,6 @@
 import { join } from "node:path";
+import type { LLMConfig } from "../../types/llm";
 import { BaseSecureStorage } from "./base-secure-storage";
-
-// LLM configuration types for backend usage
-
-interface LLMConfigBase {
-  provider: string;
-  model: string | null;
-  apiKey: string;
-}
-
-export interface OpenAIConfig extends LLMConfigBase {
-  provider: "openai";
-}
-
-export interface DeepSeekConfig extends LLMConfigBase {
-  provider: "deepseek";
-}
-
-export interface AzureOpenAIConfig extends LLMConfigBase {
-  provider: "azure";
-  endpoint: string;
-  version: string;
-  deployment: string;
-}
-
-export type LLMConfig = OpenAIConfig | AzureOpenAIConfig | DeepSeekConfig;
 
 const LLM_CONFIG_FILE = "llm-config.enc";
 

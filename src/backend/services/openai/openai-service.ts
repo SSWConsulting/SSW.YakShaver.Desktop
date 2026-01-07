@@ -4,7 +4,8 @@
 import { createReadStream } from "node:fs";
 import { OpenAI } from "openai";
 import { ERROR_MESSAGES } from "../../constants/error-messages";
-import { type LLMConfig, LlmStorage } from "../storage/llm-storage";
+import type { LLMConfig } from "../../types/llm";
+import { LlmStorage } from "../storage/llm-storage";
 
 export class OpenAIService {
   private static instance: OpenAIService;
