@@ -31,6 +31,7 @@
     "url": "https://github.com/SSWConsulting/SSW.YakShaver.Desktop.git"
   },
   "dependencies": {
+    "@ai-sdk/azure": "^3.0.7",
     "@ai-sdk/deepseek": "^2.0.1",
     "@ai-sdk/mcp": "^1.0.0",
     "@ai-sdk/openai": "^3.0.1",

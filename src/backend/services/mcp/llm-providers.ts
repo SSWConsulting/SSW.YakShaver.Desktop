@@ -1,3 +1,4 @@
+import { createAzure } from "@ai-sdk/azure";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { ProviderName } from "@shared/types/llm";
@@ -13,8 +14,7 @@ export const LLM_PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
     defaultTranscriptionModel: "whisper-1",
     defaultProcessingModel: "gpt-5-mini",
   },
-  // TODO:
   azure: {
-    factory: createOpenAI,
+    factory: createAzure,
   },
 } as const;
