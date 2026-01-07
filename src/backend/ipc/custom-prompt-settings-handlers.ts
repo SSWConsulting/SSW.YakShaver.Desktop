@@ -25,5 +25,8 @@ export class CustomPromptSettingsIPCHandlers {
     ipcMain.handle(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, (_, id: string) =>
       this.store.setActivePrompt(id),
     );
+    ipcMain.handle(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS, () =>
+      this.store.clearCustomPrompts(),
+    );
   }
 }

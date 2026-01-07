@@ -77,6 +77,7 @@ const IPC_CHANNELS = {
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
+  SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
 
   // Release Channel
   RELEASE_CHANNEL_GET: "release-channel:get",
@@ -97,6 +98,9 @@ const IPC_CHANNELS = {
   // General Settings
   GENERAL_SETTINGS_GET: "general-settings:get",
   GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+
+  // App Control
+  APP_RESTART: "app:restart",
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
@@ -248,6 +252,7 @@ const electronAPI = {
     deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
     setActivePrompt: (id: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
+    clearCustomPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS),
   },
   releaseChannel: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),
@@ -278,6 +283,9 @@ const electronAPI = {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_GET),
     setMode: (mode: ToolApprovalMode) =>
       ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE, mode),
+  },
+  app: {
+    restart: () => ipcRenderer.invoke(IPC_CHANNELS.APP_RESTART),
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),

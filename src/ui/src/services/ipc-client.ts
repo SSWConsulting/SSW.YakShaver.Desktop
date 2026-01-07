@@ -134,6 +134,7 @@ declare global {
         ) => Promise<boolean>;
         deletePrompt: (id: string) => Promise<boolean>;
         setActivePrompt: (id: string) => Promise<boolean>;
+        clearCustomPrompts: () => Promise<void>;
       };
       releaseChannel: {
         get: () => Promise<ReleaseChannel>;
@@ -169,6 +170,9 @@ declare global {
       generalSettings: {
         get: () => Promise<GeneralSettings>;
         setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
+      };
+      app: {
+        restart: () => Promise<{ success: boolean; error?: string }>;
       };
       portal: {
         getMyShaves: () => Promise<{

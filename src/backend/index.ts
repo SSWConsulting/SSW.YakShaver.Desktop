@@ -6,6 +6,7 @@ import tmp from "tmp";
 import { config } from "./config/env";
 import { initDatabase } from "./db";
 import { registerEventForwarders } from "./events/event-forwarder";
+import { AppControlIPCHandlers } from "./ipc/app-control-handlers";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
 import { GeneralSettingsIPCHandlers } from "./ipc/general-settings-handlers";
@@ -113,6 +114,7 @@ let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
 let _githubTokenHandlers: GitHubTokenIPCHandlers;
 let _generalSettingsHandlers: GeneralSettingsIPCHandlers;
 let _shaveHandlers: ShaveIPCHandlers;
+let _appControlHandlers: AppControlIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 // Register protocol handler
@@ -218,6 +220,7 @@ app.whenReady().then(async () => {
   const mcpServerManager = await MCPServerManager.getInstanceAsync();
   _mcpHandlers = new McpIPCHandlers(mcpServerManager);
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
+  _appControlHandlers = new AppControlIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _generalSettingsHandlers = new GeneralSettingsIPCHandlers();

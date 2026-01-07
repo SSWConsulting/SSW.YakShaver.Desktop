@@ -3,6 +3,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
+import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
 import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
@@ -46,6 +47,10 @@ const TABS: SettingsTab[] = [
   {
     id: "advanced",
     label: "Advanced",
+  },
+  {
+    id: "account",
+    label: "Account",
   },
 ];
 
@@ -175,6 +180,9 @@ export function SettingsDialog() {
                   <McpSettingsPanel isActive={open && activeTabId === "mcp"} />
                 )}
                 {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
+                {activeTab?.id === "account" && (
+                  <AccountSettingsPanel isActive={open && activeTabId === "account"} />
+                )}
               </div>
             </ScrollArea>
           </section>
