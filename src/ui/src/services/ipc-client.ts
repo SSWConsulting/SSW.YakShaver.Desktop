@@ -3,11 +3,11 @@ import type {
   ProcessedRelease,
   ReleaseChannel,
 } from "@/components/settings/release-channels/ReleaseChannelManager";
+import type { CreateShaveData, CreateVideoData, UpdateShaveData } from "../../../backend/db/schema";
 import type {
   AuthResult,
   AuthState,
   ConvertVideoToMp3Result,
-  CreateShaveInput,
   CustomPrompt,
   GeneralSettings,
   GetMyShavesResponse,
@@ -30,11 +30,12 @@ declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideoFile: (filePath: string) => Promise<void>;
-        processVideoUrl: (url: string) => Promise<void>;
+        processVideoFile: (filePath: string, shaveId?: number) => Promise<void>;
+        processVideoUrl: (url: string, shaveId?: number) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
+          shaveId?: number,
         ) => Promise<{
           success: boolean;
           finalOutput?: string | null;
@@ -177,13 +178,30 @@ declare global {
         }>;
       };
       shave: {
-        create: (data: CreateShaveInput) => Promise<Shave>;
-        getById: (id: number) => Promise<Shave | undefined>;
-        getAll: () => Promise<Shave[]>;
-        findByVideoUrl: (videoEmbedUrl: string) => Promise<Shave | undefined>;
-        update: (id: number, data: Partial<CreateShaveInput>) => Promise<Shave | undefined>;
-        updateStatus: (id: number, status: ShaveStatus) => Promise<Shave | undefined>;
-        delete: (id: number) => Promise<void>;
+        create: (
+          shaveData: CreateShaveData,
+          videoFile?: CreateVideoData,
+        ) => Promise<{ success: boolean; data?: Shave; error?: string }>;
+        getById: (
+          id: number,
+        ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
+        getAll: () => Promise<{ success: boolean; data?: Shave[]; error?: string }>;
+        findByVideoUrl: (
+          videoEmbedUrl: string,
+        ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
+        attachVideoFile: (
+          shaveId: number,
+          videoFile: CreateVideoData,
+        ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
+        update: (
+          id: number,
+          data: UpdateShaveData,
+        ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
+        updateStatus: (
+          id: number,
+          status: ShaveStatus,
+        ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
+        delete: (id: number) => Promise<{ success: boolean; data?: boolean; error?: string }>;
       };
     };
   }

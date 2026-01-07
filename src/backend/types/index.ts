@@ -29,8 +29,10 @@ export interface VideoFile {
 export interface VideoFileMetadata {
   fileName: string;
   filePath?: string;
-  createdAt: string; // ISO string date
-  duration: number; // in seconds
+  /** ISO string date */
+  createdAt: string;
+  /** Duration in seconds */
+  duration: number;
 }
 
 export enum ShaveStatus {
