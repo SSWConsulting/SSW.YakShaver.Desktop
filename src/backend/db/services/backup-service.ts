@@ -1,0 +1,204 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { app } from "electron";
+
+/**
+ * Database backup and restore service
+ * Handles safe migration with automatic backup and rollback capabilities
+ */
+
+export interface BackupMetadata {
+  originalPath: string;
+  backupPath: string;
+  timestamp: string;
+  schemaVersion: string;
+  fileSize: number;
+  checksum?: string;
+}
+
+export class DatabaseBackupService {
+  private backupDir: string;
+  private maxBackups = 5; // Keep last 5 backups
+
+  constructor() {
+    this.backupDir = path.join(app.getPath("userData"), "db-backups");
+    this.ensureBackupDirectory();
+  }
+
+  private ensureBackupDirectory(): void {
+    if (!fs.existsSync(this.backupDir)) {
+      fs.mkdirSync(this.backupDir, { recursive: true });
+    }
+  }
+
+  /**
+   * Create a backup before migration
+   * @param dbPath Path to the database file
+   * @param schemaVersion Current schema version
+   * @returns Backup metadata
+   */
+  async createBackup(dbPath: string, schemaVersion: string): Promise<BackupMetadata> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupFileName = `yakshaver_backup_${schemaVersion}_${timestamp}.db`;
+    const backupPath = path.join(this.backupDir, backupFileName);
+
+    // Check if source file exists
+    if (!fs.existsSync(dbPath)) {
+      throw new Error(`Database file not found: ${dbPath}`);
+    }
+
+    // Copy database file
+    await fs.promises.copyFile(dbPath, backupPath);
+
+    // Get file size
+    const stats = await fs.promises.stat(backupPath);
+
+    const metadata: BackupMetadata = {
+      originalPath: dbPath,
+      backupPath,
+      timestamp,
+      schemaVersion,
+      fileSize: stats.size,
+    };
+
+    // Save metadata
+    await this.saveMetadata(metadata);
+
+    console.log(`✅ Database backup created: ${backupPath}`);
+    return metadata;
+  }
+
+  /**
+   * Restore database from backup
+   * @param backupPath Path to backup file
+   * @param targetPath Path where to restore
+   */
+  async restoreBackup(backupPath: string, targetPath: string): Promise<void> {
+    if (!fs.existsSync(backupPath)) {
+      throw new Error(`Backup file not found: ${backupPath}`);
+    }
+
+    // Create a temporary backup of current state (in case restore fails)
+    const tempBackup = `${targetPath}.restore-temp`;
+    if (fs.existsSync(targetPath)) {
+      await fs.promises.copyFile(targetPath, tempBackup);
+    }
+
+    try {
+      // Restore the backup
+      await fs.promises.copyFile(backupPath, targetPath);
+      console.log(`✅ Database restored from: ${backupPath}`);
+
+      // Remove temporary backup
+      if (fs.existsSync(tempBackup)) {
+        await fs.promises.unlink(tempBackup);
+      }
+    } catch (error) {
+      // If restore failed, restore the temp backup
+      if (fs.existsSync(tempBackup)) {
+        await fs.promises.copyFile(tempBackup, targetPath);
+        await fs.promises.unlink(tempBackup);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Verify backup integrity
+   * @param backupPath Path to backup file
+   */
+  async verifyBackup(backupPath: string): Promise<boolean> {
+    try {
+      const stats = await fs.promises.stat(backupPath);
+      if (stats.size === 0) {
+        console.error("❌ Backup file is empty");
+        return false;
+      }
+
+      // Try to open the SQLite database to verify it's not corrupted
+      // This is a basic check - in production you might want more thorough validation
+      const buffer = await fs.promises.readFile(backupPath, { encoding: null, flag: "r" });
+      const header = buffer.toString("utf-8", 0, 16);
+
+      if (!header.startsWith("SQLite format 3")) {
+        console.error("❌ Backup file is not a valid SQLite database");
+        return false;
+      }
+
+      console.log("✅ Backup verification passed");
+      return true;
+    } catch (error) {
+      console.error("❌ Backup verification failed:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Save backup metadata to JSON file
+   */
+  private async saveMetadata(metadata: BackupMetadata): Promise<void> {
+    const metadataPath = `${metadata.backupPath}.meta.json`;
+    await fs.promises.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+  }
+
+  /**
+   * Load backup metadata
+   */
+  async loadMetadata(backupPath: string): Promise<BackupMetadata | null> {
+    const metadataPath = `${backupPath}.meta.json`;
+    try {
+      const content = await fs.promises.readFile(metadataPath, "utf-8");
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * List all available backups
+   */
+  async listBackups(): Promise<BackupMetadata[]> {
+    const files = await fs.promises.readdir(this.backupDir);
+    const backupFiles = files.filter((f) => f.endsWith(".db"));
+
+    const backups: BackupMetadata[] = [];
+    for (const file of backupFiles) {
+      const backupPath = path.join(this.backupDir, file);
+      const metadata = await this.loadMetadata(backupPath);
+      if (metadata) {
+        backups.push(metadata);
+      }
+    }
+
+    // Sort by timestamp (newest first)
+    return backups.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  }
+
+  /**
+   * Clean up old backups (keep only maxBackups)
+   */
+  async cleanupOldBackups(): Promise<void> {
+    const backups = await this.listBackups();
+
+    if (backups.length > this.maxBackups) {
+      const toDelete = backups.slice(this.maxBackups);
+
+      for (const backup of toDelete) {
+        try {
+          await fs.promises.unlink(backup.backupPath);
+          await fs.promises.unlink(`${backup.backupPath}.meta.json`);
+          console.log(`🗑️  Deleted old backup: ${path.basename(backup.backupPath)}`);
+        } catch (error) {
+          console.error(`Failed to delete backup: ${backup.backupPath}`, error);
+        }
+      }
+    }
+  }
+
+  /**
+   * Get backup directory path
+   */
+  getBackupDirectory(): string {
+    return this.backupDir;
+  }
+}

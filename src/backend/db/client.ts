@@ -5,10 +5,10 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { app } from "electron";
 import * as schema from "./schema";
 
-const getDbPath = (): string => {
-const databaseFileName = "database.sqlite";
+export const getDbPath = (): string => {
+  const databaseFileName = "database.sqlite";
   if (process.env.NODE_ENV === "development") {
-    return path.join(process.cwd(), "data",databaseFileName);
+    return path.join(process.cwd(), "data", databaseFileName);
   }
   return path.join(app.getPath("userData"), databaseFileName);
 };

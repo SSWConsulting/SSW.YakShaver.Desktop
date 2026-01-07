@@ -2,6 +2,7 @@ import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
 import { formatErrorMessage } from "@/utils";
+import { VideoSourceType } from "../../../../backend/types";
 import { normalizeYouTubeUrl } from "../../../../backend/utils/youtube-url-utils";
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
@@ -103,14 +104,17 @@ export function ScreenRecorder() {
       setUploadResult(null);
       const result = await saveRecording(
         {
-          workItemSource: "YakShaver Desktop",
-          title: "Screen Recording",
+          clientOrigin: "YakShaver Desktop",
+          title: "Untitled",
           shaveStatus: ShaveStatus.Pending,
         },
         {
           fileName,
-          filePath,
-          duration,
+          localPath: filePath,
+        },
+        {
+          type: VideoSourceType.LOCAL_RECORDING,
+          durationSeconds: duration,
         },
       );
       const newShave = result?.data;
@@ -151,8 +155,8 @@ export function ScreenRecorder() {
         shaveId = existingShaveId;
       } else {
         const result = await saveRecording({
-          workItemSource: "YakShaver Desktop",
-          title: "YouTube Video",
+          clientOrigin: "YakShaver Desktop",
+          title: "Untitled",
           shaveStatus: ShaveStatus.Pending,
           videoEmbedUrl: normalizeYouTubeUrl(trimmedUrl),
         });

@@ -15,7 +15,7 @@ export function createShave(data: CreateShaveData): Shave {
 /**
  * Get a shave by ID
  */
-export function getShaveById(id: number): Shave | undefined {
+export function getShaveById(id: string): Shave | undefined {
   return db.select().from(shaves).where(eq(shaves.id, id)).get();
 }
 
@@ -36,7 +36,7 @@ export function findShaveByVideoUrl(videoEmbedUrl: string): Shave | undefined {
 /**
  * Update a shave record
  */
-export function updateShave(id: number, data: UpdateShaveData): Shave | undefined {
+export function updateShave(id: string, data: UpdateShaveData): Shave | undefined {
   const result = db.update(shaves).set(data).where(eq(shaves.id, id)).returning().get();
   return result;
 }
@@ -44,14 +44,14 @@ export function updateShave(id: number, data: UpdateShaveData): Shave | undefine
 /**
  * Update shave status
  */
-export function updateShaveStatus(id: number, status: ShaveStatus): Shave | undefined {
+export function updateShaveStatus(id: string, status: ShaveStatus): Shave | undefined {
   return updateShave(id, { shaveStatus: status });
 }
 
 /**
  * Delete a shave record
  */
-export function deleteShave(id: number): boolean {
+export function deleteShave(id: string): boolean {
   const result = db.delete(shaves).where(eq(shaves.id, id)).run();
   return result.changes > 0;
 }

@@ -14,7 +14,7 @@ export function createVideoFile(data: CreateVideoData): VideoFile {
 /**
  * Get a video file by ID
  */
-export function getVideoFileById(id: number): VideoFile | undefined {
+export function getVideoFileById(id: string): VideoFile | undefined {
   return db.select().from(videoFiles).where(eq(videoFiles.id, id)).get();
 }
 
@@ -28,7 +28,7 @@ export function findVideoFileByName(fileName: string): VideoFile | undefined {
 /**
  * Update a video file record
  */
-export function updateVideoFile(id: number, data: UpdateVideoData): VideoFile | undefined {
+export function updateVideoFile(id: string, data: UpdateVideoData): VideoFile | undefined {
   const result = db.update(videoFiles).set(data).where(eq(videoFiles.id, id)).returning().get();
   return result;
 }
@@ -36,7 +36,7 @@ export function updateVideoFile(id: number, data: UpdateVideoData): VideoFile | 
 /**
  * Delete a video file record
  */
-export function deleteVideoFile(id: number): boolean {
+export function deleteVideoFile(id: string): boolean {
   const result = db.delete(videoFiles).where(eq(videoFiles.id, id)).run();
   return result.changes > 0;
 }

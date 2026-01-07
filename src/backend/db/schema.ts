@@ -272,6 +272,8 @@ export type NewUserIdentity = typeof userIdentities.$inferInsert;
 
 export type VideoSource = typeof videoSources.$inferSelect;
 export type NewVideoSource = typeof videoSources.$inferInsert;
+export type CreateVideoSourceData = Omit<NewVideoSource, "id">;
+export type UpdateVideoSourceData = Partial<CreateVideoSourceData>;
 
 export type Prompt = typeof prompts.$inferSelect;
 export type NewPrompt = typeof prompts.$inferInsert;

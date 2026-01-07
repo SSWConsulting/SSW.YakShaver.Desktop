@@ -1,6 +1,13 @@
-import type { CreateShaveData, CreateVideoData, Shave, UpdateShaveData } from "../../db/schema";
+import type {
+  CreateShaveData,
+  CreateVideoData,
+  CreateVideoSourceData,
+  Shave,
+  UpdateShaveData,
+} from "../../db/schema";
 import * as dbShaveService from "../../db/services/shave-service";
 import * as dbVideoFileService from "../../db/services/video-files-service";
+import * as dbVideoSourceService from "../../db/services/video-source-service";
 import type { ShaveStatus } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { normalizeYouTubeUrl } from "../../utils/youtube-url-utils";
@@ -15,15 +22,33 @@ export class ShaveService {
     return ShaveService.instance;
   }
 
-  public createShave(shave: CreateShaveData, videoFile?: CreateVideoData): Shave {
+  public createShave(
+    shave: CreateShaveData,
+    videoFile?: CreateVideoData,
+    videoSource?: CreateVideoSourceData,
+  ): Shave {
     try {
-      let videoFileId: number | null = null;
+      let videoSourceId: string | null = null;
 
-      // If recording file is provided, try to create it
+      // If video source is provided, create it first
+      if (videoSource) {
+        try {
+          const videoSourceResult = dbVideoSourceService.createVideoSource(videoSource);
+          videoSourceId = videoSourceResult.id;
+        } catch (err) {
+          const errorMsg = formatErrorMessage(err);
+          console.error("[ShaveService] Failed to create video source:", errorMsg);
+        }
+      }
+
+      // If recording file is provided, create it with the video source ID
       if (videoFile) {
         try {
-          const videoFileResult = dbVideoFileService.createVideoFile(videoFile);
-          videoFileId = videoFileResult.id;
+          const videoFileData = {
+            ...videoFile,
+            videoSourceId: videoSourceId,
+          };
+          dbVideoFileService.createVideoFile(videoFileData);
         } catch (err) {
           const errorMsg = formatErrorMessage(err);
           console.error("[ShaveService] Failed to create video file:", errorMsg);
@@ -33,11 +58,11 @@ export class ShaveService {
       // Normalize YouTube URL before saving
       const normalizedShave = {
         ...shave,
-        videoFileId: videoFileId ?? null,
+        videoSourceId: videoSourceId ?? null,
         videoEmbedUrl: shave.videoEmbedUrl ? normalizeYouTubeUrl(shave.videoEmbedUrl) : null,
       };
 
-      // Create shave with videoFileId (null if not provided or creation failed)
+      // Create shave with videoSourceId (null if not provided or creation failed)
       const newShave = dbShaveService.createShave(normalizedShave);
       return newShave;
     } catch (err) {
@@ -45,7 +70,7 @@ export class ShaveService {
     }
   }
 
-  public getShaveById(id: number): Shave | undefined {
+  public getShaveById(id: string): Shave | undefined {
     try {
       return dbShaveService.getShaveById(id);
     } catch (err) {
@@ -73,7 +98,7 @@ export class ShaveService {
     }
   }
 
-  public updateShave(id: number, data: UpdateShaveData): Shave | undefined {
+  public updateShave(id: string, data: UpdateShaveData): Shave | undefined {
     try {
       // Normalize YouTube URL if videoEmbedUrl is being updated
       const normalizedData = { ...data };
@@ -87,22 +112,25 @@ export class ShaveService {
     }
   }
 
-  public attachVideoFileToShave(shaveId: number, videoFile: CreateVideoData): Shave | undefined {
+  public attachVideoSourceToShave(
+    shaveId: string,
+    videoSource: CreateVideoSourceData,
+  ): Shave | undefined {
     try {
-      //In case user tries to shave the same video again, avoid overwriting existing videoFileId
+      //In case user tries to shave the same video again, avoid overwriting existing videoSourceId
       const existingShave = dbShaveService.getShaveById(shaveId);
-      if (existingShave?.videoFileId) {
+      if (existingShave?.videoSourceId) {
         return existingShave;
       }
 
-      const videoFileResult = dbVideoFileService.createVideoFile(videoFile);
-      return dbShaveService.updateShave(shaveId, { videoFileId: videoFileResult.id });
+      const videoSourceResult = dbVideoSourceService.createVideoSource(videoSource);
+      return dbShaveService.updateShave(shaveId, { videoSourceId: videoSourceResult.id });
     } catch (err) {
       throw new Error(formatErrorMessage(err));
     }
   }
 
-  public updateShaveStatus(id: number, status: ShaveStatus): Shave | undefined {
+  public updateShaveStatus(id: string, status: ShaveStatus): Shave | undefined {
     try {
       return dbShaveService.updateShaveStatus(id, status);
     } catch (err) {
@@ -110,7 +138,7 @@ export class ShaveService {
     }
   }
 
-  public deleteShave(id: number): boolean {
+  public deleteShave(id: string): boolean {
     try {
       return dbShaveService.deleteShave(id);
     } catch (err) {
