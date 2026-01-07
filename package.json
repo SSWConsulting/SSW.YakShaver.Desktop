@@ -3,7 +3,7 @@
   "productName": "YakShaver",
   "version": "0.6.0",
   "description": "YakShaver, an AI agent to help you trim the fluff and get straight to the point",
-  "main": "dist/index.js",
+  "main": "dist/backend/index.js",
   "build": {},
   "scripts": {
     "setup": "concurrently \"npm install\"  \"cd src/ui && npm install\"",
