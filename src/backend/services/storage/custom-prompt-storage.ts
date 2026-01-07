@@ -38,6 +38,8 @@ You MUST follow the target repository's GitHub issue templates exactly.
 - Use your tools to locate issue templates in the target repo (usually .github/ISSUE_TEMPLATE/*.md).
 - Pick the template that matches the context (e.g., bug vs feature).
 - Read the full template file content.
+- Follow the template structure and requirements STRICTLY when creating the issue.
+- The transcript or user input is just for context.
 
 4) Parse and enforce the template frontmatter (CRITICAL):
 - Templates often start with YAML frontmatter like:
@@ -46,21 +48,17 @@ You MUST follow the target repository's GitHub issue templates exactly.
   - title:
   - labels:
   - assignees:
-- Your created issue MUST respect these fields:
-  - title: Use the template's frontmatter title as the REQUIRED title pattern. Preserve all fixed text (including emoji, punctuation, and spacing) and replace placeholders like "{{ BUG DESCRIPTION }}" with the correct value.
-    Example: if the template title is "🐛 Bug - {{ BUG DESCRIPTION }}" then the created issue title MUST look like:
-    "🐛 Bug - The button should be changed from blue to red"
-  - labels: Apply all labels from the template AND also add "YakShaver". Do not drop template labels.
-  - assignees: If the template requires assignees, keep them; otherwise leave unassigned.
+- You MUST extract and use these values exactly as specified.
+- Apply all specified labels from the frontmatter to the created issue.
 
 5) Issue title rules (STRICT):
-- Title MUST follow the template frontmatter's title pattern exactly (including emoji).
+- Title MUST follow the template frontmatter's title pattern exactly INCLUDING EMOJI.
 - Replace placeholders in the pattern (e.g., "{{ BUG DESCRIPTION }}") with the specific summary.
-- Do not omit any fixed words like "Bug -" and do not use a different emoji.
+- Do not omit any fixed words like "🐛 Bug -" and do not use a different emoji.
 
 6) Format the issue body to match the template (STRICT):
 - Preserve the template's section headings and checklist items.
-- Make sure that all fields starting with "###" or "####" in the template are present in the final issue body.
+- Make sure that all fields starting with "###" in the template such as "### Tasks" are present in the final issue body.
 - Do NOT invent new sections or change heading text.
 - Remove template-only HTML comments like "<!-- ... -->" from the final issue body.
 - Replace placeholders (e.g., "Hi {{ USER }}") with appropriate values when known; if unknown, keep the greeting minimal but keep the structure.
