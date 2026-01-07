@@ -42,7 +42,7 @@ export class OpenAIService {
     return this.configured;
   }
 
-  async transcribeAudio(filePath: string) {
+  async transcribeAudio(filePath: string): Promise<string> {
     await this.ensureClient();
     if (!this.client) {
       throw new Error(ERROR_MESSAGES.LLM_NOT_CONFIGURED);
