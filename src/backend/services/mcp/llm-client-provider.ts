@@ -69,11 +69,11 @@ export class LLMClientProvider {
       throw new Error(`[LLMClientProvider]: Unsupported LLM provider: ${llmConfig.provider}`);
     }
 
-    const client = config.factory({ apiKey: llmConfig.apiKey });
-
     console.log(
       `[LLMClientProvider]: updateLanguageModelAsync - configuring ${llmConfig.provider}`,
     );
+
+    const client = config.factory({ apiKey: llmConfig.apiKey });
 
     LLMClientProvider.languageModel = client.languageModel(
       llmConfig.model ?? config.defaultProcessingModel,
