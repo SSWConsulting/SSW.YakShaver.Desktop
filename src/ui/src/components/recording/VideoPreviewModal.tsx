@@ -27,6 +27,7 @@ interface VideoPreviewModalProps {
   onClose: () => void;
   onRetry: () => void;
   onContinue: () => void;
+  onDurationLoad?: (duration: number) => void;
 }
 
 export function VideoPreviewModal({
@@ -36,6 +37,7 @@ export function VideoPreviewModal({
   onClose,
   onRetry,
   onContinue,
+  onDurationLoad,
 }: VideoPreviewModalProps) {
   const [videoUrl, setVideoUrl] = useState("");
   const [showConfirmExit, setShowConfirmExit] = useState(false);
@@ -68,7 +70,13 @@ export function VideoPreviewModal({
             <DialogTitle className="text-xl">Recording Preview</DialogTitle>
           </DialogHeader>
 
-          {videoUrl && <VideoPlayer videoUrl={videoUrl} videoBlob={videoBlob} />}
+          {videoUrl && (
+            <VideoPlayer
+              videoUrl={videoUrl}
+              videoBlob={videoBlob}
+              onDurationLoad={onDurationLoad}
+            />
+          )}
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={handleRetry}>

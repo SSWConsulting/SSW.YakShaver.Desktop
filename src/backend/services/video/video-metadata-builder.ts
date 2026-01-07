@@ -1,19 +1,24 @@
+import { z } from "zod";
 import type { YouTubeSnippetUpdate } from "../auth/types.js";
-import { OpenAIService } from "../openai/openai-service.js";
+import { LLMClientProvider } from "../mcp/llm-client-provider.js";
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s)]+/gi;
 
-interface LinkCandidate {
-  label: string;
-  url: string;
-}
+const LinkCandidateSchema = z.object({
+  label: z.string(),
+  url: z.url(),
+});
 
-interface ChapterCandidate {
-  label: string;
-  timestamp: string;
-}
+type LinkCandidate = z.infer<typeof LinkCandidateSchema>;
 
-interface TranscriptSegment {
+export const ChapterCandidateSchema = z.object({
+  label: z.string(),
+  timestamp: z.string(),
+});
+
+type ChapterCandidate = z.infer<typeof ChapterCandidateSchema>;
+
+export interface TranscriptSegment {
   startSeconds: number;
   text: string;
 }
@@ -25,12 +30,14 @@ export interface MetadataBuilderInput {
   finalResult?: string | null;
 }
 
-interface MetadataModelResponse {
-  title?: string;
-  description?: string;
-  tags?: string[];
-  chapters?: ChapterCandidate[];
-}
+export const MetadataModelResponseSchema = z.object({
+  title: z.string().max(100).optional(),
+  description: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  chapters: z.array(ChapterCandidateSchema).optional(),
+});
+
+type MetadataModelResponse = z.infer<typeof MetadataModelResponseSchema>;
 
 export interface MetadataBuilderResult {
   snippet: YouTubeSnippetUpdate;
@@ -41,8 +48,6 @@ const DEFAULT_TAGS = ["yakshaver", "automation", "workflow"];
 const MIN_CHAPTER_GAP_SECONDS = 5;
 
 export class VideoMetadataBuilder {
-  constructor(private readonly llmClient: OpenAIService = OpenAIService.getInstance()) {}
-
   async build(input: MetadataBuilderInput): Promise<MetadataBuilderResult> {
     const transcriptSegments = parseVtt(input.transcriptVtt);
     const transcriptForPrompt = buildTranscriptExcerpt(transcriptSegments);
@@ -58,14 +63,12 @@ export class VideoMetadataBuilder {
     ]);
 
     const promptPayload = [
+      "Generate the JSON object based on the following information:",
       "### Execution History",
       executionHistorySnippet || "No execution history available.",
       "",
       "### Transcript (timestamp + text)",
       transcriptForPrompt || "No transcript available.",
-      "",
-      "### Intermediate Structured Output",
-      input.intermediateOutput || "No intermediate summary provided.",
       "",
       "### Final Result JSON (if available)",
       input.finalResult ?? "No final result provided.",
@@ -76,11 +79,15 @@ export class VideoMetadataBuilder {
         : "None",
     ].join("\n");
 
-    const rawResponse = await this.llmClient.generateOutput(METADATA_SYSTEM_PROMPT, promptPayload, {
-      jsonMode: true,
-    });
+    const llmClientProvider = await LLMClientProvider.getInstanceAsync();
+    if (!llmClientProvider) {
+      throw new Error("LLM Client Provider is not initialized");
+    }
 
-    const parsedResponse = safeJsonParse<MetadataModelResponse>(rawResponse) || {};
+    const response = await llmClientProvider.generateJson(promptPayload, METADATA_SYSTEM_PROMPT);
+
+    const parsedResponse = safeJsonParse<MetadataModelResponse>(response) || {};
+
     const metadata = normalizeModelResponse(
       parsedResponse,
       fallbackLinks,
@@ -112,9 +119,10 @@ Rules:
 - Use specific, descriptive chapter names that reflect the actual content
 - Highlight concrete issues/resources from the execution history
 - Write descriptions suitable for YouTube (no markdown code fences)
-- If information is missing, fall back to clear defaults rather than hallucinating.`;
+- If information is missing, fall back to clear defaults rather than hallucinating.
+- DO NOT reference any local files or folders`;
 
-function parseVtt(vtt: string): TranscriptSegment[] {
+export function parseVtt(vtt: string): TranscriptSegment[] {
   if (!vtt) return [];
   const segments: TranscriptSegment[] = [];
   const lines = vtt.replace(/\r/g, "").split("\n");
@@ -362,9 +370,12 @@ function appendChapters(description: string, chapters: ChapterCandidate[]): stri
 
   if (chapters.length) {
     lines.push("", "Chapters:");
-    for (const chapter of chapters) {
-      lines.push(`${chapter.timestamp.replace(/^00:/, "")} - ${chapter.label}`);
-    }
+    chapters.forEach((chapter, i) => {
+      const start = chapter.timestamp.replace(/^00:/, "");
+      const end = chapters[i + 1]?.timestamp.replace(/^00:/, "");
+      const time = end ? `${start}-${end}` : start;
+      lines.push(`${time} - ${chapter.label}`);
+    });
   }
 
   return lines.join("\n").trim();
