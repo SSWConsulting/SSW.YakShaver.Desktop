@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import Database from "better-sqlite3";
 import { app } from "electron";
 
 /**
@@ -152,8 +153,7 @@ export class DatabaseBackupService {
         return false;
       }
 
-      // Try to open the SQLite database to verify it's not corrupted
-      // This is a basic check - in production you might want more thorough validation
+      // Check SQLite header
       const fileHandle = await fs.promises.open(backupPath, "r");
       const buffer = Buffer.alloc(16);
 
@@ -168,12 +168,39 @@ export class DatabaseBackupService {
       }
 
       const header = buffer.toString("utf-8");
-
       if (!header.startsWith("SQLite format 3")) {
         console.error("Backup file is not a valid SQLite database");
         return false;
       }
-      return true;
+
+      // Open database and run integrity check
+      let db: Database.Database | null = null;
+      try {
+        db = new Database(backupPath, { readonly: true });
+
+        // Run SQLite's built-in integrity check
+        const result = db.pragma("integrity_check", { simple: true });
+        if (result !== "ok") {
+          console.error("Database integrity check failed:", result);
+          return false;
+        }
+
+        // Verify database is not empty by checking for sqlite_master table
+        const tables = db
+          .prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'")
+          .get() as { count: number };
+
+        if (tables.count === 0) {
+          console.error("Database has no tables");
+          return false;
+        }
+
+        return true;
+      } finally {
+        if (db) {
+          db.close();
+        }
+      }
     } catch (error) {
       console.error("Backup verification failed:", error);
       return false;

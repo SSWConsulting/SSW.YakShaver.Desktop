@@ -216,7 +216,7 @@ CREATE TABLE `shave_attempts` (
 	`token_consumption` integer,
 	`status` text NOT NULL,
 	`error_message` text,
-	`portal_sync_status` text DEFAULT 'pending',
+	`portal_sync_status` text DEFAULT 'PENDING',
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
 	`completed_at` text,
 	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),

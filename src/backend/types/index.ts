@@ -69,7 +69,7 @@ export enum AuthProvider {
 export enum ModelProvider {
   OPENAI = "openai",
   AZURE_OPENAI = "azure_openai",
-  DeepSeek = "deepseek",
+  DEEPSEEK = "deepseek",
 }
 
 export enum VideoHostingProvider {

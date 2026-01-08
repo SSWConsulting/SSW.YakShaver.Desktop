@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { db } from "./client";
+import { getDb } from "./client";
 
 const REQUIRED_TABLES = [
   "users",
@@ -19,6 +19,7 @@ const REQUIRED_TABLES = [
 ] as const;
 
 function ensureRequiredTablesExist(): void {
+  const db = getDb();
   const tables = db.all<{ name: string }>(sql`SELECT name FROM sqlite_master WHERE type='table'`);
   const existing = new Set(tables.map((table) => table.name));
   const missing = REQUIRED_TABLES.filter((table) => !existing.has(table));
@@ -62,6 +63,7 @@ function getMigrationsPath(): string {
 
 export function runMigrations(): void {
   const migrationsFolder = getMigrationsPath();
+  const db = getDb();
 
   try {
     console.log("[DB] Running migrations...");

@@ -30,7 +30,7 @@ const ensureDbDirectory = (): void => {
 
 const isTestEnv = process.env.VITEST === "true";
 
-let db: ReturnType<typeof drizzle>;
+let db: ReturnType<typeof drizzle> | undefined;
 
 function initializeDbConnection(): void {
   ensureDbDirectory();
@@ -41,6 +41,20 @@ function initializeDbConnection(): void {
 
 if (!isTestEnv) {
   initializeDbConnection();
+}
+
+/**
+ * Gets the database instance. Throws if not initialized.
+ * In production, db is initialized on module load.
+ * In tests, db is set by createTestDb().
+ */
+export function getDb(): ReturnType<typeof drizzle> {
+  if (!db) {
+    throw new Error(
+      "Database not initialized. In tests, call createTestDb() first. In production, this should never happen.",
+    );
+  }
+  return db;
 }
 
 export { db };
@@ -109,7 +123,6 @@ export function closeTestDb() {
   if (testDbInstance) {
     testDbInstance.sqlite.close();
     testDbInstance = null;
-    // Reset the global db to undefined for next test run
-    db = null as unknown as ReturnType<typeof drizzle>;
+    db = undefined;
   }
 }

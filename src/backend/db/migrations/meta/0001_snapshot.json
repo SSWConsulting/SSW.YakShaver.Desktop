@@ -89,9 +89,7 @@
       "indexes": {
         "idx_ai_completions_attempt": {
           "name": "idx_ai_completions_attempt",
-          "columns": [
-            "shave_attempt_id"
-          ],
+          "columns": ["shave_attempt_id"],
           "isUnique": false
         }
       },
@@ -100,12 +98,8 @@
           "name": "ai_completions_shave_attempt_id_shave_attempts_id_fk",
           "tableFrom": "ai_completions",
           "tableTo": "shave_attempts",
-          "columnsFrom": [
-            "shave_attempt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["shave_attempt_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -157,9 +151,7 @@
       "indexes": {
         "idx_process_steps_attempt": {
           "name": "idx_process_steps_attempt",
-          "columns": [
-            "shave_attempt_id"
-          ],
+          "columns": ["shave_attempt_id"],
           "isUnique": false
         }
       },
@@ -168,12 +160,8 @@
           "name": "process_steps_shave_attempt_id_shave_attempts_id_fk",
           "tableFrom": "process_steps",
           "tableTo": "shave_attempts",
-          "columnsFrom": [
-            "shave_attempt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["shave_attempt_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -255,9 +243,7 @@
       "indexes": {
         "idx_prompts_active": {
           "name": "idx_prompts_active",
-          "columns": [
-            "is_active"
-          ],
+          "columns": ["is_active"],
           "isUnique": false
         }
       },
@@ -266,12 +252,8 @@
           "name": "prompts_user_id_users_id_fk",
           "tableFrom": "prompts",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -381,9 +363,7 @@
       "indexes": {
         "idx_shave_attempts_shave_id": {
           "name": "idx_shave_attempts_shave_id",
-          "columns": [
-            "shave_id"
-          ],
+          "columns": ["shave_id"],
           "isUnique": false
         }
       },
@@ -392,12 +372,8 @@
           "name": "shave_attempts_shave_id_shaves_id_fk",
           "tableFrom": "shave_attempts",
           "tableTo": "shaves",
-          "columnsFrom": [
-            "shave_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["shave_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -535,9 +511,7 @@
       "indexes": {
         "idx_shaves_video_embed_url": {
           "name": "idx_shaves_video_embed_url",
-          "columns": [
-            "video_embed_url"
-          ],
+          "columns": ["video_embed_url"],
           "isUnique": false
         }
       },
@@ -625,16 +599,12 @@
       "indexes": {
         "idx_tool_calls_attempt": {
           "name": "idx_tool_calls_attempt",
-          "columns": [
-            "shave_attempt_id"
-          ],
+          "columns": ["shave_attempt_id"],
           "isUnique": false
         },
         "idx_tool_calls_tool": {
           "name": "idx_tool_calls_tool",
-          "columns": [
-            "tool_name"
-          ],
+          "columns": ["tool_name"],
           "isUnique": false
         }
       },
@@ -643,12 +613,8 @@
           "name": "tool_calls_shave_attempt_id_shave_attempts_id_fk",
           "tableFrom": "tool_calls",
           "tableTo": "shave_attempts",
-          "columnsFrom": [
-            "shave_attempt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["shave_attempt_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -700,9 +666,7 @@
       "indexes": {
         "idx_transcripts_attempt": {
           "name": "idx_transcripts_attempt",
-          "columns": [
-            "shave_attempt_id"
-          ],
+          "columns": ["shave_attempt_id"],
           "isUnique": false
         }
       },
@@ -711,12 +675,8 @@
           "name": "transcripts_shave_attempt_id_shave_attempts_id_fk",
           "tableFrom": "transcripts",
           "tableTo": "shave_attempts",
-          "columnsFrom": [
-            "shave_attempt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["shave_attempt_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -806,12 +766,8 @@
           "name": "user_identities_user_id_users_id_fk",
           "tableFrom": "user_identities",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -919,9 +875,7 @@
       "indexes": {
         "idx_video_files_video_source": {
           "name": "idx_video_files_video_source",
-          "columns": [
-            "video_source_id"
-          ],
+          "columns": ["video_source_id"],
           "isUnique": false
         }
       },
@@ -959,8 +913,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": "'youtube'"
+          "autoincrement": false
         },
         "external_id": {
           "name": "external_id",
@@ -1027,12 +980,8 @@
           "name": "video_sources_owner_user_id_users_id_fk",
           "tableFrom": "video_sources",
           "tableTo": "users",
-          "columnsFrom": [
-            "owner_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["owner_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
