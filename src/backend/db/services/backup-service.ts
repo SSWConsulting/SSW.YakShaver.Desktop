@@ -148,24 +148,34 @@ export class DatabaseBackupService {
     try {
       const stats = await fs.promises.stat(backupPath);
       if (stats.size === 0) {
-        console.error("❌ Backup file is empty");
+        console.error("Backup file is empty");
         return false;
       }
 
       // Try to open the SQLite database to verify it's not corrupted
       // This is a basic check - in production you might want more thorough validation
-      const buffer = await fs.promises.readFile(backupPath, { encoding: null, flag: "r" });
-      const header = buffer.toString("utf-8", 0, 16);
+      const fileHandle = await fs.promises.open(backupPath, "r");
+      const buffer = Buffer.alloc(16);
 
-      if (!header.startsWith("SQLite format 3")) {
-        console.error("❌ Backup file is not a valid SQLite database");
-        return false;
+      try {
+        const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, 0);
+        if (bytesRead < buffer.length) {
+          console.error("Backup file is too small to be a valid SQLite database");
+          return false;
+        }
+      } finally {
+        await fileHandle.close();
       }
 
-      console.log("✅ Backup verification passed");
+      const header = buffer.toString("utf-8");
+
+      if (!header.startsWith("SQLite format 3")) {
+        console.error("Backup file is not a valid SQLite database");
+        return false;
+      }
       return true;
     } catch (error) {
-      console.error("❌ Backup verification failed:", error);
+      console.error("Backup verification failed:", error);
       return false;
     }
   }

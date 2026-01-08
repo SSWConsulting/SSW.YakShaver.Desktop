@@ -28,18 +28,75 @@ const ensureDbDirectory = (): void => {
   }
 };
 
-// Only initialize production DB in non-test environments
-let sqlite: Database.Database;
+const isTestEnv = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+
+let sqlite: Database.Database | null = null;
 let db: ReturnType<typeof drizzle>;
 
-if (process.env.NODE_ENV !== "test" && process.env.VITEST !== "true") {
+type DbLifecycleListener = (sqliteInstance: Database.Database) => void;
+const lifecycleListeners = new Set<DbLifecycleListener>();
+
+function notifyDbReinitialized(sqliteInstance: Database.Database): void {
+  for (const listener of lifecycleListeners) {
+    try {
+      listener(sqliteInstance);
+    } catch (error) {
+      console.error("[DB] Error in lifecycle listener", error);
+    }
+  }
+}
+
+type InitializeOptions = {
+  emitEvent?: boolean;
+};
+
+function initializeDbConnection(options: InitializeOptions = {}): void {
   ensureDbDirectory();
-  sqlite = new Database(getDbPath());
-  configureSqlite(sqlite);
-  db = drizzle(sqlite, { schema });
+  const sqliteInstance = new Database(getDbPath());
+  configureSqlite(sqliteInstance);
+  sqlite = sqliteInstance;
+  db = drizzle(sqliteInstance, { schema });
+
+  if (options.emitEvent) {
+    notifyDbReinitialized(sqliteInstance);
+  }
+}
+
+if (!isTestEnv) {
+  initializeDbConnection();
 }
 
 export { db };
+export const isTestEnvironment = isTestEnv;
+
+function ensureNotTestEnv(action: string): void {
+  if (isTestEnv) {
+    throw new Error(`[DB] Cannot ${action} while running tests`);
+  }
+}
+
+function teardownDbConnection(): void {
+  if (sqlite) {
+    sqlite.close();
+    sqlite = null;
+  }
+}
+
+export function closeDbConnection(): void {
+  ensureNotTestEnv("close the database connection");
+  teardownDbConnection();
+}
+
+export function reopenDbConnection(): void {
+  ensureNotTestEnv("reopen the database connection");
+  teardownDbConnection();
+  initializeDbConnection({ emitEvent: true });
+}
+
+export function onDbReinitialized(listener: DbLifecycleListener): () => void {
+  lifecycleListeners.add(listener);
+  return () => lifecycleListeners.delete(listener);
+}
 
 /**
  * Singleton test database instance shared across all tests. Initialize once and reuse for all test files.
