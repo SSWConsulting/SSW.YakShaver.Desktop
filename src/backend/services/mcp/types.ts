@@ -2,6 +2,7 @@ import type { IOType } from "node:child_process";
 import type Stream from "node:stream";
 
 interface MCPBaseConfig {
+  id: string;
   name: string;
   description?: string;
   transport: "streamableHttp" | "stdio" | "inMemory";

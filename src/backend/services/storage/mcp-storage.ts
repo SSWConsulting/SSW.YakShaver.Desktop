@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import type { MCPServerConfig } from "../mcp/types";
 import { BaseSecureStorage } from "./base-secure-storage";
 
@@ -27,8 +28,24 @@ export class McpStorage extends BaseSecureStorage {
   }
 
   async getMcpServerConfigsAsync(): Promise<MCPServerConfig[]> {
-    const data = await this.decryptAndLoad<{ servers: MCPServerConfig[] }>(this.getMcpConfigPath());
-    return data?.servers || [];
+    const path = this.getMcpConfigPath();
+    const data = await this.decryptAndLoad<{ servers: unknown[] }>(path);
+    const raw = (data?.servers ?? []) as Array<Record<string, unknown>>;
+
+    let changed = false;
+    const upgraded = raw.map((server) => {
+      if (typeof server.id === "string" && server.id.length > 0) {
+        return server;
+      }
+      changed = true;
+      return { ...server, id: randomUUID() };
+    });
+
+    if (changed) {
+      await this.encryptAndStore(path, { servers: upgraded });
+    }
+
+    return upgraded as unknown as MCPServerConfig[];
   }
 
   async hasMcpServersAsync(): Promise<boolean> {
