@@ -26,7 +26,7 @@ import { IPC_CHANNELS } from "./channels";
 type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
-  shaveId?: number;
+  shaveId?: string;
 };
 
 export const TranscriptSummarySchema = z.object({
@@ -57,7 +57,7 @@ export class ProcessVideoIPCHandlers {
   private registerHandlers(): void {
     ipcMain.handle(
       IPC_CHANNELS.PROCESS_VIDEO_FILE,
-      async (_event, filePath?: string, shaveId?: number) => {
+      async (_event, filePath?: string, shaveId?: string) => {
         if (!filePath) {
           throw new Error("video-process-handler: Video file path is required");
         }
@@ -68,7 +68,7 @@ export class ProcessVideoIPCHandlers {
 
     ipcMain.handle(
       IPC_CHANNELS.PROCESS_VIDEO_URL,
-      async (_event, url?: string, shaveId?: number) => {
+      async (_event, url?: string, shaveId?: string) => {
         if (!url) {
           throw new Error("video-process-handler: Video URL is required");
         }
@@ -84,7 +84,7 @@ export class ProcessVideoIPCHandlers {
         _event: IpcMainInvokeEvent,
         intermediateOutput: string,
         videoUploadResult: VideoUploadResult,
-        shaveId?: number,
+        shaveId?: string,
       ) => {
         const notify = (stage: string, data?: Record<string, unknown>) => {
           this.emitProgress(stage, data, shaveId);
@@ -127,7 +127,7 @@ export class ProcessVideoIPCHandlers {
     );
   }
 
-  private async processFileVideo(filePath: string, shaveId?: number) {
+  private async processFileVideo(filePath: string, shaveId?: string) {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -154,7 +154,7 @@ export class ProcessVideoIPCHandlers {
     });
   }
 
-  private async processUrlVideo(url: string, shaveId?: number) {
+  private async processUrlVideo(url: string, shaveId?: string) {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -294,7 +294,7 @@ export class ProcessVideoIPCHandlers {
         if (shaveId) {
           try {
             const shaveService = ShaveService.getInstance();
-            shaveService.markShaveVideoFilesAsDeleted(String(shaveId));
+            shaveService.markShaveVideoFilesAsDeleted(shaveId);
           } catch (dbError) {
             console.warn("[ProcessVideo] Failed to mark video files as deleted", dbError);
           }
@@ -311,7 +311,7 @@ export class ProcessVideoIPCHandlers {
     return result;
   }
 
-  private emitProgress(stage: string, data?: Record<string, unknown>, shaveId?: number) {
+  private emitProgress(stage: string, data?: Record<string, unknown>, shaveId?: string) {
     BrowserWindow.getAllWindows()
       .filter((win) => !win.isDestroyed())
       .forEach((win) => {

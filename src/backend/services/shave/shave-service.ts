@@ -141,7 +141,7 @@ export class ShaveService {
   /**
    * Mark video file associated with a shave as deleted (soft delete)
    * @param shaveId The shave ID
-   * @returns true if video file was marked as deleted, false otherwise
+   * @returns true if video file was marked as deleted or already deleted, false if no video file found
    */
   public markShaveVideoFilesAsDeleted(shaveId: string): boolean {
     try {
@@ -152,14 +152,18 @@ export class ShaveService {
 
       const videoFiles = dbVideoFileService.getVideoFilesByVideoSourceId(shave.videoSourceId);
 
-      for (const videoFile of videoFiles) {
-        if (!videoFile.isDeleted) {
-          dbVideoFileService.markVideoFileAsDeleted(videoFile.id);
-          return true;
-        }
+      // No video files found
+      if (videoFiles.length === 0) {
+        return false;
       }
-
-      return false;
+      const videoFile = videoFiles[0];
+      // If already deleted, return true
+      if (videoFile.isDeleted) {
+        return true;
+      }
+      // Mark as deleted and return true
+      dbVideoFileService.markVideoFileAsDeleted(videoFile.id);
+      return true;
     } catch (err) {
       throw new Error(formatErrorMessage(err));
     }
