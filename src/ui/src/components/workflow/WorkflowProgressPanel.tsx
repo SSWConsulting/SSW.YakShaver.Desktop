@@ -481,6 +481,10 @@ export function WorkflowProgressPanel() {
     const isCompleted = stageIndex < currentIndex || progress.stage === ProgressStage.COMPLETED;
     const isError = progress.stage === ProgressStage.ERROR;
 
+    if (stage === ProgressStage.UPDATING_METADATA && progress.metadataUpdateError) {
+      return <XCircle className="w-4 h-4 text-red-400" />;
+    }
+
     if (isError && stage === progress.stage) {
       return <XCircle className="w-4 h-4 text-red-400" />;
     }
