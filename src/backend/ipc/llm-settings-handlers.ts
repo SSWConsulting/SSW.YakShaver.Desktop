@@ -1,4 +1,4 @@
-import type { LLMConfig } from "@shared/types/llm";
+import type { LLMConfigV2 } from "@shared/types/llm";
 import { type IpcMainInvokeEvent, ipcMain } from "electron";
 import { LLMClientProvider } from "../services/mcp/llm-client-provider";
 import { LlmStorage } from "../services/storage/llm-storage";
@@ -14,7 +14,7 @@ export class LLMSettingsIPCHandlers {
   private registerHandlers(): void {
     ipcMain.handle(
       IPC_CHANNELS.LLM_SET_CONFIG,
-      async (_event: IpcMainInvokeEvent, config: LLMConfig) => {
+      async (_event: IpcMainInvokeEvent, config: LLMConfigV2) => {
         if (!config || !("provider" in config)) throw new Error("Invalid LLM config");
         await this.secureStorage.storeLLMConfig(config);
         return { success: true };

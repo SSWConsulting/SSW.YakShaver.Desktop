@@ -1,8 +1,16 @@
-import type { LLMConfig } from "@shared/types/llm";
-import type { LanguageModel, ModelMessage, ToolSet } from "ai";
-import { generateText, Output, stepCountIs, streamText } from "ai";
+import { readFile } from "node:fs/promises";
+import type { TranscriptSegment } from "@shared/types/transcript";
+import type { LanguageModel, ModelMessage, ToolSet, TranscriptionModel } from "ai";
+import {
+  generateText,
+  Output,
+  stepCountIs,
+  streamText,
+  experimental_transcribe as transcribe,
+} from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType, z } from "zod";
+import type { LLMConfig } from "../../../shared/types/llm";
 import type { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { LlmStorage } from "../storage/llm-storage";
@@ -40,6 +48,7 @@ function sendStepEvent(event: MCPStep): void {
 export class LLMClientProvider {
   public static llmClient: LLMClientProvider | null = null;
   private static languageModel: LanguageModel;
+  private static transcriptionModel: TranscriptionModel;
 
   private constructor() {}
 
@@ -49,6 +58,7 @@ export class LLMClientProvider {
     }
 
     await LLMClientProvider.updateLanguageModelAsync();
+    await LLMClientProvider.updateTranscriptionModelAsync();
     return LLMClientProvider.llmClient;
   }
 
@@ -59,9 +69,9 @@ export class LLMClientProvider {
     }
     // retrieve LLM configuration
     const llmConfig: LLMConfig =
-      (await LlmStorage.getInstance().getLLMConfig()) ??
+      (await LlmStorage.getInstance().getLLMConfig())?.processingModel ??
       (() => {
-        throw new Error("[LLMClientProvider]: LLM configuration not found");
+        throw new Error("[LLMClientProvider]: LLM language configuration not found");
       })();
 
     const config = LLM_PROVIDER_CONFIGS[llmConfig.provider];
@@ -78,6 +88,36 @@ export class LLMClientProvider {
     LLMClientProvider.languageModel = client.languageModel(
       llmConfig.model ?? config.defaultProcessingModel,
     );
+  }
+
+  public static async updateTranscriptionModelAsync(): Promise<void> {
+    if (!LLMClientProvider.llmClient) {
+      LLMClientProvider.llmClient = new LLMClientProvider();
+    }
+    // retrieve LLM configuration
+    const llmConfig: LLMConfig =
+      (await LlmStorage.getInstance().getLLMConfig())?.transcriptionModel ??
+      (() => {
+        throw new Error("[LLMClientProvider]: LLM transcription configuration not found");
+      })();
+
+    const config = LLM_PROVIDER_CONFIGS[llmConfig.provider];
+    if (!config || !config.defaultProcessingModel) {
+      throw new Error(`[LLMClientProvider]: Unsupported LLM provider: ${llmConfig.provider}`);
+    }
+
+    console.log(
+      `[LLMClientProvider]: updateTranscriptionModelAsync - configuring ${llmConfig.provider}`,
+    );
+
+    const client = config.factory({ apiKey: llmConfig.apiKey });
+    const modelName = llmConfig.model ?? config.defaultTranscriptionModel;
+    if (!modelName) throw new Error("[LLMClientProvider]: No transcription model specified");
+    const transcriptionModel = client.transcriptionModel?.(modelName);
+    if (!transcriptionModel)
+      throw new Error(`[LLMClientProvider]: Transcription model ${modelName} could not be created`);
+
+    LLMClientProvider.transcriptionModel = transcriptionModel;
   }
 
   public async generateText(messages: ModelMessage[]): Promise<string> {
@@ -191,6 +231,35 @@ export class LLMClientProvider {
       console.error("[LLMClientProvider]: Error in sendMessage:", error);
       throw error;
     }
+  }
+
+  public async transcribeAudio(filePath: string): Promise<TranscriptSegment[]> {
+    if (!LLMClientProvider.transcriptionModel) {
+      throw new Error("[LLMClientProvider]: LLM transcription client not initialized");
+    }
+    const res = await transcribe({
+      model: LLMClientProvider.transcriptionModel,
+      audio: await readFile(filePath),
+      providerOptions: {
+        openai: {
+          timestampGranularities: ["segment"],
+        },
+      },
+    });
+    if (res.segments.length === 0) {
+      return [
+        {
+          text: res.text,
+          startSecond: 0,
+          endSecond: res.durationInSeconds || 0,
+        },
+      ];
+    }
+    return res.segments.map((segment) => ({
+      text: segment.text,
+      startSecond: segment.startSecond,
+      endSecond: segment.endSecond,
+    }));
   }
 
   public static async checkHealthAsync(): Promise<HealthStatusInfo> {
