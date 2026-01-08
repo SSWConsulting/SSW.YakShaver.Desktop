@@ -1,4 +1,6 @@
+import type { TranscriptSegment } from "@shared/types/transcript.js";
 import { z } from "zod";
+import { METADATA_SYSTEM_PROMPT } from "../../constants/prompts.js";
 import type { YouTubeSnippetUpdate } from "../auth/types.js";
 import { LLMClientProvider } from "../mcp/llm-client-provider.js";
 
@@ -18,13 +20,8 @@ export const ChapterCandidateSchema = z.object({
 
 type ChapterCandidate = z.infer<typeof ChapterCandidateSchema>;
 
-export interface TranscriptSegment {
-  startSeconds: number;
-  text: string;
-}
-
 export interface MetadataBuilderInput {
-  transcriptVtt: string;
+  transcript: TranscriptSegment[];
   intermediateOutput: string;
   executionHistory: string;
   finalResult?: string | null;
@@ -49,8 +46,7 @@ const MIN_CHAPTER_GAP_SECONDS = 5;
 
 export class VideoMetadataBuilder {
   async build(input: MetadataBuilderInput): Promise<MetadataBuilderResult> {
-    const transcriptSegments = parseVtt(input.transcriptVtt);
-    const transcriptForPrompt = buildTranscriptExcerpt(transcriptSegments);
+    const transcriptForPrompt = buildTranscriptExcerpt(input.transcript);
     const executionHistorySnippet = truncateText(input.executionHistory, 6000);
 
     const fallbackLinks = dedupeLinks([
@@ -91,7 +87,7 @@ export class VideoMetadataBuilder {
     const metadata = normalizeModelResponse(
       parsedResponse,
       fallbackLinks,
-      transcriptSegments,
+      input.transcript,
       executionHistorySnippet,
     );
     const snippet: YouTubeSnippetUpdate = {
@@ -132,7 +128,10 @@ function buildTranscriptExcerpt(segments: TranscriptSegment[], limit = 60): stri
   if (!segments.length) return "";
   return segments
     .slice(0, limit)
-    .map((segment) => `${secondsToTimestamp(segment.startSeconds)} ${segment.text}`)
+    .map(
+      (segment) =>
+        `${secondsToTimestamp(segment.startSecond)}-${secondsToTimestamp(segment.endSecond)} ${segment.text}`,
+    )
     .join("\n");
 }
 
@@ -300,11 +299,11 @@ function buildChapters(
   if (normalized.length < 2 && segments.length) {
     const midpoint = segments[Math.floor(segments.length / 2)];
     if (midpoint) {
-      addChapter("Deep Dive", midpoint.startSeconds);
+      addChapter("Deep Dive", midpoint.startSecond);
     }
     const last = segments[segments.length - 1];
     if (last) {
-      addChapter("Wrap-up", last.startSeconds);
+      addChapter("Wrap-up", last.startSecond);
     }
   }
 
