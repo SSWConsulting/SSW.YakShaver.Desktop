@@ -11,6 +11,7 @@ import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { OpenAIService } from "../services/openai/openai-service";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
+import { ShaveService } from "../services/shave/shave-service";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import {
   parseVtt,
@@ -286,6 +287,21 @@ export class ProcessVideoIPCHandlers {
       const errorMessage = formatErrorMessage(error);
       notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
+    } finally {
+      try {
+        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        // Mark video files as deleted in database if shave exists
+        if (shaveId) {
+          try {
+            const shaveService = ShaveService.getInstance();
+            shaveService.markShaveVideoFilesAsDeleted(String(shaveId));
+          } catch (dbError) {
+            console.warn("[ProcessVideo] Failed to mark video files as deleted", dbError);
+          }
+        }
+      } catch (cleanupError) {
+        console.warn("[ProcessVideo] Failed to clean up source file", cleanupError);
+      }
     }
   }
 

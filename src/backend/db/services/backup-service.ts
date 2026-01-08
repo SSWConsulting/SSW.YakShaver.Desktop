@@ -16,13 +16,53 @@ export interface BackupMetadata {
   checksum?: string;
 }
 
+export interface DatabaseBackupServiceOptions {
+  /**
+   * Optional override for the directory where backups are stored.
+   * Useful for CLI tools or tests that run before the Electron app boots.
+   */
+  backupDirectory?: string;
+}
+
+const FALLBACK_USER_DATA = path.join(process.cwd(), ".yakshaver");
+
 export class DatabaseBackupService {
   private backupDir: string;
   private maxBackups = 5; // Keep last 5 backups
 
-  constructor() {
-    this.backupDir = path.join(app.getPath("userData"), "db-backups");
+  constructor(options: DatabaseBackupServiceOptions = {}) {
+    this.backupDir = this.resolveBackupDirectory(options.backupDirectory);
     this.ensureBackupDirectory();
+  }
+
+  private resolveBackupDirectory(explicitDir?: string): string {
+    if (explicitDir) {
+      return explicitDir;
+    }
+
+    const envDir = process.env.YAKSHAVER_BACKUP_DIR;
+    if (envDir) {
+      return envDir;
+    }
+
+    if (typeof app?.getPath === "function") {
+      if (app.isReady()) {
+        return path.join(app.getPath("userData"), "db-backups");
+      }
+
+      try {
+        return path.join(app.getPath("userData"), "db-backups");
+      } catch (error) {
+        console.warn(
+          "[DB] Electron app not ready. Using fallback path for database backups.",
+          error,
+        );
+      }
+    }
+
+    const fallbackDir = path.join(FALLBACK_USER_DATA, "db-backups");
+    console.warn(`[DB] Falling back to ${fallbackDir} for database backups.`);
+    return fallbackDir;
   }
 
   private ensureBackupDirectory(): void {
@@ -63,8 +103,6 @@ export class DatabaseBackupService {
 
     // Save metadata
     await this.saveMetadata(metadata);
-
-    console.log(`✅ Database backup created: ${backupPath}`);
     return metadata;
   }
 
@@ -87,7 +125,6 @@ export class DatabaseBackupService {
     try {
       // Restore the backup
       await fs.promises.copyFile(backupPath, targetPath);
-      console.log(`✅ Database restored from: ${backupPath}`);
 
       // Remove temporary backup
       if (fs.existsSync(tempBackup)) {

@@ -26,6 +26,26 @@ export function findVideoFileByName(fileName: string): VideoFile | undefined {
 }
 
 /**
+ * Get video files for a given video source
+ */
+export function getVideoFilesByVideoSourceId(videoSourceId: string): VideoFile[] {
+  return db.select().from(videoFiles).where(eq(videoFiles.videoSourceId, videoSourceId)).all();
+}
+
+/**
+ * Mark a video file as deleted (soft delete)
+ */
+export function markVideoFileAsDeleted(id: string): VideoFile | undefined {
+  const deletedAt = new Date().toISOString();
+  return db
+    .update(videoFiles)
+    .set({ isDeleted: true, deletedAt })
+    .where(eq(videoFiles.id, id))
+    .returning()
+    .get();
+}
+
+/**
  * Update a video file record
  */
 export function updateVideoFile(id: string, data: UpdateVideoData): VideoFile | undefined {

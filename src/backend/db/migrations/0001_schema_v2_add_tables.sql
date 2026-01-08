@@ -35,7 +35,7 @@ CREATE TABLE `video_sources` (
 	`id` text PRIMARY KEY NOT NULL,
 	`owner_user_id` text,
 	`type` text,
-	`external_provider` text DEFAULT 'youtube',
+	`external_provider` text,
 	`external_id` text,
 	`source_url` text,
 	`title` text,
@@ -44,7 +44,7 @@ CREATE TABLE `video_sources` (
 	`metadata_json` text,
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
 	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-	FOREIGN KEY (`owner_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
+	FOREIGN KEY (`owner_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `idx_video_sources_owner` ON `video_sources` (`owner_user_id`);
@@ -130,6 +130,7 @@ CREATE TABLE `__new_shaves` (
 	`work_item_url` text,
 	`shave_status` text DEFAULT 'Unknown' NOT NULL,
 	`video_embed_url` text,
+	`total_tokens` integer,
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) NOT NULL,
 	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
 	FOREIGN KEY (`video_source_id`) REFERENCES `video_sources`(`id`) ON UPDATE no action ON DELETE set null
@@ -153,6 +154,7 @@ INSERT INTO `__new_shaves`(
     `work_item_url`, 
     `shave_status`, 
     `video_embed_url`, 
+    `total_tokens`, 
     `created_at`, 
     `updated_at`
 ) 
@@ -175,6 +177,7 @@ SELECT
     s.`work_item_url`,
     s.`shave_status`,
     s.`video_embed_url`,
+    NULL,
     s.`created_at`,
     s.`updated_at`
 FROM `shaves` s;
@@ -214,6 +217,7 @@ CREATE TABLE `shave_attempts` (
 	`started_from_stage` text,
 	`prompt_snapshot` text,
 	`final_output_json` text,
+	`token_consumption` integer,
 	`status` text NOT NULL,
 	`error_message` text,
 	`portal_sync_status` text DEFAULT 'pending',

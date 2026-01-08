@@ -52,27 +52,11 @@ export const userIdentities = sqliteTable("user_identities", {
 });
 
 // --- Video Sources ---
-export const videoFiles = sqliteTable(
-  "video_files",
-  {
-    id: text("id")
-      .primaryKey()
-      .$defaultFn(() => randomUUID()),
-    videoSourceId: text("video_source_id"),
-    fileName: text("file_name"),
-    localPath: text("local_path"),
-    isDeleted: integer("is_deleted", { mode: "boolean" }).default(false),
-    deletedAt: text("deleted_at"),
-    createdAt: text("created_at").default(timestampDefault).notNull(),
-  },
-  (table) => [index("idx_video_files_video_source").on(table.videoSourceId)],
-);
-
 export const videoSources = sqliteTable("video_sources", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => randomUUID()),
-  ownerUserId: text("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+  ownerUserId: text("owner_user_id").references(() => users.id, { onDelete: "cascade" }),
   type: text("type").$type<VideoSourceType>(),
   externalProvider: text("external_provider").$type<VideoHostingProvider>(),
   externalId: text("external_id"), // e.g. youtube videoId
@@ -86,6 +70,25 @@ export const videoSources = sqliteTable("video_sources", {
     .default(timestampDefault)
     .$onUpdate(() => timestampDefault),
 });
+
+// --- Video Files ---
+export const videoFiles = sqliteTable(
+  "video_files",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    videoSourceId: text("video_source_id").references(() => videoSources.id, {
+      onDelete: "cascade",
+    }),
+    fileName: text("file_name"),
+    localPath: text("local_path"),
+    isDeleted: integer("is_deleted", { mode: "boolean" }).default(false),
+    deletedAt: text("deleted_at"),
+    createdAt: text("created_at").default(timestampDefault).notNull(),
+  },
+  (table) => [index("idx_video_files_video_source").on(table.videoSourceId)],
+);
 
 // --- Prompts ---
 
@@ -118,7 +121,9 @@ export const shaves = sqliteTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => randomUUID()),
-    videoSourceId: text("video_source_id"),
+    videoSourceId: text("video_source_id").references(() => videoSources.id, {
+      onDelete: "set null",
+    }),
     requesterUserId: text("requester_user_id"),
     latestAttemptId: text("latest_attempt_id"),
     clientOrigin: text("client_origin"), // "desktop app", etc.
@@ -132,6 +137,7 @@ export const shaves = sqliteTable(
     workItemUrl: text("work_item_url"),
     shaveStatus: text("shave_status").$type<ShaveStatus>().default(ShaveStatus.Unknown).notNull(),
     videoEmbedUrl: text("video_embed_url"),
+    totalTokens: integer("total_tokens"),
     createdAt: text("created_at").default(timestampDefault).notNull(),
     updatedAt: text("updated_at")
       .default(timestampDefault)
@@ -154,6 +160,7 @@ export const shaveAttempts = sqliteTable(
     startedFromStage: text("started_from_stage").$type<ProgressStage>(),
     promptSnapshot: text("prompt_snapshot"), // Full prompt config at this moment
     finalOutputJson: text("final_output_json", { mode: "json" }),
+    tokenConsumption: integer("token_consumption"),
     status: text("status").$type<ShaveAttemptStatus>().notNull(),
     errorMessage: text("error_message"),
     portalSyncStatus: text("portal_sync_status")

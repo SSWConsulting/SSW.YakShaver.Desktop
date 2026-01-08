@@ -31,29 +31,10 @@ export function getAllVideoSources(): VideoSource[] {
 }
 
 /**
- * Find a video source by external ID (e.g., YouTube video ID)
- */
-export function findVideoSourceByExternalId(externalId: string): VideoSource | undefined {
-  return db.select().from(videoSources).where(eq(videoSources.externalId, externalId)).get();
-}
-
-/**
  * Find a video source by source URL
  */
 export function findVideoSourceByUrl(sourceUrl: string): VideoSource | undefined {
   return db.select().from(videoSources).where(eq(videoSources.sourceUrl, sourceUrl)).get();
-}
-
-/**
- * Get all video sources for a specific user
- */
-export function getVideoSourcesByUserId(userId: string): VideoSource[] {
-  return db
-    .select()
-    .from(videoSources)
-    .where(eq(videoSources.ownerUserId, userId))
-    .orderBy(desc(videoSources.createdAt))
-    .all();
 }
 
 /**

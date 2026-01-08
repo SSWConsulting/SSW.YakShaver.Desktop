@@ -18,7 +18,11 @@ function getMigrationsPath(): string {
   }
 
   // Production: migrations are in extraResources (outside asar)
-  const prodPath = path.join(process.resourcesPath, "migrations");
+  const resourcesRoot =
+    typeof process !== "undefined" && typeof process.resourcesPath === "string"
+      ? process.resourcesPath
+      : path.join(process.cwd(), "resources");
+  const prodPath = path.join(resourcesRoot, "migrations");
   if (fs.existsSync(prodPath) && fs.existsSync(path.join(prodPath, "meta", "_journal.json"))) {
     return prodPath;
   }
@@ -35,7 +39,17 @@ function getMigrationsPath(): string {
 
 export function runMigrations(): void {
   const migrationsFolder = getMigrationsPath();
-  migrate(db, { migrationsFolder });
+
+  try {
+    console.log("[DB] Running migrations...");
+    migrate(db, { migrationsFolder });
+    console.log("[DB] Migrations completed successfully");
+  } catch (error) {
+    console.error("[DB] ✗ Migration failed:", error);
+    throw new Error(
+      `Database migration failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 
   // Verify shaves table exists
   const shavesTable = db.all<{ name: string }>(
@@ -56,22 +70,23 @@ export async function initDatabase(): Promise<void> {
   let backupMetadata: Awaited<ReturnType<typeof backupService.createBackup>> | null = null;
 
   try {
-    console.log("\n[DB] === DATABASE INITIALIZATION START ===\n");
-
-    // Only create backup if database file already exists (skip for fresh installs)
+    // Only create backup if database file exists AND is not empty (skip for fresh installs)
     if (fs.existsSync(dbPath)) {
-      console.log("[DB] Creating backup before migration...");
-      backupMetadata = await backupService.createBackup(dbPath, "pre-migration");
+      const stats = fs.statSync(dbPath);
+      if (stats.size > 0) {
+        console.log("[DB] Creating backup before migration...");
+        backupMetadata = await backupService.createBackup(dbPath, "pre-migration");
 
-      const isValid = await backupService.verifyBackup(backupMetadata.backupPath);
-      if (!isValid) {
-        console.warn("[DB]Backup verification failed, proceeding without backup");
-        backupMetadata = null;
+        const isValid = await backupService.verifyBackup(backupMetadata.backupPath);
+        if (!isValid) {
+          console.warn("[DB] ⚠ Backup verification failed, proceeding without backup");
+          backupMetadata = null;
+        } else {
+          console.log(`[DB] Backup created: ${backupMetadata.backupPath}`);
+        }
       } else {
-        console.log(`[DB] ✅ Backup created: ${backupMetadata.backupPath}`);
+        console.log("[DB] Empty database file detected, skipping backup");
       }
-    } else {
-      console.log("[DB] Fresh install detected, skipping backup");
     }
 
     // Run migrations
