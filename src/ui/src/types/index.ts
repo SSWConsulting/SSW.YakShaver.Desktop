@@ -1,3 +1,5 @@
+import type { TranscriptSegment } from "@shared/types/transcript";
+
 export interface UserInfo {
   id: string;
   name: string;
@@ -132,7 +134,7 @@ export const STAGE_CONFIG: Record<WorkflowStage, string> = {
 export interface WorkflowProgress {
   shaveId?: number;
   stage: WorkflowStage;
-  transcript?: string;
+  transcript?: TranscriptSegment[];
   intermediateOutput?: string;
   finalOutput?: string;
   uploadResult?: VideoUploadResult;

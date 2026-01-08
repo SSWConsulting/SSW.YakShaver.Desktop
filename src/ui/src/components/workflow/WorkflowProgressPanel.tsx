@@ -2,14 +2,15 @@ import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import {
+  type MCPStep,
   MCPStepType,
   ProgressStage,
-  type MCPStep,
   type VideoUploadOrigin,
   type WorkflowProgress,
   type WorkflowStage,
 } from "../../types";
 import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
+import { deepParseJson, formatErrorMessage } from "../../utils";
 import { Accordion, AccordionItem } from "../ui/accordion";
 import {
   AlertDialog,
@@ -28,7 +29,6 @@ import { Textarea } from "../ui/textarea";
 import { StageWithContent } from "./StageWithContent";
 import { StageWithoutContent } from "./StageWithoutContent";
 import { UndoStagePanel } from "./UndoStagePanel";
-import { deepParseJson, formatErrorMessage } from "../../utils";
 
 const WORKFLOW_CORE_STAGES: WorkflowStage[] = [
   ProgressStage.CONVERTING_AUDIO,
@@ -48,10 +48,14 @@ const RECORDING_WORKFLOW_STAGES: WorkflowStage[] = [
   ProgressStage.UPDATING_METADATA,
 ];
 
-const resolveWorkflowOrigin = (progress: WorkflowProgress): VideoUploadOrigin | undefined =>
+const resolveWorkflowOrigin = (
+  progress: WorkflowProgress
+): VideoUploadOrigin | undefined =>
   progress.sourceOrigin ?? progress.uploadResult?.origin;
 
-const getWorkflowStagesByOrigin = (origin?: VideoUploadOrigin): WorkflowStage[] => {
+const getWorkflowStagesByOrigin = (
+  origin?: VideoUploadOrigin
+): WorkflowStage[] => {
   if (origin === "external") {
     return EXTERNAL_WORKFLOW_STAGES;
   }
@@ -59,12 +63,14 @@ const getWorkflowStagesByOrigin = (origin?: VideoUploadOrigin): WorkflowStage[] 
 };
 
 export function WorkflowProgressPanel() {
-  const [progress, setProgress] = useState<WorkflowProgress>({ stage: ProgressStage.IDLE });
+  const [progress, setProgress] = useState<WorkflowProgress>({
+    stage: ProgressStage.IDLE,
+  });
   const [mcpSteps, setMcpSteps] = useState<MCPStep[]>([]);
   const [undoSteps, setUndoSteps] = useState<MCPStep[]>([]);
-  const [undoStatus, setUndoStatus] = useState<"idle" | "in_progress" | "completed" | "error">(
-    "idle",
-  );
+  const [undoStatus, setUndoStatus] = useState<
+    "idle" | "in_progress" | "completed" | "error"
+  >("idle");
   const [openAccordions, setOpenAccordions] = useState<string[]>([]);
   const [pendingToolApproval, setPendingToolApproval] = useState<{
     requestId: string;
@@ -74,11 +80,15 @@ export function WorkflowProgressPanel() {
   } | null>(null);
   const [approvalSubmitting, setApprovalSubmitting] = useState(false);
   const [approvalError, setApprovalError] = useState<string | null>(null);
-  const [autoApprovalCountdown, setAutoApprovalCountdown] = useState<number | null>(null);
+  const [autoApprovalCountdown, setAutoApprovalCountdown] = useState<
+    number | null
+  >(null);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
   const stepsRef = useRef<HTMLDivElement | null>(null);
-  const undoStatusRef = useRef<"idle" | "in_progress" | "completed" | "error">("idle");
+  const undoStatusRef = useRef<"idle" | "in_progress" | "completed" | "error">(
+    "idle"
+  );
   const sourceOriginRef = useRef<VideoUploadOrigin | undefined>(undefined);
 
   useEffect(() => {
@@ -86,59 +96,62 @@ export function WorkflowProgressPanel() {
   }, [undoStatus]);
 
   useEffect(() => {
-    const unsubscribeProgress = ipcClient.workflow.onProgress((data: unknown) => {
-      const progressData = data as WorkflowProgress;
-      setProgress((prev) => {
-        if (
-          progressData.stage === ProgressStage.EXECUTING_TASK &&
-          prev.stage !== ProgressStage.EXECUTING_TASK
-        ) {
-          setMcpSteps([]);
-        }
+    const unsubscribeProgress = ipcClient.workflow.onProgress(
+      (data: unknown) => {
+        const progressData = data as WorkflowProgress;
+        setProgress((prev) => {
+          if (
+            progressData.stage === ProgressStage.EXECUTING_TASK &&
+            prev.stage !== ProgressStage.EXECUTING_TASK
+          ) {
+            setMcpSteps([]);
+          }
 
-        // Reset preserved fields when starting a new workflow
-        const isStartingNewWorkflow =
-          progressData.stage === ProgressStage.CONVERTING_AUDIO ||
-          progressData.stage === ProgressStage.IDLE;
+          // Reset preserved fields when starting a new workflow
+          const isStartingNewWorkflow =
+            progressData.stage === ProgressStage.CONVERTING_AUDIO ||
+            progressData.stage === ProgressStage.IDLE;
 
-        if (isStartingNewWorkflow) {
+          if (isStartingNewWorkflow) {
+            return {
+              ...progressData,
+              sourceOrigin: progressData.sourceOrigin ?? prev.sourceOrigin,
+              metadataPreview: undefined,
+              transcript: [],
+              intermediateOutput: undefined,
+              uploadResult: progressData.uploadResult,
+            };
+          }
+
+          // Merge progress data to preserve fields like metadataPreview and transcript
           return {
+            ...prev,
             ...progressData,
+            // Preserve these fields if not included in the new update
+            metadataPreview:
+              progressData.metadataPreview ?? prev.metadataPreview,
+            transcript: progressData.transcript ?? prev.transcript,
             sourceOrigin: progressData.sourceOrigin ?? prev.sourceOrigin,
-            metadataPreview: undefined,
-            transcript: undefined,
-            intermediateOutput: undefined,
-            uploadResult: progressData.uploadResult,
           };
+        });
+
+        const stageIndex = getWorkflowStagesByOrigin(
+          progressData.sourceOrigin ?? sourceOriginRef.current
+        ).indexOf(progressData.stage);
+        if (stageIndex !== -1) setOpenAccordions([`stage-${stageIndex}`]);
+
+        if (
+          progressData.stage === ProgressStage.CONVERTING_AUDIO ||
+          progressData.stage === ProgressStage.IDLE
+        ) {
+          setUndoStatus("idle");
+          setUndoSteps([]);
+          setPendingToolApproval(null);
+          setApprovalSubmitting(false);
+          setApprovalError(null);
         }
-
-        // Merge progress data to preserve fields like metadataPreview and transcript
-        return {
-          ...prev,
-          ...progressData,
-          // Preserve these fields if not included in the new update
-          metadataPreview: progressData.metadataPreview ?? prev.metadataPreview,
-          transcript: progressData.transcript ?? prev.transcript,
-          sourceOrigin: progressData.sourceOrigin ?? prev.sourceOrigin,
-        };
-      });
-
-      const stageIndex = getWorkflowStagesByOrigin(
-        progressData.sourceOrigin ?? sourceOriginRef.current,
-      ).indexOf(progressData.stage);
-      if (stageIndex !== -1) setOpenAccordions([`stage-${stageIndex}`]);
-
-      if (
-        progressData.stage === ProgressStage.CONVERTING_AUDIO ||
-        progressData.stage === ProgressStage.IDLE
-      ) {
-        setUndoStatus("idle");
-        setUndoSteps([]);
-        setPendingToolApproval(null);
-        setApprovalSubmitting(false);
-        setApprovalError(null);
       }
-    });
+    );
     const undoEventListener = (event: Event) => {
       const detail = (event as CustomEvent<UndoEventDetail>).detail;
       if (!detail) return;
@@ -162,17 +175,24 @@ export function WorkflowProgressPanel() {
       }
     };
 
-    window.addEventListener(UNDO_EVENT_CHANNEL, undoEventListener as EventListener);
+    window.addEventListener(
+      UNDO_EVENT_CHANNEL,
+      undoEventListener as EventListener
+    );
 
     return () => {
       unsubscribeProgress();
-      window.removeEventListener(UNDO_EVENT_CHANNEL, undoEventListener as EventListener);
+      window.removeEventListener(
+        UNDO_EVENT_CHANNEL,
+        undoEventListener as EventListener
+      );
     };
   }, []);
 
   useEffect(() => {
     return ipcClient.mcp.onStepUpdate((step) => {
-      const targetSetter = undoStatusRef.current === "idle" ? setMcpSteps : setUndoSteps;
+      const targetSetter =
+        undoStatusRef.current === "idle" ? setMcpSteps : setUndoSteps;
       targetSetter((prev) => {
         const updated = [...prev, { ...step, timestamp: Date.now() }];
         requestAnimationFrame(() => {
@@ -227,7 +247,7 @@ export function WorkflowProgressPanel() {
             throw new Error("Tool name missing for whitelist request.");
           }
           const whitelistResponse = await ipcClient.mcp.addToolToWhitelist(
-            pendingToolApproval.toolName,
+            pendingToolApproval.toolName
           );
           if (!whitelistResponse?.success) {
             throw new Error("Failed to add tool to whitelist.");
@@ -238,7 +258,9 @@ export function WorkflowProgressPanel() {
           if (action.kind === "request_changes") {
             const trimmed = action.feedback.trim();
             if (!trimmed) {
-              throw new Error("Please describe what needs to change before retrying the tool.");
+              throw new Error(
+                "Please describe what needs to change before retrying the tool."
+              );
             }
             return { kind: action.kind, feedback: trimmed } as const;
           }
@@ -252,7 +274,7 @@ export function WorkflowProgressPanel() {
 
         const result = await ipcClient.mcp.respondToToolApproval(
           pendingToolApproval.requestId,
-          decisionPayload,
+          decisionPayload
         );
         if (!result?.success) {
           throw new Error("Unable to submit tool approval decision.");
@@ -264,7 +286,7 @@ export function WorkflowProgressPanel() {
         setApprovalSubmitting(false);
       }
     },
-    [pendingToolApproval],
+    [pendingToolApproval]
   );
 
   useEffect(() => {
@@ -292,7 +314,11 @@ export function WorkflowProgressPanel() {
       window.clearInterval(intervalId);
       window.clearTimeout(timeoutId);
     };
-  }, [pendingToolApproval?.autoApproveAt, pendingToolApproval?.requestId, resolveToolApproval]);
+  }, [
+    pendingToolApproval?.autoApproveAt,
+    pendingToolApproval?.requestId,
+    resolveToolApproval,
+  ]);
 
   const derivedOrigin = resolveWorkflowOrigin(progress);
   sourceOriginRef.current = derivedOrigin ?? sourceOriginRef.current;
@@ -309,7 +335,11 @@ export function WorkflowProgressPanel() {
   const approvalArgsText = pendingToolApproval?.args
     ? (() => {
         try {
-          return JSON.stringify(deepParseJson(pendingToolApproval.args), null, 2);
+          return JSON.stringify(
+            deepParseJson(pendingToolApproval.args),
+            null,
+            2
+          );
         } catch {
           try {
             return JSON.stringify(pendingToolApproval.args, null, 2);
@@ -330,7 +360,8 @@ export function WorkflowProgressPanel() {
               : "Approve requested tool?"}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            The orchestrator needs your confirmation before executing this MCP tool.
+            The orchestrator needs your confirmation before executing this MCP
+            tool.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {autoApprovalCountdown !== null && (
@@ -345,7 +376,9 @@ export function WorkflowProgressPanel() {
             </pre>
           </div>
         )}
-        {approvalError && <p className="text-red-400 text-sm">{approvalError}</p>}
+        {approvalError && (
+          <p className="text-red-400 text-sm">{approvalError}</p>
+        )}
         {showCorrectionForm && (
           <div className="space-y-2">
             <div className="space-y-1">
@@ -360,7 +393,8 @@ export function WorkflowProgressPanel() {
               />
             </div>
             <p className="text-xs text-white/60">
-              Your note is added to the conversation so the AI can fix the tool inputs.
+              Your note is added to the conversation so the AI can fix the tool
+              inputs.
             </p>
           </div>
         )}
@@ -409,7 +443,10 @@ export function WorkflowProgressPanel() {
                   if (!trimmed) {
                     return;
                   }
-                  void resolveToolApproval({ kind: "request_changes", feedback: trimmed });
+                  void resolveToolApproval({
+                    kind: "request_changes",
+                    feedback: trimmed,
+                  });
                 }}
               >
                 {approvalSubmitting ? (
@@ -439,7 +476,10 @@ export function WorkflowProgressPanel() {
                 disabled={approvalSubmitting || !pendingToolApproval?.toolName}
                 onClick={(event) => {
                   event.preventDefault();
-                  void resolveToolApproval({ kind: "approve", whitelist: true });
+                  void resolveToolApproval({
+                    kind: "approve",
+                    whitelist: true,
+                  });
                 }}
               >
                 {approvalSubmitting ? (
@@ -478,7 +518,8 @@ export function WorkflowProgressPanel() {
     const currentIndex = workflowStages.indexOf(progress.stage);
     const stageIndex = workflowStages.indexOf(stage);
     const isActive = stage === progress.stage;
-    const isCompleted = stageIndex < currentIndex || progress.stage === ProgressStage.COMPLETED;
+    const isCompleted =
+      stageIndex < currentIndex || progress.stage === ProgressStage.COMPLETED;
     const isError = progress.stage === ProgressStage.ERROR;
 
     if (isError && stage === progress.stage) {
@@ -498,7 +539,10 @@ export function WorkflowProgressPanel() {
     const currentIndex = workflowStages.indexOf(progress.stage);
 
     if (stage === progress.stage) return "border-gray-500/30 bg-gray-500/5";
-    if (stageIndex < currentIndex || progress.stage === ProgressStage.COMPLETED) {
+    if (
+      stageIndex < currentIndex ||
+      progress.stage === ProgressStage.COMPLETED
+    ) {
       return "border-green-500/30 bg-green-500/5";
     }
     return "border-white/10 bg-black/20";
@@ -512,7 +556,9 @@ export function WorkflowProgressPanel() {
             <CardContent className="py-16 text-center">
               <AlertCircle className="w-16 h-16 text-white/40 mx-auto mb-4" />
               <h3 className="text-xl font-medium mb-2">No Active Workflow</h3>
-              <p className="text-white/60">Record a video to start the automated workflow</p>
+              <p className="text-white/60">
+                Record a video to start the automated workflow
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -526,67 +572,84 @@ export function WorkflowProgressPanel() {
   return (
     <>
       <div className="w-[500px] mx-auto my-4">
-      <Card className="bg-black/20 backdrop-blur-md border-white/10">
-        <CardHeader>
-          <CardTitle className=" text-xl">AI Workflow Progress</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Accordion type="multiple" value={openAccordions} onValueChange={setOpenAccordions}>
-            {workflowStages.map((stage, index) => {
-              const hideMetadataStage =
-                stage === ProgressStage.UPDATING_METADATA && isExternalWorkflow;
+        <Card className="bg-black/20 backdrop-blur-md border-white/10">
+          <CardHeader>
+            <CardTitle className=" text-xl">AI Workflow Progress</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Accordion
+              type="multiple"
+              value={openAccordions}
+              onValueChange={setOpenAccordions}
+            >
+              {workflowStages.map((stage, index) => {
+                const hideMetadataStage =
+                  stage === ProgressStage.UPDATING_METADATA &&
+                  isExternalWorkflow;
 
-              if (hideMetadataStage) {
-                return null;
-              }
+                if (hideMetadataStage) {
+                  return null;
+                }
 
-              const hasContent =
-                (stage === ProgressStage.TRANSCRIBING && progress.transcript) ||
-                (stage === ProgressStage.GENERATING_TASK && progress.intermediateOutput) ||
-                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0) ||
-                stage === ProgressStage.UPDATING_METADATA;
+                const hasContent =
+                  (stage === ProgressStage.TRANSCRIBING &&
+                    progress.transcript) ||
+                  (stage === ProgressStage.GENERATING_TASK &&
+                    progress.intermediateOutput) ||
+                  (stage === ProgressStage.EXECUTING_TASK &&
+                    mcpSteps.length > 0) ||
+                  stage === ProgressStage.UPDATING_METADATA;
 
-              return (
-                <AccordionItem
-                  key={stage}
-                  value={`stage-${index}`}
-                  className={`border rounded-lg ${index < workflowStages.length - 1 ? "mb-2" : ""} transition-all ${getStageClassName(stage)}`}
-                >
-                  {hasContent ? (
-                    <StageWithContent
-                      stage={stage}
-                      progress={progress}
-                      mcpSteps={mcpSteps}
-                      stepsRef={stepsRef}
-                      getStageIcon={getStageIcon}
-                    />
-                  ) : (
-                    <StageWithoutContent stage={stage} getStageIcon={getStageIcon} />
-                  )}
-                </AccordionItem>
-              );
-            })}
-          </Accordion>
+                return (
+                  <AccordionItem
+                    key={stage}
+                    value={`stage-${index}`}
+                    className={`border rounded-lg ${
+                      index < workflowStages.length - 1 ? "mb-2" : ""
+                    } transition-all ${getStageClassName(stage)}`}
+                  >
+                    {hasContent ? (
+                      <StageWithContent
+                        stage={stage}
+                        progress={progress}
+                        mcpSteps={mcpSteps}
+                        stepsRef={stepsRef}
+                        getStageIcon={getStageIcon}
+                      />
+                    ) : (
+                      <StageWithoutContent
+                        stage={stage}
+                        getStageIcon={getStageIcon}
+                      />
+                    )}
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
 
-          {progress.stage === ProgressStage.ERROR && progress.error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <XCircle className="w-5 h-5 text-red-400" />
-                <span className="text-red-400 font-medium">Error</span>
+            {progress.stage === ProgressStage.ERROR && progress.error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <XCircle className="w-5 h-5 text-red-400" />
+                  <span className="text-red-400 font-medium">Error</span>
+                </div>
+                <p className="text-white/70 text-sm break-words whitespace-normal max-w-full">
+                  {progress.error}
+                </p>
               </div>
-              <p className="text-white/70 text-sm break-words whitespace-normal max-w-full">
-                {progress.error}
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
 
-      {undoStatus !== "idle" && undoSteps.length > 0 && (
-        <div className="mt-3">
-          <UndoStagePanel status={undoStatus} steps={undoSteps} stepsRef={stepsRef} />
-        </div>
-      )}
+        {undoStatus !== "idle" && undoSteps.length > 0 && (
+          <div className="mt-3">
+            <UndoStagePanel
+              status={undoStatus}
+              steps={undoSteps}
+              stepsRef={stepsRef}
+            />
+          </div>
+        )}
       </div>
       {approvalDialog}
     </>
