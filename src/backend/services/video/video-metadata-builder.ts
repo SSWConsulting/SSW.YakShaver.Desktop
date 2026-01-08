@@ -105,46 +105,6 @@ export class VideoMetadataBuilder {
   }
 }
 
-const METADATA_SYSTEM_PROMPT = `You create polished YouTube metadata from execution histories.
-Return JSON with:
-- "title": concise, specific, <=90 chars
-- "description": 2-3 short paragraphs and (if relevant) a "Resources" bullet list. Include meaningful context, key outcomes, and EVERY URL in full (e.g., https://github.com/.../issues/123). Never rely on "#123" shorthand.
-- "tags": list of lowercase keywords (max 10) without hashtags
-- "chapters": array of {"label","timestamp"} with timestamps formatted as MM:SS or HH:MM:SS
-
-Rules:
-- First chapter must start at 00:00
-- Create a chapter for EACH distinct topic, bug, or task mentioned in the transcript
-- Subsequent chapters must be chronological and at least 5 seconds apart
-- Use specific, descriptive chapter names that reflect the actual content
-- Highlight concrete issues/resources from the execution history
-- Write descriptions suitable for YouTube (no markdown code fences)
-- If information is missing, fall back to clear defaults rather than hallucinating.
-- DO NOT reference any local files or folders`;
-
-export function parseVtt(vtt: string): TranscriptSegment[] {
-  if (!vtt) return [];
-  const segments: TranscriptSegment[] = [];
-  const lines = vtt.replace(/\r/g, "").split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line || !line.includes("-->")) continue;
-
-    const [start] = line.split("-->");
-    const startSeconds = timestampToSeconds(start.trim());
-    const textLines: string[] = [];
-    i += 1;
-    while (i < lines.length && lines[i].trim() !== "") {
-      textLines.push(lines[i].trim());
-      i += 1;
-    }
-    if (!textLines.length) continue;
-    segments.push({ startSeconds, text: textLines.join(" ") });
-  }
-
-  return segments;
-}
-
 function timestampToSeconds(timestamp: string): number {
   if (!timestamp) return 0;
   const sanitized = timestamp.replace(",", ".");
