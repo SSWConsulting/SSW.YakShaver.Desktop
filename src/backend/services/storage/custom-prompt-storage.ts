@@ -197,12 +197,8 @@ export class CustomPromptStorage extends BaseSecureStorage {
   async clearCustomPrompts(): Promise<void> {
     const settings = await this.loadSettings();
 
-    // Keep only the default prompt
-    const defaultPrompt = settings.prompts.find((p) => p.isDefault);
-    settings.prompts = defaultPrompt ? [defaultPrompt] : [DEFAULT_PROMPT];
-
-    // Reset active prompt to default
-    settings.activePromptId = "default";
+    settings.prompts = [DEFAULT_PROMPT];
+    settings.activePromptId = DEFAULT_PROMPT.id;
 
     await this.saveSettings(settings);
   }
