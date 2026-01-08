@@ -1,3 +1,4 @@
+import type { LLMConfig } from "@shared/types/llm";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
@@ -11,7 +12,6 @@ import type {
   CustomPrompt,
   GetMyShavesResponse,
   HealthStatusInfo,
-  LLMConfig,
   MCPStep,
   ScreenRecordingStartResult,
   ScreenRecordingStopResult,

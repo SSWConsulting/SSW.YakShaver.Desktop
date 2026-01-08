@@ -1,11 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { LLMConfig } from "@shared/types/llm";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../../services/ipc-client";
-import type { HealthStatusInfo, LLMConfig } from "../../../types";
+import type { HealthStatusInfo } from "../../../types";
 import { type LLMProvider, LLMProviderForm } from "./LLMProviderForm";
 
 const schema = z.discriminatedUnion("provider", [
@@ -34,7 +35,9 @@ interface LLMSettingsPanelProps {
 
 export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
   const [hasConfig, setHasConfig] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
+  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<FormValues>({
@@ -96,8 +99,8 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
           values.provider === "openai"
             ? "OpenAI configuration saved"
             : values.provider === "deepseek"
-              ? "DeepSeek configuration saved"
-              : "Azure OpenAI configuration saved",
+            ? "DeepSeek configuration saved"
+            : "Azure OpenAI configuration saved"
         );
         await refreshStatus();
         await checkHealth();
@@ -107,7 +110,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         setIsLoading(false);
       }
     },
-    [checkHealth, refreshStatus],
+    [checkHealth, refreshStatus]
   );
 
   const onClear = useCallback(async () => {
@@ -128,7 +131,9 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
     form.reset({
       provider: value,
       apiKey: "",
-      ...(value === "azure" ? { endpoint: "", version: "", deployment: "" } : {}),
+      ...(value === "azure"
+        ? { endpoint: "", version: "", deployment: "" }
+        : {}),
     } as FormValues);
   };
 

@@ -3,12 +3,15 @@
     "target": "ES2022",
     "module": "CommonJS",
     "outDir": "./dist",
-    "rootDir": "src/backend",
+    "paths": {
+      "@shared/*": ["./src/shared/*"]
+    },
+    "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["src/backend/**/*"],
+  "include": ["src/backend/**/*", "src/shared/**/*"],
   "exclude": ["node_modules", "dist", "src/ui"]
 }
