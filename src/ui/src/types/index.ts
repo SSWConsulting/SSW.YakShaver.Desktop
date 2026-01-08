@@ -181,12 +181,6 @@ export type UndoEventDetail = {
   type: "start" | "complete" | "error" | "reset";
 };
 
-export type ToolApprovalMode = "yolo" | "wait" | "ask";
-
-export interface GeneralSettings {
-  toolApprovalMode: ToolApprovalMode;
-}
-
 export enum MCPStepType {
   START = "start",
   REASONING = "reasoning",

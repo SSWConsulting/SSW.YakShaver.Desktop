@@ -5,7 +5,7 @@ import { formatErrorMessage } from "../../utils/error-utils";
 import {
   authorizeWithPkceOnce,
   checkDynamicRegistrationSupport,
-  InMemoryOAuthClientProvider,
+  PersistedOAuthClientProvider,
   waitForAuthorizationCode,
 } from "./mcp-oauth";
 import { MCPUtils } from "./mcp-utils";
@@ -14,6 +14,7 @@ import "dotenv/config";
 import type { ToolSet } from "ai";
 import getPort from "get-port";
 import { withTimeout } from "../../utils/async-utils";
+import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 
 export interface CreateClientOptions {
   inMemoryClientTransport?: InMemoryTransport;
@@ -35,6 +36,13 @@ export class MCPServerClient {
     // create streamableHttp transport MCP client
     if (mcpConfig.transport === "streamableHttp") {
       const serverUrl = MCPUtils.expandHomePath(mcpConfig.url);
+      const authOrigin = (() => {
+        try {
+          return new URL(serverUrl).origin;
+        } catch {
+          return "";
+        }
+      })();
 
       // Don't use OAuth for built-in MCP server
       if (mcpConfig.builtin) {
@@ -60,8 +68,11 @@ export class MCPServerClient {
 
       if (oauthEndpoint) {
         const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
-        const authProvider = new InMemoryOAuthClientProvider({
+        const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|flow=dynamic`;
+        const authProvider = new PersistedOAuthClientProvider({
           callbackPort,
+          tokenStorage: McpOAuthTokenStorage.getInstance(),
+          tokenKey,
         });
         const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
         await withTimeout(
@@ -87,10 +98,13 @@ export class MCPServerClient {
         const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
 
         if (githubClientId && githubClientSecret) {
-          const authProvider = new InMemoryOAuthClientProvider({
+          const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|clientId=${githubClientId}|flow=github`;
+          const authProvider = new PersistedOAuthClientProvider({
             clientId: githubClientId,
             clientSecret: githubClientSecret,
             callbackPort,
+            tokenStorage: McpOAuthTokenStorage.getInstance(),
+            tokenKey,
           });
           const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
           await withTimeout(
