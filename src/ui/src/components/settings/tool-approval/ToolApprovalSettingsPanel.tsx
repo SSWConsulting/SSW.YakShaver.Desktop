@@ -1,9 +1,9 @@
+import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
 import { TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ipcClient } from "@/services/ipc-client";
-import type { ToolApprovalMode, ToolApprovalSettings } from "@/types";
 import { Card, CardContent } from "../../ui/card";
 
 interface ToolApprovalSettingsPanelProps {

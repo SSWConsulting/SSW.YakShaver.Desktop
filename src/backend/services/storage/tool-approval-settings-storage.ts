@@ -1,11 +1,6 @@
 import { join } from "node:path";
+import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
 import { BaseSecureStorage } from "./base-secure-storage";
-
-export type ToolApprovalMode = "yolo" | "wait" | "ask";
-
-export interface ToolApprovalSettings {
-  toolApprovalMode: ToolApprovalMode;
-}
 
 const DEFAULT_SETTINGS: ToolApprovalSettings = {
   toolApprovalMode: "ask",

@@ -1,8 +1,6 @@
-import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import {
-  ToolApprovalSettingsStorage,
-  type ToolApprovalMode,
-} from "../services/storage/tool-approval-settings-storage";
+import type { ToolApprovalMode } from "@shared/types/tool-approval";
+import { type IpcMainInvokeEvent, ipcMain } from "electron";
+import { ToolApprovalSettingsStorage } from "../services/storage/tool-approval-settings-storage";
 import { IPC_CHANNELS } from "./channels";
 
 export class ToolApprovalSettingsIPCHandlers {

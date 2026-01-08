@@ -1,4 +1,5 @@
 import type { LLMConfig } from "@shared/types/llm";
+import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
@@ -18,8 +19,6 @@ import type {
   ScreenSource,
   Shave,
   ShaveStatus,
-  ToolApprovalMode,
-  ToolApprovalSettings,
   TranscriptEntry,
   UserInfo,
   VideoUploadResult,

@@ -1,9 +1,9 @@
+import type { ToolApprovalMode } from "@shared/types/tool-approval";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
 import type { ToolApprovalDecision } from "./services/mcp/mcp-orchestrator";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
-import type { ToolApprovalMode } from "./services/storage/tool-approval-settings-storage";
 import type { ShaveStatus, VideoFileMetadata } from "./types";
 
 // TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;

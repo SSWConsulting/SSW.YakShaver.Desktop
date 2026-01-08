@@ -1,12 +1,10 @@
 import { randomUUID } from "node:crypto";
+import type { ToolApprovalMode } from "@shared/types/tool-approval";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
 import type { VideoUploadResult } from "../auth/types";
-import {
-  type ToolApprovalMode,
-  ToolApprovalSettingsStorage,
-} from "../storage/tool-approval-settings-storage";
+import { ToolApprovalSettingsStorage } from "../storage/tool-approval-settings-storage";
 import { LLMClientProvider } from "./llm-client-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 
