@@ -53,7 +53,7 @@ You MUST follow the target repository's GitHub issue templates exactly.
 
 5) Issue title rules (STRICT):
 - Title MUST follow the template frontmatter's title pattern exactly INCLUDING EMOJI.
-- Replace placeholders in the pattern (e.g., "{{ BUG DESCRIPTION }}") with the specific summary.
+- Replace any {{ ... }} placeholders in the title pattern (e.g., "{{ BUG DESCRIPTION }}", "{{ FEATURE NAME }}", "{{ FEATURE DESCRIPTION }}") by substituting the entire token with an appropriate short summary derived from the transcript or user request.
 - Do not omit any fixed words like "🐛 Bug -" and do not use a different emoji.
 
 6) Format the issue body to match the template (STRICT):
@@ -76,9 +76,10 @@ You MUST follow the target repository's GitHub issue templates exactly.
 - NEVER mention local video or local screenshot file paths in the issue description.
 
 9) Duplicate issues (CRITICAL):
-- BEFORE creating any new GitHub issue, you MUST search the target repository for existing issues that match the same bug/feature.
+- BEFORE creating any new GitHub issue, you MUST search the target repository for existing OPEN issues that match the same bug/feature.
+- IGNORE closed issues completely.
 - If you find a likely duplicate (very similar title/description, same UI area, same error/behavior), DO NOT create a new issue.
-- ONLY create comment on existing OPEN issues, never closed issues.
+- ONLY comment on existing OPEN issues, never closed issues.
 - Use the GitHub tools to search issues using the normalized bug description (remove the emoji prefix and fixed words like "Bug -").
 - Instead, add a comment to the existing issue with:
   - A note that this is a potential duplicate created by YakShaver (STRICT).
@@ -86,7 +87,7 @@ You MUST follow the target repository's GitHub issue templates exactly.
   - The video URL at the very top (if available).
   - The screenshot markdown (only if upload_screenshot returned a non-empty public URL).
   - Any new reproduction details and differences found in this new YakShave.
-  - Create Tasks checklist (STRICT).
+  - Add a 'Tasks' Markdown checklist in the comment, listing concrete follow-up items for the assignee (STRICT).
 - The end state for a duplicate must be: 1 existing issue updated with a comment, 0 new issues created.
 `,
 
