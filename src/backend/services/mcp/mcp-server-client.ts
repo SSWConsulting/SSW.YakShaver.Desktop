@@ -5,7 +5,7 @@ import { formatErrorMessage } from "../../utils/error-utils";
 import {
   authorizeWithPkceOnce,
   checkDynamicRegistrationSupport,
-  InMemoryOAuthClientProvider,
+  PersistedOAuthClientProvider,
   waitForAuthorizationCode,
 } from "./mcp-oauth";
 import { MCPUtils } from "./mcp-utils";
@@ -69,7 +69,7 @@ export class MCPServerClient {
       if (oauthEndpoint) {
         const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
         const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|flow=dynamic`;
-        const authProvider = new InMemoryOAuthClientProvider({
+        const authProvider = new PersistedOAuthClientProvider({
           callbackPort,
           tokenStorage: McpOAuthTokenStorage.getInstance(),
           tokenKey,
@@ -99,7 +99,7 @@ export class MCPServerClient {
 
         if (githubClientId && githubClientSecret) {
           const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|clientId=${githubClientId}|flow=github`;
-          const authProvider = new InMemoryOAuthClientProvider({
+          const authProvider = new PersistedOAuthClientProvider({
             clientId: githubClientId,
             clientSecret: githubClientSecret,
             callbackPort,

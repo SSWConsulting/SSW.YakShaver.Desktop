@@ -19,7 +19,7 @@ type ClientInfoInternal = OAuthClientInformation & {
   token_endpoint_auth_method?: TokenEndpointAuthMethod;
 };
 
-export class InMemoryOAuthClientProvider implements OAuthClientProvider {
+export class PersistedOAuthClientProvider implements OAuthClientProvider {
   private _tokens?: OAuthTokens;
   private _codeVerifier?: string;
   private _clientInformation?: OAuthClientInformation;
