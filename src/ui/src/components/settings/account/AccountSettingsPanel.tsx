@@ -23,8 +23,14 @@ interface AccountSettingsPanelProps {
 export function AccountSettingsPanel({ isActive }: AccountSettingsPanelProps) {
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isWizardDialogOpen, setIsWizardDialogOpen] = useState(false);
 
   const handleOpenWizard = useCallback(() => {
+    setIsWizardDialogOpen(true);
+  }, []);
+
+  const handleOpenWizardConfirm = useCallback(async () => {
+    setIsWizardDialogOpen(false);
     try {
       resetOnboarding();
       toast.success("Onboarding wizard will open on next restart. Restarting app...");
@@ -180,6 +186,27 @@ export function AccountSettingsPanel({ isActive }: AccountSettingsPanelProps) {
               className="bg-destructive text-primary hover:bg-destructive/90"
             >
               {isResetting ? "Resetting..." : "Reset Account"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isWizardDialogOpen} onOpenChange={setIsWizardDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Open Wizard?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This is going to restart the app and open the setup wizard.
+              <p className="mt-3 font-semibold">Do you want to continue?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleOpenWizardConfirm}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Continue
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
