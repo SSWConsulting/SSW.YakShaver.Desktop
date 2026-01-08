@@ -1,5 +1,4 @@
-import { createDeepSeek } from "@ai-sdk/deepseek";
-import { createOpenAI } from "@ai-sdk/openai";
+import type { LLMConfig } from "@shared/types/llm";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 import { generateText, Output, stepCountIs, streamText } from "ai";
 import { BrowserWindow } from "electron";
@@ -7,6 +6,7 @@ import type { ZodType, z } from "zod";
 import type { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { LlmStorage } from "../storage/llm-storage";
+import { LLM_PROVIDER_CONFIGS } from "./llm-providers";
 
 type StepType =
   | "start"
@@ -58,31 +58,26 @@ export class LLMClientProvider {
       LLMClientProvider.llmClient = new LLMClientProvider();
     }
     // retrieve LLM configuration
-    const llmConfig =
+    const llmConfig: LLMConfig =
       (await LlmStorage.getInstance().getLLMConfig()) ??
       (() => {
         throw new Error("[LLMClientProvider]: LLM configuration not found");
       })();
 
-    if (llmConfig.provider === "deepseek") {
-      console.log("[LLMClientProvider]: updateLanguageModelAsync - configuring DeepSeek");
-      const deepseek = createDeepSeek({
-        apiKey: llmConfig.apiKey,
-      });
-      LLMClientProvider.languageModel = deepseek(llmConfig.model ?? "deepseek-chat");
+    const config = LLM_PROVIDER_CONFIGS[llmConfig.provider];
+    if (!config || !config.defaultProcessingModel) {
+      throw new Error(`[LLMClientProvider]: Unsupported LLM provider: ${llmConfig.provider}`);
     }
 
-    if (llmConfig.provider === "openai") {
-      console.log("[LLMClientProvider]: updateLanguageModelAsync - configuring OpenAI");
-      const openai = createOpenAI({
-        apiKey: llmConfig.apiKey,
-      });
-      LLMClientProvider.languageModel = openai(llmConfig.model ?? "gpt-5-mini");
-    }
+    console.log(
+      `[LLMClientProvider]: updateLanguageModelAsync - configuring ${llmConfig.provider}`,
+    );
 
-    if (llmConfig.provider === "azure") {
-      // Azure OpenAI configuration
-    }
+    const client = config.factory({ apiKey: llmConfig.apiKey });
+
+    LLMClientProvider.languageModel = client.languageModel(
+      llmConfig.model ?? config.defaultProcessingModel,
+    );
   }
 
   public async generateText(messages: ModelMessage[]): Promise<string> {

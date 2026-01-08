@@ -178,8 +178,10 @@ export class MicrosoftAuthService {
         // In production, templates are in extraResources in the Resources folder
         uiDir = join(process.resourcesPath, "src/ui");
       } else {
+        console.log("[Auth Debug] __dirname:", __dirname);
+        console.log(`${join(__dirname, "../../../../src/ui")}`);
         // In development, templates are in src/ui
-        uiDir = join(__dirname, "../../../src/ui");
+        uiDir = join(__dirname, "../../../../src/ui");
       }
 
       const successPath = join(uiDir, "successTemplate.html");
