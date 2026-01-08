@@ -196,7 +196,7 @@ export function AccountSettingsPanel({ isActive }: AccountSettingsPanelProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Open Wizard?</AlertDialogTitle>
             <AlertDialogDescription>
-              This is going to restart the app and open the setup wizard.
+              This action will restart the app.
               <p className="mt-3 font-semibold">Do you want to continue?</p>
             </AlertDialogDescription>
           </AlertDialogHeader>
