@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../client";
 import { type CreateVideoData, type UpdateVideoData, type VideoFile, videoFiles } from "../schema";
 
@@ -29,7 +29,11 @@ export function findVideoFileByName(fileName: string): VideoFile | undefined {
  * Get video files for a given video source
  */
 export function getVideoFilesByVideoSourceId(videoSourceId: string): VideoFile[] {
-  return db.select().from(videoFiles).where(eq(videoFiles.videoSourceId, videoSourceId)).all();
+  return db
+    .select()
+    .from(videoFiles)
+    .where(and(eq(videoFiles.videoSourceId, videoSourceId), eq(videoFiles.isDeleted, false)))
+    .all();
 }
 
 /**
