@@ -1,4 +1,5 @@
 import type { LLMConfig } from "@shared/types/llm";
+import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
@@ -10,7 +11,6 @@ import type {
   AuthState,
   ConvertVideoToMp3Result,
   CustomPrompt,
-  GeneralSettings,
   GetMyShavesResponse,
   HealthStatusInfo,
   MCPStep,
@@ -19,7 +19,6 @@ import type {
   ScreenSource,
   Shave,
   ShaveStatus,
-  ToolApprovalMode,
   TranscriptEntry,
   UserInfo,
   VideoUploadResult,
@@ -139,6 +138,7 @@ declare global {
         ) => Promise<boolean>;
         deletePrompt: (id: string) => Promise<boolean>;
         setActivePrompt: (id: string) => Promise<boolean>;
+        clearCustomPrompts: () => Promise<void>;
       };
       releaseChannel: {
         get: () => Promise<ReleaseChannel>;
@@ -171,9 +171,12 @@ declare global {
         }>;
         getInstallUrl: () => Promise<string>;
       };
-      generalSettings: {
-        get: () => Promise<GeneralSettings>;
+      toolApprovalSettings: {
+        get: () => Promise<ToolApprovalSettings>;
         setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
+      };
+      app: {
+        restart: () => Promise<{ success: boolean; error?: string }>;
       };
       portal: {
         getMyShaves: () => Promise<{

@@ -1,8 +1,8 @@
+import type { ToolApprovalMode } from "@shared/types/tool-approval";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { VideoUploadResult } from "./services/auth/types";
 import type { ToolApprovalDecision } from "./services/mcp/mcp-orchestrator";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
-import type { ToolApprovalMode } from "./services/storage/general-settings-storage";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 import type { ShaveStatus, VideoFileMetadata } from "./types";
 
@@ -77,6 +77,7 @@ const IPC_CHANNELS = {
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
+  SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
 
   // Release Channel
   RELEASE_CHANNEL_GET: "release-channel:get",
@@ -94,9 +95,12 @@ const IPC_CHANNELS = {
   GITHUB_TOKEN_VERIFY: "github-token:verify",
   GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
 
-  // General Settings
-  GENERAL_SETTINGS_GET: "general-settings:get",
-  GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+  // Tool Approval Settings
+  TOOL_APPROVAL_SETTINGS_GET: "tool-approval-settings:get",
+  TOOL_APPROVAL_SETTINGS_SET_MODE: "tool-approval-settings:set-mode",
+
+  // App Control
+  APP_RESTART: "app:restart",
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
@@ -249,6 +253,7 @@ const electronAPI = {
     deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
     setActivePrompt: (id: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
+    clearCustomPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS),
   },
   releaseChannel: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),
@@ -275,10 +280,13 @@ const electronAPI = {
       }>,
     getInstallUrl: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_APP_GET_INSTALL_URL),
   },
-  generalSettings: {
-    get: () => ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_GET),
+  toolApprovalSettings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.TOOL_APPROVAL_SETTINGS_GET),
     setMode: (mode: ToolApprovalMode) =>
-      ipcRenderer.invoke(IPC_CHANNELS.GENERAL_SETTINGS_SET_MODE, mode),
+      ipcRenderer.invoke(IPC_CHANNELS.TOOL_APPROVAL_SETTINGS_SET_MODE, mode),
+  },
+  app: {
+    restart: () => ipcRenderer.invoke(IPC_CHANNELS.APP_RESTART),
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
