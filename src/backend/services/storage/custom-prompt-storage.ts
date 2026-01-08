@@ -74,6 +74,20 @@ You MUST follow the target repository's GitHub issue templates exactly.
 
 8) Privacy and local paths (CRITICAL):
 - NEVER mention local video or local screenshot file paths in the issue description.
+
+9) Duplicate issues (CRITICAL):
+- BEFORE creating any new GitHub issue, you MUST search the target repository for existing issues that match the same bug/feature.
+- If you find a likely duplicate (very similar title/description, same UI area, same error/behavior), DO NOT create a new issue.
+- ONLY create comment on existing OPEN issues, never closed issues.
+- Use the GitHub tools to search issues using the normalized bug description (remove the emoji prefix and fixed words like "Bug -").
+- Instead, add a comment to the existing issue with:
+  - A note that this is a potential duplicate created by YakShaver (STRICT).
+  - CC the user who created the original GitHub issue (STRICT).
+  - The video URL at the very top (if available).
+  - The screenshot markdown (only if upload_screenshot returned a non-empty public URL).
+  - Any new reproduction details and differences found in this new YakShave.
+  - Create Tasks checklist (STRICT).
+- The end state for a duplicate must be: 1 existing issue updated with a comment, 0 new issues created.
 `,
 
   isDefault: true,
