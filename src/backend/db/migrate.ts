@@ -2,8 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { closeDbConnection, db, getDbPath, isTestEnvironment, reopenDbConnection } from "./client";
-import { DatabaseBackupService } from "./services/backup-service";
+import { db } from "./client";
 
 const REQUIRED_TABLES = [
   "users",
@@ -79,68 +78,17 @@ export function runMigrations(): void {
 }
 
 /**
- * Initialize database with automatic backup and rollback on failure
+ * Initialize database with migrations
  * This is the main entry point for database initialization
  */
 export async function initDatabase(): Promise<void> {
-  const backupService = new DatabaseBackupService();
-  const dbPath = getDbPath();
-  let backupMetadata: Awaited<ReturnType<typeof backupService.createBackup>> | null = null;
-
   try {
-    // Only create backup if database file exists AND is not empty (skip for fresh installs)
-    if (fs.existsSync(dbPath)) {
-      const stats = fs.statSync(dbPath);
-      if (stats.size > 0) {
-        console.log("[DB] Creating backup before migration...");
-        backupMetadata = await backupService.createBackup(dbPath, "pre-migration");
-
-        const isValid = await backupService.verifyBackup(backupMetadata.backupPath);
-        if (!isValid) {
-          console.warn("[DB] ⚠ Backup verification failed, proceeding without backup");
-          backupMetadata = null;
-        } else {
-          console.log(`[DB] Backup created: ${backupMetadata.backupPath}`);
-        }
-      } else {
-        console.log("[DB] Empty database file detected, skipping backup");
-      }
-    }
-
-    // Run migrations
+    console.log("[DB] Initializing database...");
     runMigrations();
-
-    console.log("[DB] Database initialized successfully");
-    if (backupMetadata) {
-      console.log(`[DB] Backup available at: ${backupMetadata.backupPath}`);
-      // Cleanup old backups
-      await backupService.cleanupOldBackups();
-    }
-    console.log("\n[DB] === DATABASE INITIALIZATION END (SUCCESS) ===\n");
+    console.log("[DB] Database initialized successfully\n");
   } catch (error) {
-    console.error("\n[DB] ✗✗✗ DATABASE INITIALIZATION FAILED ✗✗✗");
+    console.error("\n[DB] ✗ DATABASE INITIALIZATION FAILED");
     console.error("[DB] Error details:", error);
-
-    // Attempt automatic rollback if we have a backup
-    if (backupMetadata) {
-      try {
-        console.log("[DB] Attempting automatic rollback...");
-
-        if (isTestEnvironment) {
-          console.warn("[DB] Skipping automatic rollback in test environment");
-        } else {
-          closeDbConnection();
-          await backupService.restoreBackup(backupMetadata.backupPath, dbPath);
-          reopenDbConnection();
-          console.log("[DB] Database restored to previous state");
-        }
-      } catch (rollbackError) {
-        console.error("[DB] Automatic rollback failed:", rollbackError);
-        console.error(`[DB] MANUAL RECOVERY REQUIRED: Restore from ${backupMetadata.backupPath}`);
-      }
-    }
-
-    console.error("\n=== DATABASE INITIALIZATION END (FAILED) ===\n");
     throw error;
   }
 }

@@ -47,10 +47,6 @@ CREATE TABLE `video_sources` (
 	FOREIGN KEY (`owner_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `idx_video_sources_owner` ON `video_sources` (`owner_user_id`);
---> statement-breakpoint
-CREATE INDEX `idx_video_sources_external` ON `video_sources` (`external_provider`, `external_id`);
---> statement-breakpoint
 
 CREATE TABLE `prompts` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -73,9 +69,6 @@ CREATE INDEX `idx_prompts_active` ON `prompts` (`is_active`);
 -- CRITICAL: Must read shaves.video_file_id BEFORE dropping video_files table
 --           because DROP TABLE triggers ON DELETE SET NULL in transactions
 -- ============================================================================
-
-PRAGMA foreign_keys=OFF;
---> statement-breakpoint
 
 -- Step 2.1: Create video_sources from video_files
 INSERT INTO `video_sources` (`id`, `type`, `duration_seconds`, `created_at`)
@@ -200,8 +193,11 @@ DROP TABLE `shaves`;
 --> statement-breakpoint
 ALTER TABLE `__new_shaves` RENAME TO `shaves`;
 --> statement-breakpoint
-PRAGMA foreign_keys=ON;
+
+-- Verify foreign key integrity after migration
+PRAGMA foreign_key_check;
 --> statement-breakpoint
+
 CREATE INDEX `idx_shaves_video_embed_url` ON `shaves` (`video_embed_url`);
 --> statement-breakpoint
 

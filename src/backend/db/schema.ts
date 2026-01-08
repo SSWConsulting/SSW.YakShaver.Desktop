@@ -124,7 +124,7 @@ export const shaves = sqliteTable(
     videoSourceId: text("video_source_id").references(() => videoSources.id, {
       onDelete: "set null",
     }),
-    requesterUserId: text("requester_user_id"),
+    requesterUserId: text("requester_user_id").references(() => users.id, { onDelete: "set null" }),
     latestAttemptId: text("latest_attempt_id"),
     clientOrigin: text("client_origin"), // "desktop app", etc.
     promptSnapshot: text("prompt_snapshot"),

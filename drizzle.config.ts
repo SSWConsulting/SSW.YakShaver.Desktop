@@ -7,5 +7,4 @@ export default defineConfig({
   dbCredentials: {
     url: "./data/database.sqlite",
   },
-  verbose: true,
 });

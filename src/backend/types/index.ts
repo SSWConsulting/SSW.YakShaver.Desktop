@@ -55,10 +55,10 @@ export enum ShaveAttemptRunType {
 }
 
 export enum PortalSyncStatus {
-  PENDING = "pending",
-  SYNCED = "synced",
-  FAILED = "failed",
-  SKIPPED = "skipped",
+  PENDING = "PENDING",
+  SYNCED = "SYNCED",
+  FAILED = "FAILED",
+  SKIPPED = "SKIPPED",
 }
 
 export enum AuthProvider {

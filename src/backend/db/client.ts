@@ -6,7 +6,6 @@ import { app } from "electron";
 import * as schema from "./schema";
 
 const configureSqlite = (sqliteInstance: Database.Database): void => {
-  sqliteInstance.pragma("journal_mode = WAL");
   // Must run after opening connection; ensures cascading deletes work.
   sqliteInstance.pragma("foreign_keys = ON");
 };
@@ -28,38 +27,15 @@ const ensureDbDirectory = (): void => {
   }
 };
 
-const isTestEnv = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+const isTestEnv = process.env.VITEST === "true";
 
-let sqlite: Database.Database | null = null;
 let db: ReturnType<typeof drizzle>;
 
-type DbLifecycleListener = (sqliteInstance: Database.Database) => void;
-const lifecycleListeners = new Set<DbLifecycleListener>();
-
-function notifyDbReinitialized(sqliteInstance: Database.Database): void {
-  for (const listener of lifecycleListeners) {
-    try {
-      listener(sqliteInstance);
-    } catch (error) {
-      console.error("[DB] Error in lifecycle listener", error);
-    }
-  }
-}
-
-type InitializeOptions = {
-  emitEvent?: boolean;
-};
-
-function initializeDbConnection(options: InitializeOptions = {}): void {
+function initializeDbConnection(): void {
   ensureDbDirectory();
   const sqliteInstance = new Database(getDbPath());
   configureSqlite(sqliteInstance);
-  sqlite = sqliteInstance;
   db = drizzle(sqliteInstance, { schema });
-
-  if (options.emitEvent) {
-    notifyDbReinitialized(sqliteInstance);
-  }
 }
 
 if (!isTestEnv) {
@@ -68,35 +44,6 @@ if (!isTestEnv) {
 
 export { db };
 export const isTestEnvironment = isTestEnv;
-
-function ensureNotTestEnv(action: string): void {
-  if (isTestEnv) {
-    throw new Error(`[DB] Cannot ${action} while running tests`);
-  }
-}
-
-function teardownDbConnection(): void {
-  if (sqlite) {
-    sqlite.close();
-    sqlite = null;
-  }
-}
-
-export function closeDbConnection(): void {
-  ensureNotTestEnv("close the database connection");
-  teardownDbConnection();
-}
-
-export function reopenDbConnection(): void {
-  ensureNotTestEnv("reopen the database connection");
-  teardownDbConnection();
-  initializeDbConnection({ emitEvent: true });
-}
-
-export function onDbReinitialized(listener: DbLifecycleListener): () => void {
-  lifecycleListeners.add(listener);
-  return () => lifecycleListeners.delete(listener);
-}
 
 /**
  * Singleton test database instance shared across all tests. Initialize once and reuse for all test files.
