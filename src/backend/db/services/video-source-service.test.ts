@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { VideoHostingProvider } from "../../types";
-import { db } from "../client";
-import { videoSources } from "../schema";
+import { createTestDb } from "../client";
 import {
   createVideoSource,
   deleteVideoSource,
@@ -12,6 +11,11 @@ import {
 } from "./video-source-service";
 
 describe("VideoSourceService", () => {
+  // Create fresh database before each test for complete isolation
+  beforeEach(() => {
+    createTestDb({ forceNew: true });
+  });
+
   const testVideoSource = {
     sourceUrl: "https://example.com/video1.mp4",
     externalProvider: VideoHostingProvider.YOUTUBE,
@@ -19,11 +23,6 @@ describe("VideoSourceService", () => {
     title: "Test Video",
     description: "Test Description",
   };
-
-  // Clean up after each test
-  afterEach(() => {
-    db.delete(videoSources).run();
-  });
 
   describe("createVideoSource", () => {
     it("should create a new video source", () => {

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { app } from "electron";
 import * as schema from "./schema";
 
@@ -67,21 +68,28 @@ export function createTestDb(options: CreateTestDbOptions = {}) {
   }
 
   if (testDbInstance && forceNew) {
-    testDbInstance.sqlite.close();
+    try {
+      testDbInstance.sqlite.close();
+    } catch (error) {
+      console.warn("Error closing test database:", error);
+    }
     testDbInstance = null;
   }
 
   // Create in-memory database
   const sqlite = new Database(":memory:");
   configureSqlite(sqlite);
-  const db = drizzle(sqlite, { schema });
+  const testDb = drizzle(sqlite, { schema });
 
   // Run migrations to set up schema
   const migrationsFolder = path.join(__dirname, "migrations");
-  const { migrate } = require("drizzle-orm/better-sqlite3/migrator");
-  migrate(db, { migrationsFolder });
+  migrate(testDb, { migrationsFolder });
 
-  testDbInstance = { db, sqlite };
+  testDbInstance = { db: testDb, sqlite };
+
+  // Update the global db export so service functions use the test database
+  db = testDb;
+
   return testDbInstance;
 }
 
@@ -101,5 +109,7 @@ export function closeTestDb() {
   if (testDbInstance) {
     testDbInstance.sqlite.close();
     testDbInstance = null;
+    // Reset the global db to undefined for next test run
+    db = null as unknown as ReturnType<typeof drizzle>;
   }
 }

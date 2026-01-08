@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { ShaveStatus, VideoHostingProvider } from "../../types";
-import { db } from "../client";
-import { shaves, videoSources } from "../schema";
+import { createTestDb } from "../client";
 import {
   createShave,
   deleteShave,
@@ -14,17 +13,16 @@ import {
 import { createVideoSource } from "./video-source-service";
 
 describe("ShaveService", () => {
+  // Create fresh database before each test for complete isolation
+  beforeEach(() => {
+    createTestDb({ forceNew: true });
+  });
+
   const testShaveData = {
     title: "Test Shave",
     videoEmbedUrl: "https://youtube.com/watch?v=test123",
     shaveStatus: ShaveStatus.Unknown,
   };
-
-  // Clean up after each test
-  afterEach(() => {
-    db.delete(shaves).run();
-    db.delete(videoSources).run();
-  });
 
   describe("createShave", () => {
     it("should create a new shave", () => {

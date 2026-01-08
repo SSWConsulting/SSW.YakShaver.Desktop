@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { VideoHostingProvider } from "../../types";
-import { db } from "../client";
-import { videoFiles, videoSources } from "../schema";
+import { createTestDb } from "../client";
 import {
   createVideoFile,
   deleteVideoFile,
@@ -14,7 +13,10 @@ import {
 import { createVideoSource } from "./video-source-service";
 
 describe("VideoFilesService", () => {
-  let testVideoSourceId: string;
+  // Create fresh database before each test for complete isolation
+  beforeEach(() => {
+    createTestDb({ forceNew: true });
+  });
 
   const setupVideoSource = () => {
     const videoSource = createVideoSource({
@@ -25,15 +27,9 @@ describe("VideoFilesService", () => {
     return videoSource.id;
   };
 
-  // Clean up after each test
-  afterEach(() => {
-    db.delete(videoFiles).run();
-    db.delete(videoSources).run();
-  });
-
   describe("createVideoFile", () => {
     it("should create a new video file", () => {
-      testVideoSourceId = setupVideoSource();
+      const testVideoSourceId = setupVideoSource();
 
       const testVideoFile = {
         fileName: "test-video.mp4",
@@ -70,7 +66,7 @@ describe("VideoFilesService", () => {
 
   describe("getVideoFileById", () => {
     it("should retrieve a video file by ID", () => {
-      testVideoSourceId = setupVideoSource();
+      const testVideoSourceId = setupVideoSource();
 
       const created = createVideoFile({
         fileName: "test.mp4",
@@ -93,7 +89,7 @@ describe("VideoFilesService", () => {
 
   describe("findVideoFileByName", () => {
     it("should find video file by name", () => {
-      testVideoSourceId = setupVideoSource();
+      const testVideoSourceId = setupVideoSource();
 
       const created = createVideoFile({
         fileName: "unique-name.mp4",
@@ -116,7 +112,7 @@ describe("VideoFilesService", () => {
 
   describe("getVideoFilesByVideoSourceId", () => {
     it("should return all video files for a video source", () => {
-      testVideoSourceId = setupVideoSource();
+      const testVideoSourceId = setupVideoSource();
 
       createVideoFile({
         fileName: "file1.mp4",
@@ -138,13 +134,13 @@ describe("VideoFilesService", () => {
     });
 
     it("should return empty array for video source with no files", () => {
-      testVideoSourceId = setupVideoSource();
+      const testVideoSourceId = setupVideoSource();
       const result = getVideoFilesByVideoSourceId(testVideoSourceId);
       expect(result).toEqual([]);
     });
 
     it("should exclude soft-deleted files", () => {
-      testVideoSourceId = setupVideoSource();
+      const testVideoSourceId = setupVideoSource();
 
       const active = createVideoFile({
         fileName: "active.mp4",
@@ -169,7 +165,7 @@ describe("VideoFilesService", () => {
 
   describe("markVideoFileAsDeleted", () => {
     it("should soft delete a video file", () => {
-      testVideoSourceId = setupVideoSource();
+      const testVideoSourceId = setupVideoSource();
 
       const created = createVideoFile({
         fileName: "to-delete.mp4",
@@ -199,7 +195,7 @@ describe("VideoFilesService", () => {
     });
 
     it("should be idempotent (can mark already deleted file)", () => {
-      testVideoSourceId = setupVideoSource();
+      const testVideoSourceId = setupVideoSource();
 
       const created = createVideoFile({
         fileName: "idempotent.mp4",
@@ -220,7 +216,7 @@ describe("VideoFilesService", () => {
 
   describe("updateVideoFile", () => {
     it("should update video file fields", () => {
-      testVideoSourceId = setupVideoSource();
+      const testVideoSourceId = setupVideoSource();
 
       const created = createVideoFile({
         fileName: "original.mp4",
@@ -247,7 +243,7 @@ describe("VideoFilesService", () => {
 
   describe("deleteVideoFile", () => {
     it("should hard delete a video file", () => {
-      testVideoSourceId = setupVideoSource();
+      const testVideoSourceId = setupVideoSource();
 
       const created = createVideoFile({
         fileName: "to-hard-delete.mp4",
