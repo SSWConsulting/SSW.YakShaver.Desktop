@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { LLMConfig } from "@shared/types/llm";
+import type { LLMConfigV2, ModelConfig } from "@shared/types/llm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
@@ -105,6 +105,9 @@ export function OnboardingWizard() {
 
   const [isMcpAdvancedOpen, setIsMcpAdvancedOpen] = useState(false);
   const [hasYouTubeConfig] = useState(true);
+  const [currentLLMConfig, setCurrentLLMConfig] = useState<LLMConfigV2 | null>(
+    null
+  );
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(
@@ -218,12 +221,14 @@ export function OnboardingWizard() {
     const checkLLMConfig = async () => {
       try {
         const cfg = await ipcClient.llm.getConfig();
-        setHasLLMConfig(!!cfg);
-        if (cfg) {
-          llmForm.reset(cfg as LLMFormValues);
+        const processCfg = cfg?.processingModel;
+        setHasLLMConfig(!!processCfg);
+        setCurrentLLMConfig(cfg);
+        if (processCfg) {
+          llmForm.reset(processCfg as LLMFormValues);
 
           // If there's a config with API key, validate it
-          if (cfg.apiKey) {
+          if (processCfg.apiKey) {
             setIsLLMSaving(true);
             setHealthStatus({
               isHealthy: false,
@@ -283,22 +288,28 @@ export function OnboardingWizard() {
     mcpForm.reset({ ...DEFAULT_MCP_VALUES });
   }, [currentStep, mcpForm]);
 
-  const handleLLMSubmit = useCallback(async (values: LLMFormValues) => {
-    setIsLLMSaving(true);
-    try {
-      await ipcClient.llm.setConfig(values as LLMConfig);
-      toast.success(
-        values.provider === "openai"
-          ? "OpenAI configuration saved"
-          : "DeepSeek configuration saved"
-      );
-      setHasLLMConfig(true);
-    } catch (e) {
-      toast.error(`Failed to save configuration: ${formatErrorMessage(e)}`);
-    } finally {
-      setIsLLMSaving(false);
-    }
-  }, []);
+  const handleLLMSubmit = useCallback(
+    async (values: LLMFormValues) => {
+      setIsLLMSaving(true);
+      try {
+        await ipcClient.llm.setConfig({
+          ...(currentLLMConfig as LLMConfigV2),
+          processingModel: values as ModelConfig,
+        });
+        toast.success(
+          values.provider === "openai"
+            ? "OpenAI configuration saved"
+            : "DeepSeek configuration saved"
+        );
+        setHasLLMConfig(true);
+      } catch (e) {
+        toast.error(`Failed to save configuration: ${formatErrorMessage(e)}`);
+      } finally {
+        setIsLLMSaving(false);
+      }
+    },
+    [currentLLMConfig]
+  );
 
   const handleProviderChange = (value: LLMProvider) => {
     llmForm.reset({
@@ -379,7 +390,10 @@ export function OnboardingWizard() {
 
           try {
             const values = llmForm.getValues();
-            await ipcClient.llm.setConfig(values as LLMConfig);
+            await ipcClient.llm.setConfig({
+              ...(currentLLMConfig as LLMConfigV2),
+              processingModel: values as ModelConfig,
+            });
             const healthResult = await ipcClient.llm.checkHealth();
 
             if (!healthResult.isHealthy) {
@@ -420,7 +434,7 @@ export function OnboardingWizard() {
     });
 
     return () => subscription.unsubscribe();
-  }, [llmForm]);
+  }, [llmForm, currentLLMConfig]);
 
   const completeOnboarding = useCallback(() => {
     localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");

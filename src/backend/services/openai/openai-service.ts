@@ -2,8 +2,8 @@
 // TODO: Remove this class after separating transcribe from OpenAI service
 //
 import { createReadStream } from "node:fs";
-import type { LLMConfig } from "@shared/types/llm";
 import { OpenAI } from "openai";
+import type { LLMConfigV2 } from "../../../shared/types/llm";
 import { ERROR_MESSAGES } from "../../constants/error-messages";
 import { LlmStorage } from "../storage/llm-storage";
 
@@ -26,10 +26,10 @@ export class OpenAIService {
   private async ensureClient(): Promise<void> {
     if (this.configured && this.client) return;
 
-    const llmCfg: LLMConfig | null = await this.storage.getLLMConfig();
+    const llmCfg: LLMConfigV2 | null = await this.storage.getLLMConfig();
     if (llmCfg) {
-      if (llmCfg.provider === "openai") {
-        this.client = new OpenAI({ apiKey: llmCfg.apiKey });
+      if (llmCfg.transcriptionModel.provider === "openai") {
+        this.client = new OpenAI({ apiKey: llmCfg.transcriptionModel.apiKey });
         this.configured = true;
         return;
       }

@@ -1,8 +1,8 @@
-import type { LLMConfig } from "@shared/types/llm";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 import { generateText, Output, stepCountIs, streamText } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType, z } from "zod";
+import type { LLMConfig } from "../../../shared/types/llm";
 import type { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { LlmStorage } from "../storage/llm-storage";
@@ -59,7 +59,7 @@ export class LLMClientProvider {
     }
     // retrieve LLM configuration
     const llmConfig: LLMConfig =
-      (await LlmStorage.getInstance().getLLMConfig()) ??
+      (await LlmStorage.getInstance().getLLMConfig())?.processingModel ??
       (() => {
         throw new Error("[LLMClientProvider]: LLM configuration not found");
       })();

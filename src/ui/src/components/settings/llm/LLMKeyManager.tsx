@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { LLMConfig } from "@shared/types/llm";
+import type { LLMConfigV2, ModelConfig } from "@shared/types/llm";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -39,6 +39,9 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
     null
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [currentLLMConfig, setCurrentLLMConfig] = useState<LLMConfigV2 | null>(
+    null
+  );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -52,8 +55,15 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
   const refreshStatus = useCallback(async () => {
     try {
       const cfg = await ipcClient.llm.getConfig();
+      const processCfg = cfg?.processingModel;
       setHasConfig(!!cfg);
-      form.reset((cfg as FormValues) ?? { provider: "openai", apiKey: "" });
+      setCurrentLLMConfig(cfg);
+      form.reset(
+        (processCfg as FormValues) ?? {
+          provider: "openai",
+          apiKey: "",
+        }
+      );
     } catch (e) {
       console.error(formatErrorMessage(e));
     }
@@ -94,7 +104,10 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
     async (values: FormValues) => {
       setIsLoading(true);
       try {
-        await ipcClient.llm.setConfig(values as LLMConfig);
+        await ipcClient.llm.setConfig({
+          ...(currentLLMConfig as LLMConfigV2),
+          processingModel: values as ModelConfig,
+        });
         toast.success(
           values.provider === "openai"
             ? "OpenAI configuration saved"
@@ -110,7 +123,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         setIsLoading(false);
       }
     },
-    [checkHealth, refreshStatus]
+    [checkHealth, refreshStatus, currentLLMConfig]
   );
 
   const onClear = useCallback(async () => {
