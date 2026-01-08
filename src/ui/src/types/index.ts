@@ -90,21 +90,6 @@ export interface TranscriptEntry {
   name?: string;
 }
 
-interface OpenAI {
-  provider: "openai";
-  apiKey: string;
-}
-
-interface AzureOpenAI {
-  provider: "azure";
-  apiKey: string;
-  endpoint: string;
-  version: string;
-  deployment: string;
-}
-
-export type LLMConfig = OpenAI | AzureOpenAI;
-
 export interface VideoChapter {
   label: string;
   timestamp: string;
