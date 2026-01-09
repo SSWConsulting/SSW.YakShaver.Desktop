@@ -154,7 +154,33 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  html::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  html::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  html::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+  }
+
+  .dark html {
+    scrollbar-color: var(--sidebar-border) transparent;
+  }
+
+  .dark html::-webkit-scrollbar-thumb {
+    background: var(--sidebar-border);
   }
 }
