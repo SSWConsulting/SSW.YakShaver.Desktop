@@ -26,7 +26,7 @@ export class LlmStorage extends BaseSecureStorage {
 
       return {
         version: 2,
-        processingModel: modelConfig,
+        languageModel: modelConfig,
         transcriptionModel: modelConfig,
       };
     },

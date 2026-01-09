@@ -15,7 +15,7 @@ export class LLMSettingsIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.LLM_SET_CONFIG,
       async (_event: IpcMainInvokeEvent, config: LLMConfigV2) => {
-        if (!config || !("provider" in config)) throw new Error("Invalid LLM config");
+        if (!config) throw new Error("Invalid LLM config");
         await this.secureStorage.storeLLMConfig(config);
         return { success: true };
       },

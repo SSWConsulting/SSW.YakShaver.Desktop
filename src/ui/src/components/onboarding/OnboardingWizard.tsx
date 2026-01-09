@@ -71,7 +71,7 @@ const STEPS = [
   {
     id: 2,
     icon: cpu,
-    title: "Connecting an LLM (Processing Model)",
+    title: "Connecting an LLM (Language Model)",
     description: "Choose your provider and save the API details",
   },
   {
@@ -97,7 +97,7 @@ const TRANSCRIPTION_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
 
 const PROCESSING_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
   (providerName) =>
-    LLM_PROVIDER_CONFIGS[providerName].defaultProcessingModel !== undefined
+    LLM_PROVIDER_CONFIGS[providerName].defaultLanguageModel !== undefined
 ).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
 
 const DEFAULT_MCP_VALUES: MCPServerFormData = {
@@ -142,14 +142,6 @@ export function OnboardingWizard() {
   >([]);
 
   const llmForm = useForm<LLMFormValues>({
-    resolver: zodResolver(llmSchema),
-    defaultValues: {
-      provider: "openai",
-      apiKey: "",
-    },
-  });
-
-  const llmForm2 = useForm<LLMFormValues>({
     resolver: zodResolver(llmSchema),
     defaultValues: {
       provider: "openai",
@@ -239,19 +231,24 @@ export function OnboardingWizard() {
     }
   }, [currentStep]);
 
-  // Check LLM configuration status when on step 2
+  // Check LLM configuration status when on step 2 or 3
   useEffect(() => {
+    const isLLMStep = currentStep === 2 || currentStep === 3;
+    if (!isLLMStep) return;
+
     const checkLLMConfig = async () => {
       try {
         const cfg = await ipcClient.llm.getConfig();
-        const processCfg = cfg?.processingModel;
-        setHasLLMConfig(!!processCfg);
+        const modelType =
+          currentStep === 2 ? "languageModel" : "transcriptionModel";
+        const modelCfg = cfg?.[modelType];
+        setHasLLMConfig(!!modelCfg);
         setCurrentLLMConfig(cfg);
-        if (processCfg) {
-          llmForm.reset(processCfg as LLMFormValues);
+        if (modelCfg) {
+          llmForm.reset(modelCfg as LLMFormValues);
 
           // If there's a config with API key, validate it
-          if (processCfg.apiKey) {
+          if (modelCfg.apiKey) {
             setIsLLMSaving(true);
             setHealthStatus({
               isHealthy: false,
@@ -296,9 +293,7 @@ export function OnboardingWizard() {
       }
     };
 
-    if (currentStep === 2) {
-      void checkLLMConfig();
-    }
+    void checkLLMConfig();
   }, [currentStep, llmForm]);
 
   useEffect(() => {
@@ -315,9 +310,11 @@ export function OnboardingWizard() {
     async (values: LLMFormValues) => {
       setIsLLMSaving(true);
       try {
+        const modelType =
+          currentStep === 2 ? "languageModel" : "transcriptionModel";
         await ipcClient.llm.setConfig({
           ...(currentLLMConfig as LLMConfigV2),
-          processingModel: values as ModelConfig,
+          [modelType]: values as ModelConfig,
         });
         toast.success(
           values.provider === "openai"
@@ -331,7 +328,7 @@ export function OnboardingWizard() {
         setIsLLMSaving(false);
       }
     },
-    [currentLLMConfig]
+    [currentLLMConfig, currentStep]
   );
 
   const handleProviderChange = (value: ProviderName) => {
@@ -413,9 +410,11 @@ export function OnboardingWizard() {
 
           try {
             const values = llmForm.getValues();
+            const modelType =
+              currentStep === 2 ? "languageModel" : "transcriptionModel";
             await ipcClient.llm.setConfig({
               ...(currentLLMConfig as LLMConfigV2),
-              processingModel: values as ModelConfig,
+              [modelType]: values as ModelConfig,
             });
             const healthResult = await ipcClient.llm.checkHealth();
 
@@ -457,7 +456,7 @@ export function OnboardingWizard() {
     });
 
     return () => subscription.unsubscribe();
-  }, [llmForm, currentLLMConfig]);
+  }, [llmForm, currentLLMConfig, currentStep]);
 
   const completeOnboarding = useCallback(() => {
     localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
@@ -465,7 +464,7 @@ export function OnboardingWizard() {
     setIsVisible(false);
   }, []);
 
-  const handleStep2Next = useCallback(async () => {
+  const handleLLMStepNext = useCallback(async () => {
     const isValid = await llmForm.trigger();
     if (!isValid) return false;
 
@@ -479,27 +478,9 @@ export function OnboardingWizard() {
         ? "OpenAI configuration saved"
         : "DeepSeek configuration saved"
     );
-    setCurrentStep(3);
+    setCurrentStep((s) => s + 1);
     return true;
   }, [hasLLMConfig, healthStatus?.isHealthy, llmForm]);
-
-  const handleStep3Next = useCallback(async () => {
-    const isValid = await llmForm2.trigger();
-    if (!isValid) return false;
-
-    if (!hasLLMConfig || !healthStatus?.isHealthy) {
-      toast.error("Please enter a valid API key before proceeding");
-      return false;
-    }
-
-    toast.success(
-      llmForm2.getValues().provider === "openai"
-        ? "OpenAI configuration saved"
-        : "DeepSeek configuration saved"
-    );
-    setCurrentStep(4);
-    return true;
-  }, [hasLLMConfig, healthStatus?.isHealthy, llmForm2]);
 
   const handleStep4Next = useCallback(async () => {
     const isValid = await mcpForm.trigger();
@@ -513,13 +494,8 @@ export function OnboardingWizard() {
   }, [completeOnboarding, mcpForm, saveMcpConfig]);
 
   const handleNext = async () => {
-    if (currentStep === 2) {
-      await handleStep2Next();
-      return;
-    }
-
-    if (currentStep === 3) {
-      await handleStep3Next();
+    if (currentStep === 2 || currentStep === 3) {
+      await handleLLMStepNext();
       return;
     }
 
@@ -627,7 +603,7 @@ export function OnboardingWizard() {
             </div>
           ))}
 
-        {currentStep === 2 && (
+        {(currentStep === 2 || currentStep === 3) && (
           <div className="w-full">
             <Form {...llmForm}>
               <form
@@ -638,30 +614,11 @@ export function OnboardingWizard() {
                   control={llmForm.control}
                   providerField="provider"
                   apiKeyField="apiKey"
-                  providerOptions={PROCESSING_PROVIDER_NAMES}
-                  onProviderChange={(value) =>
-                    handleProviderChange(value as ProviderName)
+                  providerOptions={
+                    currentStep === 2
+                      ? PROCESSING_PROVIDER_NAMES
+                      : TRANSCRIPTION_PROVIDER_NAMES
                   }
-                  healthStatus={healthStatus}
-                  selectContentClassName="z-[70]"
-                />
-              </form>
-            </Form>
-          </div>
-        )}
-
-        {currentStep === 3 && (
-          <div className="w-full">
-            <Form {...llmForm}>
-              <form
-                onSubmit={llmForm2.handleSubmit(handleLLMSubmit)}
-                className="flex flex-col gap-4"
-              >
-                <LLMProviderFields
-                  control={llmForm2.control}
-                  providerField="provider"
-                  apiKeyField="apiKey"
-                  providerOptions={TRANSCRIPTION_PROVIDER_NAMES}
                   onProviderChange={(value) =>
                     handleProviderChange(value as ProviderName)
                   }

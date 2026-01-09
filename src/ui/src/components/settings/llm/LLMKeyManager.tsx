@@ -55,7 +55,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
   const refreshStatus = useCallback(async () => {
     try {
       const cfg = await ipcClient.llm.getConfig();
-      const processCfg = cfg?.processingModel;
+      const processCfg = cfg?.languageModel;
       setHasConfig(!!cfg);
       setCurrentLLMConfig(cfg);
       form.reset(
@@ -106,7 +106,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
       try {
         await ipcClient.llm.setConfig({
           ...(currentLLMConfig as LLMConfigV2),
-          processingModel: values as ModelConfig,
+          languageModel: values as ModelConfig,
         });
         toast.success(
           values.provider === "openai"

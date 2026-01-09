@@ -69,13 +69,13 @@ export class LLMClientProvider {
     }
     // retrieve LLM configuration
     const llmConfig: LLMConfig =
-      (await LlmStorage.getInstance().getLLMConfig())?.processingModel ??
+      (await LlmStorage.getInstance().getLLMConfig())?.languageModel ??
       (() => {
         throw new Error("[LLMClientProvider]: LLM language configuration not found");
       })();
 
     const config = LLM_PROVIDER_CONFIGS[llmConfig.provider];
-    if (!config || !config.defaultProcessingModel) {
+    if (!config || !config.defaultLanguageModel) {
       throw new Error(`[LLMClientProvider]: Unsupported LLM provider: ${llmConfig.provider}`);
     }
 
@@ -84,10 +84,9 @@ export class LLMClientProvider {
     );
 
     const client = config.factory({ apiKey: llmConfig.apiKey });
-
-    LLMClientProvider.languageModel = client.languageModel(
-      llmConfig.model ?? config.defaultProcessingModel,
-    );
+    const modelName = llmConfig.model ?? config.defaultLanguageModel;
+    console.log(`[LLMClientProvider]: Using model: ${modelName}`);
+    LLMClientProvider.languageModel = client.languageModel(modelName);
   }
 
   public static async updateTranscriptionModelAsync(): Promise<void> {
@@ -102,7 +101,7 @@ export class LLMClientProvider {
       })();
 
     const config = LLM_PROVIDER_CONFIGS[llmConfig.provider];
-    if (!config || !config.defaultProcessingModel) {
+    if (!config || !config.defaultLanguageModel) {
       throw new Error(`[LLMClientProvider]: Unsupported LLM provider: ${llmConfig.provider}`);
     }
 

@@ -27,7 +27,7 @@ export type LLMConfigV1 = ModelConfig & {
 
 export interface LLMConfigV2 {
   version: 2;
-  processingModel: ModelConfig;
+  languageModel: ModelConfig;
   transcriptionModel: ModelConfig;
 }
 

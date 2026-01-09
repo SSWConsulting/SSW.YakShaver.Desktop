@@ -8,13 +8,13 @@ export const LLM_PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
   deepseek: {
     label: "DeepSeek",
     factory: createDeepSeek,
-    defaultProcessingModel: "deepseek-chat",
+    defaultLanguageModel: "deepseek-chat",
   },
   openai: {
     label: "OpenAI",
     factory: createOpenAI,
     defaultTranscriptionModel: "whisper-1",
-    defaultProcessingModel: "gpt-5-mini",
+    defaultLanguageModel: "gpt-5-mini",
   },
   // TODO: This will need to be expanded when Azure is enabled as a provider.
   azure: {
