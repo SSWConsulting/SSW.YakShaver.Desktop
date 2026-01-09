@@ -101,6 +101,7 @@ const IPC_CHANNELS = {
 
   // App Control
   APP_RESTART: "app:restart",
+  APP_OPEN_EXTERNAL: "app:open-external",
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
@@ -287,6 +288,7 @@ const electronAPI = {
   },
   app: {
     restart: () => ipcRenderer.invoke(IPC_CHANNELS.APP_RESTART),
+    openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, url),
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),

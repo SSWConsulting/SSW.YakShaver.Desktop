@@ -91,6 +91,7 @@ export const IPC_CHANNELS = {
 
   // App Control
   APP_RESTART: "app:restart",
+  APP_OPEN_EXTERNAL: "app:open-external",
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",

@@ -1,9 +1,19 @@
-import { app, ipcMain } from "electron";
+import { app, ipcMain, shell } from "electron";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class AppControlIPCHandlers {
   constructor() {
+    ipcMain.handle(IPC_CHANNELS.APP_OPEN_EXTERNAL, async (_, url: string) => {
+      try {
+        await shell.openExternal(url);
+        return { success: true };
+      } catch (error) {
+        console.error("Failed to open external url:", error);
+        return { success: false, error: formatErrorMessage(error) };
+      }
+    });
+
     ipcMain.handle(IPC_CHANNELS.APP_RESTART, async () => {
       try {
         // Give the renderer a moment to show feedback before restarting

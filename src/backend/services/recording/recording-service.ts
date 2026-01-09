@@ -1,7 +1,7 @@
 import EventEmitter from "node:events";
 import { unlink, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
-import { desktopCapturer } from "electron";
+import { desktopCapturer, systemPreferences } from "electron";
 import tmp from "tmp";
 import { getMainWindow } from "../../index";
 import { formatErrorMessage } from "../../utils/error-utils";
@@ -88,6 +88,13 @@ export class RecordingService extends EventEmitter {
   }
 
   async listSources(): Promise<ScreenSource[]> {
+    if (process.platform === "darwin") {
+      const status = systemPreferences.getMediaAccessStatus("screen");
+      if (status === "denied" || status === "restricted") {
+        throw new Error("Permission to record screen is denied");
+      }
+    }
+
     const sources = await desktopCapturer.getSources({
       types: ["screen", "window"],
       thumbnailSize: { width: 1920, height: 1080 },
