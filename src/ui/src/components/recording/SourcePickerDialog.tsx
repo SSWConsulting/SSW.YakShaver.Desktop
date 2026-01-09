@@ -1,4 +1,4 @@
-import { PermissionDialog } from "./PermissionDialog";
+import { MacScreenRecordingPermissionDialog } from "./MacScreenRecordingPermissionDialog";
 import { Camera } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -165,7 +165,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           </DialogDescription>
         </DialogHeader>
 
-        <PermissionDialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog} />
+        <MacScreenRecordingPermissionDialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog} />
 
         <div className="max-h-[75vh] overflow-auto space-y-6 p-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -9,12 +9,12 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 
-type PermissionDialogProps = {
+type MacScreenRecordingPermissionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
-export function PermissionDialog({ open, onOpenChange }: PermissionDialogProps) {
+export function MacScreenRecordingPermissionDialog({ open, onOpenChange }: MacScreenRecordingPermissionDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
