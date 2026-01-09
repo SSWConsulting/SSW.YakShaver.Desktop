@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* Fonts */
 @font-face {
   font-family: "Inter";
@@ -18,8 +20,6 @@
   font-style: italic;
   font-display: swap;
 }
-
-@import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
