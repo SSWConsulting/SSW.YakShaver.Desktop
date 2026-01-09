@@ -5,6 +5,7 @@ import { desktopCapturer, systemPreferences } from "electron";
 import tmp from "tmp";
 import { getMainWindow } from "../../index";
 import { formatErrorMessage } from "../../utils/error-utils";
+import { SCREEN_RECORDING_ERRORS } from "../../../shared/constants/error-messages";
 import type { VideoUploadResult } from "../auth/types";
 import type { ScreenSource, StartRecordingResult, StopRecordingResult } from "./types";
 
@@ -91,7 +92,7 @@ export class RecordingService extends EventEmitter {
     if (process.platform === "darwin") {
       const status = systemPreferences.getMediaAccessStatus("screen");
       if (status === "denied" || status === "restricted") {
-        throw new Error("Permission to record screen is denied");
+        throw new Error(SCREEN_RECORDING_ERRORS.MACOS_PERMISSION_DENIED);
       }
     }
 

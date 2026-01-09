@@ -2,6 +2,7 @@ import { PermissionDialog } from "./PermissionDialog";
 import { Camera } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { SCREEN_RECORDING_ERRORS } from "@shared/constants/error-messages";
 import { CAMERA_ONLY_SOURCE_ID } from "../../constants/recording";
 import { ipcClient } from "../../services/ipc-client";
 import type { ScreenSource } from "../../types";
@@ -56,7 +57,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       setSources(list);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
-      if (message.includes("Permission to record screen is denied")) {
+      if (message.includes(SCREEN_RECORDING_ERRORS.MACOS_PERMISSION_DENIED)) {
         setShowPermissionDialog(true);
       } else {
         toast.error("Failed to fetch screen sources, please try again.");
