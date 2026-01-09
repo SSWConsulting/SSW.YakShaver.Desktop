@@ -10,11 +10,11 @@ import {
 } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType, z } from "zod";
+import { LLM_PROVIDER_CONFIGS } from "../../../shared/llm/llm-providers";
 import type { LLMConfig } from "../../../shared/types/llm";
 import type { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { LlmStorage } from "../storage/llm-storage";
-import { LLM_PROVIDER_CONFIGS } from "./llm-providers";
 
 type StepType =
   | "start"
@@ -285,7 +285,7 @@ export class LLMClientProvider {
 
       return {
         isHealthy: true,
-        successMessage: `Healthy - Model: ${response}`,
+        successMessage: `Healthy`,
       };
     } catch (err) {
       return {

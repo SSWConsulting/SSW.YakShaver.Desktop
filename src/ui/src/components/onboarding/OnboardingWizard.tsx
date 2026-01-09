@@ -1,16 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { LLMConfigV2, ModelConfig } from "@shared/types/llm";
+import type { LLMConfigV2, ModelConfig, ProviderName } from "@shared/types/llm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
 import { toast } from "sonner";
 import * as z from "zod";
 import { PlatformConnectionCard } from "@/components/auth/PlatformConnectionCard";
-import { LLMProviderFields } from "@/components/llm/LLMProviderFields";
+import {
+  LLMProviderFields,
+  type ProviderOption,
+} from "@/components/llm/LLMProviderFields";
 import { formatErrorMessage } from "@/utils";
 import logo from "/logos/SQ-YakShaver-LogoIcon-Red.svg?url";
 import cpu from "/onboarding/cpu.svg?url";
 import monitorPlay from "/onboarding/monitor-play.svg?url";
+import { LLM_PROVIDER_CONFIGS } from "../../../../shared/llm/llm-providers";
 import {
   ONBOARDING_COMPLETED_KEY,
   ONBOARDING_FINISHED_EVENT,
@@ -29,8 +33,6 @@ import {
 import { Button } from "../ui/button";
 import { Form } from "../ui/form";
 import { ScrollArea } from "../ui/scroll-area";
-
-type LLMProvider = "openai" | "deepseek";
 
 const llmSchema = z.discriminatedUnion("provider", [
   z.object({
@@ -69,21 +71,34 @@ const STEPS = [
   {
     id: 2,
     icon: cpu,
-    title: "Connecting an LLM",
+    title: "Connecting an LLM (Processing Model)",
     description: "Choose your provider and save the API details",
   },
   {
     id: 3,
+    icon: cpu,
+    title: "Connecting an LLM (Transcription Model)",
+    description: "Choose your provider and save the API details",
+  },
+  {
+    id: 4,
     icon: monitorPlay,
     title: "Connecting an MCP",
     description: "Configure or choose which MCP server YakShaver will call.",
   },
 ];
 
-const LLM_PROVIDER_OPTIONS = [
-  { value: "openai", label: "OpenAI" },
-  { value: "deepseek", label: "DeepSeek" },
-];
+const PROVIDER_NAMES = Object.keys(LLM_PROVIDER_CONFIGS) as ProviderName[];
+
+const TRANSCRIPTION_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
+  (providerName) =>
+    LLM_PROVIDER_CONFIGS[providerName].defaultTranscriptionModel !== undefined
+).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
+
+const PROCESSING_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
+  (providerName) =>
+    LLM_PROVIDER_CONFIGS[providerName].defaultProcessingModel !== undefined
+).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
 
 const DEFAULT_MCP_VALUES: MCPServerFormData = {
   name: "",
@@ -127,6 +142,14 @@ export function OnboardingWizard() {
   >([]);
 
   const llmForm = useForm<LLMFormValues>({
+    resolver: zodResolver(llmSchema),
+    defaultValues: {
+      provider: "openai",
+      apiKey: "",
+    },
+  });
+
+  const llmForm2 = useForm<LLMFormValues>({
     resolver: zodResolver(llmSchema),
     defaultValues: {
       provider: "openai",
@@ -311,7 +334,7 @@ export function OnboardingWizard() {
     [currentLLMConfig]
   );
 
-  const handleProviderChange = (value: LLMProvider) => {
+  const handleProviderChange = (value: ProviderName) => {
     llmForm.reset({
       provider: value,
       apiKey: "",
@@ -461,6 +484,24 @@ export function OnboardingWizard() {
   }, [hasLLMConfig, healthStatus?.isHealthy, llmForm]);
 
   const handleStep3Next = useCallback(async () => {
+    const isValid = await llmForm2.trigger();
+    if (!isValid) return false;
+
+    if (!hasLLMConfig || !healthStatus?.isHealthy) {
+      toast.error("Please enter a valid API key before proceeding");
+      return false;
+    }
+
+    toast.success(
+      llmForm2.getValues().provider === "openai"
+        ? "OpenAI configuration saved"
+        : "DeepSeek configuration saved"
+    );
+    setCurrentStep(4);
+    return true;
+  }, [hasLLMConfig, healthStatus?.isHealthy, llmForm2]);
+
+  const handleStep4Next = useCallback(async () => {
     const isValid = await mcpForm.trigger();
     if (!isValid) return false;
 
@@ -479,6 +520,11 @@ export function OnboardingWizard() {
 
     if (currentStep === 3) {
       await handleStep3Next();
+      return;
+    }
+
+    if (currentStep === 4) {
+      await handleStep4Next();
       return;
     }
 
@@ -522,7 +568,8 @@ export function OnboardingWizard() {
   const isNextDisabled =
     (currentStep === 1 && !isConnected) ||
     (currentStep === 2 && isLLMSaving) ||
-    (currentStep === 3 && (isMCPSaving || isMcpFormIncomplete));
+    (currentStep === 3 && isLLMSaving) ||
+    (currentStep === 4 && (isMCPSaving || isMcpFormIncomplete));
 
   if (!isVisible) return null;
 
@@ -591,9 +638,9 @@ export function OnboardingWizard() {
                   control={llmForm.control}
                   providerField="provider"
                   apiKeyField="apiKey"
-                  providerOptions={LLM_PROVIDER_OPTIONS}
+                  providerOptions={PROCESSING_PROVIDER_NAMES}
                   onProviderChange={(value) =>
-                    handleProviderChange(value as LLMProvider)
+                    handleProviderChange(value as ProviderName)
                   }
                   healthStatus={healthStatus}
                   selectContentClassName="z-[70]"
@@ -604,6 +651,29 @@ export function OnboardingWizard() {
         )}
 
         {currentStep === 3 && (
+          <div className="w-full">
+            <Form {...llmForm}>
+              <form
+                onSubmit={llmForm2.handleSubmit(handleLLMSubmit)}
+                className="flex flex-col gap-4"
+              >
+                <LLMProviderFields
+                  control={llmForm2.control}
+                  providerField="provider"
+                  apiKeyField="apiKey"
+                  providerOptions={TRANSCRIPTION_PROVIDER_NAMES}
+                  onProviderChange={(value) =>
+                    handleProviderChange(value as ProviderName)
+                  }
+                  healthStatus={healthStatus}
+                  selectContentClassName="z-[70]"
+                />
+              </form>
+            </Form>
+          </div>
+        )}
+
+        {currentStep === 4 && (
           <Form {...mcpForm}>
             <form
               onSubmit={(event) => {
@@ -650,7 +720,7 @@ export function OnboardingWizard() {
           >
             {currentStep === 2 && isLLMSaving
               ? "Checking..."
-              : currentStep === 3 && isMCPSaving
+              : currentStep === 4 && isMCPSaving
               ? "Saving..."
               : currentStep === STEPS.length
               ? "Finish"
@@ -744,7 +814,7 @@ export function OnboardingWizard() {
           </div>
         </div>
         <div className="flex flex-col flex-1 min-w-0 h-full">
-          {currentStep === 3 && isMcpAdvancedOpen ? (
+          {currentStep === 4 && isMcpAdvancedOpen ? (
             <ScrollArea className="w-full h-full">
               <div className="flex flex-col px-20 py-40">
                 {rightPanelContent}
