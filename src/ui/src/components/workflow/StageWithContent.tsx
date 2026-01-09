@@ -303,7 +303,7 @@ export function StageWithContent({
         {stage === ProgressStage.UPDATING_METADATA && !isExternalSource && (
           <MetadataPreviewCard
             preview={progress.metadataPreview}
-            error={progress.error}
+            error={progress.metadataUpdateError || progress.error}
           />
         )}
       </AccordionContent>

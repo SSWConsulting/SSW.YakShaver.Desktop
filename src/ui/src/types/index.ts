@@ -137,6 +137,7 @@ export interface WorkflowProgress {
   finalOutput?: string;
   uploadResult?: VideoUploadResult;
   metadataPreview?: MetadataPreview;
+  metadataUpdateError?: string;
   error?: string;
   sourceOrigin?: VideoUploadOrigin;
 }
