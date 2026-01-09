@@ -130,6 +130,7 @@ export class MCPServerManager {
     }
 
     config.builtin = true;
+    config.enabled = true;
     // Replace any existing entry with same name to keep latest config
     MCPServerManager.internalServerConfigs = MCPServerManager.internalServerConfigs.filter(
       (s) => s.name !== config.name,
@@ -149,6 +150,7 @@ export class MCPServerManager {
     const result: MCPServerConfig[] = [];
     for (const s of internalServers) {
       if (!seen.has(s.name)) {
+        s.enabled = true; // built-in servers are always enabled
         seen.add(s.name);
         result.push(s);
       }
