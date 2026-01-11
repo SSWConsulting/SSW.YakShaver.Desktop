@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import {
