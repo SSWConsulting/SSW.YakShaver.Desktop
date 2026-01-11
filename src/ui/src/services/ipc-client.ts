@@ -177,6 +177,7 @@ declare global {
       };
       app: {
         restart: () => Promise<{ success: boolean; error?: string }>;
+        openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       };
       portal: {
         getMyShaves: () => Promise<{

@@ -1,11 +1,20 @@
+import { MacScreenRecordingPermissionDialog } from "./MacScreenRecordingPermissionDialog";
 import { Camera } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { formatErrorMessage } from "@/utils";
+import { SCREEN_RECORDING_ERRORS } from "@shared/constants/error-messages";
 import { CAMERA_ONLY_SOURCE_ID } from "../../constants/recording";
 import { ipcClient } from "../../services/ipc-client";
 import type { ScreenSource } from "../../types";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 type SourcePickerDialogProps = {
@@ -17,6 +26,7 @@ type SourcePickerDialogProps = {
 export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePickerDialogProps) {
   const [loading, setLoading] = useState(false);
   const [sources, setSources] = useState<ScreenSource[]>([]);
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [microphoneDevices, setMicrophoneDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string | undefined>(undefined);
@@ -46,8 +56,13 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
     try {
       const list = await ipcClient.screenRecording.listSources();
       setSources(list);
-    } catch {
-      toast.error("Failed to fetch screen sources, please try again.");
+    } catch (e: unknown) {
+      const message = formatErrorMessage(e);
+      if (message.includes(SCREEN_RECORDING_ERRORS.MACOS_PERMISSION_DENIED)) {
+        setShowPermissionDialog(true);
+      } else {
+        toast.error("Failed to fetch screen sources, please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -150,6 +165,8 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
             Select a screen to capture. Hover to preview and click to start recording.
           </DialogDescription>
         </DialogHeader>
+
+        <MacScreenRecordingPermissionDialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog} />
 
         <div className="max-h-[75vh] overflow-auto space-y-6 p-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
