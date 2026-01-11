@@ -1,12 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { z } from "zod";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "../../ui/accordion";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../../ui/accordion";
 import { Button } from "../../ui/button";
 import {
   FormControl,
@@ -18,13 +13,7 @@ import {
   Form as FormProvider,
 } from "../../ui/form";
 import { Input } from "../../ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
 
 export type Transport = "streamableHttp" | "stdio" | "inMemory";
@@ -60,10 +49,7 @@ type MCPInternalServerConfig = MCPBaseConfig & {
   builtin: true;
 };
 
-export type MCPServerConfig =
-  | MCPHttpServerConfig
-  | MCPStdioServerConfig
-  | MCPInternalServerConfig;
+export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig | MCPInternalServerConfig;
 
 export const mcpServerSchema = z
   .object({
@@ -72,7 +58,7 @@ export const mcpServerSchema = z
       .min(1, "Name is required")
       .regex(
         /^[a-zA-Z0-9_.-]+$/,
-        "Only letters, numbers, underscores, hyphens, and dots allowed (no spaces)"
+        "Only letters, numbers, underscores, hyphens, and dots allowed (no spaces)",
       )
       .refine((val) => !val.includes("__"), {
         message: "Double underscores (__) are not allowed",
@@ -135,9 +121,7 @@ export function McpServerForm({
 }: McpServerFormProps) {
   const transport = form.watch("transport");
   const transportOptions = allowedTransports?.length
-    ? TRANSPORT_OPTIONS.filter((option) =>
-        allowedTransports?.includes(option.value)
-      )
+    ? TRANSPORT_OPTIONS.filter((option) => allowedTransports?.includes(option.value))
     : TRANSPORT_OPTIONS;
 
   return (
@@ -165,11 +149,7 @@ export function McpServerForm({
           <FormItem>
             <FormLabel>Description</FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                type="text"
-                placeholder="e.g., GitHub MCP Server"
-              />
+              <Input {...field} type="text" placeholder="e.g., GitHub MCP Server" />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -247,13 +227,7 @@ export function McpServerForm({
         <Accordion
           type="single"
           collapsible
-          value={
-            advancedOpen === undefined
-              ? undefined
-              : advancedOpen
-              ? "advanced"
-              : ""
-          }
+          value={advancedOpen === undefined ? undefined : advancedOpen ? "advanced" : ""}
           onValueChange={(value) => {
             onAdvancedOpenChange?.(value === "advanced");
           }}
@@ -293,11 +267,7 @@ export function McpServerForm({
                       <FormItem>
                         <FormLabel>Version</FormLabel>
                         <FormControl>
-                          <Input
-                            {...field}
-                            type="text"
-                            placeholder="e.g., 1.0.0"
-                          />
+                          <Input {...field} type="text" placeholder="e.g., 1.0.0" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -315,11 +285,7 @@ export function McpServerForm({
                             {...field}
                             value={field.value ?? ""}
                             onChange={(event) =>
-                              field.onChange(
-                                event.target.value
-                                  ? Number(event.target.value)
-                                  : ""
-                              )
+                              field.onChange(event.target.value ? Number(event.target.value) : "")
                             }
                             type="number"
                             placeholder="60000"
@@ -348,8 +314,7 @@ export function McpServerForm({
                           />
                         </FormControl>
                         <FormDescription className="text-xs">
-                          One flag per line, or provide a JSON array such as
-                          ["-y","package"]
+                          One flag per line, or provide a JSON array such as ["-y","package"]
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -363,11 +328,7 @@ export function McpServerForm({
                       <FormItem>
                         <FormLabel>Environment Variables</FormLabel>
                         <FormControl>
-                          <Textarea
-                            {...field}
-                            rows={4}
-                            placeholder='{"NODE_ENV": "production"}'
-                          />
+                          <Textarea {...field} rows={4} placeholder='{"NODE_ENV": "production"}' />
                         </FormControl>
                         <FormDescription className="text-xs">
                           JSON object mapping variable name to value
@@ -384,11 +345,7 @@ export function McpServerForm({
                       <FormItem>
                         <FormLabel>Working Directory</FormLabel>
                         <FormControl>
-                          <Input
-                            {...field}
-                            type="text"
-                            placeholder="Optional working directory"
-                          />
+                          <Input {...field} type="text" placeholder="Optional working directory" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -402,17 +359,12 @@ export function McpServerForm({
                       <FormItem>
                         <FormLabel>stderr Handling</FormLabel>
                         <FormControl>
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value ?? "inherit"}
-                          >
+                          <Select onValueChange={field.onChange} value={field.value ?? "inherit"}>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="inherit">
-                                inherit (default)
-                              </SelectItem>
+                              <SelectItem value="inherit">inherit (default)</SelectItem>
                               <SelectItem value="ignore">ignore</SelectItem>
                               <SelectItem value="pipe">pipe</SelectItem>
                             </SelectContent>
@@ -437,6 +389,7 @@ type McpServerFormWrapperProps = {
   isEditing: boolean;
   onSubmit: (data: MCPServerConfig) => Promise<void>;
   onCancel: () => void;
+  onDelete?: () => void;
   isLoading: boolean;
   existingServerNames?: string[];
 };
@@ -446,6 +399,7 @@ export function McpServerFormWrapper({
   isEditing,
   onSubmit,
   onCancel,
+  onDelete,
   isLoading,
 }: McpServerFormWrapperProps) {
   const form = useForm<MCPServerFormData>({
@@ -455,25 +409,17 @@ export function McpServerFormWrapper({
       name: initialData?.name ?? "",
       description: initialData?.description ?? "",
       transport: initialData?.transport ?? "streamableHttp",
-      url:
-        initialData?.transport === "streamableHttp"
-          ? initialData?.url ?? ""
-          : "",
+      url: initialData?.transport === "streamableHttp" ? (initialData?.url ?? "") : "",
       headers:
         initialData?.transport === "streamableHttp" && initialData?.headers
           ? JSON.stringify(initialData.headers, null, 2)
           : "",
-      version:
-        initialData?.transport === "streamableHttp"
-          ? initialData?.version ?? ""
-          : "",
+      version: initialData?.transport === "streamableHttp" ? (initialData?.version ?? "") : "",
       timeoutMs:
-        initialData?.transport === "streamableHttp" &&
-        typeof initialData?.timeoutMs === "number"
+        initialData?.transport === "streamableHttp" && typeof initialData?.timeoutMs === "number"
           ? initialData.timeoutMs
           : "",
-      command:
-        initialData?.transport === "stdio" ? initialData?.command ?? "" : "",
+      command: initialData?.transport === "stdio" ? (initialData?.command ?? "") : "",
       args:
         initialData?.transport === "stdio" && initialData?.args?.length
           ? initialData.args.join("\n")
@@ -482,11 +428,8 @@ export function McpServerFormWrapper({
         initialData?.transport === "stdio" && initialData?.env
           ? JSON.stringify(initialData.env, null, 2)
           : "",
-      cwd: initialData?.transport === "stdio" ? initialData?.cwd ?? "" : "",
-      stderr:
-        initialData?.transport === "stdio"
-          ? initialData?.stderr ?? "inherit"
-          : "inherit",
+      cwd: initialData?.transport === "stdio" ? (initialData?.cwd ?? "") : "",
+      stderr: initialData?.transport === "stdio" ? (initialData?.stderr ?? "inherit") : "inherit",
     },
   });
 
@@ -503,11 +446,7 @@ export function McpServerFormWrapper({
           return;
         }
 
-        if (
-          !parsedHeaders ||
-          typeof parsedHeaders !== "object" ||
-          Array.isArray(parsedHeaders)
-        ) {
+        if (!parsedHeaders || typeof parsedHeaders !== "object" || Array.isArray(parsedHeaders)) {
           form.setError("headers", {
             message: "Headers must be a JSON object",
           });
@@ -532,8 +471,7 @@ export function McpServerFormWrapper({
         description: data.description?.trim() || undefined,
         headers,
         version: data.version?.trim() || undefined,
-        timeoutMs:
-          typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
+        timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
       };
 
       await onSubmit(config);
@@ -563,18 +501,13 @@ export function McpServerFormWrapper({
       if (rawArgs.startsWith("[")) {
         try {
           const parsed = JSON.parse(rawArgs);
-          if (
-            !Array.isArray(parsed) ||
-            !parsed.every((value) => typeof value === "string")
-          ) {
+          if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === "string")) {
             form.setError("args", {
               message: "Args JSON must be an array of strings",
             });
             return;
           }
-          args = parsed
-            .map((segment) => sanitizeSegment(segment))
-            .filter((segment) => segment);
+          args = parsed.map((segment) => sanitizeSegment(segment)).filter((segment) => segment);
         } catch {
           form.setError("args", { message: "Invalid JSON array" });
           return;
@@ -605,8 +538,7 @@ export function McpServerFormWrapper({
       }
     }
 
-    const stderr =
-      data.stderr && data.stderr !== "inherit" ? data.stderr : undefined;
+    const stderr = data.stderr && data.stderr !== "inherit" ? data.stderr : undefined;
     const command = sanitizeSegment(data.command ?? "");
 
     const config: MCPServerConfig = {
@@ -625,33 +557,37 @@ export function McpServerFormWrapper({
 
   return (
     <FormProvider {...form}>
-      <form
-        onSubmit={form.handleSubmit(handleFormSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <h3 className="text-xl font-semibold">
-          {isEditing ? "Edit Server" : "Add New Server"}
-        </h3>
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col gap-4 w-full">
+        <h3 className="text-xl font-semibold">{isEditing ? "Edit Server" : "Add New Server"}</h3>
 
         <McpServerForm form={form} />
 
-        <div className="flex gap-3 justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            className="cursor-pointer"
-            onClick={onCancel}
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            className="cursor-pointer"
-            disabled={isLoading || !form.formState.isValid}
-          >
-            Save Server
-          </Button>
+        <div className="flex w-full items-center">
+          {onDelete && (
+            <div className="flex flex-1 justify-start">
+              <Button variant="destructive" onClick={onDelete}>
+                Delete Server
+              </Button>
+            </div>
+          )}
+          <div className="flex grow gap-3 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="cursor-pointer"
+              onClick={onCancel}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="cursor-pointer"
+              disabled={isLoading || !form.formState.isValid}
+            >
+              Save Server
+            </Button>
+          </div>
         </div>
       </form>
     </FormProvider>
