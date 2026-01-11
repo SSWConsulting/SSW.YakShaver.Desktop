@@ -2,6 +2,7 @@ import { MacScreenRecordingPermissionDialog } from "./MacScreenRecordingPermissi
 import { Camera } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { formatErrorMessage } from "@/utils";
 import { SCREEN_RECORDING_ERRORS } from "@shared/constants/error-messages";
 import { CAMERA_ONLY_SOURCE_ID } from "../../constants/recording";
 import { ipcClient } from "../../services/ipc-client";
@@ -56,7 +57,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       const list = await ipcClient.screenRecording.listSources();
       setSources(list);
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = formatErrorMessage(e);
       if (message.includes(SCREEN_RECORDING_ERRORS.MACOS_PERMISSION_DENIED)) {
         setShowPermissionDialog(true);
       } else {
