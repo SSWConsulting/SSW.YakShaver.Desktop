@@ -1,39 +1,39 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import type { LLMConfigV2, ModelConfig } from "@shared/types/llm";
+import type { LLMConfigV2, ModelConfig, ProviderName } from "@shared/types/llm";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import * as z from "zod";
+import type { ProviderOption } from "@/components/llm/LLMProviderFields";
 import { formatErrorMessage } from "@/utils";
+import { LLM_PROVIDER_CONFIGS } from "../../../../../shared/llm/llm-providers";
 import { ipcClient } from "../../../services/ipc-client";
 import type { HealthStatusInfo } from "../../../types";
 import { type LLMProvider, LLMProviderForm } from "./LLMProviderForm";
 
-const schema = z.discriminatedUnion("provider", [
-  z.object({
-    provider: z.literal("openai"),
-    apiKey: z.string().min(1, "API key is required"),
-  }),
-  z.object({
-    provider: z.literal("deepseek"),
-    apiKey: z.string().min(1, "API key is required"),
-  }),
-  z.object({
-    provider: z.literal("azure"),
-    apiKey: z.string().min(1, "API key is required"),
-    endpoint: z.string().min(1, "Endpoint is required"),
-    version: z.string().min(1, "Version is required"),
-    deployment: z.string().min(1, "Deployment is required"),
-  }),
-]);
-
-export type FormValues = z.infer<typeof schema>;
-
-interface LLMSettingsPanelProps {
+interface BaseModelKeyManagerProps {
   isActive: boolean;
+  modelType: "languageModel" | "transcriptionModel";
+  title: string;
+  description: string;
 }
 
-export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
+const PROVIDER_NAMES = Object.keys(LLM_PROVIDER_CONFIGS) as ProviderName[];
+
+const TRANSCRIPTION_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
+  (providerName) =>
+    LLM_PROVIDER_CONFIGS[providerName].defaultTranscriptionModel !== undefined
+).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
+
+const LANGUAGE_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
+  (providerName) =>
+    LLM_PROVIDER_CONFIGS[providerName].defaultLanguageModel !== undefined
+).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
+
+export function BaseModelKeyManager({
+  isActive,
+  modelType,
+  title,
+  description,
+}: BaseModelKeyManagerProps) {
   const [hasConfig, setHasConfig] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(
     null
@@ -43,8 +43,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
     null
   );
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  const form = useForm<ModelConfig>({
     defaultValues: {
       provider: "openai",
       apiKey: "",
@@ -55,11 +54,11 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
   const refreshStatus = useCallback(async () => {
     try {
       const cfg = await ipcClient.llm.getConfig();
-      const processCfg = cfg?.languageModel;
+      const processCfg = cfg?.[modelType];
       setHasConfig(!!cfg);
       setCurrentLLMConfig(cfg);
       form.reset(
-        (processCfg as FormValues) ?? {
+        processCfg ?? {
           provider: "openai",
           apiKey: "",
         }
@@ -67,7 +66,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
     } catch (e) {
       console.error(formatErrorMessage(e));
     }
-  }, [form]);
+  }, [form, modelType]);
 
   const checkHealth = useCallback(async () => {
     setHealthStatus((prev) => ({
@@ -76,6 +75,10 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
       successMessage: prev?.successMessage,
       isChecking: true,
     }));
+    if (modelType !== "languageModel") {
+      setHealthStatus(null);
+      return;
+    }
     try {
       const result = (await ipcClient.llm.checkHealth()) as HealthStatusInfo;
       setHealthStatus({ ...result, isChecking: false });
@@ -86,7 +89,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         isChecking: false,
       });
     }
-  }, []);
+  }, [modelType]);
 
   useEffect(() => {
     if (isActive) {
@@ -101,19 +104,25 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
   }, [isActive, hasConfig, checkHealth]);
 
   const onSubmit = useCallback(
-    async (values: FormValues) => {
+    async (values: ModelConfig) => {
       setIsLoading(true);
       try {
         await ipcClient.llm.setConfig({
           ...(currentLLMConfig as LLMConfigV2),
-          languageModel: values as ModelConfig,
+          [modelType]: values,
         });
-        toast.success(
+
+        const providerName =
           values.provider === "openai"
-            ? "OpenAI configuration saved"
+            ? "OpenAI"
             : values.provider === "deepseek"
-            ? "DeepSeek configuration saved"
-            : "Azure OpenAI configuration saved"
+            ? "DeepSeek"
+            : "Azure OpenAI";
+
+        toast.success(
+          `${providerName} ${
+            modelType === "transcriptionModel" ? "transcription " : ""
+          }configuration saved`
         );
         await refreshStatus();
         await checkHealth();
@@ -123,13 +132,17 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         setIsLoading(false);
       }
     },
-    [checkHealth, refreshStatus, currentLLMConfig]
+    [checkHealth, refreshStatus, currentLLMConfig, modelType]
   );
 
   const onClear = useCallback(async () => {
     setIsLoading(true);
     try {
-      await ipcClient.llm.clearConfig();
+      await ipcClient.llm.setConfig({
+        ...(currentLLMConfig as LLMConfigV2),
+        [modelType]: null,
+      });
+
       toast.success("LLM configuration cleared");
       setHealthStatus(null);
       await refreshStatus();
@@ -138,7 +151,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [refreshStatus]);
+  }, [refreshStatus, currentLLMConfig, modelType]);
 
   const handleProviderChange = (value: LLMProvider) => {
     form.reset({
@@ -147,16 +160,14 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
       ...(value === "azure"
         ? { endpoint: "", version: "", deployment: "" }
         : {}),
-    } as FormValues);
+    } as ModelConfig);
   };
 
   return (
     <div className="flex flex-col gap-4">
       <header className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold">LLM Settings</h2>
-        <p className="text-muted-foreground text-sm">
-          Configure API access for OpenAI or Azure OpenAI providers.
-        </p>
+        <h2 className="text-xl font-semibold">{title}</h2>
+        <p className="text-muted-foreground text-sm">{description}</p>
       </header>
 
       <LLMProviderForm
@@ -166,7 +177,12 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
         isLoading={isLoading}
         hasConfig={hasConfig}
         handleProviderChange={handleProviderChange}
-        healthStatus={healthStatus}
+        providerOptions={
+          modelType === "languageModel"
+            ? LANGUAGE_PROVIDER_NAMES
+            : TRANSCRIPTION_PROVIDER_NAMES
+        }
+        healthStatus={modelType === "languageModel" ? healthStatus : undefined}
       />
     </div>
   );
