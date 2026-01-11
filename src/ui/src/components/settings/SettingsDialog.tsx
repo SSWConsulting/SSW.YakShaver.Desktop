@@ -3,13 +3,14 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
+import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
-import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
 import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
 import { LLMSettingsPanel } from "./llm/LLMKeyManager";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelManager";
+import { ToolApprovalSettingsPanel } from "./tool-approval/ToolApprovalSettingsPanel";
 
 type LeaveHandler = () => Promise<boolean>;
 
@@ -46,6 +47,10 @@ const TABS: SettingsTab[] = [
   {
     id: "advanced",
     label: "Advanced",
+  },
+  {
+    id: "account",
+    label: "Account",
   },
 ];
 
@@ -154,7 +159,7 @@ export function SettingsDialog() {
             <ScrollArea className="h-full pr-1">
               <div className="pb-4 pr-2">
                 {activeTab?.id === "toolApproval" && (
-                  <GeneralSettingsPanel isActive={open && activeTabId === "toolApproval"} />
+                  <ToolApprovalSettingsPanel isActive={open && activeTabId === "toolApproval"} />
                 )}
                 {activeTab?.id === "release" && (
                   <ReleaseChannelSettingsPanel isActive={open && activeTabId === "release"} />
@@ -175,6 +180,9 @@ export function SettingsDialog() {
                   <McpSettingsPanel isActive={open && activeTabId === "mcp"} />
                 )}
                 {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
+                {activeTab?.id === "account" && (
+                  <AccountSettingsPanel isActive={open && activeTabId === "account"} />
+                )}
               </div>
             </ScrollArea>
           </section>

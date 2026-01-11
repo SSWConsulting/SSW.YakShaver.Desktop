@@ -90,21 +90,6 @@ export interface TranscriptEntry {
   name?: string;
 }
 
-interface OpenAI {
-  provider: "openai";
-  apiKey: string;
-}
-
-interface AzureOpenAI {
-  provider: "azure";
-  apiKey: string;
-  endpoint: string;
-  version: string;
-  deployment: string;
-}
-
-export type LLMConfig = OpenAI | AzureOpenAI;
-
 export interface VideoChapter {
   label: string;
   timestamp: string;
@@ -152,6 +137,7 @@ export interface WorkflowProgress {
   finalOutput?: string;
   uploadResult?: VideoUploadResult;
   metadataPreview?: MetadataPreview;
+  metadataUpdateError?: string;
   error?: string;
   sourceOrigin?: VideoUploadOrigin;
 }
@@ -193,12 +179,6 @@ export const UNDO_EVENT_CHANNEL = "yakshaver:undo-event";
 export type UndoEventDetail = {
   type: "start" | "complete" | "error" | "reset";
 };
-
-export type ToolApprovalMode = "yolo" | "wait" | "ask";
-
-export interface GeneralSettings {
-  toolApprovalMode: ToolApprovalMode;
-}
 
 export enum MCPStepType {
   START = "start",

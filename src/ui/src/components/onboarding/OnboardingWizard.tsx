@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { LLMConfig } from "@shared/types/llm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
@@ -10,16 +11,20 @@ import { formatErrorMessage } from "@/utils";
 import logo from "/logos/SQ-YakShaver-LogoIcon-Red.svg?url";
 import cpu from "/onboarding/cpu.svg?url";
 import monitorPlay from "/onboarding/monitor-play.svg?url";
-import { ONBOARDING_COMPLETED_KEY, ONBOARDING_FINISHED_EVENT } from "../../constants/onboarding";
+import {
+  ONBOARDING_COMPLETED_KEY,
+  ONBOARDING_FINISHED_EVENT,
+} from "../../constants/onboarding";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useCountdown } from "../../hooks/useCountdown";
 import { ipcClient } from "../../services/ipc-client";
-import type { HealthStatusInfo, LLMConfig } from "../../types";
+import type { HealthStatusInfo } from "../../types";
 import { AuthStatus } from "../../types";
 import { McpSettingsPanel } from "../settings/mcp/McpServerManager";
 import { Button } from "../ui/button";
 import { Form } from "../ui/form";
 import { ScrollArea } from "../ui/scroll-area";
+import { MCPServerConfig, MCPServerFormData } from "../settings/mcp/McpServerForm";
 
 type LLMProvider = "openai" | "deepseek";
 
@@ -84,7 +89,11 @@ export function OnboardingWizard() {
   const [hasYouTubeConfig] = useState(true);
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
+  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(
+    null
+  );
+  const [_hasMCPConfig, setHasMCPConfig] = useState(false);
+  const [isMCPSaving, setIsMCPSaving] = useState(false);
   const [isVisible, setIsVisible] = useState(() => {
     // Check if user has completed onboarding before
     const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
@@ -92,7 +101,9 @@ export function OnboardingWizard() {
   });
   const stepListRef = useRef<HTMLDivElement | null>(null);
   const stepIconRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [connectorPositions, setConnectorPositions] = useState<ConnectorPosition[]>([]);
+  const [connectorPositions, setConnectorPositions] = useState<
+    ConnectorPosition[]
+  >([]);
 
   const llmForm = useForm<LLMFormValues>({
     resolver: zodResolver(llmSchema),
@@ -135,7 +146,8 @@ export function OnboardingWizard() {
 
         const top = currentRect.bottom - containerRect.top;
         const height = nextRect.top - currentRect.bottom;
-        const left = currentRect.left - containerRect.left + currentRect.width / 2 - 0.5;
+        const left =
+          currentRect.left - containerRect.left + currentRect.width / 2 - 0.5;
 
         if (height > 0) {
           positions.push({ top, height, left });
@@ -191,14 +203,17 @@ export function OnboardingWizard() {
                 setHealthStatus({
                   isHealthy: false,
                   isChecking: false,
-                  error: healthResult.error || "Failed to connect to LLM provider",
+                  error:
+                    healthResult.error || "Failed to connect to LLM provider",
                 });
                 setHasLLMConfig(false);
               } else {
                 setHealthStatus({
                   isHealthy: true,
                   isChecking: false,
-                  successMessage: healthResult.successMessage || "API key validated successfully",
+                  successMessage:
+                    healthResult.successMessage ||
+                    "API key validated successfully",
                 });
                 setHasLLMConfig(true);
               }
@@ -231,7 +246,7 @@ export function OnboardingWizard() {
       toast.success(
         values.provider === "openai"
           ? "OpenAI configuration saved"
-          : "DeepSeek configuration saved",
+          : "DeepSeek configuration saved"
       );
       setHasLLMConfig(true);
     } catch (e) {
@@ -248,6 +263,63 @@ export function OnboardingWizard() {
     } as LLMFormValues);
     setHealthStatus(null);
   };
+
+  const saveMcpConfig = useCallback(
+    async (values: MCPServerFormData) => {
+      setIsMCPSaving(true);
+
+      let headers: Record<string, string> | undefined;
+      if (values.headers?.trim()) {
+        try {
+          const parsedHeaders = JSON.parse(values.headers);
+          if (
+            !parsedHeaders ||
+            typeof parsedHeaders !== "object" ||
+            Array.isArray(parsedHeaders) ||
+            !Object.entries(parsedHeaders).every(
+              ([, value]) => typeof value === "string"
+            )
+          ) {
+            throw new Error("Headers must be a JSON object with string values");
+          }
+          headers = parsedHeaders as Record<string, string>;
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Headers must be a JSON object with string values";
+          mcpForm.setError("headers", { message });
+          toast.error(message);
+          setIsMCPSaving(false);
+          return false;
+        }
+      }
+
+      const config: MCPServerConfig = {
+        name: values.name.trim(),
+        transport: "streamableHttp",
+        url: (values.url ?? "").trim(),
+        description: values.description?.trim() || undefined,
+        headers,
+        version: values.version?.trim() || undefined,
+        timeoutMs:
+          typeof values.timeoutMs === "number" ? values.timeoutMs : undefined,
+      };
+
+      try {
+        await ipcClient.mcp.addServerAsync(config);
+        toast.success(`MCP server '${config.name}' saved`);
+        setHasMCPConfig(true);
+        return true;
+      } catch (error) {
+        toast.error(`Failed to save MCP server: ${formatErrorMessage(error)}`);
+        return false;
+      } finally {
+        setIsMCPSaving(false);
+      }
+    },
+    [mcpForm]
+  );
 
   // Auto-validate API key on input change
   useEffect(() => {
@@ -270,14 +342,17 @@ export function OnboardingWizard() {
               setHealthStatus({
                 isHealthy: false,
                 isChecking: false,
-                error: healthResult.error || "Failed to connect to LLM provider",
+                error:
+                  healthResult.error || "Failed to connect to LLM provider",
               });
               setHasLLMConfig(false);
             } else {
               setHealthStatus({
                 isHealthy: true,
                 isChecking: false,
-                successMessage: healthResult.successMessage || "API key validated successfully",
+                successMessage:
+                  healthResult.successMessage ||
+                  "API key validated successfully",
               });
               setHasLLMConfig(true);
             }
@@ -321,7 +396,7 @@ export function OnboardingWizard() {
     toast.success(
       llmForm.getValues().provider === "openai"
         ? "OpenAI configuration saved"
-        : "DeepSeek configuration saved",
+        : "DeepSeek configuration saved"
     );
     setCurrentStep(3);
     return true;
@@ -379,6 +454,8 @@ export function OnboardingWizard() {
     return "pending";
   };
 
+  const isMcpFormIncomplete = !watchedMcpName?.trim() || !watchedMcpUrl?.trim();
+
   const isNextDisabled =
     (currentStep === 1 && !isConnected) ||
     (currentStep === 2 && isLLMSaving) ||
@@ -420,7 +497,11 @@ export function OnboardingWizard() {
             <PlatformConnectionCard
               icon={<FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />}
               title="YouTube"
-              subtitle={isConnected && userInfo?.channelName ? userInfo.channelName : undefined}
+              subtitle={
+                isConnected && userInfo?.channelName
+                  ? userInfo.channelName
+                  : undefined
+              }
               badgeText={isConnected ? "Connected" : undefined}
               onAction={handleYouTubeAction}
               actionLabel={getYouTubeButtonText()}
@@ -430,7 +511,9 @@ export function OnboardingWizard() {
           ) : (
             <div className="text-center py-8 px-4 text-white/[0.56]">
               <p className="mb-2 text-sm">No platforms available</p>
-              <p className="text-xs italic">Configure YouTube API credentials to get started</p>
+              <p className="text-xs italic">
+                Configure YouTube API credentials to get started
+              </p>
             </div>
           ))}
 
@@ -446,7 +529,9 @@ export function OnboardingWizard() {
                   providerField="provider"
                   apiKeyField="apiKey"
                   providerOptions={LLM_PROVIDER_OPTIONS}
-                  onProviderChange={(value) => handleProviderChange(value as LLMProvider)}
+                  onProviderChange={(value) =>
+                    handleProviderChange(value as LLMProvider)
+                  }
                   healthStatus={healthStatus}
                   selectContentClassName="z-[70]"
                 />
@@ -462,15 +547,15 @@ export function OnboardingWizard() {
             includeBuiltin={false}
           />
         )}
+
       </div>
 
       {/* Card footer */}
       {!isMcpFormOpen && (
         <div className="flex h-16 items-center justify-end px-6 pb-6 w-full">
           <div
-            className={`flex items-center w-full ${
-              currentStep > 1 ? "justify-between" : "justify-end"
-            }`}
+            className={`flex items-center w-full ${currentStep > 1 ? "justify-between" : "justify-end"
+              }`}
           >
             {currentStep > 1 && (
               <Button
@@ -492,15 +577,16 @@ export function OnboardingWizard() {
             >
               {currentStep === 2 && isLLMSaving
                 ? "Checking..."
-                : currentStep === STEPS.length
-                  ? "Finish"
-                  : "Next"}
+                : currentStep === 3 && isMCPSaving
+                  ? "Saving..."
+                  : currentStep === STEPS.length
+                    ? "Finish"
+                    : "Next"}
             </Button>
           </div>
         </div>
       )}
-    </div>
-  );
+    </div>);
 
   return (
     <div className="fixed inset-0 z-[40] flex items-center justify-center">
@@ -528,9 +614,8 @@ export function OnboardingWizard() {
                 return (
                   <div
                     key={`connector-${nextStep.id}`}
-                    className={`absolute w-px transition-colors duration-300 ${
-                      status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                    }`}
+                    className={`absolute w-px transition-colors duration-300 ${status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
+                      }`}
                     style={{
                       left: position.left,
                       top: position.top,
@@ -547,27 +632,28 @@ export function OnboardingWizard() {
                       ref={(element) => {
                         stepIconRefs.current[index] = element;
                       }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                        getStepStatus(step.id) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                      }`}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${getStepStatus(step.id) === "pending"
+                        ? "bg-[#432A1D]"
+                        : "bg-[#75594B]"
+                        }`}
                     >
                       <img
                         src={step.icon}
                         alt={step.title}
-                        className={`w-6 h-6 transition-opacity duration-300 ${
-                          getStepStatus(step.id) === "pending" ? "opacity-40" : "opacity-100"
-                        }`}
+                        className={`w-6 h-6 transition-opacity duration-300 ${getStepStatus(step.id) === "pending"
+                          ? "opacity-40"
+                          : "opacity-100"
+                          }`}
                       />
                     </div>
                   </div>
 
                   <div className="flex flex-col justify-center w-[219px]">
                     <p
-                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                        getStepStatus(step.id) === "pending"
-                          ? "text-white/[0.56]"
-                          : "text-white/[0.98]"
-                      }`}
+                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${getStepStatus(step.id) === "pending"
+                        ? "text-white/[0.56]"
+                        : "text-white/[0.98]"
+                        }`}
                     >
                       {step.title}
                     </p>
@@ -581,9 +667,17 @@ export function OnboardingWizard() {
           </div>
         </div>
         <div className="flex flex-col flex-1 min-w-0 h-full">
-          <ScrollArea className="w-full h-full">
-            <div className="flex flex-col p-20">{rightPanelContent}</div>
-          </ScrollArea>
+          {currentStep === 3 && isMcpAdvancedOpen ? (
+            <ScrollArea className="w-full h-full">
+              <div className="flex flex-col px-20 py-40">
+                {rightPanelContent}
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="flex flex-col w-full px-20 py-40">
+              {rightPanelContent}
+            </div>
+          )}
         </div>
       </div>
     </div>

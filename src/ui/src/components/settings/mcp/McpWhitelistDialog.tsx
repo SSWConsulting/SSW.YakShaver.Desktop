@@ -35,7 +35,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
     setTools([]);
     setSelected(new Set(server.toolWhitelist ?? []));
     ipcClient.mcp
-      .listServerTools(server.name)
+      .listServerTools(server.id ?? server.name)
       .then((list) => {
         const valid = list.filter((t) => t && typeof t.name === "string");
         const sorted = [...valid].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
@@ -66,7 +66,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
         ...server,
         toolWhitelist: Array.from(selected),
       } as MCPServerConfig;
-      await ipcClient.mcp.updateServerAsync(server.name, updated);
+      await ipcClient.mcp.updateServerAsync(server.id ?? server.name, updated);
       toast.success(`Whitelist updated for '${server.name}'`);
       onSaved();
     } catch (e) {

@@ -243,10 +243,13 @@ export class ProcessVideoIPCHandlers {
         }
       }
 
+      let metadataUpdateError: string | undefined;
+
       if (youtubeResult.origin !== "external" && youtubeResult.success) {
         const videoId = youtubeResult.data?.videoId;
         if (videoId) {
           try {
+            // throw new Error("Simulated metadata update error"); // TODO: Remove this line after testing error handling
             notify(ProgressStage.UPDATING_METADATA);
             const metadata = await this.metadataBuilder.build({
               transcriptVtt: transcript,
@@ -270,10 +273,8 @@ export class ProcessVideoIPCHandlers {
               );
             }
           } catch (metadataError) {
-            // TODO: This should emit an ERROR stage instead of continuing. See https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/417 (need support for marking steps as optional)
-            this.emitProgress(ProgressStage.UPDATING_METADATA, {
-              error: formatErrorMessage(metadataError),
-            });
+            console.warn("Metadata update failed", metadataError);
+            metadataUpdateError = formatErrorMessage(metadataError);
           }
         }
       }
@@ -284,6 +285,7 @@ export class ProcessVideoIPCHandlers {
         mcpResult,
         finalOutput: mcpResult,
         uploadResult: youtubeResult,
+        metadataUpdateError,
       });
 
       return { youtubeResult, mcpResult };

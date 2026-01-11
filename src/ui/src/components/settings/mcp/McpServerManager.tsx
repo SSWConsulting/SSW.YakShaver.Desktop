@@ -73,9 +73,9 @@ export function McpSettingsPanel({
     const initialStatus: ServerHealthStatus<string> = {};
     serverList.forEach((server) => {
       if (server.enabled !== false) {
-        initialStatus[server.name] = { isHealthy: false, isChecking: true };
+        initialStatus[server.id ?? server.name] = { isHealthy: false, isChecking: true };
       } else {
-        initialStatus[server.name] = {
+        initialStatus[server.id ?? server.name] = {
           isHealthy: false,
           isChecking: false,
           successMessage: "Disabled",
@@ -88,16 +88,16 @@ export function McpSettingsPanel({
       if (server.enabled === false) continue;
       try {
         const result = (await ipcClient.mcp.checkServerHealthAsync(
-          server.name,
+          server.id ?? server.name,
         )) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
-          [server.name]: { ...result, isChecking: false },
+          [server.id ?? server.name]: { ...result, isChecking: false },
         }));
       } catch (e) {
         setHealthStatus((prev) => ({
           ...prev,
-          [server.name]: {
+          [server.id ?? server.name]: {
             isHealthy: false,
             error: formatErrorMessage(e),
             isChecking: false,
@@ -145,18 +145,20 @@ export function McpSettingsPanel({
   //   onFormOpenChange?.(false);
   // }, [onFormOpenChange]);
 
+  // const showList = useCallback(() => {
+  //   setViewMode("list");
+  //   setEditingServer(null);
+  // }, []);
+
   // const handleSubmit = useCallback(
   //   async (config: MCPServerConfig) => {
   //     setIsLoading(true);
   //     try {
-  //       console.log("Submitting config:", config, editingServer);
   //       if (viewMode === "add") {
-  //         console.log("Adding new server:", config);
   //         await ipcClient.mcp.addServerAsync(config);
   //         toast.success(`Server '${config.name}' added`);
   //       } else if (viewMode === "edit" && editingServer) {
-  //         console.log("Updating server:", editingServer.name, "with config:", config);
-  //         await ipcClient.mcp.updateServerAsync(editingServer.name, config);
+  //         await ipcClient.mcp.updateServerAsync(editingServer.id ?? editingServer.name, config);
   //         toast.success(`Server '${config.name}' updated`);
   //       }
   //       showList();
@@ -167,11 +169,11 @@ export function McpSettingsPanel({
   //       setIsLoading(false);
   //     }
   //   },
-  //   [viewMode, editingServer, showList, loadServers]
+  //   [viewMode, editingServer, showList, loadServers],
   // );
 
-  const confirmDeleteServer = useCallback((name: string) => {
-    setServerToDelete(name);
+  const confirmDeleteServer = useCallback((serverIdOrName: string) => {
+    setServerToDelete(serverIdOrName);
     setDeleteConfirmOpen(true);
   }, []);
 

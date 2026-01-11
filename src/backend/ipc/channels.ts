@@ -67,6 +67,7 @@ export const IPC_CHANNELS = {
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
+  SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
 
   // Release Channel
   RELEASE_CHANNEL_GET: "release-channel:get",
@@ -84,9 +85,12 @@ export const IPC_CHANNELS = {
   GITHUB_TOKEN_VERIFY: "github-token:verify",
   GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
 
-  // General Settings
-  GENERAL_SETTINGS_GET: "general-settings:get",
-  GENERAL_SETTINGS_SET_MODE: "general-settings:set-mode",
+  // Tool Approval Settings
+  TOOL_APPROVAL_SETTINGS_GET: "tool-approval-settings:get",
+  TOOL_APPROVAL_SETTINGS_SET_MODE: "tool-approval-settings:set-mode",
+
+  // App Control
+  APP_RESTART: "app:restart",
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",

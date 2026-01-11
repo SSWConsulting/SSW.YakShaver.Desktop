@@ -19,6 +19,7 @@ import { Textarea } from "../../ui/textarea";
 export type Transport = "streamableHttp" | "stdio" | "inMemory";
 
 type MCPBaseConfig = {
+  id?: string;
   name: string;
   description?: string;
   transport: Transport;
@@ -465,6 +466,7 @@ export function McpServerFormWrapper({
       }
 
       const config: MCPServerConfig = {
+        id: initialData?.id,
         name: data.name.trim(),
         transport: "streamableHttp",
         url: data.url?.trim() ?? "",
@@ -542,6 +544,7 @@ export function McpServerFormWrapper({
     const command = sanitizeSegment(data.command ?? "");
 
     const config: MCPServerConfig = {
+      id: initialData?.id,
       name: data.name.trim(),
       transport: "stdio",
       command,

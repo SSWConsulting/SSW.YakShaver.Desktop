@@ -1,12 +1,12 @@
+import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
 import { TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ipcClient } from "@/services/ipc-client";
-import type { GeneralSettings, ToolApprovalMode } from "@/types";
 import { Card, CardContent } from "../../ui/card";
 
-interface GeneralSettingsPanelProps {
+interface ToolApprovalSettingsPanelProps {
   isActive: boolean;
 }
 
@@ -43,19 +43,19 @@ const MODE_LABELS: Record<ToolApprovalMode, string> = {
   ask: "Ask",
 };
 
-export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
-  const [settings, setSettings] = useState<GeneralSettings>({ toolApprovalMode: "ask" });
+export function ToolApprovalSettingsPanel({ isActive }: ToolApprovalSettingsPanelProps) {
+  const [settings, setSettings] = useState<ToolApprovalSettings>({ toolApprovalMode: "ask" });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [pendingMode, setPendingMode] = useState<ToolApprovalMode | null>(null);
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const current = await ipcClient.generalSettings.get();
+      const current = await ipcClient.toolApprovalSettings.get();
       setSettings(current);
     } catch (error) {
-      console.error("Failed to load general settings", error);
-      toast.error("Failed to load general settings");
+      console.error("Failed to load tool approval settings", error);
+      toast.error("Failed to load tool approval settings");
     } finally {
       setIsLoading(false);
     }
@@ -75,7 +75,7 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
       }
       setPendingMode(mode);
       try {
-        await ipcClient.generalSettings.setMode(mode);
+        await ipcClient.toolApprovalSettings.setMode(mode);
         setSettings((prev) => ({ ...prev, toolApprovalMode: mode }));
         toast.success(`${MODE_LABELS[mode]} mode enabled`);
       } catch (error) {

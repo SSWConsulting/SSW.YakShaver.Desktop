@@ -193,4 +193,13 @@ export class CustomPromptStorage extends BaseSecureStorage {
     await this.saveSettings(settings);
     return true;
   }
+
+  async clearCustomPrompts(): Promise<void> {
+    const settings = await this.loadSettings();
+
+    settings.prompts = [DEFAULT_PROMPT];
+    settings.activePromptId = DEFAULT_PROMPT.id;
+
+    await this.saveSettings(settings);
+  }
 }
