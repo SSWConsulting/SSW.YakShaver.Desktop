@@ -509,7 +509,7 @@ export function WorkflowProgressPanel() {
   };
 
   if (progress.stage === ProgressStage.IDLE) {
-    return <>{approvalDialog}</>;
+    return approvalDialog ?? null;
   }
 
   const isExternalWorkflow = derivedOrigin === "external";
