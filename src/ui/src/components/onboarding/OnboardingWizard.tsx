@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
 import { toast } from "sonner";
-import * as z from "zod";
 import { PlatformConnectionCard } from "@/components/auth/PlatformConnectionCard";
 import {
   LLMProviderFields,
@@ -33,19 +32,6 @@ import {
 import { Button } from "../ui/button";
 import { Form } from "../ui/form";
 import { ScrollArea } from "../ui/scroll-area";
-
-const llmSchema = z.discriminatedUnion("provider", [
-  z.object({
-    provider: z.literal("openai"),
-    apiKey: z.string().min(1, "API key is required"),
-  }),
-  z.object({
-    provider: z.literal("deepseek"),
-    apiKey: z.string().min(1, "API key is required"),
-  }),
-]);
-
-type LLMFormValues = z.infer<typeof llmSchema>;
 
 type ConnectorPosition = {
   top: number;
@@ -95,7 +81,7 @@ const TRANSCRIPTION_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
     LLM_PROVIDER_CONFIGS[providerName].defaultTranscriptionModel !== undefined
 ).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
 
-const PROCESSING_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
+const LANGUAGE_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
   (providerName) =>
     LLM_PROVIDER_CONFIGS[providerName].defaultLanguageModel !== undefined
 ).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
@@ -141,8 +127,7 @@ export function OnboardingWizard() {
     ConnectorPosition[]
   >([]);
 
-  const llmForm = useForm<LLMFormValues>({
-    resolver: zodResolver(llmSchema),
+  const llmForm = useForm<ModelConfig>({
     defaultValues: {
       provider: "openai",
       apiKey: "",
@@ -245,46 +230,51 @@ export function OnboardingWizard() {
         setHasLLMConfig(!!modelCfg);
         setCurrentLLMConfig(cfg);
         if (modelCfg) {
-          llmForm.reset(modelCfg as LLMFormValues);
+          llmForm.reset(modelCfg);
 
           // If there's a config with API key, validate it
           if (modelCfg.apiKey) {
-            setIsLLMSaving(true);
-            setHealthStatus({
-              isHealthy: false,
-              isChecking: true,
-            });
+            // Only validate health for Language Model (step 2)
+            if (currentStep === 2) {
+              setIsLLMSaving(true);
+              setHealthStatus({
+                isHealthy: false,
+                isChecking: true,
+              });
 
-            try {
-              const healthResult = await ipcClient.llm.checkHealth();
+              try {
+                const healthResult = await ipcClient.llm.checkHealth();
 
-              if (!healthResult.isHealthy) {
+                if (!healthResult.isHealthy) {
+                  setHealthStatus({
+                    isHealthy: false,
+                    isChecking: false,
+                    error:
+                      healthResult.error || "Failed to connect to LLM provider",
+                  });
+                  setHasLLMConfig(false);
+                } else {
+                  setHealthStatus({
+                    isHealthy: true,
+                    isChecking: false,
+                    successMessage:
+                      healthResult.successMessage ||
+                      "API key validated successfully",
+                  });
+                  setHasLLMConfig(true);
+                }
+              } catch (e) {
                 setHealthStatus({
                   isHealthy: false,
                   isChecking: false,
-                  error:
-                    healthResult.error || "Failed to connect to LLM provider",
+                  error: formatErrorMessage(e),
                 });
                 setHasLLMConfig(false);
-              } else {
-                setHealthStatus({
-                  isHealthy: true,
-                  isChecking: false,
-                  successMessage:
-                    healthResult.successMessage ||
-                    "API key validated successfully",
-                });
-                setHasLLMConfig(true);
+              } finally {
+                setIsLLMSaving(false);
               }
-            } catch (e) {
-              setHealthStatus({
-                isHealthy: false,
-                isChecking: false,
-                error: formatErrorMessage(e),
-              });
-              setHasLLMConfig(false);
-            } finally {
-              setIsLLMSaving(false);
+            } else {
+              setHasLLMConfig(true);
             }
           }
         }
@@ -307,14 +297,14 @@ export function OnboardingWizard() {
   }, [currentStep, mcpForm]);
 
   const handleLLMSubmit = useCallback(
-    async (values: LLMFormValues) => {
+    async (values: ModelConfig) => {
       setIsLLMSaving(true);
       try {
         const modelType =
           currentStep === 2 ? "languageModel" : "transcriptionModel";
         await ipcClient.llm.setConfig({
           ...(currentLLMConfig as LLMConfigV2),
-          [modelType]: values as ModelConfig,
+          [modelType]: values,
         });
         toast.success(
           values.provider === "openai"
@@ -335,7 +325,7 @@ export function OnboardingWizard() {
     llmForm.reset({
       provider: value,
       apiKey: "",
-    } as LLMFormValues);
+    } as ModelConfig);
     setHealthStatus(null);
   };
 
@@ -403,10 +393,12 @@ export function OnboardingWizard() {
         // Debounce the validation
         const timeoutId = setTimeout(async () => {
           setIsLLMSaving(true);
-          setHealthStatus({
-            isHealthy: false,
-            isChecking: true,
-          });
+          if (currentStep === 2) {
+            setHealthStatus({
+              isHealthy: false,
+              isChecking: true,
+            });
+          }
 
           try {
             const values = llmForm.getValues();
@@ -416,32 +408,39 @@ export function OnboardingWizard() {
               ...(currentLLMConfig as LLMConfigV2),
               [modelType]: values as ModelConfig,
             });
-            const healthResult = await ipcClient.llm.checkHealth();
 
-            if (!healthResult.isHealthy) {
-              setHealthStatus({
-                isHealthy: false,
-                isChecking: false,
-                error:
-                  healthResult.error || "Failed to connect to LLM provider",
-              });
-              setHasLLMConfig(false);
+            if (currentStep === 2) {
+              const healthResult = await ipcClient.llm.checkHealth();
+
+              if (!healthResult.isHealthy) {
+                setHealthStatus({
+                  isHealthy: false,
+                  isChecking: false,
+                  error:
+                    healthResult.error || "Failed to connect to LLM provider",
+                });
+                setHasLLMConfig(false);
+              } else {
+                setHealthStatus({
+                  isHealthy: true,
+                  isChecking: false,
+                  successMessage:
+                    healthResult.successMessage ||
+                    "API key validated successfully",
+                });
+                setHasLLMConfig(true);
+              }
             } else {
-              setHealthStatus({
-                isHealthy: true,
-                isChecking: false,
-                successMessage:
-                  healthResult.successMessage ||
-                  "API key validated successfully",
-              });
               setHasLLMConfig(true);
             }
           } catch (e) {
-            setHealthStatus({
-              isHealthy: false,
-              isChecking: false,
-              error: formatErrorMessage(e),
-            });
+            if (currentStep === 2) {
+              setHealthStatus({
+                isHealthy: false,
+                isChecking: false,
+                error: formatErrorMessage(e),
+              });
+            }
             setHasLLMConfig(false);
           } finally {
             setIsLLMSaving(false);
@@ -468,7 +467,12 @@ export function OnboardingWizard() {
     const isValid = await llmForm.trigger();
     if (!isValid) return false;
 
-    if (!hasLLMConfig || !healthStatus?.isHealthy) {
+    if (!hasLLMConfig) {
+      toast.error("Please enter a valid API key before proceeding");
+      return false;
+    }
+
+    if (currentStep === 2 && !healthStatus?.isHealthy) {
       toast.error("Please enter a valid API key before proceeding");
       return false;
     }
@@ -480,7 +484,7 @@ export function OnboardingWizard() {
     );
     setCurrentStep((s) => s + 1);
     return true;
-  }, [hasLLMConfig, healthStatus?.isHealthy, llmForm]);
+  }, [hasLLMConfig, healthStatus?.isHealthy, llmForm, currentStep]);
 
   const handleStep4Next = useCallback(async () => {
     const isValid = await mcpForm.trigger();
@@ -616,13 +620,13 @@ export function OnboardingWizard() {
                   apiKeyField="apiKey"
                   providerOptions={
                     currentStep === 2
-                      ? PROCESSING_PROVIDER_NAMES
+                      ? LANGUAGE_PROVIDER_NAMES
                       : TRANSCRIPTION_PROVIDER_NAMES
                   }
                   onProviderChange={(value) =>
                     handleProviderChange(value as ProviderName)
                   }
-                  healthStatus={healthStatus}
+                  healthStatus={currentStep === 2 ? healthStatus : undefined}
                   selectContentClassName="z-[70]"
                 />
               </form>
