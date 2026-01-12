@@ -19,9 +19,6 @@ export class LlmStorage extends BaseSecureStorage {
         provider: config.provider,
         model: config.model,
         apiKey: config.apiKey,
-        ...(config.provider === "azure" && {
-          resourceName: config.resourceName,
-        }),
       } as ModelConfig;
 
       return {
