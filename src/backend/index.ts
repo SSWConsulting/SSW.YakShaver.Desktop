@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, dialog, session, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { config } from "./config/env";
@@ -47,15 +47,90 @@ loadEnv();
 let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
 
+const createApplicationMenu = (): void => {
+  const version = app.getVersion();
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: "File",
+      submenu: [
+        {
+          label: "Quit",
+          accelerator: process.platform === "darwin" ? "Cmd+Q" : "Ctrl+Q",
+          click: () => {
+            app.quit();
+          },
+        },
+      ],
+    },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
+    {
+      label: "Help",
+      submenu: [
+        {
+          label: "About YakShaver",
+          click: () => {
+            dialog.showMessageBox({
+              type: "info",
+              title: "About YakShaver",
+              message: `YakShaver v${version}`,
+              detail: "An AI agent to help you trim the fluff and get straight to the point",
+              buttons: ["OK"],
+            });
+          },
+        },
+      ],
+    },
+  ];
+
+  // Add View > Toggle DevTools for development
+  if (isDev) {
+    const viewMenu = template.find((item) => item.label === "View");
+    if (viewMenu && Array.isArray(viewMenu.submenu)) {
+      viewMenu.submenu.push({ type: "separator" }, { role: "toggleDevTools" });
+    }
+  }
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+};
+
 const createWindow = (): void => {
   // Fix icon path for packaged mode
   const iconPath = isDev
     ? join(__dirname, "../../src/ui/public/icons/icon.png")
     : join(process.resourcesPath, "public/icons/icon.png");
 
+  const version = app.getVersion();
+  const title = `YakShaver - v${version}`;
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    title,
     icon: iconPath,
     show: false,
     webPreferences: {
@@ -231,6 +306,10 @@ app.whenReady().then(async () => {
   CameraWindow.getInstance().initialize(isDev);
   CountdownWindow.getInstance().initialize(isDev);
   unregisterEventForwarders = registerEventForwarders();
+  
+  // Create application menu
+  createApplicationMenu();
+  
   createWindow();
 
   // Process any pending protocol URL that arrived during initialization
