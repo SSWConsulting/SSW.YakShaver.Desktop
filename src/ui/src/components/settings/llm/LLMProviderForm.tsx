@@ -72,7 +72,7 @@ export function LLMProviderForm({
               name="resourceName"
               render={({ field }) => (
                 <FormItem className="flex flex-col gap-2">
-                  <FormLabel className="text-white">ResourceName</FormLabel>
+                  <FormLabel className="text-white">Resource Name</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
