@@ -308,10 +308,10 @@ app.whenReady().then(async () => {
   CameraWindow.getInstance().initialize(isDev);
   CountdownWindow.getInstance().initialize(isDev);
   unregisterEventForwarders = registerEventForwarders();
-  
+
   // Create application menu
   createApplicationMenu();
-  
+
   createWindow();
 
   // Process any pending protocol URL that arrived during initialization
