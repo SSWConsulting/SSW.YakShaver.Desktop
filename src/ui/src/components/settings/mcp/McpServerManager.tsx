@@ -75,9 +75,9 @@ export function McpSettingsPanel({
     const initialStatus: ServerHealthStatus<string> = {};
     serverList.forEach((server) => {
       if (server.enabled !== false) {
-        initialStatus[server.id] = { isHealthy: false, isChecking: true };
+        initialStatus[server.id!] = { isHealthy: false, isChecking: true };
       } else {
-        initialStatus[server.id] = {
+        initialStatus[server.id!] = {
           isHealthy: false,
           isChecking: false,
           successMessage: "Disabled",
@@ -90,16 +90,16 @@ export function McpSettingsPanel({
       if (server.enabled === false) continue;
       try {
         const result = (await ipcClient.mcp.checkServerHealthAsync(
-          server.id,
+          server.id!,
         )) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
-          [server.id]: { ...result, isChecking: false },
+          [server.id!]: { ...result, isChecking: false },
         }));
       } catch (e) {
         setHealthStatus((prev) => ({
           ...prev,
-          [server.id]: {
+          [server.id!]: {
             isHealthy: false,
             error: formatErrorMessage(e),
             isChecking: false,
@@ -178,15 +178,16 @@ export function McpSettingsPanel({
     setIsLoading(true);
     try {
       if (editingServer) {
-        console.log("Editing existing server.", editingServer);
-        console.log("Updating server:", editingServer.id, "with config:", config);
-        await ipcClient.mcp.updateServerAsync(editingServer.id, config);
+        await ipcClient.mcp.updateServerAsync(editingServer.id!, config);
         toast.success(`Server '${config.name}' updated`);
-
+        setShowAddCustomMcpForm(false);
+        setEditingServer(null);
         await loadServers();
       } else {
         await ipcClient.mcp.addServerAsync(config);
         toast.success(`Server '${config.name}' added`);
+        setShowAddCustomMcpForm(false);
+        setEditingServer(null);
         await loadServers();
       }
     } catch (e) {
@@ -221,25 +222,36 @@ export function McpSettingsPanel({
     (server) => server.id !== McpGitHubCard.Id,
   );
 
+  function getHealthStatus(serverId?: string | null): HealthStatusInfo | null {
+
+    if (!serverId) return null;
+
+    return healthStatus[serverId] || null;
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <pre>{JSON.stringify(servers, null, 2)}</pre>
+
       <div className="grid grid-cols-1 gap-4 mb-4">
-        <McpGitHubCard config={github} onChange={() => loadServers()} />
+        <McpGitHubCard config={github} onChange={() => loadServers()} healthInfo={getHealthStatus(github?.id)} onTools={() => openWhitelistDialog(github)} />
         {restServers.map((server) => (
-          <McpCard
-            key={server.id}
-            onDelete={() => confirmDeleteServer(server.id, server.name)}
-            icon={<Globe />}
-            config={server}
-            onConnect={() => handleOnConnect(server.id, server)}
-            onDisconnect={() => handleOnDisconnect(server.id, server)}
-            onUpdate={async (newConfig) => {
-              setEditingServer(server);
-              console.log("Updating server:", server.name, "with config:", newConfig);
-              // await handleSubmit(newConfig);
-            }}
-          />
+          <>
+            <McpCard
+              key={server.id}
+              onDelete={() => confirmDeleteServer(server.id!, server.name)}
+              healthInfo={getHealthStatus(server.id)}
+              icon={<Globe />}
+              config={server}
+              onTools={() => openWhitelistDialog(server)}
+              onConnect={() => handleOnConnect(server.id!, server)}
+              onDisconnect={() => handleOnDisconnect(server.id!, server)}
+              onUpdate={async (newConfig) => {
+                setEditingServer(server);
+                console.log("Updating server:", server.name, "with config:", newConfig);
+                // await handleSubmit(newConfig);
+              }}
+            />
+          </>
         ))}
       </div>
       {!showAddCustomMcpForm && (

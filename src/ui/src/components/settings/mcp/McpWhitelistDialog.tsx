@@ -66,7 +66,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
         ...server,
         toolWhitelist: Array.from(selected),
       } as MCPServerConfig;
-      await ipcClient.mcp.updateServerAsync(server.id, updated);
+      await ipcClient.mcp.updateServerAsync(server.id!, updated);
       toast.success(`Whitelist updated for '${server.name}'`);
       onSaved();
     } catch (e) {

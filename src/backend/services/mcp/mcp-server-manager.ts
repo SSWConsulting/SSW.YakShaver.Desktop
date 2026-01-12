@@ -294,6 +294,7 @@ export class MCPServerManager {
       return {
         isHealthy: false,
         error: `MCP server client for '${name}' not found`,
+        isChecking: false,
       };
     }
 
@@ -301,6 +302,7 @@ export class MCPServerManager {
 
     return {
       isHealthy: healthResult.healthy,
+      isChecking: false,
       successMessage:
         healthResult.toolCount > 0
           ? `Healthy - ${healthResult.toolCount} tools available`

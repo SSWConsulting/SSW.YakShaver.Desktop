@@ -1,16 +1,21 @@
 import { Button } from "@/components/ui/button";
 import { MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 import { useState } from "react";
-import { on } from "events";
+
+import { HealthStatusInfo } from "@/types";
+import { Check } from "lucide-react";
+import { HealthStatus } from "@/components/health-status/health-status";
 
 interface McpCardProps {
   icon: React.ReactElement;
   isReadOnly?: boolean;
   config: MCPServerConfig;
+  healthInfo?: HealthStatusInfo | null;
   onDisconnect?: () => void;
   onConnect?: () => void;
   onDelete?: () => void;
   onUpdate?: (data: MCPServerConfig) => Promise<void>;
+  onTools?: () => void;
 }
 
 export function McpCard({
@@ -21,6 +26,8 @@ export function McpCard({
   onDelete,
   onUpdate,
   isReadOnly,
+  onTools,
+  healthInfo = null
 }: McpCardProps) {
   const [showSettings, setShowSettings] = useState(false);
   return (
@@ -33,6 +40,8 @@ export function McpCard({
       {!showSettings && (
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center">
+
+            {healthInfo && <HealthStatus isChecking={healthInfo.isChecking} isDisabled={!config.enabled} isHealthy={healthInfo.isHealthy} successMessage={healthInfo.successMessage} className="mr-4" />}
             <span className="size-8 flex items-center justify-center">{icon}</span>
             <div className="flex flex-col ml-4">
               <span className="text-base font-medium">{config.name}</span>
@@ -41,16 +50,21 @@ export function McpCard({
               )}
             </div>
           </div>
-          {!config.enabled && (
-            <Button variant="outline" className="cursor-pointer" onClick={onConnect}>
-              Connect
-            </Button>
-          )}
-          {config.enabled && (
-            <Button variant="destructive" className="cursor-pointer" onClick={onDisconnect}>
-              Disconnect
-            </Button>
-          )}
+
+          <div className="flex items-center gap-2">
+
+            {onTools && <Button variant="outline" onClick={() => onTools()}> Tools </Button>}
+            {!config.enabled && (
+              <Button variant="outline" className="cursor-pointer" onClick={onConnect}>
+                Connect
+              </Button>
+            )}
+            {config.enabled && (
+              <Button variant="destructive" className="cursor-pointer" onClick={onDisconnect}>
+                Disconnect
+              </Button>
+            )}
+          </div>
         </div>
       )}
       {showSettings && !isReadOnly && (
@@ -63,6 +77,7 @@ export function McpCard({
             }}
             onSubmit={(data) => {
               setShowSettings(false);
+
               return onUpdate?.(data) ?? Promise.resolve();
             }}
             onDelete={
