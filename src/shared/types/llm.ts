@@ -16,9 +16,19 @@ interface DeepSeekConfig extends LLMConfigBase {
 
 interface AzureOpenAIConfig extends LLMConfigBase {
   provider: "azure";
-  endpoint: string;
-  version: string;
-  deployment: string;
+  resourceName: string;
 }
 
-export type LLMConfig = OpenAIConfig | AzureOpenAIConfig | DeepSeekConfig;
+export type ModelConfig = OpenAIConfig | AzureOpenAIConfig | DeepSeekConfig;
+
+export type LLMConfigV1 = ModelConfig & {
+  version?: 1;
+};
+
+export interface LLMConfigV2 {
+  version: 2;
+  languageModel: ModelConfig;
+  transcriptionModel: ModelConfig;
+}
+
+export type LLMConfig = LLMConfigV1 | LLMConfigV2;
