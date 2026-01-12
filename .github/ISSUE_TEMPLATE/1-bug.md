@@ -1,7 +1,7 @@
 ---
-name: "\U0001F41B Bug Report"
+name: "🐛 Bug Report"
 about: Create a report to help us improve as per https://www.ssw.com.au/rules/the-right-way-to-report-bugs-and-give-feedback-suggestions
-title: "\U0001F41B "
+title: "🐛 Bug - {{ BUG DESCRIPTION }}"
 labels: 'Type: Bug'
 assignees: ''
 
@@ -18,15 +18,16 @@ Hi {{ USER }}
 
 ### To Reproduce
 Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
+1. ...
+2. ...
+3. ...
 4. See error
 
 ### Expected Behavior
 <!-- A clear and concise description of what you expected to happen. -->
 
 ### Tasks
+<!-- Add below task to issue body, unless user specifies detailed tasks. -->
 - [ ] Investigate
 - [ ] Fix
 

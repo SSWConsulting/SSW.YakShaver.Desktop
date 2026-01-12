@@ -1,7 +1,7 @@
 ---
 name: "✨ New Feature"
 about: Suggest an idea
-title: "✨"
+title: "✨ {{ FEATURE NAME }} - {{ FEATURE DESCRIPTION }}"
 labels: 'Type: Feature'
 assignees: ''
 
