@@ -284,7 +284,7 @@ export class LLMClientProvider {
 
       return {
         isHealthy: true,
-        successMessage: `Healthy`,
+        successMessage: `Healthy - Model: ${response}`,
       };
     } catch (err) {
       return {
