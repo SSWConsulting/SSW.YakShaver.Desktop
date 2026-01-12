@@ -206,13 +206,13 @@ const electronAPI = {
     onStepUpdate: (
       callback: (step: {
         type:
-          | "start"
-          | "reasoning"
-          | "tool_call"
-          | "tool_result"
-          | "final_result"
-          | "tool_approval_required"
-          | "tool_denied";
+        | "start"
+        | "reasoning"
+        | "tool_call"
+        | "tool_result"
+        | "final_result"
+        | "tool_approval_required"
+        | "tool_denied";
         message?: string;
         toolName?: string;
         serverName?: string;
@@ -234,14 +234,14 @@ const electronAPI = {
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
     addServerAsync: (config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
-    updateServerAsync: (serverIdOrName: string, config: MCPServerConfig) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, serverIdOrName, config),
-    removeServerAsync: (serverIdOrName: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, serverIdOrName),
-    checkServerHealthAsync: (serverIdOrName: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, serverIdOrName),
-    listServerTools: (serverIdOrName: string): Promise<MCPToolSummary[]> =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, serverIdOrName),
+    updateServerAsync: (serverId: string, config: MCPServerConfig) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, serverId, config),
+    removeServerAsync: (serverId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, serverId),
+    checkServerHealthAsync: (serverId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, serverId),
+    listServerTools: (serverId: string): Promise<MCPToolSummary[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, serverId),
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),

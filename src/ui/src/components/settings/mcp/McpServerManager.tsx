@@ -29,6 +29,7 @@ interface McpSettingsPanelProps {
   onFormOpenChange?: (isOpen: boolean) => void;
   onHasEnabledServers?: (hasEnabled: boolean) => void;
   includeBuiltin?: boolean;
+  viewMode: "compact" | "detailed";
 }
 
 export function McpSettingsPanel({
@@ -36,13 +37,14 @@ export function McpSettingsPanel({
   onFormOpenChange,
   onHasEnabledServers,
   includeBuiltin = true,
+  viewMode = "compact",
 }: McpSettingsPanelProps) {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showAddCustomMcpForm, setShowAddCustomMcpForm] = useState(false);
   const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [serverToDelete, setServerToDelete] = useState<string | null>(null);
+  const [serverToDelete, setServerToDelete] = useState<{ serverId: string; serverName: string } | null>(null);
   const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
   const [whitelistServer, setWhitelistServer] = useState<MCPServerConfig | null>(null);
   const [appInstallUrl, setAppInstallUrl] = useState<string>("");
@@ -73,9 +75,9 @@ export function McpSettingsPanel({
     const initialStatus: ServerHealthStatus<string> = {};
     serverList.forEach((server) => {
       if (server.enabled !== false) {
-        initialStatus[server.id ?? server.name] = { isHealthy: false, isChecking: true };
+        initialStatus[server.id] = { isHealthy: false, isChecking: true };
       } else {
-        initialStatus[server.id ?? server.name] = {
+        initialStatus[server.id] = {
           isHealthy: false,
           isChecking: false,
           successMessage: "Disabled",
@@ -88,16 +90,16 @@ export function McpSettingsPanel({
       if (server.enabled === false) continue;
       try {
         const result = (await ipcClient.mcp.checkServerHealthAsync(
-          server.id ?? server.name,
+          server.id,
         )) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
-          [server.id ?? server.name]: { ...result, isChecking: false },
+          [server.id]: { ...result, isChecking: false },
         }));
       } catch (e) {
         setHealthStatus((prev) => ({
           ...prev,
-          [server.id ?? server.name]: {
+          [server.id]: {
             isHealthy: false,
             error: formatErrorMessage(e),
             isChecking: false,
@@ -130,50 +132,10 @@ export function McpSettingsPanel({
     }
   }, [isActive, loadServers]);
 
-  // const showForm = useCallback(
-  //   (server?: MCPServerConfig | null) => {
-  //     setViewMode(server ? "edit" : "add");
-  //     setEditingServer(server ?? null);
-  //     onFormOpenChange?.(true);
-  //   },
-  //   [onFormOpenChange]
-  // );
 
-  // const showList = useCallback(() => {
-  //   setViewMode("list");
-  //   setEditingServer(null);
-  //   onFormOpenChange?.(false);
-  // }, [onFormOpenChange]);
 
-  // const showList = useCallback(() => {
-  //   setViewMode("list");
-  //   setEditingServer(null);
-  // }, []);
-
-  // const handleSubmit = useCallback(
-  //   async (config: MCPServerConfig) => {
-  //     setIsLoading(true);
-  //     try {
-  //       if (viewMode === "add") {
-  //         await ipcClient.mcp.addServerAsync(config);
-  //         toast.success(`Server '${config.name}' added`);
-  //       } else if (viewMode === "edit" && editingServer) {
-  //         await ipcClient.mcp.updateServerAsync(editingServer.id ?? editingServer.name, config);
-  //         toast.success(`Server '${config.name}' updated`);
-  //       }
-  //       showList();
-  //       await loadServers();
-  //     } catch (e) {
-  //       toast.error(`Failed to save: ${formatErrorMessage(e)}`);
-  //     } finally {
-  //       setIsLoading(false);
-  //     }
-  //   },
-  //   [viewMode, editingServer, showList, loadServers],
-  // );
-
-  const confirmDeleteServer = useCallback((serverIdOrName: string) => {
-    setServerToDelete(serverIdOrName);
+  const confirmDeleteServer = useCallback((serverId: string, serverName: string) => {
+    setServerToDelete({ serverId, serverName });
     setDeleteConfirmOpen(true);
   }, []);
 
@@ -189,8 +151,8 @@ export function McpSettingsPanel({
     setDeleteConfirmOpen(false);
 
     try {
-      await ipcClient.mcp.removeServerAsync(serverToDelete);
-      toast.success(`Server '${serverToDelete}' removed`);
+      await ipcClient.mcp.removeServerAsync(serverToDelete.serverId);
+      toast.success(`Server '${serverToDelete.serverName}' removed`);
       await loadServers();
     } catch (e) {
       toast.error(`Failed to remove: ${formatErrorMessage(e)}`);
@@ -200,35 +162,15 @@ export function McpSettingsPanel({
     }
   }, [serverToDelete, loadServers]);
 
-  const handleToggleEnabled = useCallback(
-    async (server: MCPServerConfig, enabled: boolean) => {
-      try {
-        const updatedServer = { ...server, enabled };
-        await ipcClient.mcp.updateServerAsync(server.name, updatedServer);
 
-        // Optimistic update
-        setServers((prev) => prev.map((s) => (s.name === server.name ? updatedServer : s)));
-
-        toast.success(`Server '${server.name}' ${enabled ? "enabled" : "disabled"}`);
-
-        // Reload to ensure sync and re-check health if enabled
-        await loadServers();
-      } catch (e) {
-        toast.error(`Failed to update server: ${formatErrorMessage(e)}`);
-        // Revert on error
-        await loadServers();
-      }
-    },
-    [loadServers],
-  );
 
   async function toggleSettings(
-    serverName: string,
+    serverId: string,
     status: boolean,
     configLocal: MCPServerConfig,
   ): Promise<void> {
     const updatedConfig = { ...configLocal, enabled: status };
-    await ipcClient.mcp.updateServerAsync(serverName, updatedConfig);
+    await ipcClient.mcp.updateServerAsync(serverId, updatedConfig);
   }
 
   async function handleSubmit(config: MCPServerConfig): Promise<void> {
@@ -236,13 +178,16 @@ export function McpSettingsPanel({
     setIsLoading(true);
     try {
       if (editingServer) {
-        console.log("Updating server:", editingServer.name, "with config:", config);
-        await ipcClient.mcp.updateServerAsync(editingServer.name, config);
+        console.log("Editing existing server.", editingServer);
+        console.log("Updating server:", editingServer.id, "with config:", config);
+        await ipcClient.mcp.updateServerAsync(editingServer.id, config);
         toast.success(`Server '${config.name}' updated`);
 
         await loadServers();
       } else {
-        console.warn("Editing server is null, cannot submit.");
+        await ipcClient.mcp.addServerAsync(config);
+        toast.success(`Server '${config.name}' added`);
+        await loadServers();
       }
     } catch (e) {
       toast.error(`Failed to save: ${formatErrorMessage(e)}`);
@@ -258,11 +203,11 @@ export function McpSettingsPanel({
     setEditingServer(null);
   }
 
-  function handleOnConnect(serverName: string, configLocal: MCPServerConfig): void {
-    toggleSettings(serverName, true, configLocal);
+  function handleOnConnect(serverId: string, configLocal: MCPServerConfig): void {
+    toggleSettings(serverId, true, configLocal);
   }
-  function handleOnDisconnect(serverName: string, configLocal: MCPServerConfig): void {
-    toggleSettings(serverName, false, configLocal);
+  function handleOnDisconnect(serverId: string, configLocal: MCPServerConfig): void {
+    toggleSettings(serverId, false, configLocal);
   }
 
   const sortedServers = useMemo(() => {
@@ -270,10 +215,10 @@ export function McpSettingsPanel({
   }, [servers]);
 
   const github: MCPServerConfig | undefined = sortedServers.find(
-    (server) => server.name === McpGitHubCard.Name,
+    (server) => server.id === McpGitHubCard.Id,
   );
   const restServers: MCPServerConfig[] = sortedServers.filter(
-    (server) => server.name !== McpGitHubCard.Name,
+    (server) => server.id !== McpGitHubCard.Id,
   );
 
   return (
@@ -283,12 +228,12 @@ export function McpSettingsPanel({
         <McpGitHubCard config={github} onChange={() => loadServers()} />
         {restServers.map((server) => (
           <McpCard
-            key={server.name}
-            onDelete={() => confirmDeleteServer(server.name)}
+            key={server.id}
+            onDelete={() => confirmDeleteServer(server.id, server.name)}
             icon={<Globe />}
             config={server}
-            onConnect={() => handleOnConnect(server.name, server)}
-            onDisconnect={() => handleOnDisconnect(server.name, server)}
+            onConnect={() => handleOnConnect(server.id, server)}
+            onDisconnect={() => handleOnDisconnect(server.id, server)}
             onUpdate={async (newConfig) => {
               setEditingServer(server);
               console.log("Updating server:", server.name, "with config:", newConfig);
@@ -334,9 +279,9 @@ export function McpSettingsPanel({
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {serverToDelete}</AlertDialogTitle>
+            <AlertDialogTitle>Delete {serverToDelete?.serverName}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove server '{serverToDelete}'? This action cannot be
+              Are you sure you want to remove server '{serverToDelete?.serverName}'? This action cannot be
               undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

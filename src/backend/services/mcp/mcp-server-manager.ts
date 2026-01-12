@@ -72,10 +72,10 @@ export class MCPServerManager {
   }
 
   // Get or Create MCP client for a given server name
-  public async getMcpClientAsync(serverIdOrName: string): Promise<MCPServerClient | null> {
-    const config = await MCPServerManager.resolveServerConfigAsync(serverIdOrName);
+  public async getMcpClientAsync(serverId: string): Promise<MCPServerClient | null> {
+    const config = await MCPServerManager.resolveServerConfigAsync(serverId);
     if (!config) {
-      throw new Error(`MCP server '${serverIdOrName}' not found`);
+      throw new Error(`MCP server '${serverId}' not found`);
     }
 
     const cacheKey = config.id;
@@ -220,10 +220,16 @@ export class MCPServerManager {
     await this.saveConfigAsync(storedConfigs);
   }
 
-  async updateServerAsync(serverIdOrName: string, config: MCPServerConfig): Promise<void> {
+  async updateServerAsync(serverId: string, config: MCPServerConfig): Promise<void> {
+
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
-    const index = storedConfigs.findIndex((s) => s.id === serverIdOrName || s.name === serverIdOrName);
-    if (index === -1) throw new Error(`Server '${serverIdOrName}' not found`);
+    let index = storedConfigs.findIndex((s) => s.id === serverId || s.name === serverId);
+
+    if (index = -1) {
+      storedConfigs.push(config);
+      index = storedConfigs.findIndex((s) => s.id === serverId || s.name === serverId);
+    }
+
     const existing = storedConfigs[index];
 
     const merged: MCPServerConfig = {
@@ -250,10 +256,10 @@ export class MCPServerManager {
     await this.saveConfigAsync(storedConfigs);
   }
 
-  async removeServerAsync(serverIdOrName: string): Promise<void> {
+  async removeServerAsync(serverId: string): Promise<void> {
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
-    const index = storedConfigs.findIndex((s) => s.id === serverIdOrName || s.name === serverIdOrName);
-    if (index === -1) throw new Error(`Server '${serverIdOrName}' not found`);
+    const index = storedConfigs.findIndex((s) => s.id === serverId || s.name === serverId);
+    if (index === -1) throw new Error(`Server '${serverId}' not found`);
     const existing = storedConfigs[index];
     storedConfigs.splice(index, 1);
 

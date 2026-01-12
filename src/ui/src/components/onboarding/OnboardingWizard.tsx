@@ -264,62 +264,62 @@ export function OnboardingWizard() {
     setHealthStatus(null);
   };
 
-  const saveMcpConfig = useCallback(
-    async (values: MCPServerFormData) => {
-      setIsMCPSaving(true);
+  // const saveMcpConfig = useCallback(
+  //   async (values: MCPServerFormData) => {
+  //     setIsMCPSaving(true);
 
-      let headers: Record<string, string> | undefined;
-      if (values.headers?.trim()) {
-        try {
-          const parsedHeaders = JSON.parse(values.headers);
-          if (
-            !parsedHeaders ||
-            typeof parsedHeaders !== "object" ||
-            Array.isArray(parsedHeaders) ||
-            !Object.entries(parsedHeaders).every(
-              ([, value]) => typeof value === "string"
-            )
-          ) {
-            throw new Error("Headers must be a JSON object with string values");
-          }
-          headers = parsedHeaders as Record<string, string>;
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Headers must be a JSON object with string values";
-          mcpForm.setError("headers", { message });
-          toast.error(message);
-          setIsMCPSaving(false);
-          return false;
-        }
-      }
+  //     let headers: Record<string, string> | undefined;
+  //     if (values.headers?.trim()) {
+  //       try {
+  //         const parsedHeaders = JSON.parse(values.headers);
+  //         if (
+  //           !parsedHeaders ||
+  //           typeof parsedHeaders !== "object" ||
+  //           Array.isArray(parsedHeaders) ||
+  //           !Object.entries(parsedHeaders).every(
+  //             ([, value]) => typeof value === "string"
+  //           )
+  //         ) {
+  //           throw new Error("Headers must be a JSON object with string values");
+  //         }
+  //         headers = parsedHeaders as Record<string, string>;
+  //       } catch (error) {
+  //         const message =
+  //           error instanceof Error
+  //             ? error.message
+  //             : "Headers must be a JSON object with string values";
+  //         mcpForm.setError("headers", { message });
+  //         toast.error(message);
+  //         setIsMCPSaving(false);
+  //         return false;
+  //       }
+  //     }
 
-      const config: MCPServerConfig = {
-        name: values.name.trim(),
-        transport: "streamableHttp",
-        url: (values.url ?? "").trim(),
-        description: values.description?.trim() || undefined,
-        headers,
-        version: values.version?.trim() || undefined,
-        timeoutMs:
-          typeof values.timeoutMs === "number" ? values.timeoutMs : undefined,
-      };
+  //     const config: MCPServerConfig = {
+  //       name: values.name.trim(),
+  //       transport: "streamableHttp",
+  //       url: (values.url ?? "").trim(),
+  //       description: values.description?.trim() || undefined,
+  //       headers,
+  //       version: values.version?.trim() || undefined,
+  //       timeoutMs:
+  //         typeof values.timeoutMs === "number" ? values.timeoutMs : undefined,
+  //     };
 
-      try {
-        await ipcClient.mcp.addServerAsync(config);
-        toast.success(`MCP server '${config.name}' saved`);
-        setHasMCPConfig(true);
-        return true;
-      } catch (error) {
-        toast.error(`Failed to save MCP server: ${formatErrorMessage(error)}`);
-        return false;
-      } finally {
-        setIsMCPSaving(false);
-      }
-    },
-    [mcpForm]
-  );
+  //     try {
+  //       await ipcClient.mcp.addServerAsync(config);
+  //       toast.success(`MCP server '${config.name}' saved`);
+  //       setHasMCPConfig(true);
+  //       return true;
+  //     } catch (error) {
+  //       toast.error(`Failed to save MCP server: ${formatErrorMessage(error)}`);
+  //       return false;
+  //     } finally {
+  //       setIsMCPSaving(false);
+  //     }
+  //   },
+  //   [mcpForm]
+  // );
 
   // Auto-validate API key on input change
   useEffect(() => {
@@ -454,7 +454,7 @@ export function OnboardingWizard() {
     return "pending";
   };
 
-  const isMcpFormIncomplete = !watchedMcpName?.trim() || !watchedMcpUrl?.trim();
+  // const isMcpFormIncomplete = !watchedMcpName?.trim() || !watchedMcpUrl?.trim();
 
   const isNextDisabled =
     (currentStep === 1 && !isConnected) ||
@@ -545,6 +545,7 @@ export function OnboardingWizard() {
             onFormOpenChange={setIsMcpFormOpen}
             onHasEnabledServers={setHasEnabledMcpServers}
             includeBuiltin={false}
+            viewMode="compact"
           />
         )}
 
@@ -667,7 +668,7 @@ export function OnboardingWizard() {
           </div>
         </div>
         <div className="flex flex-col flex-1 min-w-0 h-full">
-          {currentStep === 3 && isMcpAdvancedOpen ? (
+          {currentStep === 3 /* && isMcpAdvancedOpen */ ? (
             <ScrollArea className="w-full h-full">
               <div className="flex flex-col px-20 py-40">
                 {rightPanelContent}

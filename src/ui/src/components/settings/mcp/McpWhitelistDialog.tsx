@@ -66,7 +66,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
         ...server,
         toolWhitelist: Array.from(selected),
       } as MCPServerConfig;
-      await ipcClient.mcp.updateServerAsync(server.id ?? server.name, updated);
+      await ipcClient.mcp.updateServerAsync(server.id, updated);
       toast.success(`Whitelist updated for '${server.name}'`);
       onSaved();
     } catch (e) {
@@ -93,21 +93,21 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
             )}
             {!isLoading && tools.length > 0 && (
               <div className="flex flex-col gap-2">
-              {tools.map((tool) => (
-                <div key={tool.name} className="flex items-start gap-3">
-                  <Checkbox
-                    className="mt-1"
-                    checked={selected.has(tool.name)}
-                    onCheckedChange={() => toggleTool(tool.name)}
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm">{tool.name}</p>
-                    {tool.description && (
-                      <p className="text-xs text-muted-foreground">{tool.description}</p>
-                    )}
+                {tools.map((tool) => (
+                  <div key={tool.name} className="flex items-start gap-3">
+                    <Checkbox
+                      className="mt-1"
+                      checked={selected.has(tool.name)}
+                      onCheckedChange={() => toggleTool(tool.name)}
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm">{tool.name}</p>
+                      {tool.description && (
+                        <p className="text-xs text-muted-foreground">{tool.description}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
               </div>
             )}
           </div>

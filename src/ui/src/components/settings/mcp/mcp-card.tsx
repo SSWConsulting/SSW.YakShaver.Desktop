@@ -42,15 +42,13 @@ export function McpCard({
             </div>
           </div>
           {!config.enabled && (
-            <Button variant="outline" onClick={onConnect}>
-              {" "}
-              Connect{" "}
+            <Button variant="outline" className="cursor-pointer" onClick={onConnect}>
+              Connect
             </Button>
           )}
           {config.enabled && (
-            <Button variant="destructive" onClick={onDisconnect}>
-              {" "}
-              Disconnect{" "}
+            <Button variant="destructive" className="cursor-pointer" onClick={onDisconnect}>
+              Disconnect
             </Button>
           )}
         </div>

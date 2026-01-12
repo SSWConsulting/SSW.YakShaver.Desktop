@@ -1,5 +1,5 @@
 import type { SVGProps } from "react";
-
+// Icon from https://svgl.app/
 const Atlassian = (props: SVGProps<SVGSVGElement>) => (
   <svg {...props} preserveAspectRatio="xMidYMid" viewBox="0 0 256 256">
     <defs>
