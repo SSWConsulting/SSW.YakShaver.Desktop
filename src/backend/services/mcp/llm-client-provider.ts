@@ -101,7 +101,7 @@ export class LLMClientProvider {
       })();
 
     const config = LLM_PROVIDER_CONFIGS[llmConfig.provider];
-    if (!config || !config.defaultLanguageModel) {
+    if (!config || !config.defaultTranscriptionModel) {
       throw new Error(`[LLMClientProvider]: Unsupported LLM provider: ${llmConfig.provider}`);
     }
 
