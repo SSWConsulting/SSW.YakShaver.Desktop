@@ -47,8 +47,10 @@ loadEnv();
 let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
 
+const getAppVersion = (): string => app.getVersion();
+
 const createApplicationMenu = (): void => {
-  const version = app.getVersion();
+  const version = getAppVersion();
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: "File",
@@ -124,7 +126,7 @@ const createWindow = (): void => {
     ? join(__dirname, "../../src/ui/public/icons/icon.png")
     : join(process.resourcesPath, "public/icons/icon.png");
 
-  const version = app.getVersion();
+  const version = getAppVersion();
   const title = `YakShaver - v${version}`;
 
   mainWindow = new BrowserWindow({
