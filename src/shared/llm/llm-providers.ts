@@ -17,6 +17,7 @@ export const LLM_PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
     defaultLanguageModel: "gpt-5-mini",
   },
   // TODO: This will need to be expanded when Azure is enabled as a provider.
+  // https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/530
   azure: {
     label: "Azure OpenAI",
     factory: createAzure,
