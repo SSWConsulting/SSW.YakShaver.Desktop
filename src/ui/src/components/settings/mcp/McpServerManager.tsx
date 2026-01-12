@@ -14,26 +14,32 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../ui/alert-dialog";
-import { Button } from "../../ui/button";
-import { Card, CardContent } from "../../ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../../ui/empty";
-import { ScrollArea } from "../../ui/scroll-area";
-import { GitHubAppInstallGuide } from "./GitHubAppInstallGuide";
 import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 import { McpWhitelistDialog } from "./McpWhitelistDialog";
+import { Globe } from "lucide-react";
+import { McpCard } from "./mcp-card";
+import { McpGitHubCard } from "./github/mcp-github-card";
+import { McpServerFormCard } from "./mcp-server-form-card";
 
-type ViewMode = "list" | "add" | "edit";
 
 type ServerHealthStatus<T extends string = string> = Record<T, HealthStatusInfo>;
 
 interface McpSettingsPanelProps {
-  isActive: boolean;
+  isActive?: boolean;
+  onFormOpenChange?: (isOpen: boolean) => void;
+  onHasEnabledServers?: (hasEnabled: boolean) => void;
+  includeBuiltin?: boolean;
 }
 
-export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
+export function McpSettingsPanel({
+  isActive = true,
+  onFormOpenChange,
+  onHasEnabledServers,
+  includeBuiltin = true,
+}: McpSettingsPanelProps) {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [showAddCustomMcpForm, setShowAddCustomMcpForm] = useState(false);
   const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [serverToDelete, setServerToDelete] = useState<string | null>(null);
@@ -56,14 +62,30 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     }
   }, [isActive, appInstallUrl]);
 
+  useEffect(() => {
+    const hasEnabled = servers.some(
+      (server) => (includeBuiltin || !server.builtin) && server.enabled !== false,
+    );
+    onHasEnabledServers?.(hasEnabled);
+  }, [servers, onHasEnabledServers, includeBuiltin]);
+
   const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
     const initialStatus: ServerHealthStatus<string> = {};
     serverList.forEach((server) => {
-      initialStatus[server.id ?? server.name] = { isHealthy: false, isChecking: true };
+      if (server.enabled !== false) {
+        initialStatus[server.id ?? server.name] = { isHealthy: false, isChecking: true };
+      } else {
+        initialStatus[server.id ?? server.name] = {
+          isHealthy: false,
+          isChecking: false,
+          successMessage: "Disabled",
+        };
+      }
     });
     setHealthStatus(initialStatus);
 
     for (const server of serverList) {
+      if (server.enabled === false) continue;
       try {
         const result = (await ipcClient.mcp.checkServerHealthAsync(
           server.id ?? server.name,
@@ -85,18 +107,22 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     }
   }, []);
 
-  const loadServers = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const list = await ipcClient.mcp.listServers();
-      setServers(list);
-      await checkAllServersHealth(list);
-    } catch (e) {
-      toast.error(`Failed to load servers: ${formatErrorMessage(e)}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [checkAllServersHealth]);
+  const loadServers = useCallback(
+    async (includeBuiltin: boolean = false) => {
+      setIsLoading(true);
+      try {
+        const list = await ipcClient.mcp.listServers();
+        const filteredList = includeBuiltin ? list : list.filter((server) => !server.builtin);
+        setServers(filteredList);
+        await checkAllServersHealth(filteredList);
+      } catch (e) {
+        toast.error(`Failed to load servers: ${formatErrorMessage(e)}`);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [checkAllServersHealth],
+  );
 
   useEffect(() => {
     if (isActive) {
@@ -104,42 +130,47 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     }
   }, [isActive, loadServers]);
 
-  const showAddForm = useCallback(() => {
-    setViewMode("add");
-    setEditingServer(null);
-  }, []);
+  // const showForm = useCallback(
+  //   (server?: MCPServerConfig | null) => {
+  //     setViewMode(server ? "edit" : "add");
+  //     setEditingServer(server ?? null);
+  //     onFormOpenChange?.(true);
+  //   },
+  //   [onFormOpenChange]
+  // );
 
-  const showEditForm = useCallback((server: MCPServerConfig) => {
-    setViewMode("edit");
-    setEditingServer(server);
-  }, []);
+  // const showList = useCallback(() => {
+  //   setViewMode("list");
+  //   setEditingServer(null);
+  //   onFormOpenChange?.(false);
+  // }, [onFormOpenChange]);
 
-  const showList = useCallback(() => {
-    setViewMode("list");
-    setEditingServer(null);
-  }, []);
+  // const showList = useCallback(() => {
+  //   setViewMode("list");
+  //   setEditingServer(null);
+  // }, []);
 
-  const handleSubmit = useCallback(
-    async (config: MCPServerConfig) => {
-      setIsLoading(true);
-      try {
-        if (viewMode === "add") {
-          await ipcClient.mcp.addServerAsync(config);
-          toast.success(`Server '${config.name}' added`);
-        } else if (viewMode === "edit" && editingServer) {
-          await ipcClient.mcp.updateServerAsync(editingServer.id ?? editingServer.name, config);
-          toast.success(`Server '${config.name}' updated`);
-        }
-        showList();
-        await loadServers();
-      } catch (e) {
-        toast.error(`Failed to save: ${formatErrorMessage(e)}`);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [viewMode, editingServer, showList, loadServers],
-  );
+  // const handleSubmit = useCallback(
+  //   async (config: MCPServerConfig) => {
+  //     setIsLoading(true);
+  //     try {
+  //       if (viewMode === "add") {
+  //         await ipcClient.mcp.addServerAsync(config);
+  //         toast.success(`Server '${config.name}' added`);
+  //       } else if (viewMode === "edit" && editingServer) {
+  //         await ipcClient.mcp.updateServerAsync(editingServer.id ?? editingServer.name, config);
+  //         toast.success(`Server '${config.name}' updated`);
+  //       }
+  //       showList();
+  //       await loadServers();
+  //     } catch (e) {
+  //       toast.error(`Failed to save: ${formatErrorMessage(e)}`);
+  //     } finally {
+  //       setIsLoading(false);
+  //     }
+  //   },
+  //   [viewMode, editingServer, showList, loadServers],
+  // );
 
   const confirmDeleteServer = useCallback((serverIdOrName: string) => {
     setServerToDelete(serverIdOrName);
@@ -169,155 +200,136 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
     }
   }, [serverToDelete, loadServers]);
 
+  const handleToggleEnabled = useCallback(
+    async (server: MCPServerConfig, enabled: boolean) => {
+      try {
+        const updatedServer = { ...server, enabled };
+        await ipcClient.mcp.updateServerAsync(server.name, updatedServer);
+
+        // Optimistic update
+        setServers((prev) => prev.map((s) => (s.name === server.name ? updatedServer : s)));
+
+        toast.success(`Server '${server.name}' ${enabled ? "enabled" : "disabled"}`);
+
+        // Reload to ensure sync and re-check health if enabled
+        await loadServers();
+      } catch (e) {
+        toast.error(`Failed to update server: ${formatErrorMessage(e)}`);
+        // Revert on error
+        await loadServers();
+      }
+    },
+    [loadServers],
+  );
+
+  async function toggleSettings(
+    serverName: string,
+    status: boolean,
+    configLocal: MCPServerConfig,
+  ): Promise<void> {
+    const updatedConfig = { ...configLocal, enabled: status };
+    await ipcClient.mcp.updateServerAsync(serverName, updatedConfig);
+  }
+
+  async function handleSubmit(config: MCPServerConfig): Promise<void> {
+    console.log("Submitting MCP server config:", config, editingServer);
+    setIsLoading(true);
+    try {
+      if (editingServer) {
+        console.log("Updating server:", editingServer.name, "with config:", config);
+        await ipcClient.mcp.updateServerAsync(editingServer.name, config);
+        toast.success(`Server '${config.name}' updated`);
+
+        await loadServers();
+      } else {
+        console.warn("Editing server is null, cannot submit.");
+      }
+    } catch (e) {
+      toast.error(`Failed to save: ${formatErrorMessage(e)}`);
+    } finally {
+      setIsLoading(false);
+    }
+
+    return Promise.resolve();
+  }
+
+  function handleCancel(): void {
+    setShowAddCustomMcpForm(false);
+    setEditingServer(null);
+  }
+
+  function handleOnConnect(serverName: string, configLocal: MCPServerConfig): void {
+    toggleSettings(serverName, true, configLocal);
+  }
+  function handleOnDisconnect(serverName: string, configLocal: MCPServerConfig): void {
+    toggleSettings(serverName, false, configLocal);
+  }
+
   const sortedServers = useMemo(() => {
     return [...servers].sort((a, b) => a.name.localeCompare(b.name));
   }, [servers]);
 
+  const github: MCPServerConfig | undefined = sortedServers.find(
+    (server) => server.name === McpGitHubCard.Name,
+  );
+  const restServers: MCPServerConfig[] = sortedServers.filter(
+    (server) => server.name !== McpGitHubCard.Name,
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="mb-4 flex flex-col gap-1">
-        <h2 className="text-xl font-semibold">MCP Server Settings</h2>
-        <p className="text-muted-foreground text-sm">
-          Manage external MCP servers and monitor their health status.
-        </p>
-      </header>
-      <ScrollArea className="flex-1 pr-1">
-        <div className="flex flex-col gap-6 pb-6 pr-2">
-          {viewMode === "list" && (
-            <div className="flex flex-col gap-6">
-              <div className="flex justify-end">
-                <Button onClick={showAddForm} size="lg">
-                  Add Server
-                </Button>
-              </div>
-
-              {servers.length === 0 && (
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyTitle>No MCP servers configured</EmptyTitle>
-                    <EmptyDescription>
-                      You don't have any MCP servers configured. Click "Add Server" to configure
-                      one.
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              )}
-
-              {servers.length > 0 && (
-                <div className="flex flex-col gap-4">
-                  {sortedServers.map((server) => {
-                    const status = healthStatus[server.id ?? server.name] || {};
-                    const transportLabel = server.transport === "streamableHttp" ? "http" : "stdio";
-                    const connectionSummary =
-                      server.transport === "streamableHttp"
-                        ? (server.url ?? "")
-                        : "command" in server
-                          ? [server.command, ...(server.args ?? [])]
-                              .filter((part) => part && part.length > 0)
-                              .join(" ")
-                          : "";
-                    const cwdSummary =
-                      server.transport === "stdio" && "cwd" in server ? server.cwd : undefined;
-
-                    // Check if this is a GitHub MCP server
-                    const isGitHubServer =
-                      server.transport === "streamableHttp" &&
-                      server.url &&
-                      server.url.includes("github");
-
-                    return (
-                      <Card key={server.id ?? server.name} className="overflow-hidden">
-                        <CardContent className="p-6">
-                          <div className="flex flex-col gap-3">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-start gap-3">
-                                <div className="group relative mt-1 flex-shrink-0">
-                                  <HealthStatus
-                                    isHealthy={!!status.isHealthy}
-                                    isChecking={!!status.isChecking}
-                                    successMessage={status.successMessage}
-                                    error={status.error}
-                                  />
-                                </div>
-
-                                <div className="flex-1">
-                                  <h3 className="text-lg font-semibold text-white">{server.name}</h3>
-                                  {server.builtin ? (
-                                    <p className="mt-2 text-sm text-white/50">Built-in MCP Server</p>
-                                  ) : (
-                                    <p className="mt-1 text-xs uppercase tracking-wide text-white/40">
-                                      {transportLabel}
-                                    </p>
-                                  )}
-                                  {server.description && (
-                                    <p className="mt-1 text-sm text-white/70">{server.description}</p>
-                                  )}
-                                  <p className="mt-2 break-all font-mono text-sm text-white/50">
-                                    {server.builtin ? "" : connectionSummary || "—"}
-                                  </p>
-                                  {cwdSummary && (
-                                    <p className="mt-1 text-xs text-white/40">
-                                      cwd: <span className="font-mono">{cwdSummary}</span>
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex flex-shrink-0 gap-2">
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => showEditForm(server)}
-                                  disabled={server.builtin}
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => openWhitelistDialog(server)}
-                                  disabled={server.builtin}
-                                >
-                                  Configure Whitelist
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() =>
-                                    confirmDeleteServer(server.id ?? server.name)
-                                  }
-                                  disabled={server.builtin}
-                                >
-                                  Delete
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Show GitHub App install guide for GitHub MCP servers */}
-                            {isGitHubServer && appInstallUrl && (
-                              <GitHubAppInstallGuide appInstallUrl={appInstallUrl} />
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {viewMode !== "list" && (
-            <McpServerFormWrapper
-              initialData={editingServer ?? undefined}
-              isEditing={viewMode === "edit"}
-              onSubmit={handleSubmit}
-              onCancel={showList}
-              isLoading={isLoading}
-            />
-          )}
+      <pre>{JSON.stringify(servers, null, 2)}</pre>
+      <div className="grid grid-cols-1 gap-4 mb-4">
+        <McpGitHubCard config={github} onChange={() => loadServers()} />
+        {restServers.map((server) => (
+          <McpCard
+            key={server.name}
+            onDelete={() => confirmDeleteServer(server.name)}
+            icon={<Globe />}
+            config={server}
+            onConnect={() => handleOnConnect(server.name, server)}
+            onDisconnect={() => handleOnDisconnect(server.name, server)}
+            onUpdate={async (newConfig) => {
+              setEditingServer(server);
+              console.log("Updating server:", server.name, "with config:", newConfig);
+              // await handleSubmit(newConfig);
+            }}
+          />
+        ))}
+      </div>
+      {!showAddCustomMcpForm && (
+        <div className="flex flex-col items-center mb-4">
+          <span className="font-light text-sm my-4">OR</span>
+          <div
+            className={`w-full max-w-xl cursor-pointer mt-2 flex items-center justify-center rounded-lg border border-[rgba(255,255,255,0.24)] bg-[rgba(255,255,255,0.04)] py-4 px-6 opacity-100 text-base font-medium text-center select-none transition hover:bg-[rgba(255,255,255,0.08)]`}
+            onClick={() => {
+              setShowAddCustomMcpForm(true);
+            }}
+          >
+            + Add custom MCP
+          </div>
         </div>
-      </ScrollArea>
+      )}
+
+      {showAddCustomMcpForm && (
+        <McpServerFormCard
+          initialData={editingServer ?? null}
+          viewMode={"add"}
+          onSubmit={handleSubmit}
+          onCancel={handleCancel}
+          isLoading={isLoading}
+          servers={servers}
+        />
+      )}
+
+      <McpWhitelistDialog
+        server={whitelistServer}
+        onClose={() => setWhitelistServer(null)}
+        onSaved={async () => {
+          setWhitelistServer(null);
+          await loadServers();
+        }}
+      />
 
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
@@ -334,15 +346,6 @@ export function McpSettingsPanel({ isActive }: McpSettingsPanelProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <McpWhitelistDialog
-        server={whitelistServer}
-        onClose={() => setWhitelistServer(null)}
-        onSaved={async () => {
-          setWhitelistServer(null);
-          await loadServers();
-        }}
-      />
     </div>
   );
 }

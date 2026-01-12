@@ -22,8 +22,7 @@ export function AdvancedSettingsPanel() {
           <CardTitle>YouTube URL Workflow</CardTitle>
           <CardDescription>
             Adds a dedicated field under the recording controls so you can paste an existing YouTube
-            link for processing without recording a new video.
-            Note: Requires Python 3.10+ 
+            link for processing without recording a new video. Note: Requires Python 3.10+
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-between gap-4">

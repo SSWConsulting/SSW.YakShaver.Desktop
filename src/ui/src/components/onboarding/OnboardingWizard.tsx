@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { LLMConfig } from "@shared/types/llm";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
 import { toast } from "sonner";
 import * as z from "zod";
@@ -20,15 +20,11 @@ import { useCountdown } from "../../hooks/useCountdown";
 import { ipcClient } from "../../services/ipc-client";
 import type { HealthStatusInfo } from "../../types";
 import { AuthStatus } from "../../types";
-import {
-  type MCPServerConfig,
-  type MCPServerFormData,
-  McpServerForm,
-  mcpServerSchema,
-} from "../settings/mcp/McpServerForm";
+import { McpSettingsPanel } from "../settings/mcp/McpServerManager";
 import { Button } from "../ui/button";
 import { Form } from "../ui/form";
 import { ScrollArea } from "../ui/scroll-area";
+import { MCPServerConfig, MCPServerFormData } from "../settings/mcp/McpServerForm";
 
 type LLMProvider = "openai" | "deepseek";
 
@@ -76,7 +72,7 @@ const STEPS = [
     id: 3,
     icon: monitorPlay,
     title: "Connecting an MCP",
-    description: "Configure or choose which MCP server YakShaver will call.",
+    description: "Choose or configure which MCP server YakShaver will call.",
   },
 ];
 
@@ -85,25 +81,11 @@ const LLM_PROVIDER_OPTIONS = [
   { value: "deepseek", label: "DeepSeek" },
 ];
 
-const DEFAULT_MCP_VALUES: MCPServerFormData = {
-  name: "",
-  description: "",
-  transport: "streamableHttp",
-  url: "",
-  headers: "",
-  version: "",
-  timeoutMs: "",
-  command: "",
-  args: "",
-  env: "",
-  cwd: "",
-  stderr: "inherit",
-};
-
 export function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(1);
 
-  const [isMcpAdvancedOpen, setIsMcpAdvancedOpen] = useState(false);
+  const [isMcpFormOpen, setIsMcpFormOpen] = useState(false);
+  const [hasEnabledMcpServers, setHasEnabledMcpServers] = useState(false);
   const [hasYouTubeConfig] = useState(true);
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
@@ -129,16 +111,6 @@ export function OnboardingWizard() {
       provider: "openai",
       apiKey: "",
     },
-  });
-
-  const mcpForm = useForm<MCPServerFormData>({
-    resolver: zodResolver(mcpServerSchema),
-    defaultValues: { ...DEFAULT_MCP_VALUES },
-  });
-
-  const [watchedMcpName, watchedMcpUrl] = useWatch({
-    control: mcpForm.control,
-    name: ["name", "url"],
   });
 
   const { authState, startAuth, disconnect } = useYouTubeAuth();
@@ -207,12 +179,6 @@ export function OnboardingWizard() {
     };
   }, [updateConnectorPositions]);
 
-  useEffect(() => {
-    if (currentStep !== 3) {
-      setIsMcpAdvancedOpen(false);
-    }
-  }, [currentStep]);
-
   // Check LLM configuration status when on step 2
   useEffect(() => {
     const checkLLMConfig = async () => {
@@ -272,16 +238,6 @@ export function OnboardingWizard() {
       void checkLLMConfig();
     }
   }, [currentStep, llmForm]);
-
-  useEffect(() => {
-    if (currentStep !== 3) {
-      return;
-    }
-    // Onboarding should always ADD a new MCP server (never edit an existing one).
-    // Start with a blank form each time the user reaches step 3.
-    setHasMCPConfig(false);
-    mcpForm.reset({ ...DEFAULT_MCP_VALUES });
-  }, [currentStep, mcpForm]);
 
   const handleLLMSubmit = useCallback(async (values: LLMFormValues) => {
     setIsLLMSaving(true);
@@ -447,15 +403,9 @@ export function OnboardingWizard() {
   }, [hasLLMConfig, healthStatus?.isHealthy, llmForm]);
 
   const handleStep3Next = useCallback(async () => {
-    const isValid = await mcpForm.trigger();
-    if (!isValid) return false;
-
-    const saved = await saveMcpConfig(mcpForm.getValues());
-    if (!saved) return false;
-
     completeOnboarding();
     return true;
-  }, [completeOnboarding, mcpForm, saveMcpConfig]);
+  }, [completeOnboarding]);
 
   const handleNext = async () => {
     if (currentStep === 2) {
@@ -505,10 +455,11 @@ export function OnboardingWizard() {
   };
 
   const isMcpFormIncomplete = !watchedMcpName?.trim() || !watchedMcpUrl?.trim();
+
   const isNextDisabled =
     (currentStep === 1 && !isConnected) ||
     (currentStep === 2 && isLLMSaving) ||
-    (currentStep === 3 && (isMCPSaving || isMcpFormIncomplete));
+    (currentStep === 3 && !hasEnabledMcpServers);
 
   if (!isVisible) return null;
 
@@ -533,8 +484,8 @@ export function OnboardingWizard() {
             {currentStep === 1
               ? "Choose a platform to host your videos."
               : currentStep === 2
-              ? "Choose your provider and save the API details"
-              : "Configure or choose which MCP server YakShaver will call."}
+                ? "Choose your provider and save the API details"
+                : "Configure or choose which MCP server YakShaver will call."}
           </p>
         </div>
       </div>
@@ -590,65 +541,55 @@ export function OnboardingWizard() {
         )}
 
         {currentStep === 3 && (
-          <Form {...mcpForm}>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-              }}
-              className="flex flex-col gap-4"
-            >
-              <McpServerForm
-                form={mcpForm}
-                allowedTransports={["streamableHttp"]}
-                showAdvancedOptions={true}
-                advancedOpen={isMcpAdvancedOpen}
-                onAdvancedOpenChange={setIsMcpAdvancedOpen}
-              />
-            </form>
-          </Form>
+          <McpSettingsPanel
+            onFormOpenChange={setIsMcpFormOpen}
+            onHasEnabledServers={setHasEnabledMcpServers}
+            includeBuiltin={false}
+          />
         )}
+
       </div>
 
       {/* Card footer */}
-      <div className="flex h-16 items-center justify-end px-6 pb-6 w-full">
-        <div
-          className={`flex items-center w-full ${
-            currentStep > 1 ? "justify-between" : "justify-end"
-          }`}
-        >
-          {currentStep > 1 && (
+      {!isMcpFormOpen && (
+        <div className="flex h-16 items-center justify-end px-6 pb-6 w-full">
+          <div
+            className={`flex items-center w-full ${currentStep > 1 ? "justify-between" : "justify-end"
+              }`}
+          >
+            {currentStep > 1 && (
+              <Button
+                className="flex items-center justify-center px-4 py-2"
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handlePrevious}
+              >
+                Previous
+              </Button>
+            )}
+
             <Button
               className="flex items-center justify-center px-4 py-2"
-              type="button"
-              variant="outline"
               size="sm"
-              onClick={handlePrevious}
+              onClick={handleNext}
+              disabled={isNextDisabled}
             >
-              Previous
+              {currentStep === 2 && isLLMSaving
+                ? "Checking..."
+                : currentStep === 3 && isMCPSaving
+                  ? "Saving..."
+                  : currentStep === STEPS.length
+                    ? "Finish"
+                    : "Next"}
             </Button>
-          )}
-
-          <Button
-            className="flex items-center justify-center px-4 py-2"
-            size="sm"
-            onClick={handleNext}
-            disabled={isNextDisabled}
-          >
-            {currentStep === 2 && isLLMSaving
-              ? "Checking..."
-              : currentStep === 3 && isMCPSaving
-              ? "Saving..."
-              : currentStep === STEPS.length
-              ? "Finish"
-              : "Next"}
-          </Button>
+          </div>
         </div>
-      </div>
-    </div>
-  );
+      )}
+    </div>);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+    <div className="fixed inset-0 z-[40] flex items-center justify-center">
       <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
 
       <div className="relative flex w-full max-w-[1295px] h-[840px] bg-black/[0.44] border border-white/[0.24] rounded-lg shadow-sm p-2.5 gap-10">
@@ -673,9 +614,8 @@ export function OnboardingWizard() {
                 return (
                   <div
                     key={`connector-${nextStep.id}`}
-                    className={`absolute w-px transition-colors duration-300 ${
-                      status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                    }`}
+                    className={`absolute w-px transition-colors duration-300 ${status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
+                      }`}
                     style={{
                       left: position.left,
                       top: position.top,
@@ -692,31 +632,28 @@ export function OnboardingWizard() {
                       ref={(element) => {
                         stepIconRefs.current[index] = element;
                       }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                        getStepStatus(step.id) === "pending"
-                          ? "bg-[#432A1D]"
-                          : "bg-[#75594B]"
-                      }`}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${getStepStatus(step.id) === "pending"
+                        ? "bg-[#432A1D]"
+                        : "bg-[#75594B]"
+                        }`}
                     >
                       <img
                         src={step.icon}
                         alt={step.title}
-                        className={`w-6 h-6 transition-opacity duration-300 ${
-                          getStepStatus(step.id) === "pending"
-                            ? "opacity-40"
-                            : "opacity-100"
-                        }`}
+                        className={`w-6 h-6 transition-opacity duration-300 ${getStepStatus(step.id) === "pending"
+                          ? "opacity-40"
+                          : "opacity-100"
+                          }`}
                       />
                     </div>
                   </div>
 
                   <div className="flex flex-col justify-center w-[219px]">
                     <p
-                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                        getStepStatus(step.id) === "pending"
-                          ? "text-white/[0.56]"
-                          : "text-white/[0.98]"
-                      }`}
+                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${getStepStatus(step.id) === "pending"
+                        ? "text-white/[0.56]"
+                        : "text-white/[0.98]"
+                        }`}
                     >
                       {step.title}
                     </p>

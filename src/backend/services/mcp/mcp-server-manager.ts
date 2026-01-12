@@ -12,7 +12,7 @@ export class MCPServerManager {
   private static internalClientTransports: Map<string, InMemoryTransport> = new Map();
   private static mcpClients: Map<string, MCPServerClient> = new Map();
   private static mcpClientPromises: Map<string, Promise<MCPServerClient | null>> = new Map();
-  private constructor() {}
+  private constructor() { }
 
   public static async getInstanceAsync(): Promise<MCPServerManager> {
     if (MCPServerManager.instance) {
@@ -25,8 +25,9 @@ export class MCPServerManager {
 
   public async getAllMcpServerClientsAsync(): Promise<MCPServerClient[]> {
     const allConfigs = await MCPServerManager.getAllServerConfigsAsync();
+    const enabledConfigs = allConfigs.filter((c) => c.enabled !== false);
     const results = await Promise.allSettled(
-      allConfigs.map((config) => this.getMcpClientAsync(config.id)),
+      enabledConfigs.map((config) => this.getMcpClientAsync(config.id)),
     );
     return results
       .filter((r) => r.status === "fulfilled" && r.value)
@@ -134,6 +135,9 @@ export class MCPServerManager {
     }
 
     config.builtin = true;
+    config.enabled = true;
+
+    // Replace any existing entry with same name to keep latest config
     if (!config.id?.trim()) {
       throw new Error(`Internal MCP server '${config.name}' must have a stable id`);
     }
@@ -157,6 +161,7 @@ export class MCPServerManager {
     const result: MCPServerConfig[] = [];
     for (const s of internalServers) {
       if (!seen.has(s.id)) {
+        s.enabled = true; // built-in servers are always enabled
         seen.add(s.id);
         result.push(s);
       }

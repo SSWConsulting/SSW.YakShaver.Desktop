@@ -5,9 +5,7 @@ interface GitHubAppInstallGuideProps {
   appInstallUrl: string;
 }
 
-export function GitHubAppInstallGuide({
-  appInstallUrl,
-}: GitHubAppInstallGuideProps) {
+export function GitHubAppInstallGuide({ appInstallUrl }: GitHubAppInstallGuideProps) {
   const handleInstallApp = () => {
     window.open(appInstallUrl, "_blank");
   };
@@ -19,8 +17,7 @@ export function GitHubAppInstallGuide({
           GitHub App Authorization Required
         </p>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          To create issues in a repository, you must install our GitHub App and
-          grant it access.
+          To create issues in a repository, you must install our GitHub App and grant it access.
         </p>
       </div>
       <Button variant="outline" size="sm" onClick={handleInstallApp}>
