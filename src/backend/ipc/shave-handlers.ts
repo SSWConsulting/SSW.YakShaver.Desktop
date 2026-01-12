@@ -1,5 +1,10 @@
 import { ipcMain } from "electron";
-import type { CreateShaveData, CreateVideoData, UpdateShaveData } from "../db/schema";
+import type {
+  CreateShaveData,
+  CreateVideoData,
+  CreateVideoSourceData,
+  UpdateShaveData,
+} from "../db/schema";
 import { ShaveService } from "../services/shave/shave-service";
 import type { ShaveStatus } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
@@ -11,37 +16,45 @@ export class ShaveIPCHandlers {
   constructor() {
     ipcMain.handle(
       IPC_CHANNELS.SHAVE_CREATE,
-      (_, shave: CreateShaveData, videoFile?: CreateVideoData) =>
-        this.createShave(shave, videoFile),
+      (
+        _,
+        shave: CreateShaveData,
+        videoFile?: CreateVideoData,
+        videoSource?: CreateVideoSourceData,
+      ) => this.createShave(shave, videoFile, videoSource),
     );
-    ipcMain.handle(IPC_CHANNELS.SHAVE_GET_BY_ID, (_, id: number) => this.getShaveById(id));
+    ipcMain.handle(IPC_CHANNELS.SHAVE_GET_BY_ID, (_, id: string) => this.getShaveById(id));
     ipcMain.handle(IPC_CHANNELS.SHAVE_GET_ALL, () => this.getAllShaves());
     ipcMain.handle(
-      IPC_CHANNELS.SHAVE_ATTACH_VIDEO_FILE,
-      (_, shaveId: number, videoFile: CreateVideoData) =>
-        this.attachVideoFileToShave(shaveId, videoFile),
+      IPC_CHANNELS.SHAVE_ATTACH_VIDEO_SOURCE,
+      (_, shaveId: string, videoSource: CreateVideoSourceData) =>
+        this.attachVideoSourceToShave(shaveId, videoSource),
     );
     ipcMain.handle(IPC_CHANNELS.SHAVE_FIND_BY_VIDEO_URL, (_, videoEmbedUrl: string) =>
       this.findByVideoUrl(videoEmbedUrl),
     );
-    ipcMain.handle(IPC_CHANNELS.SHAVE_UPDATE, (_, id: number, data: UpdateShaveData) =>
+    ipcMain.handle(IPC_CHANNELS.SHAVE_UPDATE, (_, id: string, data: UpdateShaveData) =>
       this.updateShave(id, data),
     );
-    ipcMain.handle(IPC_CHANNELS.SHAVE_UPDATE_STATUS, (_, id: number, status: ShaveStatus) =>
+    ipcMain.handle(IPC_CHANNELS.SHAVE_UPDATE_STATUS, (_, id: string, status: ShaveStatus) =>
       this.updateShaveStatus(id, status),
     );
-    ipcMain.handle(IPC_CHANNELS.SHAVE_DELETE, (_, id: number) => this.deleteShave(id));
+    ipcMain.handle(IPC_CHANNELS.SHAVE_DELETE, (_, id: string) => this.deleteShave(id));
   }
 
-  private createShave(shave: CreateShaveData, videoFile?: CreateVideoData) {
+  private createShave(
+    shave: CreateShaveData,
+    videoFile?: CreateVideoData,
+    videoSource?: CreateVideoSourceData,
+  ) {
     try {
-      return { success: true, data: this.service.createShave(shave, videoFile) };
+      return { success: true, data: this.service.createShave(shave, videoFile, videoSource) };
     } catch (error) {
       return { success: false, error: formatErrorMessage(error) };
     }
   }
 
-  private getShaveById(id: number) {
+  private getShaveById(id: string) {
     try {
       const data = this.service.getShaveById(id);
       return { success: true, data };
@@ -68,7 +81,7 @@ export class ShaveIPCHandlers {
     }
   }
 
-  private updateShave(id: number, data: UpdateShaveData) {
+  private updateShave(id: string, data: UpdateShaveData) {
     try {
       const result = this.service.updateShave(id, data);
       return { success: true, data: result };
@@ -77,7 +90,7 @@ export class ShaveIPCHandlers {
     }
   }
 
-  private updateShaveStatus(id: number, status: ShaveStatus) {
+  private updateShaveStatus(id: string, status: ShaveStatus) {
     try {
       const result = this.service.updateShaveStatus(id, status);
       return { success: true, data: result };
@@ -86,16 +99,16 @@ export class ShaveIPCHandlers {
     }
   }
 
-  private attachVideoFileToShave(shaveId: number, videoFile: CreateVideoData) {
+  private attachVideoSourceToShave(shaveId: string, videoSource: CreateVideoSourceData) {
     try {
-      const result = this.service.attachVideoFileToShave(shaveId, videoFile);
+      const result = this.service.attachVideoSourceToShave(shaveId, videoSource);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: formatErrorMessage(error) };
     }
   }
 
-  private deleteShave(id: number) {
+  private deleteShave(id: string) {
     try {
       const result = this.service.deleteShave(id);
       return { success: true, data: result };

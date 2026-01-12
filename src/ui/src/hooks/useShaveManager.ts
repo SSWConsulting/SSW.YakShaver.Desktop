@@ -1,6 +1,10 @@
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
-import type { CreateShaveData, CreateVideoData } from "../../../backend/db/schema";
+import type {
+  CreateShaveData,
+  CreateVideoData,
+  CreateVideoSourceData,
+} from "../../../backend/db/schema";
 import { normalizeYouTubeUrl } from "../../../backend/utils/youtube-url-utils";
 import { ipcClient } from "../services/ipc-client";
 import { ShaveStatus, type WorkflowProgress } from "../types";
@@ -73,9 +77,13 @@ export function useShaveManager() {
    * Save a recording with video file metadata and shave information
    */
   const saveRecording = useCallback(
-    async (shaveData: CreateShaveData, recordingFile?: CreateVideoData) => {
+    async (
+      shaveData: CreateShaveData,
+      recordingFile?: CreateVideoData,
+      videoSource?: CreateVideoSourceData,
+    ) => {
       try {
-        const result = await ipcClient.shave.create(shaveData, recordingFile);
+        const result = await ipcClient.shave.create(shaveData, recordingFile, videoSource);
         toast.success("Saved to My Shaves", {
           description: "Your video was saved to My Shaves.",
         });
@@ -107,7 +115,7 @@ export function useShaveManager() {
       if (
         (progressData.stage === "uploading_source" ||
           progressData.stage === "downloading_source") &&
-        typeof shaveId === "number"
+        typeof shaveId === "string"
       ) {
         try {
           const shave = await ipcClient.shave.getById(shaveId);
@@ -121,18 +129,18 @@ export function useShaveManager() {
         }
       }
 
-      if (progressData.stage === "upload_completed" && typeof shaveId === "number") {
+      if (progressData.stage === "upload_completed" && typeof shaveId === "string") {
         const { uploadResult, sourceOrigin } = progressData;
 
         if (uploadResult?.data) {
           // Attach video file if source is external (e.g., YouTube)
           if (sourceOrigin === "external") {
             try {
-              await ipcClient.shave.attachVideoFile(shaveId, {
-                fileName: uploadResult.data.title,
-                filePath: uploadResult.data.url,
+              await ipcClient.shave.attachVideoSource(shaveId, {
+                title: uploadResult.data.title,
+                sourceUrl: uploadResult.data.url,
                 // Use -1 to explicitly indicate unknown duration
-                duration: uploadResult.data.duration ?? -1,
+                durationSeconds: uploadResult.data.duration ?? -1,
               });
             } catch (err) {
               console.error("[Shave] Error attaching external video file to shave:", err);
@@ -154,7 +162,7 @@ export function useShaveManager() {
       }
 
       // Update shave when there's final output
-      if (typeof progressData.finalOutput !== "undefined" && typeof shaveId === "number") {
+      if (typeof progressData.finalOutput !== "undefined" && typeof shaveId === "string") {
         const { uploadResult, finalOutput } = progressData;
 
         try {
