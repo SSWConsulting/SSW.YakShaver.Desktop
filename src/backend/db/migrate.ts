@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { getDb } from "./client";
+import { getDb, getDbPath } from "./client";
+import { DatabaseBackupService } from "./services/backup-service";
 
 const REQUIRED_TABLES = [
   "users",
@@ -80,17 +81,49 @@ export function runMigrations(): void {
 }
 
 /**
- * Initialize database with migrations
+ * Initialize database with automatic backup and rollback on failure
  * This is the main entry point for database initialization
  */
 export async function initDatabase(): Promise<void> {
+  const backupService = new DatabaseBackupService();
+  const dbPath = getDbPath();
+  let backupMetadata: Awaited<ReturnType<typeof backupService.createBackup>> | null = null;
+
   try {
-    console.log("[DB] Initializing database...");
+    // Only create backup if database file already exists (skip for fresh installs)
+    if (fs.existsSync(dbPath)) {
+      console.log("[DB] Creating backup before migration...");
+      backupMetadata = await backupService.createBackup(dbPath, "pre-migration");
+
+      const isValid = await backupService.verifyBackup(backupMetadata.backupPath);
+      if (!isValid) {
+        console.warn("[DB]Backup verification failed, proceeding without backup");
+        backupMetadata = null;
+      } else {
+        console.log(`[DB]Backup created: ${backupMetadata.backupPath}`);
+      }
+    }
     runMigrations();
     console.log("[DB] Database initialized successfully\n");
+    if (backupMetadata) {
+      console.log(`[DB] Backup available at: ${backupMetadata.backupPath}`);
+      // Cleanup old backups
+      await backupService.cleanupOldBackups();
+    }
   } catch (error) {
     console.error("\n[DB] ✗ DATABASE INITIALIZATION FAILED");
     console.error("[DB] Error details:", error);
+    // Attempt automatic rollback if we have a backup
+    if (backupMetadata) {
+      try {
+        await backupService.restoreBackup(backupMetadata.backupPath, dbPath);
+        console.log("[DB] Database restored to previous state");
+      } catch (rollbackError) {
+        console.error("[DB] Automatic rollback failed:", rollbackError);
+        console.error(`[DB] MANUAL RECOVERY REQUIRED: Restore from ${backupMetadata.backupPath}`);
+      }
+    }
+    console.error("\n[DB] DATABASE INITIALIZATION END (FAILED) \n");
     throw error;
   }
 }
