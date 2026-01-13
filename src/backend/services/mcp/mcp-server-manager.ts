@@ -12,7 +12,7 @@ export class MCPServerManager {
   private static internalClientTransports: Map<string, InMemoryTransport> = new Map();
   private static mcpClients: Map<string, MCPServerClient> = new Map();
   private static mcpClientPromises: Map<string, Promise<MCPServerClient | null>> = new Map();
-  private constructor() { }
+  private constructor() {}
 
   public static async getInstanceAsync(): Promise<MCPServerManager> {
     if (MCPServerManager.instance) {
@@ -197,8 +197,10 @@ export class MCPServerManager {
   private static async resolveServerConfigAsync(
     idOrName: string,
   ): Promise<MCPServerConfig | undefined> {
-    return (await MCPServerManager.getServerConfigByIdAsync(idOrName))
-      ?? (await MCPServerManager.getServerConfigByNameAsync(idOrName));
+    return (
+      (await MCPServerManager.getServerConfigByIdAsync(idOrName)) ??
+      (await MCPServerManager.getServerConfigByNameAsync(idOrName))
+    );
   }
 
   async addServerAsync(config: MCPServerConfig): Promise<void> {
@@ -221,7 +223,6 @@ export class MCPServerManager {
   }
 
   async updateServerAsync(serverId: string, config: MCPServerConfig): Promise<void> {
-
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
     let index = storedConfigs.findIndex((s) => s.id === serverId || s.name === serverId);
 

@@ -22,7 +22,6 @@ import { McpGitHubCard } from "./github/mcp-github-card";
 import { McpServerFormCard } from "./mcp-server-form-card";
 import { McpAzureDevOpsCard } from "./devops/mcp-devops-card";
 
-
 type ServerHealthStatus<T extends string = string> = Record<T, HealthStatusInfo>;
 
 interface McpSettingsPanelProps {
@@ -45,7 +44,10 @@ export function McpSettingsPanel({
   const [showAddCustomMcpForm, setShowAddCustomMcpForm] = useState(false);
   const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [serverToDelete, setServerToDelete] = useState<{ serverId: string; serverName: string } | null>(null);
+  const [serverToDelete, setServerToDelete] = useState<{
+    serverId: string;
+    serverName: string;
+  } | null>(null);
   const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
   const [whitelistServer, setWhitelistServer] = useState<MCPServerConfig | null>(null);
   const [appInstallUrl, setAppInstallUrl] = useState<string>("");
@@ -90,9 +92,7 @@ export function McpSettingsPanel({
     for (const server of serverList) {
       if (server.enabled === false) continue;
       try {
-        const result = (await ipcClient.mcp.checkServerHealthAsync(
-          server.id!,
-        )) as HealthStatusInfo;
+        const result = (await ipcClient.mcp.checkServerHealthAsync(server.id!)) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
           [server.id!]: { ...result, isChecking: false },
@@ -133,8 +133,6 @@ export function McpSettingsPanel({
     }
   }, [isActive, loadServers]);
 
-
-
   const confirmDeleteServer = useCallback((serverId: string, serverName: string) => {
     setServerToDelete({ serverId, serverName });
     setDeleteConfirmOpen(true);
@@ -162,8 +160,6 @@ export function McpSettingsPanel({
       setServerToDelete(null);
     }
   }, [serverToDelete, loadServers]);
-
-
 
   async function toggleSettings(
     serverId: string,
@@ -219,14 +215,15 @@ export function McpSettingsPanel({
   const github: MCPServerConfig | undefined = sortedServers.find(
     (server) => server.id === McpGitHubCard.Id,
   );
-  const azureDevOps: MCPServerConfig | undefined = sortedServers.find((s) => s.id === McpAzureDevOpsCard.Id);
+  const azureDevOps: MCPServerConfig | undefined = sortedServers.find(
+    (s) => s.id === McpAzureDevOpsCard.Id,
+  );
 
   const restServers: MCPServerConfig[] = sortedServers.filter(
     (server) => server.id !== McpGitHubCard.Id && server.id !== McpAzureDevOpsCard.Id,
   );
 
   function getHealthStatus(serverId?: string | null): HealthStatusInfo | null {
-
     if (!serverId) return null;
 
     return healthStatus[serverId] || null;
@@ -234,10 +231,19 @@ export function McpSettingsPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-
       <div className="grid grid-cols-1 gap-4 mb-4">
-        <McpGitHubCard config={github} onChange={() => loadServers()} healthInfo={getHealthStatus(github?.id)} onTools={() => github && openWhitelistDialog(github)} />
-        <McpAzureDevOpsCard config={azureDevOps} onChange={() => loadServers()} healthInfo={getHealthStatus(McpAzureDevOpsCard.Id)} onTools={() => azureDevOps && openWhitelistDialog(azureDevOps)} />
+        <McpGitHubCard
+          config={github}
+          onChange={() => loadServers()}
+          healthInfo={getHealthStatus(github?.id)}
+          onTools={() => github && openWhitelistDialog(github)}
+        />
+        <McpAzureDevOpsCard
+          config={azureDevOps}
+          onChange={() => loadServers()}
+          healthInfo={getHealthStatus(McpAzureDevOpsCard.Id)}
+          onTools={() => azureDevOps && openWhitelistDialog(azureDevOps)}
+        />
         {restServers.map((server) => (
           <>
             <McpCard
@@ -296,8 +302,8 @@ export function McpSettingsPanel({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {serverToDelete?.serverName}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove server '{serverToDelete?.serverName}'? This action cannot be
-              undone.
+              Are you sure you want to remove server '{serverToDelete?.serverName}'? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

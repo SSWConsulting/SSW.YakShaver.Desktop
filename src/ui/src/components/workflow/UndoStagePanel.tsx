@@ -4,17 +4,16 @@ import { deepParseJson } from "../../utils";
 import { ReasoningStep } from "./ReasoningStep";
 import { MCPStepType, type MCPStep } from "../../types";
 
-const handleDetailsToggle =
-  (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
-    const details = e.currentTarget;
-    if (details.open) {
-      const pre = details.querySelector("pre");
-      if (pre && !pre.dataset.parsed) {
-        pre.textContent = JSON.stringify(deepParseJson(data), null, 2);
-        pre.dataset.parsed = "true";
-      }
+const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
+  const details = e.currentTarget;
+  if (details.open) {
+    const pre = details.querySelector("pre");
+    if (pre && !pre.dataset.parsed) {
+      pre.textContent = JSON.stringify(deepParseJson(data), null, 2);
+      pre.dataset.parsed = "true";
     }
-  };
+  }
+};
 
 function ToolResultError({ error }: { error: string }) {
   return (
@@ -51,8 +50,7 @@ function ToolCallStep({
   serverName?: string;
   args?: unknown;
 }) {
-  const hasArgs =
-    typeof args === "object" && args !== null && Object.keys(args).length > 0;
+  const hasArgs = typeof args === "object" && args !== null && Object.keys(args).length > 0;
 
   return (
     <div className="space-y-1">
@@ -93,7 +91,6 @@ const StatusBadge = ({ status }: { status: UndoStagePanelProps["status"] }) => {
 };
 
 export function UndoStagePanel({ steps, status, stepsRef }: UndoStagePanelProps) {
-
   return (
     <div className="border border-purple-500/40 rounded-xl bg-purple-500/10 backdrop-blur px-4 py-3 space-y-3">
       <div className="flex items-center justify-between">
@@ -154,4 +151,3 @@ export function UndoStagePanel({ steps, status, stepsRef }: UndoStagePanelProps)
     </div>
   );
 }
-

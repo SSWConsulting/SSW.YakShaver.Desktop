@@ -6,7 +6,6 @@ import { HealthStatusInfo } from "../../../../../../backend/types";
 import { GitHubAppInstallGuide } from "../GitHubAppInstallGuide";
 import { useEffect, useState } from "react";
 
-
 interface McpGitHubCardProps {
   config?: MCPServerConfig;
   onChange?: (config: MCPServerConfig) => void;

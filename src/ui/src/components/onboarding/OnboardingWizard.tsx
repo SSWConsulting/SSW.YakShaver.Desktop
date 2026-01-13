@@ -5,19 +5,13 @@ import { useForm } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
 import { toast } from "sonner";
 import { PlatformConnectionCard } from "@/components/auth/PlatformConnectionCard";
-import {
-  LLMProviderFields,
-  type ProviderOption,
-} from "@/components/llm/LLMProviderFields";
+import { LLMProviderFields, type ProviderOption } from "@/components/llm/LLMProviderFields";
 import { formatErrorMessage } from "@/utils";
 import logo from "/logos/SQ-YakShaver-LogoIcon-Red.svg?url";
 import cpu from "/onboarding/cpu.svg?url";
 import monitorPlay from "/onboarding/monitor-play.svg?url";
 import { LLM_PROVIDER_CONFIGS } from "../../../../shared/llm/llm-providers";
-import {
-  ONBOARDING_COMPLETED_KEY,
-  ONBOARDING_FINISHED_EVENT,
-} from "../../constants/onboarding";
+import { ONBOARDING_COMPLETED_KEY, ONBOARDING_FINISHED_EVENT } from "../../constants/onboarding";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useCountdown } from "../../hooks/useCountdown";
 import { ipcClient } from "../../services/ipc-client";
@@ -73,13 +67,11 @@ const STEPS = [
 const PROVIDER_NAMES = Object.keys(LLM_PROVIDER_CONFIGS) as ProviderName[];
 
 const TRANSCRIPTION_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
-  (providerName) =>
-    LLM_PROVIDER_CONFIGS[providerName].defaultTranscriptionModel !== undefined
+  (providerName) => LLM_PROVIDER_CONFIGS[providerName].defaultTranscriptionModel !== undefined,
 ).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
 
 const LANGUAGE_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
-  (providerName) =>
-    LLM_PROVIDER_CONFIGS[providerName].defaultLanguageModel !== undefined
+  (providerName) => LLM_PROVIDER_CONFIGS[providerName].defaultLanguageModel !== undefined,
 ).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
 
 export function OnboardingWizard() {
@@ -88,14 +80,10 @@ export function OnboardingWizard() {
   const [isMcpFormOpen, setIsMcpFormOpen] = useState(false);
   const [hasEnabledMcpServers, setHasEnabledMcpServers] = useState(false);
   const [hasYouTubeConfig] = useState(true);
-  const [currentLLMConfig, setCurrentLLMConfig] = useState<LLMConfigV2 | null>(
-    null
-  );
+  const [currentLLMConfig, setCurrentLLMConfig] = useState<LLMConfigV2 | null>(null);
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(
-    null
-  );
+  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
   const [_hasMCPConfig, setHasMCPConfig] = useState(false);
   const [isMCPSaving, setIsMCPSaving] = useState(false);
   const [isVisible, setIsVisible] = useState(() => {
@@ -105,9 +93,7 @@ export function OnboardingWizard() {
   });
   const stepListRef = useRef<HTMLDivElement | null>(null);
   const stepIconRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [connectorPositions, setConnectorPositions] = useState<
-    ConnectorPosition[]
-  >([]);
+  const [connectorPositions, setConnectorPositions] = useState<ConnectorPosition[]>([]);
 
   const llmForm = useForm<ModelConfig>({
     defaultValues: {
@@ -149,8 +135,7 @@ export function OnboardingWizard() {
 
         const top = currentRect.bottom - containerRect.top;
         const height = nextRect.top - currentRect.bottom;
-        const left =
-          currentRect.left - containerRect.left + currentRect.width / 2 - 0.5;
+        const left = currentRect.left - containerRect.left + currentRect.width / 2 - 0.5;
 
         if (height > 0) {
           positions.push({ top, height, left });
@@ -182,8 +167,6 @@ export function OnboardingWizard() {
     };
   }, [updateConnectorPositions]);
 
-
-
   // Check LLM configuration status when on step 2 or 3
   useEffect(() => {
     const isLLMStep = currentStep === 2 || currentStep === 3;
@@ -192,8 +175,7 @@ export function OnboardingWizard() {
     const checkLLMConfig = async () => {
       try {
         const cfg = await ipcClient.llm.getConfig();
-        const modelType =
-          currentStep === 2 ? "languageModel" : "transcriptionModel";
+        const modelType = currentStep === 2 ? "languageModel" : "transcriptionModel";
         const modelCfg = cfg?.[modelType];
         setHasLLMConfig(!!modelCfg);
         setCurrentLLMConfig(cfg);
@@ -217,17 +199,14 @@ export function OnboardingWizard() {
                   setHealthStatus({
                     isHealthy: false,
                     isChecking: false,
-                    error:
-                      healthResult.error || "Failed to connect to LLM provider",
+                    error: healthResult.error || "Failed to connect to LLM provider",
                   });
                   setHasLLMConfig(false);
                 } else {
                   setHealthStatus({
                     isHealthy: true,
                     isChecking: false,
-                    successMessage:
-                      healthResult.successMessage ||
-                      "API key validated successfully",
+                    successMessage: healthResult.successMessage || "API key validated successfully",
                   });
                   setHasLLMConfig(true);
                 }
@@ -261,15 +240,13 @@ export function OnboardingWizard() {
     // Onboarding should always ADD a new MCP server (never edit an existing one).
     // Start with a blank form each time the user reaches step 3.
     setHasMCPConfig(false);
-
   }, [currentStep]);
 
   const handleLLMSubmit = useCallback(
     async (values: ModelConfig) => {
       setIsLLMSaving(true);
       try {
-        const modelType =
-          currentStep === 2 ? "languageModel" : "transcriptionModel";
+        const modelType = currentStep === 2 ? "languageModel" : "transcriptionModel";
         await ipcClient.llm.setConfig({
           ...(currentLLMConfig as LLMConfigV2),
           [modelType]: values,
@@ -277,7 +254,7 @@ export function OnboardingWizard() {
         toast.success(
           values.provider === "openai"
             ? "OpenAI configuration saved"
-            : "DeepSeek configuration saved"
+            : "DeepSeek configuration saved",
         );
         setHasLLMConfig(true);
       } catch (e) {
@@ -286,7 +263,7 @@ export function OnboardingWizard() {
         setIsLLMSaving(false);
       }
     },
-    [currentLLMConfig, currentStep]
+    [currentLLMConfig, currentStep],
   );
 
   const handleProviderChange = (value: ProviderName) => {
@@ -296,7 +273,6 @@ export function OnboardingWizard() {
     } as ModelConfig);
     setHealthStatus(null);
   };
-
 
   // Auto-validate API key on input change
   useEffect(() => {
@@ -314,8 +290,7 @@ export function OnboardingWizard() {
 
           try {
             const values = llmForm.getValues();
-            const modelType =
-              currentStep === 2 ? "languageModel" : "transcriptionModel";
+            const modelType = currentStep === 2 ? "languageModel" : "transcriptionModel";
             await ipcClient.llm.setConfig({
               ...(currentLLMConfig as LLMConfigV2),
               [modelType]: values as ModelConfig,
@@ -328,17 +303,14 @@ export function OnboardingWizard() {
                 setHealthStatus({
                   isHealthy: false,
                   isChecking: false,
-                  error:
-                    healthResult.error || "Failed to connect to LLM provider",
+                  error: healthResult.error || "Failed to connect to LLM provider",
                 });
                 setHasLLMConfig(false);
               } else {
                 setHealthStatus({
                   isHealthy: true,
                   isChecking: false,
-                  successMessage:
-                    healthResult.successMessage ||
-                    "API key validated successfully",
+                  successMessage: healthResult.successMessage || "API key validated successfully",
                 });
                 setHasLLMConfig(true);
               }
@@ -392,13 +364,11 @@ export function OnboardingWizard() {
     toast.success(
       llmForm.getValues().provider === "openai"
         ? "OpenAI configuration saved"
-        : "DeepSeek configuration saved"
+        : "DeepSeek configuration saved",
     );
     setCurrentStep((s) => s + 1);
     return true;
   }, [hasLLMConfig, healthStatus?.isHealthy, llmForm, currentStep]);
-
-
 
   const handleNext = async () => {
     if (currentStep === 2 || currentStep === 3) {
@@ -407,7 +377,6 @@ export function OnboardingWizard() {
     }
 
     if (currentStep === 4) {
-
       completeOnboarding();
       return;
     }
@@ -492,11 +461,7 @@ export function OnboardingWizard() {
             <PlatformConnectionCard
               icon={<FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />}
               title="YouTube"
-              subtitle={
-                isConnected && userInfo?.channelName
-                  ? userInfo.channelName
-                  : undefined
-              }
+              subtitle={isConnected && userInfo?.channelName ? userInfo.channelName : undefined}
               badgeText={isConnected ? "Connected" : undefined}
               onAction={handleYouTubeAction}
               actionLabel={getYouTubeButtonText()}
@@ -506,9 +471,7 @@ export function OnboardingWizard() {
           ) : (
             <div className="text-center py-8 px-4 text-white/[0.56]">
               <p className="mb-2 text-sm">No platforms available</p>
-              <p className="text-xs italic">
-                Configure YouTube API credentials to get started
-              </p>
+              <p className="text-xs italic">Configure YouTube API credentials to get started</p>
             </div>
           ))}
 
@@ -524,13 +487,9 @@ export function OnboardingWizard() {
                   providerField="provider"
                   apiKeyField="apiKey"
                   providerOptions={
-                    currentStep === 2
-                      ? LANGUAGE_PROVIDER_NAMES
-                      : TRANSCRIPTION_PROVIDER_NAMES
+                    currentStep === 2 ? LANGUAGE_PROVIDER_NAMES : TRANSCRIPTION_PROVIDER_NAMES
                   }
-                  onProviderChange={(value) =>
-                    handleProviderChange(value as ProviderName)
-                  }
+                  onProviderChange={(value) => handleProviderChange(value as ProviderName)}
                   healthStatus={currentStep === 2 ? healthStatus : undefined}
                   selectContentClassName="z-[70]"
                 />
@@ -540,7 +499,9 @@ export function OnboardingWizard() {
         )}
 
         {currentStep === 4 && (
-          <> has enabled server: {JSON.stringify(hasEnabledMcpServers)}
+          <>
+            {" "}
+            has enabled server: {JSON.stringify(hasEnabledMcpServers)}
             <McpSettingsPanel
               onFormOpenChange={setIsMcpFormOpen}
               onHasEnabledServers={setHasEnabledMcpServers}
@@ -548,50 +509,48 @@ export function OnboardingWizard() {
               viewMode="compact"
             />
           </>
-        )
-        }
-
-      </div >
+        )}
+      </div>
 
       {/* Card footer */}
-      {
-        !isMcpFormOpen && (
-          <div className="flex h-16 items-center justify-end px-6 pb-6 w-full">
-            <div
-              className={`flex items-center w-full ${currentStep > 1 ? "justify-between" : "justify-end"
-                }`}
-            >
-              {currentStep > 1 && (
-                <Button
-                  className="flex items-center justify-center px-4 py-2"
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePrevious}
-                >
-                  Previous
-                </Button>
-              )}
-
+      {!isMcpFormOpen && (
+        <div className="flex h-16 items-center justify-end px-6 pb-6 w-full">
+          <div
+            className={`flex items-center w-full ${
+              currentStep > 1 ? "justify-between" : "justify-end"
+            }`}
+          >
+            {currentStep > 1 && (
               <Button
                 className="flex items-center justify-center px-4 py-2"
+                type="button"
+                variant="outline"
                 size="sm"
-                onClick={handleNext}
-                disabled={isNextDisabled}
+                onClick={handlePrevious}
               >
-                {currentStep === 2 && isLLMSaving
-                  ? "Checking..."
-                  : currentStep === 4 && isMCPSaving
-                    ? "Saving..."
-                    : currentStep === STEPS.length
-                      ? "Finish"
-                      : "Next"}
+                Previous
               </Button>
-            </div >
-          </div >
-        )
-      }
-    </div >);
+            )}
+
+            <Button
+              className="flex items-center justify-center px-4 py-2"
+              size="sm"
+              onClick={handleNext}
+              disabled={isNextDisabled}
+            >
+              {currentStep === 2 && isLLMSaving
+                ? "Checking..."
+                : currentStep === 4 && isMCPSaving
+                  ? "Saving..."
+                  : currentStep === STEPS.length
+                    ? "Finish"
+                    : "Next"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-[40] flex items-center justify-center">
@@ -619,8 +578,9 @@ export function OnboardingWizard() {
                 return (
                   <div
                     key={`connector-${nextStep.id}`}
-                    className={`absolute w-px transition-colors duration-300 ${status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                      }`}
+                    className={`absolute w-px transition-colors duration-300 ${
+                      status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
+                    }`}
                     style={{
                       left: position.left,
                       top: position.top,
@@ -637,28 +597,27 @@ export function OnboardingWizard() {
                       ref={(element) => {
                         stepIconRefs.current[index] = element;
                       }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${getStepStatus(step.id) === "pending"
-                        ? "bg-[#432A1D]"
-                        : "bg-[#75594B]"
-                        }`}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
+                        getStepStatus(step.id) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
+                      }`}
                     >
                       <img
                         src={step.icon}
                         alt={step.title}
-                        className={`w-6 h-6 transition-opacity duration-300 ${getStepStatus(step.id) === "pending"
-                          ? "opacity-40"
-                          : "opacity-100"
-                          }`}
+                        className={`w-6 h-6 transition-opacity duration-300 ${
+                          getStepStatus(step.id) === "pending" ? "opacity-40" : "opacity-100"
+                        }`}
                       />
                     </div>
                   </div>
 
                   <div className="flex flex-col justify-center w-[219px]">
                     <p
-                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${getStepStatus(step.id) === "pending"
-                        ? "text-white/[0.56]"
-                        : "text-white/[0.98]"
-                        }`}
+                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
+                        getStepStatus(step.id) === "pending"
+                          ? "text-white/[0.56]"
+                          : "text-white/[0.98]"
+                      }`}
                     >
                       {step.title}
                     </p>
@@ -672,21 +631,15 @@ export function OnboardingWizard() {
           </div>
         </div>
         <div className="flex flex-col flex-1 min-w-0 h-full">
-          {
-            currentStep === 4 ? (
-              <ScrollArea className="w-full h-full">
-                <div className="flex flex-col px-20 py-40">
-                  {rightPanelContent}
-                </div>
-              </ScrollArea>
-            ) : (
-              <div className="flex flex-col w-full px-20 py-40">
-                {rightPanelContent}
-              </div>
-            )
-          }
-        </div >
-      </div >
-    </div >
+          {currentStep === 4 ? (
+            <ScrollArea className="w-full h-full">
+              <div className="flex flex-col px-20 py-40">{rightPanelContent}</div>
+            </ScrollArea>
+          ) : (
+            <div className="flex flex-col w-full px-20 py-40">{rightPanelContent}</div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

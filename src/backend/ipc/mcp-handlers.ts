@@ -73,8 +73,8 @@ export class McpIPCHandlers {
             name,
             description:
               value &&
-                typeof value === "object" &&
-                "description" in (value as { description?: string })
+              typeof value === "object" &&
+              "description" in (value as { description?: string })
                 ? (value as { description?: string }).description
                 : undefined,
           }));

@@ -4,9 +4,7 @@ interface TranscriptionModelKeyManagerProps {
   isActive: boolean;
 }
 
-export function TranscriptionModelKeyManager({
-  isActive,
-}: TranscriptionModelKeyManagerProps) {
+export function TranscriptionModelKeyManager({ isActive }: TranscriptionModelKeyManagerProps) {
   return (
     <BaseModelKeyManager
       isActive={isActive}

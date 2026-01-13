@@ -87,12 +87,8 @@
           "name": "shaves_video_file_id_video_files_id_fk",
           "tableFrom": "shaves",
           "tableTo": "video_files",
-          "columnsFrom": [
-            "video_file_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["video_file_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }

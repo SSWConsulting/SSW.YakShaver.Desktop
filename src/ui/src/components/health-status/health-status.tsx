@@ -29,7 +29,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
       error,
       ...props
     },
-    ref
+    ref,
   ) => {
     if (isDisabled) {
       return (
@@ -72,21 +72,16 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
           <div className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-2 text-xs shadow-lg break-words whitespace-normal">
             {successDetails ? (
               <div className="space-y-1">
-                <div className="font-semibold text-green-400">
-                  Token is valid
-                </div>
+                <div className="font-semibold text-green-400">Token is valid</div>
                 {successDetails.username ? (
                   <div>
-                    <span className="text-white/80">User:</span>{" "}
-                    {successDetails.username}
+                    <span className="text-white/80">User:</span> {successDetails.username}
                   </div>
                 ) : null}
                 {successDetails.scopes && successDetails.scopes.length > 0 ? (
                   <div>
                     <span className="text-white/80">Scopes:</span>{" "}
-                    <span className="font-mono">
-                      {successDetails.scopes.join(", ")}
-                    </span>
+                    <span className="font-mono">{successDetails.scopes.join(", ")}</span>
                   </div>
                 ) : null}
                 {typeof successDetails.rateLimitRemaining === "number" ? (
@@ -105,11 +100,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
     }
 
     return (
-      <div
-        ref={ref}
-        className={cn("group relative flex items-center gap-2", className)}
-        {...props}
-      >
+      <div ref={ref} className={cn("group relative flex items-center gap-2", className)} {...props}>
         <XCircle
           className="h-5 w-5 text-ssw-red"
           aria-label={error ? `Unhealthy: ${error}` : "Unhealthy"}
@@ -118,12 +109,10 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
           <div className="font-semibold text-ssw-red">Unhealthy</div>
           {error ? <div className="text-white/90">{error}</div> : null}
         </div>
-        {error ? (
-          <span className="sr-only">{`Unhealthy: ${error}`}</span>
-        ) : null}
+        {error ? <span className="sr-only">{`Unhealthy: ${error}`}</span> : null}
       </div>
     );
-  }
+  },
 );
 
 HealthStatus.displayName = "HealthStatus";

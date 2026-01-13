@@ -28,7 +28,7 @@ export function McpCard({
   onUpdate,
   isReadOnly,
   onTools,
-  healthInfo = null
+  healthInfo = null,
 }: McpCardProps) {
   const [showSettings, setShowSettings] = useState(false);
   return (
@@ -41,8 +41,15 @@ export function McpCard({
       {!showSettings && (
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center">
-
-            {healthInfo && <HealthStatus isChecking={healthInfo.isChecking} isDisabled={!config.enabled} isHealthy={healthInfo.isHealthy} successMessage={healthInfo.successMessage} className="mr-4" />}
+            {healthInfo && (
+              <HealthStatus
+                isChecking={healthInfo.isChecking}
+                isDisabled={!config.enabled}
+                isHealthy={healthInfo.isHealthy}
+                successMessage={healthInfo.successMessage}
+                className="mr-4"
+              />
+            )}
             <span className="size-8 flex items-center justify-center">{icon}</span>
             <div className="flex flex-col ml-4">
               <span className="text-base font-medium">{config.name}</span>
@@ -53,13 +60,17 @@ export function McpCard({
           </div>
 
           <div className="flex items-center gap-2">
-
-            {onTools && <Button variant="outline" onClick={() => onTools()}> Tools </Button>}
+            {onTools && (
+              <Button variant="outline" onClick={() => onTools()}>
+                {" "}
+                Tools{" "}
+              </Button>
+            )}
             {!config.enabled && (
               <Button
                 variant="outline"
                 className="cursor-pointer"
-                onClick={e => {
+                onClick={(e) => {
                   e.stopPropagation();
                   onConnect && onConnect();
                 }}
@@ -71,7 +82,7 @@ export function McpCard({
               <Button
                 variant="destructive"
                 className="cursor-pointer"
-                onClick={e => {
+                onClick={(e) => {
                   e.stopPropagation();
                   onDisconnect && onDisconnect();
                 }}
@@ -106,7 +117,6 @@ export function McpCard({
           />
         </div>
       )}
-
     </div>
   );
 }

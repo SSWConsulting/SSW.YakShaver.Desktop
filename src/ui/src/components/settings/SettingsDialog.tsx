@@ -1,13 +1,7 @@
 import { Settings } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
 import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
@@ -67,9 +61,7 @@ const TABS: SettingsTab[] = [
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
-  const [activeTabId, setActiveTabId] = useState<string>(
-    TABS[0]?.id ?? "release"
-  );
+  const [activeTabId, setActiveTabId] = useState<string>(TABS[0]?.id ?? "release");
   const leaveHandlerRef = useRef<LeaveHandler | null>(null);
 
   const registerLeaveHandler = useCallback((handler: LeaveHandler | null) => {
@@ -101,7 +93,7 @@ export function SettingsDialog() {
       }
       setOpen(true);
     },
-    [attemptClose]
+    [attemptClose],
   );
 
   const attemptTabChange = useCallback(
@@ -121,22 +113,18 @@ export function SettingsDialog() {
         }
       })();
     },
-    [activeTabId, registerLeaveHandler]
+    [activeTabId, registerLeaveHandler],
   );
 
   const activeTab = useMemo(
     () => TABS.find((tab) => tab.id === activeTabId) ?? TABS[0],
-    [activeTabId]
+    [activeTabId],
   );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button
-          size="sm"
-          className="flex items-center gap-2"
-          aria-label="Open settings"
-        >
+        <Button size="sm" className="flex items-center gap-2" aria-label="Open settings">
           <Settings className="h-4 w-4" />
           <span>Settings</span>
         </Button>
@@ -163,9 +151,7 @@ export function SettingsDialog() {
                   type="button"
                   onClick={() => attemptTabChange(tab.id)}
                   className={`text-left px-3 py-2 rounded-md transition-colors border border-transparent ${
-                    isActive
-                      ? "bg-white/10 border-white/20"
-                      : "text-white/60 hover:bg-white/5"
+                    isActive ? "bg-white/10 border-white/20" : "text-white/60 hover:bg-white/5"
                   }`}
                 >
                   <div className="text-sm font-medium">{tab.label}</div>
@@ -178,19 +164,13 @@ export function SettingsDialog() {
             <ScrollArea className="h-full pr-1">
               <div className="pb-4 pr-2">
                 {activeTab?.id === "toolApproval" && (
-                  <ToolApprovalSettingsPanel
-                    isActive={open && activeTabId === "toolApproval"}
-                  />
+                  <ToolApprovalSettingsPanel isActive={open && activeTabId === "toolApproval"} />
                 )}
                 {activeTab?.id === "release" && (
-                  <ReleaseChannelSettingsPanel
-                    isActive={open && activeTabId === "release"}
-                  />
+                  <ReleaseChannelSettingsPanel isActive={open && activeTabId === "release"} />
                 )}
                 {activeTab?.id === "github" && (
-                  <GitHubTokenSettingsPanel
-                    isActive={open && activeTabId === "github"}
-                  />
+                  <GitHubTokenSettingsPanel isActive={open && activeTabId === "github"} />
                 )}
                 {activeTab?.id === "prompts" && (
                   <CustomPromptSettingsPanel
@@ -199,9 +179,7 @@ export function SettingsDialog() {
                   />
                 )}
                 {activeTab?.id === "language" && (
-                  <LanguageModelKeyManager
-                    isActive={open && activeTabId === "language"}
-                  />
+                  <LanguageModelKeyManager isActive={open && activeTabId === "language"} />
                 )}
                 {activeTab?.id === "transcription" && (
                   <TranscriptionModelKeyManager
@@ -213,9 +191,7 @@ export function SettingsDialog() {
                 )}
                 {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
                 {activeTab?.id === "account" && (
-                  <AccountSettingsPanel
-                    isActive={open && activeTabId === "account"}
-                  />
+                  <AccountSettingsPanel isActive={open && activeTabId === "account"} />
                 )}
               </div>
             </ScrollArea>

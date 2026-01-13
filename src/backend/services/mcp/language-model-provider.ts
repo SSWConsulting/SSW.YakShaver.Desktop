@@ -48,7 +48,7 @@ export class LanguageModelProvider {
   private static instance: LanguageModelProvider | null = null;
   private languageModel: LanguageModel | null = null;
 
-  private constructor() { }
+  private constructor() {}
 
   static async getInstance(): Promise<LanguageModelProvider> {
     if (!LanguageModelProvider.instance) {
@@ -101,8 +101,8 @@ export class LanguageModelProvider {
     // remove 'execute' functions from tools before passing to generateText to prevent ai sdk auto execute the tool
     const sanitizedTools = tools
       ? Object.fromEntries(
-        Object.entries(tools).map(([name, { execute, ...rest }]) => [name, rest]),
-      )
+          Object.entries(tools).map(([name, { execute, ...rest }]) => [name, rest]),
+        )
       : undefined;
 
     const response = await generateText({
@@ -132,7 +132,8 @@ export class LanguageModelProvider {
       return schema.parse(output);
     } catch (error) {
       throw new Error(
-        `[LanguageModelProvider]: Failed to generate object matching schema. Prompt: "${prompt}". Schema: ${schema?.toString?.() || "[unknown schema]"
+        `[LanguageModelProvider]: Failed to generate object matching schema. Prompt: "${prompt}". Schema: ${
+          schema?.toString?.() || "[unknown schema]"
         }. Original error: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -155,7 +156,8 @@ export class LanguageModelProvider {
       return JSON.stringify(output);
     } catch (error) {
       throw new Error(
-        `[LanguageModelProvider]: Failed to generate object matching schema. Prompt: "${prompt}". Original error: ${error instanceof Error ? error.message : String(error)
+        `[LanguageModelProvider]: Failed to generate object matching schema. Prompt: "${prompt}". Original error: ${
+          error instanceof Error ? error.message : String(error)
         }`,
       );
     }

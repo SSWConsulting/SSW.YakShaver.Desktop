@@ -28,13 +28,12 @@ import { RecordingControlBarWindow } from "./services/recording/control-bar-wind
 import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
 
-
 const isDev = process.env.NODE_ENV === "development";
 
 // Set a custom userData directory in development to avoid conflicts with production
 if (isDev) {
-  const devUserData = join(app.getPath('appData'), 'YakShaverDev');
-  app.setPath('userData', devUserData);
+  const devUserData = join(app.getPath("appData"), "YakShaverDev");
+  app.setPath("userData", devUserData);
 }
 
 // Load .env early (before app.whenReady)

@@ -213,13 +213,13 @@ const electronAPI = {
     onStepUpdate: (
       callback: (step: {
         type:
-        | "start"
-        | "reasoning"
-        | "tool_call"
-        | "tool_result"
-        | "final_result"
-        | "tool_approval_required"
-        | "tool_denied";
+          | "start"
+          | "reasoning"
+          | "tool_call"
+          | "tool_result"
+          | "final_result"
+          | "tool_approval_required"
+          | "tool_denied";
         message?: string;
         toolName?: string;
         serverName?: string;
