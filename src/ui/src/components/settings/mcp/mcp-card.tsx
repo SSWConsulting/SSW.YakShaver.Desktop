@@ -60,12 +60,10 @@ export function McpCard({
           </div>
 
           <div className="flex items-center gap-2">
-            {viewMode === "detailed" && (
-              onTools && (
-                <Button variant="outline" onClick={() => onTools()}>
-                  Tools
-                </Button>
-              )
+            {viewMode === "detailed" && onTools && (
+              <Button variant="outline" onClick={() => onTools()}>
+                Tools
+              </Button>
             )}
             {!config.enabled && (
               <Button
@@ -93,34 +91,31 @@ export function McpCard({
             )}
           </div>
         </div>
-      )
-      }
+      )}
 
-      {
-        showSettings && !isReadOnly && (
-          <div onClick={(e) => e.stopPropagation()}>
-            <McpServerFormWrapper
-              isEditing={true}
-              initialData={config}
-              onCancel={() => {
-                setShowSettings(false);
-              }}
-              onSubmit={(data) => {
-                setShowSettings(false);
+      {showSettings && !isReadOnly && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <McpServerFormWrapper
+            isEditing={true}
+            initialData={config}
+            onCancel={() => {
+              setShowSettings(false);
+            }}
+            onSubmit={(data) => {
+              setShowSettings(false);
 
-                return onUpdate?.(data) ?? Promise.resolve();
-              }}
-              onDelete={
-                onDelete ??
-                (() => {
-                  setShowSettings(false);
-                })
-              }
-              isLoading={false}
-            />
-          </div>
-        )
-      }
-    </div >
+              return onUpdate?.(data) ?? Promise.resolve();
+            }}
+            onDelete={
+              onDelete ??
+              (() => {
+                setShowSettings(false);
+              })
+            }
+            isLoading={false}
+          />
+        </div>
+      )}
+    </div>
   );
 }
