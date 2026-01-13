@@ -12,7 +12,7 @@ export class MCPServerManager {
   private static internalClientTransports: Map<string, InMemoryTransport> = new Map();
   private static mcpClients: Map<string, MCPServerClient> = new Map();
   private static mcpClientPromises: Map<string, Promise<MCPServerClient | null>> = new Map();
-  private constructor() {}
+  private constructor() { }
 
   public static async getInstanceAsync(): Promise<MCPServerManager> {
     if (MCPServerManager.instance) {
@@ -214,9 +214,7 @@ export class MCPServerManager {
     if (storedConfigs.some((s) => s.id === server.id)) {
       throw new Error(`Server with id '${server.id}' already exists`);
     }
-    if (storedConfigs.some((s) => s.name === server.name)) {
-      throw new Error(`Server with name '${server.name}' already exists`);
-    }
+
 
     storedConfigs.push(server);
     await this.saveConfigAsync(storedConfigs);
@@ -259,7 +257,7 @@ export class MCPServerManager {
 
   async removeServerAsync(serverId: string): Promise<void> {
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
-    const index = storedConfigs.findIndex((s) => s.id === serverId || s.name === serverId);
+    const index = storedConfigs.findIndex((s) => s.id === serverId);
     if (index === -1) throw new Error(`Server '${serverId}' not found`);
     const existing = storedConfigs[index];
     storedConfigs.splice(index, 1);
@@ -398,18 +396,18 @@ export class MCPServerManager {
     });
   }
 
-  public async addToolToServerWhitelistAsync(serverName: string, toolName: string): Promise<void> {
+  public async addToolToServerWhitelistAsync(serverId: string, toolName: string): Promise<void> {
     const storage = McpStorage.getInstance();
     let serverConfigs = await storage.getMcpServerConfigsAsync();
-    const targetIndex = serverConfigs.findIndex((server) => server.name === serverName);
+    const targetIndex = serverConfigs.findIndex((server) => server.id === serverId);
 
     if (targetIndex === -1) {
       const internalConfig = MCPServerManager.internalServerConfigs.find(
-        (s) => s.name === serverName,
+        (s) => s.id === serverId,
       );
 
       if (!internalConfig) {
-        throw new Error(`[McpStorage]: MCP server with name ${serverName} not found`);
+        throw new Error(`[McpStorage]: MCP server with name ${serverId} not found`);
       }
 
       const newConfig = {
