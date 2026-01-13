@@ -8,6 +8,7 @@ interface MCPBaseConfig {
   transport: "streamableHttp" | "stdio" | "inMemory";
   builtin?: boolean; // True for internal/built-in servers
   toolWhitelist?: string[];
+  enabled?: boolean;
 }
 
 interface MCPHttpServerConfig extends MCPBaseConfig {

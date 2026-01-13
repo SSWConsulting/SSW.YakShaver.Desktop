@@ -3,9 +3,9 @@ import { unlink, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { desktopCapturer, systemPreferences } from "electron";
 import tmp from "tmp";
+import { SCREEN_RECORDING_ERRORS } from "../../../shared/constants/error-messages";
 import { getMainWindow } from "../../index";
 import { formatErrorMessage } from "../../utils/error-utils";
-import { SCREEN_RECORDING_ERRORS } from "../../../shared/constants/error-messages";
 import type { VideoUploadResult } from "../auth/types";
 import type { ScreenSource, StartRecordingResult, StopRecordingResult } from "./types";
 

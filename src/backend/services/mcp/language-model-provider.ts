@@ -209,6 +209,7 @@ export class LanguageModelProvider {
       if (!this.languageModel) {
         return {
           isHealthy: false,
+          isChecking: false,
           error: "Language model not initialized",
         };
       }
@@ -224,11 +225,13 @@ export class LanguageModelProvider {
       return {
         isHealthy: true,
         successMessage: `Healthy - Model: ${response}`,
+        isChecking: false,
       };
     } catch (err) {
       return {
         isHealthy: false,
         error: formatErrorMessage(err),
+        isChecking: false,
       };
     }
   }

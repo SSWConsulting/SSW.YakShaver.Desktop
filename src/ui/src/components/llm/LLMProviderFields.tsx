@@ -85,11 +85,7 @@ export function LLMProviderFields<TFieldValues extends FieldValues>({
               </FormControl>
               <SelectContent className={selectContentClassName}>
                 {providerOptions.map((option) => (
-                  <SelectItem
-                    key={option.value}
-                    value={option.value}
-                    disabled={option.disabled}
-                  >
+                  <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
                     {option.label}
                   </SelectItem>
                 ))}
@@ -114,6 +110,7 @@ export function LLMProviderFields<TFieldValues extends FieldValues>({
                     isHealthy={healthStatus.isHealthy ?? false}
                     successMessage={healthStatus.successMessage}
                     error={healthStatus.error}
+                    isDisabled={healthStatus.isHealthy === false}
                   />
                 </div>
               )}
@@ -122,10 +119,7 @@ export function LLMProviderFields<TFieldValues extends FieldValues>({
                   {...field}
                   placeholder={apiKeyPlaceholder}
                   type="password"
-                  className={cn(
-                    healthStatus && showHealthIndicator ? "pl-10" : "",
-                    inputClassName
-                  )}
+                  className={cn(healthStatus && showHealthIndicator ? "pl-10" : "", inputClassName)}
                 />
               </FormControl>
             </div>

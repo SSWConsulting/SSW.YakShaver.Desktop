@@ -6,15 +6,15 @@ interface LLMConfigBase {
   apiKey: string;
 }
 
-interface OpenAIConfig extends LLMConfigBase {
+export interface OpenAIConfig extends LLMConfigBase {
   provider: "openai";
 }
 
-interface DeepSeekConfig extends LLMConfigBase {
+export interface DeepSeekConfig extends LLMConfigBase {
   provider: "deepseek";
 }
 
-interface AzureOpenAIConfig extends LLMConfigBase {
+export interface AzureOpenAIConfig extends LLMConfigBase {
   provider: "azure";
   resourceName: string;
 }

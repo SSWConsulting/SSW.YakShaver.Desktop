@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import type { MCPServerConfig } from "./McpServerForm";
 import { ipcClient } from "../../../services/ipc-client";
+import { Button } from "../../ui/button";
+import { Checkbox } from "../../ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -10,9 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../ui/dialog";
-import { Checkbox } from "../../ui/checkbox";
 import { ScrollArea } from "../../ui/scroll-area";
-import { Button } from "../../ui/button";
+import type { MCPServerConfig } from "./McpServerForm";
 
 type ToolSummary = { name: string; description?: string };
 
@@ -59,14 +59,14 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
   const disabled = useMemo(() => isLoading || isSaving, [isLoading, isSaving]);
 
   const handleSave = useCallback(async () => {
-    if (!server) return;
+    if (!server || !server.id) return;
     setIsSaving(true);
     try {
       const updated: MCPServerConfig = {
         ...server,
         toolWhitelist: Array.from(selected),
-      } as MCPServerConfig;
-      await ipcClient.mcp.updateServerAsync(server.id ?? server.name, updated);
+      };
+      await ipcClient.mcp.updateServerAsync(server.id, updated);
       toast.success(`Whitelist updated for '${server.name}'`);
       onSaved();
     } catch (e) {
@@ -93,21 +93,21 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
             )}
             {!isLoading && tools.length > 0 && (
               <div className="flex flex-col gap-2">
-              {tools.map((tool) => (
-                <div key={tool.name} className="flex items-start gap-3">
-                  <Checkbox
-                    className="mt-1"
-                    checked={selected.has(tool.name)}
-                    onCheckedChange={() => toggleTool(tool.name)}
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm">{tool.name}</p>
-                    {tool.description && (
-                      <p className="text-xs text-muted-foreground">{tool.description}</p>
-                    )}
+                {tools.map((tool) => (
+                  <div key={tool.name} className="flex items-start gap-3">
+                    <Checkbox
+                      className="mt-1"
+                      checked={selected.has(tool.name)}
+                      onCheckedChange={() => toggleTool(tool.name)}
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm">{tool.name}</p>
+                      {tool.description && (
+                        <p className="text-xs text-muted-foreground">{tool.description}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
               </div>
             )}
           </div>

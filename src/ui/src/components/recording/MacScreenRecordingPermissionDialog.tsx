@@ -14,15 +14,16 @@ type MacScreenRecordingPermissionDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-export function MacScreenRecordingPermissionDialog({ open, onOpenChange }: MacScreenRecordingPermissionDialogProps) {
+export function MacScreenRecordingPermissionDialog({
+  open,
+  onOpenChange,
+}: MacScreenRecordingPermissionDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Permission Required</DialogTitle>
-          <DialogDescription>
-            YakShaver needs permission to record your screen.
-          </DialogDescription>
+          <DialogDescription>YakShaver needs permission to record your screen.</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
