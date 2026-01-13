@@ -668,7 +668,7 @@ export function OnboardingWizard() {
           </div>
         </div>
         <div className="flex flex-col flex-1 min-w-0 h-full">
-          {currentStep === 3 /* && isMcpAdvancedOpen */ ? (
+          {currentStep === 3 ? (
             <ScrollArea className="w-full h-full">
               <div className="flex flex-col px-20 py-40">
                 {rightPanelContent}
