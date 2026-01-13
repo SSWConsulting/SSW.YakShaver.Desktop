@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Copy, Trash2 } from "lucide-react";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useClipboard } from "../../../hooks/useClipboard";
 import { ipcClient } from "../../../services/ipc-client";
@@ -44,28 +44,13 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
     const [serversLoaded, setServersLoaded] = useState(false);
     const hasAutoSelectedServers = useRef(false);
 
-    // Memoize safe default values to prevent unnecessary re-renders
-    // Ensure selectedMcpServerIds is always an array, never undefined
-    const safeDefaultValues = useMemo(
-      () =>
-        defaultValues
-          ? { ...defaultValues, selectedMcpServerIds: defaultValues.selectedMcpServerIds ?? [] }
-          : { name: "", description: "", content: "", selectedMcpServerIds: [] as string[] },
-      [defaultValues],
-    );
-
     const form = useForm<PromptFormValues>({
       resolver: zodResolver(promptFormSchema),
-      defaultValues: safeDefaultValues,
+      defaultValues: defaultValues
+        ? { ...defaultValues, selectedMcpServerIds: defaultValues.selectedMcpServerIds ?? [] }
+        : { name: "", description: "", content: "", selectedMcpServerIds: [] },
       mode: "onChange",
     });
-
-    // Reset form when defaultValues change (e.g., switching between prompts)
-    useEffect(() => {
-      form.reset(safeDefaultValues);
-      hasAutoSelectedServers.current = false; // Reset flag when prompt changes
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [safeDefaultValues]);
 
     // Load MCP servers on mount
     useEffect(() => {
