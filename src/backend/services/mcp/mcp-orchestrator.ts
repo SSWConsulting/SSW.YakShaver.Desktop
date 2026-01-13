@@ -400,19 +400,12 @@ export class MCPOrchestrator {
       autoApproveAt: options?.autoApproveAt,
     });
 
-    const TOOL_APPROVAL_TIMEOUT_MS = 60_000; // 60 seconds
     const decision = await new Promise<ToolApprovalDecision>((resolve) => {
       // Store resolver for normal approval/denial
       this.pendingToolApprovals.set(requestId, (result: ToolApprovalDecision) => {
-        clearTimeout(timeoutId);
         this.pendingToolApprovals.delete(requestId);
         resolve(result);
       });
-      // Timeout fallback
-      const timeoutId = setTimeout(() => {
-        this.pendingToolApprovals.delete(requestId);
-        resolve({ kind: "deny_stop" }); // Denied by timeout
-      }, TOOL_APPROVAL_TIMEOUT_MS);
     });
 
     return { requestId, decision };
@@ -427,5 +420,12 @@ export class MCPOrchestrator {
     this.pendingToolApprovals.delete(requestId);
     resolver(decision);
     return true;
+  }
+
+  public cancelAllPendingApprovals(reason = "Session cancelled"): void {
+    for (const resolve of this.pendingToolApprovals.values()) {
+      resolve({ kind: "deny_stop", feedback: reason });
+    }
+    this.pendingToolApprovals.clear();
   }
 }
