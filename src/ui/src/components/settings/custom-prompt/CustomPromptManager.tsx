@@ -158,6 +158,7 @@ export function CustomPromptSettingsPanel({
             name: editingPrompt.name,
             description: editingPrompt.description || "",
             content: editingPrompt.content,
+            selectedMcpServerIds: editingPrompt.selectedMcpServerIds,
           }
         : undefined,
     [editingPrompt],
@@ -185,6 +186,7 @@ export function CustomPromptSettingsPanel({
         onDelete={editingPrompt && !editingPrompt.isDefault ? handleDelete : undefined}
         loading={promptManager.loading}
         isDefault={editingPrompt?.isDefault}
+        isNewPrompt={viewMode === "create"}
       />
     );
   };

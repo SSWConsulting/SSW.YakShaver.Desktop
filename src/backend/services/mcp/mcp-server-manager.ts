@@ -70,6 +70,36 @@ export class MCPServerManager {
     return combined;
   }
 
+  /**
+   * Collect tools from selected servers only.
+   * If serverIds is undefined or empty, returns tools from all servers (backward compatibility).
+   */
+  public async collectToolsForSelectedServersAsync(serverIds?: string[]): Promise<ToolSet> {
+    // If no filter provided or empty, use all servers (backward compatibility)
+    const clients =
+      serverIds && serverIds.length > 0
+        ? await this.getSelectedMcpServerClientsAsync(serverIds)
+        : await this.getAllMcpServerClientsAsync();
+
+    if (!clients.length) {
+      throw new Error("[MCPServerManager]: No MCP clients available for selected servers");
+    }
+
+    const results = await Promise.allSettled(
+      clients.map((client) => client.listToolsWithServerPrefixAsync()),
+    );
+    const toolMaps = results
+      .filter((r) => r.status === "fulfilled")
+      .map((r) => MCPServerManager.normalizeTools((r as PromiseFulfilledResult<unknown>).value));
+
+    const combined = Object.assign({}, ...toolMaps) as ToolSet;
+
+    if (Object.keys(combined).length === 0) {
+      throw new Error("[MCPServerManager]: No tools available from selected/healthy servers");
+    }
+    return combined;
+  }
+
   // Get or Create MCP client for a given server name
   public async getMcpClientAsync(serverIdOrName: string): Promise<MCPServerClient | null> {
     const config = await MCPServerManager.resolveServerConfigAsync(serverIdOrName);

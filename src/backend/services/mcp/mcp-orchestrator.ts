@@ -76,6 +76,7 @@ export class MCPOrchestrator {
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
       videoFilePath?: string; // local video file path for screenshot capture
+      serverFilter?: string[]; // if provided, only include tools from these server IDs
     } = {},
   ): Promise<string | undefined> {
     // Ensure LLM has been initialized
@@ -90,7 +91,7 @@ export class MCPOrchestrator {
     }
 
     // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsWithServerPrefixAsync();
+    const tools = await serverManager.collectToolsForSelectedServersAsync(options.serverFilter);
     const toolApprovalSettingsStorage = ToolApprovalSettingsStorage.getInstance();
 
     let systemPrompt =
@@ -337,7 +338,7 @@ export class MCPOrchestrator {
     }
 
     // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsWithServerPrefixAsync();
+    const tools = await serverManager.collectToolsForSelectedServersAsync(options.serverFilter);
 
     let systemPrompt =
       options.systemPrompt ??

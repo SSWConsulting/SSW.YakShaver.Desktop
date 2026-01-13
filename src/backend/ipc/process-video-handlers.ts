@@ -90,6 +90,7 @@ export class ProcessVideoIPCHandlers {
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+          const serverFilter = customPrompt?.selectedMcpServerIds;
 
           const filePath =
             this.lastVideoFilePath && fs.existsSync(this.lastVideoFilePath)
@@ -104,8 +105,9 @@ export class ProcessVideoIPCHandlers {
               ? {
                   systemPrompt,
                   videoFilePath: filePath,
+                  serverFilter,
                 }
-              : { systemPrompt },
+              : { systemPrompt, serverFilter },
           );
 
           notify(ProgressStage.COMPLETED, {
@@ -216,11 +218,13 @@ export class ProcessVideoIPCHandlers {
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+      const serverFilter = customPrompt?.selectedMcpServerIds;
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
       const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
         systemPrompt,
         videoFilePath: filePath,
+        serverFilter,
       });
 
       // if user logged in, send work item details to the portal

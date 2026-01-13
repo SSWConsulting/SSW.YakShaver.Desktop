@@ -136,10 +136,16 @@ declare global {
           name: string;
           description?: string;
           content: string;
+          selectedMcpServerIds?: string[];
         }) => Promise<CustomPrompt>;
         updatePrompt: (
           id: string,
-          updates: { name?: string; description?: string; content?: string },
+          updates: {
+            name?: string;
+            description?: string;
+            content?: string;
+            selectedMcpServerIds?: string[];
+          },
         ) => Promise<boolean>;
         deletePrompt: (id: string) => Promise<boolean>;
         setActivePrompt: (id: string) => Promise<boolean>;

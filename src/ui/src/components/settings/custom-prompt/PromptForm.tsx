@@ -1,9 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Copy, Trash2 } from "lucide-react";
-import { forwardRef, useEffect, useImperativeHandle } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useClipboard } from "../../../hooks/useClipboard";
+import { ipcClient } from "../../../services/ipc-client";
 import { Button } from "../../ui/button";
+import { Checkbox } from "../../ui/checkbox";
 import {
   Form,
   FormControl,
@@ -15,6 +17,7 @@ import {
 } from "../../ui/form";
 import { Input } from "../../ui/input";
 import { Textarea } from "../../ui/textarea";
+import type { MCPServerConfig } from "../mcp/McpServerForm";
 import { type PromptFormValues, promptFormSchema } from "./schema";
 
 interface PromptFormProps {
@@ -24,6 +27,7 @@ interface PromptFormProps {
   onDelete?: () => void;
   loading: boolean;
   isDefault?: boolean;
+  isNewPrompt?: boolean;
 }
 
 export interface PromptFormRef {
@@ -31,8 +35,13 @@ export interface PromptFormRef {
 }
 
 export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
-  ({ defaultValues, onSubmit, onCancel, onDelete, loading, isDefault = false }, ref) => {
+  (
+    { defaultValues, onSubmit, onCancel, onDelete, loading, isDefault = false, isNewPrompt = false },
+    ref,
+  ) => {
     const { copyToClipboard } = useClipboard();
+    const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
+    const [serversLoaded, setServersLoaded] = useState(false);
 
     const form = useForm<PromptFormValues>({
       resolver: zodResolver(promptFormSchema),
@@ -40,9 +49,32 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
         name: "",
         description: "",
         content: "",
+        selectedMcpServerIds: [],
       },
       mode: "onChange",
     });
+
+    // Load MCP servers on mount
+    useEffect(() => {
+      const loadServers = async () => {
+        try {
+          const servers = await ipcClient.mcp.listServers();
+          setMcpServers(servers);
+          setServersLoaded(true);
+
+          // For existing prompts without selectedMcpServerIds, auto-select all servers
+          const currentSelection = form.getValues("selectedMcpServerIds");
+          if (!isNewPrompt && (!currentSelection || currentSelection.length === 0)) {
+            const allServerIds = servers.map((s) => s.id).filter((id): id is string => !!id);
+            form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
+          }
+        } catch (error) {
+          console.error("Failed to load MCP servers:", error);
+          setServersLoaded(true);
+        }
+      };
+      void loadServers();
+    }, [form, isNewPrompt]);
 
     // Subscribe to formState to ensure it's tracked
     const { isDirty } = form.formState;
@@ -67,6 +99,22 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
       if (!isValid) return;
 
       const data = form.getValues();
+
+      // Validate that at least one non-built-in MCP server is selected (if any are available)
+      const availableNonBuiltinServers = mcpServers.filter((server) => !server.builtin);
+      if (availableNonBuiltinServers.length > 0) {
+        const selectedNonBuiltinServers = availableNonBuiltinServers.filter((server) =>
+          data.selectedMcpServerIds?.includes(server.id!),
+        );
+        if (selectedNonBuiltinServers.length === 0) {
+          form.setError("selectedMcpServerIds", {
+            type: "manual",
+            message: "At least one non-built-in MCP server must be selected",
+          });
+          return;
+        }
+      }
+
       await onSubmit(data, andActivate);
     };
 
@@ -152,6 +200,78 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
               </FormItem>
             )}
           />
+
+          {serversLoaded && mcpServers.length > 0 && (
+            <FormField
+              control={form.control}
+              name="selectedMcpServerIds"
+              render={({ field }) => (
+                <FormItem className="shrink-0">
+                  <FormLabel>MCP Servers *</FormLabel>
+                  <FormDescription>
+                    Select which MCP servers will receive this prompt's output
+                  </FormDescription>
+                  <div className="flex flex-col gap-2 mt-2 p-3 rounded-md border border-white/20 bg-black/20">
+                    {mcpServers
+                      .filter((server): server is MCPServerConfig & { id: string } => !!server.id)
+                      .map((server) => (
+                        <div
+                          key={server.id}
+                          className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-1 rounded"
+                          onClick={() => {
+                            const currentValue = field.value || [];
+                            const isCurrentlyChecked = currentValue.includes(server.id);
+                            const newValue = isCurrentlyChecked
+                              ? currentValue.filter((id) => id !== server.id)
+                              : [...currentValue, server.id];
+                            field.onChange(newValue);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              const currentValue = field.value || [];
+                              const isCurrentlyChecked = currentValue.includes(server.id);
+                              const newValue = isCurrentlyChecked
+                                ? currentValue.filter((id) => id !== server.id)
+                                : [...currentValue, server.id];
+                              field.onChange(newValue);
+                            }
+                          }}
+                          role="checkbox"
+                          aria-checked={field.value?.includes(server.id) ?? false}
+                          tabIndex={0}
+                        >
+                          <Checkbox
+                            checked={field.value?.includes(server.id) ?? false}
+                            onCheckedChange={(checked) => {
+                              if (checked === "indeterminate") return;
+                              const currentValue = field.value || [];
+                              const newValue = checked
+                                ? [...currentValue, server.id]
+                                : currentValue.filter((id) => id !== server.id);
+                              field.onChange(newValue);
+                            }}
+                          />
+                          <span className="text-sm">
+                            {server.name}
+                            {server.builtin && (
+                              <span className="ml-2 text-xs text-white/50">(Built-in)</span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {serversLoaded && mcpServers.length === 0 && (
+            <div className="text-sm text-yellow-500/80 p-3 rounded-md border border-yellow-500/30 bg-yellow-500/10">
+              No MCP servers configured. Please add MCP servers in the MCP settings tab.
+            </div>
+          )}
 
           <div className="flex justify-between gap-2 shrink-0">
             {onDelete && (
