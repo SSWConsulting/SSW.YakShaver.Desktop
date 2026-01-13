@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Copy, Trash2 } from "lucide-react";
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useClipboard } from "../../../hooks/useClipboard";
 import { ipcClient } from "../../../services/ipc-client";
@@ -42,40 +42,69 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
     const { copyToClipboard } = useClipboard();
     const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
     const [serversLoaded, setServersLoaded] = useState(false);
+    const hasAutoSelectedServers = useRef(false);
+
+    // Memoize safe default values to prevent unnecessary re-renders
+    // Ensure selectedMcpServerIds is always an array, never undefined
+    const safeDefaultValues = useMemo(
+      () =>
+        defaultValues
+          ? { ...defaultValues, selectedMcpServerIds: defaultValues.selectedMcpServerIds ?? [] }
+          : { name: "", description: "", content: "", selectedMcpServerIds: [] as string[] },
+      [defaultValues],
+    );
 
     const form = useForm<PromptFormValues>({
       resolver: zodResolver(promptFormSchema),
-      defaultValues: defaultValues || {
-        name: "",
-        description: "",
-        content: "",
-        selectedMcpServerIds: [],
-      },
+      defaultValues: safeDefaultValues,
       mode: "onChange",
     });
 
+    // Reset form when defaultValues change (e.g., switching between prompts)
+    useEffect(() => {
+      form.reset(safeDefaultValues);
+      hasAutoSelectedServers.current = false; // Reset flag when prompt changes
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [safeDefaultValues]);
+
     // Load MCP servers on mount
     useEffect(() => {
+      let cancelled = false;
       const loadServers = async () => {
         try {
           const servers = await ipcClient.mcp.listServers();
+          if (cancelled) return;
           setMcpServers(servers);
           setServersLoaded(true);
-
-          // For existing prompts without selectedMcpServerIds, auto-select all servers
-          const currentSelection = form.getValues("selectedMcpServerIds");
-          if (!isNewPrompt && (!currentSelection || currentSelection.length === 0)) {
-            const allServerIds = servers.map((s) => s.id).filter((id): id is string => !!id);
-            form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
-          }
         } catch (error) {
           console.error("Failed to load MCP servers:", error);
-          setServersLoaded(true);
+          if (!cancelled) setServersLoaded(true);
         }
       };
       void loadServers();
+      return () => {
+        cancelled = true;
+      };
+    }, []);
+
+    // Auto-select all servers for existing prompts without selectedMcpServerIds
+    // This runs once after servers are loaded
+    useEffect(() => {
+      if (
+        serversLoaded &&
+        !isNewPrompt &&
+        !hasAutoSelectedServers.current &&
+        mcpServers.length > 0
+      ) {
+        const currentSelection = form.getValues("selectedMcpServerIds");
+        if (!currentSelection || currentSelection.length === 0) {
+          const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
+          form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
+        }
+        hasAutoSelectedServers.current = true;
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isNewPrompt]);
+    }, [serversLoaded, isNewPrompt, mcpServers]);
 
     // Subscribe to formState to ensure it's tracked
     const { isDirty } = form.formState;
@@ -88,13 +117,6 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
       }),
       [isDirty],
     );
-
-    useEffect(() => {
-      if (defaultValues) {
-        form.reset(defaultValues);
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [defaultValues]);
 
     const handleSubmit = async (andActivate: boolean) => {
       const isValid = await form.trigger();
