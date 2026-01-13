@@ -33,7 +33,6 @@ interface McpSettingsPanelProps {
 
 export function McpSettingsPanel({
   isActive = true,
-  onFormOpenChange,
   onHasEnabledServers,
   includeBuiltin = true,
   viewMode = "compact",
