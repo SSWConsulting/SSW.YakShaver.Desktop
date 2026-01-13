@@ -71,7 +71,7 @@ export function McpCard({
                 className="cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onConnect && onConnect();
+                  onConnect?.();
                 }}
               >
                 Connect
@@ -83,7 +83,7 @@ export function McpCard({
                 className="cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDisconnect && onDisconnect();
+                  onDisconnect?.();
                 }}
               >
                 Disconnect
