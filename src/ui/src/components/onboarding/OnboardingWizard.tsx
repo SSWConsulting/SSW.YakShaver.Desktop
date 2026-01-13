@@ -672,17 +672,18 @@ export function OnboardingWizard() {
           </div>
         </div>
         <div className="flex flex-col flex-1 min-w-0 h-full">
-          {currentStep === 4 ? (
-            <ScrollArea className="w-full h-full">
-              <div className="flex flex-col px-20 py-40">
+          {
+            currentStep === 4 ? (
+              <ScrollArea className="w-full h-full">
+                <div className="flex flex-col px-20 py-40">
+                  {rightPanelContent}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="flex flex-col w-full px-20 py-40">
                 {rightPanelContent}
               </div>
-            </ScrollArea>
-          ) : (
-            <div className="flex flex-col w-full px-20 py-40">
-              {rightPanelContent}
-            </div>
-          )
+            )
           }
         </div >
       </div >
