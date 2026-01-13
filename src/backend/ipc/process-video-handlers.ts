@@ -7,8 +7,9 @@ import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
-import { LLMClientProvider } from "../services/mcp/llm-client-provider";
+import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
+import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
@@ -189,23 +190,23 @@ export class ProcessVideoIPCHandlers {
       notify(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
-      const llmClientProvider = await LLMClientProvider.getInstanceAsync();
-      if (!llmClientProvider) {
-        throw new Error("LLM Client Provider is not initialized");
-      }
+      const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
 
       notify(ProgressStage.TRANSCRIBING);
-      const transcript = await llmClientProvider.transcribeAudio(mp3FilePath);
+      const transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
       const transcriptText = transcript.map((seg) => seg.text).join("");
+
       notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
       notify(ProgressStage.GENERATING_TASK);
+
+      const languageModelProvider = await LanguageModelProvider.getInstance();
 
       const userPrompt = `Process the following transcript into a structured JSON object:
       
       ${transcriptText}`;
 
-      const intermediateOutput = await llmClientProvider.generateJson(
+      const intermediateOutput = await languageModelProvider.generateJson(
         userPrompt,
         INITIAL_SUMMARY_PROMPT,
       );

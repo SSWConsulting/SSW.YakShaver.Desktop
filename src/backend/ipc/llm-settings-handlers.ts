@@ -1,6 +1,6 @@
 import type { LLMConfigV2 } from "@shared/types/llm";
 import { type IpcMainInvokeEvent, ipcMain } from "electron";
-import { LLMClientProvider } from "../services/mcp/llm-client-provider";
+import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { LlmStorage } from "../services/storage/llm-storage";
 import { IPC_CHANNELS } from "./channels";
 
@@ -32,7 +32,8 @@ export class LLMSettingsIPCHandlers {
     });
 
     ipcMain.handle(IPC_CHANNELS.LLM_CHECK_HEALTH, async () => {
-      return await LLMClientProvider.checkHealthAsync();
+      const provider = await LanguageModelProvider.getInstance();
+      return await provider.checkHealth();
     });
   }
 }

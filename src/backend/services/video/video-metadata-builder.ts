@@ -2,7 +2,7 @@ import type { TranscriptSegment } from "@shared/types/transcript.js";
 import { z } from "zod";
 import { METADATA_SYSTEM_PROMPT } from "../../constants/prompts.js";
 import type { YouTubeSnippetUpdate } from "../auth/types.js";
-import { LLMClientProvider } from "../mcp/llm-client-provider.js";
+import { LanguageModelProvider } from "../mcp/language-model-provider.js";
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s)]+/gi;
 
@@ -75,12 +75,12 @@ export class VideoMetadataBuilder {
         : "None",
     ].join("\n");
 
-    const llmClientProvider = await LLMClientProvider.getInstanceAsync();
-    if (!llmClientProvider) {
-      throw new Error("LLM Client Provider is not initialized");
-    }
+    const languageModelProvider = await LanguageModelProvider.getInstance();
 
-    const response = await llmClientProvider.generateJson(promptPayload, METADATA_SYSTEM_PROMPT);
+    const response = await languageModelProvider.generateJson(
+      promptPayload,
+      METADATA_SYSTEM_PROMPT,
+    );
 
     const parsedResponse = safeJsonParse<MetadataModelResponse>(response) || {};
 
