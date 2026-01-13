@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import { defineConfig } from "vite";
 
+// Disable minification for PR preview builds to get full React error messages
+const isDebugBuild = process.env.VITE_DEBUG_BUILD === "true";
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: "./",
@@ -16,6 +19,7 @@ export default defineConfig({
     outDir: "dist",
     assetsDir: "assets",
     emptyOutDir: true,
+    minify: isDebugBuild ? false : "esbuild",
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "index.html"),

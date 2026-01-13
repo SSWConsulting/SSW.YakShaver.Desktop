@@ -158,6 +158,7 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
+          VITE_DEBUG_BUILD: true
 
       - name: Fix update manifest filenames
         shell: pwsh
@@ -285,6 +286,7 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
+          VITE_DEBUG_BUILD: true
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v6
