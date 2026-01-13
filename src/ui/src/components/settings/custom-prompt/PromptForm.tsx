@@ -1,11 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Copy, Trash2 } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Check, Copy, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useClipboard } from "../../../hooks/useClipboard";
 import { ipcClient } from "../../../services/ipc-client";
 import { Button } from "../../ui/button";
-import { Checkbox } from "../../ui/checkbox";
 import {
   Form,
   FormControl,
@@ -19,76 +18,6 @@ import { Input } from "../../ui/input";
 import { Textarea } from "../../ui/textarea";
 import type { MCPServerConfig } from "../mcp/McpServerForm";
 import { type PromptFormValues, promptFormSchema } from "./schema";
-
-// Memoized checkbox row to prevent re-renders from causing Radix ref issues
-const ServerCheckboxRow = memo(function ServerCheckboxRow({
-  server,
-  isChecked,
-  onToggle,
-}: {
-  server: MCPServerConfig & { id: string };
-  isChecked: boolean;
-  onToggle: (serverId: string) => void;
-}) {
-  return (
-    <div
-      className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-1 rounded"
-      onClick={() => onToggle(server.id)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle(server.id);
-        }
-      }}
-      role="checkbox"
-      aria-checked={isChecked}
-      tabIndex={0}
-    >
-      <Checkbox checked={isChecked} />
-      <span className="text-sm">
-        {server.name}
-        {server.builtin && (
-          <span className="ml-2 text-xs text-white/50">(Built-in)</span>
-        )}
-      </span>
-    </div>
-  );
-});
-
-// Wrapper component with stable toggle handler
-function ServerCheckboxList({
-  servers,
-  selectedIds,
-  onChange,
-}: {
-  servers: (MCPServerConfig & { id: string })[];
-  selectedIds: string[];
-  onChange: (value: string[]) => void;
-}) {
-  const handleToggle = useCallback(
-    (serverId: string) => {
-      const isChecked = selectedIds.includes(serverId);
-      const newValue = isChecked
-        ? selectedIds.filter((id) => id !== serverId)
-        : [...selectedIds, serverId];
-      onChange(newValue);
-    },
-    [selectedIds, onChange]
-  );
-
-  return (
-    <div className="flex flex-col gap-2 mt-2 p-3 rounded-md border border-white/20 bg-black/20">
-      {servers.map((server) => (
-        <ServerCheckboxRow
-          key={server.id}
-          server={server}
-          isChecked={selectedIds.includes(server.id)}
-          onToggle={handleToggle}
-        />
-      ))}
-    </div>
-  );
-}
 
 interface PromptFormProps {
   defaultValues?: PromptFormValues;
@@ -293,13 +222,59 @@ export function PromptForm({
                   <FormDescription>
                     Select which MCP servers will receive this prompt's output
                   </FormDescription>
-                  <ServerCheckboxList
-                    servers={mcpServers.filter(
-                      (server): server is MCPServerConfig & { id: string } => !!server.id
-                    )}
-                    selectedIds={field.value || []}
-                    onChange={field.onChange}
-                  />
+                  {/* Note: Using styled divs instead of Radix UI Checkbox here because
+                      Radix Checkbox causes React Error #185 (infinite loop) when used
+                      inside FormField + map + conditional rendering. The issue is related
+                      to Radix's internal ref management conflicting with this render pattern.
+                      Multiple workarounds were attempted (memoization, removing handlers,
+                      pointer-events-none) but none resolved the issue. */}
+                  <div className="flex flex-col gap-2 mt-2 p-3 rounded-md border border-white/20 bg-black/20">
+                    {mcpServers
+                      .filter((server): server is MCPServerConfig & { id: string } => !!server.id)
+                      .map((server) => {
+                        const isChecked = field.value?.includes(server.id) ?? false;
+                        return (
+                          <div
+                            key={server.id}
+                            className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-1 rounded"
+                            onClick={() => {
+                              const newValue = isChecked
+                                ? (field.value || []).filter((id) => id !== server.id)
+                                : [...(field.value || []), server.id];
+                              field.onChange(newValue);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                const newValue = isChecked
+                                  ? (field.value || []).filter((id) => id !== server.id)
+                                  : [...(field.value || []), server.id];
+                                field.onChange(newValue);
+                              }
+                            }}
+                            role="checkbox"
+                            aria-checked={isChecked}
+                            tabIndex={0}
+                          >
+                            <div
+                              className={`h-4 w-4 shrink-0 rounded-sm border transition-colors ${
+                                isChecked
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-primary/50"
+                              }`}
+                            >
+                              {isChecked && <Check className="h-4 w-4 p-0.5" />}
+                            </div>
+                            <span className="text-sm">
+                              {server.name}
+                              {server.builtin && (
+                                <span className="ml-2 text-xs text-white/50">(Built-in)</span>
+                              )}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
