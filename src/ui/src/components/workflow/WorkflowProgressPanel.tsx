@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import {
@@ -509,20 +509,7 @@ export function WorkflowProgressPanel() {
   };
 
   if (progress.stage === ProgressStage.IDLE) {
-    return (
-      <>
-        <div className="w-[500px] mx-auto my-4">
-          <Card className="bg-black/20 backdrop-blur-md border-white/10">
-            <CardContent className="py-16 text-center">
-              <AlertCircle className="w-16 h-16 text-white/40 mx-auto mb-4" />
-              <h3 className="text-xl font-medium mb-2">No Active Workflow</h3>
-              <p className="text-white/60">Record a video to start the automated workflow</p>
-            </CardContent>
-          </Card>
-        </div>
-        {approvalDialog}
-      </>
-    );
+    return approvalDialog ?? null;
   }
 
   const isExternalWorkflow = derivedOrigin === "external";

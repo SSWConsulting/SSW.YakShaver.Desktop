@@ -1,6 +1,8 @@
+import type { TranscriptSegment } from "@shared/types/transcript.js";
 import { z } from "zod";
+import { METADATA_SYSTEM_PROMPT } from "../../constants/prompts.js";
 import type { YouTubeSnippetUpdate } from "../auth/types.js";
-import { LLMClientProvider } from "../mcp/llm-client-provider.js";
+import { LanguageModelProvider } from "../mcp/language-model-provider.js";
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s)]+/gi;
 
@@ -18,13 +20,8 @@ export const ChapterCandidateSchema = z.object({
 
 type ChapterCandidate = z.infer<typeof ChapterCandidateSchema>;
 
-export interface TranscriptSegment {
-  startSeconds: number;
-  text: string;
-}
-
 export interface MetadataBuilderInput {
-  transcriptVtt: string;
+  transcript: TranscriptSegment[];
   intermediateOutput: string;
   executionHistory: string;
   finalResult?: string | null;
@@ -49,8 +46,7 @@ const MIN_CHAPTER_GAP_SECONDS = 5;
 
 export class VideoMetadataBuilder {
   async build(input: MetadataBuilderInput): Promise<MetadataBuilderResult> {
-    const transcriptSegments = parseVtt(input.transcriptVtt);
-    const transcriptForPrompt = buildTranscriptExcerpt(transcriptSegments);
+    const transcriptForPrompt = buildTranscriptExcerpt(input.transcript);
     const executionHistorySnippet = truncateText(input.executionHistory, 6000);
 
     const fallbackLinks = dedupeLinks([
@@ -79,19 +75,19 @@ export class VideoMetadataBuilder {
         : "None",
     ].join("\n");
 
-    const llmClientProvider = await LLMClientProvider.getInstanceAsync();
-    if (!llmClientProvider) {
-      throw new Error("LLM Client Provider is not initialized");
-    }
+    const languageModelProvider = await LanguageModelProvider.getInstance();
 
-    const response = await llmClientProvider.generateJson(promptPayload, METADATA_SYSTEM_PROMPT);
+    const response = await languageModelProvider.generateJson(
+      promptPayload,
+      METADATA_SYSTEM_PROMPT,
+    );
 
     const parsedResponse = safeJsonParse<MetadataModelResponse>(response) || {};
 
     const metadata = normalizeModelResponse(
       parsedResponse,
       fallbackLinks,
-      transcriptSegments,
+      input.transcript,
       executionHistorySnippet,
     );
     const snippet: YouTubeSnippetUpdate = {
@@ -103,46 +99,6 @@ export class VideoMetadataBuilder {
 
     return { snippet, metadata };
   }
-}
-
-const METADATA_SYSTEM_PROMPT = `You create polished YouTube metadata from execution histories.
-Return JSON with:
-- "title": concise, specific, <=90 chars
-- "description": 2-3 short paragraphs and (if relevant) a "Resources" bullet list. Include meaningful context, key outcomes, and EVERY URL in full (e.g., https://github.com/.../issues/123). Never rely on "#123" shorthand.
-- "tags": list of lowercase keywords (max 10) without hashtags
-- "chapters": array of {"label","timestamp"} with timestamps formatted as MM:SS or HH:MM:SS
-
-Rules:
-- First chapter must start at 00:00
-- Create a chapter for EACH distinct topic, bug, or task mentioned in the transcript
-- Subsequent chapters must be chronological and at least 5 seconds apart
-- Use specific, descriptive chapter names that reflect the actual content
-- Highlight concrete issues/resources from the execution history
-- Write descriptions suitable for YouTube (no markdown code fences)
-- If information is missing, fall back to clear defaults rather than hallucinating.
-- DO NOT reference any local files or folders`;
-
-export function parseVtt(vtt: string): TranscriptSegment[] {
-  if (!vtt) return [];
-  const segments: TranscriptSegment[] = [];
-  const lines = vtt.replace(/\r/g, "").split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line || !line.includes("-->")) continue;
-
-    const [start] = line.split("-->");
-    const startSeconds = timestampToSeconds(start.trim());
-    const textLines: string[] = [];
-    i += 1;
-    while (i < lines.length && lines[i].trim() !== "") {
-      textLines.push(lines[i].trim());
-      i += 1;
-    }
-    if (!textLines.length) continue;
-    segments.push({ startSeconds, text: textLines.join(" ") });
-  }
-
-  return segments;
 }
 
 function timestampToSeconds(timestamp: string): number {
@@ -172,7 +128,10 @@ function buildTranscriptExcerpt(segments: TranscriptSegment[], limit = 60): stri
   if (!segments.length) return "";
   return segments
     .slice(0, limit)
-    .map((segment) => `${secondsToTimestamp(segment.startSeconds)} ${segment.text}`)
+    .map(
+      (segment) =>
+        `${secondsToTimestamp(segment.startSecond)}-${secondsToTimestamp(segment.endSecond)} ${segment.text}`,
+    )
     .join("\n");
 }
 
@@ -340,11 +299,11 @@ function buildChapters(
   if (normalized.length < 2 && segments.length) {
     const midpoint = segments[Math.floor(segments.length / 2)];
     if (midpoint) {
-      addChapter("Deep Dive", midpoint.startSeconds);
+      addChapter("Deep Dive", midpoint.startSecond);
     }
     const last = segments[segments.length - 1];
     if (last) {
-      addChapter("Wrap-up", last.startSeconds);
+      addChapter("Wrap-up", last.startSecond);
     }
   }
 

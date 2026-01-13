@@ -1,11 +1,16 @@
-import type { LLMConfig } from "@shared/types/llm";
+import type { LLMConfigV2 } from "@shared/types/llm";
 import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
   ReleaseChannel,
 } from "@/components/settings/release-channels/ReleaseChannelManager";
-import type { CreateShaveData, CreateVideoData, UpdateShaveData } from "../../../backend/db/schema";
+import type {
+  CreateShaveData,
+  CreateVideoData,
+  CreateVideoSourceData,
+  UpdateShaveData,
+} from "../../../backend/db/schema";
 import type {
   AuthResult,
   AuthState,
@@ -51,8 +56,8 @@ declare global {
         uploadRecordedVideo: (filePath?: string) => Promise<VideoUploadResult>;
       };
       llm: {
-        setConfig: (config: LLMConfig) => Promise<{ success: boolean }>;
-        getConfig: () => Promise<LLMConfig | null>;
+        setConfig: (config: LLMConfigV2) => Promise<{ success: boolean }>;
+        getConfig: () => Promise<LLMConfigV2 | null>;
         clearConfig: () => Promise<{ success: boolean }>;
         checkHealth: () => Promise<HealthStatusInfo>;
       };
@@ -177,6 +182,7 @@ declare global {
       };
       app: {
         restart: () => Promise<{ success: boolean; error?: string }>;
+        openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       };
       portal: {
         getMyShaves: () => Promise<{
@@ -189,27 +195,28 @@ declare global {
         create: (
           shaveData: CreateShaveData,
           videoFile?: CreateVideoData,
+          videoSource?: CreateVideoSourceData,
         ) => Promise<{ success: boolean; data?: Shave; error?: string }>;
         getById: (
-          id: number,
+          id: string,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         getAll: () => Promise<{ success: boolean; data?: Shave[]; error?: string }>;
         findByVideoUrl: (
           videoEmbedUrl: string,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
-        attachVideoFile: (
-          shaveId: number,
-          videoFile: CreateVideoData,
+        attachVideoSource: (
+          shaveId: string,
+          videoSource: CreateVideoSourceData,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         update: (
-          id: number,
+          id: string,
           data: UpdateShaveData,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         updateStatus: (
-          id: number,
+          id: string,
           status: ShaveStatus,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
-        delete: (id: number) => Promise<{ success: boolean; data?: boolean; error?: string }>;
+        delete: (id: string) => Promise<{ success: boolean; data?: boolean; error?: string }>;
       };
     };
   }

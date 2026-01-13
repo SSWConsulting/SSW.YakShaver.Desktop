@@ -15,7 +15,6 @@ export function normalizeYouTubeUrl(urlInput: string | null | undefined): string
 
   try {
     const url = new URL(urlInput);
-    console.log("[YouTubeUrlUtils] Normalizing URL:", urlInput, url);
 
     // 1. Strict Domain Check
     const validDomains = ["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"];

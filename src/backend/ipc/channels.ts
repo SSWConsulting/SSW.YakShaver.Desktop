@@ -91,13 +91,14 @@ export const IPC_CHANNELS = {
 
   // App Control
   APP_RESTART: "app:restart",
+  APP_OPEN_EXTERNAL: "app:open-external",
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
 
   // Shave Management
   SHAVE_CREATE: "shave:create",
-  SHAVE_ATTACH_VIDEO_FILE: "shave:attach-video-file",
+  SHAVE_ATTACH_VIDEO_SOURCE: "shave:attach-video-source",
   SHAVE_GET_BY_ID: "shave:get-by-id",
   SHAVE_GET_ALL: "shave:get-all",
   SHAVE_FIND_BY_VIDEO_URL: "shave:find-by-video-url",

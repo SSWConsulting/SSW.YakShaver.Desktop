@@ -44,6 +44,44 @@ export enum ShaveStatus {
   Failed = "Failed",
 }
 
+export enum ShaveAttemptStatus {
+  RUNNING = "running",
+  COMPLETED = "completed",
+  ERROR = "error",
+}
+
+export enum ShaveAttemptRunType {
+  INITIAL = "initial",
+  RETRY = "retry",
+}
+
+export enum PortalSyncStatus {
+  PENDING = "PENDING",
+  SYNCED = "SYNCED",
+  FAILED = "FAILED",
+  SKIPPED = "SKIPPED",
+}
+
+export enum AuthProvider {
+  MICROSOFT = "microsoft",
+  GOOGLE = "google",
+}
+
+export enum ModelProvider {
+  OPENAI = "openai",
+  AZURE_OPENAI = "azure_openai",
+  DEEPSEEK = "deepseek",
+}
+
+export enum VideoHostingProvider {
+  YOUTUBE = "youtube",
+}
+
+export enum VideoSourceType {
+  LOCAL_RECORDING = "local_recording",
+  EXTERNAL_URL = "external_url",
+}
+
 export interface ShaveItem {
   id: string;
   title: string;

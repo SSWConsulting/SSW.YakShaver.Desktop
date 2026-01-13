@@ -8,6 +8,13 @@
       "when": 1766396919164,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1767769174030,
+      "tag": "0001_schema_v2_add_tables",
+      "breakpoints": true
     }
   ]
 }

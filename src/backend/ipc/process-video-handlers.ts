@@ -2,21 +2,18 @@ import fs from "node:fs";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
+import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
-import { LLMClientProvider } from "../services/mcp/llm-client-provider";
+import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
-import { OpenAIService } from "../services/openai/openai-service";
-import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
+import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
+import { ShaveService } from "../services/shave/shave-service";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
-import {
-  parseVtt,
-  type TranscriptSegment,
-  VideoMetadataBuilder,
-} from "../services/video/video-metadata-builder";
+import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
@@ -25,7 +22,7 @@ import { IPC_CHANNELS } from "./channels";
 type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
-  shaveId?: number;
+  shaveId?: string;
 };
 
 export const TranscriptSummarySchema = z.object({
@@ -41,7 +38,6 @@ export const TranscriptSummarySchema = z.object({
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
-  private readonly llmClient = OpenAIService.getInstance(); // TODO: make generic interface for different LLMs https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
   private ffmpegService = FFmpegService.getInstance();
   private readonly customPromptStorage = CustomPromptStorage.getInstance();
   private readonly metadataBuilder: VideoMetadataBuilder;
@@ -56,7 +52,7 @@ export class ProcessVideoIPCHandlers {
   private registerHandlers(): void {
     ipcMain.handle(
       IPC_CHANNELS.PROCESS_VIDEO_FILE,
-      async (_event, filePath?: string, shaveId?: number) => {
+      async (_event, filePath?: string, shaveId?: string) => {
         if (!filePath) {
           throw new Error("video-process-handler: Video file path is required");
         }
@@ -67,7 +63,7 @@ export class ProcessVideoIPCHandlers {
 
     ipcMain.handle(
       IPC_CHANNELS.PROCESS_VIDEO_URL,
-      async (_event, url?: string, shaveId?: number) => {
+      async (_event, url?: string, shaveId?: string) => {
         if (!url) {
           throw new Error("video-process-handler: Video URL is required");
         }
@@ -83,7 +79,7 @@ export class ProcessVideoIPCHandlers {
         _event: IpcMainInvokeEvent,
         intermediateOutput: string,
         videoUploadResult: VideoUploadResult,
-        shaveId?: number,
+        shaveId?: string,
       ) => {
         const notify = (stage: string, data?: Record<string, unknown>) => {
           this.emitProgress(stage, data, shaveId);
@@ -126,7 +122,7 @@ export class ProcessVideoIPCHandlers {
     );
   }
 
-  private async processFileVideo(filePath: string, shaveId?: number) {
+  private async processFileVideo(filePath: string, shaveId?: string) {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -153,7 +149,7 @@ export class ProcessVideoIPCHandlers {
     });
   }
 
-  private async processUrlVideo(url: string, shaveId?: number) {
+  private async processUrlVideo(url: string, shaveId?: string) {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -195,26 +191,23 @@ export class ProcessVideoIPCHandlers {
       notify(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
+      const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
+
       notify(ProgressStage.TRANSCRIBING);
-      const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
+      const transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
+      const transcriptText = transcript.map((seg) => seg.text).join("");
+
       notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      const transcriptText = parseVtt(transcript)
-        .map((segment: TranscriptSegment) => segment.text)
-        .join(" ");
+      notify(ProgressStage.GENERATING_TASK);
 
-      notify(ProgressStage.GENERATING_TASK, { transcript: transcriptText });
-
-      const llmClientProvider = await LLMClientProvider.getInstanceAsync();
-      if (!llmClientProvider) {
-        throw new Error("LLM Client Provider is not initialized");
-      }
+      const languageModelProvider = await LanguageModelProvider.getInstance();
 
       const userPrompt = `Process the following transcript into a structured JSON object:
       
       ${transcriptText}`;
 
-      const intermediateOutput = await llmClientProvider.generateJson(
+      const intermediateOutput = await languageModelProvider.generateJson(
         userPrompt,
         INITIAL_SUMMARY_PROMPT,
       );
@@ -252,7 +245,7 @@ export class ProcessVideoIPCHandlers {
             // throw new Error("Simulated metadata update error"); // TODO: Remove this line after testing error handling
             notify(ProgressStage.UPDATING_METADATA);
             const metadata = await this.metadataBuilder.build({
-              transcriptVtt: transcript,
+              transcript,
               intermediateOutput,
               executionHistory: JSON.stringify(transcript ?? [], null, 2),
               finalResult: mcpResult ?? undefined,
@@ -293,6 +286,21 @@ export class ProcessVideoIPCHandlers {
       const errorMessage = formatErrorMessage(error);
       notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
+    } finally {
+      try {
+        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        // Mark video files as deleted in database if shave exists
+        if (shaveId) {
+          try {
+            const shaveService = ShaveService.getInstance();
+            shaveService.markShaveVideoFilesAsDeleted(shaveId);
+          } catch (dbError) {
+            console.warn("[ProcessVideo] Failed to mark video files as deleted", dbError);
+          }
+        }
+      } catch (cleanupError) {
+        console.warn("[ProcessVideo] Failed to clean up source file", cleanupError);
+      }
     }
   }
 
@@ -302,7 +310,7 @@ export class ProcessVideoIPCHandlers {
     return result;
   }
 
-  private emitProgress(stage: string, data?: Record<string, unknown>, shaveId?: number) {
+  private emitProgress(stage: string, data?: Record<string, unknown>, shaveId?: string) {
     BrowserWindow.getAllWindows()
       .filter((win) => !win.isDestroyed())
       .forEach((win) => {

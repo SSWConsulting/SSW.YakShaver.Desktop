@@ -21,6 +21,7 @@ import { ShaveIPCHandlers } from "./ipc/shave-handlers";
 import { ToolApprovalSettingsIPCHandlers } from "./ipc/tool-approval-settings-handlers";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
+import { MCPOrchestrator } from "./services/mcp/mcp-orchestrator";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
 import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
@@ -83,6 +84,14 @@ const createWindow = (): void => {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
+  });
+
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+    // Cleanup any pending MCP tool approvals to prevent hanging promises
+    MCPOrchestrator.getInstanceAsync().then((orchestrator) => {
+      orchestrator.cancelAllPendingApprovals("Window closed");
+    });
   });
 
   if (isDev) {
@@ -187,16 +196,16 @@ if (!gotTheLock) {
 }
 
 app.whenReady().then(async () => {
-  // Initialize database on startup (synchronous - better-sqlite3 is sync)
+  // Initialize database on startup with automatic backup and rollback
   try {
-    initDatabase();
+    await initDatabase();
   } catch (error) {
     console.error("Failed to initialize database:", error);
 
     // Show error dialog to user
     dialog.showErrorBox(
       "Database Initialization Failed",
-      `Failed to initialize the database. You can continue using the app, but Your shaves will not be saved.\n\nError: ${error instanceof Error ? error.message : String(error)}`,
+      `Failed to initialize the database. The app will continue but data may not be saved.\n\nError: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 
