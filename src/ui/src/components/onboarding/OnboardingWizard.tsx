@@ -1,4 +1,3 @@
-import { zodResolver } from "@hookform/resolvers/zod";
 import type { LLMConfigV2, ModelConfig, ProviderName } from "@shared/types/llm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -21,7 +20,6 @@ import { McpSettingsPanel } from "../settings/mcp/McpServerManager";
 import { Button } from "../ui/button";
 import { Form } from "../ui/form";
 import { ScrollArea } from "../ui/scroll-area";
-import { MCPServerConfig, MCPServerFormData } from "../settings/mcp/McpServerForm";
 
 type ConnectorPosition = {
   top: number;
@@ -85,7 +83,7 @@ export function OnboardingWizard() {
   const [isLLMSaving, setIsLLMSaving] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
   const [_hasMCPConfig, setHasMCPConfig] = useState(false);
-  const [isMCPSaving, setIsMCPSaving] = useState(false);
+  const [isMCPSaving] = useState(false);
   const [isVisible, setIsVisible] = useState(() => {
     // Check if user has completed onboarding before
     const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
@@ -499,16 +497,12 @@ export function OnboardingWizard() {
         )}
 
         {currentStep === 4 && (
-          <>
-            {" "}
-            has enabled server: {JSON.stringify(hasEnabledMcpServers)}
-            <McpSettingsPanel
-              onFormOpenChange={setIsMcpFormOpen}
-              onHasEnabledServers={setHasEnabledMcpServers}
-              includeBuiltin={false}
-              viewMode="compact"
-            />
-          </>
+          <McpSettingsPanel
+            onFormOpenChange={setIsMcpFormOpen}
+            onHasEnabledServers={setHasEnabledMcpServers}
+            includeBuiltin={false}
+            viewMode="compact"
+          />
         )}
       </div>
 
@@ -516,9 +510,8 @@ export function OnboardingWizard() {
       {!isMcpFormOpen && (
         <div className="flex h-16 items-center justify-end px-6 pb-6 w-full">
           <div
-            className={`flex items-center w-full ${
-              currentStep > 1 ? "justify-between" : "justify-end"
-            }`}
+            className={`flex items-center w-full ${currentStep > 1 ? "justify-between" : "justify-end"
+              }`}
           >
             {currentStep > 1 && (
               <Button
@@ -578,9 +571,8 @@ export function OnboardingWizard() {
                 return (
                   <div
                     key={`connector-${nextStep.id}`}
-                    className={`absolute w-px transition-colors duration-300 ${
-                      status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                    }`}
+                    className={`absolute w-px transition-colors duration-300 ${status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
+                      }`}
                     style={{
                       left: position.left,
                       top: position.top,
@@ -597,27 +589,24 @@ export function OnboardingWizard() {
                       ref={(element) => {
                         stepIconRefs.current[index] = element;
                       }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                        getStepStatus(step.id) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                      }`}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${getStepStatus(step.id) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
+                        }`}
                     >
                       <img
                         src={step.icon}
                         alt={step.title}
-                        className={`w-6 h-6 transition-opacity duration-300 ${
-                          getStepStatus(step.id) === "pending" ? "opacity-40" : "opacity-100"
-                        }`}
+                        className={`w-6 h-6 transition-opacity duration-300 ${getStepStatus(step.id) === "pending" ? "opacity-40" : "opacity-100"
+                          }`}
                       />
                     </div>
                   </div>
 
                   <div className="flex flex-col justify-center w-[219px]">
                     <p
-                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                        getStepStatus(step.id) === "pending"
-                          ? "text-white/[0.56]"
-                          : "text-white/[0.98]"
-                      }`}
+                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${getStepStatus(step.id) === "pending"
+                        ? "text-white/[0.56]"
+                        : "text-white/[0.98]"
+                        }`}
                     >
                       {step.title}
                     </p>

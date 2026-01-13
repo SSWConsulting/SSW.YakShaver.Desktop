@@ -150,9 +150,8 @@ export function SettingsDialog() {
                   key={tab.id}
                   type="button"
                   onClick={() => attemptTabChange(tab.id)}
-                  className={`text-left px-3 py-2 rounded-md transition-colors border border-transparent ${
-                    isActive ? "bg-white/10 border-white/20" : "text-white/60 hover:bg-white/5"
-                  }`}
+                  className={`text-left px-3 py-2 rounded-md transition-colors border border-transparent ${isActive ? "bg-white/10 border-white/20" : "text-white/60 hover:bg-white/5"
+                    }`}
                 >
                   <div className="text-sm font-medium">{tab.label}</div>
                 </button>
@@ -187,7 +186,7 @@ export function SettingsDialog() {
                   />
                 )}
                 {activeTab?.id === "mcp" && (
-                  <McpSettingsPanel isActive={open && activeTabId === "mcp"} />
+                  <McpSettingsPanel isActive={open && activeTabId === "mcp"} viewMode="detailed" />
                 )}
                 {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
                 {activeTab?.id === "account" && (

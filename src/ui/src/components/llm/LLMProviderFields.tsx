@@ -110,6 +110,7 @@ export function LLMProviderFields<TFieldValues extends FieldValues>({
                     isHealthy={healthStatus.isHealthy ?? false}
                     successMessage={healthStatus.successMessage}
                     error={healthStatus.error}
+                    isDisabled={healthStatus.isHealthy === false}
                   />
                 </div>
               )}

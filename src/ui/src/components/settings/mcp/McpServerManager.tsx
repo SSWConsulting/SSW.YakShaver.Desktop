@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../../services/ipc-client";
-import { HealthStatus } from "../../health-status/health-status";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../ui/alert-dialog";
-import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
+import { type MCPServerConfig } from "./McpServerForm";
 import { McpWhitelistDialog } from "./McpWhitelistDialog";
 import { Globe } from "lucide-react";
 import { McpCard } from "./mcp-card";
@@ -237,12 +236,14 @@ export function McpSettingsPanel({
           onChange={() => loadServers()}
           healthInfo={getHealthStatus(github?.id)}
           onTools={() => github && openWhitelistDialog(github)}
+          viewMode={viewMode}
         />
         <McpAzureDevOpsCard
           config={azureDevOps}
           onChange={() => loadServers()}
           healthInfo={getHealthStatus(McpAzureDevOpsCard.Id)}
           onTools={() => azureDevOps && openWhitelistDialog(azureDevOps)}
+          viewMode={viewMode}
         />
         {restServers.map((server) => (
           <>
@@ -259,6 +260,7 @@ export function McpSettingsPanel({
                 setEditingServer(server);
                 console.log("Updating server:", server.name, "with config:", newConfig);
               }}
+              viewMode={viewMode}
             />
           </>
         ))}

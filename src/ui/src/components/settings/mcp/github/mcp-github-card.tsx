@@ -11,12 +11,13 @@ interface McpGitHubCardProps {
   onChange?: (config: MCPServerConfig) => void;
   healthInfo?: HealthStatusInfo | null;
   onTools?: () => void;
+  viewMode: "compact" | "detailed";
 }
 
 McpGitHubCard.Name = "GitHub";
 McpGitHubCard.Id = "f12980ac-f80c-47e0-b4ac-181a54122d61";
 
-export function McpGitHubCard({ config, onChange, healthInfo, onTools }: McpGitHubCardProps) {
+export function McpGitHubCard({ config, onChange, healthInfo, onTools, viewMode }: McpGitHubCardProps) {
   const [appInstallUrl, setAppInstallUrl] = useState<string>("");
 
   useEffect(() => {
@@ -71,6 +72,7 @@ export function McpGitHubCard({ config, onChange, healthInfo, onTools }: McpGitH
         onConnect={handleOnConnect}
         onDisconnect={handleOnDisconnect}
         onTools={onTools}
+        viewMode={viewMode}
       />
     </>
   );

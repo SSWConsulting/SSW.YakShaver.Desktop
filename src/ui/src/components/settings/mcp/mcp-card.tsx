@@ -3,9 +3,7 @@ import { MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 import { useState } from "react";
 
 import { HealthStatusInfo } from "@/types";
-import { Check } from "lucide-react";
 import { HealthStatus } from "@/components/health-status/health-status";
-import { GitHubAppInstallGuide } from "./GitHubAppInstallGuide";
 
 interface McpCardProps {
   icon: React.ReactElement;
@@ -17,6 +15,7 @@ interface McpCardProps {
   onDelete?: () => void;
   onUpdate?: (data: MCPServerConfig) => Promise<void>;
   onTools?: () => void;
+  viewMode: "compact" | "detailed";
 }
 
 export function McpCard({
@@ -29,6 +28,7 @@ export function McpCard({
   isReadOnly,
   onTools,
   healthInfo = null,
+  viewMode = "compact",
 }: McpCardProps) {
   const [showSettings, setShowSettings] = useState(false);
   return (
@@ -60,11 +60,12 @@ export function McpCard({
           </div>
 
           <div className="flex items-center gap-2">
-            {onTools && (
-              <Button variant="outline" onClick={() => onTools()}>
-                {" "}
-                Tools{" "}
-              </Button>
+            {viewMode === "detailed" && (
+              onTools && (
+                <Button variant="outline" onClick={() => onTools()}>
+                  Tools
+                </Button>
+              )
             )}
             {!config.enabled && (
               <Button
@@ -92,31 +93,34 @@ export function McpCard({
             )}
           </div>
         </div>
-      )}
+      )
+      }
 
-      {showSettings && !isReadOnly && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <McpServerFormWrapper
-            isEditing={true}
-            initialData={config}
-            onCancel={() => {
-              setShowSettings(false);
-            }}
-            onSubmit={(data) => {
-              setShowSettings(false);
-
-              return onUpdate?.(data) ?? Promise.resolve();
-            }}
-            onDelete={
-              onDelete ??
-              (() => {
+      {
+        showSettings && !isReadOnly && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <McpServerFormWrapper
+              isEditing={true}
+              initialData={config}
+              onCancel={() => {
                 setShowSettings(false);
-              })
-            }
-            isLoading={false}
-          />
-        </div>
-      )}
-    </div>
+              }}
+              onSubmit={(data) => {
+                setShowSettings(false);
+
+                return onUpdate?.(data) ?? Promise.resolve();
+              }}
+              onDelete={
+                onDelete ??
+                (() => {
+                  setShowSettings(false);
+                })
+              }
+              isLoading={false}
+            />
+          </div>
+        )
+      }
+    </div >
   );
 }
