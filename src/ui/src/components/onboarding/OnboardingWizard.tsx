@@ -454,7 +454,7 @@ export function OnboardingWizard() {
     (currentStep === 1 && !isConnected) ||
     (currentStep === 2 && isLLMSaving) ||
     (currentStep === 3 && isLLMSaving) ||
-    (currentStep === 4 && (isMCPSaving));
+    (currentStep === 4 && (isMCPSaving || !hasEnabledMcpServers));
 
   if (!isVisible) return null;
 
@@ -540,12 +540,14 @@ export function OnboardingWizard() {
         )}
 
         {currentStep === 4 && (
-          <McpSettingsPanel
-            onFormOpenChange={setIsMcpFormOpen}
-            onHasEnabledServers={setHasEnabledMcpServers}
-            includeBuiltin={false}
-            viewMode="compact"
-          />
+          <> has enabled server: {JSON.stringify(hasEnabledMcpServers)}
+            <McpSettingsPanel
+              onFormOpenChange={setIsMcpFormOpen}
+              onHasEnabledServers={setHasEnabledMcpServers}
+              includeBuiltin={false}
+              viewMode="compact"
+            />
+          </>
         )
         }
 
