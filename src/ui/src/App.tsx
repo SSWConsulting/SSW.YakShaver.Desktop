@@ -64,7 +64,7 @@ export default function App() {
 
           <div className="fixed bottom-2 left-2 text-[10px] text-white/30 z-50 pointer-events-none select-none font-mono">
             {appVersion && `v${appVersion}`}
-            {commitHash && ` (${commitHash.substring(0, 7)})`}
+            {commitHash && ` (${commitHash})`}
           </div>
         </div>
       </YouTubeAuthProvider>

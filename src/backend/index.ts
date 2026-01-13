@@ -53,7 +53,7 @@ const getAppVersion = (): string => app.getVersion();
 const createApplicationMenu = (): void => {
   const version = getAppVersion();
   const commitHash = config.commitHash();
-  const hashString = commitHash ? ` (${commitHash.substring(0, 7)})` : "";
+  const hashString = commitHash ? ` (${commitHash})` : "";
 
   const template: Electron.MenuItemConstructorOptions[] = [
     {
