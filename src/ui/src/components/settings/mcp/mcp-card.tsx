@@ -55,12 +55,26 @@ export function McpCard({
 
             {onTools && <Button variant="outline" onClick={() => onTools()}> Tools </Button>}
             {!config.enabled && (
-              <Button variant="outline" className="cursor-pointer" onClick={onConnect}>
+              <Button
+                variant="outline"
+                className="cursor-pointer"
+                onClick={e => {
+                  e.stopPropagation();
+                  onConnect && onConnect();
+                }}
+              >
                 Connect
               </Button>
             )}
             {config.enabled && (
-              <Button variant="destructive" className="cursor-pointer" onClick={onDisconnect}>
+              <Button
+                variant="destructive"
+                className="cursor-pointer"
+                onClick={e => {
+                  e.stopPropagation();
+                  onDisconnect && onDisconnect();
+                }}
+              >
                 Disconnect
               </Button>
             )}
