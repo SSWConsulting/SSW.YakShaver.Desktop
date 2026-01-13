@@ -1,4 +1,4 @@
-import type { LLMConfig } from "@shared/types/llm";
+import type { LLMConfigV2 } from "@shared/types/llm";
 import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
@@ -56,8 +56,8 @@ declare global {
         uploadRecordedVideo: (filePath?: string) => Promise<VideoUploadResult>;
       };
       llm: {
-        setConfig: (config: LLMConfig) => Promise<{ success: boolean }>;
-        getConfig: () => Promise<LLMConfig | null>;
+        setConfig: (config: LLMConfigV2) => Promise<{ success: boolean }>;
+        getConfig: () => Promise<LLMConfigV2 | null>;
         clearConfig: () => Promise<{ success: boolean }>;
         checkHealth: () => Promise<HealthStatusInfo>;
       };

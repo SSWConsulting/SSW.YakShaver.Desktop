@@ -2,22 +2,18 @@ import fs from "node:fs";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
+import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
-import { LLMClientProvider } from "../services/mcp/llm-client-provider";
+import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
-import { OpenAIService } from "../services/openai/openai-service";
-import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../services/openai/prompts";
+import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import { ShaveService } from "../services/shave/shave-service";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
-import {
-  parseVtt,
-  type TranscriptSegment,
-  VideoMetadataBuilder,
-} from "../services/video/video-metadata-builder";
+import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
@@ -42,7 +38,6 @@ export const TranscriptSummarySchema = z.object({
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeAuthService.getInstance();
-  private readonly llmClient = OpenAIService.getInstance(); // TODO: make generic interface for different LLMs https://github.com/SSWConsulting/SSW.YakShaver/issues/3011
   private ffmpegService = FFmpegService.getInstance();
   private readonly customPromptStorage = CustomPromptStorage.getInstance();
   private readonly metadataBuilder: VideoMetadataBuilder;
@@ -196,26 +191,23 @@ export class ProcessVideoIPCHandlers {
       notify(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
+      const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
+
       notify(ProgressStage.TRANSCRIBING);
-      const transcript = await this.llmClient.transcribeAudio(mp3FilePath);
+      const transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
+      const transcriptText = transcript.map((seg) => seg.text).join("");
+
       notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      const transcriptText = parseVtt(transcript)
-        .map((segment: TranscriptSegment) => segment.text)
-        .join(" ");
+      notify(ProgressStage.GENERATING_TASK);
 
-      notify(ProgressStage.GENERATING_TASK, { transcript: transcriptText });
-
-      const llmClientProvider = await LLMClientProvider.getInstanceAsync();
-      if (!llmClientProvider) {
-        throw new Error("LLM Client Provider is not initialized");
-      }
+      const languageModelProvider = await LanguageModelProvider.getInstance();
 
       const userPrompt = `Process the following transcript into a structured JSON object:
       
       ${transcriptText}`;
 
-      const intermediateOutput = await llmClientProvider.generateJson(
+      const intermediateOutput = await languageModelProvider.generateJson(
         userPrompt,
         INITIAL_SUMMARY_PROMPT,
       );
@@ -253,7 +245,7 @@ export class ProcessVideoIPCHandlers {
             // throw new Error("Simulated metadata update error"); // TODO: Remove this line after testing error handling
             notify(ProgressStage.UPDATING_METADATA);
             const metadata = await this.metadataBuilder.build({
-              transcriptVtt: transcript,
+              transcript,
               intermediateOutput,
               executionHistory: JSON.stringify(transcript ?? [], null, 2),
               finalResult: mcpResult ?? undefined,

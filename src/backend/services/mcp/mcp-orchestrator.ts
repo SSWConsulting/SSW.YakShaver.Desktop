@@ -5,7 +5,7 @@ import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
 import type { VideoUploadResult } from "../auth/types";
 import { ToolApprovalSettingsStorage } from "../storage/tool-approval-settings-storage";
-import { LLMClientProvider } from "./llm-client-provider";
+import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 
 type StepType =
@@ -48,7 +48,7 @@ function sendStepEvent(event: MCPStep): void {
 
 export class MCPOrchestrator {
   private static instance: MCPOrchestrator;
-  private static llmProvider: LLMClientProvider | null = null;
+  private static languageModelProvider: LanguageModelProvider | null = null;
   private static mcpServerManager: MCPServerManager | null = null;
   private pendingToolApprovals = new Map<string, (decision: ToolApprovalDecision) => void>();
 
@@ -61,7 +61,7 @@ export class MCPOrchestrator {
     MCPOrchestrator.instance = new MCPOrchestrator();
 
     // Initialize LLM provider
-    MCPOrchestrator.llmProvider = await LLMClientProvider.getInstanceAsync();
+    MCPOrchestrator.languageModelProvider = await LanguageModelProvider.getInstance();
 
     // Initialize MCP server manager
     MCPOrchestrator.mcpServerManager = await MCPServerManager.getInstanceAsync();
@@ -79,7 +79,7 @@ export class MCPOrchestrator {
     } = {},
   ): Promise<string | undefined> {
     // Ensure LLM has been initialized
-    if (!MCPOrchestrator.llmProvider) {
+    if (!MCPOrchestrator.languageModelProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
 
@@ -131,7 +131,7 @@ export class MCPOrchestrator {
             (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
           );
 
-      const llmResponse = await MCPOrchestrator.llmProvider
+      const llmResponse = await MCPOrchestrator.languageModelProvider
         .generateTextWithTools(messages, tools)
         .catch((error) => {
           console.log("[MCPOrchestrator]: Error in processMessageAsync:", error);
@@ -303,12 +303,12 @@ export class MCPOrchestrator {
   }
 
   public async convertToObjectAsync(prompt: string, schema: ZodType): Promise<unknown> {
-    if (!MCPOrchestrator.llmProvider) {
+    if (!MCPOrchestrator.languageModelProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
 
     try {
-      const objResult = await MCPOrchestrator.llmProvider.generateObject(prompt, schema);
+      const objResult = await MCPOrchestrator.languageModelProvider.generateObject(prompt, schema);
       return objResult;
     } catch (error) {
       console.error("[MCPOrchestrator]: Error in convertToObjectAsync:", error);
@@ -326,7 +326,7 @@ export class MCPOrchestrator {
     } = {},
   ): Promise<string> {
     // Ensure LLM has been initialized
-    if (!MCPOrchestrator.llmProvider) {
+    if (!MCPOrchestrator.languageModelProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
 
@@ -354,7 +354,7 @@ export class MCPOrchestrator {
     ];
 
     //  this is the AI SDK's automatic orchestrator loop, can be used for YOLO mode
-    const response = await MCPOrchestrator.llmProvider.sendMessage(messages, tools);
+    const response = await MCPOrchestrator.languageModelProvider.sendMessage(messages, tools);
     return response.text;
   }
 
@@ -400,19 +400,12 @@ export class MCPOrchestrator {
       autoApproveAt: options?.autoApproveAt,
     });
 
-    const TOOL_APPROVAL_TIMEOUT_MS = 60_000; // 60 seconds
     const decision = await new Promise<ToolApprovalDecision>((resolve) => {
       // Store resolver for normal approval/denial
       this.pendingToolApprovals.set(requestId, (result: ToolApprovalDecision) => {
-        clearTimeout(timeoutId);
         this.pendingToolApprovals.delete(requestId);
         resolve(result);
       });
-      // Timeout fallback
-      const timeoutId = setTimeout(() => {
-        this.pendingToolApprovals.delete(requestId);
-        resolve({ kind: "deny_stop" }); // Denied by timeout
-      }, TOOL_APPROVAL_TIMEOUT_MS);
     });
 
     return { requestId, decision };
@@ -427,5 +420,12 @@ export class MCPOrchestrator {
     this.pendingToolApprovals.delete(requestId);
     resolver(decision);
     return true;
+  }
+
+  public cancelAllPendingApprovals(reason = "Session cancelled"): void {
+    for (const resolve of this.pendingToolApprovals.values()) {
+      resolve({ kind: "deny_stop", feedback: reason });
+    }
+    this.pendingToolApprovals.clear();
   }
 }

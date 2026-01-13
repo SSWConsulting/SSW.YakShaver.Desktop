@@ -1,16 +1,19 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { LLMConfig } from "@shared/types/llm";
+import type { LLMConfigV2, ModelConfig, ProviderName } from "@shared/types/llm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { FaYoutube } from "react-icons/fa";
 import { toast } from "sonner";
-import * as z from "zod";
 import { PlatformConnectionCard } from "@/components/auth/PlatformConnectionCard";
-import { LLMProviderFields } from "@/components/llm/LLMProviderFields";
+import {
+  LLMProviderFields,
+  type ProviderOption,
+} from "@/components/llm/LLMProviderFields";
 import { formatErrorMessage } from "@/utils";
 import logo from "/logos/SQ-YakShaver-LogoIcon-Red.svg?url";
 import cpu from "/onboarding/cpu.svg?url";
 import monitorPlay from "/onboarding/monitor-play.svg?url";
+import { LLM_PROVIDER_CONFIGS } from "../../../../shared/llm/llm-providers";
 import {
   ONBOARDING_COMPLETED_KEY,
   ONBOARDING_FINISHED_EVENT,
@@ -29,21 +32,6 @@ import {
 import { Button } from "../ui/button";
 import { Form } from "../ui/form";
 import { ScrollArea } from "../ui/scroll-area";
-
-type LLMProvider = "openai" | "deepseek";
-
-const llmSchema = z.discriminatedUnion("provider", [
-  z.object({
-    provider: z.literal("openai"),
-    apiKey: z.string().min(1, "API key is required"),
-  }),
-  z.object({
-    provider: z.literal("deepseek"),
-    apiKey: z.string().min(1, "API key is required"),
-  }),
-]);
-
-type LLMFormValues = z.infer<typeof llmSchema>;
 
 type ConnectorPosition = {
   top: number;
@@ -69,21 +57,34 @@ const STEPS = [
   {
     id: 2,
     icon: cpu,
-    title: "Connecting an LLM",
+    title: "Connecting an LLM (Language Model)",
     description: "Choose your provider and save the API details",
   },
   {
     id: 3,
+    icon: cpu,
+    title: "Connecting an LLM (Transcription Model)",
+    description: "Choose your provider and save the API details",
+  },
+  {
+    id: 4,
     icon: monitorPlay,
     title: "Connecting an MCP",
     description: "Configure or choose which MCP server YakShaver will call.",
   },
 ];
 
-const LLM_PROVIDER_OPTIONS = [
-  { value: "openai", label: "OpenAI" },
-  { value: "deepseek", label: "DeepSeek" },
-];
+const PROVIDER_NAMES = Object.keys(LLM_PROVIDER_CONFIGS) as ProviderName[];
+
+const TRANSCRIPTION_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
+  (providerName) =>
+    LLM_PROVIDER_CONFIGS[providerName].defaultTranscriptionModel !== undefined
+).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
+
+const LANGUAGE_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
+  (providerName) =>
+    LLM_PROVIDER_CONFIGS[providerName].defaultLanguageModel !== undefined
+).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
 
 const DEFAULT_MCP_VALUES: MCPServerFormData = {
   name: "",
@@ -105,6 +106,9 @@ export function OnboardingWizard() {
 
   const [isMcpAdvancedOpen, setIsMcpAdvancedOpen] = useState(false);
   const [hasYouTubeConfig] = useState(true);
+  const [currentLLMConfig, setCurrentLLMConfig] = useState<LLMConfigV2 | null>(
+    null
+  );
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(
@@ -123,8 +127,7 @@ export function OnboardingWizard() {
     ConnectorPosition[]
   >([]);
 
-  const llmForm = useForm<LLMFormValues>({
-    resolver: zodResolver(llmSchema),
+  const llmForm = useForm<ModelConfig>({
     defaultValues: {
       provider: "openai",
       apiKey: "",
@@ -213,53 +216,65 @@ export function OnboardingWizard() {
     }
   }, [currentStep]);
 
-  // Check LLM configuration status when on step 2
+  // Check LLM configuration status when on step 2 or 3
   useEffect(() => {
+    const isLLMStep = currentStep === 2 || currentStep === 3;
+    if (!isLLMStep) return;
+
     const checkLLMConfig = async () => {
       try {
         const cfg = await ipcClient.llm.getConfig();
-        setHasLLMConfig(!!cfg);
-        if (cfg) {
-          llmForm.reset(cfg as LLMFormValues);
+        const modelType =
+          currentStep === 2 ? "languageModel" : "transcriptionModel";
+        const modelCfg = cfg?.[modelType];
+        setHasLLMConfig(!!modelCfg);
+        setCurrentLLMConfig(cfg);
+        if (modelCfg) {
+          llmForm.reset(modelCfg);
 
           // If there's a config with API key, validate it
-          if (cfg.apiKey) {
-            setIsLLMSaving(true);
-            setHealthStatus({
-              isHealthy: false,
-              isChecking: true,
-            });
+          if (modelCfg.apiKey) {
+            // Only validate health for Language Model (step 2)
+            if (currentStep === 2) {
+              setIsLLMSaving(true);
+              setHealthStatus({
+                isHealthy: false,
+                isChecking: true,
+              });
 
-            try {
-              const healthResult = await ipcClient.llm.checkHealth();
+              try {
+                const healthResult = await ipcClient.llm.checkHealth();
 
-              if (!healthResult.isHealthy) {
+                if (!healthResult.isHealthy) {
+                  setHealthStatus({
+                    isHealthy: false,
+                    isChecking: false,
+                    error:
+                      healthResult.error || "Failed to connect to LLM provider",
+                  });
+                  setHasLLMConfig(false);
+                } else {
+                  setHealthStatus({
+                    isHealthy: true,
+                    isChecking: false,
+                    successMessage:
+                      healthResult.successMessage ||
+                      "API key validated successfully",
+                  });
+                  setHasLLMConfig(true);
+                }
+              } catch (e) {
                 setHealthStatus({
                   isHealthy: false,
                   isChecking: false,
-                  error:
-                    healthResult.error || "Failed to connect to LLM provider",
+                  error: formatErrorMessage(e),
                 });
                 setHasLLMConfig(false);
-              } else {
-                setHealthStatus({
-                  isHealthy: true,
-                  isChecking: false,
-                  successMessage:
-                    healthResult.successMessage ||
-                    "API key validated successfully",
-                });
-                setHasLLMConfig(true);
+              } finally {
+                setIsLLMSaving(false);
               }
-            } catch (e) {
-              setHealthStatus({
-                isHealthy: false,
-                isChecking: false,
-                error: formatErrorMessage(e),
-              });
-              setHasLLMConfig(false);
-            } finally {
-              setIsLLMSaving(false);
+            } else {
+              setHasLLMConfig(true);
             }
           }
         }
@@ -268,9 +283,7 @@ export function OnboardingWizard() {
       }
     };
 
-    if (currentStep === 2) {
-      void checkLLMConfig();
-    }
+    void checkLLMConfig();
   }, [currentStep, llmForm]);
 
   useEffect(() => {
@@ -283,28 +296,36 @@ export function OnboardingWizard() {
     mcpForm.reset({ ...DEFAULT_MCP_VALUES });
   }, [currentStep, mcpForm]);
 
-  const handleLLMSubmit = useCallback(async (values: LLMFormValues) => {
-    setIsLLMSaving(true);
-    try {
-      await ipcClient.llm.setConfig(values as LLMConfig);
-      toast.success(
-        values.provider === "openai"
-          ? "OpenAI configuration saved"
-          : "DeepSeek configuration saved"
-      );
-      setHasLLMConfig(true);
-    } catch (e) {
-      toast.error(`Failed to save configuration: ${formatErrorMessage(e)}`);
-    } finally {
-      setIsLLMSaving(false);
-    }
-  }, []);
+  const handleLLMSubmit = useCallback(
+    async (values: ModelConfig) => {
+      setIsLLMSaving(true);
+      try {
+        const modelType =
+          currentStep === 2 ? "languageModel" : "transcriptionModel";
+        await ipcClient.llm.setConfig({
+          ...(currentLLMConfig as LLMConfigV2),
+          [modelType]: values,
+        });
+        toast.success(
+          values.provider === "openai"
+            ? "OpenAI configuration saved"
+            : "DeepSeek configuration saved"
+        );
+        setHasLLMConfig(true);
+      } catch (e) {
+        toast.error(`Failed to save configuration: ${formatErrorMessage(e)}`);
+      } finally {
+        setIsLLMSaving(false);
+      }
+    },
+    [currentLLMConfig, currentStep]
+  );
 
-  const handleProviderChange = (value: LLMProvider) => {
+  const handleProviderChange = (value: ProviderName) => {
     llmForm.reset({
       provider: value,
       apiKey: "",
-    } as LLMFormValues);
+    } as ModelConfig);
     setHealthStatus(null);
   };
 
@@ -372,40 +393,54 @@ export function OnboardingWizard() {
         // Debounce the validation
         const timeoutId = setTimeout(async () => {
           setIsLLMSaving(true);
-          setHealthStatus({
-            isHealthy: false,
-            isChecking: true,
-          });
+          if (currentStep === 2) {
+            setHealthStatus({
+              isHealthy: false,
+              isChecking: true,
+            });
+          }
 
           try {
             const values = llmForm.getValues();
-            await ipcClient.llm.setConfig(values as LLMConfig);
-            const healthResult = await ipcClient.llm.checkHealth();
+            const modelType =
+              currentStep === 2 ? "languageModel" : "transcriptionModel";
+            await ipcClient.llm.setConfig({
+              ...(currentLLMConfig as LLMConfigV2),
+              [modelType]: values as ModelConfig,
+            });
 
-            if (!healthResult.isHealthy) {
-              setHealthStatus({
-                isHealthy: false,
-                isChecking: false,
-                error:
-                  healthResult.error || "Failed to connect to LLM provider",
-              });
-              setHasLLMConfig(false);
+            if (currentStep === 2) {
+              const healthResult = await ipcClient.llm.checkHealth();
+
+              if (!healthResult.isHealthy) {
+                setHealthStatus({
+                  isHealthy: false,
+                  isChecking: false,
+                  error:
+                    healthResult.error || "Failed to connect to LLM provider",
+                });
+                setHasLLMConfig(false);
+              } else {
+                setHealthStatus({
+                  isHealthy: true,
+                  isChecking: false,
+                  successMessage:
+                    healthResult.successMessage ||
+                    "API key validated successfully",
+                });
+                setHasLLMConfig(true);
+              }
             } else {
-              setHealthStatus({
-                isHealthy: true,
-                isChecking: false,
-                successMessage:
-                  healthResult.successMessage ||
-                  "API key validated successfully",
-              });
               setHasLLMConfig(true);
             }
           } catch (e) {
-            setHealthStatus({
-              isHealthy: false,
-              isChecking: false,
-              error: formatErrorMessage(e),
-            });
+            if (currentStep === 2) {
+              setHealthStatus({
+                isHealthy: false,
+                isChecking: false,
+                error: formatErrorMessage(e),
+              });
+            }
             setHasLLMConfig(false);
           } finally {
             setIsLLMSaving(false);
@@ -420,7 +455,7 @@ export function OnboardingWizard() {
     });
 
     return () => subscription.unsubscribe();
-  }, [llmForm]);
+  }, [llmForm, currentLLMConfig, currentStep]);
 
   const completeOnboarding = useCallback(() => {
     localStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
@@ -428,11 +463,16 @@ export function OnboardingWizard() {
     setIsVisible(false);
   }, []);
 
-  const handleStep2Next = useCallback(async () => {
+  const handleLLMStepNext = useCallback(async () => {
     const isValid = await llmForm.trigger();
     if (!isValid) return false;
 
-    if (!hasLLMConfig || !healthStatus?.isHealthy) {
+    if (!hasLLMConfig) {
+      toast.error("Please enter a valid API key before proceeding");
+      return false;
+    }
+
+    if (currentStep === 2 && !healthStatus?.isHealthy) {
       toast.error("Please enter a valid API key before proceeding");
       return false;
     }
@@ -442,11 +482,11 @@ export function OnboardingWizard() {
         ? "OpenAI configuration saved"
         : "DeepSeek configuration saved"
     );
-    setCurrentStep(3);
+    setCurrentStep((s) => s + 1);
     return true;
-  }, [hasLLMConfig, healthStatus?.isHealthy, llmForm]);
+  }, [hasLLMConfig, healthStatus?.isHealthy, llmForm, currentStep]);
 
-  const handleStep3Next = useCallback(async () => {
+  const handleStep4Next = useCallback(async () => {
     const isValid = await mcpForm.trigger();
     if (!isValid) return false;
 
@@ -458,13 +498,13 @@ export function OnboardingWizard() {
   }, [completeOnboarding, mcpForm, saveMcpConfig]);
 
   const handleNext = async () => {
-    if (currentStep === 2) {
-      await handleStep2Next();
+    if (currentStep === 2 || currentStep === 3) {
+      await handleLLMStepNext();
       return;
     }
 
-    if (currentStep === 3) {
-      await handleStep3Next();
+    if (currentStep === 4) {
+      await handleStep4Next();
       return;
     }
 
@@ -508,7 +548,8 @@ export function OnboardingWizard() {
   const isNextDisabled =
     (currentStep === 1 && !isConnected) ||
     (currentStep === 2 && isLLMSaving) ||
-    (currentStep === 3 && (isMCPSaving || isMcpFormIncomplete));
+    (currentStep === 3 && isLLMSaving) ||
+    (currentStep === 4 && (isMCPSaving || isMcpFormIncomplete));
 
   if (!isVisible) return null;
 
@@ -566,7 +607,7 @@ export function OnboardingWizard() {
             </div>
           ))}
 
-        {currentStep === 2 && (
+        {(currentStep === 2 || currentStep === 3) && (
           <div className="w-full">
             <Form {...llmForm}>
               <form
@@ -577,11 +618,15 @@ export function OnboardingWizard() {
                   control={llmForm.control}
                   providerField="provider"
                   apiKeyField="apiKey"
-                  providerOptions={LLM_PROVIDER_OPTIONS}
-                  onProviderChange={(value) =>
-                    handleProviderChange(value as LLMProvider)
+                  providerOptions={
+                    currentStep === 2
+                      ? LANGUAGE_PROVIDER_NAMES
+                      : TRANSCRIPTION_PROVIDER_NAMES
                   }
-                  healthStatus={healthStatus}
+                  onProviderChange={(value) =>
+                    handleProviderChange(value as ProviderName)
+                  }
+                  healthStatus={currentStep === 2 ? healthStatus : undefined}
                   selectContentClassName="z-[70]"
                 />
               </form>
@@ -589,7 +634,7 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {currentStep === 3 && (
+        {currentStep === 4 && (
           <Form {...mcpForm}>
             <form
               onSubmit={(event) => {
@@ -636,7 +681,7 @@ export function OnboardingWizard() {
           >
             {currentStep === 2 && isLLMSaving
               ? "Checking..."
-              : currentStep === 3 && isMCPSaving
+              : currentStep === 4 && isMCPSaving
               ? "Saving..."
               : currentStep === STEPS.length
               ? "Finish"
@@ -730,7 +775,7 @@ export function OnboardingWizard() {
           </div>
         </div>
         <div className="flex flex-col flex-1 min-w-0 h-full">
-          {currentStep === 3 && isMcpAdvancedOpen ? (
+          {currentStep === 4 && isMcpAdvancedOpen ? (
             <ScrollArea className="w-full h-full">
               <div className="flex flex-col px-20 py-40">
                 {rightPanelContent}
