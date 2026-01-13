@@ -24,11 +24,7 @@ export default function App() {
 
   useEffect(() => {
     const fetchVersion = async () => {
-      const info =
-        (await window.electronAPI.releaseChannel.getCurrentVersion()) as unknown as {
-          version: string;
-          commitHash: string;
-        };
+      const info = await window.electronAPI.releaseChannel.getCurrentVersion();
       setAppVersion(info.version);
       setCommitHash(info.commitHash);
     };

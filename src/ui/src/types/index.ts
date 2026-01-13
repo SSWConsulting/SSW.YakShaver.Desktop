@@ -269,4 +269,9 @@ export type Shave = {
   updatedAt: string | null;
 };
 
+export type VersionInfo = {
+  version: string;
+  commitHash: string;
+};
+
 export type BadgeVariant = "success" | "destructive" | "secondary" | "default";

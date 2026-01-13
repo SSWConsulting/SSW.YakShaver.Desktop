@@ -26,6 +26,7 @@ import type {
   ShaveStatus,
   TranscriptEntry,
   UserInfo,
+  VersionInfo,
   VideoUploadResult,
   YouTubeConfig,
 } from "../types";
@@ -157,7 +158,7 @@ declare global {
           error?: string;
           version?: string;
         }>;
-        getCurrentVersion: () => Promise<string>;
+        getCurrentVersion: () => Promise<VersionInfo>;
         onDownloadProgress: (
           callback: (progress: { percent: number; transferred: number; total: number }) => void,
         ) => () => void;
