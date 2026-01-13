@@ -1,9 +1,9 @@
-import { Button } from "@/components/ui/button";
-import { MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 import { useState } from "react";
-
-import { HealthStatusInfo } from "@/types";
 import { HealthStatus } from "@/components/health-status/health-status";
+import { Button } from "@/components/ui/button";
+
+import type { HealthStatusInfo } from "@/types";
+import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 
 interface McpCardProps {
   icon: React.ReactElement;

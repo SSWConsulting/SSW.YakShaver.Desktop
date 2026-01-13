@@ -1,4 +1,4 @@
-import { SVGProps } from "react";
+import type { SVGProps } from "react";
 
 // Icon from https://www.svgrepo.com/svg/448271/azure-devops
 export const AzureDevOpsIcon = (props: SVGProps<SVGSVGElement>) => (

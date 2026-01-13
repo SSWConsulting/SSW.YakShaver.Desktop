@@ -1,3 +1,4 @@
+import { Globe } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
@@ -13,13 +14,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../ui/alert-dialog";
-import { type MCPServerConfig } from "./McpServerForm";
-import { McpWhitelistDialog } from "./McpWhitelistDialog";
-import { Globe } from "lucide-react";
-import { McpCard } from "./mcp-card";
-import { McpGitHubCard } from "./github/mcp-github-card";
-import { McpServerFormCard } from "./mcp-server-form-card";
 import { McpAzureDevOpsCard } from "./devops/mcp-devops-card";
+import { McpGitHubCard } from "./github/mcp-github-card";
+import type { MCPServerConfig } from "./McpServerForm";
+import { McpWhitelistDialog } from "./McpWhitelistDialog";
+import { McpCard } from "./mcp-card";
+import { McpServerFormCard } from "./mcp-server-form-card";
 
 type ServerHealthStatus<T extends string = string> = Record<T, HealthStatusInfo>;
 

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import type { MCPServerConfig } from "./McpServerForm";
 import { ipcClient } from "../../../services/ipc-client";
+import { Button } from "../../ui/button";
+import { Checkbox } from "../../ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -10,9 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../ui/dialog";
-import { Checkbox } from "../../ui/checkbox";
 import { ScrollArea } from "../../ui/scroll-area";
-import { Button } from "../../ui/button";
+import type { MCPServerConfig } from "./McpServerForm";
 
 type ToolSummary = { name: string; description?: string };
 

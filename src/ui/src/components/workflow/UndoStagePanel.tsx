@@ -1,8 +1,8 @@
 import { Check, Loader2, Undo2, Wrench, X } from "lucide-react";
 import type React from "react";
+import { type MCPStep, MCPStepType } from "../../types";
 import { deepParseJson } from "../../utils";
 import { ReasoningStep } from "./ReasoningStep";
-import { MCPStepType, type MCPStep } from "../../types";
 
 const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
   const details = e.currentTarget;

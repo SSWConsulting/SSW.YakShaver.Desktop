@@ -1,10 +1,10 @@
-import { GitHubIcon } from "./github-icon";
-import { McpCard } from "../mcp-card";
-import { MCPServerConfig } from "../McpServerForm";
-import { ipcClient } from "@/services/ipc-client";
-import { HealthStatusInfo } from "../../../../../../backend/types";
-import { GitHubAppInstallGuide } from "../GitHubAppInstallGuide";
 import { useEffect, useState } from "react";
+import { ipcClient } from "@/services/ipc-client";
+import type { HealthStatusInfo } from "../../../../../../backend/types";
+import { GitHubAppInstallGuide } from "../GitHubAppInstallGuide";
+import type { MCPServerConfig } from "../McpServerForm";
+import { McpCard } from "../mcp-card";
+import { GitHubIcon } from "./github-icon";
 
 interface McpGitHubCardProps {
   config?: MCPServerConfig;

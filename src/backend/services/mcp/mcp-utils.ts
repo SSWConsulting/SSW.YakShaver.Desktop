@@ -28,6 +28,6 @@ export class MCPUtils {
     ) {
       result = result.slice(1, -1).trim();
     }
-    return this.expandHomePath(result);
+    return MCPUtils.expandHomePath(result);
   }
 }

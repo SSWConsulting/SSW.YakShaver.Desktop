@@ -2,14 +2,15 @@ import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import {
+  type MCPStep,
   MCPStepType,
   ProgressStage,
-  type MCPStep,
   type VideoUploadOrigin,
   type WorkflowProgress,
   type WorkflowStage,
 } from "../../types";
 import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
+import { deepParseJson, formatErrorMessage } from "../../utils";
 import { Accordion, AccordionItem } from "../ui/accordion";
 import {
   AlertDialog,
@@ -28,7 +29,6 @@ import { Textarea } from "../ui/textarea";
 import { StageWithContent } from "./StageWithContent";
 import { StageWithoutContent } from "./StageWithoutContent";
 import { UndoStagePanel } from "./UndoStagePanel";
-import { deepParseJson, formatErrorMessage } from "../../utils";
 
 const WORKFLOW_CORE_STAGES: WorkflowStage[] = [
   ProgressStage.CONVERTING_AUDIO,

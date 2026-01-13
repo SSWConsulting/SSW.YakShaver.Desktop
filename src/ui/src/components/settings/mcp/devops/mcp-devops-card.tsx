@@ -1,7 +1,7 @@
-import { McpCard } from "../mcp-card";
-import { MCPServerConfig } from "../McpServerForm";
 import { ipcClient } from "@/services/ipc-client";
-import { HealthStatusInfo } from "../../../../../../backend/types";
+import type { HealthStatusInfo } from "../../../../../../backend/types";
+import type { MCPServerConfig } from "../McpServerForm";
+import { McpCard } from "../mcp-card";
 import { AzureDevOpsIcon } from "./devops-icon";
 
 interface McpDevOpsCardProps {

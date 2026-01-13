@@ -1,4 +1,4 @@
-import { MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
+import { type MCPServerConfig, McpServerFormWrapper } from "./McpServerForm";
 
 interface McpServerFormCardProps {
   initialData: MCPServerConfig | null;
