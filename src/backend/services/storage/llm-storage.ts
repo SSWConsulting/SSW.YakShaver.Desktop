@@ -7,11 +7,6 @@ import type {
   ModelConfig,
 } from "@shared/types/llm";
 
-type MigrationMap = {
-  1: (config: LLMConfigV1) => LLMConfigV2;
-  2: (config: LLMConfigV2) => LLMConfigV2;
-};
-
 import { BaseSecureStorage } from "./base-secure-storage";
 
 const LLM_CONFIG_FILE = "llm-config.enc";
@@ -21,43 +16,43 @@ const LLM_PROVIDER_VERSION = 2;
 export class LlmStorage extends BaseSecureStorage {
   private static instance: LlmStorage;
 
-  /**
-   * Migration registry - add new migrations here as versions evolve
-   */
-  private migrations: MigrationMap = {
-    1: (config: LLMConfigV1) => {
-      console.log("[LlmStorage]: Migrating V1 -> V2");
-      let modelConfig: ModelConfig;
-      if (config.provider === "openai") {
-        modelConfig = {
-          provider: "openai",
-          model: config.model,
-          apiKey: config.apiKey,
-        };
-      } else if (config.provider === "azure") {
-        modelConfig = {
-          provider: "azure",
-          model: config.model,
-          apiKey: config.apiKey,
-          resourceName: (config as AzureOpenAIConfig).resourceName || "",
-        };
-      } else if (config.provider === "deepseek") {
-        modelConfig = {
-          provider: "deepseek",
-          model: config.model,
-          apiKey: config.apiKey,
-        };
-      } else {
-        throw new Error(`[LlmStorage]: Unknown provider ${config} during migration`);
-      }
-      return {
-        version: 2,
-        languageModel: modelConfig,
-        transcriptionModel: modelConfig,
+  // Migration from V1 to V2
+  private migrateV1toV2(config: LLMConfigV1): LLMConfigV2 {
+    console.log("[LlmStorage]: Migrating V1 -> V2");
+    let modelConfig: ModelConfig;
+    if (config.provider === "openai") {
+      modelConfig = {
+        provider: "openai",
+        model: config.model,
+        apiKey: config.apiKey,
       };
-    },
-    2: (config: LLMConfigV2) => config,
-  };
+    } else if (config.provider === "azure") {
+      modelConfig = {
+        provider: "azure",
+        model: config.model,
+        apiKey: config.apiKey,
+        resourceName: (config as AzureOpenAIConfig).resourceName || "",
+      };
+    } else if (config.provider === "deepseek") {
+      modelConfig = {
+        provider: "deepseek",
+        model: config.model,
+        apiKey: config.apiKey,
+      };
+    } else {
+      throw new Error(`[LlmStorage]: Unknown provider ${config} during migration`);
+    }
+    return {
+      version: 2,
+      languageModel: modelConfig,
+      transcriptionModel: modelConfig,
+    };
+  }
+
+  // Migration from V2 to V2 (no-op)
+  private migrateV2toV2(config: LLMConfigV2): LLMConfigV2 {
+    return config;
+  }
 
   private constructor() {
     super();
@@ -113,12 +108,13 @@ export class LlmStorage extends BaseSecureStorage {
     const startVersion = config.version ?? 1;
 
     for (let v = startVersion; v < LLM_PROVIDER_VERSION; v++) {
-      const migration = this.migrations[v as keyof MigrationMap];
-      if (!migration) {
-        throw new Error(`[LlmStorage]: Missing migration for version ${v}`);
+      if (v === 1) {
+        currentConfig = this.migrateV1toV2(currentConfig as LLMConfigV1);
+      } else if (v === 2) {
+        currentConfig = this.migrateV2toV2(currentConfig as LLMConfigV2);
+      } else {
+        throw new Error(`[LlmStorage]: No migration handler for version ${v}`);
       }
-      // Type narrowing for migration input
-      currentConfig = migration(currentConfig);
     }
 
     return currentConfig as LLMConfigV2;
