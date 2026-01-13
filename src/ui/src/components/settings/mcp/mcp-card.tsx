@@ -5,6 +5,7 @@ import { useState } from "react";
 import { HealthStatusInfo } from "@/types";
 import { Check } from "lucide-react";
 import { HealthStatus } from "@/components/health-status/health-status";
+import { GitHubAppInstallGuide } from "./GitHubAppInstallGuide";
 
 interface McpCardProps {
   icon: React.ReactElement;
@@ -81,6 +82,7 @@ export function McpCard({
           </div>
         </div>
       )}
+
       {showSettings && !isReadOnly && (
         <div onClick={(e) => e.stopPropagation()}>
           <McpServerFormWrapper
@@ -104,6 +106,7 @@ export function McpCard({
           />
         </div>
       )}
+
     </div>
   );
 }

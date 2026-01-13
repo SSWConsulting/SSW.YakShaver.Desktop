@@ -3,6 +3,8 @@ import { McpCard } from "../mcp-card";
 import { MCPServerConfig } from "../McpServerForm";
 import { ipcClient } from "@/services/ipc-client";
 import { HealthStatusInfo } from "../../../../../../backend/types";
+import { GitHubAppInstallGuide } from "../GitHubAppInstallGuide";
+import { useEffect, useState } from "react";
 
 
 interface McpGitHubCardProps {
@@ -16,7 +18,21 @@ McpGitHubCard.Name = "GitHub";
 McpGitHubCard.Id = "f12980ac-f80c-47e0-b4ac-181a54122d61";
 
 export function McpGitHubCard({ config, onChange, healthInfo, onTools }: McpGitHubCardProps) {
+  const [appInstallUrl, setAppInstallUrl] = useState<string>("");
 
+  useEffect(() => {
+    if (config?.enabled && !appInstallUrl) {
+      const loadGitHubInstallUrl = async () => {
+        try {
+          const installUrl = await ipcClient.githubToken.getInstallUrl();
+          setAppInstallUrl(installUrl);
+        } catch (e) {
+          console.error("Failed to load GitHub install URL:", e);
+        }
+      };
+      void loadGitHubInstallUrl();
+    }
+  }, [config?.enabled, appInstallUrl]);
 
   const configLocal = config ?? {
     id: McpGitHubCard.Id,
@@ -46,14 +62,17 @@ export function McpGitHubCard({ config, onChange, healthInfo, onTools }: McpGitH
   }
 
   return (
-    <McpCard
-      isReadOnly
-      icon={<GitHubIcon />}
-      config={configLocal}
-      healthInfo={healthInfo}
-      onConnect={handleOnConnect}
-      onDisconnect={handleOnDisconnect}
-      onTools={onTools}
-    />
+    <>
+      <GitHubAppInstallGuide appInstallUrl={appInstallUrl} />
+      <McpCard
+        isReadOnly
+        icon={<GitHubIcon />}
+        config={configLocal}
+        healthInfo={healthInfo}
+        onConnect={handleOnConnect}
+        onDisconnect={handleOnDisconnect}
+        onTools={onTools}
+      />
+    </>
   );
 }
