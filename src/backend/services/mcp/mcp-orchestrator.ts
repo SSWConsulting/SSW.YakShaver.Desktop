@@ -421,4 +421,11 @@ export class MCPOrchestrator {
     resolver(decision);
     return true;
   }
+
+  public cancelAllPendingApprovals(reason = "Session cancelled"): void {
+    for (const resolve of this.pendingToolApprovals.values()) {
+      resolve({ kind: "deny_stop", feedback: reason });
+    }
+    this.pendingToolApprovals.clear();
+  }
 }
