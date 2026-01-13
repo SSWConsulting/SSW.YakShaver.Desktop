@@ -3,13 +3,7 @@ import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
 import { Button } from "../../ui/button";
 import { Label } from "../../ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 
 export interface ProcessedRelease {
   prNumber: string;
@@ -38,9 +32,7 @@ interface ReleaseChannelSettingsPanelProps {
   isActive: boolean;
 }
 
-export function ReleaseChannelSettingsPanel({
-  isActive,
-}: ReleaseChannelSettingsPanelProps) {
+export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettingsPanelProps) {
   const [channel, setChannel] = useState<ReleaseChannel>({ type: "latest" });
   const [releases, setReleases] = useState<ProcessedRelease[]>([]);
   const [currentVersion, setCurrentVersion] = useState<string>("");
@@ -124,13 +116,7 @@ export function ReleaseChannelSettingsPanel({
       void loadCurrentVersion();
       void checkGitHubToken();
     }
-  }, [
-    isActive,
-    loadChannel,
-    loadReleases,
-    loadCurrentVersion,
-    checkGitHubToken,
-  ]);
+  }, [isActive, loadChannel, loadReleases, loadCurrentVersion, checkGitHubToken]);
 
   const handleCheckUpdates = useCallback(async () => {
     setIsLoading(true);
@@ -151,14 +137,10 @@ export function ReleaseChannelSettingsPanel({
         toast.error(`Update check failed: ${result.error}`);
       } else if (result.available) {
         setUpdateStatus(
-          `✅ Update found: ${
-            result.version || "unknown"
-          } - Download will start automatically`
+          `✅ Update found: ${result.version || "unknown"} - Download will start automatically`,
         );
         toast.success(
-          `Update available! Version ${
-            result.version || "unknown"
-          } will download automatically.`
+          `Update available! Version ${result.version || "unknown"} will download automatically.`,
         );
       } else {
         setUpdateStatus(`✅ You are on the latest version (${currentVersion})`);
@@ -210,12 +192,10 @@ export function ReleaseChannelSettingsPanel({
     <div className="flex flex-col gap-6">
       {!isCheckingToken && !hasGitHubToken && (
         <div className="p-4 bg-yellow-500/10 rounded-md border border-yellow-500/30">
-          <h3 className="text-yellow-200 font-medium mb-2">
-            GitHub Token Required
-          </h3>
+          <h3 className="text-yellow-200 font-medium mb-2">GitHub Token Required</h3>
           <p className="text-yellow-100 text-sm">
-            A GitHub token is required to view and download PR releases.
-            Configure it in the <b>GitHub Token</b> tab.
+            A GitHub token is required to view and download PR releases. Configure it in the{" "}
+            <b>GitHub Token</b> tab.
           </p>
         </div>
       )}
@@ -242,15 +222,12 @@ export function ReleaseChannelSettingsPanel({
                 {selectValue === SELECT_LATEST
                   ? "Latest Stable (default)"
                   : selectValue
-                  ? `PR #${selectValue}`
-                  : "Choose a release"}
+                    ? `PR #${selectValue}`
+                    : "Choose a release"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent className="max-h-80">
-              <SelectItem
-                value={SELECT_LATEST}
-                textValue="Latest Stable (default)"
-              >
+              <SelectItem value={SELECT_LATEST} textValue="Latest Stable (default)">
                 Latest Stable (default)
               </SelectItem>
               {isLoadingReleases && (
@@ -273,9 +250,7 @@ export function ReleaseChannelSettingsPanel({
                   <div className="flex flex-col">
                     <span>{option.label}</span>
                     <span className="text-xs">{option.version}</span>
-                    <span className="text-xs">
-                      {new Date(option.publishedAt).toLocaleString()}
-                    </span>
+                    <span className="text-xs">{new Date(option.publishedAt).toLocaleString()}</span>
                   </div>
                 </SelectItem>
               ))}
