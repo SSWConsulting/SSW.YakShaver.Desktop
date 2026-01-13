@@ -225,7 +225,7 @@ export class MCPServerManager {
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
     let index = storedConfigs.findIndex((s) => s.id === serverId || s.name === serverId);
 
-    if (index = -1) {
+    if (index === -1) {
       storedConfigs.push(config);
       index = storedConfigs.findIndex((s) => s.id === serverId || s.name === serverId);
     }
