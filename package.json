@@ -52,7 +52,7 @@
     "googleapis": "^169.0.0",
     "isomorphic-fetch": "^3.0.0",
     "json-schema-to-zod": "^2.6.1",
-    "openai": "^6.15.0",
+    "openai": "^6.16.0",
     "tmp": "^0.2.5",
     "youtube-dl-exec": "^3.0.28"
   },
