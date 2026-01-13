@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, Copy, Trash2 } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useClipboard } from "../../../hooks/useClipboard";
 import { ipcClient } from "../../../services/ipc-client";
 import { Button } from "../../ui/button";
+import { Checkbox } from "../../ui/checkbox";
 import {
   Form,
   FormControl,
@@ -252,17 +253,10 @@ export function PromptForm({
                           aria-checked={field.value?.includes(server.id) ?? false}
                           tabIndex={0}
                         >
-                          <div
-                            className={`w-4 h-4 rounded border flex items-center justify-center ${
-                              field.value?.includes(server.id)
-                                ? "bg-primary border-primary"
-                                : "border-white/40 bg-transparent"
-                            }`}
-                          >
-                            {field.value?.includes(server.id) && (
-                              <Check className="w-3 h-3 text-primary-foreground" />
-                            )}
-                          </div>
+                          <Checkbox
+                            checked={field.value?.includes(server.id) ?? false}
+                            className="pointer-events-none"
+                          />
                           <span className="text-sm">
                             {server.name}
                             {server.builtin && (
