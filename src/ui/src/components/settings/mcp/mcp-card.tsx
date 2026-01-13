@@ -32,90 +32,96 @@ export function McpCard({
 }: McpCardProps) {
   const [showSettings, setShowSettings] = useState(false);
   return (
-    <div
-      className={`flex flex-col rounded-lg border border-[rgba(255,255,255,0.24)] bg-[rgba(255,255,255,0.04)] pt-4 pr-6 pb-4 pl-6 opacity-100 transition-colors duration-150 hover:bg-[rgba(255,255,255,0.08)] hover:border-white/40 ${isReadOnly ? "cursor-default" : "cursor-pointer"}`}
-      onClick={() => {
-        if (!isReadOnly) setShowSettings(!showSettings);
-      }}
-    >
-      {!showSettings && (
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center">
-            {healthInfo && (
-              <HealthStatus
-                isChecking={healthInfo.isChecking}
-                isDisabled={!config.enabled}
-                isHealthy={healthInfo.isHealthy}
-                successMessage={healthInfo.successMessage}
-                className="mr-4"
-              />
-            )}
-            <span className="size-8 flex items-center justify-center">{icon}</span>
-            <div className="flex flex-col ml-4">
-              <span className="text-base font-medium">{config.name}</span>
-              {config.description && (
-                <span className="text-sm text-gray-400">{config.description}</span>
+    <>
+      {/* biome-ignore lint : lint message can be ignored for now as we don't support fully keyboard navigation and waiting for new designs */}
+      <div
+        className={`flex flex-col rounded-lg border border-[rgba(255,255,255,0.24)] bg-[rgba(255,255,255,0.04)] pt-4 pr-6 pb-4 pl-6 opacity-100 transition-colors duration-150 hover:bg-[rgba(255,255,255,0.08)] hover:border-white/40 ${isReadOnly ? "cursor-default" : "cursor-pointer"}`}
+        onClick={() => {
+          if (!isReadOnly) setShowSettings(!showSettings);
+        }}
+      >
+        {!showSettings && (
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center">
+              {healthInfo && (
+                <HealthStatus
+                  isChecking={healthInfo.isChecking}
+                  isDisabled={!config.enabled}
+                  isHealthy={healthInfo.isHealthy}
+                  successMessage={healthInfo.successMessage}
+                  className="mr-4"
+                />
+              )}
+              <span className="size-8 flex items-center justify-center">{icon}</span>
+              <div className="flex flex-col ml-4">
+                <span className="text-base font-medium">{config.name}</span>
+                {config.description && (
+                  <span className="text-sm text-gray-400">{config.description}</span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {viewMode === "detailed" && onTools && (
+                <Button variant="outline" onClick={() => onTools()}>
+                  Tools
+                </Button>
+              )}
+              {!config.enabled && (
+                <Button
+                  variant="outline"
+                  className="cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onConnect?.();
+                  }}
+                >
+                  Connect
+                </Button>
+              )}
+              {config.enabled && (
+                <Button
+                  variant="destructive"
+                  className="cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDisconnect?.();
+                  }}
+                >
+                  Disconnect
+                </Button>
               )}
             </div>
           </div>
+        )}
 
-          <div className="flex items-center gap-2">
-            {viewMode === "detailed" && onTools && (
-              <Button variant="outline" onClick={() => onTools()}>
-                Tools
-              </Button>
-            )}
-            {!config.enabled && (
-              <Button
-                variant="outline"
-                className="cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onConnect?.();
+        {showSettings && !isReadOnly && (
+          <>
+            {/* biome-ignore lint : no need to implement keyboard navigation for now */}
+            <div onClick={(e) => e.stopPropagation()}>
+              <McpServerFormWrapper
+                isEditing={true}
+                initialData={config}
+                onCancel={() => {
+                  setShowSettings(false);
                 }}
-              >
-                Connect
-              </Button>
-            )}
-            {config.enabled && (
-              <Button
-                variant="destructive"
-                className="cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDisconnect?.();
+                onSubmit={(data) => {
+                  setShowSettings(false);
+
+                  return onUpdate?.(data) ?? Promise.resolve();
                 }}
-              >
-                Disconnect
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showSettings && !isReadOnly && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <McpServerFormWrapper
-            isEditing={true}
-            initialData={config}
-            onCancel={() => {
-              setShowSettings(false);
-            }}
-            onSubmit={(data) => {
-              setShowSettings(false);
-
-              return onUpdate?.(data) ?? Promise.resolve();
-            }}
-            onDelete={
-              onDelete ??
-              (() => {
-                setShowSettings(false);
-              })
-            }
-            isLoading={false}
-          />
-        </div>
-      )}
-    </div>
+                onDelete={
+                  onDelete ??
+                  (() => {
+                    setShowSettings(false);
+                  })
+                }
+                isLoading={false}
+              />
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }

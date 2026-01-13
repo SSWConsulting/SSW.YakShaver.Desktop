@@ -75,10 +75,11 @@ export function McpSettingsPanel({
   const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
     const initialStatus: ServerHealthStatus<string> = {};
     serverList.forEach((server) => {
+      if (!server.id) return;
       if (server.enabled !== false) {
-        initialStatus[server.id!] = { isHealthy: false, isChecking: true };
+        initialStatus[server.id] = { isHealthy: false, isChecking: true };
       } else {
-        initialStatus[server.id!] = {
+        initialStatus[server.id] = {
           isHealthy: false,
           isChecking: false,
           successMessage: "Disabled",
@@ -88,17 +89,17 @@ export function McpSettingsPanel({
     setHealthStatus(initialStatus);
 
     for (const server of serverList) {
-      if (server.enabled === false) continue;
+      if (server.enabled === false || !server.id) continue;
       try {
-        const result = (await ipcClient.mcp.checkServerHealthAsync(server.id!)) as HealthStatusInfo;
+        const result = (await ipcClient.mcp.checkServerHealthAsync(server.id)) as HealthStatusInfo;
         setHealthStatus((prev) => ({
           ...prev,
-          [server.id!]: { ...result, isChecking: false },
+          [server.id as string]: { ...result, isChecking: false },
         }));
       } catch (e) {
         setHealthStatus((prev) => ({
           ...prev,
-          [server.id!]: {
+          [server.id as string]: {
             isHealthy: false,
             error: formatErrorMessage(e),
             isChecking: false,
@@ -172,8 +173,8 @@ export function McpSettingsPanel({
     console.log("Submitting MCP server config:", config, editingServer);
     setIsLoading(true);
     try {
-      if (editingServer) {
-        await ipcClient.mcp.updateServerAsync(editingServer.id!, config);
+      if (editingServer?.id) {
+        await ipcClient.mcp.updateServerAsync(editingServer.id, config);
         toast.success(`Server '${config.name}' updated`);
         setShowAddCustomMcpForm(false);
         setEditingServer(null);
@@ -248,13 +249,13 @@ export function McpSettingsPanel({
           <>
             <McpCard
               key={server.id}
-              onDelete={() => confirmDeleteServer(server.id!, server.name)}
+              onDelete={() => confirmDeleteServer(String(server.id), server.name)}
               healthInfo={getHealthStatus(server.id)}
               icon={<Globe />}
               config={server}
               onTools={() => openWhitelistDialog(server)}
-              onConnect={() => handleOnConnect(server.id!, server)}
-              onDisconnect={() => handleOnDisconnect(server.id!, server)}
+              onConnect={() => handleOnConnect(String(server.id), server)}
+              onDisconnect={() => handleOnDisconnect(String(server.id), server)}
               onUpdate={async (newConfig) => {
                 setEditingServer(server);
                 console.log("Updating server:", server.name, "with config:", newConfig);
@@ -267,6 +268,7 @@ export function McpSettingsPanel({
       {!showAddCustomMcpForm && (
         <div className="flex flex-col items-center mb-4">
           <span className="font-light text-sm my-4">OR</span>
+          {/* biome-ignore lint : lint message can be ignored for now as we don't support fully keyboard navigation and waiting for new designs */}
           <div
             className={`w-full max-w-xl cursor-pointer mt-2 flex items-center justify-center rounded-lg border border-[rgba(255,255,255,0.24)] bg-[rgba(255,255,255,0.04)] py-4 px-6 opacity-100 text-base font-medium text-center select-none transition hover:bg-[rgba(255,255,255,0.08)]`}
             onClick={() => {

@@ -18,7 +18,13 @@ export function registerEventForwarders() {
     [IPC_CHANNELS.RECORDING_TIME_UPDATE]: (time: number) => controlBar.updateTime(time),
   };
 
-  Object.entries(handlers).forEach(([event, handler]) => service.on(event, handler));
+  Object.entries(handlers).forEach(([event, handler]) => {
+    service.on(event, handler);
+  });
 
-  return () => Object.entries(handlers).forEach(([event, handler]) => service.off(event, handler));
+  return () => {
+    Object.entries(handlers).forEach(([event, handler]) => {
+      service.off(event, handler);
+    });
+  };
 }

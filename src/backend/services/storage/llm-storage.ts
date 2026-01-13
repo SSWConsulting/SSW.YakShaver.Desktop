@@ -79,8 +79,8 @@ export class LlmStorage extends BaseSecureStorage {
     return await this.fileExists(this.getLLMConfigPath());
   }
 
-  private migrateToCurrentVersion(config: LLMConfig): LLMConfigV2 {
-    let currentConfig: any = config;
+  private migrateToCurrentVersion(config: LLMConfigV1 | LLMConfigV2): LLMConfigV2 {
+    let currentConfig = config;
     const startVersion = config.version ?? 1;
 
     // Apply migrations sequentially from start version to current
@@ -89,6 +89,7 @@ export class LlmStorage extends BaseSecureStorage {
       if (!migration) {
         throw new Error(`[LlmStorage]: Missing migration for version ${v}`);
       }
+
       currentConfig = migration(currentConfig);
     }
 

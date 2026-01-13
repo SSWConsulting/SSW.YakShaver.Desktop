@@ -59,14 +59,14 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
   const disabled = useMemo(() => isLoading || isSaving, [isLoading, isSaving]);
 
   const handleSave = useCallback(async () => {
-    if (!server) return;
+    if (!server || !server.id) return;
     setIsSaving(true);
     try {
       const updated: MCPServerConfig = {
         ...server,
         toolWhitelist: Array.from(selected),
-      } as MCPServerConfig;
-      await ipcClient.mcp.updateServerAsync(server.id!, updated);
+      };
+      await ipcClient.mcp.updateServerAsync(server.id, updated);
       toast.success(`Whitelist updated for '${server.name}'`);
       onSaved();
     } catch (e) {

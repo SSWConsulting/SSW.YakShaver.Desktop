@@ -3,6 +3,7 @@ import type { SVGProps } from "react";
 // Icon from https://svgl.app/
 const Atlassian = (props: SVGProps<SVGSVGElement>) => (
   <svg {...props} preserveAspectRatio="xMidYMid" viewBox="0 0 256 256">
+    <title>Atlassian logo</title>
     <defs>
       <linearGradient x1="99.7%" y1="15.8%" x2="39.8%" y2="97.4%" id="atlassian__a">
         <stop stop-color="#0052CC" offset="0%" />

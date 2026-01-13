@@ -164,11 +164,15 @@ function extractLinksFromStructuredData(raw: string): LinkCandidate[] {
       return;
     }
     if (Array.isArray(value)) {
-      value.forEach((item, index) => walk(item, [...path, String(index)]));
+      value.forEach((item, index) => {
+        walk(item, [...path, String(index)]);
+      });
       return;
     }
     if (value && typeof value === "object") {
-      Object.entries(value).forEach(([key, val]) => walk(val, [...path, key]));
+      Object.entries(value).forEach(([key, val]) => {
+        walk(val, [...path, key]);
+      });
     }
   };
 
