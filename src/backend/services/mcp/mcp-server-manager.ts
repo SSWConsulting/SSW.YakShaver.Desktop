@@ -195,11 +195,11 @@ export class MCPServerManager {
   }
 
   private static async resolveServerConfigAsync(
-    idOrName: string,
+    serverId: string,
   ): Promise<MCPServerConfig | undefined> {
     return (
-      (await MCPServerManager.getServerConfigByIdAsync(idOrName)) ??
-      (await MCPServerManager.getServerConfigByNameAsync(idOrName))
+      (await MCPServerManager.getServerConfigByIdAsync(serverId)) ??
+      (await MCPServerManager.getServerConfigByNameAsync(serverId))
     );
   }
 
@@ -222,11 +222,11 @@ export class MCPServerManager {
 
   async updateServerAsync(serverId: string, config: MCPServerConfig): Promise<void> {
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
-    let index = storedConfigs.findIndex((s) => s.id === serverId || s.name === serverId);
+    let index = storedConfigs.findIndex((s) => s.id === serverId);
 
     if (index === -1) {
       storedConfigs.push(config);
-      index = storedConfigs.findIndex((s) => s.id === serverId || s.name === serverId);
+      index = storedConfigs.findIndex((s) => s.id === serverId);
     }
 
     const existing = storedConfigs[index];
@@ -238,11 +238,6 @@ export class MCPServerManager {
     } as MCPServerConfig;
 
     MCPServerManager.validateServerConfig(merged);
-
-    // If the name is changing, ensure the new name isn't already used
-    if (merged.name !== existing.name && storedConfigs.some((s) => s.name === merged.name)) {
-      throw new Error(`Server with name '${merged.name}' already exists`);
-    }
 
     // If the name changed OR the config has changed (URL/headers/etc), recreate client
     const configChanged = JSON.stringify(existing) !== JSON.stringify(merged);
