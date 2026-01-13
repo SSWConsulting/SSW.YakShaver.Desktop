@@ -17,15 +17,20 @@ import { useShaveManager } from "./hooks/useShaveManager";
 
 export default function App() {
   const [appVersion, setAppVersion] = useState<string>("");
+  const [commitHash, setCommitHash] = useState<string>("");
 
   // Auto-save shaves when workflow completes
   useShaveManager();
 
   useEffect(() => {
     const fetchVersion = async () => {
-      const version =
-        await window.electronAPI.releaseChannel.getCurrentVersion();
-      setAppVersion(version);
+      const info =
+        (await window.electronAPI.releaseChannel.getCurrentVersion()) as unknown as {
+          version: string;
+          commitHash: string;
+        };
+      setAppVersion(info.version);
+      setCommitHash(info.commitHash);
     };
     fetchVersion();
   }, []);
@@ -63,6 +68,7 @@ export default function App() {
 
           <div className="fixed bottom-2 left-2 text-[10px] text-white/30 z-50 pointer-events-none select-none font-mono">
             {appVersion && `v${appVersion}`}
+            {commitHash && ` (${commitHash.substring(0, 7)})`}
           </div>
         </div>
       </YouTubeAuthProvider>

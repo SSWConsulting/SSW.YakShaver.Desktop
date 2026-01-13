@@ -91,6 +91,8 @@ jobs:
           Add-Content -Path ".env" -Value "`nAZURE_TENANT_ID=$env:AZURE_TENANT_ID"
           Add-Content -Path ".env" -Value "`nAZURE_AUTH_SCOPE=$env:AZURE_AUTH_SCOPE"
           Add-Content -Path ".env" -Value "`nAZURE_AUTH_CUSTOM_PROTOCOL=$env:AZURE_AUTH_CUSTOM_PROTOCOL"
+          $COMMIT_HASH = git rev-parse HEAD
+          Add-Content -Path ".env" -Value "`nCOMMIT_HASH=$COMMIT_HASH"
 
       - name: Install dependencies
         run: npm ci --prefer-offline
@@ -162,6 +164,8 @@ jobs:
           printf "AZURE_TENANT_ID=%s\n" "$AZURE_TENANT_ID" >> .env
           printf "AZURE_AUTH_SCOPE=%s\n" "$AZURE_AUTH_SCOPE" >> .env
           printf "AZURE_AUTH_CUSTOM_PROTOCOL=%s\n" "$AZURE_AUTH_CUSTOM_PROTOCOL" >> .env
+          COMMIT_HASH=$(git rev-parse HEAD)
+          printf "COMMIT_HASH=%s\n" "$COMMIT_HASH" >> .env
 
       - name: Install dependencies
         run: npm ci --prefer-offline

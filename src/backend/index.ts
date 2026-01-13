@@ -52,6 +52,9 @@ const getAppVersion = (): string => app.getVersion();
 
 const createApplicationMenu = (): void => {
   const version = getAppVersion();
+  const commitHash = config.commitHash();
+  const hashString = commitHash ? ` (${commitHash.substring(0, 7)})` : "";
+
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: "File",
@@ -99,8 +102,9 @@ const createApplicationMenu = (): void => {
             dialog.showMessageBox({
               type: "info",
               title: "About YakShaver",
-              message: `YakShaver v${version}`,
-              detail: "An AI agent to help you trim the fluff and get straight to the point",
+              message: `YakShaver`,
+              detail: `Version: ${version}
+Commit Hash: ${hashString || "N/A"}`,
               buttons: ["OK"],
             });
           },
@@ -127,8 +131,7 @@ const createWindow = (): void => {
     ? join(__dirname, "../../src/ui/public/icons/icon.png")
     : join(process.resourcesPath, "public/icons/icon.png");
 
-  const version = getAppVersion();
-  const title = `YakShaver - v${version}`;
+  const title = `YakShaver`;
 
   mainWindow = new BrowserWindow({
     width: 1200,

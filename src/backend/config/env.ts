@@ -26,8 +26,13 @@ const getPortalApi = () => {
   return url || "http://localhost:7009/api";
 };
 
+const getCommitHash = () => {
+  return env.COMMIT_HASH || "";
+};
+
 export const config = {
   youtube: getYouTube,
   azure: getAzure,
   portalApi: getPortalApi,
+  commitHash: getCommitHash,
 };
