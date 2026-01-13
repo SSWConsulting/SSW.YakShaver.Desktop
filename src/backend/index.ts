@@ -49,13 +49,21 @@ let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
 
 const getAppVersion = (): string => app.getVersion();
-
-const createMenuTemplate = (): Electron.MenuItemConstructorOptions[] => {
+const createMenu = (): Menu => {
   const version = getAppVersion();
   const commitHash = config.commitHash();
   const hashString = commitHash ? ` (${commitHash})` : "";
 
-  const template: Electron.MenuItemConstructorOptions[] = [
+  const template: Electron.MenuItemConstructorOptions[] = [];
+
+  // Add app menu for macOS
+  if (process.platform === "darwin") {
+    template.push({
+      role: "appMenu",
+    });
+  }
+
+  template.push(
     {
       label: "File",
       submenu: [
@@ -97,21 +105,21 @@ Commit: ${hashString || "N/A"}`,
         },
       ],
     },
-  ];
+  );
 
-  // Add View > Toggle DevTools for development
+  // Add DevTools in development
   if (isDev) {
     const viewMenu = template.find((item) => item.label === "View");
     if (viewMenu && Array.isArray(viewMenu.submenu)) {
       viewMenu.submenu.push({ type: "separator" }, { role: "toggleDevTools" });
     }
   }
-  return template;
+
+  return Menu.buildFromTemplate(template);
 };
 
 const createApplicationMenu = (): void => {
-  const menuTemplate = createMenuTemplate();
-  const menu = Menu.buildFromTemplate(menuTemplate);
+  const menu = createMenu();
   Menu.setApplicationMenu(menu);
 };
 
