@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Copy, Trash2 } from "lucide-react";
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useClipboard } from "../../../hooks/useClipboard";
 import { ipcClient } from "../../../services/ipc-client";
@@ -34,73 +34,77 @@ export interface PromptFormRef {
   isDirty: () => boolean;
 }
 
-export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
-  (
-    { defaultValues, onSubmit, onCancel, onDelete, loading, isDefault = false, isNewPrompt = false },
-    ref,
-  ) => {
-    const { copyToClipboard } = useClipboard();
-    const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
-    const [serversLoaded, setServersLoaded] = useState(false);
-    const hasAutoSelectedServers = useRef(false);
+interface InternalPromptFormProps extends PromptFormProps {
+  onDirtyChange?: (isDirty: boolean) => void;
+}
 
-    const form = useForm<PromptFormValues>({
-      resolver: zodResolver(promptFormSchema),
-      defaultValues: defaultValues
-        ? { ...defaultValues, selectedMcpServerIds: defaultValues.selectedMcpServerIds ?? [] }
-        : { name: "", description: "", content: "", selectedMcpServerIds: [] },
-      mode: "onChange",
-    });
+export function PromptForm({
+  defaultValues,
+  onSubmit,
+  onCancel,
+  onDelete,
+  loading,
+  isDefault = false,
+  isNewPrompt = false,
+  onDirtyChange,
+}: InternalPromptFormProps) {
+  const { copyToClipboard } = useClipboard();
+  const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
+  const [serversLoaded, setServersLoaded] = useState(false);
+  const hasAutoSelectedServers = useRef(false);
 
-    // Load MCP servers on mount
-    useEffect(() => {
-      let cancelled = false;
-      const loadServers = async () => {
-        try {
-          const servers = await ipcClient.mcp.listServers();
-          if (cancelled) return;
-          setMcpServers(servers);
-          setServersLoaded(true);
-        } catch (error) {
-          console.error("Failed to load MCP servers:", error);
-          if (!cancelled) setServersLoaded(true);
-        }
-      };
-      void loadServers();
-      return () => {
-        cancelled = true;
-      };
-    }, []);
+  const form = useForm<PromptFormValues>({
+    resolver: zodResolver(promptFormSchema),
+    defaultValues: defaultValues
+      ? { ...defaultValues, selectedMcpServerIds: defaultValues.selectedMcpServerIds ?? [] }
+      : { name: "", description: "", content: "", selectedMcpServerIds: [] },
+    mode: "onChange",
+  });
 
-    // Auto-select all servers for existing prompts without selectedMcpServerIds
-    // This runs once after servers are loaded
-    useEffect(() => {
-      if (
-        serversLoaded &&
-        !isNewPrompt &&
-        !hasAutoSelectedServers.current &&
-        mcpServers.length > 0
-      ) {
-        const currentSelection = form.getValues("selectedMcpServerIds");
-        if (!currentSelection || currentSelection.length === 0) {
-          const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
-          form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
-        }
-        hasAutoSelectedServers.current = true;
+  // Notify parent of dirty state changes
+  const { isDirty } = form.formState;
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  // Load MCP servers on mount
+  useEffect(() => {
+    let cancelled = false;
+    const loadServers = async () => {
+      try {
+        const servers = await ipcClient.mcp.listServers();
+        if (cancelled) return;
+        setMcpServers(servers);
+        setServersLoaded(true);
+      } catch (error) {
+        console.error("Failed to load MCP servers:", error);
+        if (!cancelled) setServersLoaded(true);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [serversLoaded, isNewPrompt, mcpServers]);
+    };
+    void loadServers();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-    // Expose form state to parent via ref
-    // Use empty dependency array to keep ref stable - access form.formState.isDirty directly
-    useImperativeHandle(
-      ref,
-      () => ({
-        isDirty: () => form.formState.isDirty,
-      }),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [],
-    );
+  // Auto-select all servers for existing prompts without selectedMcpServerIds
+  // This runs once after servers are loaded
+  useEffect(() => {
+    if (
+      serversLoaded &&
+      !isNewPrompt &&
+      !hasAutoSelectedServers.current &&
+      mcpServers.length > 0
+    ) {
+      const currentSelection = form.getValues("selectedMcpServerIds");
+      if (!currentSelection || currentSelection.length === 0) {
+        const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
+        form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
+      }
+      hasAutoSelectedServers.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serversLoaded, isNewPrompt, mcpServers]);
 
     const handleSubmit = async (andActivate: boolean) => {
       const isValid = await form.trigger();
@@ -327,8 +331,5 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
           </div>
         </form>
       </Form>
-    );
-  },
-);
-
-PromptForm.displayName = "PromptForm";
+  );
+}

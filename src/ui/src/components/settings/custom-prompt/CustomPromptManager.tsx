@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CustomPrompt } from "@/types";
 import { usePromptManager } from "../../../hooks/usePromptManager";
 import { DeleteConfirmDialog } from "../../dialogs/DeleteConfirmDialog";
 import { UnsavedChangesDialog } from "../../dialogs/UnsavedChangesDialog";
 import { ScrollArea } from "../../ui/scroll-area";
-import { PromptForm, type PromptFormRef } from "./PromptForm";
+import { PromptForm } from "./PromptForm";
 import { PromptListView } from "./PromptListView";
 import type { PromptFormValues } from "./schema";
 import type { ViewMode } from "./types";
@@ -29,8 +29,7 @@ export function CustomPromptSettingsPanel({
   const [pendingLeaveResolver, setPendingLeaveResolver] = useState<
     ((result: boolean) => void) | null
   >(null);
-
-  const formRef = useRef<PromptFormRef>(null);
+  const [isFormDirty, setIsFormDirty] = useState(false);
 
   useEffect(() => {
     if (isActive) {
@@ -43,12 +42,17 @@ export function CustomPromptSettingsPanel({
     if (!isActive) {
       setViewMode("list");
       setEditingPrompt(null);
+      setIsFormDirty(false);
     }
   }, [isActive]);
 
   const hasUnsavedChanges = useCallback(() => {
-    return viewMode !== "list" && (formRef.current?.isDirty() ?? false);
-  }, [viewMode]);
+    return viewMode !== "list" && isFormDirty;
+  }, [viewMode, isFormDirty]);
+
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    setIsFormDirty(dirty);
+  }, []);
 
   const handleCreateNew = useCallback(() => {
     if (hasUnsavedChanges()) {
@@ -179,7 +183,6 @@ export function CustomPromptSettingsPanel({
 
     return (
       <PromptForm
-        ref={formRef}
         defaultValues={defaultValues}
         onSubmit={handleFormSubmit}
         onCancel={handleBackToList}
@@ -187,6 +190,7 @@ export function CustomPromptSettingsPanel({
         loading={promptManager.loading}
         isDefault={editingPrompt?.isDefault}
         isNewPrompt={viewMode === "create"}
+        onDirtyChange={handleDirtyChange}
       />
     );
   };
