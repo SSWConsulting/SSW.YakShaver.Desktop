@@ -93,7 +93,8 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
       if (defaultValues) {
         form.reset(defaultValues);
       }
-    }, [defaultValues, form]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [defaultValues]);
 
     const handleSubmit = async (andActivate: boolean) => {
       const isValid = await form.trigger();
