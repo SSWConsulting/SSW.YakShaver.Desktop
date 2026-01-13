@@ -1,5 +1,17 @@
 import { join } from "node:path";
-import type { LLMConfig, LLMConfigV1, LLMConfigV2, ModelConfig } from "@shared/types/llm";
+import type {
+  AzureOpenAIConfig,
+  LLMConfig,
+  LLMConfigV1,
+  LLMConfigV2,
+  ModelConfig,
+} from "@shared/types/llm";
+
+type MigrationMap = {
+  1: (config: LLMConfigV1) => LLMConfigV2;
+  2: (config: LLMConfigV2) => LLMConfigV2;
+};
+
 import { BaseSecureStorage } from "./base-secure-storage";
 
 const LLM_CONFIG_FILE = "llm-config.enc";
@@ -12,22 +24,39 @@ export class LlmStorage extends BaseSecureStorage {
   /**
    * Migration registry - add new migrations here as versions evolve
    */
-  private migrations = {
-    1: (config: LLMConfigV1): LLMConfigV2 => {
+  private migrations: MigrationMap = {
+    1: (config: LLMConfigV1) => {
       console.log("[LlmStorage]: Migrating V1 -> V2");
-      const modelConfig: ModelConfig = {
-        provider: config.provider,
-        model: config.model,
-        apiKey: config.apiKey,
-      } as ModelConfig;
-
+      let modelConfig: ModelConfig;
+      if (config.provider === "openai") {
+        modelConfig = {
+          provider: "openai",
+          model: config.model,
+          apiKey: config.apiKey,
+        };
+      } else if (config.provider === "azure") {
+        modelConfig = {
+          provider: "azure",
+          model: config.model,
+          apiKey: config.apiKey,
+          resourceName: (config as AzureOpenAIConfig).resourceName || "",
+        };
+      } else if (config.provider === "deepseek") {
+        modelConfig = {
+          provider: "deepseek",
+          model: config.model,
+          apiKey: config.apiKey,
+        };
+      } else {
+        throw new Error(`[LlmStorage]: Unknown provider ${config} during migration`);
+      }
       return {
         version: 2,
         languageModel: modelConfig,
         transcriptionModel: modelConfig,
       };
     },
-    2: (config: LLMConfigV2): LLMConfigV2 => config,
+    2: (config: LLMConfigV2) => config,
   };
 
   private constructor() {
@@ -80,16 +109,15 @@ export class LlmStorage extends BaseSecureStorage {
   }
 
   private migrateToCurrentVersion(config: LLMConfigV1 | LLMConfigV2): LLMConfigV2 {
-    let currentConfig = config;
+    let currentConfig: LLMConfigV1 | LLMConfigV2 = config;
     const startVersion = config.version ?? 1;
 
-    // Apply migrations sequentially from start version to current
     for (let v = startVersion; v < LLM_PROVIDER_VERSION; v++) {
-      const migration = this.migrations[v];
+      const migration = this.migrations[v as keyof MigrationMap];
       if (!migration) {
         throw new Error(`[LlmStorage]: Missing migration for version ${v}`);
       }
-
+      // Type narrowing for migration input
       currentConfig = migration(currentConfig);
     }
 
