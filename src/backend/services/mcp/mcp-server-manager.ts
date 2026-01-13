@@ -12,7 +12,7 @@ export class MCPServerManager {
   private static internalClientTransports: Map<string, InMemoryTransport> = new Map();
   private static mcpClients: Map<string, MCPServerClient> = new Map();
   private static mcpClientPromises: Map<string, Promise<MCPServerClient | null>> = new Map();
-  private constructor() { }
+  private constructor() {}
 
   public static async getInstanceAsync(): Promise<MCPServerManager> {
     if (MCPServerManager.instance) {
@@ -215,7 +215,6 @@ export class MCPServerManager {
       throw new Error(`Server with id '${server.id}' already exists`);
     }
 
-
     storedConfigs.push(server);
     await this.saveConfigAsync(storedConfigs);
   }
@@ -397,9 +396,7 @@ export class MCPServerManager {
     const targetIndex = serverConfigs.findIndex((server) => server.id === serverId);
 
     if (targetIndex === -1) {
-      const internalConfig = MCPServerManager.internalServerConfigs.find(
-        (s) => s.id === serverId,
-      );
+      const internalConfig = MCPServerManager.internalServerConfigs.find((s) => s.id === serverId);
 
       if (!internalConfig) {
         throw new Error(`[McpStorage]: MCP server with name ${serverId} not found`);
