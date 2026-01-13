@@ -68,9 +68,8 @@ export class CountdownWindow {
   private getDisplayBounds(displayId?: string) {
     const displays = screen.getAllDisplays();
     const display = displayId
-      ? displays.find(
-          (d) => d.id.toString() === displayId || d.id === Number(displayId)
-        ) ?? screen.getPrimaryDisplay()
+      ? (displays.find((d) => d.id.toString() === displayId || d.id === Number(displayId)) ??
+        screen.getPrimaryDisplay())
       : screen.getPrimaryDisplay();
 
     return display.bounds;

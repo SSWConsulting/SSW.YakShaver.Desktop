@@ -3,7 +3,7 @@ import { IPC_CHANNELS } from "../ipc/channels";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { RecordingService } from "../services/recording/recording-service";
 
-const sendToAll = (channel: string, payload?: unknown) =>
+const _sendToAll = (channel: string, payload?: unknown) =>
   BrowserWindow.getAllWindows().forEach((win) => {
     if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
       win.webContents.send(channel, payload);
@@ -18,7 +18,13 @@ export function registerEventForwarders() {
     [IPC_CHANNELS.RECORDING_TIME_UPDATE]: (time: number) => controlBar.updateTime(time),
   };
 
-  Object.entries(handlers).forEach(([event, handler]) => service.on(event, handler));
+  Object.entries(handlers).forEach(([event, handler]) => {
+    service.on(event, handler);
+  });
 
-  return () => Object.entries(handlers).forEach(([event, handler]) => service.off(event, handler));
+  return () => {
+    Object.entries(handlers).forEach(([event, handler]) => {
+      service.off(event, handler);
+    });
+  };
 }

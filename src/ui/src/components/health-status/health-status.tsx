@@ -1,4 +1,4 @@
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +9,7 @@ interface SuccessDetails {
 }
 
 interface HealthStatusProps extends React.HTMLAttributes<HTMLDivElement> {
+  isDisabled: boolean;
   isChecking: boolean;
   isHealthy: boolean;
   successMessage?: string;
@@ -17,7 +18,34 @@ interface HealthStatusProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
-  ({ className, isChecking, isHealthy, successMessage, successDetails, error, ...props }, ref) => {
+  (
+    {
+      className,
+      isDisabled,
+      isChecking,
+      isHealthy,
+      successMessage,
+      successDetails,
+      error,
+      ...props
+    },
+    ref,
+  ) => {
+    if (isDisabled) {
+      return (
+        <div
+          ref={ref}
+          className={cn("group relative flex items-center gap-2", className)}
+          {...props}
+        >
+          <Ban className="h-5 w-5 text-gray-600" />
+          <span className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-1 text-xs shadow-lg">
+            MCP Server disabled
+          </span>
+        </div>
+      );
+    }
+
     if (isChecking) {
       return (
         <div

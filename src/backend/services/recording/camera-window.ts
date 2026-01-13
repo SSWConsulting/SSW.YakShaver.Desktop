@@ -20,10 +20,7 @@ export class CameraWindow {
     this.isDev = isDev;
   }
 
-  async show(
-    displayId: string | undefined,
-    cameraDeviceId: string
-  ): Promise<void> {
+  async show(displayId: string | undefined, cameraDeviceId: string): Promise<void> {
     if (this.window) {
       this.window.destroy();
     }
@@ -31,13 +28,8 @@ export class CameraWindow {
     this.targetDisplayId = displayId;
     const { x, y } = this.getPosition(displayId);
     const url = this.isDev
-      ? `http://localhost:3000/camera.html?deviceId=${encodeURIComponent(
-          cameraDeviceId
-        )}`
-      : join(
-          process.resourcesPath,
-          "app.asar.unpacked/src/ui/dist/camera.html"
-        );
+      ? `http://localhost:3000/camera.html?deviceId=${encodeURIComponent(cameraDeviceId)}`
+      : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/camera.html");
 
     this.window = new BrowserWindow({
       ...WINDOW_SIZE,
@@ -111,9 +103,8 @@ export class CameraWindow {
   private getPosition(displayId?: string) {
     const displays = screen.getAllDisplays();
     const display = displayId
-      ? displays.find(
-          (d) => d.id.toString() === displayId || d.id === Number(displayId)
-        ) ?? screen.getPrimaryDisplay()
+      ? (displays.find((d) => d.id.toString() === displayId || d.id === Number(displayId)) ??
+        screen.getPrimaryDisplay())
       : screen.getPrimaryDisplay();
 
     const { x, y, width, height } = display.workArea;
@@ -131,11 +122,9 @@ export class CameraWindow {
 
     const displays = screen.getAllDisplays();
     const targetDisplay = this.targetDisplayId
-      ? displays.find(
-          (d) =>
-            d.id.toString() === this.targetDisplayId ||
-            d.id === Number(this.targetDisplayId)
-        ) ?? screen.getPrimaryDisplay()
+      ? (displays.find(
+          (d) => d.id.toString() === this.targetDisplayId || d.id === Number(this.targetDisplayId),
+        ) ?? screen.getPrimaryDisplay())
       : screen.getPrimaryDisplay();
 
     if (!targetDisplay) return;

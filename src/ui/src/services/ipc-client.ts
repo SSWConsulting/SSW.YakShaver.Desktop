@@ -120,13 +120,13 @@ declare global {
         addToolToWhitelist: (toolName: string) => Promise<{ success: boolean }>;
         addServerAsync: (config: MCPServerConfig) => Promise<{ success: boolean }>;
         updateServerAsync: (
-          serverIdOrName: string,
+          serverId: string,
           config: MCPServerConfig,
         ) => Promise<{ success: boolean }>;
-        removeServerAsync: (serverIdOrName: string) => Promise<{ success: boolean }>;
-        checkServerHealthAsync: (serverIdOrName: string) => Promise<HealthStatusInfo>;
+        removeServerAsync: (serverId: string) => Promise<{ success: boolean }>;
+        checkServerHealthAsync: (serverId: string) => Promise<HealthStatusInfo>;
         listServerTools: (
-          serverIdOrName: string,
+          serverId: string,
         ) => Promise<Array<{ name: string; description?: string }>>;
       };
       settings: {

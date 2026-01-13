@@ -148,6 +148,7 @@ export function GitHubTokenSettingsPanel({ isActive }: GitHubTokenSettingsPanelP
                 successMessage={healthStatus?.successMessage}
                 successDetails={verifyDetails ?? undefined}
                 error={healthStatus?.error}
+                isDisabled={!hasToken}
               />
             </div>
           )}
