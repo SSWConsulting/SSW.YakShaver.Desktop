@@ -252,7 +252,6 @@ export function McpSettingsPanel({
               onUpdate={async (newConfig) => {
                 setEditingServer(server);
                 console.log("Updating server:", server.name, "with config:", newConfig);
-                // await handleSubmit(newConfig);
               }}
             />
           </>

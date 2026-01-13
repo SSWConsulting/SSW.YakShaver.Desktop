@@ -25,7 +25,9 @@ export function McpAzureDevOpsCard({ config, onChange, healthInfo, onTools }: Mc
         name: McpAzureDevOpsCard.Name,
         transport: "stdio",
         command: "npx",
-        args: ["-y", "@azure-devops/mcp", "ssw2"], //TODO: need to be able to customize this last parameter
+        //TODO: need to be able to customize this last parameter 
+        // https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/547
+        args: ["-y", "@azure-devops/mcp", "ssw2"],
 
         description: "Azure DevOps MCP Server",
         toolWhitelist: [],
@@ -51,7 +53,6 @@ export function McpAzureDevOpsCard({ config, onChange, healthInfo, onTools }: Mc
 
     return (
         <McpCard
-            // isReadOnly
             icon={<AzureDevOpsIcon />}
             config={configLocal}
             healthInfo={healthInfo}
