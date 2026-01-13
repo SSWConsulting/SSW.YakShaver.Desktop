@@ -20,6 +20,7 @@ import { Globe } from "lucide-react";
 import { McpCard } from "./mcp-card";
 import { McpGitHubCard } from "./github/mcp-github-card";
 import { McpServerFormCard } from "./mcp-server-form-card";
+import { McpAzureDevOpsCard } from "./devops/mcp-devops-card";
 
 
 type ServerHealthStatus<T extends string = string> = Record<T, HealthStatusInfo>;
@@ -218,8 +219,10 @@ export function McpSettingsPanel({
   const github: MCPServerConfig | undefined = sortedServers.find(
     (server) => server.id === McpGitHubCard.Id,
   );
+  const azureDevOps: MCPServerConfig | undefined = sortedServers.find((s) => s.id === McpAzureDevOpsCard.Id);
+
   const restServers: MCPServerConfig[] = sortedServers.filter(
-    (server) => server.id !== McpGitHubCard.Id,
+    (server) => server.id !== McpGitHubCard.Id && server.id !== McpAzureDevOpsCard.Id,
   );
 
   function getHealthStatus(serverId?: string | null): HealthStatusInfo | null {
@@ -233,7 +236,8 @@ export function McpSettingsPanel({
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
 
       <div className="grid grid-cols-1 gap-4 mb-4">
-        <McpGitHubCard config={github} onChange={() => loadServers()} healthInfo={getHealthStatus(github?.id)} onTools={() => openWhitelistDialog(github)} />
+        <McpGitHubCard config={github} onChange={() => loadServers()} healthInfo={getHealthStatus(github?.id)} onTools={() => github && openWhitelistDialog(github)} />
+        <McpAzureDevOpsCard config={azureDevOps} onChange={() => loadServers()} healthInfo={getHealthStatus(McpAzureDevOpsCard.Id)} onTools={() => azureDevOps && openWhitelistDialog(azureDevOps)} />
         {restServers.map((server) => (
           <>
             <McpCard

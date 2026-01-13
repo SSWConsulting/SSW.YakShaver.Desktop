@@ -41,7 +41,7 @@ export class LLMClientProvider {
   public static llmClient: LLMClientProvider | null = null;
   private static languageModel: LanguageModel;
 
-  private constructor() {}
+  private constructor() { }
 
   static async getInstanceAsync(): Promise<LLMClientProvider | null> {
     if (LLMClientProvider.llmClient) {
@@ -103,8 +103,8 @@ export class LLMClientProvider {
     // remove 'execute' functions from tools before passing to generateText to prevent ai sdk auto execute the tool
     const sanitizedTools = tools
       ? Object.fromEntries(
-          Object.entries(tools).map(([name, { execute, ...rest }]) => [name, rest]),
-        )
+        Object.entries(tools).map(([name, { execute, ...rest }]) => [name, rest]),
+      )
       : undefined;
 
     const response = await generateText({
@@ -203,6 +203,7 @@ export class LLMClientProvider {
         return {
           isHealthy: false,
           error: "LLM client provider not initialized",
+          isChecking: false,
         };
       }
 
@@ -217,11 +218,13 @@ export class LLMClientProvider {
       return {
         isHealthy: true,
         successMessage: `Healthy - Model: ${response}`,
+        isChecking: false,
       };
     } catch (err) {
       return {
         isHealthy: false,
         error: formatErrorMessage(err),
+        isChecking: false,
       };
     }
   }
