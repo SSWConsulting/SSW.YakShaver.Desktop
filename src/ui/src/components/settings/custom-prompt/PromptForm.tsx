@@ -91,16 +91,15 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [serversLoaded, isNewPrompt, mcpServers]);
 
-    // Subscribe to formState to ensure it's tracked
-    const { isDirty } = form.formState;
-
     // Expose form state to parent via ref
+    // Use empty dependency array to keep ref stable - access form.formState.isDirty directly
     useImperativeHandle(
       ref,
       () => ({
-        isDirty: () => isDirty,
+        isDirty: () => form.formState.isDirty,
       }),
-      [isDirty],
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [],
     );
 
     const handleSubmit = async (andActivate: boolean) => {
