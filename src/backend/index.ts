@@ -69,18 +69,6 @@ const createApplicationMenu = (): void => {
       ],
     },
     {
-      label: "Edit",
-      submenu: [
-        { role: "undo" },
-        { role: "redo" },
-        { type: "separator" },
-        { role: "cut" },
-        { role: "copy" },
-        { role: "paste" },
-        { role: "selectAll" },
-      ],
-    },
-    {
       label: "View",
       submenu: [
         { role: "reload" },
@@ -104,7 +92,7 @@ const createApplicationMenu = (): void => {
               title: "About YakShaver",
               message: `YakShaver`,
               detail: `Version: ${version}
-Commit Hash: ${hashString || "N/A"}`,
+Commit: ${hashString || "N/A"}`,
               buttons: ["OK"],
             });
           },
