@@ -8,7 +8,7 @@ import { z } from "zod/v4";
 import { MicrosoftAuthService } from "../../auth/microsoft-auth.js";
 import { FFmpegService } from "../../ffmpeg/ffmpeg-service.js";
 import { UploadScreenshotToPortal } from "../../portal/actions.js";
-import { LLMClientProvider } from "../llm-client-provider.js";
+import { LanguageModelProvider } from "../language-model-provider.js";
 import type { MCPServerConfig } from "../types.js";
 import type { InternalMcpServerRegistration } from "./internal-server-types.js";
 
@@ -44,7 +44,7 @@ type UploadScreenshotInput = z.infer<typeof uploadScreenshotInputSchema>;
 
 export async function createInternalVideoToolsServer(): Promise<InternalMcpServerRegistration> {
   const ffmpegService = FFmpegService.getInstance();
-  const llmClientProvider = await LLMClientProvider.getInstanceAsync();
+  const languageModelProvider = await LanguageModelProvider.getInstance();
   const serverId = `yak-video-tools-${randomUUID()}`;
 
   const mcpServer = new McpServer({
@@ -172,10 +172,8 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
       const imageBuffer = await fs.readFile(imagePath);
       const mimeType = detectImageMimeType(imagePath);
       const dataUri = `data:${mimeType};base64,${imageBuffer.toString("base64")}`;
-      if (!llmClientProvider) {
-        throw new Error("[describe_image]: LLM client not initialized");
-      }
-      const description = await llmClientProvider.generateText([
+
+      const description = await languageModelProvider.generateText([
         {
           role: "user",
           content: [

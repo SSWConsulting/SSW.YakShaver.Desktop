@@ -228,11 +228,13 @@ export function StageWithContent({
         </div>
       </AccordionTrigger>
       <AccordionContent className="px-4 pb-2">
-        {stage === ProgressStage.TRANSCRIBING && progress.transcript && (
-          <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm whitespace-pre-wrap break-words overflow-hidden">
-            {progress.transcript}
-          </div>
-        )}
+        {stage === ProgressStage.TRANSCRIBING &&
+          progress.transcript &&
+          progress.transcript.length > 0 && (
+            <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm whitespace-pre-wrap break-words overflow-hidden">
+              {progress.transcript.map((t) => t.text).join("")}
+            </div>
+          )}
         {stage === ProgressStage.GENERATING_TASK &&
           progress.intermediateOutput &&
           progress.stage !== ProgressStage.GENERATING_TASK && (

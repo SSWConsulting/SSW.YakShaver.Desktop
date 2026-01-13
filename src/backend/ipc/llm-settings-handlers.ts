@@ -1,6 +1,6 @@
-import type { LLMConfig } from "@shared/types/llm";
+import type { LLMConfigV2 } from "@shared/types/llm";
 import { type IpcMainInvokeEvent, ipcMain } from "electron";
-import { LLMClientProvider } from "../services/mcp/llm-client-provider";
+import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { LlmStorage } from "../services/storage/llm-storage";
 import { IPC_CHANNELS } from "./channels";
 
@@ -14,8 +14,8 @@ export class LLMSettingsIPCHandlers {
   private registerHandlers(): void {
     ipcMain.handle(
       IPC_CHANNELS.LLM_SET_CONFIG,
-      async (_event: IpcMainInvokeEvent, config: LLMConfig) => {
-        if (!config || !("provider" in config)) throw new Error("Invalid LLM config");
+      async (_event: IpcMainInvokeEvent, config: LLMConfigV2) => {
+        if (!config) throw new Error("Invalid LLM config");
         await this.secureStorage.storeLLMConfig(config);
         return { success: true };
       },
@@ -32,7 +32,8 @@ export class LLMSettingsIPCHandlers {
     });
 
     ipcMain.handle(IPC_CHANNELS.LLM_CHECK_HEALTH, async () => {
-      return await LLMClientProvider.checkHealthAsync();
+      const provider = await LanguageModelProvider.getInstance();
+      return await provider.checkHealth();
     });
   }
 }

@@ -1,12 +1,19 @@
-import type { LLMConfig } from "@shared/types/llm";
-import type { LanguageModel, ModelMessage, ToolSet } from "ai";
-import { generateText, Output, stepCountIs, streamText } from "ai";
+import {
+  generateText,
+  type LanguageModel,
+  type ModelMessage,
+  Output,
+  stepCountIs,
+  streamText,
+  type ToolSet,
+} from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType, z } from "zod";
+import { LLM_PROVIDER_CONFIGS } from "../../../shared/llm/llm-providers";
+import type { LLMConfig } from "../../../shared/types/llm";
 import type { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { LlmStorage } from "../storage/llm-storage";
-import { LLM_PROVIDER_CONFIGS } from "./llm-providers";
 
 type StepType =
   | "start"
@@ -37,56 +44,47 @@ function sendStepEvent(event: MCPStep): void {
   }
 }
 
-export class LLMClientProvider {
-  public static llmClient: LLMClientProvider | null = null;
-  private static languageModel: LanguageModel;
+export class LanguageModelProvider {
+  private static instance: LanguageModelProvider | null = null;
+  private languageModel: LanguageModel | null = null;
 
   private constructor() {}
 
-  static async getInstanceAsync(): Promise<LLMClientProvider | null> {
-    if (LLMClientProvider.llmClient) {
-      return LLMClientProvider.llmClient;
+  static async getInstance(): Promise<LanguageModelProvider> {
+    if (!LanguageModelProvider.instance) {
+      LanguageModelProvider.instance = new LanguageModelProvider();
     }
-
-    await LLMClientProvider.updateLanguageModelAsync();
-    return LLMClientProvider.llmClient;
+    await LanguageModelProvider.instance.updateLanguageModel();
+    return LanguageModelProvider.instance;
   }
 
-  // Get the latest language model configuration
-  public static async updateLanguageModelAsync(): Promise<void> {
-    if (!LLMClientProvider.llmClient) {
-      LLMClientProvider.llmClient = new LLMClientProvider();
-    }
-    // retrieve LLM configuration
+  public async updateLanguageModel(): Promise<void> {
     const llmConfig: LLMConfig =
-      (await LlmStorage.getInstance().getLLMConfig()) ??
+      (await LlmStorage.getInstance().getLLMConfig())?.languageModel ??
       (() => {
-        throw new Error("[LLMClientProvider]: LLM configuration not found");
+        throw new Error("[LanguageModelProvider]: LLM language configuration not found");
       })();
 
     const config = LLM_PROVIDER_CONFIGS[llmConfig.provider];
-    if (!config || !config.defaultProcessingModel) {
-      throw new Error(`[LLMClientProvider]: Unsupported LLM provider: ${llmConfig.provider}`);
+    if (!config || !config.defaultLanguageModel) {
+      throw new Error(`[LanguageModelProvider]: Unsupported LLM provider: ${llmConfig.provider}`);
     }
 
-    console.log(
-      `[LLMClientProvider]: updateLanguageModelAsync - configuring ${llmConfig.provider}`,
-    );
+    console.log(`[LanguageModelProvider]: updateLanguageModel - configuring ${llmConfig.provider}`);
 
     const client = config.factory({ apiKey: llmConfig.apiKey });
-
-    LLMClientProvider.languageModel = client.languageModel(
-      llmConfig.model ?? config.defaultProcessingModel,
-    );
+    const modelName = llmConfig.model ?? config.defaultLanguageModel;
+    console.log(`[LanguageModelProvider]: Using model: ${modelName}`);
+    this.languageModel = client.languageModel(modelName);
   }
 
   public async generateText(messages: ModelMessage[]): Promise<string> {
-    if (!LLMClientProvider.languageModel) {
-      throw new Error("[LLMClientProvider]: LLM client not initialized");
+    if (!this.languageModel) {
+      throw new Error("[LanguageModelProvider]: LLM client not initialized");
     }
 
     const { text } = await generateText({
-      model: LLMClientProvider.languageModel,
+      model: this.languageModel,
       messages: messages,
     });
     return text;
@@ -96,8 +94,8 @@ export class LLMClientProvider {
     messages: ModelMessage[],
     tools?: ToolSet,
   ): Promise<Awaited<ReturnType<typeof generateText>>> {
-    if (!LLMClientProvider.languageModel) {
-      throw new Error("[LLMClientProvider]: LLM client not initialized");
+    if (!this.languageModel) {
+      throw new Error("[LanguageModelProvider]: LLM client not initialized");
     }
 
     // remove 'execute' functions from tools before passing to generateText to prevent ai sdk auto execute the tool
@@ -108,7 +106,7 @@ export class LLMClientProvider {
       : undefined;
 
     const response = await generateText({
-      model: LLMClientProvider.languageModel,
+      model: this.languageModel,
       messages: messages,
       tools: sanitizedTools,
     });
@@ -122,25 +120,33 @@ export class LLMClientProvider {
     systemPrompt?: string,
   ): Promise<z.infer<T>> {
     try {
+      if (!this.languageModel) {
+        throw new Error("[LanguageModelProvider]: LLM client not initialized");
+      }
       const { output } = await generateText({
         system: systemPrompt,
-        model: LLMClientProvider.languageModel,
+        model: this.languageModel,
         output: Output.object({ schema }),
         prompt: prompt,
       });
       return schema.parse(output);
     } catch (error) {
       throw new Error(
-        `[LLMClientProvider]: Failed to generate object matching schema. Prompt: "${prompt}". Schema: ${schema?.toString?.() || "[unknown schema]"}. Original error: ${error instanceof Error ? error.message : String(error)}`,
+        `[LanguageModelProvider]: Failed to generate object matching schema. Prompt: "${prompt}". Schema: ${
+          schema?.toString?.() || "[unknown schema]"
+        }. Original error: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
 
   public async generateJson(prompt: string, systemPrompt?: string): Promise<string> {
     try {
+      if (!this.languageModel) {
+        throw new Error("[LanguageModelProvider]: LLM client not initialized");
+      }
       const { output } = await generateText({
         system: systemPrompt,
-        model: LLMClientProvider.languageModel,
+        model: this.languageModel,
         output: Output.json(),
         prompt: prompt,
       });
@@ -150,7 +156,9 @@ export class LLMClientProvider {
       return JSON.stringify(output);
     } catch (error) {
       throw new Error(
-        `[LLMClientProvider]: Failed to generate object matching schema. Prompt: "${prompt}". Original error: ${error instanceof Error ? error.message : String(error)}`,
+        `[LanguageModelProvider]: Failed to generate object matching schema. Prompt: "${prompt}". Original error: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
   }
@@ -159,13 +167,13 @@ export class LLMClientProvider {
     message: ModelMessage[],
     tools: ToolSet,
   ): Promise<Awaited<ReturnType<typeof streamText>>> {
-    if (!LLMClientProvider.languageModel) {
-      throw new Error("[LLMClientProvider]: LLM client not initialized");
+    if (!this.languageModel) {
+      throw new Error("[LanguageModelProvider]: LLM client not initialized");
     }
 
     try {
       return streamText({
-        model: LLMClientProvider.languageModel,
+        model: this.languageModel,
         tools,
         messages: message,
         stopWhen: stepCountIs(50),
@@ -188,21 +196,20 @@ export class LLMClientProvider {
         },
       });
     } catch (error) {
-      console.error("[LLMClientProvider]: Error in sendMessage:", error);
+      console.error("[LanguageModelProvider]: Error in sendMessage:", error);
       throw error;
     }
   }
 
-  public static async checkHealthAsync(): Promise<HealthStatusInfo> {
+  public async checkHealth(): Promise<HealthStatusInfo> {
     // Ensure the latest model configuration
-    await LLMClientProvider.updateLanguageModelAsync();
+    await this.updateLanguageModel();
 
     try {
-      const providerInstance = await LLMClientProvider.getInstanceAsync();
-      if (!providerInstance) {
+      if (!this.languageModel) {
         return {
           isHealthy: false,
-          error: "LLM client provider not initialized",
+          error: "Language model not initialized",
         };
       }
 
@@ -210,9 +217,9 @@ export class LLMClientProvider {
         { role: "user", content: "what is your model name and version?" },
       ];
 
-      const response = await providerInstance.generateText(messages);
+      const response = await this.generateText(messages);
 
-      console.log("[LLMClientProvider]: Health check response:", response);
+      console.log("[LanguageModelProvider]: Health check response:", response);
 
       return {
         isHealthy: true,

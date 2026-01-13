@@ -125,6 +125,23 @@ FOR FAILURE RESPONSES, include:
 
 Remember: You are an intelligent agent capable of working with any type of MCP server. Plan intelligently, execute systematically, show clear progress updates, and provide comprehensive, useful results regardless of the domain or server type.`;
 
+export const METADATA_SYSTEM_PROMPT = `You create polished YouTube metadata from execution histories.
+Return JSON with:
+- "title": concise, specific, <=90 chars
+- "description": 2-3 short paragraphs and (if relevant) a "Resources" bullet list. Include meaningful context, key outcomes, and EVERY URL in full (e.g., https://github.com/.../issues/123). Never rely on "#123" shorthand.
+- "tags": list of lowercase keywords (max 10) without hashtags
+- "chapters": array of {"label","timestamp"} with timestamps formatted as MM:SS or HH:MM:SS
+
+Rules:
+- First chapter must start at 00:00
+- Create a chapter for EACH distinct topic, bug, or task mentioned in the transcript
+- Subsequent chapters must be chronological and at least 5 seconds apart
+- Use specific, descriptive chapter names that reflect the actual content
+- Highlight concrete issues/resources from the execution history
+- Write descriptions suitable for YouTube (no markdown code fences)
+- If information is missing, fall back to clear defaults rather than hallucinating.
+- DO NOT reference any local files or folders`;
+
 export function buildTaskExecutionPrompt(customPrompt?: string): string {
   const trimmed = customPrompt?.trim();
   if (!trimmed) return TASK_EXECUTION_PROMPT;
