@@ -74,7 +74,8 @@ export const PromptForm = forwardRef<PromptFormRef, PromptFormProps>(
         }
       };
       void loadServers();
-    }, [form, isNewPrompt]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isNewPrompt]);
 
     // Subscribe to formState to ensure it's tracked
     const { isDirty } = form.formState;
