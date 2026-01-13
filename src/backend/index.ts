@@ -50,7 +50,7 @@ let pendingProtocolUrl: string | null = null;
 
 const getAppVersion = (): string => app.getVersion();
 
-const createApplicationMenu = (): void => {
+const createMenuTemplate = (): Electron.MenuItemConstructorOptions[] => {
   const version = getAppVersion();
   const commitHash = config.commitHash();
   const hashString = commitHash ? ` (${commitHash})` : "";
@@ -61,7 +61,7 @@ const createApplicationMenu = (): void => {
       submenu: [
         {
           label: "Quit",
-          accelerator: process.platform === "darwin" ? "Cmd+Q" : "Ctrl+Q",
+          accelerator: "CmdOrCtrl+Q",
           click: () => {
             app.quit();
           },
@@ -77,8 +77,6 @@ const createApplicationMenu = (): void => {
         { role: "resetZoom" },
         { role: "zoomIn" },
         { role: "zoomOut" },
-        { type: "separator" },
-        { role: "togglefullscreen" },
       ],
     },
     {
@@ -108,8 +106,12 @@ Commit: ${hashString || "N/A"}`,
       viewMenu.submenu.push({ type: "separator" }, { role: "toggleDevTools" });
     }
   }
+  return template;
+};
 
-  const menu = Menu.buildFromTemplate(template);
+const createApplicationMenu = (): void => {
+  const menuTemplate = createMenuTemplate();
+  const menu = Menu.buildFromTemplate(menuTemplate);
   Menu.setApplicationMenu(menu);
 };
 
