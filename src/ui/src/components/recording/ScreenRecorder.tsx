@@ -59,14 +59,16 @@ export function ScreenRecorder() {
     return cleanup;
   }, [handleStopRecording]);
 
-  useEffect(() => {
-    const cleanup = window.electronAPI.screenRecording.onOpenSourcePicker(() => {
-      if (!isRecording) {
-        setPickerOpen(true);
-      }
-    });
-    return cleanup;
+  const handleOpenSourcePicker = useCallback(() => {
+    if (!isRecording) {
+      setPickerOpen(true);
+    }
   }, [isRecording]);
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.screenRecording.onOpenSourcePicker(handleOpenSourcePicker);
+    return cleanup;
+  }, [handleOpenSourcePicker]);
 
   useEffect(() => {
     if (!isYoutubeUrlWorkflowEnabled) {
