@@ -158,7 +158,8 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
-          VITE_DEBUG_BUILD: true
+          # Note: vite.config.mts checks for the string "true"
+          VITE_DEBUG_BUILD: "true"
 
       - name: Fix update manifest filenames
         shell: pwsh
