@@ -120,6 +120,11 @@ const IPC_CHANNELS = {
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
+
+  // Keyboard Shortcuts
+  KEYBOARD_SHORTCUT_GET: "keyboard-shortcut:get",
+  KEYBOARD_SHORTCUT_SET: "keyboard-shortcut:set",
+  KEYBOARD_SHORTCUT_SET_AUTO_LAUNCH: "keyboard-shortcut:set-auto-launch",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -314,6 +319,12 @@ const electronAPI = {
     updateStatus: (id: string, status: ShaveStatus) =>
       ipcRenderer.invoke(IPC_CHANNELS.SHAVE_UPDATE_STATUS, id, status),
     delete: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_DELETE, id),
+  },
+  keyboardShortcut: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.KEYBOARD_SHORTCUT_GET),
+    set: (shortcut: string) => ipcRenderer.invoke(IPC_CHANNELS.KEYBOARD_SHORTCUT_SET, shortcut),
+    setAutoLaunch: (enabled: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.KEYBOARD_SHORTCUT_SET_AUTO_LAUNCH, enabled),
   },
   // Camera window
   onSetCameraDevice: (callback: (deviceId: string) => void) => {

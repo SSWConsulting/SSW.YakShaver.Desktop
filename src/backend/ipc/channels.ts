@@ -104,4 +104,9 @@ export const IPC_CHANNELS = {
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
+
+  // Keyboard Shortcuts
+  KEYBOARD_SHORTCUT_GET: "keyboard-shortcut:get",
+  KEYBOARD_SHORTCUT_SET: "keyboard-shortcut:set",
+  KEYBOARD_SHORTCUT_SET_AUTO_LAUNCH: "keyboard-shortcut:set-auto-launch",
 } as const;

@@ -1,6 +1,16 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  globalShortcut,
+  Menu,
+  nativeImage,
+  session,
+  shell,
+  Tray,
+} from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { config } from "./config/env";
@@ -10,6 +20,7 @@ import { AppControlIPCHandlers } from "./ipc/app-control-handlers";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
+import { KeyboardShortcutIPCHandlers } from "./ipc/keyboard-shortcut-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
 import { MicrosoftAuthIPCHandlers } from "./ipc/microsoft-auth-handlers";
@@ -27,6 +38,7 @@ import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { KeyboardShortcutStorage } from "./services/storage/keyboard-shortcut-storage";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -52,7 +64,9 @@ const loadEnv = () => {
 loadEnv();
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 let pendingProtocolUrl: string | null = null;
+let currentRecordShortcut = "F12";
 
 const getAppVersion = (): string => app.getVersion();
 
@@ -146,6 +160,90 @@ const createApplicationMenu = (): void => {
   Menu.setApplicationMenu(menu);
 };
 
+const createTray = (): void => {
+  // Fix icon path for packaged mode
+  const iconPath = isDev
+    ? join(__dirname, "../../src/ui/public/icons/icon.png")
+    : join(process.resourcesPath, "public/icons/icon.png");
+
+  const icon = nativeImage.createFromPath(iconPath);
+  tray = new Tray(icon.resize({ width: 16, height: 16 }));
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Show YakShaver",
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          if (mainWindow.isMinimized()) {
+            mainWindow.restore();
+          }
+          mainWindow.focus();
+        }
+      },
+    },
+    {
+      label: `Record Shortcut: ${currentRecordShortcut}`,
+      enabled: false,
+    },
+    { type: "separator" },
+    {
+      label: "Quit",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setToolTip("YakShaver");
+  tray.setContextMenu(contextMenu);
+
+  // Show window on tray icon click
+  tray.on("click", () => {
+    if (mainWindow) {
+      mainWindow.show();
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+    }
+  });
+};
+
+const updateTrayRecordShortcut = (shortcut: string): void => {
+  currentRecordShortcut = shortcut;
+  if (tray) {
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: "Show YakShaver",
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            if (mainWindow.isMinimized()) {
+              mainWindow.restore();
+            }
+            mainWindow.focus();
+          }
+        },
+      },
+      {
+        label: `Record Shortcut: ${currentRecordShortcut}`,
+        enabled: false,
+      },
+      { type: "separator" },
+      {
+        label: "Quit",
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]);
+    tray.setContextMenu(contextMenu);
+  }
+};
+
 const createWindow = (): void => {
   // Fix icon path for packaged mode
   const iconPath = isDev
@@ -178,6 +276,15 @@ const createWindow = (): void => {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
+  });
+
+  // Minimize to tray instead of closing
+  mainWindow.on("close", (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow?.hide();
+      return false;
+    }
   });
 
   mainWindow.on("closed", () => {
@@ -225,7 +332,35 @@ let _githubTokenHandlers: GitHubTokenIPCHandlers;
 let _toolApprovalSettingsHandlers: ToolApprovalSettingsIPCHandlers;
 let _shaveHandlers: ShaveIPCHandlers;
 let _appControlHandlers: AppControlIPCHandlers;
+let _keyboardShortcutHandlers: KeyboardShortcutIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
+
+// Register global shortcut for recording
+const registerRecordShortcut = (shortcut: string): void => {
+  // Unregister existing shortcut
+  globalShortcut.unregisterAll();
+
+  // Register new shortcut
+  const success = globalShortcut.register(shortcut, () => {
+    // Trigger the recording timer
+    const recordingService = RecordingService.getInstance();
+    recordingService.startRecordingTimer();
+  });
+
+  if (!success) {
+    console.error(`Failed to register global shortcut: ${shortcut}`);
+  } else {
+    console.log(`Registered global shortcut: ${shortcut}`);
+  }
+};
+
+// Update auto-launch setting
+const updateAutoLaunch = (enabled: boolean): void => {
+  app.setLoginItemSettings({
+    openAtLogin: enabled,
+    openAsHidden: true,
+  });
+};
 
 // Register protocol handler
 const azure = config.azure();
@@ -342,6 +477,24 @@ app.whenReady().then(async () => {
   _toolApprovalSettingsHandlers = new ToolApprovalSettingsIPCHandlers();
   _shaveHandlers = new ShaveIPCHandlers();
 
+  // Initialize keyboard shortcut handlers with callbacks
+  _keyboardShortcutHandlers = new KeyboardShortcutIPCHandlers(
+    (shortcut: string) => {
+      registerRecordShortcut(shortcut);
+      updateTrayRecordShortcut(shortcut);
+    },
+    (enabled: boolean) => {
+      updateAutoLaunch(enabled);
+    },
+  );
+
+  // Load and apply keyboard shortcut settings
+  const keyboardShortcutStorage = KeyboardShortcutStorage.getInstance();
+  const shortcutSettings = await keyboardShortcutStorage.getSettings();
+  currentRecordShortcut = shortcutSettings.recordShortcut;
+  registerRecordShortcut(shortcutSettings.recordShortcut);
+  updateAutoLaunch(shortcutSettings.autoLaunchEnabled);
+
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
   CameraWindow.getInstance().initialize(isDev);
@@ -350,6 +503,9 @@ app.whenReady().then(async () => {
 
   // Create application menu
   createApplicationMenu();
+
+  // Create tray icon
+  createTray();
 
   createWindow();
 
@@ -378,17 +534,26 @@ const cleanup = async () => {
   if (isQuitting) return;
   isQuitting = true;
 
+  // Unregister global shortcuts
+  globalShortcut.unregisterAll();
+
   unregisterEventForwarders?.();
   try {
     await RecordingService.getInstance().cleanupAllTempFiles();
   } catch (err) {
     console.error("Cleanup error:", err);
   }
+
+  // Destroy tray icon
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
 };
 
 app.on("window-all-closed", async () => {
-  await cleanup();
-  if (process.platform !== "darwin") app.quit();
+  // Don't quit when all windows are closed - keep running in tray
+  // Cleanup will happen on before-quit
 });
 
 app.on("before-quit", async (event) => {

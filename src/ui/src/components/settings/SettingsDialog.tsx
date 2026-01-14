@@ -7,6 +7,7 @@ import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
 import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
+import { KeyboardShortcutSettingsPanel } from "./keyboard-shortcuts/KeyboardShortcutSettingsPanel";
 import { LanguageModelKeyManager } from "./llm/LanguageModelKeyManager";
 import { TranscriptionModelKeyManager } from "./llm/TranscriptionModelKeyManager";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
@@ -48,6 +49,10 @@ const TABS: SettingsTab[] = [
   {
     id: "mcp",
     label: "MCP Servers",
+  },
+  {
+    id: "shortcuts",
+    label: "Shortcuts & Startup",
   },
   {
     id: "advanced",
@@ -188,6 +193,9 @@ export function SettingsDialog() {
                 )}
                 {activeTab?.id === "mcp" && (
                   <McpSettingsPanel isActive={open && activeTabId === "mcp"} viewMode="detailed" />
+                )}
+                {activeTab?.id === "shortcuts" && (
+                  <KeyboardShortcutSettingsPanel isActive={open && activeTabId === "shortcuts"} />
                 )}
                 {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
                 {activeTab?.id === "account" && (

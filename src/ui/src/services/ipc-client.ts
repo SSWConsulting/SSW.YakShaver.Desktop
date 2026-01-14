@@ -1,3 +1,4 @@
+import type { KeyboardShortcutSettings } from "@shared/types/keyboard-shortcuts";
 import type { LLMConfigV2 } from "@shared/types/llm";
 import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
@@ -217,6 +218,11 @@ declare global {
           status: ShaveStatus,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         delete: (id: string) => Promise<{ success: boolean; data?: boolean; error?: string }>;
+      };
+      keyboardShortcut: {
+        get: () => Promise<KeyboardShortcutSettings>;
+        set: (shortcut: string) => Promise<{ success: boolean }>;
+        setAutoLaunch: (enabled: boolean) => Promise<{ success: boolean }>;
       };
     };
   }
