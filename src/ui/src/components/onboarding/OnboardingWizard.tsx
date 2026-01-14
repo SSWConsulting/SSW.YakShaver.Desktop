@@ -82,7 +82,6 @@ export function OnboardingWizard() {
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
-  const [_hasMCPConfig, setHasMCPConfig] = useState(false);
   const [isMCPSaving] = useState(false);
   const [isVisible, setIsVisible] = useState(() => {
     // Check if user has completed onboarding before
@@ -218,10 +217,14 @@ export function OnboardingWizard() {
               } finally {
                 setIsLLMSaving(false);
               }
-            } else {
-              setHasLLMConfig(true);
             }
           }
+        } else {
+          llmForm.reset({
+            provider: "openai",
+            apiKey: "",
+          });
+          setHealthStatus(null);
         }
       } catch (_error) {
         setHasLLMConfig(false);
@@ -230,15 +233,6 @@ export function OnboardingWizard() {
 
     void checkLLMConfig();
   }, [currentStep, llmForm]);
-
-  useEffect(() => {
-    if (currentStep !== 3) {
-      return;
-    }
-    // Onboarding should always ADD a new MCP server (never edit an existing one).
-    // Start with a blank form each time the user reaches step 3.
-    setHasMCPConfig(false);
-  }, [currentStep]);
 
   const handleLLMSubmit = useCallback(
     async (values: ModelConfig) => {
@@ -417,8 +411,8 @@ export function OnboardingWizard() {
 
   const isNextDisabled =
     (currentStep === 1 && !isConnected) ||
-    (currentStep === 2 && isLLMSaving) ||
-    (currentStep === 3 && isLLMSaving) ||
+    (currentStep === 2 && (isLLMSaving || !hasLLMConfig || !healthStatus)) ||
+    (currentStep === 3 && (isLLMSaving || !hasLLMConfig)) ||
     (currentStep === 4 && (isMCPSaving || !hasEnabledMcpServers));
 
   if (!isVisible) return null;
