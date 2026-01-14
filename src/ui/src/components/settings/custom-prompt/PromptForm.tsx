@@ -127,7 +127,7 @@ export function PromptForm({
         if (selectedEnabledNonBuiltinServers.length === 0) {
           form.setError("selectedMcpServerIds", {
             type: "manual",
-            message: "At least one enabled non-built-in MCP server must be selected",
+            message: "Please select at least one enabled MCP server (excluding built-in servers)",
           });
           return;
         }
@@ -260,10 +260,13 @@ export function PromptForm({
                         to Radix's internal ref management conflicting with this render pattern.
                         Multiple workarounds were attempted (memoization, removing handlers,
                         pointer-events-none) but none resolved the issue. */}
-                  <div className="flex flex-col gap-2 mt-2 p-3 rounded-md border border-white/20 bg-black/20">
+                  <div
+                    className="flex flex-col gap-2 mt-2 p-3 rounded-md border border-white/20 bg-black/20"
+                    aria-live="polite"
+                  >
                     {paginatedServers.map((server) => {
                       const isChecked = field.value?.includes(server.id) ?? false;
-                      const isDisabled = server.enabled === false;
+                      const isDisabled = isDefault || server.enabled === false;
                       const handleToggle = () => {
                         const newValue = isChecked
                           ? (field.value || []).filter((id) => id !== server.id)
@@ -291,6 +294,7 @@ export function PromptForm({
                                 }
                           }
                           role="checkbox"
+                          aria-label={server.name}
                           aria-checked={isChecked}
                           aria-disabled={isDisabled}
                           tabIndex={isDisabled ? -1 : 0}

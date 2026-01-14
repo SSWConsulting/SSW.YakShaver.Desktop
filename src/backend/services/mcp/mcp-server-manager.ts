@@ -99,20 +99,32 @@ export class MCPServerManager {
         : await this.getAllMcpServerClientsAsync();
 
     if (!clients.length) {
-      throw new Error("[MCPServerManager]: No MCP clients available for selected servers");
+      const serverInfo =
+        serverIds && serverIds.length > 0
+          ? ` Selected: ${serverIds.join(", ")}.`
+          : " Using all enabled servers.";
+      throw new Error(`[MCPServerManager]: No MCP clients available.${serverInfo}`);
     }
 
     const results = await Promise.allSettled(
       clients.map((client) => client.listToolsWithServerPrefixAsync()),
     );
-    const toolMaps = results
-      .filter((r) => r.status === "fulfilled")
-      .map((r) => MCPServerManager.normalizeTools((r as PromiseFulfilledResult<unknown>).value));
+    const fulfilledResults = results.filter(
+      (r): r is PromiseFulfilledResult<unknown> => r.status === "fulfilled",
+    );
+    const rejectedCount = results.filter((r) => r.status === "rejected").length;
+    const toolMaps = fulfilledResults.map((r) => MCPServerManager.normalizeTools(r.value));
 
     const combined = Object.assign({}, ...toolMaps) as ToolSet;
 
     if (Object.keys(combined).length === 0) {
-      throw new Error("[MCPServerManager]: No tools available from selected/healthy servers");
+      const serverInfo =
+        serverIds && serverIds.length > 0
+          ? ` Selected: ${serverIds.join(", ")}.`
+          : " Using all enabled servers.";
+      throw new Error(
+        `[MCPServerManager]: No tools available. Servers: ${clients.length}, successful: ${fulfilledResults.length}, failed: ${rejectedCount}.${serverInfo}`,
+      );
     }
     return combined;
   }
