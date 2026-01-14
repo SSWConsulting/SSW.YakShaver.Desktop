@@ -231,7 +231,7 @@ export function PromptForm({
                 <FormItem className="shrink-0">
                   <FormLabel>MCP Servers *</FormLabel>
                   <FormDescription>
-                    Select which MCP servers will receive this prompt's output
+                    Select which MCP servers' tools can be used during this prompt's execution
                   </FormDescription>
 
                   {/* Summary of selected servers */}
@@ -253,24 +253,22 @@ export function PromptForm({
                   <div className="flex flex-col gap-2 mt-2 p-3 rounded-md border border-white/20 bg-black/20">
                     {paginatedServers.map((server) => {
                       const isChecked = field.value?.includes(server.id) ?? false;
+                      const handleToggle = () => {
+                        const newValue = isChecked
+                          ? (field.value || []).filter((id) => id !== server.id)
+                          : [...(field.value || []), server.id];
+                        field.onChange(newValue);
+                      };
                       return (
                         // biome-ignore lint/a11y/useSemanticElements: Using div instead of input because Radix Checkbox causes React Error #185
                         <div
                           key={server.id}
                           className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-1 rounded"
-                          onClick={() => {
-                            const newValue = isChecked
-                              ? (field.value || []).filter((id) => id !== server.id)
-                              : [...(field.value || []), server.id];
-                            field.onChange(newValue);
-                          }}
+                          onClick={handleToggle}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
-                              const newValue = isChecked
-                                ? (field.value || []).filter((id) => id !== server.id)
-                                : [...(field.value || []), server.id];
-                              field.onChange(newValue);
+                              handleToggle();
                             }
                           }}
                           role="checkbox"
