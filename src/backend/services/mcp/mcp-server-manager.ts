@@ -41,8 +41,19 @@ export class MCPServerManager {
       return [];
     }
 
+    // Get all configs to filter by enabled status
+    const allConfigs = await MCPServerManager.getAllServerConfigsAsync();
+    const enabledSelectedIds = selectedServerIdsOrNames.filter((identifier) => {
+      const config = allConfigs.find((c) => c.id === identifier || c.name === identifier);
+      return config && config.enabled !== false;
+    });
+
+    if (!enabledSelectedIds.length) {
+      return [];
+    }
+
     const results = await Promise.allSettled(
-      selectedServerIdsOrNames.map((identifier) => this.getMcpClientAsync(identifier)),
+      enabledSelectedIds.map((identifier) => this.getMcpClientAsync(identifier)),
     );
     return results
       .filter((r) => r.status === "fulfilled" && r.value)

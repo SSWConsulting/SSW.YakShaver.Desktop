@@ -88,6 +88,12 @@ export function PromptForm({
     };
   }, []);
 
+  // Reset page when server list changes to avoid showing empty page
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally depending on length to reset page when servers change
+  useEffect(() => {
+    setServerPage(0);
+  }, [mcpServers.length]);
+
   // Auto-select all servers for existing prompts without selectedMcpServerIds
   // This runs once after servers are loaded
   // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally omitting form methods to prevent re-runs
@@ -109,16 +115,18 @@ export function PromptForm({
 
     const data = form.getValues();
 
-    // Validate that at least one non-built-in MCP server is selected (if any are available)
-    const availableNonBuiltinServers = mcpServers.filter((server) => !server.builtin);
-    if (availableNonBuiltinServers.length > 0) {
-      const selectedNonBuiltinServers = availableNonBuiltinServers.filter(
+    // Validate that at least one enabled non-built-in MCP server is selected (if any are available)
+    const availableEnabledNonBuiltinServers = mcpServers.filter(
+      (server) => !server.builtin && server.enabled !== false,
+    );
+    if (availableEnabledNonBuiltinServers.length > 0) {
+      const selectedEnabledNonBuiltinServers = availableEnabledNonBuiltinServers.filter(
         (server) => server.id && data.selectedMcpServerIds?.includes(server.id),
       );
-      if (selectedNonBuiltinServers.length === 0) {
+      if (selectedEnabledNonBuiltinServers.length === 0) {
         form.setError("selectedMcpServerIds", {
           type: "manual",
-          message: "At least one non-built-in MCP server must be selected",
+          message: "At least one enabled non-built-in MCP server must be selected",
         });
         return;
       }
@@ -253,6 +261,7 @@ export function PromptForm({
                   <div className="flex flex-col gap-2 mt-2 p-3 rounded-md border border-white/20 bg-black/20">
                     {paginatedServers.map((server) => {
                       const isChecked = field.value?.includes(server.id) ?? false;
+                      const isDisabled = server.enabled === false;
                       const handleToggle = () => {
                         const newValue = isChecked
                           ? (field.value || []).filter((id) => id !== server.id)
@@ -263,17 +272,26 @@ export function PromptForm({
                         // biome-ignore lint/a11y/useSemanticElements: Using div instead of input because Radix Checkbox causes React Error #185
                         <div
                           key={server.id}
-                          className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-1 rounded"
-                          onClick={handleToggle}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              handleToggle();
-                            }
-                          }}
+                          className={`flex items-center gap-3 p-1 rounded ${
+                            isDisabled
+                              ? "opacity-50 cursor-not-allowed"
+                              : "cursor-pointer hover:bg-white/5"
+                          }`}
+                          onClick={isDisabled ? undefined : handleToggle}
+                          onKeyDown={
+                            isDisabled
+                              ? undefined
+                              : (e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    handleToggle();
+                                  }
+                                }
+                          }
                           role="checkbox"
                           aria-checked={isChecked}
-                          tabIndex={0}
+                          aria-disabled={isDisabled}
+                          tabIndex={isDisabled ? -1 : 0}
                         >
                           <div
                             className={`h-4 w-4 shrink-0 rounded-sm border transition-colors ${
@@ -288,6 +306,9 @@ export function PromptForm({
                             {server.name}
                             {server.builtin && (
                               <span className="ml-2 text-xs text-white/50">(Built-in)</span>
+                            )}
+                            {isDisabled && (
+                              <span className="ml-2 text-xs text-yellow-500/70">(Disabled)</span>
                             )}
                           </span>
                         </div>
