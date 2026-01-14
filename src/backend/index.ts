@@ -560,6 +560,7 @@ app.on("before-quit", async (event) => {
   if (!isQuitting) {
     event.preventDefault();
     await cleanup();
+    // isQuitting is now true, so next quit will not be prevented
     app.quit();
   }
 });

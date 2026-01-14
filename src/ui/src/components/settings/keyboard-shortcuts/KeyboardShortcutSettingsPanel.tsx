@@ -91,7 +91,7 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
     // Add the main key if it's not a modifier
     if (!["Control", "Alt", "Shift", "Meta"].includes(key)) {
       // Normalize key names for function keys and special keys
-      if (key.startsWith("F") && key.length <= 3 && /F\d+/.test(key)) {
+      if (key.startsWith("F") && /^F([1-9]|1[0-9]|2[0-4])$/.test(key)) {
         shortcut += key;
       } else if (key.length === 1) {
         shortcut += key.toUpperCase();

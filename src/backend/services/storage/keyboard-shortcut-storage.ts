@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import type { KeyboardShortcutSettings } from "../../shared/types/keyboard-shortcuts";
-import { DEFAULT_KEYBOARD_SHORTCUTS } from "../../shared/types/keyboard-shortcuts";
+import type { KeyboardShortcutSettings } from "@shared/types/keyboard-shortcuts";
+import { DEFAULT_KEYBOARD_SHORTCUTS } from "@shared/types/keyboard-shortcuts";
 import { BaseSecureStorage } from "./base-secure-storage";
 
 const SETTINGS_FILE = "keyboard-shortcuts.enc";
