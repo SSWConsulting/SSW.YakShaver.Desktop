@@ -97,7 +97,7 @@ jobs:
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
-      # Manual download is needed because the 'youtube-dl-exec' script for Unix hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find the yt-dlp binary. 
+      # Manual download is needed because the 'youtube-dl-exec' script hits the GitHub API unauthenticated rate limit (60/hr) when attempting to download the binary
       - name: Install yt-dlp binary manually
         shell: bash
         run: |
