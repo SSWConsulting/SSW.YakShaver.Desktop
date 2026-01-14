@@ -66,7 +66,7 @@ export default function App() {
             </main>
           </div>
 
-          <div className="fixed bottom-2 left-2 text-[10px] text-white/30 z-50 pointer-events-none select-none font-mono">
+          <div className="fixed bottom-2 left-2 text-[10px] text-white/30 z-50 pointer-events-none font-mono">
             {appVersion && `v${appVersion} `}
             {commitHash && `(${commitHash})`}
           </div>
