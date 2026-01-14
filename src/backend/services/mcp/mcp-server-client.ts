@@ -22,11 +22,14 @@ export interface CreateClientOptions {
 
 export class MCPServerClient {
   public mcpClientName: string;
+  public mcpClientId: string;
+
   private mcpClient: experimental_MCPClient;
 
-  private constructor(name: string, client: experimental_MCPClient) {
+  private constructor(id: string, name: string, client: experimental_MCPClient) {
     this.mcpClientName = name;
     this.mcpClient = client;
+    this.mcpClientId = id;
   }
 
   public static async createClientAsync(
@@ -53,7 +56,7 @@ export class MCPServerClient {
             headers: mcpConfig.headers,
           },
         });
-        return new MCPServerClient(mcpConfig.name, client);
+        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
       }
 
       // Check for dynamic client registration support for servers
@@ -89,7 +92,7 @@ export class MCPServerClient {
             authProvider,
           },
         });
-        return new MCPServerClient(mcpConfig.name, client);
+        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
       }
 
       if (!oauthEndpoint && mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
@@ -121,7 +124,7 @@ export class MCPServerClient {
               authProvider,
             },
           });
-          return new MCPServerClient(mcpConfig.name, client);
+          return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
         }
       }
 
@@ -133,7 +136,7 @@ export class MCPServerClient {
           headers: mcpConfig.headers,
         },
       });
-      return new MCPServerClient(mcpConfig.name, client);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
     }
 
     // create stdio transport MCP client
@@ -157,7 +160,7 @@ export class MCPServerClient {
           cwd,
         }),
       });
-      return new MCPServerClient(mcpConfig.name, mcpClient);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, mcpClient);
     }
 
     // create inMemory transport MCP client
@@ -171,7 +174,7 @@ export class MCPServerClient {
       const client = await experimental_createMCPClient({
         transport: clientTransport,
       });
-      return new MCPServerClient(mcpConfig.name, client);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
     }
 
     throw new Error(`Unsupported transport type: ${mcpConfig}`);
