@@ -222,7 +222,7 @@ declare global {
       };
       keyboardShortcut: {
         get: () => Promise<KeyboardShortcutSettings>;
-        set: (shortcut: string) => Promise<{ success: boolean }>;
+        set: (shortcut: string) => Promise<{ success: boolean; error?: string }>;
         setAutoLaunch: (enabled: boolean) => Promise<{ success: boolean }>;
       };
     };

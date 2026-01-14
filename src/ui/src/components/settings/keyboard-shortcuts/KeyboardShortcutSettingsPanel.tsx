@@ -52,9 +52,13 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
 
     setIsSaving(true);
     try {
-      await ipcClient.keyboardShortcut.set(shortcutInput);
-      setSettings((prev) => ({ ...prev, recordShortcut: shortcutInput }));
-      toast.success(`Record shortcut updated to ${shortcutInput}`);
+      const result = await ipcClient.keyboardShortcut.set(shortcutInput);
+      if (result.success) {
+        setSettings((prev) => ({ ...prev, recordShortcut: shortcutInput }));
+        toast.success(`Record shortcut updated to ${shortcutInput}`);
+      } else {
+        toast.error(result.error || "Failed to register shortcut");
+      }
     } catch (error) {
       console.error("Failed to update record shortcut", error);
       toast.error("Failed to update record shortcut");

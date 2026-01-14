@@ -214,9 +214,8 @@ const createTray = (): void => {
 };
 
 const updateTrayRecordShortcut = (shortcut: string): void => {
-  currentRecordShortcut = shortcut;
   if (tray) {
-    tray.setContextMenu(buildTrayContextMenu(currentRecordShortcut));
+    tray.setContextMenu(buildTrayContextMenu(shortcut));
   }
 };
 
@@ -312,10 +311,19 @@ let _keyboardShortcutHandlers: KeyboardShortcutIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 // Register global shortcut for recording
-const registerRecordShortcut = (shortcut: string): void => {
-  // Unregister existing recording shortcut if any
+const registerRecordShortcut = (shortcut: string): boolean => {
+  // Unregister the old shortcut if it exists and is different from the new one
+  if (currentRecordShortcut && currentRecordShortcut !== shortcut) {
+    if (globalShortcut.isRegistered(currentRecordShortcut)) {
+      globalShortcut.unregister(currentRecordShortcut);
+      console.log(`Unregistered old shortcut: ${currentRecordShortcut}`);
+    }
+  }
+
+  // Unregister the new shortcut if it's already registered (safety check)
   if (globalShortcut.isRegistered(shortcut)) {
     globalShortcut.unregister(shortcut);
+    console.log(`Unregistered existing shortcut: ${shortcut}`);
   }
 
   // Register new shortcut
@@ -341,9 +349,16 @@ const registerRecordShortcut = (shortcut: string): void => {
 
   if (!success) {
     console.error(`Failed to register global shortcut: ${shortcut}`);
-  } else {
-    console.log(`Successfully registered global shortcut: ${shortcut}`);
+    console.error(
+      `This shortcut may be reserved by the OS or used by another application. Common reserved shortcuts: F12 (browser DevTools), F11 (fullscreen), Ctrl+Alt+Del. Try a different combination like Ctrl+Shift+R or Alt+Shift+R.`,
+    );
+    return false;
   }
+
+  console.log(`Successfully registered global shortcut: ${shortcut}`);
+  // Update current shortcut only after successful registration
+  currentRecordShortcut = shortcut;
+  return true;
 };
 
 // Update auto-launch setting
@@ -472,8 +487,11 @@ app.whenReady().then(async () => {
   // Initialize keyboard shortcut handlers with callbacks
   _keyboardShortcutHandlers = new KeyboardShortcutIPCHandlers(
     (shortcut: string) => {
-      registerRecordShortcut(shortcut);
-      updateTrayRecordShortcut(shortcut);
+      const success = registerRecordShortcut(shortcut);
+      if (success) {
+        updateTrayRecordShortcut(currentRecordShortcut);
+      }
+      return success;
     },
     (enabled: boolean) => {
       updateAutoLaunch(enabled);
@@ -483,7 +501,6 @@ app.whenReady().then(async () => {
   // Load and apply keyboard shortcut settings
   const keyboardShortcutStorage = KeyboardShortcutStorage.getInstance();
   const shortcutSettings = await keyboardShortcutStorage.getSettings();
-  currentRecordShortcut = shortcutSettings.recordShortcut;
   registerRecordShortcut(shortcutSettings.recordShortcut);
   updateAutoLaunch(shortcutSettings.autoLaunchEnabled);
 

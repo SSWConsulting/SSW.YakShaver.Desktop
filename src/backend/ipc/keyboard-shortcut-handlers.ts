@@ -5,11 +5,11 @@ import { IPC_CHANNELS } from "./channels";
 
 export class KeyboardShortcutIPCHandlers {
   private storage = KeyboardShortcutStorage.getInstance();
-  private onShortcutChange?: (shortcut: string) => void;
+  private onShortcutChange?: (shortcut: string) => boolean;
   private onAutoLaunchChange?: (enabled: boolean) => void;
 
   constructor(
-    onShortcutChange?: (shortcut: string) => void,
+    onShortcutChange?: (shortcut: string) => boolean,
     onAutoLaunchChange?: (enabled: boolean) => void,
   ) {
     this.onShortcutChange = onShortcutChange;
@@ -40,10 +40,21 @@ export class KeyboardShortcutIPCHandlers {
     }
   }
 
-  private async setRecordShortcut(shortcut: string): Promise<{ success: boolean }> {
+  private async setRecordShortcut(shortcut: string): Promise<{ success: boolean; error?: string }> {
     try {
+      // Try to register the shortcut first
+      const registered = this.onShortcutChange?.(shortcut);
+
+      if (registered === false) {
+        // Registration failed, don't save to storage
+        return {
+          success: false,
+          error: `Failed to register shortcut "${shortcut}". It may be reserved by the OS or another application. Try a different key combination.`,
+        };
+      }
+
+      // Registration succeeded, save to storage
       await this.storage.setRecordShortcut(shortcut);
-      this.onShortcutChange?.(shortcut);
       return { success: true };
     } catch (error) {
       console.error("Failed to set record shortcut:", error);
