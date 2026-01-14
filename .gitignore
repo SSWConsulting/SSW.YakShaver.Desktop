@@ -109,3 +109,4 @@ data/
 
 # Claude temp files
 tmpclaude*
+.claude/
