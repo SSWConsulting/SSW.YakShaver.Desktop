@@ -92,6 +92,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline
         env:
+          # Prevent youtube-dl-exec from auto-downloading yt-dlp during npm install, which would hit the GitHub API unauthenticated rate limit
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
       # Manual download is needed because the 'youtube-dl-exec' script hits the GitHub API unauthenticated rate limit (60/hr) when attempting to download the binary
