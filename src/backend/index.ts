@@ -1,16 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  globalShortcut,
-  Menu,
-  nativeImage,
-  session,
-  shell,
-  Tray,
-} from "electron";
+import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { config } from "./config/env";
@@ -38,7 +28,9 @@ import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { ShortcutManager } from "./services/shortcut-manager";
 import { KeyboardShortcutStorage } from "./services/storage/keyboard-shortcut-storage";
+import { TrayManager } from "./services/tray-manager";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -64,9 +56,20 @@ const loadEnv = () => {
 loadEnv();
 
 let mainWindow: BrowserWindow | null = null;
-let tray: Tray | null = null;
 let pendingProtocolUrl: string | null = null;
-let currentRecordShortcut = "PrintScreen";
+let isQuitting = false;
+
+// Initialize managers
+const shortcutManager = new ShortcutManager();
+const trayManager = new TrayManager(
+  isDev,
+  () => {
+    isQuitting = true;
+  },
+  () => {
+    shortcutManager.handleShortcutTrigger();
+  },
+);
 
 const getAppVersion = (): string => app.getVersion();
 
@@ -160,65 +163,6 @@ const createApplicationMenu = (): void => {
   Menu.setApplicationMenu(menu);
 };
 
-const buildTrayContextMenu = (shortcut: string): Menu => {
-  return Menu.buildFromTemplate([
-    {
-      label: "Show YakShaver",
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          if (mainWindow.isMinimized()) {
-            mainWindow.restore();
-          }
-          mainWindow.focus();
-        }
-      },
-    },
-    {
-      label: `Record Shortcut: ${shortcut}`,
-      enabled: false,
-    },
-    { type: "separator" },
-    {
-      label: "Quit",
-      click: () => {
-        isQuitting = true;
-        app.quit();
-      },
-    },
-  ]);
-};
-
-const createTray = (): void => {
-  // Fix icon path for packaged mode
-  const iconPath = isDev
-    ? join(__dirname, "../../src/ui/public/icons/icon.png")
-    : join(process.resourcesPath, "public/icons/icon.png");
-
-  const icon = nativeImage.createFromPath(iconPath);
-  tray = new Tray(icon.resize({ width: 16, height: 16 }));
-
-  tray.setToolTip("YakShaver");
-  tray.setContextMenu(buildTrayContextMenu(currentRecordShortcut));
-
-  // Show window on tray icon click
-  tray.on("click", () => {
-    if (mainWindow) {
-      mainWindow.show();
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore();
-      }
-      mainWindow.focus();
-    }
-  });
-};
-
-const updateTrayRecordShortcut = (shortcut: string): void => {
-  if (tray) {
-    tray.setContextMenu(buildTrayContextMenu(shortcut));
-  }
-};
-
 const createWindow = (): void => {
   // Fix icon path for packaged mode
   const iconPath = isDev
@@ -309,58 +253,6 @@ let _shaveHandlers: ShaveIPCHandlers;
 let _appControlHandlers: AppControlIPCHandlers;
 let _keyboardShortcutHandlers: KeyboardShortcutIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
-
-// Register global shortcut for recording
-const registerRecordShortcut = (shortcut: string): boolean => {
-  // Unregister the new shortcut if it's already registered (safety check)
-  if (globalShortcut.isRegistered(shortcut)) {
-    globalShortcut.unregister(shortcut);
-    console.log(`Unregistered existing shortcut: ${shortcut}`);
-  }
-
-  // Register new shortcut
-  const success = globalShortcut.register(shortcut, () => {
-    console.log(`Global shortcut ${shortcut} triggered`);
-
-    // Show and focus the main window
-    if (mainWindow) {
-      console.log("Main window exists, showing and focusing");
-      mainWindow.show();
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore();
-      }
-      mainWindow.focus();
-
-      // Send message to open the source picker
-      console.log("Sending open-source-picker event to renderer");
-      mainWindow.webContents.send("open-source-picker");
-    } else {
-      console.error("Main window is null when shortcut was triggered");
-    }
-  });
-
-  if (!success) {
-    console.error(`Failed to register global shortcut: ${shortcut}`);
-    console.error(
-      `This shortcut may be reserved by the OS or used by another application. Common reserved shortcuts: F12 (browser DevTools), F11 (fullscreen), Ctrl+Alt+Del. Try a different combination like Ctrl+Shift+R or Alt+Shift+R.`,
-    );
-    return false;
-  }
-
-  console.log(`Successfully registered global shortcut: ${shortcut}`);
-
-  // Only unregister the old shortcut AFTER successful registration of the new one
-  if (currentRecordShortcut && currentRecordShortcut !== shortcut) {
-    if (globalShortcut.isRegistered(currentRecordShortcut)) {
-      globalShortcut.unregister(currentRecordShortcut);
-      console.log(`Unregistered old shortcut: ${currentRecordShortcut}`);
-    }
-  }
-
-  // Update current shortcut only after successful registration
-  currentRecordShortcut = shortcut;
-  return true;
-};
 
 // Update auto-launch setting
 const updateAutoLaunch = (enabled: boolean): void => {
@@ -488,9 +380,9 @@ app.whenReady().then(async () => {
   // Initialize keyboard shortcut handlers with callbacks
   _keyboardShortcutHandlers = new KeyboardShortcutIPCHandlers(
     (shortcut: string) => {
-      const success = registerRecordShortcut(shortcut);
+      const success = shortcutManager.registerShortcut(shortcut);
       if (success) {
-        updateTrayRecordShortcut(currentRecordShortcut);
+        trayManager.updateTrayMenu(shortcut);
       }
       return success;
     },
@@ -502,8 +394,12 @@ app.whenReady().then(async () => {
   // Load and apply keyboard shortcut settings
   const keyboardShortcutStorage = KeyboardShortcutStorage.getInstance();
   const shortcutSettings = await keyboardShortcutStorage.getSettings();
-  registerRecordShortcut(shortcutSettings.recordShortcut);
+  shortcutManager.registerShortcut(shortcutSettings.recordShortcut);
   updateAutoLaunch(shortcutSettings.autoLaunchEnabled);
+
+  // Set main window references for managers
+  shortcutManager.setMainWindow(mainWindow);
+  trayManager.setMainWindow(mainWindow);
 
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
@@ -515,7 +411,7 @@ app.whenReady().then(async () => {
   createApplicationMenu();
 
   // Create tray icon
-  createTray();
+  trayManager.createTray();
 
   createWindow();
 
@@ -538,26 +434,21 @@ app.whenReady().then(async () => {
 
 tmp.setGracefulCleanup();
 
-let isQuitting = false;
-
 const cleanup = async () => {
   if (isQuitting) return;
   isQuitting = true;
 
   // Unregister global shortcuts
-  globalShortcut.unregisterAll();
+  shortcutManager.unregisterAll();
+
+  // Destroy tray icon
+  trayManager.destroy();
 
   unregisterEventForwarders?.();
   try {
     await RecordingService.getInstance().cleanupAllTempFiles();
   } catch (err) {
     console.error("Cleanup error:", err);
-  }
-
-  // Destroy tray icon
-  if (tray) {
-    tray.destroy();
-    tray = null;
   }
 };
 
