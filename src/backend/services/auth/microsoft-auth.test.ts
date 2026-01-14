@@ -1,4 +1,4 @@
-import type { AccountInfo, AuthenticationResult } from "@azure/msal-node";
+import type { AccountInfo, AuthenticationResult, PublicClientApplication } from "@azure/msal-node";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MicrosoftAuthService } from "./microsoft-auth";
 import { type AuthState, AuthStatus } from "./types";
@@ -29,9 +29,9 @@ vi.mock("@azure/msal-node", () => {
   return {
     PublicClientApplication: class {
       constructor() {
-        return mocks.mockPCA;
+        Object.assign(this, mocks.mockPCA);
       }
-    },
+    } as unknown as typeof PublicClientApplication,
     LogLevel: { Info: 0 },
     InteractionRequiredAuthError: class extends Error {},
   };
@@ -104,6 +104,8 @@ describe("MicrosoftAuthService", () => {
 
     // @ts-expect-error - Accessing private static property for testing
     MicrosoftAuthService.account = null;
+    // @ts-expect-error - Accessing private static property for testing
+    MicrosoftAuthService.instance = undefined;
 
     service = MicrosoftAuthService.getInstance({
       clientId: "mock-client-id",

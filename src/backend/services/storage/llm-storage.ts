@@ -48,7 +48,7 @@ export class LlmStorage extends BaseSecureStorage {
         apiKey: config.apiKey,
       };
     } else {
-      const provider = (config as any).provider;
+      const provider = (config as { provider: string }).provider;
       throw new Error(`[LlmStorage]: Unknown provider '${provider}' during migration`);
     }
     return {
