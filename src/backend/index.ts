@@ -58,7 +58,7 @@ const getAppVersion = (): string => app.getVersion();
 const createMenu = (): Menu => {
   const version = getAppVersion();
   const commitHash = config.commitHash();
-  const hashString = commitHash ? ` (${commitHash})` : "";
+  const hashString = commitHash ? `${commitHash}` : "N/A";
 
   const template: Electron.MenuItemConstructorOptions[] = [];
 
@@ -116,7 +116,7 @@ const createMenu = (): Menu => {
               title: "About YakShaver",
               message: `YakShaver`,
               detail: `Version: ${version}
-Commit: ${hashString || "N/A"}`,
+Commit: ${hashString}`,
               buttons: ["OK"],
             });
           },
