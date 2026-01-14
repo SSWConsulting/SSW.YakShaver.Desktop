@@ -27,9 +27,9 @@ export class MCPServerClient {
   private mcpClient: experimental_MCPClient;
 
   private constructor(id: string, name: string, client: experimental_MCPClient) {
+    this.mcpClientId = id;
     this.mcpClientName = name;
     this.mcpClient = client;
-    this.mcpClientId = id;
   }
 
   public static async createClientAsync(
