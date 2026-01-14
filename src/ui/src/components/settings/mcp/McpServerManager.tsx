@@ -48,22 +48,6 @@ export function McpSettingsPanel({
   } | null>(null);
   const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
   const [whitelistServer, setWhitelistServer] = useState<MCPServerConfig | null>(null);
-  const [appInstallUrl, setAppInstallUrl] = useState<string>("");
-
-  // Load GitHub install URL
-  useEffect(() => {
-    if (isActive && !appInstallUrl) {
-      const loadGitHubInstallUrl = async () => {
-        try {
-          const installUrl = await ipcClient.githubToken.getInstallUrl();
-          setAppInstallUrl(installUrl);
-        } catch (e) {
-          console.error("Failed to load GitHub install URL:", e);
-        }
-      };
-      void loadGitHubInstallUrl();
-    }
-  }, [isActive, appInstallUrl]);
 
   useEffect(() => {
     const hasEnabled = servers.some(
