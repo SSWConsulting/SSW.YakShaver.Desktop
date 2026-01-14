@@ -102,7 +102,7 @@ describe("MicrosoftAuthService", () => {
     // Reset the getTokenCache behavior since it's a function on the object
     mocks.mockPCA.getTokenCache.mockReturnValue(mocks.mockTokenCache);
 
-    // @ts-ignore - Accessing private static property for testing
+    // @ts-expect-error - Accessing private static property for testing
     MicrosoftAuthService.account = null;
 
     service = MicrosoftAuthService.getInstance({
@@ -130,9 +130,7 @@ describe("MicrosoftAuthService", () => {
       const state = await service.getAuthState();
       expect(state.status).toBe(AuthStatus.AUTHENTICATED);
       if (state.status === AuthStatus.AUTHENTICATED) {
-        expect(
-          (state as AuthState & { accountInfo: AccountInfo }).accountInfo
-        ).toBe(mockAccount);
+        expect((state as AuthState & { accountInfo: AccountInfo }).accountInfo).toBe(mockAccount);
       }
     });
 
@@ -144,12 +142,12 @@ describe("MicrosoftAuthService", () => {
 
       // 2. Mock Silent Failure
       mocks.mockPCA.acquireTokenSilent.mockRejectedValue(
-        new InteractionRequiredAuthError("Interaction required")
+        new InteractionRequiredAuthError("Interaction required"),
       );
 
       // 3. Mock Interactive Failure
       mocks.mockPCA.acquireTokenInteractive.mockRejectedValue(
-        new InteractionRequiredAuthError("Interaction required")
+        new InteractionRequiredAuthError("Interaction required"),
       );
 
       const state = await service.getAuthState();
@@ -172,9 +170,7 @@ describe("MicrosoftAuthService", () => {
 
     it("should return null on login failure", async () => {
       mocks.mockTokenCache.getAllAccounts.mockResolvedValue([]);
-      mocks.mockPCA.acquireTokenInteractive.mockRejectedValue(
-        new Error("Login failed")
-      );
+      mocks.mockPCA.acquireTokenInteractive.mockRejectedValue(new Error("Login failed"));
 
       const result = await service.login();
       expect(result).toBeNull();
@@ -195,7 +191,7 @@ describe("MicrosoftAuthService", () => {
         expect.objectContaining({
           scopes: ["mock-scope"],
           account: mockAccount,
-        })
+        }),
       );
     });
   });
@@ -213,9 +209,7 @@ describe("MicrosoftAuthService", () => {
       await service.getAuthState();
 
       await service.logout();
-      expect(mocks.mockTokenCache.removeAccount).toHaveBeenCalledWith(
-        mockAccount
-      );
+      expect(mocks.mockTokenCache.removeAccount).toHaveBeenCalledWith(mockAccount);
       expect(service.currentAccount()).toBeNull();
     });
   });
