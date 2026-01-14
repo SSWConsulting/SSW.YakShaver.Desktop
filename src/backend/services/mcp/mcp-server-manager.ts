@@ -73,10 +73,10 @@ export class MCPServerManager {
 
   /**
    * Collect tools from selected servers only.
-   * If serverIds is undefined or empty, returns tools from all servers (backward compatibility).
+   * If serverIds is undefined or empty, returns tools from all enabled servers (backward compatibility; disabled servers are always excluded).
    */
   public async collectToolsForSelectedServersAsync(serverIds?: string[]): Promise<ToolSet> {
-    // If no filter provided or empty, use all servers (backward compatibility)
+    // If no filter provided or empty, use all enabled servers (backward compatibility with existing enabled-only behavior)
     const clients =
       serverIds && serverIds.length > 0
         ? await this.getSelectedMcpServerClientsAsync(serverIds)
