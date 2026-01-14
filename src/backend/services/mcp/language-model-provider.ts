@@ -59,11 +59,14 @@ export class LanguageModelProvider {
   }
 
   public async updateLanguageModel(): Promise<void> {
-    const llmConfig: LLMConfig =
-      (await LlmStorage.getInstance().getLLMConfig())?.languageModel ??
-      (() => {
-        throw new Error("[LanguageModelProvider]: LLM language configuration not found");
-      })();
+    const fullConfig = await LlmStorage.getInstance().getLLMConfig();
+    const llmConfig = fullConfig?.languageModel;
+
+    if (!llmConfig) {
+      console.warn("[LanguageModelProvider]: LLM language configuration not found");
+      this.languageModel = null;
+      return;
+    }
 
     const config = LLM_PROVIDER_CONFIGS[llmConfig.provider];
     if (!config || !config.defaultLanguageModel) {
@@ -202,10 +205,10 @@ export class LanguageModelProvider {
   }
 
   public async checkHealth(): Promise<HealthStatusInfo> {
-    // Ensure the latest model configuration
-    await this.updateLanguageModel();
-
     try {
+      // Ensure the latest model configuration
+      await this.updateLanguageModel();
+
       if (!this.languageModel) {
         return {
           isHealthy: false,

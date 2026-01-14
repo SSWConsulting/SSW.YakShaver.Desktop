@@ -38,6 +38,7 @@ describe("LlmStorage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storage = LlmStorage.getInstance();
+    storage.resetCache();
   });
 
   it("should return null when no config exists", async () => {
@@ -114,6 +115,28 @@ describe("LlmStorage", () => {
 
       expect(config?.languageModel).toEqual(expectedModelConfig);
       expect(config?.transcriptionModel).toEqual(expectedModelConfig);
+    });
+    it("should return null and clear config if migration fails (invalid provider)", async () => {
+      const invalidConfig = {
+        provider: "unknown-provider",
+        apiKey: "some-key",
+      };
+
+      // Mock reading invalid V1 config
+      vi.mocked(fs.readFile).mockResolvedValue(
+        Buffer.from(`encrypted:${JSON.stringify(invalidConfig)}`),
+      );
+
+      // Spy on unlink (used by clearLLMConfig/deleteFile)
+      vi.mocked(fs.unlink).mockResolvedValue(undefined);
+
+      const config = await storage.getLLMConfig();
+
+      // Should return null (reset)
+      expect(config).toBeNull();
+
+      // Should verify that the file was deleted
+      expect(fs.unlink).toHaveBeenCalled();
     });
   });
 

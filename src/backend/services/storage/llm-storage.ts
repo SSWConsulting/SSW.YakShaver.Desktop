@@ -15,10 +15,18 @@ const LLM_PROVIDER_VERSION = 2;
 
 export class LlmStorage extends BaseSecureStorage {
   private static instance: LlmStorage;
+  private cachedConfig: LLMConfigV2 | null = null;
+  private isLoaded = false;
+  private loadPromise: Promise<LLMConfigV2 | null> | null = null;
 
   // Migration from V1 to V2
   private migrateV1toV2(config: LLMConfigV1): LLMConfigV2 {
     console.log("[LlmStorage]: Migrating V1 -> V2");
+
+    if (!config || typeof config !== "object") {
+      throw new Error("[LlmStorage]: Invalid V1 config object during migration");
+    }
+
     let modelConfig: ModelConfig;
     if (config.provider === "openai") {
       modelConfig = {
@@ -40,7 +48,8 @@ export class LlmStorage extends BaseSecureStorage {
         apiKey: config.apiKey,
       };
     } else {
-      throw new Error(`[LlmStorage]: Unknown provider ${config} during migration`);
+      const provider = (config as any).provider;
+      throw new Error(`[LlmStorage]: Unknown provider '${provider}' during migration`);
     }
     return {
       version: 2,
@@ -65,41 +74,81 @@ export class LlmStorage extends BaseSecureStorage {
     return LlmStorage.instance;
   }
 
+  /**
+   * Resets the internal cache. Used primarily for testing.
+   */
+  public resetCache(): void {
+    this.cachedConfig = null;
+    this.isLoaded = false;
+    this.loadPromise = null;
+  }
+
   private getLLMConfigPath(): string {
     return join(this.storageDir, LLM_CONFIG_FILE);
   }
 
   async storeLLMConfig(config: LLMConfigV2): Promise<void> {
-    await this.encryptAndStore(this.getLLMConfigPath(), {
-      ...config,
-      version: LLM_PROVIDER_VERSION,
-    });
+    await this.encryptAndStore(this.getLLMConfigPath(), config);
+    this.cachedConfig = config;
+    this.isLoaded = true;
   }
 
   async getLLMConfig(): Promise<LLMConfigV2 | null> {
-    const config = await this.decryptAndLoad<LLMConfig>(this.getLLMConfigPath());
-
-    if (!config) {
-      return null;
+    if (this.isLoaded) {
+      return this.cachedConfig;
     }
 
-    const configVersion = "version" in config ? config.version : 1;
-
-    if (configVersion === LLM_PROVIDER_VERSION) {
-      return config as LLMConfigV2;
+    if (this.loadPromise) {
+      return this.loadPromise;
     }
 
-    console.log(
-      `[LlmStorage]: LLM config version ${configVersion} detected, migrating to version ${LLM_PROVIDER_VERSION}`,
-    );
-    const migratedConfig = this.migrateToCurrentVersion(config);
+    this.loadPromise = (async () => {
+      try {
+        const config = await this.decryptAndLoad<LLMConfig>(this.getLLMConfigPath());
 
-    await this.storeLLMConfig(migratedConfig);
-    return migratedConfig;
+        if (!config) {
+          this.cachedConfig = null;
+          this.isLoaded = true;
+          return null;
+        }
+
+        const configVersion = "version" in config ? config.version : 1;
+
+        try {
+          const migratedConfig = this.migrateToCurrentVersion(config);
+          // If migration happened (version changed), save it
+          if (configVersion !== LLM_PROVIDER_VERSION) {
+            console.log(
+              `[LlmStorage]: LLM config version ${configVersion} detected, migrating to version ${LLM_PROVIDER_VERSION}`,
+            );
+            await this.storeLLMConfig(migratedConfig);
+          } else {
+            this.cachedConfig = migratedConfig;
+            this.isLoaded = true;
+          }
+          return migratedConfig;
+        } catch (error) {
+          console.error(
+            `[LlmStorage]: Migration failed for version ${configVersion}, resetting config. Error:`,
+            error,
+          );
+          await this.clearLLMConfig();
+          this.cachedConfig = null;
+          this.isLoaded = true;
+          return null;
+        }
+      } finally {
+        this.loadPromise = null;
+      }
+    })();
+
+    return this.loadPromise;
   }
 
   async clearLLMConfig(): Promise<void> {
     await this.deleteFile(this.getLLMConfigPath());
+    this.cachedConfig = null;
+    this.isLoaded = true;
   }
 
   async hasLLMConfig(): Promise<boolean> {
