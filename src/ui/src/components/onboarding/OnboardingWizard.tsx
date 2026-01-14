@@ -411,7 +411,7 @@ export function OnboardingWizard() {
 
   const isNextDisabled =
     (currentStep === 1 && !isConnected) ||
-    (currentStep === 2 && (isLLMSaving || !hasLLMConfig || !healthStatus)) ||
+    (currentStep === 2 && (isLLMSaving || !hasLLMConfig)) ||
     (currentStep === 3 && (isLLMSaving || !hasLLMConfig)) ||
     (currentStep === 4 && (isMCPSaving || !hasEnabledMcpServers));
 
