@@ -29,10 +29,6 @@ interface PromptFormProps {
   isNewPrompt?: boolean;
 }
 
-export interface PromptFormRef {
-  isDirty: () => boolean;
-}
-
 interface InternalPromptFormProps extends PromptFormProps {
   onDirtyChange?: (isDirty: boolean) => void;
 }
