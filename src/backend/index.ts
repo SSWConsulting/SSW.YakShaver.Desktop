@@ -160,16 +160,8 @@ const createApplicationMenu = (): void => {
   Menu.setApplicationMenu(menu);
 };
 
-const createTray = (): void => {
-  // Fix icon path for packaged mode
-  const iconPath = isDev
-    ? join(__dirname, "../../src/ui/public/icons/icon.png")
-    : join(process.resourcesPath, "public/icons/icon.png");
-
-  const icon = nativeImage.createFromPath(iconPath);
-  tray = new Tray(icon.resize({ width: 16, height: 16 }));
-
-  const contextMenu = Menu.buildFromTemplate([
+const buildTrayContextMenu = (shortcut: string): Menu => {
+  return Menu.buildFromTemplate([
     {
       label: "Show YakShaver",
       click: () => {
@@ -183,7 +175,7 @@ const createTray = (): void => {
       },
     },
     {
-      label: `Record Shortcut: ${currentRecordShortcut}`,
+      label: `Record Shortcut: ${shortcut}`,
       enabled: false,
     },
     { type: "separator" },
@@ -195,9 +187,19 @@ const createTray = (): void => {
       },
     },
   ]);
+};
+
+const createTray = (): void => {
+  // Fix icon path for packaged mode
+  const iconPath = isDev
+    ? join(__dirname, "../../src/ui/public/icons/icon.png")
+    : join(process.resourcesPath, "public/icons/icon.png");
+
+  const icon = nativeImage.createFromPath(iconPath);
+  tray = new Tray(icon.resize({ width: 16, height: 16 }));
 
   tray.setToolTip("YakShaver");
-  tray.setContextMenu(contextMenu);
+  tray.setContextMenu(buildTrayContextMenu(currentRecordShortcut));
 
   // Show window on tray icon click
   tray.on("click", () => {
@@ -214,33 +216,7 @@ const createTray = (): void => {
 const updateTrayRecordShortcut = (shortcut: string): void => {
   currentRecordShortcut = shortcut;
   if (tray) {
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: "Show YakShaver",
-        click: () => {
-          if (mainWindow) {
-            mainWindow.show();
-            if (mainWindow.isMinimized()) {
-              mainWindow.restore();
-            }
-            mainWindow.focus();
-          }
-        },
-      },
-      {
-        label: `Record Shortcut: ${currentRecordShortcut}`,
-        enabled: false,
-      },
-      { type: "separator" },
-      {
-        label: "Quit",
-        click: () => {
-          isQuitting = true;
-          app.quit();
-        },
-      },
-    ]);
-    tray.setContextMenu(contextMenu);
+    tray.setContextMenu(buildTrayContextMenu(currentRecordShortcut));
   }
 };
 
@@ -552,8 +528,8 @@ const cleanup = async () => {
 };
 
 app.on("window-all-closed", async () => {
-  // Don't quit when all windows are closed - keep running in tray
-  // Cleanup will happen on before-quit
+  // Keep app running in tray when all windows are closed
+  // The app will only fully quit when user selects "Quit" from tray menu
 });
 
 app.on("before-quit", async (event) => {

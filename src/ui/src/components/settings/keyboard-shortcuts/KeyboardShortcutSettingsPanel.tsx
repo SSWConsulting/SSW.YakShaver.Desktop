@@ -88,10 +88,13 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
     if (e.shiftKey) shortcut += "Shift+";
     if (e.metaKey) shortcut += "Command+";
 
+    // Validate function keys (F1-F24 only)
+    const FUNCTION_KEY_REGEX = /^F([1-9]|1[0-9]|2[0-4])$/;
+
     // Add the main key if it's not a modifier
     if (!["Control", "Alt", "Shift", "Meta"].includes(key)) {
       // Normalize key names for function keys and special keys
-      if (key.startsWith("F") && /^F([1-9]|1[0-9]|2[0-4])$/.test(key)) {
+      if (key.startsWith("F") && FUNCTION_KEY_REGEX.test(key)) {
         shortcut += key;
       } else if (key.length === 1) {
         shortcut += key.toUpperCase();
