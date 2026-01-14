@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, Copy, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Check, ChevronLeft, ChevronRight, Copy, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useClipboard } from "../../../hooks/useClipboard";
 import { ipcClient } from "../../../services/ipc-client";
@@ -51,6 +51,8 @@ export function PromptForm({
   const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
   const [serversLoaded, setServersLoaded] = useState(false);
   const hasAutoSelectedServers = useRef(false);
+  const [serverPage, setServerPage] = useState(0);
+  const SERVERS_PER_PAGE = 10;
 
   const form = useForm<PromptFormValues>({
     resolver: zodResolver(promptFormSchema),
@@ -216,22 +218,44 @@ export function PromptForm({
             <FormField
               control={form.control}
               name="selectedMcpServerIds"
-              render={({ field }) => (
-                <FormItem className="shrink-0">
-                  <FormLabel>MCP Servers *</FormLabel>
-                  <FormDescription>
-                    Select which MCP servers will receive this prompt's output
-                  </FormDescription>
-                  {/* Note: Using styled divs instead of Radix UI Checkbox here because
-                      Radix Checkbox causes React Error #185 (infinite loop) when used
-                      inside FormField + map + conditional rendering. The issue is related
-                      to Radix's internal ref management conflicting with this render pattern.
-                      Multiple workarounds were attempted (memoization, removing handlers,
-                      pointer-events-none) but none resolved the issue. */}
-                  <div className="flex flex-col gap-2 mt-2 p-3 rounded-md border border-white/20 bg-black/20">
-                    {mcpServers
-                      .filter((server): server is MCPServerConfig & { id: string } => !!server.id)
-                      .map((server) => {
+              render={({ field }) => {
+                const serversWithIds = mcpServers.filter(
+                  (server): server is MCPServerConfig & { id: string } => !!server.id
+                );
+                const totalPages = Math.ceil(serversWithIds.length / SERVERS_PER_PAGE);
+                const paginatedServers = serversWithIds.slice(
+                  serverPage * SERVERS_PER_PAGE,
+                  (serverPage + 1) * SERVERS_PER_PAGE
+                );
+                const selectedNames = serversWithIds
+                  .filter((s) => field.value?.includes(s.id))
+                  .map((s) => s.name);
+
+                return (
+                  <FormItem className="shrink-0">
+                    <FormLabel>MCP Servers *</FormLabel>
+                    <FormDescription>
+                      Select which MCP servers will receive this prompt's output
+                    </FormDescription>
+
+                    {/* Summary of selected servers */}
+                    <div className="text-xs text-white/70 mt-1">
+                      <span className="font-medium">Selected: </span>
+                      {selectedNames.length > 0 ? (
+                        <span>{selectedNames.join(", ")}</span>
+                      ) : (
+                        <span className="text-white/40 italic">None</span>
+                      )}
+                    </div>
+
+                    {/* Note: Using styled divs instead of Radix UI Checkbox here because
+                        Radix Checkbox causes React Error #185 (infinite loop) when used
+                        inside FormField + map + conditional rendering. The issue is related
+                        to Radix's internal ref management conflicting with this render pattern.
+                        Multiple workarounds were attempted (memoization, removing handlers,
+                        pointer-events-none) but none resolved the issue. */}
+                    <div className="flex flex-col gap-2 mt-2 p-3 rounded-md border border-white/20 bg-black/20">
+                      {paginatedServers.map((server) => {
                         const isChecked = field.value?.includes(server.id) ?? false;
                         return (
                           <div
@@ -274,10 +298,42 @@ export function PromptForm({
                           </div>
                         );
                       })}
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
+
+                      {/* Pagination controls */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-2 mt-2 border-t border-white/10">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setServerPage((p) => Math.max(0, p - 1))}
+                            disabled={serverPage === 0}
+                            className="h-7 px-2 cursor-pointer"
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                            Prev
+                          </Button>
+                          <span className="text-xs text-white/50">
+                            Page {serverPage + 1} of {totalPages}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setServerPage((p) => Math.min(totalPages - 1, p + 1))}
+                            disabled={serverPage >= totalPages - 1}
+                            className="h-7 px-2 cursor-pointer"
+                          >
+                            Next
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
           )}
 
