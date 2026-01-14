@@ -188,7 +188,9 @@ export class CustomPromptStorage extends BaseSecureStorage {
 
   async updatePrompt(
     id: string,
-    updates: Partial<Pick<CustomPrompt, "name" | "content" | "description" | "selectedMcpServerIds">>,
+    updates: Partial<
+      Pick<CustomPrompt, "name" | "content" | "description" | "selectedMcpServerIds">
+    >,
   ): Promise<boolean> {
     const settings = await this.loadSettings();
     const index = settings.prompts.findIndex((p) => p.id === id);
