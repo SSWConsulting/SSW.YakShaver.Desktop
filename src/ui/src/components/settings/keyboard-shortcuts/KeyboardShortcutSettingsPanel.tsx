@@ -1,4 +1,5 @@
 import type { KeyboardShortcutSettings } from "@shared/types/keyboard-shortcuts";
+import { DEFAULT_KEYBOARD_SHORTCUTS } from "@shared/types/keyboard-shortcuts";
 import { Keyboard } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -15,7 +16,7 @@ interface KeyboardShortcutSettingsPanelProps {
 
 export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSettingsPanelProps) {
   const [settings, setSettings] = useState<KeyboardShortcutSettings>({
-    recordShortcut: "F12",
+    recordShortcut: DEFAULT_KEYBOARD_SHORTCUTS.recordShortcut,
     autoLaunchEnabled: false,
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -76,6 +77,32 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
     } catch (error) {
       console.error("Failed to update auto-launch setting", error);
       toast.error("Failed to update auto-launch setting");
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
+
+  const handleResetToDefault = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      const result = await ipcClient.keyboardShortcut.set(
+        DEFAULT_KEYBOARD_SHORTCUTS.recordShortcut,
+      );
+      if (result.success) {
+        setSettings((prev) => ({
+          ...prev,
+          recordShortcut: DEFAULT_KEYBOARD_SHORTCUTS.recordShortcut,
+        }));
+        setShortcutInput(DEFAULT_KEYBOARD_SHORTCUTS.recordShortcut);
+        toast.success(
+          `Record shortcut reset to default: ${DEFAULT_KEYBOARD_SHORTCUTS.recordShortcut}`,
+        );
+      } else {
+        toast.error(result.error || "Failed to reset shortcut");
+      }
+    } catch (error) {
+      console.error("Failed to reset shortcut", error);
+      toast.error("Failed to reset shortcut");
     } finally {
       setIsSaving(false);
     }
@@ -148,36 +175,55 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
                 the input field.
               </p>
             </div>
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
+            <div className="flex gap-2 items-start">
+              <div className="flex-1 space-y-1">
                 <Input
                   id="record-shortcut"
                   value={shortcutInput}
                   onKeyDown={handleKeyCapture}
                   onFocus={handleInputFocus}
                   onBlur={handleInputBlur}
-                  placeholder={isCapturing ? "Press a key combination..." : "F12"}
+                  placeholder={
+                    isCapturing
+                      ? "Press a key combination..."
+                      : DEFAULT_KEYBOARD_SHORTCUTS.recordShortcut
+                  }
                   disabled={isLoading || isSaving}
                   className="font-mono"
                   readOnly
                 />
-                {isCapturing && (
-                  <p className="text-xs text-white/50 mt-1">
-                    Press any key combination (e.g., F12, Ctrl+Shift+R)
-                  </p>
-                )}
+                <div className="h-5">
+                  {isCapturing && (
+                    <p className="text-xs text-white/50">
+                      Press any key combination (e.g., PrintScreen, Ctrl+Shift+R)
+                    </p>
+                  )}
+                </div>
               </div>
-              <Button
-                onClick={handleShortcutSave}
-                disabled={
-                  isLoading ||
-                  isSaving ||
-                  !shortcutInput.trim() ||
-                  shortcutInput === settings.recordShortcut
-                }
-              >
-                Save
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleShortcutSave}
+                  disabled={
+                    isLoading ||
+                    isSaving ||
+                    !shortcutInput.trim() ||
+                    shortcutInput === settings.recordShortcut
+                  }
+                >
+                  Save
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleResetToDefault}
+                  disabled={
+                    isLoading ||
+                    isSaving ||
+                    settings.recordShortcut === DEFAULT_KEYBOARD_SHORTCUTS.recordShortcut
+                  }
+                >
+                  Reset
+                </Button>
+              </div>
             </div>
           </div>
 

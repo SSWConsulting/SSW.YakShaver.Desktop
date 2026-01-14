@@ -66,7 +66,7 @@ loadEnv();
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let pendingProtocolUrl: string | null = null;
-let currentRecordShortcut = "F12";
+let currentRecordShortcut = "PrintScreen";
 
 const getAppVersion = (): string => app.getVersion();
 
@@ -312,14 +312,6 @@ let unregisterEventForwarders: (() => void) | undefined;
 
 // Register global shortcut for recording
 const registerRecordShortcut = (shortcut: string): boolean => {
-  // Unregister the old shortcut if it exists and is different from the new one
-  if (currentRecordShortcut && currentRecordShortcut !== shortcut) {
-    if (globalShortcut.isRegistered(currentRecordShortcut)) {
-      globalShortcut.unregister(currentRecordShortcut);
-      console.log(`Unregistered old shortcut: ${currentRecordShortcut}`);
-    }
-  }
-
   // Unregister the new shortcut if it's already registered (safety check)
   if (globalShortcut.isRegistered(shortcut)) {
     globalShortcut.unregister(shortcut);
@@ -356,6 +348,15 @@ const registerRecordShortcut = (shortcut: string): boolean => {
   }
 
   console.log(`Successfully registered global shortcut: ${shortcut}`);
+
+  // Only unregister the old shortcut AFTER successful registration of the new one
+  if (currentRecordShortcut && currentRecordShortcut !== shortcut) {
+    if (globalShortcut.isRegistered(currentRecordShortcut)) {
+      globalShortcut.unregister(currentRecordShortcut);
+      console.log(`Unregistered old shortcut: ${currentRecordShortcut}`);
+    }
+  }
+
   // Update current shortcut only after successful registration
   currentRecordShortcut = shortcut;
   return true;

@@ -4,6 +4,6 @@ export interface KeyboardShortcutSettings {
 }
 
 export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcutSettings = {
-  recordShortcut: "F12",
+  recordShortcut: "PrintScreen",
   autoLaunchEnabled: false,
 };
