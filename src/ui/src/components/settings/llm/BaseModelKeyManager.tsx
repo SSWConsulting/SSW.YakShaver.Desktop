@@ -48,6 +48,7 @@ export function BaseModelKeyManager({
   const refreshStatus = useCallback(async () => {
     try {
       const cfg = await ipcClient.llm.getConfig();
+      console.log("Fetched LLM Config:", cfg);
       const processCfg = cfg?.[modelType];
       setHasConfig(!!cfg);
       setCurrentLLMConfig(cfg);
