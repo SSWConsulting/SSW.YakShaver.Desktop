@@ -1,4 +1,4 @@
-import { Brain } from "lucide-react";
+import { Brain, ChevronRight } from "lucide-react";
 import { type ParsedResult, RawTextDisplay } from "./FinalResultPanel";
 
 interface ReasoningStepProps {
@@ -15,17 +15,15 @@ export function ReasoningStep({ reasoning }: ReasoningStepProps) {
   }
 
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2">
+    <details className="group space-y-1" open>
+      <summary className="flex items-center gap-2 cursor-pointer hover:text-primary/90">
         <Brain className="w-4 h-4" />
-        AI Reasoning & Plan
-      </div>
-      <details className="ml-4 text-xs" open>
-        <summary className="text-zinc-400 cursor-pointer hover:text-zinc-400/80">
-          View details
-        </summary>
+        <span>AI Reasoning &amp; Plan</span>
+        <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+      </summary>
+      <div className="ml-4 text-xs">
         <RawTextDisplay content={(parsed.text ?? "") as string} />
-      </details>
-    </div>
+      </div>
+    </details>
   );
 }
