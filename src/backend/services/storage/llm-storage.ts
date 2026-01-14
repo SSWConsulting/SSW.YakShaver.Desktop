@@ -70,7 +70,10 @@ export class LlmStorage extends BaseSecureStorage {
   }
 
   async storeLLMConfig(config: LLMConfigV2): Promise<void> {
-    await this.encryptAndStore(this.getLLMConfigPath(), config);
+    await this.encryptAndStore(this.getLLMConfigPath(), {
+      ...config,
+      version: LLM_PROVIDER_VERSION,
+    });
   }
 
   async getLLMConfig(): Promise<LLMConfigV2 | null> {
