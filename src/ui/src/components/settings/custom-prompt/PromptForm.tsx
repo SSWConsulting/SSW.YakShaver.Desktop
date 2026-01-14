@@ -84,10 +84,13 @@ export function PromptForm({
     };
   }, []);
 
-  // Reset page when server list changes to avoid showing empty page
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally depending on length to reset page when servers change
+  // Adjust page when server list length changes to avoid showing an empty page
   useEffect(() => {
-    setServerPage(0);
+    setServerPage((prevPage) => {
+      if (mcpServers.length === 0) return 0;
+      const maxPage = Math.max(0, Math.ceil(mcpServers.length / SERVERS_PER_PAGE) - 1);
+      return Math.min(prevPage, maxPage);
+    });
   }, [mcpServers.length]);
 
   // Auto-select all servers for existing prompts without selectedMcpServerIds
@@ -112,19 +115,22 @@ export function PromptForm({
     const data = form.getValues();
 
     // Validate that at least one enabled non-built-in MCP server is selected (if any are available)
-    const availableEnabledNonBuiltinServers = mcpServers.filter(
-      (server) => !server.builtin && server.enabled !== false,
-    );
-    if (availableEnabledNonBuiltinServers.length > 0) {
-      const selectedEnabledNonBuiltinServers = availableEnabledNonBuiltinServers.filter(
-        (server) => server.id && data.selectedMcpServerIds?.includes(server.id),
+    // Skip validation for default prompts since their server selection cannot be changed
+    if (!isDefault) {
+      const availableEnabledNonBuiltinServers = mcpServers.filter(
+        (server) => !server.builtin && server.enabled !== false,
       );
-      if (selectedEnabledNonBuiltinServers.length === 0) {
-        form.setError("selectedMcpServerIds", {
-          type: "manual",
-          message: "At least one enabled non-built-in MCP server must be selected",
-        });
-        return;
+      if (availableEnabledNonBuiltinServers.length > 0) {
+        const selectedEnabledNonBuiltinServers = availableEnabledNonBuiltinServers.filter(
+          (server) => server.id && data.selectedMcpServerIds?.includes(server.id),
+        );
+        if (selectedEnabledNonBuiltinServers.length === 0) {
+          form.setError("selectedMcpServerIds", {
+            type: "manual",
+            message: "At least one enabled non-built-in MCP server must be selected",
+          });
+          return;
+        }
       }
     }
 
@@ -271,7 +277,7 @@ export function PromptForm({
                           className={`flex items-center gap-3 p-1 rounded ${
                             isDisabled
                               ? "opacity-50 cursor-not-allowed"
-                              : "cursor-pointer hover:bg-white/5"
+                              : "cursor-pointer hover:bg-white/5 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-primary"
                           }`}
                           onClick={isDisabled ? undefined : handleToggle}
                           onKeyDown={

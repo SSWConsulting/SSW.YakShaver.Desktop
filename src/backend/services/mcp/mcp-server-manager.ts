@@ -49,6 +49,10 @@ export class MCPServerManager {
     });
 
     if (!enabledSelectedIds.length) {
+      console.warn(
+        "[MCPServerManager]: No matching enabled MCP servers found for selected identifiers:",
+        selectedServerIdsOrNames,
+      );
       return [];
     }
 
@@ -84,7 +88,8 @@ export class MCPServerManager {
 
   /**
    * Collect tools from selected servers only.
-   * If serverIds is undefined or empty, returns tools from all enabled servers (backward compatibility; disabled servers are always excluded).
+   * Returns tools from selected servers, or all enabled servers if no filter provided (backward compatibility).
+   * Disabled servers are excluded in all cases.
    */
   public async collectToolsForSelectedServersAsync(serverIds?: string[]): Promise<ToolSet> {
     // If no filter provided or empty, use all enabled servers (backward compatibility with existing enabled-only behavior)
