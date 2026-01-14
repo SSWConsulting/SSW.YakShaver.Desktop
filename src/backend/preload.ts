@@ -99,7 +99,6 @@ const IPC_CHANNELS = {
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
   GITHUB_TOKEN_VERIFY: "github-token:verify",
-  GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
 
   // Tool Approval Settings
   TOOL_APPROVAL_SETTINGS_GET: "tool-approval-settings:get",
@@ -285,7 +284,6 @@ const electronAPI = {
         rateLimitRemaining?: number;
         error?: string;
       }>,
-    getInstallUrl: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_APP_GET_INSTALL_URL),
   },
   toolApprovalSettings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.TOOL_APPROVAL_SETTINGS_GET),

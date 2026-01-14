@@ -174,7 +174,6 @@ declare global {
           rateLimitRemaining?: number;
           error?: string;
         }>;
-        getInstallUrl: () => Promise<string>;
       };
       toolApprovalSettings: {
         get: () => Promise<ToolApprovalSettings>;
