@@ -55,11 +55,13 @@ let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
 
 const getAppVersion = (): string => app.getVersion();
-const createMenu = (): Menu => {
-  const version = getAppVersion();
-  const commitHash = config.commitHash();
-  const hashString = commitHash ? `${commitHash}` : "N/A";
 
+const version = getAppVersion();
+const commitHash = config.commitHash();
+const appTitle = `YakShaver`;
+
+const createMenu = (): Menu => {
+  const hashString = commitHash ? `${commitHash}` : "N/A";
   const template: Electron.MenuItemConstructorOptions[] = [];
 
   // Add app menu for macOS
@@ -105,7 +107,10 @@ const createMenu = (): Menu => {
         { role: "zoomOut" },
       ],
     },
-    {
+  );
+
+  if (process.platform !== "darwin") {
+    template.push({
       label: "Help",
       submenu: [
         {
@@ -114,7 +119,7 @@ const createMenu = (): Menu => {
             dialog.showMessageBox({
               type: "info",
               title: "About YakShaver",
-              message: `YakShaver`,
+              message: `${appTitle}`,
               detail: `Version: ${version}
 Commit: ${hashString}`,
               buttons: ["OK"],
@@ -122,8 +127,8 @@ Commit: ${hashString}`,
           },
         },
       ],
-    },
-  );
+    });
+  }
 
   // Add DevTools in development
   if (isDev) {
@@ -283,6 +288,12 @@ if (!gotTheLock) {
     }
   });
 }
+
+app.setAboutPanelOptions({
+  applicationName: appTitle,
+  applicationVersion: version,
+  version: version,
+});
 
 app.whenReady().then(async () => {
   // Initialize database on startup with automatic backup and rollback
