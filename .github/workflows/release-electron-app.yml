@@ -92,7 +92,27 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Prevent youtube-dl-exec from auto-downloading yt-dlp during npm install, which would hit the GitHub API unauthenticated rate limit
+          YOUTUBE_DL_SKIP_DOWNLOAD: true
+
+      # Manual download is needed because the 'youtube-dl-exec' script hits the GitHub API unauthenticated rate limit (60/hr) when attempting to download the binary
+      - name: Install yt-dlp binary manually
+        shell: bash
+        run: |
+          mkdir -p node_modules/youtube-dl-exec/bin
+          PATTERN="yt-dlp.exe"
+          OUTPUT_FILE="node_modules/youtube-dl-exec/bin/yt-dlp.exe"
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+
+          until gh release download --repo yt-dlp/yt-dlp --pattern "$PATTERN" --clobber --output "$OUTPUT_FILE"; do
+            echo "Attempt $ATTEMPT to download yt-dlp binary failed." >&2
+            if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then exit 1; fi
+            ATTEMPT=$((ATTEMPT+1))
+            sleep 5
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
         run: npm ci --prefer-offline
@@ -163,8 +183,7 @@ jobs:
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
-      # Manual download for macOS is needed because the 'youtube-dl-exec' script for Unix hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find
-      # the yt-dlp binary. Windows uses an alternate method and avoids this error.
+      # Manual download is needed because the youtube-dl-exec script hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find the yt-dlp binary.
       - name: Install yt-dlp binary manually
         run: |
           mkdir -p node_modules/youtube-dl-exec/bin
