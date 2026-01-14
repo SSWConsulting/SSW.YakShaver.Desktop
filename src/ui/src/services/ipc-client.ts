@@ -95,6 +95,7 @@ declare global {
         minimizeMainWindow: () => Promise<{ success: boolean }>;
         restoreMainWindow: () => Promise<{ success: boolean }>;
         onStopRequest: (callback: () => void) => () => void;
+        onOpenSourcePicker: (callback: () => void) => () => void;
       };
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;

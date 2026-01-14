@@ -318,9 +318,17 @@ const registerRecordShortcut = (shortcut: string): void => {
 
   // Register new shortcut
   const success = globalShortcut.register(shortcut, () => {
-    // Trigger the recording timer
-    const recordingService = RecordingService.getInstance();
-    recordingService.startRecordingTimer();
+    // Show and focus the main window
+    if (mainWindow) {
+      mainWindow.show();
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+
+      // Send message to open the source picker
+      mainWindow.webContents.send("open-source-picker");
+    }
   });
 
   if (!success) {
