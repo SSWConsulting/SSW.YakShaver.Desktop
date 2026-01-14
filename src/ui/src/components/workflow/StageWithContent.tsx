@@ -22,17 +22,16 @@ interface StageWithContentProps {
   getStageIcon: (stage: WorkflowStage) => React.ReactNode;
 }
 
-const handleDetailsToggle =
-  (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
-    const details = e.currentTarget;
-    if (details.open) {
-      const pre = details.querySelector("pre");
-      if (pre && !pre.dataset.parsed) {
-        pre.textContent = JSON.stringify(deepParseJson(data), null, 2);
-        pre.dataset.parsed = "true";
-      }
+const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
+  const details = e.currentTarget;
+  if (details.open) {
+    const pre = details.querySelector("pre");
+    if (pre && !pre.dataset.parsed) {
+      pre.textContent = JSON.stringify(deepParseJson(data), null, 2);
+      pre.dataset.parsed = "true";
     }
-  };
+  }
+};
 
 function ToolResultError({ error }: { error: string }) {
   return (
@@ -73,20 +72,12 @@ function ToolDeniedNotice({ message }: { message?: string }) {
   return (
     <div className="text-red-400 flex items-center gap-2">
       <X className="w-3 h-3" />
-      <span className="whitespace-pre-line">
-        {message ?? "Tool execution denied"}
-      </span>
+      <span className="whitespace-pre-line">{message ?? "Tool execution denied"}</span>
     </div>
   );
 }
 
-function MetadataPreviewCard({
-  preview,
-  error,
-}: {
-  preview?: MetadataPreview;
-  error?: string;
-}) {
+function MetadataPreviewCard({ preview, error }: { preview?: MetadataPreview; error?: string }) {
   if (error) {
     return (
       <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm">
@@ -131,10 +122,7 @@ function MetadataPreviewCard({
         <MetadataField label="Chapters">
           <div className="space-y-1">
             {preview.chapters.map((chapter) => (
-              <ChapterRow
-                key={`${chapter.timestamp}-${chapter.label}`}
-                chapter={chapter}
-              />
+              <ChapterRow key={`${chapter.timestamp}-${chapter.label}`} chapter={chapter} />
             ))}
           </div>
         </MetadataField>
@@ -143,13 +131,7 @@ function MetadataPreviewCard({
   );
 }
 
-function MetadataField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function MetadataField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="p-3 bg-black/30 border border-white/10 rounded-md space-y-2">
       <p className="text-xs uppercase tracking-wide text-white/50">{label}</p>
@@ -188,11 +170,7 @@ function ToolCallStep({
       <div className="font-medium flex items-center gap-2">
         <Wrench className="w-4 h-4" />
         Calling tool: {toolName}
-        {serverName && (
-          <span className="text-zinc-400 text-xs ml-2">
-            (from {serverName})
-          </span>
-        )}
+        {serverName && <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>}
       </div>
       {hasArgs && (
         <details className="ml-4 text-xs" onToggle={handleDetailsToggle(args)}>
@@ -222,9 +200,7 @@ export function StageWithContent({
       <AccordionTrigger className="px-4 hover:no-underline">
         <div className="flex items-center gap-3">
           {getStageIcon(stage)}
-          <span className="text-white/90 font-medium">
-            {STAGE_CONFIG[stage]}
-          </span>
+          <span className="text-white/90 font-medium">{STAGE_CONFIG[stage]}</span>
         </div>
       </AccordionTrigger>
       <AccordionContent className="px-4 pb-2">
@@ -248,10 +224,7 @@ export function StageWithContent({
             className="bg-black/30 border border-white/10 rounded-md p-3 max-h-[400px] overflow-y-auto space-y-2"
           >
             {mcpSteps.map((step) => (
-              <div
-                key={step.timestamp}
-                className="border-l-2 border-green-400/30 pl-3 py-1"
-              >
+              <div key={step.timestamp} className="border-l-2 border-green-400/30 pl-3 py-1">
                 {step.type === MCPStepType.START && (
                   <div className="text-secondary font-medium flex items-center gap-2">
                     <Play className="w-4 h-4" />

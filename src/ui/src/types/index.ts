@@ -159,7 +159,7 @@ export interface HealthStatusInfo {
   isHealthy: boolean;
   error?: string;
   successMessage?: string;
-  isChecking?: boolean;
+  isChecking: boolean;
 }
 
 export enum ProgressStage {

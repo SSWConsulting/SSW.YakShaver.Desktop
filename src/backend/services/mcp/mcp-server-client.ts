@@ -8,7 +8,7 @@ import {
   PersistedOAuthClientProvider,
   waitForAuthorizationCode,
 } from "./mcp-oauth";
-import { MCPUtils } from "./mcp-utils";
+import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
 import type { ToolSet } from "ai";
@@ -35,7 +35,7 @@ export class MCPServerClient {
   ): Promise<MCPServerClient> {
     // create streamableHttp transport MCP client
     if (mcpConfig.transport === "streamableHttp") {
-      const serverUrl = MCPUtils.expandHomePath(mcpConfig.url);
+      const serverUrl = expandHomePath(mcpConfig.url);
       const authOrigin = (() => {
         try {
           return new URL(serverUrl).origin;
@@ -143,11 +143,11 @@ export class MCPServerClient {
           "Unsupported transport configuration: 'command' is required for stdio transports",
         );
       }
-      const command = MCPUtils.sanitizeSegment(mcpConfig.command);
+      const command = sanitizeSegment(mcpConfig.command);
       const args = mcpConfig.args
-        ?.map((arg) => MCPUtils.sanitizeSegment(arg))
+        ?.map((arg) => sanitizeSegment(arg))
         .filter((arg) => arg.length > 0);
-      const cwd = mcpConfig.cwd ? MCPUtils.expandHomePath(mcpConfig.cwd) : undefined;
+      const cwd = mcpConfig.cwd ? expandHomePath(mcpConfig.cwd) : undefined;
       const mcpClient = await experimental_createMCPClient({
         transport: new StdioClientTransport({
           command,

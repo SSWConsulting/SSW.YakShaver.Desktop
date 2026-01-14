@@ -2,14 +2,15 @@ import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import {
+  type MCPStep,
   MCPStepType,
   ProgressStage,
-  type MCPStep,
   type VideoUploadOrigin,
   type WorkflowProgress,
   type WorkflowStage,
 } from "../../types";
 import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
+import { deepParseJson, formatErrorMessage } from "../../utils";
 import { Accordion, AccordionItem } from "../ui/accordion";
 import {
   AlertDialog,
@@ -28,7 +29,6 @@ import { Textarea } from "../ui/textarea";
 import { StageWithContent } from "./StageWithContent";
 import { StageWithoutContent } from "./StageWithoutContent";
 import { UndoStagePanel } from "./UndoStagePanel";
-import { deepParseJson, formatErrorMessage } from "../../utils";
 
 const WORKFLOW_CORE_STAGES: WorkflowStage[] = [
   ProgressStage.CONVERTING_AUDIO,
@@ -517,67 +517,67 @@ export function WorkflowProgressPanel() {
   return (
     <>
       <div className="w-[500px] mx-auto my-4">
-      <Card className="bg-black/20 backdrop-blur-md border-white/10">
-        <CardHeader>
-          <CardTitle className=" text-xl">AI Workflow Progress</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Accordion type="multiple" value={openAccordions} onValueChange={setOpenAccordions}>
-            {workflowStages.map((stage, index) => {
-              const hideMetadataStage =
-                stage === ProgressStage.UPDATING_METADATA && isExternalWorkflow;
+        <Card className="bg-black/20 backdrop-blur-md border-white/10">
+          <CardHeader>
+            <CardTitle className=" text-xl">AI Workflow Progress</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Accordion type="multiple" value={openAccordions} onValueChange={setOpenAccordions}>
+              {workflowStages.map((stage, index) => {
+                const hideMetadataStage =
+                  stage === ProgressStage.UPDATING_METADATA && isExternalWorkflow;
 
-              if (hideMetadataStage) {
-                return null;
-              }
+                if (hideMetadataStage) {
+                  return null;
+                }
 
-              const hasContent =
-                (stage === ProgressStage.TRANSCRIBING && progress.transcript) ||
-                (stage === ProgressStage.GENERATING_TASK && progress.intermediateOutput) ||
-                (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0) ||
-                stage === ProgressStage.UPDATING_METADATA;
+                const hasContent =
+                  (stage === ProgressStage.TRANSCRIBING && progress.transcript) ||
+                  (stage === ProgressStage.GENERATING_TASK && progress.intermediateOutput) ||
+                  (stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0) ||
+                  stage === ProgressStage.UPDATING_METADATA;
 
-              return (
-                <AccordionItem
-                  key={stage}
-                  value={`stage-${index}`}
-                  className={`border rounded-lg ${index < workflowStages.length - 1 ? "mb-2" : ""} transition-all ${getStageClassName(stage)}`}
-                >
-                  {hasContent ? (
-                    <StageWithContent
-                      stage={stage}
-                      progress={progress}
-                      mcpSteps={mcpSteps}
-                      stepsRef={stepsRef}
-                      getStageIcon={getStageIcon}
-                    />
-                  ) : (
-                    <StageWithoutContent stage={stage} getStageIcon={getStageIcon} />
-                  )}
-                </AccordionItem>
-              );
-            })}
-          </Accordion>
+                return (
+                  <AccordionItem
+                    key={stage}
+                    value={`stage-${index}`}
+                    className={`border rounded-lg ${index < workflowStages.length - 1 ? "mb-2" : ""} transition-all ${getStageClassName(stage)}`}
+                  >
+                    {hasContent ? (
+                      <StageWithContent
+                        stage={stage}
+                        progress={progress}
+                        mcpSteps={mcpSteps}
+                        stepsRef={stepsRef}
+                        getStageIcon={getStageIcon}
+                      />
+                    ) : (
+                      <StageWithoutContent stage={stage} getStageIcon={getStageIcon} />
+                    )}
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
 
-          {progress.stage === ProgressStage.ERROR && progress.error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <XCircle className="w-5 h-5 text-red-400" />
-                <span className="text-red-400 font-medium">Error</span>
+            {progress.stage === ProgressStage.ERROR && progress.error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <XCircle className="w-5 h-5 text-red-400" />
+                  <span className="text-red-400 font-medium">Error</span>
+                </div>
+                <p className="text-white/70 text-sm break-words whitespace-normal max-w-full">
+                  {progress.error}
+                </p>
               </div>
-              <p className="text-white/70 text-sm break-words whitespace-normal max-w-full">
-                {progress.error}
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
 
-      {undoStatus !== "idle" && undoSteps.length > 0 && (
-        <div className="mt-3">
-          <UndoStagePanel status={undoStatus} steps={undoSteps} stepsRef={stepsRef} />
-        </div>
-      )}
+        {undoStatus !== "idle" && undoSteps.length > 0 && (
+          <div className="mt-3">
+            <UndoStagePanel status={undoStatus} steps={undoSteps} stepsRef={stepsRef} />
+          </div>
+        )}
       </div>
       {approvalDialog}
     </>
