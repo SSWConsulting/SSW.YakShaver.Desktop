@@ -10,7 +10,6 @@ import {
 import { BrowserWindow } from "electron";
 import type { ZodType, z } from "zod";
 import { LLM_PROVIDER_CONFIGS } from "../../../shared/llm/llm-providers";
-import type { LLMConfig } from "../../../shared/types/llm";
 import type { HealthStatusInfo } from "../../types";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { LlmStorage } from "../storage/llm-storage";
