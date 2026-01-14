@@ -313,13 +313,18 @@ let unregisterEventForwarders: (() => void) | undefined;
 
 // Register global shortcut for recording
 const registerRecordShortcut = (shortcut: string): void => {
-  // Unregister existing shortcut
-  globalShortcut.unregisterAll();
+  // Unregister existing recording shortcut if any
+  if (globalShortcut.isRegistered(shortcut)) {
+    globalShortcut.unregister(shortcut);
+  }
 
   // Register new shortcut
   const success = globalShortcut.register(shortcut, () => {
+    console.log(`Global shortcut ${shortcut} triggered`);
+
     // Show and focus the main window
     if (mainWindow) {
+      console.log("Main window exists, showing and focusing");
       mainWindow.show();
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
@@ -327,14 +332,17 @@ const registerRecordShortcut = (shortcut: string): void => {
       mainWindow.focus();
 
       // Send message to open the source picker
+      console.log("Sending open-source-picker event to renderer");
       mainWindow.webContents.send("open-source-picker");
+    } else {
+      console.error("Main window is null when shortcut was triggered");
     }
   });
 
   if (!success) {
     console.error(`Failed to register global shortcut: ${shortcut}`);
   } else {
-    console.log(`Registered global shortcut: ${shortcut}`);
+    console.log(`Successfully registered global shortcut: ${shortcut}`);
   }
 };
 

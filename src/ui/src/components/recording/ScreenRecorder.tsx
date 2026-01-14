@@ -60,14 +60,22 @@ export function ScreenRecorder() {
   }, [handleStopRecording]);
 
   const handleOpenSourcePicker = useCallback(() => {
+    console.log("handleOpenSourcePicker called, isRecording:", isRecording);
     if (!isRecording) {
+      console.log("Opening source picker");
       setPickerOpen(true);
+    } else {
+      console.log("Not opening picker - already recording");
     }
   }, [isRecording]);
 
   useEffect(() => {
+    console.log("Setting up onOpenSourcePicker event listener");
     const cleanup = window.electronAPI.screenRecording.onOpenSourcePicker(handleOpenSourcePicker);
-    return cleanup;
+    return () => {
+      console.log("Cleaning up onOpenSourcePicker event listener");
+      cleanup();
+    };
   }, [handleOpenSourcePicker]);
 
   useEffect(() => {
