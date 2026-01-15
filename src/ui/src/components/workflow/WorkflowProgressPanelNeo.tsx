@@ -1,6 +1,7 @@
 import type { WorkflowState, WorkflowStep } from "@shared/types/workflow";
 import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { StageWithContentNeo } from "./StageWithContentNeo";
 
 const STEP_LABELS: Record<keyof WorkflowState, string> = {
   uploading_video: "Uploading Video",
@@ -42,12 +43,11 @@ function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
   const [isExpanded, setIsExpanded] = useState(false);
   const hasPayload = step.payload && step.payload !== "{}";
 
-  // Parse payload for display if it's JSON
-  let displayPayload = step.payload;
+  // Parse payload for display
+  let parsedPayload: any = step.payload;
   try {
     if (step.payload) {
-      const parsed = JSON.parse(step.payload);
-      displayPayload = JSON.stringify(parsed, null, 2);
+      parsedPayload = JSON.parse(step.payload);
     }
   } catch (e) {
     // ignore, keep as string
@@ -86,8 +86,8 @@ function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
       </div>
       
       {isExpanded && hasPayload && (
-        <div className="mt-2 overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-600">
-          <pre>{displayPayload}</pre>
+        <div className="mt-2 overflow-x-auto rounded bg-gray-50 p-2 text-gray-600">
+          <StageWithContentNeo stage={step.stage} payload={parsedPayload} />
         </div>
       )}
     </div>

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Toaster } from "sonner";
 import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
@@ -18,6 +19,7 @@ import { useShaveManager } from "./hooks/useShaveManager";
 export default function App() {
   // Auto-save shaves when workflow completes
   useShaveManager();
+  const [activeTab, setActiveTab] = useState<"legacy" | "neo">("legacy");
 
   return (
     <AdvancedSettingsProvider>
@@ -42,11 +44,48 @@ export default function App() {
               </div>
             </header>
 
-            <main className="z-10 relative">
+            <main className="z-10 relative flex flex-col items-center">
               <ScreenRecorder />
               <VideoHostPanel />
-              <WorkflowProgressPanel />
-              <WorkflowProgressPanelNeo />
+
+
+{/* TODO: Logic for switching between legacy and neo workflows */}
+{/* should be removed after testing */}
+              <div className="w-full max-w-2xl mt-8">
+                <div className="flex border-b border-white/20 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("legacy")}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                      activeTab === "legacy"
+                        ? "border-ssw-red text-white"
+                        : "border-transparent text-white/50 hover:text-white/80"
+                    }`}
+                  >
+                    Legacy Workflow
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("neo")}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                      activeTab === "neo"
+                        ? "border-ssw-red text-white"
+                        : "border-transparent text-white/50 hover:text-white/80"
+                    }`}
+                  >
+                    Neo Workflow
+                  </button>
+                </div>
+
+                <div className={activeTab === "legacy" ? "block" : "hidden"}>
+                  <WorkflowProgressPanel />
+                </div>
+                <div className={activeTab === "neo" ? "block" : "hidden"}>
+                  <WorkflowProgressPanelNeo />
+                </div>
+              </div>
+{/*  */}
+{/*  */}
               <FinalResultPanel />
             </main>
           </div>
