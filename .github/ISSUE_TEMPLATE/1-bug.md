@@ -13,6 +13,9 @@ Cc:
 <!-- add intended user next to **Hi** -->
 Hi {{ USER }}
 
+{{VIDEO_LINK}}  
+[▶️ Watch the video (xx min xx sec)]({{videoUrl}})
+
 ### Describe the Bug
 <!-- A clear and concise description of what the bug is. -->
 

@@ -4,6 +4,7 @@ import type {
   CreateVideoSourceData,
   Shave,
   UpdateShaveData,
+  VideoSource,
 } from "../../db/schema";
 import * as dbShaveService from "../../db/services/shave-service";
 import * as dbVideoFileService from "../../db/services/video-files-service";
@@ -73,6 +74,18 @@ export class ShaveService {
   public getShaveById(id: string): Shave | undefined {
     try {
       return dbShaveService.getShaveById(id);
+    } catch (err) {
+      throw new Error(formatErrorMessage(err));
+    }
+  }
+
+  public getShaveVideoSourceInfo(shaveId: string): VideoSource | undefined {
+    try {
+      const shave = dbShaveService.getShaveById(shaveId);
+      if (!shave?.videoSourceId) {
+        return undefined;
+      }
+      return dbVideoSourceService.getVideoSourceById(shave.videoSourceId);
     } catch (err) {
       throw new Error(formatErrorMessage(err));
     }
