@@ -31,6 +31,7 @@ import { RecordingService } from "./services/recording/recording-service";
 import { ShortcutManager } from "./services/shortcut-manager";
 import { KeyboardShortcutStorage } from "./services/storage/keyboard-shortcut-storage";
 import { TrayManager } from "./services/tray-manager";
+import { getIconPath } from "./utils/path-utils";
 
 const isDev = process.env.NODE_ENV === "development";
 
