@@ -224,6 +224,7 @@ declare global {
         get: () => Promise<KeyboardShortcutSettings>;
         set: (shortcut: string) => Promise<{ success: boolean; error?: string }>;
         setAutoLaunch: (enabled: boolean) => Promise<{ success: boolean }>;
+        onShortcutChanged: (callback: (shortcut: string) => void) => () => void;
       };
     };
   }

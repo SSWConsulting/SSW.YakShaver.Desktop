@@ -109,4 +109,5 @@ export const IPC_CHANNELS = {
   KEYBOARD_SHORTCUT_GET: "keyboard-shortcut:get",
   KEYBOARD_SHORTCUT_SET: "keyboard-shortcut:set",
   KEYBOARD_SHORTCUT_SET_AUTO_LAUNCH: "keyboard-shortcut:set-auto-launch",
+  KEYBOARD_SHORTCUT_CHANGED: "keyboard-shortcut:changed",
 } as const;

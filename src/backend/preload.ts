@@ -125,6 +125,7 @@ const IPC_CHANNELS = {
   KEYBOARD_SHORTCUT_GET: "keyboard-shortcut:get",
   KEYBOARD_SHORTCUT_SET: "keyboard-shortcut:set",
   KEYBOARD_SHORTCUT_SET_AUTO_LAUNCH: "keyboard-shortcut:set-auto-launch",
+  KEYBOARD_SHORTCUT_CHANGED: "keyboard-shortcut:changed",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -330,6 +331,11 @@ const electronAPI = {
     set: (shortcut: string) => ipcRenderer.invoke(IPC_CHANNELS.KEYBOARD_SHORTCUT_SET, shortcut),
     setAutoLaunch: (enabled: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.KEYBOARD_SHORTCUT_SET_AUTO_LAUNCH, enabled),
+    onShortcutChanged: (callback: (shortcut: string) => void) => {
+      const listener = (_: IpcRendererEvent, shortcut: string) => callback(shortcut);
+      ipcRenderer.on(IPC_CHANNELS.KEYBOARD_SHORTCUT_CHANGED, listener);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.KEYBOARD_SHORTCUT_CHANGED, listener);
+    },
   },
   // Camera window
   onSetCameraDevice: (callback: (deviceId: string) => void) => {

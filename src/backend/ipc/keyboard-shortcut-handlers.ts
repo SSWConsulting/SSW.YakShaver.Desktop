@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
 import type { KeyboardShortcutSettings } from "../../shared/types/keyboard-shortcuts";
 import { KeyboardShortcutStorage } from "../services/storage/keyboard-shortcut-storage";
 import { IPC_CHANNELS } from "./channels";
@@ -55,6 +55,12 @@ export class KeyboardShortcutIPCHandlers {
 
       // Registration succeeded, save to storage
       await this.storage.setRecordShortcut(shortcut);
+
+      // Notify all windows about the shortcut change
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send(IPC_CHANNELS.KEYBOARD_SHORTCUT_CHANGED, shortcut);
+      }
+
       return { success: true };
     } catch (error) {
       console.error("Failed to set record shortcut:", error);
