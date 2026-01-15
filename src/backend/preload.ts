@@ -7,7 +7,7 @@ import type {
   UpdateShaveData,
 } from "./db/schema";
 import type { VideoUploadResult } from "./services/auth/types";
-import type { ToolApprovalDecision } from "./services/mcp/mcp-orchestrator";
+import type { ToolApprovalDecision } from "../shared/types/mcp.ts";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 import type { ShaveStatus } from "./types";
@@ -67,6 +67,7 @@ const IPC_CHANNELS = {
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
+  WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
@@ -194,6 +195,8 @@ const electronAPI = {
   workflow: {
     onProgress: (callback: (progress: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS, callback),
+    onProgressNeo: (callback: (progress: unknown) => void) =>
+      onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, callback),
   },
   llm: {
     setConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),

@@ -99,6 +99,7 @@ declare global {
       };
       workflow: {
         onProgress: (callback: (progress: unknown) => void) => () => void;
+        onProgressNeo: (callback: (progress: unknown) => void) => () => void;
       };
       mcp: {
         processMessage: (

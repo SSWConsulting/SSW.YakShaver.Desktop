@@ -9,6 +9,7 @@ import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
 import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
+import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import { ShaveService } from "../services/shave/shave-service";
@@ -18,6 +19,7 @@ import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -96,17 +98,21 @@ export class ProcessVideoIPCHandlers {
               ? this.lastVideoFilePath
               : undefined;
 
+          const workflowManager = new WorkflowStateManager(shaveId);
+          const mcpAdapter = new McpWorkflowAdapter(workflowManager);
+
           const orchestrator = await MCPOrchestrator.getInstanceAsync();
           const mcpResult = await orchestrator.manualLoopAsync(
             intermediateOutput,
             videoUploadResult,
-            filePath
-              ? {
-                  systemPrompt,
-                  videoFilePath: filePath,
-                }
-              : { systemPrompt },
+            {
+              systemPrompt,
+              videoFilePath: filePath,
+              onStep: mcpAdapter.onStep,
+            },
           );
+
+          mcpAdapter.complete(mcpResult);
 
           notify(ProgressStage.COMPLETED, {
             mcpResult,
@@ -122,6 +128,7 @@ export class ProcessVideoIPCHandlers {
     );
   }
 
+  // Process video from a local file
   private async processFileVideo(filePath: string, shaveId?: string) {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
@@ -149,6 +156,7 @@ export class ProcessVideoIPCHandlers {
     });
   }
 
+  // Process video from a URL (e.g., YouTube link)
   private async processUrlVideo(url: string, shaveId?: string) {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
@@ -176,11 +184,16 @@ export class ProcessVideoIPCHandlers {
     }
   }
 
+  // Main Shave pipeline for processing video
   private async processVideoSource({ filePath, youtubeResult, shaveId }: VideoProcessingContext) {
     // check file exists
     if (!fs.existsSync(filePath)) {
       throw new Error("video-process-handler: Video file does not exist");
     }
+
+    const workflowManager = new WorkflowStateManager(shaveId);
+
+    workflowManager.updateStagePayload("uploading_video", null, "completed");
 
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
@@ -188,16 +201,24 @@ export class ProcessVideoIPCHandlers {
 
     try {
       this.lastVideoFilePath = filePath;
+      workflowManager.updateStagePayload("converting_audio", null, "in_progress");
       notify(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
+      workflowManager.updateStagePayload("converting_audio", null, "completed");
+
       const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
 
+      workflowManager.updateStagePayload("transcribing", null, "in_progress");
       notify(ProgressStage.TRANSCRIBING);
       const transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
       const transcriptText = transcript.map((seg) => seg.text).join("");
 
       notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
+
+      workflowManager.updateStagePayload("transcribing", transcriptText, "completed");
+
+      workflowManager.updateStagePayload("analyzing_transcript", null, "in_progress");
 
       notify(ProgressStage.GENERATING_TASK);
 
@@ -212,16 +233,30 @@ export class ProcessVideoIPCHandlers {
         INITIAL_SUMMARY_PROMPT,
       );
 
+      workflowManager.updateStagePayload("analyzing_transcript", null, "completed");
+
+      workflowManager.updateStagePayload("executing_task", null, "in_progress");
+
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
 
+      const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
+        transcriptText,
+        intermediateOutput,
+      });
+
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
       const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
         systemPrompt,
         videoFilePath: filePath,
+        onStep: mcpAdapter.onStep,
       });
+
+      workflowManager.updateStagePayload("executing_task", null, "completed");
+
+      mcpAdapter.complete(mcpResult);
 
       // if user logged in, send work item details to the portal
       if (mcpResult && (await MicrosoftAuthService.getInstance().isAuthenticated())) {
@@ -233,6 +268,7 @@ export class ProcessVideoIPCHandlers {
           console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
           const errorMessage = formatErrorMessage(portalResult.error);
           notify(ProgressStage.ERROR, { error: errorMessage });
+          workflowManager.updateStagePayload("updating_metadata", null, "failed");
         }
       }
 
@@ -253,6 +289,7 @@ export class ProcessVideoIPCHandlers {
             notify(ProgressStage.UPDATING_METADATA, {
               metadataPreview: metadata.metadata,
             });
+            workflowManager.updateStagePayload("updating_metadata", null, "in_progress");
             const updateResult = await this.youtube.updateVideoMetadata(
               videoId,
               metadata.snippet,
@@ -260,6 +297,11 @@ export class ProcessVideoIPCHandlers {
             );
             if (updateResult.success) {
               youtubeResult = updateResult;
+              workflowManager.updateStagePayload(
+                "updating_metadata",
+                metadata.metadata,
+                "completed",
+              );
             } else {
               throw new Error(
                 `[ProcessVideo] YouTube metadata update failed: ${updateResult.error || "Unknown error"}`,
@@ -272,6 +314,7 @@ export class ProcessVideoIPCHandlers {
         }
       }
 
+      // TODO: To be removed once WORKFLOW_PROGRESS_NEO is fully adopted
       notify(ProgressStage.COMPLETED, {
         transcript,
         intermediateOutput,
@@ -284,6 +327,7 @@ export class ProcessVideoIPCHandlers {
       return { youtubeResult, mcpResult };
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
+      // TODO: To be removed once WORKFLOW_PROGRESS_NEO is fully adopted
       notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     } finally {
@@ -310,6 +354,7 @@ export class ProcessVideoIPCHandlers {
     return result;
   }
 
+  // TODO: To be removed once WORKFLOW_PROGRESS_NEO is fully adopted
   private emitProgress(stage: string, data?: Record<string, unknown>, shaveId?: string) {
     BrowserWindow.getAllWindows()
       .filter((win) => !win.isDestroyed())

@@ -10,6 +10,7 @@ import { SettingsDialog } from "./components/settings/SettingsDialog";
 import { MyShavesDialog } from "./components/shaves/MyShavesDialog";
 import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
+import { WorkflowProgressPanelNeo } from "./components/workflow/WorkflowProgressPanelNeo";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
 import { useShaveManager } from "./hooks/useShaveManager";
@@ -45,6 +46,7 @@ export default function App() {
               <ScreenRecorder />
               <VideoHostPanel />
               <WorkflowProgressPanel />
+              <WorkflowProgressPanelNeo />
               <FinalResultPanel />
             </main>
           </div>
