@@ -60,16 +60,10 @@ let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
 let isQuitting = false;
 
-// Initialize managers
 const shortcutManager = new ShortcutManager();
-const trayManager = new TrayManager(
-  () => {
-    isQuitting = true;
-  },
-  () => {
-    shortcutManager.handleShortcutTrigger();
-  },
-);
+const trayManager = new TrayManager(shortcutManager, () => {
+  isQuitting = true;
+});
 
 const getAppVersion = (): string => app.getVersion();
 
@@ -372,42 +366,26 @@ app.whenReady().then(async () => {
   _toolApprovalSettingsHandlers = new ToolApprovalSettingsIPCHandlers();
   _shaveHandlers = new ShaveIPCHandlers();
 
-  // Initialize keyboard shortcut handlers with callbacks
   _keyboardShortcutHandlers = new KeyboardShortcutIPCHandlers(
-    (shortcut: string) => {
-      const success = shortcutManager.registerShortcut(shortcut);
-      if (success) {
-        trayManager.updateTrayMenu(shortcut);
-      }
-      return success;
-    },
-    (enabled: boolean) => {
-      updateAutoLaunch(enabled);
-    },
+    shortcutManager,
+    trayManager,
+    updateAutoLaunch,
   );
 
-  // Load and apply keyboard shortcut settings
   const keyboardShortcutStorage = KeyboardShortcutStorage.getInstance();
   const shortcutSettings = await keyboardShortcutStorage.getSettings();
   shortcutManager.registerShortcut(shortcutSettings.recordShortcut);
   updateAutoLaunch(shortcutSettings.autoLaunchEnabled);
 
-  // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
   CameraWindow.getInstance().initialize(isDev);
   CountdownWindow.getInstance().initialize(isDev);
   unregisterEventForwarders = registerEventForwarders();
 
-  // Create application menu
   createApplicationMenu();
-
-  // Create tray icon
   trayManager.createTray();
-
-  // Create window first, then set references
   createWindow();
 
-  // Set main window references for managers AFTER window is created
   if (mainWindow) {
     shortcutManager.setMainWindow(mainWindow);
     trayManager.setMainWindow(mainWindow);
@@ -436,10 +414,7 @@ const cleanup = async () => {
   if (isQuitting) return;
   isQuitting = true;
 
-  // Unregister global shortcuts
   shortcutManager.unregisterAll();
-
-  // Destroy tray icon
   trayManager.destroy();
 
   unregisterEventForwarders?.();
@@ -451,15 +426,13 @@ const cleanup = async () => {
 };
 
 app.on("window-all-closed", async () => {
-  // Keep app running in tray when all windows are closed
-  // The app will only fully quit when user selects "Quit" from tray menu
+  // App continues running in tray - quit via tray menu
 });
 
 app.on("before-quit", async (event) => {
   if (!isQuitting) {
     event.preventDefault();
     await cleanup();
-    // isQuitting is now true, so next quit will not be prevented
     app.quit();
   }
 });

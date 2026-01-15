@@ -72,7 +72,6 @@ export function ScreenRecorder() {
   }, [handleOpenSourcePicker]);
 
   useEffect(() => {
-    // Fetch the current keyboard shortcut on mount
     const fetchShortcut = async () => {
       try {
         const settings = await window.electronAPI.keyboardShortcut.get();
@@ -83,7 +82,6 @@ export function ScreenRecorder() {
     };
     fetchShortcut();
 
-    // Listen for shortcut changes
     const cleanup = window.electronAPI.keyboardShortcut.onShortcutChanged((shortcut) => {
       setRecordShortcut(shortcut);
     });

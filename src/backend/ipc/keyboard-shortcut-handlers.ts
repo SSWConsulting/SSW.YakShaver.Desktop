@@ -1,18 +1,27 @@
 import { BrowserWindow, ipcMain } from "electron";
 import type { KeyboardShortcutSettings } from "../../shared/types/keyboard-shortcuts";
+import type { ShortcutManager } from "../services/shortcut-manager";
 import { KeyboardShortcutStorage } from "../services/storage/keyboard-shortcut-storage";
+import type { TrayManager } from "../services/tray-manager";
 import { IPC_CHANNELS } from "./channels";
+
+interface AutoLaunchHandler {
+  (enabled: boolean): void;
+}
 
 export class KeyboardShortcutIPCHandlers {
   private storage = KeyboardShortcutStorage.getInstance();
-  private onShortcutChange?: (shortcut: string) => boolean;
-  private onAutoLaunchChange?: (enabled: boolean) => void;
+  private shortcutManager: ShortcutManager;
+  private trayManager: TrayManager;
+  private onAutoLaunchChange: AutoLaunchHandler;
 
   constructor(
-    onShortcutChange?: (shortcut: string) => boolean,
-    onAutoLaunchChange?: (enabled: boolean) => void,
+    shortcutManager: ShortcutManager,
+    trayManager: TrayManager,
+    onAutoLaunchChange: AutoLaunchHandler,
   ) {
-    this.onShortcutChange = onShortcutChange;
+    this.shortcutManager = shortcutManager;
+    this.trayManager = trayManager;
     this.onAutoLaunchChange = onAutoLaunchChange;
 
     ipcMain.handle(IPC_CHANNELS.KEYBOARD_SHORTCUT_GET, async () => {
@@ -42,21 +51,18 @@ export class KeyboardShortcutIPCHandlers {
 
   private async setRecordShortcut(shortcut: string): Promise<{ success: boolean; error?: string }> {
     try {
-      // Try to register the shortcut first
-      const registered = this.onShortcutChange?.(shortcut);
+      const registered = this.shortcutManager.registerShortcut(shortcut);
 
-      if (registered === false) {
-        // Registration failed, don't save to storage
+      if (!registered) {
         return {
           success: false,
           error: `Failed to register shortcut "${shortcut}". It may be reserved by the OS or another application. Try a different key combination.`,
         };
       }
 
-      // Registration succeeded, save to storage
       await this.storage.setRecordShortcut(shortcut);
+      this.trayManager.updateTrayMenu(shortcut);
 
-      // Notify all windows about the shortcut change
       for (const win of BrowserWindow.getAllWindows()) {
         win.webContents.send(IPC_CHANNELS.KEYBOARD_SHORTCUT_CHANGED, shortcut);
       }
@@ -71,7 +77,7 @@ export class KeyboardShortcutIPCHandlers {
   private async setAutoLaunch(enabled: boolean): Promise<{ success: boolean }> {
     try {
       await this.storage.setAutoLaunch(enabled);
-      this.onAutoLaunchChange?.(enabled);
+      this.onAutoLaunchChange(enabled);
       return { success: true };
     } catch (error) {
       console.error("Failed to set auto launch:", error);

@@ -1,16 +1,21 @@
 import { app, type BrowserWindow, Menu, nativeImage, Tray } from "electron";
 import { getIconPath } from "../utils/path-utils";
+import type { ShortcutManager } from "./shortcut-manager";
+
+interface QuitHandler {
+  (): void;
+}
 
 export class TrayManager {
   private tray: Tray | null = null;
   private mainWindow: BrowserWindow | null = null;
   private currentRecordShortcut: string = "PrintScreen";
-  private isQuittingCallback: () => void;
-  private onRecordClick: () => void;
+  private shortcutManager: ShortcutManager;
+  private onQuitRequested: QuitHandler;
 
-  constructor(isQuittingCallback: () => void, onRecordClick: () => void) {
-    this.isQuittingCallback = isQuittingCallback;
-    this.onRecordClick = onRecordClick;
+  constructor(shortcutManager: ShortcutManager, onQuitRequested: QuitHandler) {
+    this.shortcutManager = shortcutManager;
+    this.onQuitRequested = onQuitRequested;
   }
 
   setMainWindow(window: BrowserWindow): void {
@@ -24,7 +29,6 @@ export class TrayManager {
     this.tray.setToolTip("YakShaver");
     this.updateTrayMenu();
 
-    // Show window on tray icon click
     this.tray.on("click", () => {
       this.showWindow();
     });
@@ -51,14 +55,14 @@ export class TrayManager {
       {
         label: `Record Shave (${this.currentRecordShortcut})`,
         click: () => {
-          this.onRecordClick();
+          this.shortcutManager.handleShortcutTrigger();
         },
       },
       { type: "separator" },
       {
         label: "Quit",
         click: () => {
-          this.isQuittingCallback();
+          this.onQuitRequested();
           app.quit();
         },
       },
