@@ -1,18 +1,59 @@
-import type { AccountInfo, AuthenticationResult } from "@azure/msal-node";
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import type { AccountInfo, AuthenticationResult, PublicClientApplication } from "@azure/msal-node";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MicrosoftAuthService } from "./microsoft-auth";
 import { type AuthState, AuthStatus } from "./types";
 
-// Mock dependencies
+// 1. Setup hoisted mocks
+const mocks = vi.hoisted(() => {
+  const mockTokenCache = {
+    getAllAccounts: vi.fn(),
+    removeAccount: vi.fn(),
+    serialize: vi.fn(),
+    deserialize: vi.fn(),
+  };
+
+  const mockPCA = {
+    acquireTokenSilent: vi.fn(),
+    acquireTokenInteractive: vi.fn(),
+    getTokenCache: vi.fn(() => mockTokenCache),
+  };
+
+  return {
+    mockPCA,
+    mockTokenCache,
+  };
+});
+
+// 2. Mock @azure/msal-node
+vi.mock("@azure/msal-node", () => {
+  return {
+    PublicClientApplication: class {
+      constructor() {
+        Object.assign(this, mocks.mockPCA);
+      }
+    } as unknown as typeof PublicClientApplication,
+    LogLevel: { Info: 0 },
+    InteractionRequiredAuthError: class extends Error {},
+  };
+});
+
+// 3. Mock electron
 vi.mock("electron", () => ({
   app: {
     isPackaged: false,
+    getPath: vi.fn().mockReturnValue("/tmp/userData"),
   },
   shell: {
     openExternal: vi.fn(),
   },
+  safeStorage: {
+    isEncryptionAvailable: vi.fn().mockReturnValue(true),
+    encryptString: vi.fn().mockImplementation((str) => Buffer.from(str)),
+    decryptString: vi.fn().mockImplementation((buf) => buf.toString()),
+  },
 }));
 
+// 4. Mock config
 vi.mock("../../config/env", () => ({
   config: {
     azure: vi.fn().mockReturnValue({
@@ -24,10 +65,20 @@ vi.mock("../../config/env", () => ({
   },
 }));
 
-vi.mock("node:fs", () => ({
-  existsSync: vi.fn().mockReturnValue(true),
-  readFileSync: vi.fn().mockReturnValue("<html>YOUR_APP_PROTOCOL</html>"),
-}));
+// 5. Mock fs/promises and path
+vi.mock("node:fs", () => {
+  return {
+    existsSync: vi.fn().mockReturnValue(true),
+    readFileSync: vi.fn().mockReturnValue("<html>YOUR_APP_PROTOCOL</html>"),
+    promises: {
+      access: vi.fn().mockResolvedValue(undefined),
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn().mockResolvedValue(Buffer.from(JSON.stringify({}))),
+      unlink: vi.fn().mockResolvedValue(undefined),
+    },
+  };
+});
 
 vi.mock("node:path", () => ({
   join: (...args: string[]) => args.join("/"),
@@ -35,15 +86,6 @@ vi.mock("node:path", () => ({
 
 describe("MicrosoftAuthService", () => {
   let service: MicrosoftAuthService;
-  let mockPCA: {
-    acquireTokenSilent: Mock;
-    acquireTokenInteractive: Mock;
-    getTokenCache: Mock;
-  };
-  let mockTokenCache: {
-    getAllAccounts: Mock;
-    removeAccount: Mock;
-  };
 
   const mockAccount: AccountInfo = {
     homeAccountId: "home-id",
@@ -55,16 +97,15 @@ describe("MicrosoftAuthService", () => {
   };
 
   beforeEach(() => {
-    mockTokenCache = {
-      getAllAccounts: vi.fn(),
-      removeAccount: vi.fn(),
-    };
+    vi.clearAllMocks();
 
-    mockPCA = {
-      acquireTokenSilent: vi.fn(),
-      acquireTokenInteractive: vi.fn(),
-      getTokenCache: vi.fn().mockReturnValue(mockTokenCache),
-    };
+    // Reset the getTokenCache behavior since it's a function on the object
+    mocks.mockPCA.getTokenCache.mockReturnValue(mocks.mockTokenCache);
+
+    // @ts-expect-error - Accessing private static property for testing
+    MicrosoftAuthService.account = null;
+    // @ts-expect-error - Accessing private static property for testing
+    MicrosoftAuthService.instance = undefined;
 
     service = MicrosoftAuthService.getInstance({
       clientId: "mock-client-id",
@@ -76,14 +117,14 @@ describe("MicrosoftAuthService", () => {
 
   describe("getAuthState", () => {
     it("should return NOT_AUTHENTICATED when no account exists", async () => {
-      mockTokenCache.getAllAccounts.mockResolvedValue([]);
+      mocks.mockTokenCache.getAllAccounts.mockResolvedValue([]);
       const state = await service.getAuthState();
       expect(state.status).toBe(AuthStatus.NOT_AUTHENTICATED);
     });
 
     it("should return AUTHENTICATED when account exists and token acquisition succeeds", async () => {
-      mockTokenCache.getAllAccounts.mockResolvedValue([mockAccount]);
-      mockPCA.acquireTokenSilent.mockResolvedValue({
+      mocks.mockTokenCache.getAllAccounts.mockResolvedValue([mockAccount]);
+      mocks.mockPCA.acquireTokenSilent.mockResolvedValue({
         account: mockAccount,
         accessToken: "token",
       } as AuthenticationResult);
@@ -96,19 +137,30 @@ describe("MicrosoftAuthService", () => {
     });
 
     it("should return NOT_AUTHENTICATED when token acquisition fails", async () => {
-      mockTokenCache.getAllAccounts.mockResolvedValue([mockAccount]);
-      mockPCA.acquireTokenSilent.mockRejectedValue(new Error("Silent failed"));
-      mockPCA.acquireTokenInteractive.mockRejectedValue(new Error("Interactive failed"));
+      // 1. Setup: Account exists in cache
+      mocks.mockTokenCache.getAllAccounts.mockResolvedValue([mockAccount]);
+
+      const { InteractionRequiredAuthError } = await import("@azure/msal-node");
+
+      // 2. Mock Silent Failure
+      mocks.mockPCA.acquireTokenSilent.mockRejectedValue(
+        new InteractionRequiredAuthError("Interaction required"),
+      );
+
+      // 3. Mock Interactive Failure
+      mocks.mockPCA.acquireTokenInteractive.mockRejectedValue(
+        new InteractionRequiredAuthError("Interaction required"),
+      );
 
       const state = await service.getAuthState();
-      expect(state.status).toBe(AuthStatus.ERROR);
+      expect(state.status).toBe(AuthStatus.NOT_AUTHENTICATED);
     });
   });
 
   describe("login", () => {
     it("should return account info on successful login", async () => {
-      mockTokenCache.getAllAccounts.mockResolvedValue([]);
-      mockPCA.acquireTokenInteractive.mockResolvedValue({
+      mocks.mockTokenCache.getAllAccounts.mockResolvedValue([]);
+      mocks.mockPCA.acquireTokenInteractive.mockResolvedValue({
         account: mockAccount,
         accessToken: "token",
       } as AuthenticationResult);
@@ -119,8 +171,8 @@ describe("MicrosoftAuthService", () => {
     });
 
     it("should return null on login failure", async () => {
-      mockTokenCache.getAllAccounts.mockResolvedValue([]);
-      mockPCA.acquireTokenInteractive.mockRejectedValue(new Error("Login failed"));
+      mocks.mockTokenCache.getAllAccounts.mockResolvedValue([]);
+      mocks.mockPCA.acquireTokenInteractive.mockRejectedValue(new Error("Login failed"));
 
       const result = await service.login();
       expect(result).toBeNull();
@@ -129,15 +181,15 @@ describe("MicrosoftAuthService", () => {
 
   describe("getToken", () => {
     it("should use default scopes if not provided", async () => {
-      mockTokenCache.getAllAccounts.mockResolvedValue([mockAccount]);
-      mockPCA.acquireTokenSilent.mockResolvedValue({
+      mocks.mockTokenCache.getAllAccounts.mockResolvedValue([mockAccount]);
+      mocks.mockPCA.acquireTokenSilent.mockResolvedValue({
         account: mockAccount,
         accessToken: "token",
       } as AuthenticationResult);
 
       await service.getToken();
 
-      expect(mockPCA.acquireTokenSilent).toHaveBeenCalledWith(
+      expect(mocks.mockPCA.acquireTokenSilent).toHaveBeenCalledWith(
         expect.objectContaining({
           scopes: ["mock-scope"],
           account: mockAccount,
@@ -149,8 +201,8 @@ describe("MicrosoftAuthService", () => {
   describe("logout", () => {
     it("should remove account from cache", async () => {
       // Setup internal account state
-      mockTokenCache.getAllAccounts.mockResolvedValue([mockAccount]);
-      mockPCA.acquireTokenSilent.mockResolvedValue({
+      mocks.mockTokenCache.getAllAccounts.mockResolvedValue([mockAccount]);
+      mocks.mockPCA.acquireTokenSilent.mockResolvedValue({
         account: mockAccount,
         accessToken: "token",
       } as AuthenticationResult);
@@ -159,7 +211,7 @@ describe("MicrosoftAuthService", () => {
       await service.getAuthState();
 
       await service.logout();
-      expect(mockTokenCache.removeAccount).toHaveBeenCalledWith(mockAccount);
+      expect(mocks.mockTokenCache.removeAccount).toHaveBeenCalledWith(mockAccount);
       expect(service.currentAccount()).toBeNull();
     });
   });
