@@ -62,7 +62,6 @@ let isQuitting = false;
 // Initialize managers
 const shortcutManager = new ShortcutManager();
 const trayManager = new TrayManager(
-  isDev,
   () => {
     isQuitting = true;
   },
@@ -164,18 +163,13 @@ const createApplicationMenu = (): void => {
 };
 
 const createWindow = (): void => {
-  // Fix icon path for packaged mode
-  const iconPath = isDev
-    ? join(__dirname, "../../src/ui/public/icons/icon.png")
-    : join(process.resourcesPath, "public/icons/icon.png");
-
   const title = `YakShaver`;
 
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     title,
-    icon: iconPath,
+    icon: getIconPath(),
     show: false,
     webPreferences: {
       nodeIntegration: false,

@@ -1,16 +1,14 @@
-import { join } from "node:path";
 import { app, type BrowserWindow, Menu, nativeImage, Tray } from "electron";
+import { getIconPath } from "../utils/path-utils";
 
 export class TrayManager {
   private tray: Tray | null = null;
   private mainWindow: BrowserWindow | null = null;
   private currentRecordShortcut: string = "PrintScreen";
   private isQuittingCallback: () => void;
-  private isDev: boolean;
   private onRecordClick: () => void;
 
-  constructor(isDev: boolean, isQuittingCallback: () => void, onRecordClick: () => void) {
-    this.isDev = isDev;
+  constructor(isQuittingCallback: () => void, onRecordClick: () => void) {
     this.isQuittingCallback = isQuittingCallback;
     this.onRecordClick = onRecordClick;
   }
@@ -20,12 +18,7 @@ export class TrayManager {
   }
 
   createTray(): void {
-    // Fix icon path for packaged mode
-    const iconPath = this.isDev
-      ? join(__dirname, "../../src/ui/public/icons/icon.png")
-      : join(process.resourcesPath, "public/icons/icon.png");
-
-    const icon = nativeImage.createFromPath(iconPath);
+    const icon = nativeImage.createFromPath(getIconPath());
     this.tray = new Tray(icon.resize({ width: 16, height: 16 }));
 
     this.tray.setToolTip("YakShaver");
