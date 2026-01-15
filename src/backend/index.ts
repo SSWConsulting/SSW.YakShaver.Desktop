@@ -397,10 +397,6 @@ app.whenReady().then(async () => {
   shortcutManager.registerShortcut(shortcutSettings.recordShortcut);
   updateAutoLaunch(shortcutSettings.autoLaunchEnabled);
 
-  // Set main window references for managers
-  shortcutManager.setMainWindow(mainWindow);
-  trayManager.setMainWindow(mainWindow);
-
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
   CameraWindow.getInstance().initialize(isDev);
@@ -413,7 +409,12 @@ app.whenReady().then(async () => {
   // Create tray icon
   trayManager.createTray();
 
+  // Create window first, then set references
   createWindow();
+
+  // Set main window references for managers AFTER window is created
+  shortcutManager.setMainWindow(mainWindow);
+  trayManager.setMainWindow(mainWindow);
 
   // Process any pending protocol URL that arrived during initialization
   if (pendingProtocolUrl && mainWindow) {
