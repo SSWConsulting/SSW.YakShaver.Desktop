@@ -195,7 +195,7 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
                 <div className="h-5">
                   {isCapturing && (
                     <p className="text-xs text-white/50">
-                      Press any key combination (e.g., PrintScreen, Ctrl+Shift+R)
+                      Press a key combination (e.g., Ctrl+F12, Ctrl+Shift+R)
                     </p>
                   )}
                 </div>
@@ -244,18 +244,6 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
                 onCheckedChange={handleAutoLaunchToggle}
                 disabled={isLoading || isSaving}
               />
-            </div>
-          </div>
-
-          <div className="border-t border-white/10 pt-6">
-            <div className="space-y-2">
-              <p className="text-base font-medium">System Tray</p>
-              <p className="text-sm text-white/60">
-                When you close the YakShaver window, it minimizes to the system tray instead of
-                quitting. You can restore the window by clicking the tray icon or right-clicking and
-                selecting "Show YakShaver". To fully quit the application, right-click the tray icon
-                and select "Quit".
-              </p>
             </div>
           </div>
         </CardContent>

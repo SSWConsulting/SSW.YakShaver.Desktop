@@ -6,8 +6,6 @@ import { app } from "electron";
  * @returns The absolute path to the icon file
  */
 export function getIconPath(): string {
-  // In development mode, the icon is in the source directory
-  // In packaged mode, the icon is in the resources directory
   return app.isPackaged
     ? join(process.resourcesPath, "public/icons/icon.png")
     : join(__dirname, "../../../src/ui/public/icons/icon.png");

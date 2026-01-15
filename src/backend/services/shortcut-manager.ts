@@ -13,12 +13,10 @@ export class ShortcutManager {
   }
 
   registerShortcut(shortcut: string): boolean {
-    // Unregister the new shortcut if it's already registered (safety check)
     if (globalShortcut.isRegistered(shortcut)) {
       globalShortcut.unregister(shortcut);
     }
 
-    // Register new shortcut
     const success = globalShortcut.register(shortcut, () => {
       this.handleShortcutTrigger();
     });
@@ -27,14 +25,12 @@ export class ShortcutManager {
       return false;
     }
 
-    // Only unregister the old shortcut AFTER successful registration of the new one
     if (this.currentShortcut && this.currentShortcut !== shortcut) {
       if (globalShortcut.isRegistered(this.currentShortcut)) {
         globalShortcut.unregister(this.currentShortcut);
       }
     }
 
-    // Update current shortcut only after successful registration
     this.currentShortcut = shortcut;
     return true;
   }
