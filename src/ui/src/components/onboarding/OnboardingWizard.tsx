@@ -239,10 +239,13 @@ export function OnboardingWizard() {
       setIsLLMSaving(true);
       try {
         const modelType = currentStep === 2 ? "languageModel" : "transcriptionModel";
-        await ipcClient.llm.setConfig({
-          ...(currentLLMConfig as LLMConfigV2),
+        const configToSave: LLMConfigV2 = {
+          version: 2,
+          languageModel: currentLLMConfig?.languageModel ?? null,
+          transcriptionModel: currentLLMConfig?.transcriptionModel ?? null,
           [modelType]: values,
-        });
+        };
+        await ipcClient.llm.setConfig(configToSave);
         toast.success(
           values.provider === "openai"
             ? "OpenAI configuration saved"
@@ -283,10 +286,13 @@ export function OnboardingWizard() {
           try {
             const values = llmForm.getValues();
             const modelType = currentStep === 2 ? "languageModel" : "transcriptionModel";
-            await ipcClient.llm.setConfig({
-              ...(currentLLMConfig as LLMConfigV2),
+            const configToSave: LLMConfigV2 = {
+              version: 2,
+              languageModel: currentLLMConfig?.languageModel ?? null,
+              transcriptionModel: currentLLMConfig?.transcriptionModel ?? null,
               [modelType]: values as ModelConfig,
-            });
+            };
+            await ipcClient.llm.setConfig(configToSave);
 
             if (currentStep === 2) {
               const healthResult = await ipcClient.llm.checkHealth();

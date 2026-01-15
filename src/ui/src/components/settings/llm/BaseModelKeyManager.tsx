@@ -101,11 +101,13 @@ export function BaseModelKeyManager({
     async (values: ModelConfig) => {
       setIsLoading(true);
       try {
-        await ipcClient.llm.setConfig({
-          ...(currentLLMConfig as LLMConfigV2),
+        const configToSave: LLMConfigV2 = {
+          version: 2,
+          languageModel: currentLLMConfig?.languageModel ?? null,
+          transcriptionModel: currentLLMConfig?.transcriptionModel ?? null,
           [modelType]: values,
-        });
-
+        };
+        await ipcClient.llm.setConfig(configToSave);
         const providerName =
           values.provider === "openai"
             ? "OpenAI"
