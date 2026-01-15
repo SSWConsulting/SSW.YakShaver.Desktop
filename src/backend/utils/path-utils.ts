@@ -10,5 +10,5 @@ export function getIconPath(): string {
   // In packaged mode, the icon is in the resources directory
   return app.isPackaged
     ? join(process.resourcesPath, "public/icons/icon.png")
-    : join(__dirname, "../../src/ui/public/icons/icon.png");
+    : join(__dirname, "../../../src/ui/public/icons/icon.png");
 }
