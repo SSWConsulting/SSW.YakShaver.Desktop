@@ -22,7 +22,6 @@ export class LlmStorage extends BaseSecureStorage {
   // Migration from V1 to V2
   private migrateV1toV2(config: LLMConfigV1): LLMConfigV2 {
     console.log("[LlmStorage]: Migrating V1 -> V2");
-    console.log("[LlmStorage]: V1 Config:", config);
     if (!config || typeof config !== "object") {
       throw new Error("[LlmStorage]: Invalid V1 config object during migration");
     }
@@ -88,7 +87,6 @@ export class LlmStorage extends BaseSecureStorage {
   }
 
   async storeLLMConfig(config: LLMConfigV2): Promise<void> {
-    console.log("[LlmStorage]: Storing LLM config:", config);
     await this.encryptAndStore(this.getLLMConfigPath(), config);
     this.cachedConfig = config;
     this.isLoaded = true;
@@ -96,7 +94,6 @@ export class LlmStorage extends BaseSecureStorage {
 
   async getLLMConfig(): Promise<LLMConfigV2 | null> {
     if (this.isLoaded) {
-      console.log("[LlmStorage]: Returning cached LLM config", this.cachedConfig);
       return this.cachedConfig;
     }
 
@@ -107,7 +104,6 @@ export class LlmStorage extends BaseSecureStorage {
     this.loadPromise = (async () => {
       try {
         const config = await this.decryptAndLoad<LLMConfig>(this.getLLMConfigPath());
-        console.log("[LlmStorage]: Loaded LLM config from storage:", config);
 
         if (!config) {
           this.cachedConfig = null;
@@ -116,15 +112,11 @@ export class LlmStorage extends BaseSecureStorage {
         }
 
         const configVersion = "version" in config ? config.version : 1;
-        console.log(`[LlmStorage]: Loaded LLM config version: ${configVersion}`);
         try {
           const migratedConfig = this.migrateToCurrentVersion(config);
           console.log("[LlmStorage]: Migrated LLM config:", migratedConfig);
           // If migration happened (version changed), save it
           if (configVersion !== LLM_PROVIDER_VERSION) {
-            console.log(
-              `[LlmStorage]: LLM config version ${configVersion} detected, migrating to version ${LLM_PROVIDER_VERSION}`,
-            );
             await this.storeLLMConfig(migratedConfig);
           } else {
             this.cachedConfig = migratedConfig;
@@ -159,16 +151,9 @@ export class LlmStorage extends BaseSecureStorage {
   }
 
   private migrateToCurrentVersion(config: LLMConfigV1 | LLMConfigV2): LLMConfigV2 {
-    console.log("[LlmStorage]: migrateToCurrentVersion called with config:", config);
     let currentConfig: LLMConfigV1 | LLMConfigV2 = config;
-    console.log(`[LlmStorage]: Current config version: ${config.version}`);
     const startVersion = config.version ?? 1;
-    console.log(
-      `[LlmStorage]: Starting migration from version ${startVersion} to ${LLM_PROVIDER_VERSION}`,
-    );
     for (let v = startVersion; v < LLM_PROVIDER_VERSION; v++) {
-      console.log(`${v}`);
-      console.log(`[LlmStorage]: Migrating to version ${v + 1}`);
       if (v === 1) {
         currentConfig = this.migrateV1toV2(currentConfig as LLMConfigV1);
       } else if (v === 2) {

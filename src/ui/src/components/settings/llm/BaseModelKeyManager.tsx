@@ -48,7 +48,6 @@ export function BaseModelKeyManager({
   const refreshStatus = useCallback(async () => {
     try {
       const cfg = await ipcClient.llm.getConfig();
-      console.log("Fetched LLM Config:", cfg);
       const processCfg = cfg?.[modelType];
       setHasConfig(!!cfg);
       setCurrentLLMConfig(cfg);
@@ -101,7 +100,6 @@ export function BaseModelKeyManager({
   const onSubmit = useCallback(
     async (values: ModelConfig) => {
       setIsLoading(true);
-      console.log("Submitting LLM Config:", values);
       try {
         const configToSave: LLMConfigV2 = {
           version: 2,
@@ -109,7 +107,6 @@ export function BaseModelKeyManager({
           transcriptionModel: currentLLMConfig?.transcriptionModel ?? null,
           [modelType]: values,
         };
-        console.log("Config to save:", configToSave);
         await ipcClient.llm.setConfig(configToSave);
 
         const providerName =
