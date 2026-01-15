@@ -85,6 +85,7 @@ export function ScreenRecorder() {
 
     // Listen for shortcut changes
     const cleanup = window.electronAPI.keyboardShortcut.onShortcutChanged((shortcut: string) => {
+      console.log("[ScreenRecorder] Received shortcut change:", shortcut);
       setRecordShortcut(shortcut);
     });
 

@@ -60,8 +60,11 @@ export class KeyboardShortcutIPCHandlers {
       await this.storage.setRecordShortcut(shortcut);
       
       // Notify renderer of the change
-      if (this.mainWindow) {
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        console.log("[KeyboardShortcut] Sending keyboard-shortcut-changed event with:", shortcut);
         this.mainWindow.webContents.send("keyboard-shortcut-changed", shortcut);
+      } else {
+        console.log("[KeyboardShortcut] Cannot send event - mainWindow not available");
       }
       
       return { success: true };
