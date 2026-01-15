@@ -413,8 +413,10 @@ app.whenReady().then(async () => {
   createWindow();
 
   // Set main window references for managers AFTER window is created
-  shortcutManager.setMainWindow(mainWindow);
-  trayManager.setMainWindow(mainWindow);
+  if (mainWindow) {
+    shortcutManager.setMainWindow(mainWindow);
+    trayManager.setMainWindow(mainWindow);
+  }
 
   // Process any pending protocol URL that arrived during initialization
   if (pendingProtocolUrl && mainWindow) {

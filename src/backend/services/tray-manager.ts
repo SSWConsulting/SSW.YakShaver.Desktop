@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { app, type BrowserWindow, Menu, nativeImage, type Tray } from "electron";
+import { app, type BrowserWindow, Menu, nativeImage, Tray } from "electron";
 
 export class TrayManager {
   private tray: Tray | null = null;
@@ -26,7 +26,7 @@ export class TrayManager {
       : join(process.resourcesPath, "public/icons/icon.png");
 
     const icon = nativeImage.createFromPath(iconPath);
-    this.tray = new (require("electron").Tray)(icon.resize({ width: 16, height: 16 }));
+    this.tray = new Tray(icon.resize({ width: 16, height: 16 }));
 
     this.tray.setToolTip("YakShaver");
     this.updateTrayMenu();
