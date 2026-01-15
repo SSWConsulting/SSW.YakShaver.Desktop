@@ -33,6 +33,7 @@ export function ScreenRecorder() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
   const [duration, setDuration] = useState<number>(0);
+  const [recordShortcut, setRecordShortcut] = useState<string>("PrintScreen");
   const { saveRecording, checkExistingShave } = useShaveManager();
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
@@ -69,6 +70,19 @@ export function ScreenRecorder() {
     const cleanup = window.electronAPI.screenRecording.onOpenSourcePicker(handleOpenSourcePicker);
     return cleanup;
   }, [handleOpenSourcePicker]);
+
+  useEffect(() => {
+    // Fetch the current keyboard shortcut on mount
+    const fetchShortcut = async () => {
+      try {
+        const settings = await window.electronAPI.keyboardShortcut.get();
+        setRecordShortcut(settings.recordShortcut);
+      } catch (error) {
+        console.error("Failed to fetch keyboard shortcut:", error);
+      }
+    };
+    fetchShortcut();
+  }, []);
 
   useEffect(() => {
     if (!isYoutubeUrlWorkflowEnabled) {
@@ -213,7 +227,7 @@ export function ScreenRecorder() {
               ? "Stop Recording"
               : isTranscribing
                 ? "Transcribing..."
-                : "Start Recording"}
+                : `Start Recording (${recordShortcut})`}
           </Button>
         </div>
         {!isAuthenticated && (
