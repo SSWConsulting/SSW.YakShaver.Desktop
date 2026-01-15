@@ -2,6 +2,7 @@ import type { WorkflowState, WorkflowStep } from "@shared/types/workflow";
 import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { StageWithContentNeo } from "./StageWithContentNeo";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
 const STEP_LABELS: Record<keyof WorkflowState, string> = {
   uploading_video: "Uploading Video",
@@ -28,14 +29,14 @@ const STEP_ORDER: (keyof WorkflowState)[] = [
 const StatusIcon = ({ status }: { status: WorkflowStep["status"] }) => {
   switch (status) {
     case "in_progress":
-      return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />;
+      return <Loader2 className="h-5 w-5 animate-spin text-zinc-300" />;
     case "completed":
-      return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+      return <CheckCircle2 className="h-5 w-5 text-green-400" />;
     case "failed":
-      return <XCircle className="h-5 w-5 text-red-500" />;
+      return <XCircle className="h-5 w-5 text-red-400" />;
     case "not_started":
     default:
-      return <div className="h-5 w-5 rounded-full border-2 border-gray-300" />;
+      return <div className="h-5 w-5 rounded-full border-2 border-white/20" />;
   }
 };
 
@@ -57,10 +58,25 @@ function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
     if (hasPayload) setIsExpanded(!isExpanded);
   };
 
-  const boxClass = step.status === "not_started" ? "bg-gray-50 border-gray-200" : "bg-white border-gray-200 shadow-sm";
+  const getBoxClass = () => {
+    switch (step.status) {
+      case "in_progress":
+        return "border-gray-500/30 bg-gray-500/5";
+      case "completed":
+        return "border-green-500/30 bg-green-500/5";
+      case "failed":
+        // Mimicking error state if needed, or stick to completed style if handled inside
+         return "border-red-500/30 bg-red-500/5";
+      case "not_started":
+      default:
+        return "border-white/10 bg-black/20";
+    }
+  };
+
+  const boxClass = getBoxClass();
 
   return (
-    <div className={`rounded-lg border p-3 ${boxClass}`}>
+    <div className={`rounded-lg border p-3 transition-all ${boxClass}`}>
       {/** biome-ignore lint/a11y/noStaticElementInteractions: <explanation> */}
       <div 
         className={`flex items-center justify-between ${hasPayload ? "cursor-pointer" : ""}`}
@@ -76,17 +92,17 @@ function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
       >
         <div className="flex items-center gap-3">
           <StatusIcon status={step.status} />
-          <span className={`font-medium ${step.status === "not_started" ? "text-gray-400" : "text-gray-700"}`}>{label}</span>
+          <span className={`font-medium ${step.status === "not_started" ? "text-white/30" : "text-white/90"}`}>{label}</span>
         </div>
         {hasPayload && (
-          <button type="button" className="text-gray-500 hover:text-gray-700">
+          <button type="button" className="text-white/50 hover:text-white/90">
             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
         )}
       </div>
       
       {isExpanded && hasPayload && (
-        <div className="mt-2 overflow-x-auto rounded bg-gray-50 p-2 text-gray-600">
+        <div className="mt-2 overflow-x-auto rounded bg-black/20 p-2 text-white/80">
           <StageWithContentNeo stage={step.stage} payload={parsedPayload} />
         </div>
       )}
@@ -106,15 +122,22 @@ export function WorkflowProgressPanelNeo() {
 
   if (state) {
     return (
-    <div className="flex flex-col gap-2 p-4 max-w-2xl mx-auto">
-      {STEP_ORDER.map((stepKey) => (
-        <WorkflowStepCard
-          key={stepKey}
-          step={state[stepKey]}
-          label={STEP_LABELS[stepKey]}
-        />
-      ))}
-    </div>
+      <div className="w-[500px] mx-auto my-4">
+        <Card className="bg-black/20 backdrop-blur-md border-white/10">
+          <CardHeader>
+            <CardTitle className="text-xl">AI Workflow Progress (Neo)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {STEP_ORDER.map((stepKey) => (
+              <WorkflowStepCard
+                key={stepKey}
+                step={state[stepKey]}
+                label={STEP_LABELS[stepKey]}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      </div>
   );
   }
 }
