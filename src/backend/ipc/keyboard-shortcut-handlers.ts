@@ -5,9 +5,7 @@ import { KeyboardShortcutStorage } from "../services/storage/keyboard-shortcut-s
 import type { TrayManager } from "../services/tray-manager";
 import { IPC_CHANNELS } from "./channels";
 
-interface AutoLaunchHandler {
-  (enabled: boolean): void;
-}
+type AutoLaunchHandler = (enabled: boolean) => void;
 
 export class KeyboardShortcutIPCHandlers {
   private storage = KeyboardShortcutStorage.getInstance();
