@@ -82,6 +82,13 @@ export function ScreenRecorder() {
       }
     };
     fetchShortcut();
+
+    // Listen for shortcut changes
+    const cleanup = window.electronAPI.keyboardShortcut.onShortcutChanged((shortcut: string) => {
+      setRecordShortcut(shortcut);
+    });
+
+    return cleanup;
   }, []);
 
   useEffect(() => {

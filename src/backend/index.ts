@@ -384,6 +384,7 @@ app.whenReady().then(async () => {
     (enabled: boolean) => {
       updateAutoLaunch(enabled);
     },
+    mainWindow,
   );
 
   // Load and apply keyboard shortcut settings

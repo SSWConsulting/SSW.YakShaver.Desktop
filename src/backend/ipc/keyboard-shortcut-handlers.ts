@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, type BrowserWindow } from "electron";
 import type { KeyboardShortcutSettings } from "../../shared/types/keyboard-shortcuts";
 import { KeyboardShortcutStorage } from "../services/storage/keyboard-shortcut-storage";
 import { IPC_CHANNELS } from "./channels";
@@ -7,13 +7,16 @@ export class KeyboardShortcutIPCHandlers {
   private storage = KeyboardShortcutStorage.getInstance();
   private onShortcutChange?: (shortcut: string) => boolean;
   private onAutoLaunchChange?: (enabled: boolean) => void;
+  private mainWindow?: BrowserWindow;
 
   constructor(
     onShortcutChange?: (shortcut: string) => boolean,
     onAutoLaunchChange?: (enabled: boolean) => void,
+    mainWindow?: BrowserWindow,
   ) {
     this.onShortcutChange = onShortcutChange;
     this.onAutoLaunchChange = onAutoLaunchChange;
+    this.mainWindow = mainWindow;
 
     ipcMain.handle(IPC_CHANNELS.KEYBOARD_SHORTCUT_GET, async () => {
       return await this.getSettings();
@@ -55,6 +58,12 @@ export class KeyboardShortcutIPCHandlers {
 
       // Registration succeeded, save to storage
       await this.storage.setRecordShortcut(shortcut);
+      
+      // Notify renderer of the change
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send("keyboard-shortcut-changed", shortcut);
+      }
+      
       return { success: true };
     } catch (error) {
       console.error("Failed to set record shortcut:", error);

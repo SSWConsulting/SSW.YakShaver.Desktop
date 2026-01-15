@@ -330,6 +330,11 @@ const electronAPI = {
     set: (shortcut: string) => ipcRenderer.invoke(IPC_CHANNELS.KEYBOARD_SHORTCUT_SET, shortcut),
     setAutoLaunch: (enabled: boolean) =>
       ipcRenderer.invoke(IPC_CHANNELS.KEYBOARD_SHORTCUT_SET_AUTO_LAUNCH, enabled),
+    onShortcutChanged: (callback: (shortcut: string) => void) => {
+      const listener = (_: IpcRendererEvent, shortcut: string) => callback(shortcut);
+      ipcRenderer.on("keyboard-shortcut-changed", listener);
+      return () => ipcRenderer.removeListener("keyboard-shortcut-changed", listener);
+    },
   },
   // Camera window
   onSetCameraDevice: (callback: (deviceId: string) => void) => {
