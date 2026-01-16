@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, ChevronLeft, ChevronRight, Copy, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Copy, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useClipboard } from "../../../hooks/useClipboard";
 import { ipcClient } from "../../../services/ipc-client";
 import { Button } from "../../ui/button";
+import { Checkbox } from "../../ui/checkbox";
 import {
   Form,
   FormControl,
@@ -63,6 +64,16 @@ export function PromptForm({
   useEffect(() => {
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
+
+  const serversWithIds = useMemo(
+    () => mcpServers.filter((server): server is MCPServerConfig & { id: string } => !!server.id),
+    [mcpServers],
+  );
+  const totalPages = Math.ceil(serversWithIds.length / SERVERS_PER_PAGE);
+  const paginatedServers = useMemo(
+    () => serversWithIds.slice(serverPage * SERVERS_PER_PAGE, (serverPage + 1) * SERVERS_PER_PAGE),
+    [serversWithIds, serverPage],
+  );
 
   // Load MCP servers on mount
   useEffect(() => {
@@ -225,14 +236,6 @@ export function PromptForm({
             control={form.control}
             name="selectedMcpServerIds"
             render={({ field }) => {
-              const serversWithIds = mcpServers.filter(
-                (server): server is MCPServerConfig & { id: string } => !!server.id,
-              );
-              const totalPages = Math.ceil(serversWithIds.length / SERVERS_PER_PAGE);
-              const paginatedServers = serversWithIds.slice(
-                serverPage * SERVERS_PER_PAGE,
-                (serverPage + 1) * SERVERS_PER_PAGE,
-              );
               const selectedNames = serversWithIds
                 .filter((s) => field.value?.includes(s.id))
                 .map((s) => s.name);
@@ -254,12 +257,6 @@ export function PromptForm({
                     )}
                   </div>
 
-                  {/* Note: Using styled divs instead of Radix UI Checkbox here because
-                        Radix Checkbox causes React Error #185 (infinite loop) when used
-                        inside FormField + map + conditional rendering. The issue is related
-                        to Radix's internal ref management conflicting with this render pattern.
-                        Multiple workarounds were attempted (memoization, removing handlers,
-                        pointer-events-none) but none resolved the issue. */}
                   <div
                     className="flex flex-col gap-2 mt-2 p-3 rounded-md border border-white/20 bg-black/20"
                     aria-live="polite"
@@ -274,41 +271,24 @@ export function PromptForm({
                         field.onChange(newValue);
                       };
                       return (
-                        // biome-ignore lint/a11y/useSemanticElements: Using div instead of input because Radix Checkbox causes React Error #185
                         <div
                           key={server.id}
                           className={`flex items-center gap-3 p-1 rounded ${
-                            isDisabled
-                              ? "opacity-50 cursor-not-allowed"
-                              : "cursor-pointer hover:bg-white/5 focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-primary"
+                            isDisabled ? "opacity-50" : ""
                           }`}
-                          onClick={isDisabled ? undefined : handleToggle}
-                          onKeyDown={
-                            isDisabled
-                              ? undefined
-                              : (e) => {
-                                  if (e.key === "Enter" || e.key === " ") {
-                                    e.preventDefault();
-                                    handleToggle();
-                                  }
-                                }
-                          }
-                          role="checkbox"
-                          aria-label={server.name}
-                          aria-checked={isChecked}
-                          aria-disabled={isDisabled}
-                          tabIndex={isDisabled ? -1 : 0}
                         >
-                          <div
-                            className={`h-4 w-4 shrink-0 rounded-sm border transition-colors ${
-                              isChecked
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-primary/50"
+                          <Checkbox
+                            id={`server-${server.id}`}
+                            checked={isChecked}
+                            onCheckedChange={handleToggle}
+                            disabled={isDisabled}
+                          />
+                          <label
+                            htmlFor={`server-${server.id}`}
+                            className={`text-sm flex-1 select-none ${
+                              isDisabled ? "cursor-not-allowed" : "cursor-pointer"
                             }`}
                           >
-                            {isChecked && <Check className="h-4 w-4 p-0.5" />}
-                          </div>
-                          <span className="text-sm">
                             {server.name}
                             {server.builtin && (
                               <span className="ml-2 text-xs text-white/50">(Built-in)</span>
@@ -316,7 +296,7 @@ export function PromptForm({
                             {isDisabled && (
                               <span className="ml-2 text-xs text-yellow-500/70">(Disabled)</span>
                             )}
-                          </span>
+                          </label>
                         </div>
                       );
                     })}
