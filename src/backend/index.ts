@@ -400,7 +400,8 @@ const cleanup = async () => {
 };
 
 app.on("window-all-closed", async () => {
-  // See: https://www.electronjs.org/docs/latest/tutorial/tray#minimizing-to-tray
+  // Intentionally left empty so the app keeps running in the system tray even when all
+  // windows are closed. See: https://www.electronjs.org/docs/latest/tutorial/tray#minimizing-to-tray
 });
 
 app.on("before-quit", async (event) => {
