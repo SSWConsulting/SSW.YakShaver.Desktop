@@ -19,7 +19,7 @@ import { useShaveManager } from "./hooks/useShaveManager";
 export default function App() {
   // Auto-save shaves when workflow completes
   useShaveManager();
-  const [activeTab, setActiveTab] = useState<"legacy" | "neo">("legacy");
+  const [activeTab, setActiveTab] = useState<"legacy" | "neo">("neo");
 
   return (
     <AdvancedSettingsProvider>

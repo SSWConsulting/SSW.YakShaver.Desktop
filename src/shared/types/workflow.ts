@@ -9,7 +9,7 @@ export enum ProgressStage {
   FINAL_STEP = "final_step",
 }
 
-export type WorkflowStatus = "not_started" | "in_progress" | "completed" | "failed";
+export type WorkflowStatus = "not_started" | "in_progress" | "completed" | "failed" | "skipped";
 
 export type VideoUploadOrigin = "upload" | "external";
 

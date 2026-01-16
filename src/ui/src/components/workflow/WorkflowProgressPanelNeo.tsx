@@ -1,5 +1,5 @@
 import type { WorkflowState, WorkflowStep } from "@shared/types/workflow";
-import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle, CircleSlash } from "lucide-react";
 import { useEffect, useState } from "react";
 import { StageWithContentNeo } from "./StageWithContentNeo";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -34,7 +34,10 @@ const StatusIcon = ({ status }: { status: WorkflowStep["status"] }) => {
       return <CheckCircle2 className="h-5 w-5 text-green-400" />;
     case "failed":
       return <XCircle className="h-5 w-5 text-red-400" />;
+      case "skipped":
+        return <CircleSlash className="h-5 w-5 text-white/20" />;
     case "not_started":
+        return <div className="h-5 w-5 rounded-full border-2 border-white/20" />;
     default:
       return <div className="h-5 w-5 rounded-full border-2 border-white/20" />;
   }
@@ -42,16 +45,19 @@ const StatusIcon = ({ status }: { status: WorkflowStep["status"] }) => {
 
 function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
   const [isExpanded, setIsExpanded] = useState(false);
-  const hasPayload = step.payload && step.payload !== "{}";
-
-  // Parse payload for display
+  
   let parsedPayload: any = step.payload;
+  let hasPayload = false;
+
   try {
     if (step.payload) {
-      parsedPayload = JSON.parse(step.payload);
+      const parsed = JSON.parse(step.payload);
+      parsedPayload = parsed;
+      hasPayload = parsed !== null && 
+                   (typeof parsed === 'object' ? Object.keys(parsed).length > 0 : true);
     }
   } catch (e) {
-    // ignore, keep as string
+    hasPayload = !!step.payload;
   }
 
   const toggleExpand = () => {
@@ -65,15 +71,28 @@ function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
       case "completed":
         return "border-green-500/30 bg-green-500/5";
       case "failed":
-        // Mimicking error state if needed, or stick to completed style if handled inside
          return "border-red-500/30 bg-red-500/5";
+      case "skipped":
+        return "border-white/10 bg-black/20";
       case "not_started":
+        return "border-white/10 bg-black/20";
       default:
         return "border-white/10 bg-black/20";
     }
   };
 
   const boxClass = getBoxClass();
+
+  const getTextColor = () => {
+    switch (step.status) {
+      case "skipped":
+        return "text-white/20";
+      case "not_started":
+        return "text-white/30";
+      default:
+        return "text-white/90";
+    }
+  };
 
   return (
     <div className={`rounded-lg border p-3 transition-all ${boxClass}`}>
@@ -92,7 +111,7 @@ function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
       >
         <div className="flex items-center gap-3">
           <StatusIcon status={step.status} />
-          <span className={`font-medium ${step.status === "not_started" ? "text-white/30" : "text-white/90"}`}>{label}</span>
+          <span className={`font-medium ${getTextColor()}`}>{label}</span>
         </div>
         {hasPayload && (
           <button type="button" className="text-white/50 hover:text-white/90">

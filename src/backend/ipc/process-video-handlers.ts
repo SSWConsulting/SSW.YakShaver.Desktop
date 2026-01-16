@@ -139,21 +139,37 @@ export class ProcessVideoIPCHandlers {
       throw new Error("video-process-handler: Video file does not exist");
     }
 
+    const workflowManager = new WorkflowStateManager(shaveId);
+    workflowManager.updateStagePayload("uploading_video", null, "in_progress");
+    workflowManager.updateStagePayload("downloading_video", null, "skipped");
+
     // upload to YouTube
     notify(ProgressStage.UPLOADING_SOURCE, {
       sourceOrigin: "upload",
     });
-    const youtubeResult = await this.youtube.uploadVideo(filePath);
-    notify(ProgressStage.UPLOAD_COMPLETED, {
-      uploadResult: youtubeResult,
-      sourceOrigin: youtubeResult.origin,
-    });
 
-    return await this.processVideoSource({
-      filePath,
-      youtubeResult,
-      shaveId,
-    });
+    try {
+      const youtubeResult = await this.youtube.uploadVideo(filePath);
+
+      workflowManager.updateStagePayload("uploading_video", youtubeResult.data?.url, "completed");
+      notify(ProgressStage.UPLOAD_COMPLETED, {
+        uploadResult: youtubeResult,
+        sourceOrigin: youtubeResult.origin,
+      });
+
+      return await this.processVideoSource(
+        {
+          filePath,
+          youtubeResult,
+          shaveId,
+        },
+        workflowManager,
+      );
+    } catch (uploadError) {
+      const errorMessage = formatErrorMessage(uploadError);
+      workflowManager.updateStagePayload("uploading_video", errorMessage, "failed");
+      return { success: false, error: errorMessage };
+    }
   }
 
   // Process video from a URL (e.g., YouTube link)
@@ -161,6 +177,11 @@ export class ProcessVideoIPCHandlers {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
+
+    const workflowManager = new WorkflowStateManager(shaveId);
+    workflowManager.updateStagePayload("uploading_video", null, "skipped");
+    workflowManager.updateStagePayload("downloading_video", null, "in_progress");
+    workflowManager.updateStagePayload("updating_metadata", null, "skipped");
 
     try {
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
@@ -172,28 +193,32 @@ export class ProcessVideoIPCHandlers {
         sourceOrigin: "external",
       });
       const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
-      return await this.processVideoSource({
-        filePath,
-        youtubeResult,
-        shaveId,
-      });
+      workflowManager.updateStagePayload("downloading_video", null, "completed");
+      return await this.processVideoSource(
+        {
+          filePath,
+          youtubeResult,
+          shaveId,
+        },
+        workflowManager,
+      );
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
+      workflowManager.updateStagePayload("downloading_video", errorMessage, "failed");
       notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     }
   }
 
   // Main Shave pipeline for processing video
-  private async processVideoSource({ filePath, youtubeResult, shaveId }: VideoProcessingContext) {
+  private async processVideoSource(
+    { filePath, youtubeResult, shaveId }: VideoProcessingContext,
+    workflowManager: WorkflowStateManager,
+  ) {
     // check file exists
     if (!fs.existsSync(filePath)) {
       throw new Error("video-process-handler: Video file does not exist");
     }
-
-    const workflowManager = new WorkflowStateManager(shaveId);
-
-    workflowManager.updateStagePayload("uploading_video", null, "completed");
 
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
@@ -254,7 +279,7 @@ export class ProcessVideoIPCHandlers {
         onStep: mcpAdapter.onStep,
       });
 
-      workflowManager.updateStagePayload("executing_task", null, "completed");
+      // workflowManager.updateStagePayload("executing_task", null, "completed");
 
       mcpAdapter.complete(mcpResult);
 
@@ -280,6 +305,7 @@ export class ProcessVideoIPCHandlers {
           try {
             // throw new Error("Simulated metadata update error"); // TODO: Remove this line after testing error handling
             notify(ProgressStage.UPDATING_METADATA);
+            workflowManager.updateStagePayload("updating_metadata", null, "in_progress");
             const metadata = await this.metadataBuilder.build({
               transcript,
               intermediateOutput,
@@ -289,7 +315,6 @@ export class ProcessVideoIPCHandlers {
             notify(ProgressStage.UPDATING_METADATA, {
               metadataPreview: metadata.metadata,
             });
-            workflowManager.updateStagePayload("updating_metadata", null, "in_progress");
             const updateResult = await this.youtube.updateVideoMetadata(
               videoId,
               metadata.snippet,
