@@ -28,9 +28,9 @@ import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
-import { ShortcutManager } from "./services/shortcut-manager";
+import { ShortcutManager } from "./services/shortcut/shortcut-manager";
 import { KeyboardShortcutStorage } from "./services/storage/keyboard-shortcut-storage";
-import { TrayManager } from "./services/tray-manager";
+import { TrayManager } from "./services/tray/tray-manager";
 import { getIconPath } from "./utils/path-utils";
 
 const isDev = process.env.NODE_ENV === "development";

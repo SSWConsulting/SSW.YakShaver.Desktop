@@ -1,6 +1,6 @@
 import type { BrowserWindow } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ShortcutManager } from "./shortcut-manager";
+import type { ShortcutManager } from "../shortcut/shortcut-manager";
 import { TrayManager } from "./tray-manager";
 
 const mockTray = {
@@ -32,7 +32,7 @@ vi.mock("electron", () => {
   };
 });
 
-vi.mock("../utils/path-utils", () => ({
+vi.mock("../../utils/path-utils", () => ({
   getIconPath: vi.fn().mockReturnValue("/mock/path/icon.png"),
 }));
 

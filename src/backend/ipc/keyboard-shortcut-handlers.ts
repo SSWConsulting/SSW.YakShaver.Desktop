@@ -1,8 +1,8 @@
 import { BrowserWindow, ipcMain } from "electron";
 import type { KeyboardShortcutSettings } from "../../shared/types/keyboard-shortcuts";
-import type { ShortcutManager } from "../services/shortcut-manager";
+import type { ShortcutManager } from "../services/shortcut/shortcut-manager";
 import { KeyboardShortcutStorage } from "../services/storage/keyboard-shortcut-storage";
-import type { TrayManager } from "../services/tray-manager";
+import type { TrayManager } from "../services/tray/tray-manager";
 import { IPC_CHANNELS } from "./channels";
 
 type AutoLaunchHandler = (enabled: boolean) => void;

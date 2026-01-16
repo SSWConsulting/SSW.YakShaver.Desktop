@@ -1,4 +1,4 @@
-import { globalShortcut, type BrowserWindow } from "electron";
+import { type BrowserWindow, globalShortcut } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ShortcutManager } from "./shortcut-manager";
 
