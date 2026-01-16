@@ -41,15 +41,16 @@ export class TrayManager {
   private buildTrayContextMenu(): Menu {
     return Menu.buildFromTemplate([
       {
-        label: "Open YakShaver",
-        click: () => {
-          this.showWindow();
-        },
-      },
-      {
         label: `Record Shave`,
         click: () => {
           this.openSourcePicker();
+        },
+      },
+      { type: "separator" },
+      {
+        label: "Open YakShaver",
+        click: () => {
+          this.showWindow();
         },
       },
       { type: "separator" },
