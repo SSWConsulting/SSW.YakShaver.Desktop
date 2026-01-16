@@ -73,7 +73,7 @@ describe("TrayManager", () => {
   });
 
   describe("updateTrayMenu", () => {
-    it("should update shortcut in menu when provided", () => {
+    it("should update context menu when tray exists", () => {
       trayManager.createTray();
 
       expect(mockTray.setContextMenu).toHaveBeenCalled();
