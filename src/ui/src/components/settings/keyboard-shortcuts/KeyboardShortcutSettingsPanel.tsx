@@ -8,16 +8,14 @@ import { Button } from "../../ui/button";
 import { Card, CardContent } from "../../ui/card";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
-import { Switch } from "../../ui/switch";
 
 interface KeyboardShortcutSettingsPanelProps {
   isActive: boolean;
 }
 
 export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSettingsPanelProps) {
-  const [settings, setSettings] = useState<KeyboardShortcutSettings>({
+  const [settings, setSettings] = useState<Pick<KeyboardShortcutSettings, "recordShortcut">>({
     recordShortcut: DEFAULT_KEYBOARD_SHORTCUTS.recordShortcut,
-    autoLaunchEnabled: false,
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -68,20 +66,6 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
       setIsSaving(false);
     }
   }, [shortcutInput]);
-
-  const handleAutoLaunchToggle = useCallback(async (enabled: boolean) => {
-    setIsSaving(true);
-    try {
-      await ipcClient.keyboardShortcut.setAutoLaunch(enabled);
-      setSettings((prev) => ({ ...prev, autoLaunchEnabled: enabled }));
-      toast.success(enabled ? "Auto-launch enabled" : "Auto-launch disabled");
-    } catch (error) {
-      console.error("Failed to update auto-launch setting", error);
-      toast.error("Failed to update auto-launch setting");
-    } finally {
-      setIsSaving(false);
-    }
-  }, []);
 
   const handleResetToDefault = useCallback(async () => {
     setIsSaving(true);
@@ -154,11 +138,9 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
       <div className="space-y-2">
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <Keyboard className="h-5 w-5" />
-          Keyboard Shortcuts & Startup
+          Keyboard Shortcuts
         </h2>
-        <p className="text-sm text-white/70">
-          Configure keyboard shortcuts for quick actions and startup behavior.
-        </p>
+        <p className="text-sm text-white/70">Configure keyboard shortcuts for quick actions.</p>
       </div>
 
       <Card className="border-white/10">
@@ -222,26 +204,6 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
                   Reset
                 </Button>
               </div>
-            </div>
-          </div>
-
-          <div className="border-t border-white/10 pt-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1 flex-1">
-                <Label htmlFor="auto-launch" className="text-base font-medium">
-                  Launch at Startup
-                </Label>
-                <p className="text-sm text-white/60">
-                  Automatically start YakShaver when your computer starts. The app will start
-                  minimized in the system tray.
-                </p>
-              </div>
-              <Switch
-                id="auto-launch"
-                checked={settings.autoLaunchEnabled}
-                onCheckedChange={handleAutoLaunchToggle}
-                disabled={isLoading || isSaving}
-              />
             </div>
           </div>
         </CardContent>
