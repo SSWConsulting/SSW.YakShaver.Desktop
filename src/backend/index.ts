@@ -247,7 +247,6 @@ let unregisterEventForwarders: (() => void) | undefined;
 const updateAutoLaunch = (enabled: boolean): void => {
   app.setLoginItemSettings({
     openAtLogin: enabled,
-    openAsHidden: true,
   });
 };
 
