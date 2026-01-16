@@ -2,9 +2,7 @@ import { app, type BrowserWindow, Menu, nativeImage, Tray } from "electron";
 import { getIconPath } from "../utils/path-utils";
 import type { ShortcutManager } from "./shortcut-manager";
 
-interface QuitHandler {
-  (): void;
-}
+type QuitHandler = () => void;
 
 export class TrayManager {
   private tray: Tray | null = null;
