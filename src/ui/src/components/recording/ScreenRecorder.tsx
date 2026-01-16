@@ -72,20 +72,31 @@ export function ScreenRecorder() {
   }, [handleOpenSourcePicker]);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchShortcut = async () => {
       try {
         const settings = await window.electronAPI.keyboardShortcut.get();
-        setRecordShortcut(settings.recordShortcut);
+        if (isMounted) {
+          setRecordShortcut(settings.recordShortcut);
+        }
       } catch (error) {
         console.error("Failed to fetch keyboard shortcut:", error);
       }
     };
+
     fetchShortcut();
 
     const cleanup = window.electronAPI.keyboardShortcut.onShortcutChanged((shortcut) => {
-      setRecordShortcut(shortcut);
+      if (isMounted) {
+        setRecordShortcut(shortcut);
+      }
     });
-    return cleanup;
+
+    return () => {
+      isMounted = false;
+      cleanup();
+    };
   }, []);
 
   useEffect(() => {

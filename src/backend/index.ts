@@ -383,6 +383,7 @@ app.whenReady().then(async () => {
 
   createApplicationMenu();
   trayManager.createTray();
+  trayManager.updateTrayMenu(shortcutSettings.recordShortcut);
   createWindow();
 
   if (mainWindow) {
