@@ -26,6 +26,7 @@ import type {
   ShaveStatus,
   TranscriptEntry,
   UserInfo,
+  VersionInfo,
   VideoUploadResult,
   YouTubeConfig,
 } from "../types";
@@ -121,13 +122,13 @@ declare global {
         addToolToWhitelist: (toolName: string) => Promise<{ success: boolean }>;
         addServerAsync: (config: MCPServerConfig) => Promise<{ success: boolean }>;
         updateServerAsync: (
-          serverIdOrName: string,
+          serverId: string,
           config: MCPServerConfig,
         ) => Promise<{ success: boolean }>;
-        removeServerAsync: (serverIdOrName: string) => Promise<{ success: boolean }>;
-        checkServerHealthAsync: (serverIdOrName: string) => Promise<HealthStatusInfo>;
+        removeServerAsync: (serverId: string) => Promise<{ success: boolean }>;
+        checkServerHealthAsync: (serverId: string) => Promise<HealthStatusInfo>;
         listServerTools: (
-          serverIdOrName: string,
+          serverId: string,
         ) => Promise<Array<{ name: string; description?: string }>>;
       };
       settings: {
@@ -158,7 +159,7 @@ declare global {
           error?: string;
           version?: string;
         }>;
-        getCurrentVersion: () => Promise<string>;
+        getCurrentVersion: () => Promise<VersionInfo>;
         onDownloadProgress: (
           callback: (progress: { percent: number; transferred: number; total: number }) => void,
         ) => () => void;
@@ -175,7 +176,6 @@ declare global {
           rateLimitRemaining?: number;
           error?: string;
         }>;
-        getInstallUrl: () => Promise<string>;
       };
       toolApprovalSettings: {
         get: () => Promise<ToolApprovalSettings>;

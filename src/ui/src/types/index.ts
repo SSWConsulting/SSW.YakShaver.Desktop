@@ -158,7 +158,7 @@ export interface HealthStatusInfo {
   isHealthy: boolean;
   error?: string;
   successMessage?: string;
-  isChecking?: boolean;
+  isChecking: boolean;
 }
 
 export enum ProgressStage {
@@ -267,6 +267,11 @@ export type Shave = {
   videoEmbedUrl: string | null;
   createdAt: string;
   updatedAt: string | null;
+};
+
+export type VersionInfo = {
+  version: string;
+  commitHash: string;
 };
 
 export type BadgeVariant = "success" | "destructive" | "secondary" | "default";

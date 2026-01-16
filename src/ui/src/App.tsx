@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
@@ -17,9 +17,25 @@ import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
 import { useShaveManager } from "./hooks/useShaveManager";
 
 export default function App() {
+  const [appVersion, setAppVersion] = useState<string>("");
+  const [commitHash, setCommitHash] = useState<string>("");
+
   // Auto-save shaves when workflow completes
   useShaveManager();
   const [activeTab, setActiveTab] = useState<"legacy" | "neo">("neo");
+
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const info = await window.electronAPI.releaseChannel.getCurrentVersion();
+        setAppVersion(info.version);
+        setCommitHash(info.commitHash);
+      } catch (error) {
+        console.error("Failed to fetch app version information:", error);
+      }
+    };
+    fetchVersion();
+  }, []);
 
   return (
     <AdvancedSettingsProvider>
@@ -88,6 +104,11 @@ export default function App() {
 {/*  */}
               <FinalResultPanel />
             </main>
+          </div>
+
+          <div className="fixed bottom-2 left-2 text-[10px] text-white/30 z-50 pointer-events-none font-mono">
+            {appVersion && `v${appVersion} `}
+            {commitHash && `(${commitHash})`}
           </div>
         </div>
       </YouTubeAuthProvider>

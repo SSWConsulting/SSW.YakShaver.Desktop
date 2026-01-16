@@ -100,7 +100,6 @@ const IPC_CHANNELS = {
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
   GITHUB_TOKEN_VERIFY: "github-token:verify",
-  GITHUB_APP_GET_INSTALL_URL: "github-app:get-install-url",
 
   // Tool Approval Settings
   TOOL_APPROVAL_SETTINGS_GET: "tool-approval-settings:get",
@@ -244,14 +243,14 @@ const electronAPI = {
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
     addServerAsync: (config: MCPServerConfig) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_SERVER, config),
-    updateServerAsync: (serverIdOrName: string, config: MCPServerConfig) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, serverIdOrName, config),
-    removeServerAsync: (serverIdOrName: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, serverIdOrName),
-    checkServerHealthAsync: (serverIdOrName: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, serverIdOrName),
-    listServerTools: (serverIdOrName: string): Promise<MCPToolSummary[]> =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, serverIdOrName),
+    updateServerAsync: (serverId: string, config: MCPServerConfig) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_UPDATE_SERVER, serverId, config),
+    removeServerAsync: (serverId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, serverId),
+    checkServerHealthAsync: (serverId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, serverId),
+    listServerTools: (serverId: string): Promise<MCPToolSummary[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, serverId),
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
@@ -288,7 +287,6 @@ const electronAPI = {
         rateLimitRemaining?: number;
         error?: string;
       }>,
-    getInstallUrl: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_APP_GET_INSTALL_URL),
   },
   toolApprovalSettings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.TOOL_APPROVAL_SETTINGS_GET),

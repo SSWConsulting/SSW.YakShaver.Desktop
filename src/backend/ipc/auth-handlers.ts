@@ -17,7 +17,7 @@ export class AuthIPCHandlers {
       [IPC_CHANNELS.YOUTUBE_START_AUTH]: () => this.youtube.authenticate(),
       [IPC_CHANNELS.YOUTUBE_GET_AUTH_STATUS]: () => this.getAuthStatus(),
       [IPC_CHANNELS.YOUTUBE_GET_CURRENT_USER]: () => this.youtube.getCurrentUser(),
-      [IPC_CHANNELS.YOUTUBE_DISCONNECT]: async () => (await this.youtube.disconnect(), true),
+      [IPC_CHANNELS.YOUTUBE_DISCONNECT]: async () => await this.youtube.disconnect(),
       [IPC_CHANNELS.YOUTUBE_REFRESH_TOKEN]: () => this.youtube.refreshTokens(),
       [IPC_CHANNELS.YOUTUBE_UPLOAD_VIDEO]: () => this.youtube.uploadVideo(),
       [IPC_CHANNELS.UPLOAD_RECORDED_VIDEO]: (_: unknown, filePath?: string) =>

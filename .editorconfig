@@ -1,0 +1,20 @@
+# EditorConfig helps maintain consistent coding styles and line endings across editors and OSes
+# https://editorconfig.org
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.bat]
+end_of_line = crlf
+
+[*.ps1]
+end_of_line = crlf

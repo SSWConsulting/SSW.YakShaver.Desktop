@@ -1,21 +1,15 @@
-import { MacScreenRecordingPermissionDialog } from "./MacScreenRecordingPermissionDialog";
+import { SCREEN_RECORDING_ERRORS } from "@shared/constants/error-messages";
 import { Camera } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
-import { SCREEN_RECORDING_ERRORS } from "@shared/constants/error-messages";
 import { CAMERA_ONLY_SOURCE_ID } from "../../constants/recording";
 import { ipcClient } from "../../services/ipc-client";
 import type { ScreenSource } from "../../types";
 import { Button } from "../ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "../ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { MacScreenRecordingPermissionDialog } from "./MacScreenRecordingPermissionDialog";
 
 type SourcePickerDialogProps = {
   open: boolean;
@@ -166,7 +160,10 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           </DialogDescription>
         </DialogHeader>
 
-        <MacScreenRecordingPermissionDialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog} />
+        <MacScreenRecordingPermissionDialog
+          open={showPermissionDialog}
+          onOpenChange={setShowPermissionDialog}
+        />
 
         <div className="max-h-[75vh] overflow-auto space-y-6 p-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

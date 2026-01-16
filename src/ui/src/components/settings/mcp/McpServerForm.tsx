@@ -19,12 +19,13 @@ import { Textarea } from "../../ui/textarea";
 export type Transport = "streamableHttp" | "stdio" | "inMemory";
 
 type MCPBaseConfig = {
-  id?: string;
+  id: string | null;
   name: string;
   description?: string;
   transport: Transport;
   builtin?: boolean;
   toolWhitelist?: string[];
+  enabled?: boolean;
 };
 
 type MCPHttpServerConfig = MCPBaseConfig & {
@@ -65,7 +66,7 @@ export const mcpServerSchema = z
       }),
     description: z.string().optional(),
     transport: z.enum(["streamableHttp", "stdio", "inMemory"]),
-    url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+    url: z.url("Must be a valid URL").optional().or(z.literal("")),
     headers: z.string().optional(),
     version: z.string().optional(),
     timeoutMs: z.number().positive().optional().or(z.literal("")),
@@ -79,7 +80,7 @@ export const mcpServerSchema = z
     if (data.transport === "streamableHttp") {
       if (!data.url || !data.url.trim()) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["url"],
           message: "URL is required for HTTP transports",
         });
@@ -89,7 +90,7 @@ export const mcpServerSchema = z
     if (data.transport === "stdio") {
       if (!data.command || !data.command.trim()) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["command"],
           message: "Command is required for stdio transports",
         });
@@ -120,7 +121,7 @@ export function McpServerForm({
   onAdvancedOpenChange,
 }: McpServerFormProps) {
   const transport = form.watch("transport");
-  const transportOptions = (allowedTransports?.length ? allowedTransports : undefined)
+  const transportOptions = allowedTransports?.length
     ? TRANSPORT_OPTIONS.filter((option) => allowedTransports?.includes(option.value))
     : TRANSPORT_OPTIONS;
 
@@ -193,7 +194,11 @@ export function McpServerForm({
                 URL <span className="text-red-400">*</span>
               </FormLabel>
               <FormControl>
-                <Input {...field} type="text" placeholder="e.g., https://api.githubcopilot.com/mcp/" />
+                <Input
+                  {...field}
+                  type="text"
+                  placeholder="e.g., https://api.githubcopilot.com/mcp/"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -385,7 +390,9 @@ type McpServerFormWrapperProps = {
   isEditing: boolean;
   onSubmit: (data: MCPServerConfig) => Promise<void>;
   onCancel: () => void;
+  onDelete?: () => void;
   isLoading: boolean;
+  existingServerNames?: string[];
 };
 
 export function McpServerFormWrapper({
@@ -393,6 +400,7 @@ export function McpServerFormWrapper({
   isEditing,
   onSubmit,
   onCancel,
+  onDelete,
   isLoading,
 }: McpServerFormWrapperProps) {
   const form = useForm<MCPServerFormData>({
@@ -440,13 +448,17 @@ export function McpServerFormWrapper({
         }
 
         if (!parsedHeaders || typeof parsedHeaders !== "object" || Array.isArray(parsedHeaders)) {
-          form.setError("headers", { message: "Headers must be a JSON object" });
+          form.setError("headers", {
+            message: "Headers must be a JSON object",
+          });
           return;
         }
 
         const headerEntries = Object.entries(parsedHeaders);
         if (!headerEntries.every(([, value]) => typeof value === "string")) {
-          form.setError("headers", { message: "Header values must be strings" });
+          form.setError("headers", {
+            message: "Header values must be strings",
+          });
           return;
         }
 
@@ -454,7 +466,7 @@ export function McpServerFormWrapper({
       }
 
       const config: MCPServerConfig = {
-        id: initialData?.id,
+        id: initialData?.id ?? null,
         name: data.name.trim(),
         transport: "streamableHttp",
         url: data.url?.trim() ?? "",
@@ -492,7 +504,9 @@ export function McpServerFormWrapper({
         try {
           const parsed = JSON.parse(rawArgs);
           if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === "string")) {
-            form.setError("args", { message: "Args JSON must be an array of strings" });
+            form.setError("args", {
+              message: "Args JSON must be an array of strings",
+            });
             return;
           }
           args = parsed.map((segment) => sanitizeSegment(segment)).filter((segment) => segment);
@@ -514,7 +528,9 @@ export function McpServerFormWrapper({
         const parsedEnv = JSON.parse(data.env);
         const entries = Object.entries(parsedEnv);
         if (!entries.every(([, value]) => typeof value === "string")) {
-          form.setError("env", { message: "Environment values must be strings" });
+          form.setError("env", {
+            message: "Environment values must be strings",
+          });
           return;
         }
         env = Object.fromEntries(entries) as Record<string, string>;
@@ -528,7 +544,7 @@ export function McpServerFormWrapper({
     const command = sanitizeSegment(data.command ?? "");
 
     const config: MCPServerConfig = {
-      id: initialData?.id,
+      id: initialData?.id ?? null,
       name: data.name.trim(),
       transport: "stdio",
       command,
@@ -544,16 +560,37 @@ export function McpServerFormWrapper({
 
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col gap-4">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col gap-4 w-full">
         <h3 className="text-xl font-semibold">{isEditing ? "Edit Server" : "Add New Server"}</h3>
 
         <McpServerForm form={form} />
 
-        <div className="flex gap-3 justify-end">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
-            Cancel
-          </Button>
-          <Button type="submit">{isLoading ? "Saving..." : "Save Server"}</Button>
+        <div className="flex w-full items-center">
+          {onDelete && (
+            <div className="flex flex-1 justify-start">
+              <Button variant="destructive" onClick={onDelete}>
+                Delete Server
+              </Button>
+            </div>
+          )}
+          <div className="flex grow gap-3 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="cursor-pointer"
+              onClick={onCancel}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="cursor-pointer"
+              disabled={isLoading || !form.formState.isValid}
+            >
+              Save Server
+            </Button>
+          </div>
         </div>
       </form>
     </FormProvider>

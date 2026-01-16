@@ -8,7 +8,7 @@ import {
   PersistedOAuthClientProvider,
   waitForAuthorizationCode,
 } from "./mcp-oauth";
-import { MCPUtils } from "./mcp-utils";
+import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
 import type { ToolSet } from "ai";
@@ -22,9 +22,12 @@ export interface CreateClientOptions {
 
 export class MCPServerClient {
   public mcpClientName: string;
+  public mcpClientId: string;
+
   private mcpClient: experimental_MCPClient;
 
-  private constructor(name: string, client: experimental_MCPClient) {
+  private constructor(id: string, name: string, client: experimental_MCPClient) {
+    this.mcpClientId = id;
     this.mcpClientName = name;
     this.mcpClient = client;
   }
@@ -35,7 +38,7 @@ export class MCPServerClient {
   ): Promise<MCPServerClient> {
     // create streamableHttp transport MCP client
     if (mcpConfig.transport === "streamableHttp") {
-      const serverUrl = MCPUtils.expandHomePath(mcpConfig.url);
+      const serverUrl = expandHomePath(mcpConfig.url);
       const authOrigin = (() => {
         try {
           return new URL(serverUrl).origin;
@@ -53,7 +56,7 @@ export class MCPServerClient {
             headers: mcpConfig.headers,
           },
         });
-        return new MCPServerClient(mcpConfig.name, client);
+        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
       }
 
       // Check for dynamic client registration support for servers
@@ -89,7 +92,7 @@ export class MCPServerClient {
             authProvider,
           },
         });
-        return new MCPServerClient(mcpConfig.name, client);
+        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
       }
 
       if (!oauthEndpoint && mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
@@ -121,7 +124,7 @@ export class MCPServerClient {
               authProvider,
             },
           });
-          return new MCPServerClient(mcpConfig.name, client);
+          return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
         }
       }
 
@@ -133,7 +136,7 @@ export class MCPServerClient {
           headers: mcpConfig.headers,
         },
       });
-      return new MCPServerClient(mcpConfig.name, client);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
     }
 
     // create stdio transport MCP client
@@ -143,11 +146,11 @@ export class MCPServerClient {
           "Unsupported transport configuration: 'command' is required for stdio transports",
         );
       }
-      const command = MCPUtils.sanitizeSegment(mcpConfig.command);
+      const command = sanitizeSegment(mcpConfig.command);
       const args = mcpConfig.args
-        ?.map((arg) => MCPUtils.sanitizeSegment(arg))
+        ?.map((arg) => sanitizeSegment(arg))
         .filter((arg) => arg.length > 0);
-      const cwd = mcpConfig.cwd ? MCPUtils.expandHomePath(mcpConfig.cwd) : undefined;
+      const cwd = mcpConfig.cwd ? expandHomePath(mcpConfig.cwd) : undefined;
       const mcpClient = await experimental_createMCPClient({
         transport: new StdioClientTransport({
           command,
@@ -157,7 +160,7 @@ export class MCPServerClient {
           cwd,
         }),
       });
-      return new MCPServerClient(mcpConfig.name, mcpClient);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, mcpClient);
     }
 
     // create inMemory transport MCP client
@@ -171,7 +174,7 @@ export class MCPServerClient {
       const client = await experimental_createMCPClient({
         transport: clientTransport,
       });
-      return new MCPServerClient(mcpConfig.name, client);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
     }
 
     throw new Error(`Unsupported transport type: ${mcpConfig}`);

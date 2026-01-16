@@ -4,9 +4,7 @@ interface LanguageModelKeyManagerProps {
   isActive: boolean;
 }
 
-export function LanguageModelKeyManager({
-  isActive,
-}: LanguageModelKeyManagerProps) {
+export function LanguageModelKeyManager({ isActive }: LanguageModelKeyManagerProps) {
   return (
     <BaseModelKeyManager
       isActive={isActive}

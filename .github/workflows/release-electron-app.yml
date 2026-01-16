@@ -48,7 +48,6 @@ jobs:
   build-windows:
     needs: check-release
     runs-on: windows-latest
-    
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -72,7 +71,6 @@ jobs:
           MCP_GITHUB_CLIENT_SECRET: ${{ secrets.MCP_GITHUB_CLIENT_SECRET }}
           MCP_CALLBACK_PORT: 8090
           MCP_AUTH_TIMEOUT_MS: 60000
-          GITHUB_APP_INSTALLATION_LINK: https://github.com/apps/ssw-yakshaver-staging/installations/select_target
           PORTAL_API_URL: https://api.yakshaver.ai/api
           AZURE_ENTRA_APP_CLIENT_ID: ${{ secrets.AZURE_ENTRA_APP_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -85,17 +83,38 @@ jobs:
           Add-Content -Path ".env" -Value "`nMCP_GITHUB_CLIENT_SECRET=$env:MCP_GITHUB_CLIENT_SECRET"
           Add-Content -Path ".env" -Value "`nMCP_CALLBACK_PORT=$env:MCP_CALLBACK_PORT"
           Add-Content -Path ".env" -Value "`nMCP_AUTH_TIMEOUT_MS=$env:MCP_AUTH_TIMEOUT_MS"
-          Add-Content -Path ".env" -Value "`nGITHUB_APP_INSTALLATION_LINK=$env:GITHUB_APP_INSTALLATION_LINK"
           Add-Content -Path ".env" -Value "`nPORTAL_API_URL=$env:PORTAL_API_URL"
           Add-Content -Path ".env" -Value "`nAZURE_ENTRA_APP_CLIENT_ID=$env:AZURE_ENTRA_APP_CLIENT_ID"
           Add-Content -Path ".env" -Value "`nAZURE_TENANT_ID=$env:AZURE_TENANT_ID"
           Add-Content -Path ".env" -Value "`nAZURE_AUTH_SCOPE=$env:AZURE_AUTH_SCOPE"
           Add-Content -Path ".env" -Value "`nAZURE_AUTH_CUSTOM_PROTOCOL=$env:AZURE_AUTH_CUSTOM_PROTOCOL"
+          $COMMIT_HASH = git rev-parse HEAD
+          Add-Content -Path ".env" -Value "`nCOMMIT_HASH=$COMMIT_HASH"
 
       - name: Install dependencies
         run: npm ci --prefer-offline
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Prevent youtube-dl-exec from auto-downloading yt-dlp during npm install, which would hit the GitHub API unauthenticated rate limit
+          YOUTUBE_DL_SKIP_DOWNLOAD: true
+
+      # Manual download is needed because the 'youtube-dl-exec' script hits the GitHub API unauthenticated rate limit (60/hr) when attempting to download the binary
+      - name: Install yt-dlp binary manually
+        shell: bash
+        run: |
+          mkdir -p node_modules/youtube-dl-exec/bin
+          PATTERN="yt-dlp.exe"
+          OUTPUT_FILE="node_modules/youtube-dl-exec/bin/yt-dlp.exe"
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+
+          until gh release download --repo yt-dlp/yt-dlp --pattern "$PATTERN" --clobber --output "$OUTPUT_FILE"; do
+            echo "Attempt $ATTEMPT to download yt-dlp binary failed." >&2
+            if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then exit 1; fi
+            ATTEMPT=$((ATTEMPT+1))
+            sleep 5
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
         run: npm ci --prefer-offline
@@ -143,7 +162,6 @@ jobs:
           MCP_GITHUB_CLIENT_SECRET: ${{ secrets.MCP_GITHUB_CLIENT_SECRET }}
           MCP_CALLBACK_PORT: 8090
           MCP_AUTH_TIMEOUT_MS: 60000
-          GITHUB_APP_INSTALLATION_LINK: https://github.com/apps/ssw-yakshaver-staging/installations/select_target
           PORTAL_API_URL: https://api.yakshaver.ai/api
           AZURE_ENTRA_APP_CLIENT_ID: ${{ secrets.AZURE_ENTRA_APP_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -156,20 +174,20 @@ jobs:
           printf "MCP_GITHUB_CLIENT_SECRET=%s\n" "$MCP_GITHUB_CLIENT_SECRET" >> .env
           printf "MCP_CALLBACK_PORT=%s\n" "$MCP_CALLBACK_PORT" >> .env
           printf "MCP_AUTH_TIMEOUT_MS=%s\n" "$MCP_AUTH_TIMEOUT_MS" >> .env
-          printf "GITHUB_APP_INSTALLATION_LINK=%s\n" "$GITHUB_APP_INSTALLATION_LINK" >> .env
           printf "PORTAL_API_URL=%s\n" "$PORTAL_API_URL" >> .env
           printf "AZURE_ENTRA_APP_CLIENT_ID=%s\n" "$AZURE_ENTRA_APP_CLIENT_ID" >> .env
           printf "AZURE_TENANT_ID=%s\n" "$AZURE_TENANT_ID" >> .env
           printf "AZURE_AUTH_SCOPE=%s\n" "$AZURE_AUTH_SCOPE" >> .env
           printf "AZURE_AUTH_CUSTOM_PROTOCOL=%s\n" "$AZURE_AUTH_CUSTOM_PROTOCOL" >> .env
+          COMMIT_HASH=$(git rev-parse HEAD)
+          printf "COMMIT_HASH=%s\n" "$COMMIT_HASH" >> .env
 
       - name: Install dependencies
         run: npm ci --prefer-offline
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
-      # Manual download for macOS is needed because the 'youtube-dl-exec' script for Unix hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find 
-      # the yt-dlp binary. Windows uses an alternate method and avoids this error.
+      # Manual download is needed because the youtube-dl-exec script hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find the yt-dlp binary.
       - name: Install yt-dlp binary manually
         run: |
           mkdir -p node_modules/youtube-dl-exec/bin
@@ -195,7 +213,7 @@ jobs:
             ATTEMPT=$((ATTEMPT+1))
             sleep 5
           done
-          
+
           # Make the binary executable
           chmod +x "$OUTPUT_FILE"
         env:

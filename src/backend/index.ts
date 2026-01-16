@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, dialog, session, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { config } from "./config/env";
@@ -30,6 +30,12 @@ import { RecordingService } from "./services/recording/recording-service";
 
 const isDev = process.env.NODE_ENV === "development";
 
+// Set a custom userData directory in development to avoid conflicts with production
+if (isDev) {
+  const devUserData = join(app.getPath("appData"), "YakShaverDev");
+  app.setPath("userData", devUserData);
+}
+
 // Load .env early (before app.whenReady)
 const loadEnv = () => {
   let envPath: string;
@@ -48,15 +54,110 @@ loadEnv();
 let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
 
+const getAppVersion = (): string => app.getVersion();
+
+const version = getAppVersion();
+const commitHash = config.commitHash();
+const appTitle = `YakShaver`;
+
+const createMenu = (): Menu => {
+  const hashString = commitHash ? `${commitHash}` : "N/A";
+  const template: Electron.MenuItemConstructorOptions[] = [];
+
+  // Add app menu for macOS
+  if (process.platform === "darwin") {
+    template.push({
+      role: "appMenu",
+    });
+  }
+
+  template.push(
+    {
+      label: "File",
+      submenu: [
+        {
+          label: "Quit",
+          accelerator: "CmdOrCtrl+Q",
+          click: () => {
+            app.quit();
+          },
+        },
+      ],
+    },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+      ],
+    },
+  );
+
+  if (process.platform !== "darwin") {
+    template.push({
+      label: "Help",
+      submenu: [
+        {
+          label: "About YakShaver",
+          click: () => {
+            dialog.showMessageBox({
+              type: "info",
+              title: "About YakShaver",
+              message: `${appTitle}`,
+              detail: `Version: ${version}
+Commit: ${hashString}`,
+              buttons: ["OK"],
+            });
+          },
+        },
+      ],
+    });
+  }
+
+  // Add DevTools in development
+  if (isDev) {
+    const viewMenu = template.find((item) => item.label === "View");
+    if (viewMenu && Array.isArray(viewMenu.submenu)) {
+      viewMenu.submenu.push({ type: "separator" }, { role: "toggleDevTools" });
+    }
+  }
+
+  return Menu.buildFromTemplate(template);
+};
+
+const createApplicationMenu = (): void => {
+  const menu = createMenu();
+  Menu.setApplicationMenu(menu);
+};
+
 const createWindow = (): void => {
   // Fix icon path for packaged mode
   const iconPath = isDev
     ? join(__dirname, "../../src/ui/public/icons/icon.png")
     : join(process.resourcesPath, "public/icons/icon.png");
 
+  const title = `YakShaver`;
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    title,
     icon: iconPath,
     show: false,
     webPreferences: {
@@ -188,6 +289,12 @@ if (!gotTheLock) {
   });
 }
 
+app.setAboutPanelOptions({
+  applicationName: appTitle,
+  applicationVersion: version,
+  version: version,
+});
+
 app.whenReady().then(async () => {
   // Initialize database on startup with automatic backup and rollback
   try {
@@ -240,6 +347,10 @@ app.whenReady().then(async () => {
   CameraWindow.getInstance().initialize(isDev);
   CountdownWindow.getInstance().initialize(isDev);
   unregisterEventForwarders = registerEventForwarders();
+
+  // Create application menu
+  createApplicationMenu();
+
   createWindow();
 
   // Process any pending protocol URL that arrived during initialization

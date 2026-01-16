@@ -19,13 +19,11 @@ interface BaseModelKeyManagerProps {
 const PROVIDER_NAMES = Object.keys(LLM_PROVIDER_CONFIGS) as ProviderName[];
 
 const TRANSCRIPTION_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
-  (providerName) =>
-    LLM_PROVIDER_CONFIGS[providerName].defaultTranscriptionModel !== undefined
+  (providerName) => LLM_PROVIDER_CONFIGS[providerName].defaultTranscriptionModel !== undefined,
 ).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
 
 const LANGUAGE_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
-  (providerName) =>
-    LLM_PROVIDER_CONFIGS[providerName].defaultLanguageModel !== undefined
+  (providerName) => LLM_PROVIDER_CONFIGS[providerName].defaultLanguageModel !== undefined,
 ).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
 
 export function BaseModelKeyManager({
@@ -35,13 +33,9 @@ export function BaseModelKeyManager({
   description,
 }: BaseModelKeyManagerProps) {
   const [hasConfig, setHasConfig] = useState(false);
-  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(
-    null
-  );
+  const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentLLMConfig, setCurrentLLMConfig] = useState<LLMConfigV2 | null>(
-    null
-  );
+  const [currentLLMConfig, setCurrentLLMConfig] = useState<LLMConfigV2 | null>(null);
 
   const form = useForm<ModelConfig>({
     defaultValues: {
@@ -61,7 +55,7 @@ export function BaseModelKeyManager({
         processCfg ?? {
           provider: "openai",
           apiKey: "",
-        }
+        },
       );
     } catch (e) {
       console.error(formatErrorMessage(e));
@@ -107,22 +101,24 @@ export function BaseModelKeyManager({
     async (values: ModelConfig) => {
       setIsLoading(true);
       try {
-        await ipcClient.llm.setConfig({
-          ...(currentLLMConfig as LLMConfigV2),
+        const configToSave: LLMConfigV2 = {
+          version: 2,
+          languageModel: currentLLMConfig?.languageModel ?? null,
+          transcriptionModel: currentLLMConfig?.transcriptionModel ?? null,
           [modelType]: values,
-        });
-
+        };
+        await ipcClient.llm.setConfig(configToSave);
         const providerName =
           values.provider === "openai"
             ? "OpenAI"
             : values.provider === "deepseek"
-            ? "DeepSeek"
-            : "Azure OpenAI";
+              ? "DeepSeek"
+              : "Azure OpenAI";
 
         toast.success(
           `${providerName} ${
             modelType === "transcriptionModel" ? "transcription " : ""
-          }configuration saved`
+          }configuration saved`,
         );
         await refreshStatus();
         await checkHealth();
@@ -132,7 +128,7 @@ export function BaseModelKeyManager({
         setIsLoading(false);
       }
     },
-    [checkHealth, refreshStatus, currentLLMConfig, modelType]
+    [checkHealth, refreshStatus, currentLLMConfig, modelType],
   );
 
   const onClear = useCallback(async () => {
@@ -157,9 +153,7 @@ export function BaseModelKeyManager({
     form.reset({
       provider: value,
       apiKey: "",
-      ...(value === "azure"
-        ? { endpoint: "", version: "", deployment: "" }
-        : {}),
+      ...(value === "azure" ? { endpoint: "", version: "", deployment: "" } : {}),
     } as ModelConfig);
   };
 
@@ -178,9 +172,7 @@ export function BaseModelKeyManager({
         hasConfig={hasConfig}
         handleProviderChange={handleProviderChange}
         providerOptions={
-          modelType === "languageModel"
-            ? LANGUAGE_PROVIDER_NAMES
-            : TRANSCRIPTION_PROVIDER_NAMES
+          modelType === "languageModel" ? LANGUAGE_PROVIDER_NAMES : TRANSCRIPTION_PROVIDER_NAMES
         }
         healthStatus={modelType === "languageModel" ? healthStatus : undefined}
       />

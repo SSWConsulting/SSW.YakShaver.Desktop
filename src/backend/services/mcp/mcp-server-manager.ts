@@ -1,6 +1,6 @@
+import { randomUUID } from "node:crypto";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ToolSet } from "ai";
-import { randomUUID } from "node:crypto";
 import type { HealthStatusInfo } from "../../types/index.js";
 import { McpStorage } from "../storage/mcp-storage";
 import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
@@ -25,8 +25,9 @@ export class MCPServerManager {
 
   public async getAllMcpServerClientsAsync(): Promise<MCPServerClient[]> {
     const allConfigs = await MCPServerManager.getAllServerConfigsAsync();
+    const enabledConfigs = allConfigs.filter((c) => c.enabled !== false);
     const results = await Promise.allSettled(
-      allConfigs.map((config) => this.getMcpClientAsync(config.id)),
+      enabledConfigs.map((config) => this.getMcpClientAsync(config.id)),
     );
     return results
       .filter((r) => r.status === "fulfilled" && r.value)
@@ -71,10 +72,10 @@ export class MCPServerManager {
   }
 
   // Get or Create MCP client for a given server name
-  public async getMcpClientAsync(serverIdOrName: string): Promise<MCPServerClient | null> {
-    const config = await MCPServerManager.resolveServerConfigAsync(serverIdOrName);
+  public async getMcpClientAsync(serverId: string): Promise<MCPServerClient | null> {
+    const config = await MCPServerManager.resolveServerConfigAsync(serverId);
     if (!config) {
-      throw new Error(`MCP server '${serverIdOrName}' not found`);
+      throw new Error(`MCP server '${serverId}' not found`);
     }
 
     const cacheKey = config.id;
@@ -134,6 +135,9 @@ export class MCPServerManager {
     }
 
     config.builtin = true;
+    config.enabled = true;
+
+    // Replace any existing entry with same name to keep latest config
     if (!config.id?.trim()) {
       throw new Error(`Internal MCP server '${config.name}' must have a stable id`);
     }
@@ -157,6 +161,7 @@ export class MCPServerManager {
     const result: MCPServerConfig[] = [];
     for (const s of internalServers) {
       if (!seen.has(s.id)) {
+        s.enabled = true; // built-in servers are always enabled
         seen.add(s.id);
         result.push(s);
       }
@@ -190,10 +195,12 @@ export class MCPServerManager {
   }
 
   private static async resolveServerConfigAsync(
-    idOrName: string,
+    serverId: string,
   ): Promise<MCPServerConfig | undefined> {
-    return (await MCPServerManager.getServerConfigByIdAsync(idOrName))
-      ?? (await MCPServerManager.getServerConfigByNameAsync(idOrName));
+    return (
+      (await MCPServerManager.getServerConfigByIdAsync(serverId)) ??
+      (await MCPServerManager.getServerConfigByNameAsync(serverId))
+    );
   }
 
   async addServerAsync(config: MCPServerConfig): Promise<void> {
@@ -207,18 +214,20 @@ export class MCPServerManager {
     if (storedConfigs.some((s) => s.id === server.id)) {
       throw new Error(`Server with id '${server.id}' already exists`);
     }
-    if (storedConfigs.some((s) => s.name === server.name)) {
-      throw new Error(`Server with name '${server.name}' already exists`);
-    }
 
     storedConfigs.push(server);
     await this.saveConfigAsync(storedConfigs);
   }
 
-  async updateServerAsync(serverIdOrName: string, config: MCPServerConfig): Promise<void> {
+  async updateServerAsync(serverId: string, config: MCPServerConfig): Promise<void> {
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
-    const index = storedConfigs.findIndex((s) => s.id === serverIdOrName || s.name === serverIdOrName);
-    if (index === -1) throw new Error(`Server '${serverIdOrName}' not found`);
+    let index = storedConfigs.findIndex((s) => s.id === serverId);
+
+    if (index === -1) {
+      storedConfigs.push(config);
+      index = storedConfigs.findIndex((s) => s.id === serverId);
+    }
+
     const existing = storedConfigs[index];
 
     const merged: MCPServerConfig = {
@@ -228,11 +237,6 @@ export class MCPServerManager {
     } as MCPServerConfig;
 
     MCPServerManager.validateServerConfig(merged);
-
-    // If the name is changing, ensure the new name isn't already used
-    if (merged.name !== existing.name && storedConfigs.some((s) => s.name === merged.name)) {
-      throw new Error(`Server with name '${merged.name}' already exists`);
-    }
 
     // If the name changed OR the config has changed (URL/headers/etc), recreate client
     const configChanged = JSON.stringify(existing) !== JSON.stringify(merged);
@@ -245,10 +249,10 @@ export class MCPServerManager {
     await this.saveConfigAsync(storedConfigs);
   }
 
-  async removeServerAsync(serverIdOrName: string): Promise<void> {
+  async removeServerAsync(serverId: string): Promise<void> {
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
-    const index = storedConfigs.findIndex((s) => s.id === serverIdOrName || s.name === serverIdOrName);
-    if (index === -1) throw new Error(`Server '${serverIdOrName}' not found`);
+    const index = storedConfigs.findIndex((s) => s.id === serverId);
+    if (index === -1) throw new Error(`Server '${serverId}' not found`);
     const existing = storedConfigs[index];
     storedConfigs.splice(index, 1);
 
@@ -283,6 +287,7 @@ export class MCPServerManager {
       return {
         isHealthy: false,
         error: `MCP server client for '${name}' not found`,
+        isChecking: false,
       };
     }
 
@@ -290,6 +295,7 @@ export class MCPServerManager {
 
     return {
       isHealthy: healthResult.healthy,
+      isChecking: false,
       successMessage:
         healthResult.toolCount > 0
           ? `Healthy - ${healthResult.toolCount} tools available`
