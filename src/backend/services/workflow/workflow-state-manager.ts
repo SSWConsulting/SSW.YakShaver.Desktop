@@ -62,9 +62,6 @@ export class WorkflowStateManager {
       createdAt: Date.now(),
     };
 
-    // If it's the idle stage, we reset everything else?
-    // Usually startStage is used for active stages.
-
     this.broadcast();
   }
 
@@ -77,6 +74,14 @@ export class WorkflowStateManager {
       ...this.state[stageKey],
       status: "completed",
       payload: payload ? JSON.stringify(payload) : undefined,
+    };
+    this.broadcast();
+  }
+
+  public skipStage(stageKey: keyof WorkflowState) {
+    this.state[stageKey] = {
+      ...this.state[stageKey],
+      status: "skipped",
     };
     this.broadcast();
   }

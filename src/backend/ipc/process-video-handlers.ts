@@ -140,8 +140,8 @@ export class ProcessVideoIPCHandlers {
     }
 
     const workflowManager = new WorkflowStateManager(shaveId);
-    workflowManager.updateStagePayload("uploading_video", null, "in_progress");
-    workflowManager.updateStagePayload("downloading_video", null, "skipped");
+    workflowManager.startStage("uploading_video");
+    workflowManager.skipStage("downloading_video");
 
     // upload to YouTube
     notify(ProgressStage.UPLOADING_SOURCE, {
@@ -151,7 +151,7 @@ export class ProcessVideoIPCHandlers {
     try {
       const youtubeResult = await this.youtube.uploadVideo(filePath);
 
-      workflowManager.updateStagePayload("uploading_video", youtubeResult.data?.url, "completed");
+      workflowManager.completeStage("uploading_video", youtubeResult.data?.url);
       notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
         sourceOrigin: youtubeResult.origin,
@@ -179,9 +179,9 @@ export class ProcessVideoIPCHandlers {
     };
 
     const workflowManager = new WorkflowStateManager(shaveId);
-    workflowManager.updateStagePayload("uploading_video", null, "skipped");
-    workflowManager.updateStagePayload("downloading_video", null, "in_progress");
-    workflowManager.updateStagePayload("updating_metadata", null, "skipped");
+    workflowManager.skipStage("uploading_video");
+    workflowManager.startStage("downloading_video");
+    workflowManager.skipStage("updating_metadata");
 
     try {
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
@@ -193,7 +193,7 @@ export class ProcessVideoIPCHandlers {
         sourceOrigin: "external",
       });
       const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
-      workflowManager.updateStagePayload("downloading_video", null, "completed");
+      workflowManager.completeStage("downloading_video");
       return await this.processVideoSource(
         {
           filePath,
@@ -226,25 +226,24 @@ export class ProcessVideoIPCHandlers {
 
     try {
       this.lastVideoFilePath = filePath;
-      workflowManager.updateStagePayload("converting_audio", null, "in_progress");
+      workflowManager.startStage("converting_audio");
       notify(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
-      workflowManager.updateStagePayload("converting_audio", null, "completed");
+      workflowManager.completeStage("converting_audio");
 
       const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
 
-      workflowManager.updateStagePayload("transcribing", null, "in_progress");
+      workflowManager.startStage("transcribing");
       notify(ProgressStage.TRANSCRIBING);
       const transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
       const transcriptText = transcript.map((seg) => seg.text).join("");
 
       notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      workflowManager.updateStagePayload("transcribing", transcriptText, "completed");
+      workflowManager.completeStage("transcribing", transcriptText);
 
-      workflowManager.updateStagePayload("analyzing_transcript", null, "in_progress");
-
+      workflowManager.startStage("analyzing_transcript");
       notify(ProgressStage.GENERATING_TASK);
 
       const languageModelProvider = await LanguageModelProvider.getInstance();
@@ -258,9 +257,9 @@ export class ProcessVideoIPCHandlers {
         INITIAL_SUMMARY_PROMPT,
       );
 
-      workflowManager.updateStagePayload("analyzing_transcript", null, "completed");
+      workflowManager.completeStage("analyzing_transcript");
 
-      workflowManager.updateStagePayload("executing_task", null, "in_progress");
+      workflowManager.startStage("executing_task");
 
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
@@ -278,8 +277,6 @@ export class ProcessVideoIPCHandlers {
         videoFilePath: filePath,
         onStep: mcpAdapter.onStep,
       });
-
-      // workflowManager.updateStagePayload("executing_task", null, "completed");
 
       mcpAdapter.complete(mcpResult);
 
@@ -322,11 +319,7 @@ export class ProcessVideoIPCHandlers {
             );
             if (updateResult.success) {
               youtubeResult = updateResult;
-              workflowManager.updateStagePayload(
-                "updating_metadata",
-                metadata.metadata,
-                "completed",
-              );
+              workflowManager.completeStage("updating_metadata", metadata.metadata);
             } else {
               throw new Error(
                 `[ProcessVideo] YouTube metadata update failed: ${updateResult.error || "Unknown error"}`,
