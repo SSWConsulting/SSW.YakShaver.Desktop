@@ -20,6 +20,8 @@ const fillTemplateInputSchema = z.object(fillTemplateInputShape);
 
 type FillTemplateInput = z.infer<typeof fillTemplateInputSchema>;
 
+// Matches placeholders like {{ name }}, {{ user_id }}, {{ item-count }}
+// Names must start with a letter or underscore, followed by letters, digits, underscores, or hyphens
 const PLACEHOLDER_REGEX = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*\}\}/g;
 
 function extractPlaceholders(template: string): string[] {
@@ -69,11 +71,16 @@ Consider:
 - Any additional context provided by the user
 Generate concise, relevant values that fit naturally into the template.`;
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function fillTemplate(template: string, values: Record<string, string>): string {
   let result = template;
 
   for (const [key, value] of Object.entries(values)) {
-    const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g");
+    const escapedKey = escapeRegExp(key);
+    const regex = new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, "g");
     result = result.replace(regex, value);
   }
 
