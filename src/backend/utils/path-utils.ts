@@ -7,6 +7,6 @@ import { app } from "electron";
  */
 export function getIconPath(): string {
   return app.isPackaged
-    ? join(process.resourcesPath, "public/icons/icon.png")
+    ? join(process.resourcesPath, "src/ui/public/icons/icon.png")
     : join(__dirname, "../../../src/ui/public/icons/icon.png");
 }
