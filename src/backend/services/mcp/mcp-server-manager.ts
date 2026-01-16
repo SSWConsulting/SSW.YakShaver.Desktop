@@ -92,17 +92,13 @@ export class MCPServerManager {
    * Disabled servers are excluded in all cases.
    */
   public async collectToolsForSelectedServersAsync(serverIds?: string[]): Promise<ToolSet> {
-    // If no filter provided or empty, use all enabled servers (backward compatibility with existing enabled-only behavior)
     const clients =
       serverIds && serverIds.length > 0
         ? await this.getSelectedMcpServerClientsAsync(serverIds)
         : await this.getAllMcpServerClientsAsync();
 
     if (!clients.length) {
-      const serverInfo =
-        serverIds && serverIds.length > 0
-          ? ` Selected: ${serverIds.join(", ")}.`
-          : " Using all enabled servers.";
+      const serverInfo = this.getServerInfo(serverIds);
       throw new Error(`[MCPServerManager]: No MCP clients available.${serverInfo}`);
     }
 
@@ -114,19 +110,21 @@ export class MCPServerManager {
     );
     const rejectedCount = results.filter((r) => r.status === "rejected").length;
     const toolMaps = fulfilledResults.map((r) => MCPServerManager.normalizeTools(r.value));
-
     const combined = Object.assign({}, ...toolMaps) as ToolSet;
 
     if (Object.keys(combined).length === 0) {
-      const serverInfo =
-        serverIds && serverIds.length > 0
-          ? ` Selected: ${serverIds.join(", ")}.`
-          : " Using all enabled servers.";
+      const serverInfo = this.getServerInfo(serverIds);
       throw new Error(
         `[MCPServerManager]: No tools available. Servers: ${clients.length}, successful: ${fulfilledResults.length}, failed: ${rejectedCount}.${serverInfo}`,
       );
     }
     return combined;
+  }
+
+  private getServerInfo(serverIds?: string[]): string {
+    return serverIds && serverIds.length > 0
+      ? ` Selected: ${serverIds.join(", ")}.`
+      : " Using all enabled servers.";
   }
 
   // Get or Create MCP client for a given server name
