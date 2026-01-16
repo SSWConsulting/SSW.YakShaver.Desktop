@@ -41,7 +41,7 @@ export class TrayManager {
   private buildTrayContextMenu(): Menu {
     return Menu.buildFromTemplate([
       {
-        label: "Show",
+        label: "Open YakShaver",
         click: () => {
           this.showWindow();
         },
@@ -54,7 +54,7 @@ export class TrayManager {
       },
       { type: "separator" },
       {
-        label: "Quit",
+        label: "Quit YakShaver",
         click: () => {
           this.onQuitRequested();
           app.quit();
