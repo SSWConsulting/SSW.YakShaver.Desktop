@@ -13,8 +13,8 @@ Cc:
 <!-- add intended user next to **Hi** -->
 Hi 
 
-{{VIDEO_LINK}}  
-[▶️ Watch the video (xx min xx sec)]({{videoUrl}})
+<!-- duration in the format of xx min xx sec -->
+[▶️ Watch the video ({{duration}})]({{VIDEO_LINK}})
 
 ### Pain
 <!-- Explain the pain you are experiencing -->

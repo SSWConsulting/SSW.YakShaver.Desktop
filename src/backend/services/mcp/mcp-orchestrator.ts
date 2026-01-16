@@ -117,11 +117,11 @@ Video duration:
 - hours: ${outputDuration.hours}
 - minutes: ${outputDuration.minutes} 
 - seconds: ${outputDuration.seconds}
-Embed this URL and duration in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+Follow user requirements STRICTLY about the link formatting rule.`;
       } else {
         systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
 Video duration is currently unknown.
-Embed this URL in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+Follow user requirements STRICTLY about the link formatting rule.`;
       }
     }
 
