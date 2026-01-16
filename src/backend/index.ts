@@ -400,7 +400,7 @@ const cleanup = async () => {
 };
 
 app.on("window-all-closed", async () => {
-  // App continues running in tray - quit via tray menu
+  // See: https://www.electronjs.org/docs/latest/tutorial/tray#minimizing-to-tray
 });
 
 app.on("before-quit", async (event) => {
