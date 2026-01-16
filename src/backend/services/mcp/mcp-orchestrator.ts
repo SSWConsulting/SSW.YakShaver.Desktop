@@ -360,7 +360,7 @@ export class MCPOrchestrator {
 Video duration:
 - totalSeconds: ${outputDuration.totalSeconds}
 - hours: ${outputDuration.hours}
-- minutes: ${outputDuration.minutes} 
+- minutes: ${outputDuration.minutes}
 - seconds: ${outputDuration.seconds}
 Embed this URL and duration in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
       } else {
