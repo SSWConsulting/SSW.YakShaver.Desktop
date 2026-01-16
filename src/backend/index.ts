@@ -424,7 +424,7 @@ const cleanup = async () => {
   }
 };
 
-app.on("window-all-closed", async () => {
+app.on("window-all-closed", () => {
   // App continues running in tray - quit via tray menu
 });
 

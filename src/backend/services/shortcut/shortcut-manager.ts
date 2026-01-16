@@ -13,9 +13,9 @@ export class ShortcutManager {
   }
 
   registerShortcut(shortcut: string): boolean {
-    if (globalShortcut.isRegistered(shortcut)) {
-      globalShortcut.unregister(shortcut);
-    }
+    // if (globalShortcut.isRegistered(shortcut)) {
+    //   globalShortcut.unregister(shortcut);
+    // }
 
     const success = globalShortcut.register(shortcut, () => {
       this.handleShortcutTrigger();

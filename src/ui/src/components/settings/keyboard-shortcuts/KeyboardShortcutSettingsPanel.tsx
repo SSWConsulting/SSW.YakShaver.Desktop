@@ -23,6 +23,7 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [shortcutInput, setShortcutInput] = useState<string>("");
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
+  const FUNCTION_KEY_REGEX = /^F([1-9]|1[0-9]|2[0-4])$/;
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
@@ -118,9 +119,6 @@ export function KeyboardShortcutSettingsPanel({ isActive }: KeyboardShortcutSett
     if (e.altKey) shortcut += "Alt+";
     if (e.shiftKey) shortcut += "Shift+";
     if (e.metaKey) shortcut += "Command+";
-
-    // Validate function keys (F1-F24 only)
-    const FUNCTION_KEY_REGEX = /^F([1-9]|1[0-9]|2[0-4])$/;
 
     // Add the main key if it's not a modifier
     if (!["Control", "Alt", "Shift", "Meta"].includes(key)) {
