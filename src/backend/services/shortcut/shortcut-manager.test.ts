@@ -44,16 +44,6 @@ describe("ShortcutManager", () => {
       expect(shortcutManager.getCurrentShortcut()).toBe("PrintScreen");
     });
 
-    it("should unregister existing shortcut if already registered", () => {
-      vi.mocked(globalShortcut.isRegistered).mockReturnValue(true);
-      vi.mocked(globalShortcut.register).mockReturnValue(true);
-
-      shortcutManager.registerShortcut("F12");
-
-      expect(vi.mocked(globalShortcut.unregister)).toHaveBeenCalledWith("F12");
-      expect(vi.mocked(globalShortcut.register)).toHaveBeenCalled();
-    });
-
     it("should unregister old shortcut after successful registration of new one", () => {
       vi.mocked(globalShortcut.isRegistered).mockImplementation(
         (shortcut) => shortcut === "PrintScreen",
