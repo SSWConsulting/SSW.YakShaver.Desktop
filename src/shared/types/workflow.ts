@@ -6,7 +6,6 @@ export enum ProgressStage {
   ANALYZING_TRANSCRIPT = "analyzing_transcript",
   EXECUTING_TASK = "executing_task",
   UPDATING_METADATA = "updating_metadata",
-  FINAL_STEP = "final_step",
 }
 
 export type WorkflowStatus = "not_started" | "in_progress" | "completed" | "failed" | "skipped";
@@ -30,5 +29,4 @@ export interface WorkflowState {
   analyzing_transcript: WorkflowStep;
   executing_task: WorkflowStep;
   updating_metadata: WorkflowStep;
-  final_step: WorkflowStep;
 }

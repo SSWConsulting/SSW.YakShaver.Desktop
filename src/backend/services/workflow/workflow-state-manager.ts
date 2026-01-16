@@ -31,7 +31,6 @@ export class WorkflowStateManager {
       analyzing_transcript: createStep(ProgressStage.ANALYZING_TRANSCRIPT),
       executing_task: createStep(ProgressStage.EXECUTING_TASK),
       updating_metadata: createStep(ProgressStage.UPDATING_METADATA),
-      final_step: createStep(ProgressStage.FINAL_STEP),
     };
   }
 
@@ -94,18 +93,6 @@ export class WorkflowStateManager {
       status: "failed",
       payload: JSON.stringify({ error: errorMessage }),
     };
-
-    // Also set the global error state
-    this.state.final_step = {
-      ...this.state.final_step,
-      status: "in_progress", // Error is active
-      createdAt: Date.now(),
-      payload: JSON.stringify({
-        message: errorMessage,
-        failedStage: stageKey,
-      }),
-    };
-
     this.broadcast();
   }
 

@@ -12,7 +12,6 @@ const STEP_LABELS: Record<keyof WorkflowState, string> = {
   analyzing_transcript: "Analyzing Transcript",
   executing_task: "Executing Task",
   updating_metadata: "Updating Metadata",
-  final_step: "Final Step",
 };
 
 const STEP_ORDER: (keyof WorkflowState)[] = [
@@ -23,7 +22,6 @@ const STEP_ORDER: (keyof WorkflowState)[] = [
   "analyzing_transcript",
   "executing_task",
   "updating_metadata",
-  "final_step",
 ];
 
 const StatusIcon = ({ status }: { status: WorkflowStep["status"] }) => {

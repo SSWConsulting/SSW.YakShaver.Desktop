@@ -304,7 +304,7 @@ export function StageWithContentNeo({
         );
   }
   
-  if (stage === "analyzing_transcript" || stage === "executing_task") {
+  if (stage === "analyzing_transcript" || stage === "executing_task" ) {
       // Could be intermediate output or other json
       if (payload.intermediateOutput) {
            return (

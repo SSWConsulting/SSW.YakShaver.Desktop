@@ -167,7 +167,7 @@ export class ProcessVideoIPCHandlers {
       );
     } catch (uploadError) {
       const errorMessage = formatErrorMessage(uploadError);
-      workflowManager.updateStagePayload("uploading_video", errorMessage, "failed");
+      workflowManager.failStage("uploading_video", errorMessage);
       return { success: false, error: errorMessage };
     }
   }
@@ -204,7 +204,7 @@ export class ProcessVideoIPCHandlers {
       );
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
-      workflowManager.updateStagePayload("downloading_video", errorMessage, "failed");
+      workflowManager.failStage("downloading_video", errorMessage);
       notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -293,7 +293,7 @@ export class ProcessVideoIPCHandlers {
           console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
           const errorMessage = formatErrorMessage(portalResult.error);
           notify(ProgressStage.ERROR, { error: errorMessage });
-          workflowManager.updateStagePayload("updating_metadata", null, "failed");
+          workflowManager.failStage("updating_metadata", errorMessage);
         }
       }
 
@@ -334,6 +334,7 @@ export class ProcessVideoIPCHandlers {
             }
           } catch (metadataError) {
             console.warn("Metadata update failed", metadataError);
+            workflowManager.failStage("updating_metadata", formatErrorMessage(metadataError));
             metadataUpdateError = formatErrorMessage(metadataError);
           }
         }
