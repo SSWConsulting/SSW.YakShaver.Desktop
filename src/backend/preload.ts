@@ -182,6 +182,11 @@ const electronAPI = {
       ipcRenderer.on("stop-recording-request", listener);
       return () => ipcRenderer.removeListener("stop-recording-request", listener);
     },
+    onOpenSourcePicker: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on("open-source-picker", listener);
+      return () => ipcRenderer.removeListener("open-source-picker", listener);
+    },
   },
   controlBar: {
     onTimeUpdate: (callback: (time: string) => void) => {
