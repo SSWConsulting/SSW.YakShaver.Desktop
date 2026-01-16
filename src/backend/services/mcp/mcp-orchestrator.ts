@@ -99,7 +99,6 @@ export class MCPOrchestrator {
 
     const videoUrl = videoUploadResult?.data?.url;
     const duration = videoUploadResult?.data?.duration;
-    console.log("Video upload result in orchestrator:", videoUploadResult);
     if (videoUrl) {
       const isValidDuration = typeof duration === "number" && duration > 0;
 

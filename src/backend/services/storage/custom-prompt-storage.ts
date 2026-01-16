@@ -33,35 +33,18 @@ You MUST follow the target repository's GitHub issue templates exactly using the
 - https://github.com/SSWConsulting/SSW.YakShaver
 
 3) Discover and SELECT the best matching issue template (MANDATORY):
-a) List all available templates:
-   - Use GitHub tools to list contents of ".github/ISSUE_TEMPLATE/" directory in the target repository
-   - Common template files: bug.md, feature.md, feature_request.md, 1-bug.md, 2-feature.md, etc.
-   - Templates contain frontmatter with "name", "about", "title", "labels" fields
-
-b) Analyze the video/transcript context:
-   - Understand what the user is reporting: bug, feature request, improvement, question, etc.
-   - Identify key indicators:
-     * Bug: errors, crashes, unexpected behavior, "doesn't work", "broken"
-     * Feature: new functionality, "add", "implement", "create", "need"
-     * Improvement: enhancement, optimization, "better", "improve"
-     * Documentation: docs, README, guide, explanation
-
-c) Select the BEST matching template:
-   - Read each template's frontmatter to understand its purpose (use GitHub__get_file_contents)
-   - Match the context to the template's "name" and "about" fields
-   - Choose the template that best fits the user's intent
-   - Common mappings:
-     * Error/crash/not working → bug template
-     * New functionality/capability → feature template
-     * Enhancement/optimization → improvement/enhancement template
-     * If unsure, prefer bug template for issues, feature template for requests
-
-d) Once you've selected the template, note its full path (e.g., ".github/ISSUE_TEMPLATE/1-bug.md")
+- Use your tools to locate issue templates in the target repo (usually .github/ISSUE_TEMPLATE/*.md).
+- Pick the template that matches the context (e.g., bug vs feature).
+  - Common mappings:
+    * Error/crash/not working → bug template
+    * New functionality/capability → feature template
+    * Enhancement/optimization → improvement/enhancement template
+    * If unsure, prefer bug template for issues, feature template for requests
+- Once selected the template, note its full path (e.g., ".github/ISSUE_TEMPLATE/1-bug.md")
 
 4) PARSE the selected template (MANDATORY - Use Template Tools):
 **PREFERRED METHOD - Use fetch_and_parse_github_template (RECOMMENDED)**:
 - This tool fetches AND parses the template in ONE atomic operation
-- It directly calls GitHub API and parses internally - no text modification possible
 - Call: fetch_and_parse_github_template({ owner: "repoOwner", repo: "repoName", templatePath: "SELECTED_TEMPLATE_PATH" })
 - Example: fetch_and_parse_github_template({ owner: "SSWConsulting", repo: "SSW.YakShaver.Desktop", templatePath: ".github/ISSUE_TEMPLATE/1-bug.md" })
 - The result includes frontmatter, blocks (with preamble and sections), placeholders, and fixedElements ready to use

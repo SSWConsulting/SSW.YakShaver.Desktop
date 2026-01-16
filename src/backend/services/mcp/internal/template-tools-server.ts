@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import "isomorphic-fetch";
 import matter from "gray-matter";
 import { z } from "zod/v4";
-import { GitHubTokenStorage } from "../../storage/github-token-storage.js";
+import { MCPServerManager } from "../mcp-server-manager.js";
 import type { MCPServerConfig } from "../types.js";
 import type { InternalMcpServerRegistration } from "./internal-server-types.js";
 
@@ -204,10 +203,13 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
     },
     async (input: ParseInput) => {
       const { templateContent } = parseInputSchema.parse(input);
+      console.log(`[MCP] parse_github_template called with ${templateContent.length} chars`);
 
       try {
         const parsed = parseTemplateStructure(templateContent);
-        // Return simplified output structure (omit duplicate sections array in JSON output)
+        console.log(
+          `[MCP] parse_github_template success: ${parsed.blocks?.length || 0} blocks, ${parsed.placeholders.length} placeholders`,
+        );
         return {
           content: [
             {
@@ -226,6 +228,9 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
           ],
         };
       } catch (error) {
+        console.error(
+          `[MCP] parse_github_template failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
         throw new Error(
           `Failed to parse template: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -242,9 +247,15 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
     },
     async (input: FillInput) => {
       const { templateStructure, fillData } = fillInputSchema.parse(input);
+      console.log(
+        `[MCP] fill_github_template called with title: "${fillData.title}" and ${Object.keys(fillData.sections).length} sections`,
+      );
 
       try {
         const filled = fillTemplate(templateStructure, fillData);
+        console.log(
+          `[MCP] fill_github_template success: title length ${filled.title.length}, body length ${filled.body.length}, ${filled.labels.length} labels`,
+        );
         return {
           content: [
             {
@@ -254,6 +265,9 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
           ],
         };
       } catch (error) {
+        console.error(
+          `[MCP] fill_github_template failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
         throw new Error(
           `Failed to fill template: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -270,9 +284,15 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
     },
     async (input: ValidateInput) => {
       const { templateStructure, filledContent } = validateInputSchema.parse(input);
+      console.log(
+        `[MCP] validate_template_completeness called with title: "${filledContent.title}"`,
+      );
 
       try {
         const validation = validateFilledTemplate(templateStructure, filledContent);
+        console.log(
+          `[MCP] validate_template_completeness result: valid=${validation.isValid}, errors=${validation.errors.length}, warnings=${validation.warnings.length}`,
+        );
         return {
           content: [
             {
@@ -282,6 +302,9 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
           ],
         };
       } catch (error) {
+        console.error(
+          `[MCP] validate_template_completeness failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
         throw new Error(
           `Failed to validate template: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -300,13 +323,20 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
     },
     async (input: FetchAndParseInput) => {
       const { owner, repo, templatePath } = fetchAndParseInputSchema.parse(input);
+      console.log(`[MCP] fetch_and_parse_github_template called: ${owner}/${repo}/${templatePath}`);
 
       try {
         // Fetch template directly from GitHub API
         const templateContent = await fetchGitHubFileContent(owner, repo, templatePath);
+        console.log(
+          `[MCP] fetch_and_parse_github_template fetched ${templateContent.length} chars`,
+        );
 
         // Parse immediately without any LLM intervention
         const parsed = parseTemplateStructure(templateContent);
+        console.log(
+          `[MCP] fetch_and_parse_github_template parsed: ${parsed.blocks?.length || 0} blocks, ${parsed.placeholders.length} placeholders`,
+        );
 
         // Return simplified output structure (omit duplicate sections array in JSON output)
         return {
@@ -331,6 +361,9 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
           ],
         };
       } catch (error) {
+        console.error(
+          `[MCP] fetch_and_parse_github_template failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
         throw new Error(
           `Failed to fetch and parse template: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -357,6 +390,7 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
  * Parse template content to extract structure, placeholders, and metadata
  */
 function parseTemplateStructure(templateContent: string): ParsedTemplateStructure {
+  console.log(`[parseTemplateStructure] Parsing template with ${templateContent.length} chars`);
   // Parse YAML frontmatter
   const { data: frontmatter, content: markdownBody } = matter(templateContent);
 
@@ -495,6 +529,9 @@ function parseTemplateStructure(templateContent: string): ParsedTemplateStructur
     fixedElements.videoPlaceholder = "{{VIDEO_LINK}}";
   }
 
+  console.log(
+    `[parseTemplateStructure] Done: ${blocks.length} blocks, ${placeholders.size} placeholders, fixedElements: ${JSON.stringify(fixedElements)}`,
+  );
   return {
     frontmatter,
     sections, // Keep internally for fillTemplate fallback logic
@@ -519,6 +556,7 @@ function fillTemplate(
     preamble?: string; // Optional: override preamble content
   },
 ): FilledTemplate {
+  console.log(`[fillTemplate] Filling template with title: "${fillData.title}"`);
   const validationErrors: string[] = [];
 
   // Construct title with emoji/prefix from template
@@ -632,6 +670,9 @@ function fillTemplate(
     labels.push(...fillData.additionalLabels);
   }
 
+  console.log(
+    `[fillTemplate] Done: title="${fullTitle}", body=${body.length} chars, ${labels.length} labels`,
+  );
   return {
     title: fullTitle,
     body,
@@ -647,6 +688,7 @@ function validateFilledTemplate(
   templateStructure: ParsedTemplateStructure,
   filledContent: { title: string; body: string; labels: string[] },
 ): ValidationResult {
+  console.log(`[validateFilledTemplate] Validating template with title: "${filledContent.title}"`);
   const errors: string[] = [];
   const warnings: string[] = [];
   const missingPlaceholders: string[] = [];
@@ -723,6 +765,9 @@ function validateFilledTemplate(
     }
   }
 
+  console.log(
+    `[validateFilledTemplate] Done: valid=${errors.length === 0}, errors=${errors.length}, warnings=${warnings.length}`,
+  );
   return {
     isValid: errors.length === 0,
     errors,
@@ -740,40 +785,93 @@ function escapeRegex(str: string): string {
 }
 
 /**
- * Fetch file content directly from GitHub API
- * This bypasses the LLM to ensure template content is never modified
+ * Fetch file content by calling GitHub MCP's get_file_contents tool directly
+ * This reuses the existing GitHub MCP OAuth authentication
  */
 async function fetchGitHubFileContent(owner: string, repo: string, path: string): Promise<string> {
-  const githubTokenStorage = GitHubTokenStorage.getInstance();
-  const token = await githubTokenStorage.getToken();
+  console.log(`[fetchGitHubFileContent] Fetching ${owner}/${repo}/${path} via GitHub MCP tool`);
 
-  const headers: Record<string, string> = {
-    Accept: "application/vnd.github.v3.raw",
-    "User-Agent": "SSW-YakShaver-Desktop",
-  };
+  try {
+    const serverManager = await MCPServerManager.getInstanceAsync();
+    // Use the actual GitHub MCP server ID
+    const GITHUB_MCP_SERVER_ID = "f12980ac-f80c-47e0-b4ac-181a54122d61";
+    const githubClient = await serverManager.getMcpClientAsync(GITHUB_MCP_SERVER_ID);
 
-  if (token) {
-    // Using "Bearer" to be consistent with the rest of the codebase
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
-  const response = await fetch(url, { headers });
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error(`Template not found: ${owner}/${repo}/${path}`);
-    }
-    if (response.status === 401 || response.status === 403) {
-      const errorBody = await response.text().catch(() => "");
+    if (!githubClient) {
+      console.warn("[fetchGitHubFileContent] GitHub MCP client not found or not connected");
       throw new Error(
-        `GitHub authentication failed. Please check your GitHub token. Status: ${response.status}${errorBody ? ` - ${errorBody}` : ""}`,
+        "GitHub MCP server not found. Please ensure GitHub MCP server is configured and connected.",
       );
     }
-    throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
-  }
 
-  const content = await response.text();
-  return content;
+    // Get the tools from the GitHub MCP server
+    const tools = await githubClient.listToolsAsync();
+    const getFileContentsTool = tools["get_file_contents"];
+
+    if (!getFileContentsTool) {
+      console.error("[fetchGitHubFileContent] get_file_contents tool not found in GitHub MCP");
+      throw new Error(
+        "GitHub MCP 'get_file_contents' tool not available. Please check GitHub MCP server configuration.",
+      );
+    }
+
+    if (!getFileContentsTool.execute) {
+      console.error("[fetchGitHubFileContent] get_file_contents tool has no execute method");
+      throw new Error(
+        "GitHub MCP 'get_file_contents' tool is not executable. This may indicate an internal error.",
+      );
+    }
+
+    console.log(`[fetchGitHubFileContent] Calling get_file_contents tool`);
+
+    // Execute the tool - the tool.execute function handles the MCP call internally
+    const result = await getFileContentsTool.execute(
+      { owner, repo, path },
+      { messages: [], toolCallId: `fetch-template-${randomUUID()}` },
+    );
+
+    console.log(`[fetchGitHubFileContent] Tool result type: ${typeof result}`);
+
+    // Parse the result - GitHub MCP returns file content
+    // The result can be a string (raw content) or an object with content property
+    let content: string;
+
+    if (typeof result === "string") {
+      try {
+        const parsed = JSON.parse(result) as { content?: string; encoding?: string };
+        if (parsed.content && parsed.encoding === "base64") {
+          content = Buffer.from(parsed.content, "base64").toString("utf-8");
+        } else if (parsed.content) {
+          content = parsed.content;
+        } else {
+          content = result;
+        }
+      } catch {
+        content = result;
+      }
+    } else if (result && typeof result === "object") {
+      const resultObj = result as { content?: string; encoding?: string; text?: string };
+      if (resultObj.content && resultObj.encoding === "base64") {
+        content = Buffer.from(resultObj.content, "base64").toString("utf-8");
+      } else if (resultObj.content) {
+        content = resultObj.content;
+      } else if (resultObj.text) {
+        content = resultObj.text;
+      } else {
+        content = JSON.stringify(result);
+      }
+    } else {
+      throw new Error(`Unexpected result format from get_file_contents: ${typeof result}`);
+    }
+
+    console.log(`[fetchGitHubFileContent] Success: fetched ${content.length} chars via GitHub MCP`);
+    return content;
+  } catch (error) {
+    console.error(
+      `[fetchGitHubFileContent] Failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    throw new Error(
+      `Failed to fetch file from GitHub: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
