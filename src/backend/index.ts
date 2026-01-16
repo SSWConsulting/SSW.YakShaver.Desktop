@@ -27,6 +27,8 @@ import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { TrayManager } from "./services/tray/tray-manager";
+import { getIconPath } from "./utils/path-utils";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -53,6 +55,11 @@ loadEnv();
 
 let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
+let isQuitting: boolean = false;
+
+const trayManager = new TrayManager(() => {
+  isQuitting = true;
+});
 
 const getAppVersion = (): string => app.getVersion();
 
@@ -147,18 +154,13 @@ const createApplicationMenu = (): void => {
 };
 
 const createWindow = (): void => {
-  // Fix icon path for packaged mode
-  const iconPath = isDev
-    ? join(__dirname, "../../src/ui/public/icons/icon.png")
-    : join(process.resourcesPath, "public/icons/icon.png");
-
   const title = `YakShaver`;
 
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     title,
-    icon: iconPath,
+    icon: getIconPath(),
     show: false,
     webPreferences: {
       nodeIntegration: false,
@@ -178,6 +180,14 @@ const createWindow = (): void => {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
+  });
+
+  mainWindow.on("close", (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow?.hide();
+      return false;
+    }
   });
 
   mainWindow.on("closed", () => {
@@ -350,8 +360,12 @@ app.whenReady().then(async () => {
 
   // Create application menu
   createApplicationMenu();
-
+  trayManager.createTray();
   createWindow();
+
+  if (mainWindow) {
+    trayManager.setMainWindow(mainWindow);
+  }
 
   // Process any pending protocol URL that arrived during initialization
   if (pendingProtocolUrl && mainWindow) {
@@ -372,11 +386,10 @@ app.whenReady().then(async () => {
 
 tmp.setGracefulCleanup();
 
-let isQuitting = false;
-
 const cleanup = async () => {
   if (isQuitting) return;
   isQuitting = true;
+  trayManager.destroy();
 
   unregisterEventForwarders?.();
   try {
@@ -387,8 +400,7 @@ const cleanup = async () => {
 };
 
 app.on("window-all-closed", async () => {
-  await cleanup();
-  if (process.platform !== "darwin") app.quit();
+  // App continues running in tray - quit via tray menu
 });
 
 app.on("before-quit", async (event) => {
