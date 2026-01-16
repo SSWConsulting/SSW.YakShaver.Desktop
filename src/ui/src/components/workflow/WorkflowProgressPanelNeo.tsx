@@ -44,7 +44,7 @@ const StatusIcon = ({ status }: { status: WorkflowStep["status"] }) => {
 function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
   const [isExpanded, setIsExpanded] = useState(false);
   
-  let parsedPayload: any = step.payload;
+  let parsedPayload: unknown = step.payload;
   let hasPayload = false;
 
   try {
