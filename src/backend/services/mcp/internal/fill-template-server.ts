@@ -24,9 +24,8 @@ const PLACEHOLDER_REGEX = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*\}\}/g;
 
 function extractPlaceholders(template: string): string[] {
   const placeholders = new Set<string>();
-  let match: RegExpExecArray | null;
 
-  while ((match = PLACEHOLDER_REGEX.exec(template)) !== null) {
+  for (const match of template.matchAll(PLACEHOLDER_REGEX)) {
     placeholders.add(match[1]);
   }
 
