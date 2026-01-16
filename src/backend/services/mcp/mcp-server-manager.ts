@@ -110,7 +110,7 @@ export class MCPServerManager {
       clients.map((client) => client.listToolsWithServerPrefixAsync()),
     );
     const fulfilledResults = results.filter(
-      (r): r is PromiseFulfilledResult<unknown> => r.status === "fulfilled",
+      (r): r is PromiseFulfilledResult<ToolSet> => r.status === "fulfilled",
     );
     const rejectedCount = results.filter((r) => r.status === "rejected").length;
     const toolMaps = fulfilledResults.map((r) => MCPServerManager.normalizeTools(r.value));
