@@ -1,6 +1,5 @@
 import { BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../../ipc/channels";
-// import { IPC_CHANNELS } from "../../preload";
 import {
   ProgressStage,
   WorkflowState,
@@ -12,7 +11,6 @@ export class WorkflowStateManager {
   private state: WorkflowState;
 
   public constructor(shaveId?: string) {
-    // assign a GUID ID to this workflow instance
     this.shaveId = shaveId ?? crypto.randomUUID();
     this.state = this.initiateStates();
   }
@@ -69,7 +67,7 @@ export class WorkflowStateManager {
    * Complete a specific stage in the workflow.
    * Sets status to 'completed' and attaches payload.
    */
-  public completeStage(stageKey: keyof WorkflowState, payload?: any) {
+  public completeStage(stageKey: keyof WorkflowState, payload?: unknown) {
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "completed",

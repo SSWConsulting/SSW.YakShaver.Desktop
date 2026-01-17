@@ -7,7 +7,7 @@ import type {
   UpdateShaveData,
 } from "./db/schema";
 import type { VideoUploadResult } from "./services/auth/types";
-import type { ToolApprovalDecision } from "../shared/types/mcp.ts";
+import type { ToolApprovalDecision } from "../shared/types/mcp";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 import type { ShaveStatus } from "./types";

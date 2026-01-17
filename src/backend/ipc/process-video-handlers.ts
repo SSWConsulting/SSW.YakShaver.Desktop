@@ -257,7 +257,7 @@ export class ProcessVideoIPCHandlers {
         INITIAL_SUMMARY_PROMPT,
       );
 
-      workflowManager.completeStage("analyzing_transcript");
+      workflowManager.completeStage("analyzing_transcript", intermediateOutput);
 
       workflowManager.startStage("executing_task");
 

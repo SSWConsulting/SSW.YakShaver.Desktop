@@ -233,7 +233,6 @@ export function StageWithContentNeo({
               </div>
             )}
             {step.type === MCPStepType.REASONING && step.reasoning && (
-                // @ts-ignore
               <ReasoningStep reasoning={step.reasoning} />
             )}
             {step.type === MCPStepType.TOOL_CALL && (
