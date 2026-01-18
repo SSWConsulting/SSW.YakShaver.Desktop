@@ -42,15 +42,11 @@ export function WorkflowProgressPanel() {
           </CardHeader>
           <CardContent className="space-y-2">
             {STEP_ORDER.map((stepKey) => (
-              <WorkflowStepCard
-                key={stepKey}
-                step={state[stepKey]}
-                label={STEP_LABELS[stepKey]}
-              />
+              <WorkflowStepCard key={stepKey} step={state[stepKey]} label={STEP_LABELS[stepKey]} />
             ))}
           </CardContent>
         </Card>
       </div>
-  );
+    );
   }
 }

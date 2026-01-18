@@ -33,13 +33,7 @@ const STATUS_CONFIG = {
   },
 } as const;
 
-function StatusIcon({ 
-  status, 
-  className 
-}: { 
-  status: WorkflowStep["status"]; 
-  className?: string; 
-}) {
+function StatusIcon({ status, className }: { status: WorkflowStep["status"]; className?: string }) {
   const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
   const Icon = config.icon;
 
@@ -58,8 +52,8 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
 
     try {
       const parsed = JSON.parse(step.payload);
-      const isValid = parsed !== null && 
-        (typeof parsed === 'object' ? Object.keys(parsed).length > 0 : true);
+      const isValid =
+        parsed !== null && (typeof parsed === "object" ? Object.keys(parsed).length > 0 : true);
       return { hasPayload: isValid, parsedPayload: parsed };
     } catch {
       return { hasPayload: !!step.payload, parsedPayload: step.payload };
@@ -68,7 +62,8 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
 
   if (step.status === "skipped") return null;
 
-  const config = STATUS_CONFIG[step.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
+  const config =
+    STATUS_CONFIG[step.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
 
   const toggleExpand = () => {
     if (hasPayload) setIsExpanded(!isExpanded);
@@ -82,12 +77,7 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
   );
 
   return (
-    <Card 
-      className={cn(
-        "rounded-lg p-3 gap-0 transition-all", 
-        config.containerClass
-      )}
-    >
+    <Card className={cn("rounded-lg p-3 gap-0 transition-all", config.containerClass)}>
       {hasPayload ? (
         <Button
           variant="ghost"
@@ -109,7 +99,7 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
       {isExpanded && hasPayload && (
         <CardContent className="p-0 pt-2">
           <div className="overflow-x-auto rounded bg-black/20 p-2 text-white/80">
-             <StageWithContent stage={step.stage} payload={parsedPayload} />
+            <StageWithContent stage={step.stage} payload={parsedPayload} />
           </div>
         </CardContent>
       )}

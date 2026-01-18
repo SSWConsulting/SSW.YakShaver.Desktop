@@ -1,11 +1,6 @@
 import { AlertTriangle, Check, Play, Wrench, X } from "lucide-react";
 import type React from "react";
-import {
-  type MCPStep,
-  MCPStepType,
-  type MetadataPreview,
-  type VideoChapter,
-} from "../../types";
+import { type MCPStep, MCPStepType, type MetadataPreview, type VideoChapter } from "../../types";
 import { deepParseJson } from "../../utils";
 import { ReasoningStep } from "./ReasoningStep";
 
@@ -18,17 +13,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-const handleDetailsToggle =
-  (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
-    const details = e.currentTarget;
-    if (details.open) {
-      const pre = details.querySelector("pre");
-      if (pre && !pre.dataset.parsed) {
-        pre.textContent = JSON.stringify(deepParseJson(data), null, 2);
-        pre.dataset.parsed = "true";
-      }
+const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
+  const details = e.currentTarget;
+  if (details.open) {
+    const pre = details.querySelector("pre");
+    if (pre && !pre.dataset.parsed) {
+      pre.textContent = JSON.stringify(deepParseJson(data), null, 2);
+      pre.dataset.parsed = "true";
     }
-  };
+  }
+};
 
 function ToolResultError({ error }: { error: string }) {
   return (
@@ -69,20 +63,12 @@ function ToolDeniedNotice({ message }: { message?: string }) {
   return (
     <div className="text-red-400 flex items-center gap-2">
       <X className="w-3 h-3" />
-      <span className="whitespace-pre-line">
-        {message ?? "Tool execution denied"}
-      </span>
+      <span className="whitespace-pre-line">{message ?? "Tool execution denied"}</span>
     </div>
   );
 }
 
-function MetadataPreviewCard({
-  preview,
-  error,
-}: {
-  preview?: MetadataPreview;
-  error?: string;
-}) {
+function MetadataPreviewCard({ preview, error }: { preview?: MetadataPreview; error?: string }) {
   if (error) {
     return (
       <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm">
@@ -127,10 +113,7 @@ function MetadataPreviewCard({
         <MetadataField label="Chapters">
           <div className="space-y-1">
             {preview.chapters.map((chapter) => (
-              <ChapterRow
-                key={`${chapter.timestamp}-${chapter.label}`}
-                chapter={chapter}
-              />
+              <ChapterRow key={`${chapter.timestamp}-${chapter.label}`} chapter={chapter} />
             ))}
           </div>
         </MetadataField>
@@ -139,13 +122,7 @@ function MetadataPreviewCard({
   );
 }
 
-function MetadataField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function MetadataField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="p-3 bg-black/30 border border-white/10 rounded-md space-y-2">
       <p className="text-xs uppercase tracking-wide text-white/50">{label}</p>
@@ -184,11 +161,7 @@ function ToolCallStep({
       <div className="font-medium flex items-center gap-2">
         <Wrench className="w-4 h-4" />
         Calling tool: {toolName}
-        {serverName && (
-          <span className="text-zinc-400 text-xs ml-2">
-            (from {serverName})
-          </span>
-        )}
+        {serverName && <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>}
       </div>
       {hasArgs && (
         <details className="ml-4 text-xs" onToggle={handleDetailsToggle(args)}>
@@ -204,17 +177,14 @@ function ToolCallStep({
   );
 }
 
-export function StageWithContent({
-  stage,
-  payload,
-}: StageWithContentProps) {
+export function StageWithContent({ stage, payload }: StageWithContentProps) {
   // If no payload or empty object, nothing to render
   if (!payload) return null;
-  
+
   // Handing executing_task (MCP Steps)
   if (stage === "executing_task" && isRecord(payload) && Array.isArray(payload.steps)) {
     const mcpSteps = payload.steps as MCPStep[];
-    
+
     return (
       <div className="max-h-[400px] overflow-y-auto space-y-2">
         {mcpSteps.map((step, idx) => (
@@ -275,51 +245,51 @@ export function StageWithContent({
     );
   }
 
-  if (stage === "transcribing" && typeof payload === 'string') {
-      return (
-         <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
-             {payload}
-         </div>
-      );
+  if (stage === "transcribing" && typeof payload === "string") {
+    return <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">{payload}</div>;
   }
-  
-  if (stage === "transcribing" && isRecord(payload) && typeof payload.transcriptText === 'string') {
-      return (
-          <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
-              {payload.transcriptText}
-          </div>
-      );
+
+  if (stage === "transcribing" && isRecord(payload) && typeof payload.transcriptText === "string") {
+    return (
+      <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
+        {payload.transcriptText}
+      </div>
+    );
   }
 
   if (stage === "updating_metadata" && isRecord(payload)) {
-      const preview = isRecord(payload.metadataPreview) ? (payload.metadataPreview as unknown as MetadataPreview) : undefined;
-      const error = typeof payload.metadataUpdateError === 'string' ? payload.metadataUpdateError : (typeof payload.error === 'string' ? payload.error : undefined);
-      
-      if (preview || error) {
-        return (
-            <MetadataPreviewCard
-              preview={preview}
-              error={error}
-            />
-          );
-      }
+    const preview = isRecord(payload.metadataPreview)
+      ? (payload.metadataPreview as unknown as MetadataPreview)
+      : undefined;
+    const error =
+      typeof payload.metadataUpdateError === "string"
+        ? payload.metadataUpdateError
+        : typeof payload.error === "string"
+          ? payload.error
+          : undefined;
+
+    if (preview || error) {
+      return <MetadataPreviewCard preview={preview} error={error} />;
+    }
   }
-  
-  if (stage === "analyzing_transcript" || stage === "executing_task" ) {
-      // Could be intermediate output or other json
-      if (isRecord(payload) && payload.intermediateOutput) {
-           return (
-             <div className="text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
-                {typeof payload.intermediateOutput === 'string' ? payload.intermediateOutput : JSON.stringify(payload.intermediateOutput, null, 2)}
-             </div>
-           );
-      }
+
+  if (stage === "analyzing_transcript" || stage === "executing_task") {
+    // Could be intermediate output or other json
+    if (isRecord(payload) && payload.intermediateOutput) {
+      return (
+        <div className="text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
+          {typeof payload.intermediateOutput === "string"
+            ? payload.intermediateOutput
+            : JSON.stringify(payload.intermediateOutput, null, 2)}
+        </div>
+      );
+    }
   }
 
   // Fallback to JSON view
   return (
-     <div className="text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
-         {typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2)}
-     </div>
+    <div className="text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
+      {typeof payload === "string" ? payload : JSON.stringify(payload, null, 2)}
+    </div>
   );
 }
