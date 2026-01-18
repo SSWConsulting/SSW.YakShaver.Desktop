@@ -9,6 +9,7 @@ import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { ScreenRecorder } from "./components/recording/ScreenRecorder";
 import { SettingsDialog } from "./components/settings/SettingsDialog";
 import { MyShavesDialog } from "./components/shaves/MyShavesDialog";
+import { ApprovalDialog } from "./components/workflow/ApprovalDialog";
 import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { WorkflowProgressPanelNeo } from "./components/workflow/WorkflowProgressPanelNeo";
@@ -52,6 +53,7 @@ export default function App() {
               <SettingsDialog />
               <MicrosoftAuthManager />
             </div>
+            <ApprovalDialog />
             <header className="z-10 relative">
               <div className="container mx-auto flex flex-col items-center gap-8">
                 <h1>
