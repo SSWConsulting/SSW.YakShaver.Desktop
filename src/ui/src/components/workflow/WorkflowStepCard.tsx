@@ -1,49 +1,53 @@
+import { cn } from "@/lib/utils";
 import type { WorkflowStep } from "@shared/types/workflow";
 import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
-import { cn } from "@/lib/utils";
+import { Card, CardContent } from "../ui/card";
 import { StageWithContentNeo } from "./StageWithContentNeo";
 
 const STATUS_CONFIG = {
   in_progress: {
     icon: Loader2,
     iconClass: "animate-spin text-zinc-300",
-    className: "border-gray-500/30 bg-gray-500/5",
+    containerClass: "border-gray-500/30 bg-gray-500/5",
     textClass: "text-white/90",
   },
   completed: {
     icon: CheckCircle2,
     iconClass: "text-green-400",
-    className: "border-green-500/30 bg-green-500/5",
+    containerClass: "border-green-500/30 bg-green-500/5",
     textClass: "text-white/90",
   },
   failed: {
     icon: XCircle,
     iconClass: "text-red-400",
-    className: "border-red-500/30 bg-red-500/5",
+    containerClass: "border-red-500/30 bg-red-500/5",
     textClass: "text-white/90",
   },
   not_started: {
     icon: null,
     iconClass: "",
-    className: "border-white/10 bg-black/20",
+    containerClass: "border-white/10 bg-black/20",
     textClass: "text-white/30",
   },
 } as const;
 
-function StatusIcon({ status }: { status: WorkflowStep["status"] }) {
-  if (status === "not_started" || !STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]) {
-    return <div className="size-5 rounded-full border-2 border-white/20" />;
-  }
-
-  const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG];
+function StatusIcon({ 
+  status, 
+  className 
+}: { 
+  status: WorkflowStep["status"]; 
+  className?: string; 
+}) {
+  const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
   const Icon = config.icon;
 
-  if (!Icon) return null;
+  if (!Icon) {
+    return <div className={cn("size-5 rounded-full border-2 border-white/20", className)} />;
+  }
 
-  return <Icon className={cn("size-5", config.iconClass)} />;
+  return <Icon className={cn("size-5", config.iconClass, className)} />;
 }
 
 export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: string }) {
@@ -70,7 +74,7 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
     if (hasPayload) setIsExpanded(!isExpanded);
   };
 
-  const headerContent = (
+  const HeaderContent = () => (
     <div className="flex items-center gap-3">
       <StatusIcon status={step.status} />
       <span className={cn("font-medium", config.textClass)}>{label}</span>
@@ -81,7 +85,7 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
     <Card 
       className={cn(
         "rounded-lg p-3 gap-0 transition-all", 
-        config.className
+        config.containerClass
       )}
     >
       {hasPayload ? (
@@ -91,13 +95,16 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
           className="h-auto w-full justify-between p-0 text-base hover:bg-transparent hover:text-current dark:hover:bg-transparent"
           aria-expanded={isExpanded}
         >
-          {headerContent}
+          <HeaderContent />
           <div className="text-white/50 hover:text-white/90">
-            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
           </div>
         </Button>
-      ) : headerContent
-      }
+      ) : (
+        <div className="flex w-full items-center justify-between">
+          <HeaderContent />
+        </div>
+      )}
 
       {isExpanded && hasPayload && (
         <CardContent className="p-0 pt-2">
