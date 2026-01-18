@@ -2,8 +2,8 @@ import { BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../../ipc/channels";
 import {
   ProgressStage,
-  WorkflowState,
-  WorkflowStatus,
+  type WorkflowState,
+  type WorkflowStatus,
   type WorkflowStep,
 } from "../../../shared/types/workflow";
 export class WorkflowStateManager {
