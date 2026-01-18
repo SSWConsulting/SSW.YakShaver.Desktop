@@ -86,7 +86,6 @@ export class WorkflowStateManager {
 
   /**
    * Fail a specific stage in the workflow.
-   * Sets status to 'failed' and updates the global error state.
    */
   public failStage(stageKey: keyof WorkflowState, error: string | Error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -99,6 +98,7 @@ export class WorkflowStateManager {
     this.broadcast();
   }
 
+  // Append the payload and optionally status of a specific stage.
   public updateStagePayload(
     stageKey: keyof WorkflowState,
     payload?: unknown,

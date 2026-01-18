@@ -65,6 +65,7 @@ export default function App() {
             <main className="z-10 relative flex flex-col items-center">
               <ScreenRecorder />
               <VideoHostPanel />
+              {/* <WorkflowProgressPanelNeo /> */}
 
 
 {/* TODO: Logic for switching between legacy and neo workflows */}

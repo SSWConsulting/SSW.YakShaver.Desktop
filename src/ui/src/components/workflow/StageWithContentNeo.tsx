@@ -210,13 +210,6 @@ export function StageWithContentNeo({
 }: StageWithContentNeoProps) {
   // If no payload or empty object, nothing to render
   if (!payload) return null;
-
-  // Handle transcript (from transcribing stage)
-  // Usually the payload for transcribing is the transcript text string directly in WorkflowStateManager, 
-  // but let's check how it was updated.
-  // In `process-video-handlers.ts`: workflowManager.updateStagePayload("transcribing", transcriptText, "completed");
-  // So for transcribing, payload is possibly just a string. 
-  // Wait, `WorkflowState` uses serialized payload.
   
   // Handing executing_task (MCP Steps)
   if (stage === "executing_task" && isRecord(payload) && Array.isArray(payload.steps)) {
