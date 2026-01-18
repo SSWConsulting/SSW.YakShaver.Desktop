@@ -11,7 +11,11 @@ import { ReasoningStep } from "./ReasoningStep";
 
 interface StageWithContentNeoProps {
   stage: string;
-  payload: any;
+  payload: unknown;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 const handleDetailsToggle =
@@ -215,7 +219,7 @@ export function StageWithContentNeo({
   // Wait, `WorkflowState` uses serialized payload.
   
   // Handing executing_task (MCP Steps)
-  if (stage === "executing_task" && payload.steps && Array.isArray(payload.steps)) {
+  if (stage === "executing_task" && isRecord(payload) && Array.isArray(payload.steps)) {
     const mcpSteps = payload.steps as MCPStep[];
     
     return (
@@ -286,7 +290,7 @@ export function StageWithContentNeo({
       );
   }
   
-  if (stage === "transcribing" && payload.transcriptText) {
+  if (stage === "transcribing" && isRecord(payload) && typeof payload.transcriptText === 'string') {
       return (
           <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
               {payload.transcriptText}
@@ -294,18 +298,23 @@ export function StageWithContentNeo({
       );
   }
 
-  if (stage === "updating_metadata" && (payload.metadataPreview || payload.metadataUpdateError || payload.error)) {
-       return (
-          <MetadataPreviewCard
-            preview={payload.metadataPreview}
-            error={payload.metadataUpdateError || payload.error}
-          />
-        );
+  if (stage === "updating_metadata" && isRecord(payload)) {
+      const preview = isRecord(payload.metadataPreview) ? (payload.metadataPreview as unknown as MetadataPreview) : undefined;
+      const error = typeof payload.metadataUpdateError === 'string' ? payload.metadataUpdateError : (typeof payload.error === 'string' ? payload.error : undefined);
+      
+      if (preview || error) {
+        return (
+            <MetadataPreviewCard
+              preview={preview}
+              error={error}
+            />
+          );
+      }
   }
   
   if (stage === "analyzing_transcript" || stage === "executing_task" ) {
       // Could be intermediate output or other json
-      if (payload.intermediateOutput) {
+      if (isRecord(payload) && payload.intermediateOutput) {
            return (
              <div className="text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
                 {typeof payload.intermediateOutput === 'string' ? payload.intermediateOutput : JSON.stringify(payload.intermediateOutput, null, 2)}
