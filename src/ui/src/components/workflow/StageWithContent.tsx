@@ -9,7 +9,7 @@ import {
 import { deepParseJson } from "../../utils";
 import { ReasoningStep } from "./ReasoningStep";
 
-interface StageWithContentNeoProps {
+interface StageWithContentProps {
   stage: string;
   payload: unknown;
 }
@@ -204,10 +204,10 @@ function ToolCallStep({
   );
 }
 
-export function StageWithContentNeo({
+export function StageWithContent({
   stage,
   payload,
-}: StageWithContentNeoProps) {
+}: StageWithContentProps) {
   // If no payload or empty object, nothing to render
   if (!payload) return null;
   

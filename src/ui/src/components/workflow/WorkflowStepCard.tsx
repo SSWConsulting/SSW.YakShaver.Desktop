@@ -4,7 +4,7 @@ import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from "lucid
 import { useMemo, useState } from "react";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
-import { StageWithContentNeo } from "./StageWithContentNeo";
+import { StageWithContent } from "./StageWithContent";
 
 const STATUS_CONFIG = {
   in_progress: {
@@ -109,7 +109,7 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
       {isExpanded && hasPayload && (
         <CardContent className="p-0 pt-2">
           <div className="overflow-x-auto rounded bg-black/20 p-2 text-white/80">
-             <StageWithContentNeo stage={step.stage} payload={parsedPayload} />
+             <StageWithContent stage={step.stage} payload={parsedPayload} />
           </div>
         </CardContent>
       )}

@@ -11,7 +11,7 @@ import { SettingsDialog } from "./components/settings/SettingsDialog";
 import { MyShavesDialog } from "./components/shaves/MyShavesDialog";
 import { ApprovalDialog } from "./components/workflow/ApprovalDialog";
 import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
-import { WorkflowProgressPanelNeo } from "./components/workflow/WorkflowProgressPanelNeo";
+import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
 import { useShaveManager } from "./hooks/useShaveManager";
@@ -63,7 +63,7 @@ export default function App() {
             <main className="z-10 relative flex flex-col items-center">
               <ScreenRecorder />
               <VideoHostPanel />
-              <WorkflowProgressPanelNeo />
+              <WorkflowProgressPanel />
               <FinalResultPanel />
             </main>
           </div>

@@ -23,7 +23,7 @@ const STEP_ORDER: (keyof WorkflowState)[] = [
   "updating_metadata",
 ];
 
-export function WorkflowProgressPanelNeo() {
+export function WorkflowProgressPanel() {
   const [state, setState] = useState<WorkflowState | null>(null);
 
   useEffect(() => {
