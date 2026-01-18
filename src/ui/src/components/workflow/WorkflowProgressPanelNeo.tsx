@@ -32,8 +32,6 @@ const StatusIcon = ({ status }: { status: WorkflowStep["status"] }) => {
       return <CheckCircle2 className="h-5 w-5 text-green-400" />;
     case "failed":
       return <XCircle className="h-5 w-5 text-red-400" />;
-      case "skipped":
-        return <CircleSlash className="h-5 w-5 text-white/20" />;
     case "not_started":
         return <div className="h-5 w-5 rounded-full border-2 border-white/20" />;
     default:
@@ -43,6 +41,8 @@ const StatusIcon = ({ status }: { status: WorkflowStep["status"] }) => {
 
 function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
   const [isExpanded, setIsExpanded] = useState(false);
+
+  if (step.status === "skipped") return null;
   
   let parsedPayload: unknown = step.payload;
   let hasPayload = false;
@@ -70,8 +70,6 @@ function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
         return "border-green-500/30 bg-green-500/5";
       case "failed":
          return "border-red-500/30 bg-red-500/5";
-      case "skipped":
-        return "border-white/10 bg-black/20";
       case "not_started":
         return "border-white/10 bg-black/20";
       default:
@@ -83,8 +81,6 @@ function WorkflowStepCard ({step,label}: {step: WorkflowStep;label: string;}){
 
   const getTextColor = () => {
     switch (step.status) {
-      case "skipped":
-        return "text-white/20";
       case "not_started":
         return "text-white/30";
       default:
