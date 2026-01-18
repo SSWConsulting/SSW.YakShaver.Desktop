@@ -11,7 +11,6 @@ import { SettingsDialog } from "./components/settings/SettingsDialog";
 import { MyShavesDialog } from "./components/shaves/MyShavesDialog";
 import { ApprovalDialog } from "./components/workflow/ApprovalDialog";
 import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
-import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { WorkflowProgressPanelNeo } from "./components/workflow/WorkflowProgressPanelNeo";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
@@ -23,7 +22,6 @@ export default function App() {
 
   // Auto-save shaves when workflow completes
   useShaveManager();
-  const [activeTab, setActiveTab] = useState<"legacy" | "neo">("neo");
 
   useEffect(() => {
     const fetchVersion = async () => {
@@ -65,46 +63,7 @@ export default function App() {
             <main className="z-10 relative flex flex-col items-center">
               <ScreenRecorder />
               <VideoHostPanel />
-              {/* <WorkflowProgressPanelNeo /> */}
-
-
-{/* TODO: Logic for switching between legacy and neo workflows */}
-{/* should be removed after testing */}
-              <div className="w-full max-w-2xl mt-8">
-                <div className="flex border-b border-white/20 mb-4">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("legacy")}
-                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-                      activeTab === "legacy"
-                        ? "border-ssw-red text-white"
-                        : "border-transparent text-white/50 hover:text-white/80"
-                    }`}
-                  >
-                    Legacy Workflow
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("neo")}
-                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-                      activeTab === "neo"
-                        ? "border-ssw-red text-white"
-                        : "border-transparent text-white/50 hover:text-white/80"
-                    }`}
-                  >
-                    Neo Workflow
-                  </button>
-                </div>
-
-                <div className={activeTab === "legacy" ? "block" : "hidden"}>
-                  <WorkflowProgressPanel />
-                </div>
-                <div className={activeTab === "neo" ? "block" : "hidden"}>
-                  <WorkflowProgressPanelNeo />
-                </div>
-              </div>
-{/*  */}
-{/*  */}
+              <WorkflowProgressPanelNeo />
               <FinalResultPanel />
             </main>
           </div>

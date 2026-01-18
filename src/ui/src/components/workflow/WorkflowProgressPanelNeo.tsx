@@ -38,7 +38,7 @@ export function WorkflowProgressPanelNeo() {
       <div className="w-[500px] mx-auto my-4">
         <Card className="bg-black/20 backdrop-blur-md border-white/10">
           <CardHeader>
-            <CardTitle className="text-xl">AI Workflow Progress (Neo)</CardTitle>
+            <CardTitle className="text-xl">AI Workflow Progress</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {STEP_ORDER.map((stepKey) => (
