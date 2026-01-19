@@ -36,6 +36,101 @@ interface MCPStep {
   autoApproveAt?: number;
 }
 
+/**
+ * Tool Output Buffer for host-level tool chaining.
+ * Stores raw tool outputs so subsequent tools can reference them by ID,
+ * avoiding content modification by the LLM during chaining.
+ */
+export class ToolOutputBuffer {
+  private static instance: ToolOutputBuffer;
+  private outputs: Map<string, { toolName: string; content: string; timestamp: number }> =
+    new Map();
+
+  private constructor() {}
+
+  public static getInstance(): ToolOutputBuffer {
+    if (!ToolOutputBuffer.instance) {
+      ToolOutputBuffer.instance = new ToolOutputBuffer();
+    }
+    return ToolOutputBuffer.instance;
+  }
+
+  /**
+   * Store a tool output and return its reference ID
+   */
+  public store(toolName: string, content: string): string {
+    const id = `tool_output_${randomUUID().slice(0, 8)}`;
+    this.outputs.set(id, {
+      toolName,
+      content,
+      timestamp: Date.now(),
+    });
+    console.log(
+      `[ToolOutputBuffer] Stored output for '${toolName}' with ID: ${id} (${content.length} chars)`,
+    );
+    return id;
+  }
+
+  /**
+   * Retrieve a stored tool output by ID
+   */
+  public get(id: string): string | undefined {
+    const entry = this.outputs.get(id);
+    if (entry) {
+      console.log(
+        `[ToolOutputBuffer] Retrieved output for ID: ${id} (${entry.content.length} chars)`,
+      );
+      return entry.content;
+    }
+    console.warn(`[ToolOutputBuffer] Output not found for ID: ${id}`);
+    return undefined;
+  }
+
+  /**
+   * Check if an output exists
+   */
+  public has(id: string): boolean {
+    return this.outputs.has(id);
+  }
+
+  /**
+   * Get metadata about a stored output
+   */
+  public getMetadata(
+    id: string,
+  ): { toolName: string; contentLength: number; timestamp: number } | undefined {
+    const entry = this.outputs.get(id);
+    if (entry) {
+      return {
+        toolName: entry.toolName,
+        contentLength: entry.content.length,
+        timestamp: entry.timestamp,
+      };
+    }
+    return undefined;
+  }
+
+  /**
+   * Clear the buffer (call at session end)
+   */
+  public clear(): void {
+    const count = this.outputs.size;
+    this.outputs.clear();
+    console.log(`[ToolOutputBuffer] Cleared ${count} stored outputs`);
+  }
+
+  /**
+   * List all stored output IDs with metadata
+   */
+  public listAll(): Array<{ id: string; toolName: string; contentLength: number }> {
+    return Array.from(this.outputs.entries()).map(([id, entry]) => ({
+      id,
+      toolName: entry.toolName,
+      contentLength: entry.content.length,
+    }));
+  }
+}
+
 const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 
 function sendStepEvent(event: MCPStep): void {
@@ -281,16 +376,29 @@ export class MCPOrchestrator {
               } as ToolExecutionOptions);
               const executionTime = Date.now() - startTime;
 
+              const rawOutputText = toolOutput.content[0]?.text || "";
+              
+              // Log the full tool output structure for debugging
+              console.log("[MCPOrchestrator] ===== TOOL OUTPUT STRUCTURE =====");
+              console.log(`[MCPOrchestrator] Content Array Length: ${toolOutput.content?.length || 0}`);
+              console.log("[MCPOrchestrator] Full Tool Output:", JSON.stringify(toolOutput, null, 2));
+              console.log("[MCPOrchestrator] ===== END TOOL OUTPUT STRUCTURE =====");
+              
+              // Store raw output in buffer for tool chaining
+              const outputBuffer = ToolOutputBuffer.getInstance();
+              const outputRefId = outputBuffer.store(toolCall.toolName, rawOutputText);
+
               // Log tool result
               console.log("[MCPOrchestrator] ===== TOOL RESULT START =====");
               console.log(`[MCPOrchestrator] Tool Name: ${toolCall.toolName}`);
               console.log(`[MCPOrchestrator] Execution Time: ${executionTime}ms`);
+              console.log(`[MCPOrchestrator] Output Buffer ID: ${outputRefId}`);
               console.log(
                 `[MCPOrchestrator] Result Type: ${toolOutput.content[0]?.type || "unknown"}`,
               );
               console.log(
                 "[MCPOrchestrator] Result Output:",
-                JSON.stringify(toolOutput.content[0]?.text, null, 2),
+                JSON.stringify(rawOutputText, null, 2),
               );
               console.log("[MCPOrchestrator] ===== TOOL RESULT END =====");
 
@@ -301,7 +409,10 @@ export class MCPOrchestrator {
                 result: toolOutput,
               });
 
-              // construct tool result message and append to messages history
+              // Construct tool result message with buffer reference for tool chaining
+              // The LLM sees both the content AND a reference ID it can pass to subsequent tools
+              const toolResultValue = `${rawOutputText}\n\n[Tool Output Reference: ${outputRefId}] - Use this ID to reference the raw output in subsequent tool calls that accept a 'toolOutputRef' parameter.`;
+
               const toolMessage: ToolModelMessage = {
                 role: "tool",
                 content: [
@@ -311,7 +422,7 @@ export class MCPOrchestrator {
                     type: "tool-result",
                     output: {
                       type: toolOutput.content[0].type,
-                      value: toolOutput.content[0].text,
+                      value: toolResultValue,
                     },
                   },
                 ],
@@ -337,6 +448,9 @@ export class MCPOrchestrator {
         console.log("[MCPOrchestrator] Final Response:");
         console.log(llmResponse.text);
 
+        // Clear the tool output buffer at session end
+        ToolOutputBuffer.getInstance().clear();
+
         // send final result event to UI
         sendStepEvent({
           type: "final_result",
@@ -345,13 +459,16 @@ export class MCPOrchestrator {
         return llmResponse.text;
       } else if (llmResponse.finishReason === "content-filter") {
         console.log("[MCPOrchestrator] Session ended: Content filter triggered");
+        ToolOutputBuffer.getInstance().clear();
         return "Conversation ended due to content filter.";
       } else if (llmResponse.finishReason === "length") {
         console.log("[MCPOrchestrator] Session ended: Maximum length reached");
+        ToolOutputBuffer.getInstance().clear();
         return "Conversation ended due to length limit.";
       } else {
         console.log("[MCPOrchestrator] Session ended with unknown reason:");
         console.log(llmResponse.finishReason);
+        ToolOutputBuffer.getInstance().clear();
         break;
       }
     }
