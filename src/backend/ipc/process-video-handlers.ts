@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
+import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workflow";
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
@@ -9,18 +10,17 @@ import { YouTubeAuthService } from "../services/auth/youtube-auth";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
 import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
-import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import { ShaveService } from "../services/shave/shave-service";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
+import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
+import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
 import { ProgressStage } from "../types";
-import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workflow";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -93,6 +93,7 @@ export class ProcessVideoIPCHandlers {
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+          const serverFilter = customPrompt?.selectedMcpServerIds;
 
           const filePath =
             this.lastVideoFilePath && fs.existsSync(this.lastVideoFilePath)
@@ -109,6 +110,7 @@ export class ProcessVideoIPCHandlers {
             {
               systemPrompt,
               videoFilePath: filePath,
+              serverFilter,
               onStep: mcpAdapter.onStep,
             },
           );
@@ -263,6 +265,7 @@ export class ProcessVideoIPCHandlers {
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
       const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+      const serverFilter = customPrompt?.selectedMcpServerIds;
 
       const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
         transcriptText,
@@ -273,6 +276,7 @@ export class ProcessVideoIPCHandlers {
       const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
         systemPrompt,
         videoFilePath: filePath,
+        serverFilter,
         onStep: mcpAdapter.onStep,
       });
 

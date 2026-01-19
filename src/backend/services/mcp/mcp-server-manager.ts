@@ -41,8 +41,23 @@ export class MCPServerManager {
       return [];
     }
 
+    // Get all configs to filter by enabled status
+    const allConfigs = await MCPServerManager.getAllServerConfigsAsync();
+    const enabledSelectedIds = selectedServerIdsOrNames.filter((identifier) => {
+      const config = allConfigs.find((c) => c.id === identifier || c.name === identifier);
+      return config && config.enabled !== false;
+    });
+
+    if (!enabledSelectedIds.length) {
+      console.warn(
+        "[MCPServerManager]: No matching enabled MCP servers found for selected identifiers:",
+        selectedServerIdsOrNames,
+      );
+      return [];
+    }
+
     const results = await Promise.allSettled(
-      selectedServerIdsOrNames.map((identifier) => this.getMcpClientAsync(identifier)),
+      enabledSelectedIds.map((identifier) => this.getMcpClientAsync(identifier)),
     );
     return results
       .filter((r) => r.status === "fulfilled" && r.value)
@@ -69,6 +84,47 @@ export class MCPServerManager {
       throw new Error("[MCPServerManager]: No tools available from selected/healthy servers");
     }
     return combined;
+  }
+
+  /**
+   * Collect tools from selected servers only.
+   * Returns tools from selected servers, or all enabled servers if no filter provided (backward compatibility).
+   * Disabled servers are excluded in all cases.
+   */
+  public async collectToolsForSelectedServersAsync(serverIds?: string[]): Promise<ToolSet> {
+    const clients =
+      serverIds && serverIds.length > 0
+        ? await this.getSelectedMcpServerClientsAsync(serverIds)
+        : await this.getAllMcpServerClientsAsync();
+
+    if (!clients.length) {
+      const serverInfo = this.getServerInfo(serverIds);
+      throw new Error(`[MCPServerManager]: No MCP clients available.${serverInfo}`);
+    }
+
+    const results = await Promise.allSettled(
+      clients.map((client) => client.listToolsWithServerPrefixAsync()),
+    );
+    const fulfilledResults = results.filter(
+      (r): r is PromiseFulfilledResult<ToolSet> => r.status === "fulfilled",
+    );
+    const rejectedCount = results.filter((r) => r.status === "rejected").length;
+    const toolMaps = fulfilledResults.map((r) => MCPServerManager.normalizeTools(r.value));
+    const combined = Object.assign({}, ...toolMaps) as ToolSet;
+
+    if (Object.keys(combined).length === 0) {
+      const serverInfo = this.getServerInfo(serverIds);
+      throw new Error(
+        `[MCPServerManager]: No tools available. Servers: ${clients.length}, successful: ${fulfilledResults.length}, failed: ${rejectedCount}.${serverInfo}`,
+      );
+    }
+    return combined;
+  }
+
+  private getServerInfo(serverIds?: string[]): string {
+    return serverIds && serverIds.length > 0
+      ? ` Selected: ${serverIds.join(", ")}.`
+      : " Using all enabled servers.";
   }
 
   // Get or Create MCP client for a given server name

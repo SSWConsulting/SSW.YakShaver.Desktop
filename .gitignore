@@ -106,3 +106,7 @@ data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+# Claude temp files
+tmpclaude*
+.claude/

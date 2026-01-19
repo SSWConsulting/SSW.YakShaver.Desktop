@@ -3,11 +3,11 @@ import type { ToolApprovalMode } from "@shared/types/tool-approval";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
+import type { MCPStep, ToolApprovalDecision } from "../../../shared/types/mcp";
 import type { VideoUploadResult } from "../auth/types";
 import { ToolApprovalSettingsStorage } from "../storage/tool-approval-settings-storage";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
-import type { MCPStep, ToolApprovalDecision } from "../../../shared/types/mcp";
 
 const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 
@@ -52,6 +52,7 @@ export class MCPOrchestrator {
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
       videoFilePath?: string; // local video file path for screenshot capture
+      serverFilter?: string[]; // if provided, only include tools from these server IDs
       onStep?: (step: MCPStep) => void;
     } = {},
   ): Promise<string | undefined> {
@@ -67,7 +68,7 @@ export class MCPOrchestrator {
     }
 
     // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsWithServerPrefixAsync();
+    const tools = await serverManager.collectToolsForSelectedServersAsync(options.serverFilter);
     const toolApprovalSettingsStorage = ToolApprovalSettingsStorage.getInstance();
 
     let systemPrompt =
@@ -351,7 +352,7 @@ export class MCPOrchestrator {
     }
 
     // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsWithServerPrefixAsync();
+    const tools = await serverManager.collectToolsForSelectedServersAsync(options.serverFilter);
 
     let systemPrompt =
       options.systemPrompt ??
