@@ -15,6 +15,9 @@ In the root folder, run
 1. `npm run setup` – install dependencies
 2. `npm run dev` – start the app
 
+## Manual UI check
+- Hover over the main toolbar buttons (e.g., My Shaves and Settings) to confirm the cursor changes to a pointer.
+
 ## Building
 
 1. `npm run setup` – ensure all dependencies are installed

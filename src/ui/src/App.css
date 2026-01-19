@@ -150,6 +150,14 @@
     @apply border-border outline-ring/50;
   }
 
+  button {
+    @apply cursor-pointer;
+  }
+
+  button:disabled {
+    @apply cursor-not-allowed;
+  }
+
   body {
     @apply bg-background text-foreground;
   }
