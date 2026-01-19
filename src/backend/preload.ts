@@ -1,4 +1,4 @@
-import type { ToolApprovalMode } from "@shared/types/tool-approval";
+import type { UserSettings } from "@shared/types/user-settings";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type {
   CreateShaveData,
@@ -85,6 +85,10 @@ const IPC_CHANNELS = {
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
   SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
 
+  // General User Settings
+  SETTINGS_GET: "settings:get",
+  SETTINGS_UPDATE: "settings:update",
+
   // Release Channel
   RELEASE_CHANNEL_GET: "release-channel:get",
   RELEASE_CHANNEL_SET: "release-channel:set",
@@ -99,10 +103,6 @@ const IPC_CHANNELS = {
   GITHUB_TOKEN_CLEAR: "github-token:clear",
   GITHUB_TOKEN_HAS: "github-token:has",
   GITHUB_TOKEN_VERIFY: "github-token:verify",
-
-  // Tool Approval Settings
-  TOOL_APPROVAL_SETTINGS_GET: "tool-approval-settings:get",
-  TOOL_APPROVAL_SETTINGS_SET_MODE: "tool-approval-settings:set-mode",
 
   // App Control
   APP_RESTART: "app:restart",
@@ -290,10 +290,10 @@ const electronAPI = {
         error?: string;
       }>,
   },
-  toolApprovalSettings: {
-    get: () => ipcRenderer.invoke(IPC_CHANNELS.TOOL_APPROVAL_SETTINGS_GET),
-    setMode: (mode: ToolApprovalMode) =>
-      ipcRenderer.invoke(IPC_CHANNELS.TOOL_APPROVAL_SETTINGS_SET_MODE, mode),
+  userSettings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
+    update: (patch: Partial<UserSettings>) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE, patch),
   },
   app: {
     restart: () => ipcRenderer.invoke(IPC_CHANNELS.APP_RESTART),
