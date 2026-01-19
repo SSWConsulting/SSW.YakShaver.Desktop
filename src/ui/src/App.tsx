@@ -4,7 +4,6 @@ import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
 import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 import { DownloadProgressToast } from "./components/common/DownloadProgressToast";
-import { VideoHostPanel } from "./components/layout/VideoHostPanel";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { ScreenRecorder } from "./components/recording/ScreenRecorder";
 import { SettingsDialog } from "./components/settings/SettingsDialog";
@@ -60,7 +59,6 @@ export default function App() {
 
             <main className="z-10 relative">
               <ScreenRecorder />
-              <VideoHostPanel />
               <WorkflowProgressPanel />
               <FinalResultPanel />
             </main>
