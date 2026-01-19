@@ -1,5 +1,5 @@
-import { PartialUserSettingsSchema } from "@shared/types/user-settings";
 import { app, type IpcMainInvokeEvent, ipcMain } from "electron";
+import { PartialUserSettingsSchema } from "../../shared/types/user-settings";
 import { UserSettingsStorage } from "../services/storage/user-settings-storage";
 import { IPC_CHANNELS } from "./channels";
 
