@@ -35,7 +35,7 @@ export class UserSettingsStorage extends BaseSecureStorage {
 
   public async getSettingsAsync(): Promise<UserSettings> {
     if (this.cache) {
-      return this.cache;
+      return { ...this.cache };
     }
 
     const stored = await this.decryptAndLoad<UserSettings>(this.getSettingsPath());
