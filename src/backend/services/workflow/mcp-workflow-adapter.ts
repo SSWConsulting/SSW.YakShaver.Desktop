@@ -1,6 +1,7 @@
 import { MCPStep } from "../../../shared/types/mcp";
 import type { ExecutingTaskPayload } from "../../../shared/types/workflow-payloads";
 import { WorkflowStateManager } from "./workflow-state-manager";
+import { ProgressStage as WorkflowProgressStage } from "../../../shared/types/workflow";
 
 export class McpWorkflowAdapter {
   private steps: MCPStep[] = [];
@@ -27,7 +28,9 @@ export class McpWorkflowAdapter {
   };
 
   private getPayload(): ExecutingTaskPayload {
-    const rawPayload = this.workflowManager.getStepState("executing_task").payload;
+    const rawPayload = this.workflowManager.getStepState(
+      WorkflowProgressStage.EXECUTING_TASK,
+    ).payload;
     if (!rawPayload) return { steps: [] };
 
     try {
@@ -41,7 +44,11 @@ export class McpWorkflowAdapter {
     const current = this.getPayload();
     const newPayload = { ...current, ...update };
     // Maintain in_progress status while updating steps
-    this.workflowManager.updateStagePayload("executing_task", newPayload, "in_progress");
+    this.workflowManager.updateStagePayload(
+      WorkflowProgressStage.EXECUTING_TASK,
+      newPayload,
+      "in_progress",
+    );
   }
 
   public complete(finalResult: unknown) {
@@ -49,6 +56,10 @@ export class McpWorkflowAdapter {
       ...this.getPayload(),
       mcpResult: typeof finalResult === "string" ? finalResult : JSON.stringify(finalResult),
     };
-    this.workflowManager.updateStagePayload("executing_task", payload, "completed");
+    this.workflowManager.updateStagePayload(
+      WorkflowProgressStage.EXECUTING_TASK,
+      payload,
+      "completed",
+    );
   }
 }

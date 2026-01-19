@@ -22,13 +22,13 @@ export class WorkflowStateManager {
     });
 
     return {
-      uploading_video: createStep(ProgressStage.UPLOADING_VIDEO),
-      downloading_video: createStep(ProgressStage.DOWNLOADING_VIDEO),
-      converting_audio: createStep(ProgressStage.CONVERTING_AUDIO),
-      transcribing: createStep(ProgressStage.TRANSCRIBING),
-      analyzing_transcript: createStep(ProgressStage.ANALYZING_TRANSCRIPT),
-      executing_task: createStep(ProgressStage.EXECUTING_TASK),
-      updating_metadata: createStep(ProgressStage.UPDATING_METADATA),
+      [ProgressStage.UPLOADING_VIDEO]: createStep(ProgressStage.UPLOADING_VIDEO),
+      [ProgressStage.DOWNLOADING_VIDEO]: createStep(ProgressStage.DOWNLOADING_VIDEO),
+      [ProgressStage.CONVERTING_AUDIO]: createStep(ProgressStage.CONVERTING_AUDIO),
+      [ProgressStage.TRANSCRIBING]: createStep(ProgressStage.TRANSCRIBING),
+      [ProgressStage.ANALYZING_TRANSCRIPT]: createStep(ProgressStage.ANALYZING_TRANSCRIPT),
+      [ProgressStage.EXECUTING_TASK]: createStep(ProgressStage.EXECUTING_TASK),
+      [ProgressStage.UPDATING_METADATA]: createStep(ProgressStage.UPDATING_METADATA),
     };
   }
 

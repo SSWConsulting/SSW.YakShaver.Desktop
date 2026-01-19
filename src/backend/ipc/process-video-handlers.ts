@@ -17,6 +17,7 @@ import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { ProgressStage } from "../types";
+import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workflow";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
@@ -139,8 +140,8 @@ export class ProcessVideoIPCHandlers {
     }
 
     const workflowManager = new WorkflowStateManager(shaveId);
-    workflowManager.startStage("uploading_video");
-    workflowManager.skipStage("downloading_video");
+    workflowManager.startStage(WorkflowProgressStage.UPLOADING_VIDEO);
+    workflowManager.skipStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
 
     // upload to YouTube
     notify(ProgressStage.UPLOADING_SOURCE, {
@@ -150,7 +151,7 @@ export class ProcessVideoIPCHandlers {
     try {
       const youtubeResult = await this.youtube.uploadVideo(filePath);
 
-      workflowManager.completeStage("uploading_video", youtubeResult.data?.url);
+      workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, youtubeResult.data?.url);
       notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
         sourceOrigin: youtubeResult.origin,
@@ -166,7 +167,7 @@ export class ProcessVideoIPCHandlers {
       );
     } catch (uploadError) {
       const errorMessage = formatErrorMessage(uploadError);
-      workflowManager.failStage("uploading_video", errorMessage);
+      workflowManager.failStage(WorkflowProgressStage.UPLOADING_VIDEO, errorMessage);
       return { success: false, error: errorMessage };
     }
   }
@@ -177,9 +178,9 @@ export class ProcessVideoIPCHandlers {
     };
 
     const workflowManager = new WorkflowStateManager(shaveId);
-    workflowManager.skipStage("uploading_video");
-    workflowManager.startStage("downloading_video");
-    workflowManager.skipStage("updating_metadata");
+    workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);
+    workflowManager.startStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+    workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
 
     try {
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
@@ -191,7 +192,7 @@ export class ProcessVideoIPCHandlers {
         sourceOrigin: "external",
       });
       const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
-      workflowManager.completeStage("downloading_video");
+      workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
       return await this.processVideoSource(
         {
           filePath,
@@ -202,7 +203,7 @@ export class ProcessVideoIPCHandlers {
       );
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
-      workflowManager.failStage("downloading_video", errorMessage);
+      workflowManager.failStage(WorkflowProgressStage.DOWNLOADING_VIDEO, errorMessage);
       notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -223,24 +224,24 @@ export class ProcessVideoIPCHandlers {
 
     try {
       this.lastVideoFilePath = filePath;
-      workflowManager.startStage("converting_audio");
+      workflowManager.startStage(WorkflowProgressStage.CONVERTING_AUDIO);
       notify(ProgressStage.CONVERTING_AUDIO);
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
-      workflowManager.completeStage("converting_audio");
+      workflowManager.completeStage(WorkflowProgressStage.CONVERTING_AUDIO);
 
       const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
 
-      workflowManager.startStage("transcribing");
+      workflowManager.startStage(WorkflowProgressStage.TRANSCRIBING);
       notify(ProgressStage.TRANSCRIBING);
       const transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
       const transcriptText = transcript.map((seg) => seg.text).join("");
 
       notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 
-      workflowManager.completeStage("transcribing", transcriptText);
+      workflowManager.completeStage(WorkflowProgressStage.TRANSCRIBING, transcriptText);
 
-      workflowManager.startStage("analyzing_transcript");
+      workflowManager.startStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
       notify(ProgressStage.GENERATING_TASK);
 
       const languageModelProvider = await LanguageModelProvider.getInstance();
@@ -254,9 +255,9 @@ export class ProcessVideoIPCHandlers {
         INITIAL_SUMMARY_PROMPT,
       );
 
-      workflowManager.completeStage("analyzing_transcript", intermediateOutput);
+      workflowManager.completeStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT, intermediateOutput);
 
-      workflowManager.startStage("executing_task");
+      workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
 
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
@@ -287,7 +288,7 @@ export class ProcessVideoIPCHandlers {
           console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
           const errorMessage = formatErrorMessage(portalResult.error);
           notify(ProgressStage.ERROR, { error: errorMessage });
-          workflowManager.failStage("updating_metadata", errorMessage);
+          workflowManager.failStage(WorkflowProgressStage.UPDATING_METADATA, errorMessage);
         }
       }
 
@@ -298,7 +299,11 @@ export class ProcessVideoIPCHandlers {
         if (videoId) {
           try {
             notify(ProgressStage.UPDATING_METADATA);
-            workflowManager.updateStagePayload("updating_metadata", null, "in_progress");
+            workflowManager.updateStagePayload(
+              WorkflowProgressStage.UPDATING_METADATA,
+              null,
+              "in_progress",
+            );
             const metadata = await this.metadataBuilder.build({
               transcript,
               intermediateOutput,
@@ -315,7 +320,10 @@ export class ProcessVideoIPCHandlers {
             );
             if (updateResult.success) {
               youtubeResult = updateResult;
-              workflowManager.completeStage("updating_metadata", metadata.metadata);
+              workflowManager.completeStage(
+                WorkflowProgressStage.UPDATING_METADATA,
+                metadata.metadata,
+              );
             } else {
               throw new Error(
                 `[ProcessVideo] YouTube metadata update failed: ${updateResult.error || "Unknown error"}`,
@@ -323,7 +331,10 @@ export class ProcessVideoIPCHandlers {
             }
           } catch (metadataError) {
             console.warn("Metadata update failed", metadataError);
-            workflowManager.failStage("updating_metadata", formatErrorMessage(metadataError));
+            workflowManager.failStage(
+              WorkflowProgressStage.UPDATING_METADATA,
+              formatErrorMessage(metadataError),
+            );
             metadataUpdateError = formatErrorMessage(metadataError);
           }
         }
