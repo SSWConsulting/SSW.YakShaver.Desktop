@@ -333,7 +333,6 @@ export class ProcessVideoIPCHandlers {
         }
       }
 
-      // TODO: To be removed once WORKFLOW_PROGRESS_NEO is fully adopted
       notify(ProgressStage.COMPLETED, {
         transcript,
         intermediateOutput,
@@ -346,7 +345,6 @@ export class ProcessVideoIPCHandlers {
       return { youtubeResult, mcpResult };
     } catch (error) {
       const errorMessage = formatErrorMessage(error);
-      // TODO: To be removed once WORKFLOW_PROGRESS_NEO is fully adopted
       notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     } finally {
@@ -373,7 +371,8 @@ export class ProcessVideoIPCHandlers {
     return result;
   }
 
-  // TODO: To be removed once WORKFLOW_PROGRESS_NEO is fully adopted
+  // TODO: Separate the Watch Video Pannel and Final Result Panel event triggers from this, and remove this event sender
+  // ISSUE: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/602
   private emitProgress(stage: string, data?: Record<string, unknown>, shaveId?: string) {
     BrowserWindow.getAllWindows()
       .filter((win) => !win.isDestroyed())

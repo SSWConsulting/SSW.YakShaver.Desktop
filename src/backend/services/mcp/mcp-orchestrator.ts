@@ -11,6 +11,8 @@ import type { MCPStep, ToolApprovalDecision } from "../../../shared/types/mcp";
 
 const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 
+// TODO: Separate the ApprovalDialog event trigger from this, and remove this event sender
+// ISSUE: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/602
 function sendStepEvent(event: MCPStep): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
