@@ -51,6 +51,7 @@ export const IPC_CHANNELS = {
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
+  WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
