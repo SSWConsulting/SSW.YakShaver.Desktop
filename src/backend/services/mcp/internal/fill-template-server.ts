@@ -122,9 +122,6 @@ export async function createInternalFillTemplateServer(): Promise<InternalMcpSer
 
       // Priority 1: Use toolOutputRef to get raw content from buffer (preferred for chaining)
       if (validated.toolOutputRef) {
-        console.log(
-          `[fill-template-server] Retrieving content from tool output buffer: ${validated.toolOutputRef}`,
-        );
         const outputBuffer = ToolOutputBuffer.getInstance();
         const bufferedContent = outputBuffer.get(validated.toolOutputRef);
 
@@ -143,13 +140,9 @@ export async function createInternalFillTemplateServer(): Promise<InternalMcpSer
         }
 
         template = bufferedContent;
-        console.log(`[fill-template-server] Retrieved ${template.length} characters from buffer`);
       } else if (validated.template) {
         // Priority 2: Use directly provided template content
         template = validated.template;
-        console.log(
-          `[fill-template-server] Using provided template, ${template.length} characters`,
-        );
       } else {
         return {
           content: [

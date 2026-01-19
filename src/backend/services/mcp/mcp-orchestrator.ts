@@ -215,16 +215,6 @@ export class MCPOrchestrator {
       { role: "user", content: prompt },
     ];
 
-    // Log session start
-    console.log("[MCPOrchestrator] ===== SESSION STARTED =====");
-    console.log("[MCPOrchestrator] Initial User Prompt:", prompt);
-    console.log("[MCPOrchestrator] Available Tools:", Object.keys(tools).length);
-    console.log(
-      "[MCPOrchestrator] Tool Approval Mode:",
-      toolApprovalSettingsStorage.getSettingsAsync().then((s) => s.toolApprovalMode),
-    );
-    console.log("[MCPOrchestrator] Max Iterations:", options.maxToolIterations || 20);
-
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
       console.log(`[MCPOrchestrator] ===== ORCHESTRATION LOOP ITERATION ${i + 1} =====`);
@@ -352,55 +342,45 @@ export class MCPOrchestrator {
           }
 
           // send event to UI about tool call now that it is approved/whitelisted
-          console.log(`[MCPOrchestrator] Tool APPROVED/WHITELISTED: ${toolCall.toolName}`);
           sendStepEvent({
             type: "tool_call",
             toolName: toolCall.toolName,
             args: toolCall.input,
           });
 
-          // Log tool call details
-          console.log("[MCPOrchestrator] ===== TOOL CALL START =====");
-          console.log(`[MCPOrchestrator] Tool Name: ${toolCall.toolName}`);
-          console.log(`[MCPOrchestrator] Tool Call ID: ${toolCall.toolCallId}`);
-          console.log("[MCPOrchestrator] Tool Arguments:", JSON.stringify(toolCall.input, null, 2));
-          console.log("[MCPOrchestrator] ===== TOOL EXECUTION =====");
-
           const toolToCall = tools[toolCall.toolName];
 
           if (toolToCall?.execute) {
             try {
-              const startTime = Date.now();
               const toolOutput = await toolToCall.execute(toolCall.input, {
                 toolCallId: toolCall.toolCallId,
               } as ToolExecutionOptions);
-              const executionTime = Date.now() - startTime;
 
               const rawOutputText = toolOutput.content[0]?.text || "";
-              
-              // Log the full tool output structure for debugging
-              console.log("[MCPOrchestrator] ===== TOOL OUTPUT STRUCTURE =====");
-              console.log(`[MCPOrchestrator] Content Array Length: ${toolOutput.content?.length || 0}`);
-              console.log("[MCPOrchestrator] Full Tool Output:", JSON.stringify(toolOutput, null, 2));
-              console.log("[MCPOrchestrator] ===== END TOOL OUTPUT STRUCTURE =====");
-              
+
+              // Try to find the actual content - check multiple content items
+              // Some tools return status in [0] and actual content in [1] or later
+              // Also check for resource-type content where text is in resource.text
+              let contentToStore = rawOutputText;
+              if (Array.isArray(toolOutput.content) && toolOutput.content.length > 1) {
+                for (let idx = 1; idx < toolOutput.content.length; idx++) {
+                  const item = toolOutput.content[idx];
+
+                  // Check for text content
+                  if (item?.text && item.text.length > contentToStore.length) {
+                    contentToStore = item.text;
+                  }
+
+                  // Check for resource-type content (e.g., from GitHub MCP)
+                  if (item?.type === "resource" && item?.resource?.text) {
+                    contentToStore = item.resource.text;
+                  }
+                }
+              }
+
               // Store raw output in buffer for tool chaining
               const outputBuffer = ToolOutputBuffer.getInstance();
-              const outputRefId = outputBuffer.store(toolCall.toolName, rawOutputText);
-
-              // Log tool result
-              console.log("[MCPOrchestrator] ===== TOOL RESULT START =====");
-              console.log(`[MCPOrchestrator] Tool Name: ${toolCall.toolName}`);
-              console.log(`[MCPOrchestrator] Execution Time: ${executionTime}ms`);
-              console.log(`[MCPOrchestrator] Output Buffer ID: ${outputRefId}`);
-              console.log(
-                `[MCPOrchestrator] Result Type: ${toolOutput.content[0]?.type || "unknown"}`,
-              );
-              console.log(
-                "[MCPOrchestrator] Result Output:",
-                JSON.stringify(rawOutputText, null, 2),
-              );
-              console.log("[MCPOrchestrator] ===== TOOL RESULT END =====");
+              const outputRefId = outputBuffer.store(toolCall.toolName, contentToStore);
 
               // send event to UI about tool result
               sendStepEvent({
