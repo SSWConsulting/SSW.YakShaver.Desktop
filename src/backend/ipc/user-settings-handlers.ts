@@ -20,7 +20,6 @@ export class UserSettingsIPCHandlers {
       IPC_CHANNELS.SETTINGS_UPDATE,
       async (_event: IpcMainInvokeEvent, patch: Partial<UserSettings>) => {
         await this.storage.updateSettingsAsync(patch);
-        console.log("User settings updated:", patch);
         if (patch.openAtLogin !== undefined) {
           app.setLoginItemSettings({
             openAtLogin: patch.openAtLogin,
