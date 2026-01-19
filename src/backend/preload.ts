@@ -75,6 +75,7 @@ const IPC_CHANNELS = {
   PROCESS_VIDEO_FILE: "process-video:file",
   PROCESS_VIDEO_URL: "process-video:url",
   RETRY_VIDEO: "retry-video",
+  EXECUTE_TASK_FROM_INTERMEDIATE: "execute-task:from-intermediate",
 
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
@@ -140,6 +141,16 @@ const electronAPI = {
       shaveId?: number,
     ) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult, shaveId),
+    executeTaskFromIntermediate: (
+      intermediateOutput: string,
+      options?: {
+        videoUrl?: string;
+        videoDuration?: number;
+        videoFilePath?: string;
+        shaveId?: number;
+      },
+    ) =>
+      ipcRenderer.invoke(IPC_CHANNELS.EXECUTE_TASK_FROM_INTERMEDIATE, intermediateOutput, options),
   },
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),

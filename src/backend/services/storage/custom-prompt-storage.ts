@@ -22,9 +22,7 @@ const DEFAULT_PROMPT: CustomPrompt = {
   id: "default",
   name: "Default Prompt",
   description: "This is the default prompt for YakShaver",
-  content: `You are an AI assistant with MCP capabilities to assist with creating and managing GitHub issues (PBIs).
-
-You MUST follow the target repository's GitHub issue templates exactly using the structured template tools.
+  content: `You MUST follow the target repository's GitHub issue templates exactly.
 
 1) When creating an issue:
 - Always apply the "YakShaver" label IN ADDITION to any template-required labels.
@@ -34,64 +32,37 @@ You MUST follow the target repository's GitHub issue templates exactly using the
 
 3) Find and apply the matching ISSUE_TEMPLATE (MANDATORY):
 - Use your tools to locate issue templates in the target repo (usually .github/ISSUE_TEMPLATE/*.md).
+- The SHA returned by GitHub__get_file_contents is a FILE (blob) SHA.
+- FILE (blob) SHAs MUST NEVER be reused as input to any GitHub tool.
 - Pick the template that matches the context (e.g., bug vs feature).
-- Once you selected the template, note its full path (e.g., ".github/ISSUE_TEMPLATE/1-bug.md")
+- Read the full template file content.
+- Follow the template structure and requirements STRICTLY when creating the issue.
+- The transcript or user input is just for context.
 
-4) PARSE the selected template (MANDATORY - Use Template Tools):
-Use fetch_and_parse_github_template
-- This tool fetches AND parses the template in ONE atomic operation
-- It directly calls GitHub API and parses internally - no text modification possible
-- Call: fetch_and_parse_github_template({ owner: "repoOwner", repo: "repoName", templatePath: "SELECTED_TEMPLATE_PATH" })
-- Example: fetch_and_parse_github_template({ owner: "SSWConsulting", repo: "SSW.YakShaver.Desktop", templatePath: ".github/ISSUE_TEMPLATE/1-bug.md" })
-- The result includes frontmatter, blocks (with preamble and sections), placeholders, and fixedElements ready to use
-- After parsing:
-  - The parse_github_template output shows you the exact template requirements.
-  - Use THIS parsed structure to understand what sections, placeholders, and labels are needed.
+4) Parse and enforce the template frontmatter (CRITICAL):
+- Templates often start with YAML frontmatter like:
+  - name:
+  - about:
+  - title:
+  - labels:
+  - assignees:
+- You MUST extract and use these values exactly as specified.
+- Apply all specified labels from the frontmatter to the created issue.
 
-5) Generate content based on parsed template structure (CRITICAL):
-- The parsed template output shows you ALL required sections with their exact heading names in the "blocks" array.
-- The "blocks" array preserves document order: preamble first, then sections.
-- Generate appropriate content for EACH section from the parsed template.
-- Use the transcript/video context to create meaningful content for each section.
-- For sections like "Tasks" or "Acceptance Criteria", create proper checklist items.
-- For placeholders like {{ USER }}, {{videoUrl}}, etc., prepare the replacement values.
-- For preamble content (Cc:, Hi {{ USER }}, video links), prepare placeholder replacements.
+5) Issue title rules (STRICT):
+- Title MUST follow the template frontmatter's title pattern exactly INCLUDING EMOJI.
+- Replace any {{ ... }} placeholders in the title pattern (e.g., "{{ BUG DESCRIPTION }}", "{{ FEATURE NAME }}", "{{ FEATURE DESCRIPTION }}") by substituting the entire token with an appropriate short summary derived from the transcript or user request.
+- Do not omit any fixed words like "🐛 Bug -" and do not use a different emoji.
 
-6) Fill the template using fill_github_template (MANDATORY):
-- Call fill_github_template with:
-  - templateStructure: The COMPLETE output from parse_github_template or fetch_and_parse_github_template
-    - Must include: frontmatter, blocks, placeholders, fixedElements
-    - The "blocks" array contains the document structure in order
-    - **DO NOT create a partial templateStructure** - use the entire object
-  - fillData: Your generated content with:
-    - title: Just the descriptive part (e.g., "App crashes on startup"), NOT the emoji/prefix
-    - sections: Map of section headings to content strings
-      - Keys MUST match section headings from blocks with type="section"
-      - Each value must be a STRING containing the section content
-      - Example: {"Describe the Bug": "The app crashes...", "To Reproduce": "1. Open\\n2. Click..."}
-    - placeholders: (OPTIONAL) Map of {{ TOKENS }} to replacement values (at TOP LEVEL)
-      - Example: {"{{ USER }}": "@john", "{{videoUrl}}": "https://..."}
-    - preamble: (OPTIONAL) Override preamble content if needed
-    - additionalLabels: ["YakShaver"] and any other relevant labels
+6) Format the issue body to match the template (STRICT):
+- call fill_template tool to fill in the template placeholders.
+- Preserve the template's section headings and checklist items.
+- Make sure that all sections starting with "###" in the template such as "### Tasks" are present in the final issue body.
+- Do NOT invent new sections or change heading text.
+- Remove template-only HTML comments like "<!-- ... -->" from the final issue body.
+- Replace placeholders (e.g., "Hi {{ USER }}") with appropriate values when known; if unknown, keep the greeting minimal but keep the structure.
 
-**CORRECT STRUCTURE**:
-- templateStructure: (complete object with frontmatter, blocks, placeholders, fixedElements, preamble)
-- fillData.title: "App crashes on startup" (descriptive only)
-- fillData.sections: {"Describe the Bug": "content string", "To Reproduce": "content string"}
-- fillData.placeholders: {"{{ USER }}": "@john", "{{videoUrl}}": "https://..."} (at top level)
-- fillData.additionalLabels: ["YakShaver"]
-
-7) Validate before creating the issue (MANDATORY):
-- Call validate_template_completeness with the templateStructure and filled content.
-- If validation returns errors, fix the issues and fill again.
-- Only proceed to create the GitHub issue once validation passes or only has warnings.
-
-8) Issue title handling:
-- The fill_github_template tool automatically adds emoji/prefixes from the template.
-- You only provide the descriptive part of the title in fillData.
-- Example: If template says "🐛 Bug - {{ BUG DESCRIPTION }}", you provide title: "App crashes on startup"
-
-9) Screenshots from video (when video file path is available, recommended):
+7) Screenshots from video (when video file path is available, recommended):
 - ALWAYS capture exactly one screenshot from the video using capture_video_frame.
 - Choose a timestamp where important UI elements, errors, or context is visible.
 - After capturing, upload it using upload_screenshot to obtain a public URL.
@@ -100,7 +71,7 @@ Use fetch_and_parse_github_template
 - CRITICAL: Preserve the complete screenshotUrl including all query parameters.
 - CRITICAL: If upload_screenshot returns an empty URL, do not mention screenshots at all.
 
-10) Privacy and local paths (CRITICAL):
+8) Privacy and local paths (CRITICAL):
 - NEVER mention local video or local screenshot file paths in the issue description.
 
 

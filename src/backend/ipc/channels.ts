@@ -59,6 +59,7 @@ export const IPC_CHANNELS = {
   PROCESS_VIDEO_FILE: "process-video:file",
   PROCESS_VIDEO_URL: "process-video:url",
   RETRY_VIDEO: "retry-video",
+  EXECUTE_TASK_FROM_INTERMEDIATE: "execute-task:from-intermediate", // Skip to executing task stage
 
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",

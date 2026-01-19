@@ -120,8 +120,19 @@ export class MCPOrchestrator {
       { role: "user", content: prompt },
     ];
 
+    // Log session start
+    console.log("[MCPOrchestrator] ===== SESSION STARTED =====");
+    console.log("[MCPOrchestrator] Initial User Prompt:", prompt);
+    console.log("[MCPOrchestrator] Available Tools:", Object.keys(tools).length);
+    console.log(
+      "[MCPOrchestrator] Tool Approval Mode:",
+      toolApprovalSettingsStorage.getSettingsAsync().then((s) => s.toolApprovalMode),
+    );
+    console.log("[MCPOrchestrator] Max Iterations:", options.maxToolIterations || 20);
+
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
+      console.log(`[MCPOrchestrator] ===== ORCHESTRATION LOOP ITERATION ${i + 1} =====`);
       const toolApprovalSettings = await toolApprovalSettingsStorage.getSettingsAsync();
       const toolApprovalMode: ToolApprovalMode = toolApprovalSettings.toolApprovalMode;
       const bypassApprovalChecks = toolApprovalMode === "yolo";
@@ -134,7 +145,7 @@ export class MCPOrchestrator {
       const llmResponse = await MCPOrchestrator.languageModelProvider
         .generateTextWithTools(messages, tools)
         .catch((error) => {
-          console.log("[MCPOrchestrator]: Error in processMessageAsync:", error);
+          console.error("[MCPOrchestrator] Error generating response from LLM:", error);
           throw error;
         });
 
@@ -156,10 +167,12 @@ export class MCPOrchestrator {
 
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
+        console.log(`[MCPOrchestrator] LLM requested ${llmResponse.toolCalls.length} tool call(s)`);
         for (const toolCall of llmResponse.toolCalls) {
           const requiresApproval = !bypassApprovalChecks && !toolWhiteList.has(toolCall.toolName);
 
           if (requiresApproval) {
+            console.log(`[MCPOrchestrator] Tool approval required for: ${toolCall.toolName}`);
             const autoApproveAt =
               toolApprovalMode === "wait"
                 ? Date.now() + WAIT_MODE_AUTO_APPROVE_DELAY_MS
@@ -171,6 +184,10 @@ export class MCPOrchestrator {
             );
 
             if (decision.kind === "deny_stop") {
+              console.log(`[MCPOrchestrator] Tool DENIED by user: ${toolCall.toolName}`);
+              if (decision.feedback) {
+                console.log(`[MCPOrchestrator] Denial Feedback: ${decision.feedback}`);
+              }
               const denialMessage = decision.feedback?.trim()?.length
                 ? `User cancelled tool: ${decision.feedback.trim()}`
                 : "Tool execution cancelled by user";
@@ -189,6 +206,8 @@ export class MCPOrchestrator {
             }
 
             if (decision.kind === "request_changes") {
+              console.log(`[MCPOrchestrator] Tool requires changes: ${toolCall.toolName}`);
+              console.log(`[MCPOrchestrator] Requested Changes: ${decision.feedback}`);
               let retryFeedback: { message: string; userVisibleMessage: string } | null = null;
               const formattedFeedback = decision.feedback.trim();
               const userVisibleMessage = formattedFeedback
@@ -238,48 +257,84 @@ export class MCPOrchestrator {
           }
 
           // send event to UI about tool call now that it is approved/whitelisted
+          console.log(`[MCPOrchestrator] Tool APPROVED/WHITELISTED: ${toolCall.toolName}`);
           sendStepEvent({
             type: "tool_call",
             toolName: toolCall.toolName,
             args: toolCall.input,
           });
-          console.log("Executing tool:", toolCall.toolName);
+
+          // Log tool call details
+          console.log("[MCPOrchestrator] ===== TOOL CALL START =====");
+          console.log(`[MCPOrchestrator] Tool Name: ${toolCall.toolName}`);
+          console.log(`[MCPOrchestrator] Tool Call ID: ${toolCall.toolCallId}`);
+          console.log("[MCPOrchestrator] Tool Arguments:", JSON.stringify(toolCall.input, null, 2));
+          console.log("[MCPOrchestrator] ===== TOOL EXECUTION =====");
 
           const toolToCall = tools[toolCall.toolName];
 
           if (toolToCall?.execute) {
-            const toolOutput = await toolToCall.execute(toolCall.input, {
-              toolCallId: toolCall.toolCallId,
-            } as ToolExecutionOptions);
+            try {
+              const startTime = Date.now();
+              const toolOutput = await toolToCall.execute(toolCall.input, {
+                toolCallId: toolCall.toolCallId,
+              } as ToolExecutionOptions);
+              const executionTime = Date.now() - startTime;
 
-            // send event to UI about tool result
-            sendStepEvent({
-              type: "tool_result",
-              toolName: toolCall.toolName,
-              result: toolOutput,
-            });
+              // Log tool result
+              console.log("[MCPOrchestrator] ===== TOOL RESULT START =====");
+              console.log(`[MCPOrchestrator] Tool Name: ${toolCall.toolName}`);
+              console.log(`[MCPOrchestrator] Execution Time: ${executionTime}ms`);
+              console.log(
+                `[MCPOrchestrator] Result Type: ${toolOutput.content[0]?.type || "unknown"}`,
+              );
+              console.log(
+                "[MCPOrchestrator] Result Output:",
+                JSON.stringify(toolOutput.content[0]?.text, null, 2),
+              );
+              console.log("[MCPOrchestrator] ===== TOOL RESULT END =====");
 
-            // construct tool result message and append to messages history
-            const toolMessage: ToolModelMessage = {
-              role: "tool",
-              content: [
-                {
-                  toolName: toolCall.toolName,
-                  toolCallId: toolCall.toolCallId,
-                  type: "tool-result",
-                  output: {
-                    type: toolOutput.content[0].type,
-                    value: toolOutput.content[0].text,
+              // send event to UI about tool result
+              sendStepEvent({
+                type: "tool_result",
+                toolName: toolCall.toolName,
+                result: toolOutput,
+              });
+
+              // construct tool result message and append to messages history
+              const toolMessage: ToolModelMessage = {
+                role: "tool",
+                content: [
+                  {
+                    toolName: toolCall.toolName,
+                    toolCallId: toolCall.toolCallId,
+                    type: "tool-result",
+                    output: {
+                      type: toolOutput.content[0].type,
+                      value: toolOutput.content[0].text,
+                    },
                   },
-                },
-              ],
-            };
+                ],
+              };
 
-            messages.push(toolMessage);
+              messages.push(toolMessage);
+            } catch (toolError) {
+              console.error("[MCPOrchestrator] ===== TOOL ERROR =====");
+              console.error(`[MCPOrchestrator] Tool Name: ${toolCall.toolName}`);
+              console.error(`[MCPOrchestrator] Tool Call ID: ${toolCall.toolCallId}`);
+              console.error("[MCPOrchestrator] Error Details:", toolError);
+              console.error("[MCPOrchestrator] ===== TOOL ERROR END =====");
+              throw toolError;
+            }
+          } else {
+            console.warn(
+              `[MCPOrchestrator] Tool '${toolCall.toolName}' not found or has no execute method`,
+            );
           }
         }
       } else if (llmResponse.finishReason === "stop") {
-        console.log("Final message history by stop:");
+        console.log("[MCPOrchestrator] ===== SESSION COMPLETE (STOP) =====");
+        console.log("[MCPOrchestrator] Final Response:");
         console.log(llmResponse.text);
 
         // send final result event to UI
@@ -289,13 +344,13 @@ export class MCPOrchestrator {
         });
         return llmResponse.text;
       } else if (llmResponse.finishReason === "content-filter") {
-        console.log("Conversation ended due to content filter. ");
+        console.log("[MCPOrchestrator] Session ended: Content filter triggered");
         return "Conversation ended due to content filter.";
       } else if (llmResponse.finishReason === "length") {
-        console.log("Conversation ended due to length limit. ");
+        console.log("[MCPOrchestrator] Session ended: Maximum length reached");
         return "Conversation ended due to length limit.";
       } else {
-        console.log("Conversation ended by error or unknown stop. Reason: ");
+        console.log("[MCPOrchestrator] Session ended with unknown reason:");
         console.log(llmResponse.finishReason);
         break;
       }
