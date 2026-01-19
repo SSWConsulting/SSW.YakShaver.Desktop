@@ -128,7 +128,6 @@ export class ProcessVideoIPCHandlers {
     );
   }
 
-  // Process video from a local file
   private async processFileVideo(filePath: string, shaveId?: string) {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
