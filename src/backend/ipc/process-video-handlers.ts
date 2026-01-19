@@ -132,11 +132,22 @@ export class ProcessVideoIPCHandlers {
       throw new Error("video-process-handler: Video file does not exist");
     }
 
+    // Get video source info for duration if shaveId exists
+    let duration: number | undefined;
+    if (shaveId) {
+      const shaveService = ShaveService.getInstance();
+      const videoSource = shaveService.getShaveVideoSourceInfo(shaveId);
+      duration = videoSource?.durationSeconds ?? undefined;
+    }
+
     // upload to YouTube
     notify(ProgressStage.UPLOADING_SOURCE, {
       sourceOrigin: "upload",
     });
     const youtubeResult = await this.youtube.uploadVideo(filePath);
+    if (youtubeResult.success && youtubeResult.data && duration) {
+      youtubeResult.data.duration = duration;
+    }
     notify(ProgressStage.UPLOAD_COMPLETED, {
       uploadResult: youtubeResult,
       sourceOrigin: youtubeResult.origin,
