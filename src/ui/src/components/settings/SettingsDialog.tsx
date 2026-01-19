@@ -12,6 +12,7 @@ import { TranscriptionModelKeyManager } from "./llm/TranscriptionModelKeyManager
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelManager";
 import { ToolApprovalSettingsPanel } from "./tool-approval/ToolApprovalSettingsPanel";
+import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
 
 type LeaveHandler = () => Promise<boolean>;
 
@@ -48,6 +49,10 @@ const TABS: SettingsTab[] = [
   {
     id: "mcp",
     label: "MCP Servers",
+  },
+  {
+    id: "videoHost",
+    label: "Video Host",
   },
   {
     id: "advanced",
@@ -188,6 +193,9 @@ export function SettingsDialog() {
                 )}
                 {activeTab?.id === "mcp" && (
                   <McpSettingsPanel isActive={open && activeTabId === "mcp"} viewMode="detailed" />
+                )}
+                {activeTab?.id === "videoHost" && (
+                  <VideoHostSettingsPanel isActive={open && activeTabId === "videoHost"} />
                 )}
                 {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
                 {activeTab?.id === "account" && (

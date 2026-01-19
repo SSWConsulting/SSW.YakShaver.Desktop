@@ -88,8 +88,8 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
 
   const loadCurrentVersion = useCallback(async () => {
     try {
-      const version = await window.electronAPI.releaseChannel.getCurrentVersion();
-      setCurrentVersion(version);
+      const info = await window.electronAPI.releaseChannel.getCurrentVersion();
+      setCurrentVersion(info.version);
     } catch (error) {
       const errMsg = formatErrorMessage(error);
       toast.error(`Failed to load current version: ${errMsg}`);

@@ -446,16 +446,18 @@ export class MCPServerManager {
     });
   }
 
-  public async addToolToServerWhitelistAsync(serverId: string, toolName: string): Promise<void> {
+  public async addToolToServerWhitelistAsync(serverName: string, toolName: string): Promise<void> {
     const storage = McpStorage.getInstance();
     let serverConfigs = await storage.getMcpServerConfigsAsync();
-    const targetIndex = serverConfigs.findIndex((server) => server.id === serverId);
+    const targetIndex = serverConfigs.findIndex((server) => server.name === serverName);
 
     if (targetIndex === -1) {
-      const internalConfig = MCPServerManager.internalServerConfigs.find((s) => s.id === serverId);
+      const internalConfig = MCPServerManager.internalServerConfigs.find(
+        (s) => s.name === serverName,
+      );
 
       if (!internalConfig) {
-        throw new Error(`[McpStorage]: MCP server with name ${serverId} not found`);
+        throw new Error(`[McpStorage]: MCP server with name ${serverName} not found`);
       }
 
       const newConfig = {

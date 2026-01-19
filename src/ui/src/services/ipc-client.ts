@@ -26,6 +26,7 @@ import type {
   ShaveStatus,
   TranscriptEntry,
   UserInfo,
+  VersionInfo,
   VideoUploadResult,
   YouTubeConfig,
 } from "../types";
@@ -93,12 +94,14 @@ declare global {
         minimizeMainWindow: () => Promise<{ success: boolean }>;
         restoreMainWindow: () => Promise<{ success: boolean }>;
         onStopRequest: (callback: () => void) => () => void;
+        onOpenSourcePicker: (callback: () => void) => () => void;
       };
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;
       };
       workflow: {
         onProgress: (callback: (progress: unknown) => void) => () => void;
+        onProgressNeo: (callback: (progress: unknown) => void) => () => void;
       };
       mcp: {
         processMessage: (
@@ -163,7 +166,7 @@ declare global {
           error?: string;
           version?: string;
         }>;
-        getCurrentVersion: () => Promise<string>;
+        getCurrentVersion: () => Promise<VersionInfo>;
         onDownloadProgress: (
           callback: (progress: { percent: number; transferred: number; total: number }) => void,
         ) => () => void;
@@ -180,7 +183,6 @@ declare global {
           rateLimitRemaining?: number;
           error?: string;
         }>;
-        getInstallUrl: () => Promise<string>;
       };
       toolApprovalSettings: {
         get: () => Promise<ToolApprovalSettings>;

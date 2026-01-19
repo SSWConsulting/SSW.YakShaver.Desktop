@@ -31,7 +31,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
     },
     ref,
   ) => {
-    if (isDisabled) {
+    if (isDisabled && !isChecking) {
       return (
         <div
           ref={ref}

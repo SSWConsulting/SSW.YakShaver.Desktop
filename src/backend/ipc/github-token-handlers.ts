@@ -12,7 +12,6 @@ export class GitHubTokenIPCHandlers {
     ipcMain.handle(IPC_CHANNELS.GITHUB_TOKEN_CLEAR, () => this.clearToken());
     ipcMain.handle(IPC_CHANNELS.GITHUB_TOKEN_HAS, () => this.hasToken());
     ipcMain.handle(IPC_CHANNELS.GITHUB_TOKEN_VERIFY, () => this.verifyToken());
-    ipcMain.handle(IPC_CHANNELS.GITHUB_APP_GET_INSTALL_URL, () => this.getGitHubAppInstallUrl());
   }
 
   private async getToken(): Promise<string | undefined> {
@@ -92,16 +91,5 @@ export class GitHubTokenIPCHandlers {
     } catch (error) {
       return { isValid: false, error: formatErrorMessage(error) };
     }
-  }
-
-  private getGitHubAppInstallUrl(): string {
-    const installUrl = process.env.GITHUB_APP_INSTALLATION_LINK;
-
-    if (installUrl) {
-      return installUrl;
-    }
-
-    // Fallback to GitHub Apps installation page
-    return "https://github.com/apps";
   }
 }

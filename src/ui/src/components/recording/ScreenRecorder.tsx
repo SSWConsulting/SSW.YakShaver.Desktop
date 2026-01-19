@@ -59,6 +59,17 @@ export function ScreenRecorder() {
     return cleanup;
   }, [handleStopRecording]);
 
+  const handleOpenSourcePicker = useCallback(() => {
+    if (!isRecording) {
+      setPickerOpen(true);
+    }
+  }, [isRecording]);
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.screenRecording.onOpenSourcePicker(handleOpenSourcePicker);
+    return cleanup;
+  }, [handleOpenSourcePicker]);
+
   useEffect(() => {
     if (!isYoutubeUrlWorkflowEnabled) {
       setYoutubeUrl("");
