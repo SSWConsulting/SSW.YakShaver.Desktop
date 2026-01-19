@@ -84,9 +84,9 @@ export const IPC_CHANNELS = {
   GITHUB_TOKEN_HAS: "github-token:has",
   GITHUB_TOKEN_VERIFY: "github-token:verify",
 
-  // Tool Approval Settings
-  TOOL_APPROVAL_SETTINGS_GET: "tool-approval-settings:get",
-  TOOL_APPROVAL_SETTINGS_SET_MODE: "tool-approval-settings:set-mode",
+  // General Settings
+  SETTINGS_GET: "settings:get",
+  SETTINGS_UPDATE: "settings:update",
 
   // App Control
   APP_RESTART: "app:restart",
