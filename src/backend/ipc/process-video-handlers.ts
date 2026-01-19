@@ -171,7 +171,6 @@ export class ProcessVideoIPCHandlers {
     }
   }
 
-  // Process video from a URL (e.g., YouTube link)
   private async processUrlVideo(url: string, shaveId?: string) {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
