@@ -300,7 +300,6 @@ export class ProcessVideoIPCHandlers {
         const videoId = youtubeResult.data?.videoId;
         if (videoId) {
           try {
-            // throw new Error("Simulated metadata update error"); // TODO: Remove this line after testing error handling
             notify(ProgressStage.UPDATING_METADATA);
             workflowManager.updateStagePayload("updating_metadata", null, "in_progress");
             const metadata = await this.metadataBuilder.build({
