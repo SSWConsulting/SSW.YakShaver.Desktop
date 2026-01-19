@@ -106,3 +106,7 @@ data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+# Claude Code temp files
+tmpclaude*
+.claude/settings.local.json
