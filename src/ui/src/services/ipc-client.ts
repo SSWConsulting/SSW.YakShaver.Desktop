@@ -1,5 +1,5 @@
 import type { LLMConfigV2 } from "@shared/types/llm";
-import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
+import type { UserSettings } from "@shared/types/user-settings";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
@@ -184,9 +184,9 @@ declare global {
           error?: string;
         }>;
       };
-      toolApprovalSettings: {
-        get: () => Promise<ToolApprovalSettings>;
-        setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
+      userSettings: {
+        get: () => Promise<UserSettings>;
+        update: (patch: Partial<UserSettings>) => Promise<{ success: boolean }>;
       };
       app: {
         restart: () => Promise<{ success: boolean; error?: string }>;

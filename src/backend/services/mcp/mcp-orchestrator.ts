@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import type { ToolApprovalMode } from "@shared/types/tool-approval";
+import type { ToolApprovalMode } from "@shared/types/user-settings";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
 import type { MCPStep, ToolApprovalDecision } from "../../../shared/types/mcp";
 import type { VideoUploadResult } from "../auth/types";
-import { ToolApprovalSettingsStorage } from "../storage/tool-approval-settings-storage";
+import { UserSettingsStorage } from "../storage/user-settings-storage";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 
@@ -68,8 +68,8 @@ export class MCPOrchestrator {
     }
 
     // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsForSelectedServersAsync(options.serverFilter);
-    const toolApprovalSettingsStorage = ToolApprovalSettingsStorage.getInstance();
+    const tools = await serverManager.collectToolsWithServerPrefixAsync();
+    const userSettingsStorage = UserSettingsStorage.getInstance();
 
     let systemPrompt =
       options.systemPrompt ??
@@ -100,7 +100,7 @@ export class MCPOrchestrator {
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
-      const toolApprovalSettings = await toolApprovalSettingsStorage.getSettingsAsync();
+      const toolApprovalSettings = await userSettingsStorage.getSettingsAsync();
       const toolApprovalMode: ToolApprovalMode = toolApprovalSettings.toolApprovalMode;
       const bypassApprovalChecks = toolApprovalMode === "yolo";
       const toolWhiteList = bypassApprovalChecks

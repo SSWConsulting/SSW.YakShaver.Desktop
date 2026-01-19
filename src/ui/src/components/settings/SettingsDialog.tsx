@@ -6,6 +6,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
+import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
 import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
 import { LanguageModelKeyManager } from "./llm/LanguageModelKeyManager";
 import { TranscriptionModelKeyManager } from "./llm/TranscriptionModelKeyManager";
@@ -22,6 +23,10 @@ interface SettingsTab {
 }
 
 const TABS: SettingsTab[] = [
+  {
+    id: "general",
+    label: "General",
+  },
   {
     id: "toolApproval",
     label: "Tool approval",
@@ -168,6 +173,9 @@ export function SettingsDialog() {
           <section className="flex-1 h-full overflow-hidden">
             <ScrollArea className="h-full pr-1">
               <div className="pb-4 pr-2">
+                {activeTab?.id === "general" && (
+                  <GeneralSettingsPanel isActive={open && activeTabId === "general"} />
+                )}
                 {activeTab?.id === "toolApproval" && (
                   <ToolApprovalSettingsPanel isActive={open && activeTabId === "toolApproval"} />
                 )}
