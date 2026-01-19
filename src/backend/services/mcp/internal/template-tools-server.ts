@@ -22,6 +22,16 @@ const fetchAndParseInputSchema = z.object(fetchAndParseInputShape);
 
 type FetchAndParseInput = z.infer<typeof fetchAndParseInputSchema>;
 
+const parseInputShape = {
+  templateContent: z
+    .string()
+    .min(1)
+    .describe(
+      "Raw markdown template content from GitHub - MUST be the exact, unmodified string returned by GitHub__get_file_contents or similar tools. Includes YAML frontmatter (---), markdown headings (###), placeholders ({{ ... }}), and HTML comments. DO NOT modify, reformat, or clean this content before passing it to this tool.",
+    ),
+};
+const parseInputSchema = z.object(parseInputShape);
+
 const templateSectionSchema = z.object({
   heading: z.string(),
   level: z.number(),
@@ -125,6 +135,7 @@ const validateInputShape = {
 };
 const validateInputSchema = z.object(validateInputShape);
 
+type ParseInput = z.infer<typeof parseInputSchema>;
 type FillInput = z.infer<typeof fillInputSchema>;
 type ValidateInput = z.infer<typeof validateInputSchema>;
 
@@ -140,7 +151,9 @@ interface TemplateSection {
 // New: Block-based structure that preserves document order
 interface TemplateBlock {
   type: "preamble" | "section";
+  // For preamble blocks
   rawContent?: string;
+  // For section blocks
   heading?: string;
   level?: number;
   content?: string;
@@ -155,7 +168,7 @@ interface ParsedTemplateStructure {
   blocks?: TemplateBlock[]; // Ordered blocks preserving document structure
   placeholders: string[];
   fixedElements: Record<string, string>;
-  preamble?: string;
+  preamble?: string; // Content before first heading
 }
 
 interface FilledTemplate {
@@ -182,6 +195,50 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
   });
 
   mcpServer.registerTool(
+    "parse_github_template",
+    {
+      description:
+        "Parse a GitHub issue template to extract its structure, placeholders, sections, and metadata. CRITICAL: Pass the EXACT, UNMODIFIED content from GitHub (with ### headings, {{ placeholders }}, HTML comments, etc.). Do NOT reformat or summarize the template before calling this tool. This tool analyzes the template's YAML frontmatter and markdown content to provide a structured representation that can be used for validation and filling.",
+      inputSchema: parseInputShape,
+    },
+    async (input: ParseInput) => {
+      const { templateContent } = parseInputSchema.parse(input);
+      console.log(`[MCP] parse_github_template called with ${templateContent.length} chars`);
+
+      try {
+        const parsed = parseTemplateStructure(templateContent);
+        console.log(
+          `[MCP] parse_github_template success: ${parsed.blocks?.length || 0} blocks, ${parsed.placeholders.length} placeholders`,
+        );
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  frontmatter: parsed.frontmatter,
+                  blocks: parsed.blocks,
+                  placeholders: parsed.placeholders,
+                  preamble: parsed.preamble,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        console.error(
+          `[MCP] parse_github_template failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        throw new Error(
+          `Failed to parse template: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+  );
+
+  mcpServer.registerTool(
     "fill_github_template",
     {
       description:
@@ -190,9 +247,15 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
     },
     async (input: FillInput) => {
       const { templateStructure, fillData } = fillInputSchema.parse(input);
+      console.log(
+        `[MCP] fill_github_template called with title: "${fillData.title}" and ${Object.keys(fillData.sections).length} sections`,
+      );
 
       try {
         const filled = fillTemplate(templateStructure, fillData);
+        console.log(
+          `[MCP] fill_github_template success: title length ${filled.title.length}, body length ${filled.body.length}, ${filled.labels.length} labels`,
+        );
         return {
           content: [
             {
@@ -202,6 +265,9 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
           ],
         };
       } catch (error) {
+        console.error(
+          `[MCP] fill_github_template failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
         throw new Error(
           `Failed to fill template: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -218,9 +284,15 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
     },
     async (input: ValidateInput) => {
       const { templateStructure, filledContent } = validateInputSchema.parse(input);
+      console.log(
+        `[MCP] validate_template_completeness called with title: "${filledContent.title}"`,
+      );
 
       try {
         const validation = validateFilledTemplate(templateStructure, filledContent);
+        console.log(
+          `[MCP] validate_template_completeness result: valid=${validation.isValid}, errors=${validation.errors.length}, warnings=${validation.warnings.length}`,
+        );
         return {
           content: [
             {
@@ -230,6 +302,9 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
           ],
         };
       } catch (error) {
+        console.error(
+          `[MCP] validate_template_completeness failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
         throw new Error(
           `Failed to validate template: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -248,13 +323,20 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
     },
     async (input: FetchAndParseInput) => {
       const { owner, repo, templatePath } = fetchAndParseInputSchema.parse(input);
+      console.log(`[MCP] fetch_and_parse_github_template called: ${owner}/${repo}/${templatePath}`);
 
       try {
         // Fetch template directly from GitHub API
         const templateContent = await fetchGitHubFileContent(owner, repo, templatePath);
+        console.log(
+          `[MCP] fetch_and_parse_github_template fetched ${templateContent.length} chars`,
+        );
 
         // Parse immediately without any LLM intervention
         const parsed = parseTemplateStructure(templateContent);
+        console.log(
+          `[MCP] fetch_and_parse_github_template parsed: ${parsed.blocks?.length || 0} blocks, ${parsed.placeholders.length} placeholders`,
+        );
 
         // Return simplified output structure (omit duplicate sections array in JSON output)
         return {
@@ -279,6 +361,9 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
           ],
         };
       } catch (error) {
+        console.error(
+          `[MCP] fetch_and_parse_github_template failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
         throw new Error(
           `Failed to fetch and parse template: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -291,7 +376,7 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
 
   const config: MCPServerConfig = {
     id: serverId,
-    name: "Yak_Template",
+    name: "YakShaver Template Tools",
     transport: "inMemory",
     inMemoryServerId: serverId,
     builtin: true,
@@ -305,6 +390,8 @@ export async function createInternalTemplateToolsServer(): Promise<InternalMcpSe
  * Parse template content to extract structure, placeholders, and metadata
  */
 function parseTemplateStructure(templateContent: string): ParsedTemplateStructure {
+  console.log(`[parseTemplateStructure] Parsing template with ${templateContent.length} chars`);
+  // Parse YAML frontmatter
   const { data: frontmatter, content: markdownBody } = matter(templateContent);
 
   // Extract placeholders ({{ SOMETHING }})
@@ -312,13 +399,13 @@ function parseTemplateStructure(templateContent: string): ParsedTemplateStructur
   const placeholders = new Set<string>();
   let match: RegExpExecArray | null = placeholderRegex.exec(templateContent);
   while (match !== null) {
-    placeholders.add(match[0]);
+    placeholders.add(match[0]); // Keep full {{ ... }} format
     match = placeholderRegex.exec(templateContent);
   }
 
   // Parse into ordered blocks (preserves document structure)
   const blocks: TemplateBlock[] = [];
-  const sections: TemplateSection[] = [];
+  const sections: TemplateSection[] = []; // Keep for backward compat
   const lines = markdownBody.split("\n");
 
   const preambleLines: string[] = [];
@@ -442,6 +529,9 @@ function parseTemplateStructure(templateContent: string): ParsedTemplateStructur
     fixedElements.videoPlaceholder = "{{VIDEO_LINK}}";
   }
 
+  console.log(
+    `[parseTemplateStructure] Done: ${blocks.length} blocks, ${placeholders.size} placeholders, fixedElements: ${JSON.stringify(fixedElements)}`,
+  );
   return {
     frontmatter,
     sections, // Keep internally for fillTemplate fallback logic
@@ -466,6 +556,7 @@ function fillTemplate(
     preamble?: string; // Optional: override preamble content
   },
 ): FilledTemplate {
+  console.log(`[fillTemplate] Filling template with title: "${fillData.title}"`);
   const validationErrors: string[] = [];
 
   // Construct title with emoji/prefix from template
@@ -504,7 +595,7 @@ function fillTemplate(
 
         if (preambleContent) {
           bodyParts.push(preambleContent);
-          bodyParts.push("");
+          bodyParts.push(""); // Empty line after preamble
         }
       } else if (block.type === "section" && block.heading && block.level) {
         // Add section heading
@@ -579,6 +670,9 @@ function fillTemplate(
     labels.push(...fillData.additionalLabels);
   }
 
+  console.log(
+    `[fillTemplate] Done: title="${fullTitle}", body=${body.length} chars, ${labels.length} labels`,
+  );
   return {
     title: fullTitle,
     body,
@@ -594,6 +688,7 @@ function validateFilledTemplate(
   templateStructure: ParsedTemplateStructure,
   filledContent: { title: string; body: string; labels: string[] },
 ): ValidationResult {
+  console.log(`[validateFilledTemplate] Validating template with title: "${filledContent.title}"`);
   const errors: string[] = [];
   const warnings: string[] = [];
   const missingPlaceholders: string[] = [];
@@ -670,6 +765,9 @@ function validateFilledTemplate(
     }
   }
 
+  console.log(
+    `[validateFilledTemplate] Done: valid=${errors.length === 0}, errors=${errors.length}, warnings=${warnings.length}`,
+  );
   return {
     isValid: errors.length === 0,
     errors,
