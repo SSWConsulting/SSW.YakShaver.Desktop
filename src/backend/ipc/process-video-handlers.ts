@@ -210,7 +210,6 @@ export class ProcessVideoIPCHandlers {
     }
   }
 
-  // Main Shave pipeline for processing video
   private async processVideoSource(
     { filePath, youtubeResult, shaveId }: VideoProcessingContext,
     workflowManager: WorkflowStateManager,
