@@ -1,5 +1,6 @@
 import { BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../../ipc/channels";
+import { formatErrorMessage } from "../../utils/error-utils";
 import {
   ProgressStage,
   type WorkflowState,
@@ -88,7 +89,7 @@ export class WorkflowStateManager {
    * Fail a specific stage in the workflow.
    */
   public failStage(stageKey: keyof WorkflowState, error: string | Error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = formatErrorMessage(error);
 
     this.state[stageKey] = {
       ...this.state[stageKey],
