@@ -86,7 +86,9 @@ export function HotkeySettingsPanel({ isActive }: HotkeySettingsPanelProps) {
         setShortcutInput(defaultShortcut);
         toast.success(`Record shortcut reset to default: ${defaultShortcut}`);
       } else {
-        toast.error("Failed to reset shortcut");
+        toast.error(
+          `Failed to reset shortcut to default: ${defaultShortcut}. Another application may be already using it, please close that application and try again.`,
+        );
       }
     } catch (error) {
       console.error("Failed to reset shortcut", error);
