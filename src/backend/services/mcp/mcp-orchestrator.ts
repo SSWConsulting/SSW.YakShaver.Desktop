@@ -3,6 +3,7 @@ import type { ToolApprovalMode } from "@shared/types/tool-approval";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
+import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
 import { ToolApprovalSettingsStorage } from "../storage/tool-approval-settings-storage";
 import { LanguageModelProvider } from "./language-model-provider";
@@ -349,12 +350,6 @@ export class MCPOrchestrator {
       const isValidDuration = typeof duration === "number" && duration > 0;
 
       if (isValidDuration) {
-        const getDurationParts = (seconds: number) => {
-          const hours = Math.floor(seconds / 3600);
-          const mins = Math.floor((seconds % 3600) / 60);
-          const secs = Math.floor(seconds % 60);
-          return { totalSeconds: seconds, hours, minutes: mins, seconds: secs };
-        };
         const outputDuration = getDurationParts(duration);
         systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
 Video duration:
