@@ -38,8 +38,7 @@ interface MCPStep {
 
 /**
  * Tool Output Buffer for host-level tool chaining.
- * Stores raw tool outputs so subsequent tools can reference them by ID,
- * avoiding content modification by the LLM during chaining.
+ * Stores raw tool outputs so subsequent tools can reference them by ID, avoiding content modification by the LLM during chaining.
  */
 export class ToolOutputBuffer {
   private static instance: ToolOutputBuffer;
@@ -65,9 +64,6 @@ export class ToolOutputBuffer {
       content,
       timestamp: Date.now(),
     });
-    console.log(
-      `[ToolOutputBuffer] Stored output for '${toolName}' with ID: ${id} (${content.length} chars)`,
-    );
     return id;
   }
 
@@ -77,9 +73,6 @@ export class ToolOutputBuffer {
   public get(id: string): string | undefined {
     const entry = this.outputs.get(id);
     if (entry) {
-      console.log(
-        `[ToolOutputBuffer] Retrieved output for ID: ${id} (${entry.content.length} chars)`,
-      );
       return entry.content;
     }
     console.warn(`[ToolOutputBuffer] Output not found for ID: ${id}`);
@@ -114,9 +107,7 @@ export class ToolOutputBuffer {
    * Clear the buffer (call at session end)
    */
   public clear(): void {
-    const count = this.outputs.size;
     this.outputs.clear();
-    console.log(`[ToolOutputBuffer] Cleared ${count} stored outputs`);
   }
 
   /**
@@ -217,7 +208,6 @@ export class MCPOrchestrator {
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
-      console.log(`[MCPOrchestrator] ===== ORCHESTRATION LOOP ITERATION ${i + 1} =====`);
       const toolApprovalSettings = await toolApprovalSettingsStorage.getSettingsAsync();
       const toolApprovalMode: ToolApprovalMode = toolApprovalSettings.toolApprovalMode;
       const bypassApprovalChecks = toolApprovalMode === "yolo";
@@ -252,12 +242,10 @@ export class MCPOrchestrator {
 
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
-        console.log(`[MCPOrchestrator] LLM requested ${llmResponse.toolCalls.length} tool call(s)`);
         for (const toolCall of llmResponse.toolCalls) {
           const requiresApproval = !bypassApprovalChecks && !toolWhiteList.has(toolCall.toolName);
 
           if (requiresApproval) {
-            console.log(`[MCPOrchestrator] Tool approval required for: ${toolCall.toolName}`);
             const autoApproveAt =
               toolApprovalMode === "wait"
                 ? Date.now() + WAIT_MODE_AUTO_APPROVE_DELAY_MS
@@ -269,10 +257,6 @@ export class MCPOrchestrator {
             );
 
             if (decision.kind === "deny_stop") {
-              console.log(`[MCPOrchestrator] Tool DENIED by user: ${toolCall.toolName}`);
-              if (decision.feedback) {
-                console.log(`[MCPOrchestrator] Denial Feedback: ${decision.feedback}`);
-              }
               const denialMessage = decision.feedback?.trim()?.length
                 ? `User cancelled tool: ${decision.feedback.trim()}`
                 : "Tool execution cancelled by user";
@@ -291,8 +275,6 @@ export class MCPOrchestrator {
             }
 
             if (decision.kind === "request_changes") {
-              console.log(`[MCPOrchestrator] Tool requires changes: ${toolCall.toolName}`);
-              console.log(`[MCPOrchestrator] Requested Changes: ${decision.feedback}`);
               let retryFeedback: { message: string; userVisibleMessage: string } | null = null;
               const formattedFeedback = decision.feedback.trim();
               const userVisibleMessage = formattedFeedback
