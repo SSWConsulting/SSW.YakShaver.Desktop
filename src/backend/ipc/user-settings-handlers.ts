@@ -19,8 +19,11 @@ export class UserSettingsIPCHandlers {
     this.hotkeyManager = HotkeyManager.getInstance();
     this.trayManager = trayManager;
     this.registerHandlers();
-    void this.syncLoginItemSettings();
-    void this.initializeHotkeys();
+  }
+
+  public async initialize(): Promise<void> {
+    await this.syncLoginItemSettings();
+    await this.initializeHotkeys();
   }
 
   private async syncLoginItemSettings(): Promise<void> {

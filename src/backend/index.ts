@@ -351,6 +351,7 @@ app.whenReady().then(async () => {
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _userSettingsHandlers = new UserSettingsIPCHandlers(trayManager);
+  await _userSettingsHandlers.initialize();
   _shaveHandlers = new ShaveIPCHandlers();
 
   // Pre-initialize recording windows for faster display

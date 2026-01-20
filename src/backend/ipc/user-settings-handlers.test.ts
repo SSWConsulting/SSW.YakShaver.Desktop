@@ -60,16 +60,13 @@ describe("UserSettingsIPCHandlers", () => {
     expect(ipcMain.handle).toHaveBeenCalledWith(IPC_CHANNELS.SETTINGS_UPDATE, expect.any(Function));
   });
 
-  it("should sync hotkeys to tray on startup", async () => {
-    // Wait for async constructor tasks
-    await new Promise(process.nextTick);
-
+  it("should sync hotkeys to tray on initialize", async () => {
+    await _handlers.initialize();
     expect(mockTrayManager.setRecordHotkey).toHaveBeenCalledWith("Ctrl+Shift+R");
   });
 
-  it("should register global hotkeys on startup", async () => {
-    // Wait for async constructor tasks
-    await new Promise(process.nextTick);
+  it("should register global hotkeys on initialize", async () => {
+    await _handlers.initialize();
 
     expect(mockHotkeyManager.registerHotkeys).toHaveBeenCalledWith({
       startRecording: "Ctrl+Shift+R",
@@ -168,10 +165,6 @@ describe("UserSettingsIPCHandlers", () => {
     });
 
     it("should handle mixed update where hotkey fails", async () => {
-      // Wait for async initialization which calls setLoginItemSettings
-      await new Promise(process.nextTick);
-      (app.setLoginItemSettings as Mock).mockClear();
-
       const patch = {
         openAtLogin: true,
         hotkeys: { startRecording: "Invalid" },
