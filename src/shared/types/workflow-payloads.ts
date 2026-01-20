@@ -1,4 +1,4 @@
-import { MCPStep } from "./mcp";
+import type { MCPStep } from "./mcp";
 
 export interface VideoProcessingPayload {
   transcriptText?: string;

@@ -238,7 +238,7 @@ export class MCPServerManager {
     return MCPServerManager.mergeWithInternalServers(storedConfigs);
   }
 
-  private static async getServerConfigByIdAsync(id: string): Promise<MCPServerConfig | undefined> {
+  public static async getServerConfigByIdAsync(id: string): Promise<MCPServerConfig | undefined> {
     const configs = await MCPServerManager.getAllServerConfigsAsync();
     return configs.find((s) => s.id === id);
   }
