@@ -1,5 +1,6 @@
 import type { UserSettings } from "@shared/types/user-settings";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
+import type { ToolApprovalDecision } from "../shared/types/mcp";
 import type {
   CreateShaveData,
   CreateVideoData,
@@ -7,7 +8,6 @@ import type {
   UpdateShaveData,
 } from "./db/schema";
 import type { VideoUploadResult } from "./services/auth/types";
-import type { ToolApprovalDecision } from "../shared/types/mcp";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 import type { ShaveStatus } from "./types";
@@ -108,6 +108,9 @@ const IPC_CHANNELS = {
   // App Control
   APP_RESTART: "app:restart",
   APP_OPEN_EXTERNAL: "app:open-external",
+
+  // Protocol
+  PROTOCOL_ERROR: "protocol:error",
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
@@ -301,6 +304,8 @@ const electronAPI = {
   app: {
     restart: () => ipcRenderer.invoke(IPC_CHANNELS.APP_RESTART),
     openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, url),
+    onProtocolError: (callback: (message: string) => void) =>
+      onIpcEvent<string>(IPC_CHANNELS.PROTOCOL_ERROR, callback),
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
