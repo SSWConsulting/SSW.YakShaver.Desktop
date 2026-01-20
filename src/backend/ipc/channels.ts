@@ -69,6 +69,7 @@ export const IPC_CHANNELS = {
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
   SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
+  SETTINGS_HOTKEY_UPDATE: "settings:hotkey-update",
 
   // Release Channel
   RELEASE_CHANNEL_GET: "release-channel:get",
