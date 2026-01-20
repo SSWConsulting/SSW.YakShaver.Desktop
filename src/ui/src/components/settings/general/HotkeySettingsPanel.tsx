@@ -98,28 +98,25 @@ export function HotkeySettingsPanel({ isActive }: HotkeySettingsPanelProps) {
 
   const handleKeyCapture = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    const key = e.key;
+    const parts: string[] = [];
 
-    let shortcut = "";
-    if (e.ctrlKey) shortcut += "Ctrl+";
-    if (e.altKey) shortcut += "Alt+";
-    if (e.shiftKey) shortcut += "Shift+";
-    if (e.metaKey) shortcut += "Command+";
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.metaKey) parts.push("Command");
 
-    if (!["Control", "Alt", "Shift", "Meta"].includes(key)) {
-      if (key.startsWith("F") && FUNCTION_KEY_REGEX.test(key)) {
-        shortcut += key;
-      } else if (key.length === 1) {
-        shortcut += key.toUpperCase();
+    const modifierKeys = ["Control", "Alt", "Shift", "Meta"];
+    if (!modifierKeys.includes(e.key)) {
+      if (e.key.startsWith("F") && FUNCTION_KEY_REGEX.test(e.key)) {
+        parts.push(e.key);
+      } else if (e.key.length === 1) {
+        parts.push(e.key.toUpperCase());
       } else {
-        shortcut += key;
+        parts.push(e.key);
       }
     }
 
-    if (shortcut.endsWith("+")) {
-      shortcut = shortcut.slice(0, -1);
-    }
-
+    const shortcut = parts.join("+");
     if (shortcut) {
       setShortcutInput(shortcut);
     }
