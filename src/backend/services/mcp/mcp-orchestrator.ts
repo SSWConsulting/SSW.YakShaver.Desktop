@@ -76,15 +76,11 @@ export class MCPOrchestrator {
       options.systemPrompt ??
       "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
 
-    const videoUrl = videoUploadResult?.data?.url;
-    if (videoUrl) {
-      systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.\nPlease include this URL in the task content that you create.`;
-    }
-
-    // If a video file path is provided, add it to the system prompt for screenshot capture
-    if (options.videoFilePath) {
-      systemPrompt += `\n\nVideo file available for screenshot capture: ${options.videoFilePath}.`;
-    }
+    systemPrompt = this.appendVideoInfoToSystemPrompt(
+      systemPrompt,
+      videoUploadResult,
+      options.videoFilePath,
+    );
 
     const messages: ModelMessage[] = [
       {
@@ -359,26 +355,7 @@ export class MCPOrchestrator {
       options.systemPrompt ??
       "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
 
-    const videoUrl = videoUploadResult?.data?.url;
-    const duration = videoUploadResult?.data?.duration;
-    if (videoUrl) {
-      const isValidDuration = typeof duration === "number" && duration > 0;
-
-      if (isValidDuration) {
-        const outputDuration = getDurationParts(duration);
-        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
-Video duration:
-- totalSeconds: ${outputDuration.totalSeconds}
-- hours: ${outputDuration.hours}
-- minutes: ${outputDuration.minutes}
-- seconds: ${outputDuration.seconds}
-Embed this URL and duration in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
-      } else {
-        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
-Video duration is currently unknown.
-Embed this URL in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
-      }
-    }
+    systemPrompt = this.appendVideoInfoToSystemPrompt(systemPrompt, videoUploadResult);
 
     const messages: ModelMessage[] = [
       { role: "system", content: systemPrompt },
@@ -461,5 +438,38 @@ Embed this URL in the task content that you create. Follow user requirements STR
       resolve({ kind: "deny_stop", feedback: reason });
     }
     this.pendingToolApprovals.clear();
+  }
+
+  private appendVideoInfoToSystemPrompt(
+    systemPrompt: string,
+    videoUploadResult?: VideoUploadResult,
+    videoFilePath?: string,
+  ): string {
+    const videoUrl = videoUploadResult?.data?.url;
+    const duration = videoUploadResult?.data?.duration;
+    if (videoUrl) {
+      const isValidDuration = typeof duration === "number" && duration > 0;
+
+      if (isValidDuration) {
+        const outputDuration = getDurationParts(duration);
+        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
+Video duration:
+- totalSeconds: ${outputDuration.totalSeconds}
+- hours: ${outputDuration.hours}
+- minutes: ${outputDuration.minutes}
+- seconds: ${outputDuration.seconds}
+Embed this URL and duration in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+      } else {
+        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
+Embed this URL in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+      }
+    }
+
+    // If a video file path is provided, add it to the system prompt for screenshot capture
+    if (videoFilePath) {
+      systemPrompt += `\n\nVideo file available for screenshot capture: ${videoFilePath}.`;
+    }
+
+    return systemPrompt;
   }
 }
