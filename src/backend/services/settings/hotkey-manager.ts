@@ -29,7 +29,6 @@ export class HotkeyManager {
   }
 
   private handleStartRecording(): void {
-    console.log("Starting recording hotkey triggered...");
     if (this.mainWindow) {
       if (this.mainWindow.isMinimized()) {
         this.mainWindow.restore();
@@ -52,7 +51,6 @@ export class HotkeyManager {
     }
 
     if (!keybind) {
-      console.log(`Unregistered hotkey: ${action}`);
       return { success: true };
     }
 
@@ -63,7 +61,6 @@ export class HotkeyManager {
         console.error(`Failed to register hotkey: ${action} (${keybind})`);
         return { success: false, error };
       }
-      console.log(`Registered hotkey: ${action} -> ${keybind}`);
       return { success: true };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
