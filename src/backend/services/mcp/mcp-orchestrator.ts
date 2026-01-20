@@ -27,9 +27,6 @@ export class ToolOutputBuffer {
     return ToolOutputBuffer.instance;
   }
 
-  /**
-   * Store a tool output and return its reference ID
-   */
   public store(toolName: string, content: string): string {
     const id = `tool_output_${randomUUID().slice(0, 8)}`;
     this.outputs.set(id, {
@@ -40,9 +37,6 @@ export class ToolOutputBuffer {
     return id;
   }
 
-  /**
-   * Retrieve a stored tool output by ID
-   */
   public get(id: string): string | undefined {
     const entry = this.outputs.get(id);
     if (entry) {
@@ -52,16 +46,10 @@ export class ToolOutputBuffer {
     return undefined;
   }
 
-  /**
-   * Check if an output exists
-   */
   public has(id: string): boolean {
     return this.outputs.has(id);
   }
 
-  /**
-   * Get metadata about a stored output
-   */
   public getMetadata(
     id: string,
   ): { toolName: string; contentLength: number; timestamp: number } | undefined {
@@ -76,16 +64,10 @@ export class ToolOutputBuffer {
     return undefined;
   }
 
-  /**
-   * Clear the buffer (call at session end)
-   */
   public clear(): void {
     this.outputs.clear();
   }
 
-  /**
-   * List all stored output IDs with metadata
-   */
   public listAll(): Array<{ id: string; toolName: string; contentLength: number }> {
     return Array.from(this.outputs.entries()).map(([id, entry]) => ({
       id,
@@ -330,6 +312,11 @@ export class MCPOrchestrator {
             toolName: toolCall.toolName,
             args: toolCall.input,
           });
+          options.onStep?.({
+            type: "tool_call",
+            toolName: toolCall.toolName,
+            args: toolCall.input,
+          });
           console.log("Executing tool:", toolCall.toolName);
 
           const toolToCall = tools[toolCall.toolName];
@@ -342,8 +329,7 @@ export class MCPOrchestrator {
 
               const rawOutputText = toolOutput.content[0]?.text || "";
 
-              // Try to find the actual content - check multiple content items
-              // Some tools return status in [0] and actual content in [1] or later
+              // Try to find the actual content - some tools return status in [0] and actual content in [1] or later
               // Also check for resource-type content where text is in resource.text
               let contentToStore = rawOutputText;
               if (Array.isArray(toolOutput.content) && toolOutput.content.length > 1) {
