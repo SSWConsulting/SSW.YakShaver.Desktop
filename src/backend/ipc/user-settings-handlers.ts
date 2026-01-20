@@ -52,8 +52,9 @@ export class UserSettingsIPCHandlers {
   }
 
   private broadcastHotkeyConfig(hotkeys: Hotkeys): void {
-    if (this.trayManager && hotkeys.startRecording) {
-      this.trayManager.setRecordHotkey(hotkeys.startRecording);
+    if (this.trayManager) {
+      const recordHotkey = hotkeys.startRecording ?? "";
+      this.trayManager.setRecordHotkey(recordHotkey);
     }
 
     for (const win of BrowserWindow.getAllWindows()) {
