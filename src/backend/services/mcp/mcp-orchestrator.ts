@@ -1,44 +1,19 @@
 import { randomUUID } from "node:crypto";
-import type { ToolApprovalMode } from "@shared/types/tool-approval";
+import type { ToolApprovalMode } from "@shared/types/user-settings";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
+import type { MCPStep, ToolApprovalDecision } from "../../../shared/types/mcp";
 import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
-import { ToolApprovalSettingsStorage } from "../storage/tool-approval-settings-storage";
+import { UserSettingsStorage } from "../storage/user-settings-storage";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 
-type StepType =
-  | "start"
-  | "reasoning"
-  | "tool_call"
-  | "tool_result"
-  | "final_result"
-  | "tool_approval_required"
-  | "tool_denied";
-
-export type ToolApprovalDecision =
-  | { kind: "approve" }
-  | { kind: "deny_stop"; feedback?: string }
-  | { kind: "request_changes"; feedback: string };
-
-interface MCPStep {
-  type: StepType;
-  message?: string;
-  reasoning?: string;
-  toolName?: string;
-  serverName?: string;
-  args?: unknown;
-  result?: unknown;
-  error?: string;
-  requestId?: string;
-  timestamp?: number;
-  autoApproveAt?: number;
-}
-
 const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 
+// TODO: Separate the ApprovalDialog event trigger from this, and remove this event sender
+// ISSUE: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/602
 function sendStepEvent(event: MCPStep): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
@@ -49,6 +24,7 @@ function sendStepEvent(event: MCPStep): void {
 
 export class MCPOrchestrator {
   private static instance: MCPOrchestrator;
+
   private static languageModelProvider: LanguageModelProvider | null = null;
   private static mcpServerManager: MCPServerManager | null = null;
   private pendingToolApprovals = new Map<string, (decision: ToolApprovalDecision) => void>();
@@ -77,6 +53,8 @@ export class MCPOrchestrator {
       systemPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
       videoFilePath?: string; // local video file path for screenshot capture
+      serverFilter?: string[]; // if provided, only include tools from these server IDs
+      onStep?: (step: MCPStep) => void;
     } = {},
   ): Promise<string | undefined> {
     // Ensure LLM has been initialized
@@ -92,7 +70,7 @@ export class MCPOrchestrator {
 
     // Get tools and apply the server filter if provided
     const tools = await serverManager.collectToolsWithServerPrefixAsync();
-    const toolApprovalSettingsStorage = ToolApprovalSettingsStorage.getInstance();
+    const userSettingsStorage = UserSettingsStorage.getInstance();
 
     let systemPrompt =
       options.systemPrompt ??
@@ -123,7 +101,7 @@ export class MCPOrchestrator {
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
-      const toolApprovalSettings = await toolApprovalSettingsStorage.getSettingsAsync();
+      const toolApprovalSettings = await userSettingsStorage.getSettingsAsync();
       const toolApprovalMode: ToolApprovalMode = toolApprovalSettings.toolApprovalMode;
       const bypassApprovalChecks = toolApprovalMode === "yolo";
       const toolWhiteList = bypassApprovalChecks
@@ -153,6 +131,10 @@ export class MCPOrchestrator {
           type: "reasoning",
           reasoning: JSON.stringify(reasoningContent),
         });
+        options.onStep?.({
+          type: "reasoning",
+          reasoning: JSON.stringify(reasoningContent),
+        });
       }
 
       // Handle llmResponse based on finishReason
@@ -168,13 +150,14 @@ export class MCPOrchestrator {
             const { decision, requestId } = await this.requestToolApproval(
               toolCall.toolName,
               toolCall.input,
-              { autoApproveAt },
+              { autoApproveAt, onStep: options.onStep },
             );
 
             if (decision.kind === "deny_stop") {
               const denialMessage = decision.feedback?.trim()?.length
                 ? `User cancelled tool: ${decision.feedback.trim()}`
                 : "Tool execution cancelled by user";
+
               sendStepEvent({
                 type: "tool_denied",
                 toolName: toolCall.toolName,
@@ -182,7 +165,18 @@ export class MCPOrchestrator {
                 requestId,
                 message: denialMessage,
               });
+              options.onStep?.({
+                type: "tool_denied",
+                toolName: toolCall.toolName,
+                args: toolCall.input,
+                requestId,
+                message: denialMessage,
+              });
               sendStepEvent({
+                type: "final_result",
+                message: "Tool execution cancelled by user",
+              });
+              options.onStep?.({
                 type: "final_result",
                 message: "Tool execution cancelled by user",
               });
@@ -204,6 +198,13 @@ export class MCPOrchestrator {
                 userVisibleMessage,
               };
               sendStepEvent({
+                type: "tool_denied",
+                toolName: toolCall.toolName,
+                args: toolCall.input,
+                requestId,
+                message: userVisibleMessage,
+              });
+              options.onStep?.({
                 type: "tool_denied",
                 toolName: toolCall.toolName,
                 args: toolCall.input,
@@ -244,6 +245,11 @@ export class MCPOrchestrator {
             toolName: toolCall.toolName,
             args: toolCall.input,
           });
+          options.onStep?.({
+            type: "tool_call",
+            toolName: toolCall.toolName,
+            args: toolCall.input,
+          });
           console.log("Executing tool:", toolCall.toolName);
 
           const toolToCall = tools[toolCall.toolName];
@@ -255,6 +261,11 @@ export class MCPOrchestrator {
 
             // send event to UI about tool result
             sendStepEvent({
+              type: "tool_result",
+              toolName: toolCall.toolName,
+              result: toolOutput,
+            });
+            options.onStep?.({
               type: "tool_result",
               toolName: toolCall.toolName,
               result: toolOutput,
@@ -285,6 +296,10 @@ export class MCPOrchestrator {
 
         // send final result event to UI
         sendStepEvent({
+          type: "final_result",
+          message: llmResponse.finishReason,
+        });
+        options.onStep?.({
           type: "final_result",
           message: llmResponse.finishReason,
         });
@@ -338,7 +353,7 @@ export class MCPOrchestrator {
     }
 
     // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsWithServerPrefixAsync();
+    const tools = await serverManager.collectToolsForSelectedServersAsync(options.serverFilter);
 
     let systemPrompt =
       options.systemPrompt ??
@@ -401,21 +416,23 @@ Embed this URL in the task content that you create. Follow user requirements STR
   private async requestToolApproval(
     toolName: string,
     args: unknown,
-    options?: { autoApproveAt?: number },
+    options?: { autoApproveAt?: number; onStep?: (step: MCPStep) => void },
   ): Promise<{ requestId: string; decision: ToolApprovalDecision }> {
     if (!MCPOrchestrator.instance) {
       throw new Error("[MCPOrchestrator]: requestToolApproval called before initialization");
     }
 
     const requestId = randomUUID();
-    sendStepEvent({
+    const event: MCPStep = {
       type: "tool_approval_required",
       toolName,
       args,
       requestId,
       message: `Approval required to run ${toolName}`,
       autoApproveAt: options?.autoApproveAt,
-    });
+    };
+    sendStepEvent(event);
+    options?.onStep?.(event);
 
     const decision = await new Promise<ToolApprovalDecision>((resolve) => {
       // Store resolver for normal approval/denial

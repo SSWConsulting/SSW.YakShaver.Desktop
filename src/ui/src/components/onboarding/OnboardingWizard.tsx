@@ -1,9 +1,8 @@
 import type { LLMConfigV2, ModelConfig, ProviderName } from "@shared/types/llm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { FaYoutube } from "react-icons/fa";
 import { toast } from "sonner";
-import { PlatformConnectionCard } from "@/components/auth/PlatformConnectionCard";
+import { YouTubeConnection } from "@/components/auth/YouTubeConnection";
 import { LLMProviderFields, type ProviderOption } from "@/components/llm/LLMProviderFields";
 import { formatErrorMessage } from "@/utils";
 import logo from "/logos/SQ-YakShaver-LogoIcon-Red.svg?url";
@@ -12,7 +11,6 @@ import monitorPlay from "/onboarding/monitor-play.svg?url";
 import { LLM_PROVIDER_CONFIGS } from "../../../../shared/llm/llm-providers";
 import { ONBOARDING_COMPLETED_KEY, ONBOARDING_FINISHED_EVENT } from "../../constants/onboarding";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
-import { useCountdown } from "../../hooks/useCountdown";
 import { ipcClient } from "../../services/ipc-client";
 import type { HealthStatusInfo } from "../../types";
 import { AuthStatus } from "../../types";
@@ -77,7 +75,6 @@ export function OnboardingWizard() {
 
   const [isMcpFormOpen, setIsMcpFormOpen] = useState(false);
   const [hasEnabledMcpServers, setHasEnabledMcpServers] = useState(false);
-  const [hasYouTubeConfig] = useState(true);
   const [currentLLMConfig, setCurrentLLMConfig] = useState<LLMConfigV2 | null>(null);
   const [hasLLMConfig, setHasLLMConfig] = useState(false);
   const [isLLMSaving, setIsLLMSaving] = useState(false);
@@ -99,17 +96,9 @@ export function OnboardingWizard() {
     },
   });
 
-  const { authState, startAuth, disconnect } = useYouTubeAuth();
-  const {
-    countdown,
-    isActive: isConnecting,
-    start: startCountdown,
-    reset: resetCountdown,
-  } = useCountdown({
-    initialSeconds: 60,
-  });
+  const { authState } = useYouTubeAuth();
 
-  const { status, userInfo } = authState;
+  const { status } = authState;
   const isConnected = status === AuthStatus.AUTHENTICATED;
   const updateConnectorPositions = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -142,13 +131,6 @@ export function OnboardingWizard() {
       setConnectorPositions(positions);
     });
   }, []);
-
-  // Reset countdown when user successfully connects
-  useEffect(() => {
-    if (isConnected) {
-      resetCountdown();
-    }
-  }, [isConnected, resetCountdown]);
 
   useEffect(() => {
     if (!isVisible) {
@@ -390,25 +372,6 @@ export function OnboardingWizard() {
     }
   };
 
-  const handleYouTubeAction = async () => {
-    if (isConnected) {
-      await disconnect();
-    } else {
-      startCountdown();
-      try {
-        await startAuth();
-      } finally {
-        resetCountdown();
-      }
-    }
-  };
-
-  const getYouTubeButtonText = () => {
-    if (isConnected) return "Disconnect";
-    if (isConnecting) return `Connecting... (${countdown}s)`;
-    return "Connect";
-  };
-
   const getStepStatus = (step: number) => {
     if (step < currentStep) return "completed";
     if (step === currentStep) return "current";
@@ -452,24 +415,7 @@ export function OnboardingWizard() {
 
       {/* Card content */}
       <div className="flex flex-col gap-4 px-6 pb-6 w-full">
-        {currentStep === 1 &&
-          (hasYouTubeConfig ? (
-            <PlatformConnectionCard
-              icon={<FaYoutube className="w-10 h-10 text-ssw-red text-2xl" />}
-              title="YouTube"
-              subtitle={isConnected && userInfo?.channelName ? userInfo.channelName : undefined}
-              badgeText={isConnected ? "Connected" : undefined}
-              onAction={handleYouTubeAction}
-              actionLabel={getYouTubeButtonText()}
-              actionDisabled={isConnecting && !isConnected}
-              buttonSize="lg"
-            />
-          ) : (
-            <div className="text-center py-8 px-4 text-white/[0.56]">
-              <p className="mb-2 text-sm">No platforms available</p>
-              <p className="text-xs italic">Configure YouTube API credentials to get started</p>
-            </div>
-          ))}
+        {currentStep === 1 && <YouTubeConnection buttonSize="lg" />}
 
         {(currentStep === 2 || currentStep === 3) && (
           <div className="w-full">

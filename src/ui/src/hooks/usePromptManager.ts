@@ -29,6 +29,7 @@ export function usePromptManager() {
         name: data.name,
         description: data.description,
         content: data.content,
+        selectedMcpServerIds: data.selectedMcpServerIds,
       });
       toast.success("Prompt created successfully");
 
@@ -54,6 +55,7 @@ export function usePromptManager() {
         name: data.name,
         description: data.description,
         content: data.content,
+        selectedMcpServerIds: data.selectedMcpServerIds,
       });
       if (andActivate) {
         await ipcClient.settings.setActivePrompt(id);

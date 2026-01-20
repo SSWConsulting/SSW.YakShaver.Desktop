@@ -18,7 +18,7 @@ import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { ShaveIPCHandlers } from "./ipc/shave-handlers";
-import { ToolApprovalSettingsIPCHandlers } from "./ipc/tool-approval-settings-handlers";
+import { UserSettingsIPCHandlers } from "./ipc/user-settings-handlers";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPOrchestrator } from "./services/mcp/mcp-orchestrator";
@@ -232,7 +232,7 @@ let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
 let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
 let _githubTokenHandlers: GitHubTokenIPCHandlers;
-let _toolApprovalSettingsHandlers: ToolApprovalSettingsIPCHandlers;
+let _userSettingsHandlers: UserSettingsIPCHandlers;
 let _shaveHandlers: ShaveIPCHandlers;
 let _appControlHandlers: AppControlIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
@@ -349,7 +349,7 @@ app.whenReady().then(async () => {
   _appControlHandlers = new AppControlIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
-  _toolApprovalSettingsHandlers = new ToolApprovalSettingsIPCHandlers();
+  _userSettingsHandlers = new UserSettingsIPCHandlers();
   _shaveHandlers = new ShaveIPCHandlers();
 
   // Pre-initialize recording windows for faster display
