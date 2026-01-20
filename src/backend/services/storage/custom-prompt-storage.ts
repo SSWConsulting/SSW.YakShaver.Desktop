@@ -30,7 +30,8 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - Always apply the "YakShaver" label IN ADDITION to any template-required labels.
 
 2) Choose the correct backlog (repository):
-- https://github.com/yaqi-lyu/test-repo
+- https://github.com/SSWConsulting/SSW.YakShaver.Desktop
+- https://github.com/SSWConsulting/SSW.YakShaver
 
 3) Find and apply the matching ISSUE_TEMPLATE (MANDATORY):
 - Use your tools to locate issue templates in the target repo (usually .github/ISSUE_TEMPLATE/*.md).
@@ -74,7 +75,20 @@ const DEFAULT_PROMPT: CustomPrompt = {
 8) Privacy and local paths (CRITICAL):
 - NEVER mention local video or local screenshot file paths in the issue description.
 
-
+9) Duplicate issues (CRITICAL):
+- BEFORE creating any new GitHub issue, you MUST search the target repository for existing OPEN issues that match the same bug/feature.
+- IGNORE closed issues completely.
+- If you find a likely duplicate (very similar title/description, same UI area, same error/behavior), DO NOT create a new issue.
+- ONLY comment on existing OPEN issues, never closed issues.
+- Use the GitHub tools to search issues using the normalized bug description (remove the emoji prefix and fixed words like "Bug -").
+- Instead, add a comment to the existing issue with:
+  - A note that this is a potential duplicate created by YakShaver (STRICT).
+  - CC the user who created the original GitHub issue (STRICT).
+  - Embed the video URL at the very top (if available).
+  - The screenshot markdown (only if upload_screenshot returned a non-empty public URL).
+  - Any new reproduction details and differences found in this new YakShave.
+  - Add a 'Tasks' Markdown checklist in the comment, listing concrete follow-up items for the assignee (STRICT).
+- The end state for a duplicate must be: 1 existing issue updated with a comment, 0 new issues created.
 `,
 
   isDefault: true,

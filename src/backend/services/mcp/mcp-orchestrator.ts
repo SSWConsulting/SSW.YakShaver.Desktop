@@ -101,7 +101,6 @@ export class MCPOrchestrator {
   private resolveToolOutputReferences(input: Record<string, unknown>): Record<string, unknown> {
     const outputBuffer = ToolOutputBuffer.getInstance();
     const resolved: Record<string, unknown> = { ...input };
-
     for (const [key, value] of Object.entries(input)) {
       // Check if the parameter name is "toolOutputRef" and the value is a string reference
       if (key === "toolOutputRef" && typeof value === "string") {
@@ -165,6 +164,16 @@ export class MCPOrchestrator {
     let systemPrompt =
       options.systemPrompt ??
       "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
+
+    // Add tool chaining instructions
+    systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
+When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
+If you need to pass one tool's output directly to another tool WITHOUT modification:
+1. Look for the Tool Output Reference ID in the previous tool result
+2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
+3. This passes the raw output directly, preserving all structure and content
+4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
+5. Do NOT use this if you need to transform or summarize the content first`;
 
     const videoUrl = videoUploadResult?.data?.url;
     if (videoUrl) {
@@ -488,6 +497,16 @@ export class MCPOrchestrator {
     let systemPrompt =
       options.systemPrompt ??
       "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
+
+    // Add tool chaining instructions
+    systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
+When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
+If you need to pass one tool's output directly to another tool WITHOUT modification:
+1. Look for the Tool Output Reference ID in the previous tool result
+2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
+3. This passes the raw output directly, preserving all structure and content
+4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
+5. Do NOT use this if you need to transform or summarize the content first`;
 
     const videoUrl = videoUploadResult?.data?.url;
     const duration = videoUploadResult?.data?.duration;
