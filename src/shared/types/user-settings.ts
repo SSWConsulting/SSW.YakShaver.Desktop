@@ -3,7 +3,7 @@ import { z } from "zod";
 export const ToolApprovalModeSchema = z.enum(["yolo", "wait", "ask"]);
 export type ToolApprovalMode = z.infer<typeof ToolApprovalModeSchema>;
 
-const HotkeySchema = z.string().min(1).nullable();
+const HotkeySchema = z.string().nullable();
 export const HotkeysSchema = z.object({
   startRecording: HotkeySchema,
 });
