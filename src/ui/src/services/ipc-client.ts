@@ -186,7 +186,7 @@ declare global {
       };
       userSettings: {
         get: () => Promise<UserSettings>;
-        update: (patch: Partial<UserSettings>) => Promise<{ success: boolean }>;
+        update: (patch: Partial<UserSettings>) => Promise<{ success: boolean; error?: string }>;
         onHotkeyUpdate: (callback: (hotkeys: UserSettings["hotkeys"]) => void) => () => void;
       };
       app: {
