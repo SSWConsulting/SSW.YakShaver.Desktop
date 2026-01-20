@@ -18,7 +18,7 @@ import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { ShaveIPCHandlers } from "./ipc/shave-handlers";
-import { ToolApprovalSettingsIPCHandlers } from "./ipc/tool-approval-settings-handlers";
+import { UserSettingsIPCHandlers } from "./ipc/user-settings-handlers";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPOrchestrator } from "./services/mcp/mcp-orchestrator";
@@ -27,6 +27,8 @@ import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { TrayManager } from "./services/tray/tray-manager";
+import { getIconPath } from "./utils/path-utils";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -53,6 +55,11 @@ loadEnv();
 
 let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
+let isQuitting: boolean = false;
+
+const trayManager = new TrayManager(() => {
+  isQuitting = true;
+});
 
 const getAppVersion = (): string => app.getVersion();
 
@@ -147,18 +154,13 @@ const createApplicationMenu = (): void => {
 };
 
 const createWindow = (): void => {
-  // Fix icon path for packaged mode
-  const iconPath = isDev
-    ? join(__dirname, "../../src/ui/public/icons/icon.png")
-    : join(process.resourcesPath, "public/icons/icon.png");
-
   const title = `YakShaver`;
 
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     title,
-    icon: iconPath,
+    icon: getIconPath(),
     show: false,
     webPreferences: {
       nodeIntegration: false,
@@ -178,6 +180,14 @@ const createWindow = (): void => {
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
+  });
+
+  mainWindow.on("close", (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow?.hide();
+      return false;
+    }
   });
 
   mainWindow.on("closed", () => {
@@ -222,7 +232,7 @@ let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
 let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
 let _githubTokenHandlers: GitHubTokenIPCHandlers;
-let _toolApprovalSettingsHandlers: ToolApprovalSettingsIPCHandlers;
+let _userSettingsHandlers: UserSettingsIPCHandlers;
 let _shaveHandlers: ShaveIPCHandlers;
 let _appControlHandlers: AppControlIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
@@ -339,7 +349,7 @@ app.whenReady().then(async () => {
   _appControlHandlers = new AppControlIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
-  _toolApprovalSettingsHandlers = new ToolApprovalSettingsIPCHandlers();
+  _userSettingsHandlers = new UserSettingsIPCHandlers();
   _shaveHandlers = new ShaveIPCHandlers();
 
   // Pre-initialize recording windows for faster display
@@ -350,8 +360,12 @@ app.whenReady().then(async () => {
 
   // Create application menu
   createApplicationMenu();
-
+  trayManager.createTray();
   createWindow();
+
+  if (mainWindow) {
+    trayManager.setMainWindow(mainWindow);
+  }
 
   // Process any pending protocol URL that arrived during initialization
   if (pendingProtocolUrl && mainWindow) {
@@ -372,11 +386,10 @@ app.whenReady().then(async () => {
 
 tmp.setGracefulCleanup();
 
-let isQuitting = false;
-
 const cleanup = async () => {
   if (isQuitting) return;
   isQuitting = true;
+  trayManager.destroy();
 
   unregisterEventForwarders?.();
   try {
@@ -387,8 +400,8 @@ const cleanup = async () => {
 };
 
 app.on("window-all-closed", async () => {
-  await cleanup();
-  if (process.platform !== "darwin") app.quit();
+  // Intentionally left empty so the app keeps running in the system tray even when all
+  // windows are closed. See: https://www.electronjs.org/docs/latest/tutorial/tray#minimizing-to-tray
 });
 
 app.on("before-quit", async (event) => {

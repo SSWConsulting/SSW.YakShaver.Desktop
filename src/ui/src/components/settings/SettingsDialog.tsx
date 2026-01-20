@@ -6,12 +6,14 @@ import { ScrollArea } from "../ui/scroll-area";
 import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
+import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
 import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
 import { LanguageModelKeyManager } from "./llm/LanguageModelKeyManager";
 import { TranscriptionModelKeyManager } from "./llm/TranscriptionModelKeyManager";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelManager";
 import { ToolApprovalSettingsPanel } from "./tool-approval/ToolApprovalSettingsPanel";
+import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
 
 type LeaveHandler = () => Promise<boolean>;
 
@@ -21,6 +23,10 @@ interface SettingsTab {
 }
 
 const TABS: SettingsTab[] = [
+  {
+    id: "general",
+    label: "General",
+  },
   {
     id: "toolApproval",
     label: "Tool approval",
@@ -48,6 +54,10 @@ const TABS: SettingsTab[] = [
   {
     id: "mcp",
     label: "MCP Servers",
+  },
+  {
+    id: "videoHost",
+    label: "Video Host",
   },
   {
     id: "advanced",
@@ -163,6 +173,9 @@ export function SettingsDialog() {
           <section className="flex-1 h-full overflow-hidden">
             <ScrollArea className="h-full pr-1">
               <div className="pb-4 pr-2">
+                {activeTab?.id === "general" && (
+                  <GeneralSettingsPanel isActive={open && activeTabId === "general"} />
+                )}
                 {activeTab?.id === "toolApproval" && (
                   <ToolApprovalSettingsPanel isActive={open && activeTabId === "toolApproval"} />
                 )}
@@ -188,6 +201,9 @@ export function SettingsDialog() {
                 )}
                 {activeTab?.id === "mcp" && (
                   <McpSettingsPanel isActive={open && activeTabId === "mcp"} viewMode="detailed" />
+                )}
+                {activeTab?.id === "videoHost" && (
+                  <VideoHostSettingsPanel isActive={open && activeTabId === "videoHost"} />
                 )}
                 {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
                 {activeTab?.id === "account" && (

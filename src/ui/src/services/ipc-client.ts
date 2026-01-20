@@ -1,5 +1,5 @@
 import type { LLMConfigV2 } from "@shared/types/llm";
-import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
+import type { UserSettings } from "@shared/types/user-settings";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
@@ -94,12 +94,14 @@ declare global {
         minimizeMainWindow: () => Promise<{ success: boolean }>;
         restoreMainWindow: () => Promise<{ success: boolean }>;
         onStopRequest: (callback: () => void) => () => void;
+        onOpenSourcePicker: (callback: () => void) => () => void;
       };
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;
       };
       workflow: {
         onProgress: (callback: (progress: unknown) => void) => () => void;
+        onProgressNeo: (callback: (progress: unknown) => void) => () => void;
       };
       mcp: {
         processMessage: (
@@ -137,10 +139,16 @@ declare global {
           name: string;
           description?: string;
           content: string;
+          selectedMcpServerIds?: string[];
         }) => Promise<CustomPrompt>;
         updatePrompt: (
           id: string,
-          updates: { name?: string; description?: string; content?: string },
+          updates: {
+            name?: string;
+            description?: string;
+            content?: string;
+            selectedMcpServerIds?: string[];
+          },
         ) => Promise<boolean>;
         deletePrompt: (id: string) => Promise<boolean>;
         setActivePrompt: (id: string) => Promise<boolean>;
@@ -176,9 +184,9 @@ declare global {
           error?: string;
         }>;
       };
-      toolApprovalSettings: {
-        get: () => Promise<ToolApprovalSettings>;
-        setMode: (mode: ToolApprovalMode) => Promise<{ success: boolean }>;
+      userSettings: {
+        get: () => Promise<UserSettings>;
+        update: (patch: Partial<UserSettings>) => Promise<{ success: boolean }>;
       };
       app: {
         restart: () => Promise<{ success: boolean; error?: string }>;
