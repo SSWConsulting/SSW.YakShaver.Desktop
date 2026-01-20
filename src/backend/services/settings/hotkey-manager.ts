@@ -56,7 +56,7 @@ export class HotkeyManager {
       return { success: false, error };
     }
 
-    if (!keybind) {
+    if (keybind === null) {
       return { success: true };
     }
 
