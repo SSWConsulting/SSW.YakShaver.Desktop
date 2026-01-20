@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Play, Wrench, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import {
   type MCPStep,
@@ -46,9 +46,10 @@ function ToolResultSuccess({ result }: { result: unknown }) {
   return (
     <div className="space-y-1">
       {result !== undefined && result !== null && (
-        <details className="text-xs" onToggle={handleDetailsToggle(result)}>
-          <summary className="text-zinc-400 cursor-pointer hover:text-zinc-400/80">
-            View result
+        <details className="text-xs group" onToggle={handleDetailsToggle(result)}>
+          <summary className="flex items-center gap-2 text-zinc-400 cursor-pointer hover:text-zinc-400/80 list-none [&::-webkit-details-marker]:hidden">
+            <span>Result</span>
+            <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
           </summary>
           <pre className="mt-1 p-2 bg-black rounded text-zinc-400 overflow-x-auto max-h-[200px] overflow-y-auto whitespace-pre-wrap break-all">
             Loading...
@@ -173,9 +174,10 @@ function ToolCallStep({
         {serverName && <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>}
       </div>
       {hasArgs && (
-        <details className="ml-4 text-xs" onToggle={handleDetailsToggle(args)}>
-          <summary className="text-zinc-400 cursor-pointer hover:text-zinc-400/80">
-            Arguments
+        <details className="ml-4 text-xs group" onToggle={handleDetailsToggle(args)}>
+          <summary className="flex items-center gap-2 text-zinc-400 cursor-pointer hover:text-zinc-400/80 list-none [&::-webkit-details-marker]:hidden">
+            <span>Arguments</span>
+            <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
           </summary>
           <pre className="mt-1 p-2 bg-black rounded text-zinc-400 overflow-x-auto whitespace-pre-wrap break-all">
             Loading...
