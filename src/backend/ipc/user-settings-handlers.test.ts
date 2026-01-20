@@ -24,10 +24,10 @@ vi.mock("../services/storage/user-settings-storage");
 vi.mock("../services/tray/tray-manager");
 
 describe("UserSettingsIPCHandlers", () => {
-  let handlers: UserSettingsIPCHandlers;
+  let _handlers: UserSettingsIPCHandlers;
   let mockTrayManager: TrayManager;
-  let mockStorage: any;
-  let mockHotkeyManager: any;
+  let mockStorage: Partial<UserSettingsStorage>;
+  let mockHotkeyManager: Partial<HotkeyManager>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,7 +52,7 @@ describe("UserSettingsIPCHandlers", () => {
       setRecordHotkey: vi.fn(),
     } as unknown as TrayManager;
 
-    handlers = new UserSettingsIPCHandlers(mockTrayManager);
+    _handlers = new UserSettingsIPCHandlers(mockTrayManager);
   });
 
   it("should register IPC handlers on instantiation", () => {
