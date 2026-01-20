@@ -29,8 +29,7 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - Always apply the "YakShaver" label IN ADDITION to any template-required labels.
 
 2) Choose the correct backlog (repository):
-- https://github.com/SSWConsulting/SSW.YakShaver.Desktop
-- https://github.com/SSWConsulting/SSW.YakShaver
+- https://github.com/yaqi-lyu/test-repo
 
 3) Find and apply the matching ISSUE_TEMPLATE (MANDATORY):
 - Use your tools to locate issue templates in the target repo (usually .github/ISSUE_TEMPLATE/*.md).
@@ -39,15 +38,13 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - Follow the template structure and requirements STRICTLY when creating the issue.
 - The transcript or user input is just for context.
 
-4) Parse and enforce the template frontmatter (CRITICAL):
-- Templates often start with YAML frontmatter like:
-  - name:
-  - about:
-  - title:
-  - labels:
-  - assignees:
-- You MUST extract and use these values exactly as specified.
-- Apply all specified labels from the frontmatter to the created issue.
+4) Frontmatter rules (STRICT):
+- YAML frontmatter is the block between the first pair of "---" lines.
+- Frontmatter is METADATA ONLY and MUST NOT appear in the final issue body.
+- Use frontmatter fields ONLY to:
+  - Validate the issue title pattern (e.g. title)
+  - Determine labels, assignees, or issue type if required
+- ALWAYS remove the entire frontmatter block from the rendered issue body.
 
 5) Issue title rules (STRICT):
 - Title MUST follow the template frontmatter's title pattern exactly INCLUDING EMOJI.
@@ -55,12 +52,14 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - Do not omit any fixed words like "🐛 Bug -" and do not use a different emoji.
 
 6) Format the issue body to match the template (STRICT):
-- call fill_template tool to fill in the template.
 - Preserve the template's section headings and checklist items.
 - Make sure that all sections starting with "###" in the template such as "### Tasks" are present in the final issue body.
 - Do NOT invent new sections or change heading text.
 - Remove template-only HTML comments like "<!-- ... -->" from the final issue body.
 - Replace placeholders (e.g., "Hi {{ USER }}") with appropriate values when known; if unknown, keep the greeting minimal but keep the structure.
+- Each checklist item MUST represent exactly ONE atomic task.
+- A task MUST NOT combine multiple actions (no "and", ";", "/", or comma-separated actions).
+- If multiple tasks are implied, they MUST be split into multiple - [ ] items.
 
 7) Screenshots from video (when video file path is available, recommended):
 - ALWAYS capture exactly one screenshot from the video using capture_video_frame.
@@ -74,20 +73,7 @@ const DEFAULT_PROMPT: CustomPrompt = {
 8) Privacy and local paths (CRITICAL):
 - NEVER mention local video or local screenshot file paths in the issue description.
 
-9) Duplicate issues (CRITICAL):
-- BEFORE creating any new GitHub issue, you MUST search the target repository for existing OPEN issues that match the same bug/feature.
-- IGNORE closed issues completely.
-- If you find a likely duplicate (very similar title/description, same UI area, same error/behavior), DO NOT create a new issue.
-- ONLY comment on existing OPEN issues, never closed issues.
-- Use the GitHub tools to search issues using the normalized bug description (remove the emoji prefix and fixed words like "Bug -").
-- Instead, add a comment to the existing issue with:
-  - A note that this is a potential duplicate created by YakShaver (STRICT).
-  - CC the user who created the original GitHub issue (STRICT).
-  - The video URL at the very top (if available).
-  - The screenshot markdown (only if upload_screenshot returned a non-empty public URL).
-  - Any new reproduction details and differences found in this new YakShave.
-  - Add a 'Tasks' Markdown checklist in the comment, listing concrete follow-up items for the assignee (STRICT).
-- The end state for a duplicate must be: 1 existing issue updated with a comment, 0 new issues created.
+
 `,
 
   isDefault: true,

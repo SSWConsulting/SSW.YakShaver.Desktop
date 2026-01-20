@@ -3,33 +3,20 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { LanguageModelProvider } from "../language-model-provider.js";
-import { ToolOutputBuffer } from "../mcp-orchestrator.js";
 import type { MCPServerConfig } from "../types.js";
 import type { InternalMcpServerRegistration } from "./internal-server-types.js";
 
-const fillTemplateInputShape = {
+const fillTemplateInputSchema = z.object({
   template: z
     .string()
-    .optional()
     .describe(
-      "Markdown template with {{ placeholder }} placeholders to be filled. Either provide this OR toolOutputRef.",
-    ),
-  toolOutputRef: z
-    .string()
-    .optional()
-    .describe(
-      "Reference ID from a previous tool output (e.g., 'tool_output_abc123'). Use this to retrieve raw template content from the host's output buffer, ensuring content is not modified by the LLM.",
+      "Markdown template with {{ placeholder }} placeholders to be filled. Can also accept a toolOutputRef which the orchestrator will resolve automatically.",
     ),
   context: z
     .string()
     .optional()
     .describe("Additional context to help the LLM generate appropriate values for placeholders"),
-};
-const fillTemplateInputSchema = z
-  .object(fillTemplateInputShape)
-  .refine((data) => data.template || data.toolOutputRef, {
-    message: "Either 'template' or 'toolOutputRef' must be provided",
-  });
+});
 
 type FillTemplateInput = z.infer<typeof fillTemplateInputSchema>;
 
@@ -113,51 +100,12 @@ export async function createInternalFillTemplateServer(): Promise<InternalMcpSer
     "fill_template",
     {
       description:
-        "Fill a markdown template containing {{ placeholder }} style placeholders using an LLM. The LLM will generate appropriate values for each placeholder based on the template content and optional context. RECOMMENDED: Use 'toolOutputRef' to reference raw content from a previous tool output (like get_file_contents) to avoid content modification during LLM chaining.",
-      inputSchema: fillTemplateInputShape,
+        "Fill a markdown template containing {{ placeholder }} style placeholders using an LLM. The LLM will generate appropriate values for each placeholder based on the template content and optional context. The template parameter can accept raw content or a toolOutputRef (like 'tool_output_abc123') which will be automatically resolved by the orchestrator.",
+      inputSchema: fillTemplateInputSchema.shape,
     },
     async (input: FillTemplateInput) => {
       const validated = fillTemplateInputSchema.parse(input);
-      let template: string;
-
-      // Priority 1: Use toolOutputRef to get raw content from buffer (preferred for chaining)
-      if (validated.toolOutputRef) {
-        const outputBuffer = ToolOutputBuffer.getInstance();
-        const bufferedContent = outputBuffer.get(validated.toolOutputRef);
-
-        if (!bufferedContent) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify({
-                  success: false,
-                  error: `Tool output reference '${validated.toolOutputRef}' not found in buffer. Available outputs: ${JSON.stringify(outputBuffer.listAll())}`,
-                }),
-              },
-            ],
-          };
-        }
-
-        template = bufferedContent;
-      } else if (validated.template) {
-        // Priority 2: Use directly provided template content
-        template = validated.template;
-      } else {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: "Either 'template' or 'toolOutputRef' must be provided",
-              }),
-            },
-          ],
-        };
-      }
-
-      const { context } = validated;
+      const { template, context } = validated;
 
       const placeholders = extractPlaceholders(template);
 

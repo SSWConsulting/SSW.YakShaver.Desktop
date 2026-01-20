@@ -20,10 +20,17 @@ export function TestExecuteTaskButton() {
   const [isExecuting, setIsExecuting] = useState(false);
 
   const handleExecute = async () => {
+    if (!transcriptText.trim()) {
+      toast.error("Please enter transcript text");
+      return;
+    }
+
     try {
       setIsExecuting(true);
       toast.info("Starting task execution from transcript text...");
 
+      // Call the IPC handler to execute task from intermediate output
+      // This will trigger progress events that display the workflow panel
       const result = await window.electronAPI.pipelines.executeTaskFromIntermediate(
         transcriptText,
         {

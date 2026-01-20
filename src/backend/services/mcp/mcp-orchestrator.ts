@@ -98,6 +98,33 @@ export class MCPOrchestrator {
 
   private constructor() {}
 
+  private resolveToolOutputReferences(input: Record<string, unknown>): Record<string, unknown> {
+    const outputBuffer = ToolOutputBuffer.getInstance();
+    const resolved: Record<string, unknown> = { ...input };
+
+    for (const [key, value] of Object.entries(input)) {
+      // Check if the parameter name is "toolOutputRef" and the value is a string reference
+      if (key === "toolOutputRef" && typeof value === "string") {
+        const content = outputBuffer.get(value);
+        if (content) {
+          // Replace toolOutputRef with the actual content in a standard parameter name
+          // Use "template" as the default resolved parameter name, but tools can customize this
+          delete resolved.toolOutputRef;
+          resolved.template = content;
+          console.log(
+            `[MCPOrchestrator] Resolved toolOutputRef '${value}' (${content.length} chars)`,
+          );
+        } else {
+          console.warn(
+            `[MCPOrchestrator] Tool output reference '${value}' not found in buffer. Available: ${JSON.stringify(outputBuffer.listAll())}`,
+          );
+        }
+      }
+    }
+
+    return resolved;
+  }
+
   public static async getInstanceAsync(): Promise<MCPOrchestrator> {
     if (MCPOrchestrator.instance) {
       return MCPOrchestrator.instance;
@@ -323,7 +350,10 @@ export class MCPOrchestrator {
 
           if (toolToCall?.execute) {
             try {
-              const toolOutput = await toolToCall.execute(toolCall.input, {
+              // Resolve any toolOutputRef parameters before executing the tool
+              const resolvedInput = this.resolveToolOutputReferences(toolCall.input);
+
+              const toolOutput = await toolToCall.execute(resolvedInput, {
                 toolCallId: toolCall.toolCallId,
               } as ToolExecutionOptions);
 

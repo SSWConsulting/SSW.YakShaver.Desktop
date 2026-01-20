@@ -171,6 +171,21 @@ export class ProcessVideoIPCHandlers {
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
           const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+          const serverFilter = customPrompt?.selectedMcpServerIds;
+
+          // Create workflow manager to properly emit progress events for UI
+          const workflowManager = new WorkflowStateManager(shaveId);
+          // Skip all stages before executing task
+          workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);
+          workflowManager.skipStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+          workflowManager.skipStage(WorkflowProgressStage.CONVERTING_AUDIO);
+          workflowManager.skipStage(WorkflowProgressStage.TRANSCRIBING);
+          workflowManager.skipStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
+          workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
+
+          const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
+            transcriptText: intermediateOutput,
+          });
 
           const orchestrator = await MCPOrchestrator.getInstanceAsync();
           const mcpResult = await orchestrator.manualLoopAsync(
@@ -179,8 +194,12 @@ export class ProcessVideoIPCHandlers {
             {
               systemPrompt,
               videoFilePath: options?.videoFilePath,
+              serverFilter,
+              onStep: mcpAdapter.onStep,
             },
           );
+
+          mcpAdapter.complete(mcpResult);
 
           notify(ProgressStage.COMPLETED, {
             mcpResult,
