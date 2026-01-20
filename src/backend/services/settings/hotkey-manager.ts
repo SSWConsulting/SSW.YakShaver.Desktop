@@ -2,9 +2,15 @@ import type { HotkeyAction, Hotkeys } from "@shared/types/user-settings";
 import { type BrowserWindow, globalShortcut } from "electron";
 import { IPC_CHANNELS } from "../../ipc/channels";
 
+export interface FailedHotkeyAction {
+  action: HotkeyAction;
+  keybind: string;
+  reason: string;
+}
+
 export interface HotkeyRegistrationResult {
   success: boolean;
-  failedActions?: Array<{ action: HotkeyAction; keybind: string; reason: string }>;
+  failedActions?: FailedHotkeyAction[];
 }
 
 export class HotkeyManager {
@@ -72,7 +78,7 @@ export class HotkeyManager {
   registerHotkeys(hotkeys: Hotkeys): HotkeyRegistrationResult {
     this.unregisterAll();
 
-    const failedActions: Array<{ action: HotkeyAction; keybind: string; reason: string }> = [];
+    const failedActions: FailedHotkeyAction[] = [];
 
     for (const action of Object.keys(this.handlers) as HotkeyAction[]) {
       const keybind = hotkeys[action];
