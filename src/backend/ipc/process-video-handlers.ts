@@ -129,6 +129,72 @@ export class ProcessVideoIPCHandlers {
         }
       },
     );
+
+    // Execute task from transcript text (skip download and transcription)
+    // Note: Despite the parameter name, this should be the transcript TEXT (not JSON)
+    // to match the real flow which passes transcriptText to manualLoopAsync
+    ipcMain.handle(
+      IPC_CHANNELS.EXECUTE_TASK_FROM_INTERMEDIATE,
+      async (
+        _event: IpcMainInvokeEvent,
+        intermediateOutput: string, // Actually transcript text
+        options?: {
+          videoUrl?: string;
+          videoDuration?: number;
+          videoFilePath?: string;
+          shaveId?: string;
+        },
+      ) => {
+        const shaveId = options?.shaveId;
+        const notify = (stage: string, data?: Record<string, unknown>) => {
+          this.emitProgress(stage, data, shaveId);
+        };
+
+        try {
+          notify(ProgressStage.EXECUTING_TASK, { transcriptText: intermediateOutput });
+
+          // Create mock video upload result if URL provided
+          let videoUploadResult: VideoUploadResult | undefined;
+          if (options?.videoUrl) {
+            videoUploadResult = {
+              success: true,
+              origin: "external",
+              data: {
+                videoId: "test-video-id",
+                title: "Test Video",
+                description: "Manual test from intermediate output",
+                url: options.videoUrl,
+                duration: options.videoDuration,
+              },
+            };
+          }
+
+          const customPrompt = await this.customPromptStorage.getActivePrompt();
+          const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+
+          const orchestrator = await MCPOrchestrator.getInstanceAsync();
+          const mcpResult = await orchestrator.manualLoopAsync(
+            intermediateOutput,
+            videoUploadResult,
+            {
+              systemPrompt,
+              videoFilePath: options?.videoFilePath,
+            },
+          );
+
+          notify(ProgressStage.COMPLETED, {
+            mcpResult,
+            finalOutput: mcpResult,
+          });
+
+          return { success: true, finalOutput: mcpResult };
+        } catch (error) {
+          const errorMessage = formatErrorMessage(error);
+          notify(ProgressStage.ERROR, { error: errorMessage });
+          return { success: false, error: errorMessage };
+        }
+      },
+    );
   }
 
   private async processFileVideo(filePath: string, shaveId?: string) {
