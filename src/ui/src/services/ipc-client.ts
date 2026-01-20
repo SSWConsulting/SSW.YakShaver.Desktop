@@ -46,19 +46,6 @@ declare global {
           finalOutput?: string | null;
           error?: string;
         }>;
-        executeTaskFromIntermediate: (
-          intermediateOutput: string,
-          options?: {
-            videoUrl?: string;
-            videoDuration?: number;
-            videoFilePath?: string;
-            shaveId?: number;
-          },
-        ) => Promise<{
-          success: boolean;
-          finalOutput?: string | null;
-          error?: string;
-        }>;
       };
       youtube: {
         startAuth: () => Promise<AuthResult>;

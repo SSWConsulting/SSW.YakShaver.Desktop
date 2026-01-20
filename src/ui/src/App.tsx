@@ -8,7 +8,6 @@ import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { ScreenRecorder } from "./components/recording/ScreenRecorder";
 import { SettingsDialog } from "./components/settings/SettingsDialog";
 import { MyShavesDialog } from "./components/shaves/MyShavesDialog";
-import { TestExecuteTaskButton } from "./components/test/TestExecuteTaskButton";
 import { ApprovalDialog } from "./components/workflow/ApprovalDialog";
 import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
@@ -71,9 +70,6 @@ export default function App() {
             {appVersion && `v${appVersion} `}
             {commitHash && `(${commitHash})`}
           </div>
-
-          {/* Temporary test button - remove when done testing */}
-          <TestExecuteTaskButton />
         </div>
       </YouTubeAuthProvider>
     </AdvancedSettingsProvider>

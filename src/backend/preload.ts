@@ -1,5 +1,6 @@
 import type { UserSettings } from "@shared/types/user-settings";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
+import type { ToolApprovalDecision } from "../shared/types/mcp";
 import type {
   CreateShaveData,
   CreateVideoData,
@@ -7,7 +8,6 @@ import type {
   UpdateShaveData,
 } from "./db/schema";
 import type { VideoUploadResult } from "./services/auth/types";
-import type { ToolApprovalDecision } from "../shared/types/mcp";
 import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 import type { ShaveStatus } from "./types";
@@ -76,8 +76,6 @@ const IPC_CHANNELS = {
   PROCESS_VIDEO_FILE: "process-video:file",
   PROCESS_VIDEO_URL: "process-video:url",
   RETRY_VIDEO: "retry-video",
-  EXECUTE_TASK_FROM_INTERMEDIATE: "execute-task:from-intermediate",
-
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
   SETTINGS_GET_ACTIVE_PROMPT: "settings:get-active-prompt",
@@ -142,16 +140,6 @@ const electronAPI = {
       shaveId?: number,
     ) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult, shaveId),
-    executeTaskFromIntermediate: (
-      intermediateOutput: string,
-      options?: {
-        videoUrl?: string;
-        videoDuration?: number;
-        videoFilePath?: string;
-        shaveId?: number;
-      },
-    ) =>
-      ipcRenderer.invoke(IPC_CHANNELS.EXECUTE_TASK_FROM_INTERMEDIATE, intermediateOutput, options),
   },
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),
