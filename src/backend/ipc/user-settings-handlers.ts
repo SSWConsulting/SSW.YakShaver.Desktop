@@ -64,15 +64,12 @@ export class UserSettingsIPCHandlers {
       return { success: true };
     }
 
-    // Try to register the new hotkeys
     const result = this.hotkeyManager.registerHotkeys(hotkeys);
 
     if (!result.success && result.failedActions) {
-      // Registration failed - revert to previous hotkeys
       const currentSettings = await this.storage.getSettingsAsync();
       this.hotkeyManager.registerHotkeys(currentSettings.hotkeys);
 
-      // Build error message
       const failedHotkey = result.failedActions[0];
       return {
         success: false,
@@ -80,10 +77,8 @@ export class UserSettingsIPCHandlers {
       };
     }
 
-    // Registration succeeded - save to storage
     await this.storage.updateSettingsAsync({ hotkeys });
 
-    // Sync to renderer processes
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send(IPC_CHANNELS.SETTINGS_HOTKEY_UPDATE, hotkeys);
     }

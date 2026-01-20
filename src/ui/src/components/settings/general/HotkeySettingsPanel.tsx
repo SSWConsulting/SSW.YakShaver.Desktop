@@ -8,6 +8,8 @@ import { Card, CardContent } from "../../ui/card";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 
+const FUNCTION_KEY_REGEX = /^F([1-9]|1[0-9]|2[0-4])$/;
+
 interface HotkeySettingsPanelProps {
   isActive: boolean;
 }
@@ -20,7 +22,6 @@ export function HotkeySettingsPanel({ isActive }: HotkeySettingsPanelProps) {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [shortcutInput, setShortcutInput] = useState<string>("");
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
-  const FUNCTION_KEY_REGEX = /^F([1-9]|1[0-9]|2[0-4])$/;
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
@@ -99,16 +100,13 @@ export function HotkeySettingsPanel({ isActive }: HotkeySettingsPanelProps) {
     e.preventDefault();
     const key = e.key;
 
-    // Build shortcut string
     let shortcut = "";
     if (e.ctrlKey) shortcut += "Ctrl+";
     if (e.altKey) shortcut += "Alt+";
     if (e.shiftKey) shortcut += "Shift+";
     if (e.metaKey) shortcut += "Command+";
 
-    // Add the main key if it's not a modifier
     if (!["Control", "Alt", "Shift", "Meta"].includes(key)) {
-      // Normalize key names for function keys and special keys
       if (key.startsWith("F") && FUNCTION_KEY_REGEX.test(key)) {
         shortcut += key;
       } else if (key.length === 1) {

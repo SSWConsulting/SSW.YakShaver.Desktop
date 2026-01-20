@@ -7,6 +7,7 @@ export class TrayManager {
   private tray: Tray | null = null;
   private mainWindow: BrowserWindow | null = null;
   private onQuitRequested: QuitHandler;
+  private recordHotkeyString = "";
 
   constructor(onQuitRequested: QuitHandler) {
     this.onQuitRequested = onQuitRequested;
@@ -14,6 +15,11 @@ export class TrayManager {
 
   setMainWindow(window: BrowserWindow): void {
     this.mainWindow = window;
+  }
+
+  setRecordHotkey(hotkey: string): void {
+    this.recordHotkeyString = hotkey;
+    this.updateTrayMenu();
   }
 
   createTray(): void {
@@ -39,9 +45,13 @@ export class TrayManager {
   }
 
   private buildTrayContextMenu(): Menu {
+    const recordLabel = this.recordHotkeyString
+      ? `Record Shave (${this.recordHotkeyString})`
+      : "Record Shave";
+
     return Menu.buildFromTemplate([
       {
-        label: `Record Shave`,
+        label: recordLabel,
         click: () => {
           this.openSourcePicker();
         },

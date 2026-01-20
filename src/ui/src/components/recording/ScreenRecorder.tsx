@@ -1,6 +1,7 @@
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
+import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
 import { VideoSourceType } from "../../../../backend/types";
 import { normalizeYouTubeUrl } from "../../../../backend/utils/youtube-url-utils";

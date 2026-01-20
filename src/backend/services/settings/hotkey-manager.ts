@@ -63,7 +63,7 @@ export class HotkeyManager {
 
     const failedActions: Array<{ action: HotkeyAction; keybind: string; reason: string }> = [];
 
-    (Object.keys(this.handlers) as HotkeyAction[]).forEach((action) => {
+    for (const action of Object.keys(this.handlers) as HotkeyAction[]) {
       const keybind = hotkeys[action];
       if (keybind) {
         const result = this.registerHotkey(action, keybind);
@@ -75,7 +75,7 @@ export class HotkeyManager {
           });
         }
       }
-    });
+    }
 
     return {
       success: failedActions.length === 0,
