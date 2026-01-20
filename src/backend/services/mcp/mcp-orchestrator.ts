@@ -108,12 +108,8 @@ export class MCPOrchestrator {
         const content = outputBuffer.get(value);
         if (content) {
           // Replace toolOutputRef with the actual content in a standard parameter name
-          // Use "template" as the default resolved parameter name, but tools can customize this
           delete resolved.toolOutputRef;
-          resolved.template = content;
-          console.log(
-            `[MCPOrchestrator] Resolved toolOutputRef '${value}' (${content.length} chars)`,
-          );
+          resolved.content = content;
         } else {
           console.warn(
             `[MCPOrchestrator] Tool output reference '${value}' not found in buffer. Available: ${JSON.stringify(outputBuffer.listAll())}`,
@@ -387,7 +383,7 @@ export class MCPOrchestrator {
               });
 
               // Construct tool result message with buffer reference for tool chaining
-              const toolResultValue = `${rawOutputText}\n\n[Tool Output Reference: ${outputRefId}] - Use this ID to reference the raw output in subsequent tool calls that accept a 'toolOutputRef' parameter.`;
+              const toolResultValue = `${rawOutputText}\n\n[Tool Output Reference: ${outputRefId}] - Use this ID to reference the raw output in subsequent tool calls.`;
 
               const toolMessage: ToolModelMessage = {
                 role: "tool",

@@ -23,7 +23,8 @@ const DEFAULT_PROMPT: CustomPrompt = {
   id: "default",
   name: "Default Prompt",
   description: "This is the default prompt for YakShaver",
-  content: `You MUST follow the target repository's GitHub issue templates exactly.
+  content: `You are an AI assistant with MCP capabilities to assist with creating and managing GitHub issues (PBIs).
+  You MUST follow the target repository's GitHub issue templates exactly.
 
 1) When creating an issue:
 - Always apply the "YakShaver" label IN ADDITION to any template-required labels.
