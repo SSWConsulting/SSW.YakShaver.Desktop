@@ -16,7 +16,11 @@ export const UserSettingsSchema = z.object({
   hotkeys: HotkeysSchema,
 });
 
-export const PartialUserSettingsSchema = UserSettingsSchema.partial();
+export const PartialUserSettingsSchema = UserSettingsSchema.omit({ hotkeys: true })
+  .partial()
+  .extend({
+    hotkeys: HotkeysSchema.partial().optional(),
+  });
 export type PartialUserSettings = z.infer<typeof PartialUserSettingsSchema>;
 
 export type UserSettings = z.infer<typeof UserSettingsSchema>;

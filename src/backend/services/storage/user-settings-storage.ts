@@ -1,5 +1,9 @@
 import { join } from "node:path";
-import { DEFAULT_USER_SETTINGS, type UserSettings } from "../../../shared/types/user-settings";
+import {
+  DEFAULT_USER_SETTINGS,
+  type PartialUserSettings,
+  type UserSettings,
+} from "../../../shared/types/user-settings";
 import { BaseSecureStorage } from "./base-secure-storage";
 
 const SETTINGS_FILE = "user-settings.enc";
@@ -45,9 +49,17 @@ export class UserSettingsStorage extends BaseSecureStorage {
     return finalSettings;
   }
 
-  public async updateSettingsAsync(partialSettings: Partial<UserSettings>): Promise<void> {
+  public async updateSettingsAsync(partialSettings: PartialUserSettings): Promise<void> {
     const current = await this.getSettingsAsync();
-    const updated = { ...current, ...partialSettings };
+
+    const updated: UserSettings = {
+      ...current,
+      ...partialSettings,
+      hotkeys: {
+        ...current.hotkeys,
+        ...partialSettings.hotkeys,
+      },
+    };
 
     await this.encryptAndStore(this.getSettingsPath(), updated);
     this.cache = updated;

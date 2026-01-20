@@ -72,10 +72,12 @@ export class UserSettingsIPCHandlers {
       return { success: true };
     }
 
-    const result = this.hotkeyManager.registerHotkeys(hotkeys);
+    const currentSettings = await this.storage.getSettingsAsync();
+    const newHotkeys = { ...currentSettings.hotkeys, ...hotkeys };
+
+    const result = this.hotkeyManager.registerHotkeys(newHotkeys);
 
     if (!result.success && result.failedActions) {
-      const currentSettings = await this.storage.getSettingsAsync();
       this.hotkeyManager.registerHotkeys(currentSettings.hotkeys);
 
       const failedHotkey = result.failedActions[0];
@@ -85,9 +87,9 @@ export class UserSettingsIPCHandlers {
       };
     }
 
-    await this.storage.updateSettingsAsync({ hotkeys });
+    await this.storage.updateSettingsAsync({ hotkeys: newHotkeys });
 
-    this.broadcastHotkeyConfig(hotkeys);
+    this.broadcastHotkeyConfig(newHotkeys);
 
     return { success: true };
   }
