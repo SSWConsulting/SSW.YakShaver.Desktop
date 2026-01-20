@@ -327,28 +327,20 @@ export class MCPOrchestrator {
                 toolCallId: toolCall.toolCallId,
               } as ToolExecutionOptions);
 
-              const rawOutputText = toolOutput.content[0]?.text || "";
+              const rawOutputText =
+                toolOutput.content
+                  .map((item: { text?: string; type?: string; resource?: { text?: string } }) => {
+                    if (item.text) return item.text;
+                    if (item.type === "resource" && item.resource?.text) {
+                      return item.resource.text;
+                    }
+                    return "";
+                  })
+                  .filter(Boolean)
+                  .join("\n\n") || "(no text output)";
 
-              // Try to find the actual content - some tools return status in [0] and actual content in [1] or later
-              // Also check for resource-type content where text is in resource.text
-              let contentToStore = rawOutputText;
-              if (Array.isArray(toolOutput.content) && toolOutput.content.length > 1) {
-                for (let idx = 1; idx < toolOutput.content.length; idx++) {
-                  const item = toolOutput.content[idx];
-
-                  // Check for text content
-                  if (item?.text && item.text.length > contentToStore.length) {
-                    contentToStore = item.text;
-                  }
-
-                  // Check for resource-type content (e.g., from GitHub MCP)
-                  if (item?.type === "resource" && item?.resource?.text) {
-                    contentToStore = item.resource.text;
-                  }
-                }
-              }
-
-              // Store raw output in buffer for tool chaining
+              // Store complete raw output in buffer for tool chaining
+              const contentToStore = JSON.stringify(toolOutput.content);
               const outputBuffer = ToolOutputBuffer.getInstance();
               const outputRefId = outputBuffer.store(toolCall.toolName, contentToStore);
 
@@ -358,9 +350,13 @@ export class MCPOrchestrator {
                 toolName: toolCall.toolName,
                 result: toolOutput,
               });
+              options.onStep?.({
+                type: "tool_result",
+                toolName: toolCall.toolName,
+                result: toolOutput,
+              });
 
               // Construct tool result message with buffer reference for tool chaining
-              // The LLM sees both the content AND a reference ID it can pass to subsequent tools
               const toolResultValue = `${rawOutputText}\n\n[Tool Output Reference: ${outputRefId}] - Use this ID to reference the raw output in subsequent tool calls that accept a 'toolOutputRef' parameter.`;
 
               const toolMessage: ToolModelMessage = {
@@ -380,11 +376,10 @@ export class MCPOrchestrator {
 
               messages.push(toolMessage);
             } catch (toolError) {
-              console.error("[MCPOrchestrator] ===== TOOL ERROR =====");
-              console.error(`[MCPOrchestrator] Tool Name: ${toolCall.toolName}`);
-              console.error(`[MCPOrchestrator] Tool Call ID: ${toolCall.toolCallId}`);
-              console.error("[MCPOrchestrator] Error Details:", toolError);
-              console.error("[MCPOrchestrator] ===== TOOL ERROR END =====");
+              console.error(
+                `[MCPOrchestrator] TOOL ERROR: ${toolCall.toolName} (${toolCall.toolCallId})`,
+                toolError,
+              );
               throw toolError;
             }
           } else {
@@ -394,8 +389,7 @@ export class MCPOrchestrator {
           }
         }
       } else if (llmResponse.finishReason === "stop") {
-        console.log("[MCPOrchestrator] ===== SESSION COMPLETE (STOP) =====");
-        console.log("[MCPOrchestrator] Final Response:");
+        console.log("Final message history by stop:");
         console.log(llmResponse.text);
 
         // Clear the tool output buffer at session end
