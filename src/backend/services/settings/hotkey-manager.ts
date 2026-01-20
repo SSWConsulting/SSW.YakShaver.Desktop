@@ -1,5 +1,6 @@
 import type { HotkeyAction, Hotkeys } from "@shared/types/user-settings";
-import { globalShortcut } from "electron";
+import { type BrowserWindow, globalShortcut } from "electron";
+import { IPC_CHANNELS } from "../../ipc/channels";
 
 export interface HotkeyRegistrationResult {
   success: boolean;
@@ -8,6 +9,7 @@ export interface HotkeyRegistrationResult {
 
 export class HotkeyManager {
   private static instance: HotkeyManager;
+  private mainWindow: BrowserWindow | null = null;
 
   private handlers: Record<HotkeyAction, () => void> = {
     startRecording: this.handleStartRecording.bind(this),
@@ -22,8 +24,20 @@ export class HotkeyManager {
     return HotkeyManager.instance;
   }
 
+  setMainWindow(window: BrowserWindow): void {
+    this.mainWindow = window;
+  }
+
   private handleStartRecording(): void {
-    console.log("Starting recording...");
+    console.log("Starting recording hotkey triggered...");
+    if (this.mainWindow) {
+      if (this.mainWindow.isMinimized()) {
+        this.mainWindow.restore();
+      }
+      this.mainWindow.show();
+      this.mainWindow.focus();
+      this.mainWindow.webContents.send(IPC_CHANNELS.OPEN_SOURCE_PICKER);
+    }
   }
 
   registerHotkey(

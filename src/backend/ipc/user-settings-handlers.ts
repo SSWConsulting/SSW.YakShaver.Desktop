@@ -5,15 +5,18 @@ import {
 } from "../../shared/types/user-settings";
 import { HotkeyManager } from "../services/settings/hotkey-manager";
 import { UserSettingsStorage } from "../services/storage/user-settings-storage";
+import type { TrayManager } from "../services/tray/tray-manager";
 import { IPC_CHANNELS } from "./channels";
 
 export class UserSettingsIPCHandlers {
   private readonly storage: UserSettingsStorage;
   private readonly hotkeyManager: HotkeyManager;
+  private trayManager: TrayManager;
 
-  constructor() {
+  constructor(trayManager: TrayManager) {
     this.storage = UserSettingsStorage.getInstance();
     this.hotkeyManager = HotkeyManager.getInstance();
+    this.trayManager = trayManager;
     this.registerHandlers();
     void this.syncLoginItemSettings();
     void this.syncHotkeysToAllWindows();
@@ -36,6 +39,9 @@ export class UserSettingsIPCHandlers {
     try {
       const settings = await this.storage.getSettingsAsync();
       if (settings.hotkeys) {
+        if (this.trayManager && settings.hotkeys.startRecording) {
+          this.trayManager.setRecordHotkey(settings.hotkeys.startRecording);
+        }
         for (const win of BrowserWindow.getAllWindows()) {
           win.webContents.send(IPC_CHANNELS.SETTINGS_HOTKEY_UPDATE, settings.hotkeys);
         }
@@ -78,6 +84,10 @@ export class UserSettingsIPCHandlers {
     }
 
     await this.storage.updateSettingsAsync({ hotkeys });
+
+    if (this.trayManager && hotkeys.startRecording) {
+      this.trayManager.setRecordHotkey(hotkeys.startRecording);
+    }
 
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send(IPC_CHANNELS.SETTINGS_HOTKEY_UPDATE, hotkeys);

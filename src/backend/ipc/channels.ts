@@ -29,6 +29,7 @@ export const IPC_CHANNELS = {
   RECORDING_TIME_UPDATE: "recording-time-update",
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
+  OPEN_SOURCE_PICKER: "open-source-picker",
 
   // LLM
   LLM_SET_CONFIG: "llm:set-config",

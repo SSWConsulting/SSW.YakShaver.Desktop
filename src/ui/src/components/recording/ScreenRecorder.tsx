@@ -1,3 +1,4 @@
+import type { UserSettings } from "@shared/types/user-settings";
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
@@ -29,6 +30,7 @@ export function ScreenRecorder() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isProcessingUrl, setIsProcessingUrl] = useState(false);
   const youtubeUrlInputId = useId();
+  const [recordHotkey, setRecordHotkey] = useState("");
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -49,6 +51,31 @@ export function ScreenRecorder() {
 
   const handleDurationLoad = useCallback((calculatedDuration: number) => {
     setDuration(calculatedDuration);
+  }, []);
+
+  useEffect(() => {
+    const loadHotkey = async () => {
+      try {
+        const settings = await ipcClient.userSettings.get();
+        if (settings.hotkeys.startRecording) {
+          setRecordHotkey(settings.hotkeys.startRecording);
+        }
+      } catch (error) {
+        console.error("Failed to load hotkey settings:", error);
+      }
+    };
+    loadHotkey();
+
+    // Listen for setting changes
+    const unsubscribe = window.electronAPI.userSettings.onHotkeyUpdate(
+      (hotkeys: UserSettings["hotkeys"]) => {
+        if (hotkeys?.startRecording !== undefined) {
+          setRecordHotkey(hotkeys.startRecording || "");
+        }
+      },
+    );
+
+    return unsubscribe;
   }, []);
 
   const toggleRecording = () => {
@@ -214,7 +241,7 @@ export function ScreenRecorder() {
               ? "Stop Recording"
               : isTranscribing
                 ? "Transcribing..."
-                : "Start Recording"}
+                : `Start Recording${recordHotkey ? ` (${recordHotkey})` : ""}`}
           </Button>
         </div>
         {!isAuthenticated && (

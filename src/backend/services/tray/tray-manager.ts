@@ -1,4 +1,5 @@
 import { app, type BrowserWindow, Menu, nativeImage, Tray } from "electron";
+import { IPC_CHANNELS } from "../../ipc/channels";
 import { getIconPath } from "../../utils/path-utils";
 
 type QuitHandler = () => void;
@@ -77,7 +78,7 @@ export class TrayManager {
   private openSourcePicker(): void {
     if (this.mainWindow) {
       this.showWindow();
-      this.mainWindow.webContents.send("open-source-picker");
+      this.mainWindow.webContents.send(IPC_CHANNELS.OPEN_SOURCE_PICKER);
     }
   }
 
