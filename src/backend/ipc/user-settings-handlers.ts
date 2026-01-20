@@ -1,5 +1,6 @@
 import { app, BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import {
+  type Hotkeys,
   type PartialUserSettings,
   PartialUserSettingsSchema,
 } from "../../shared/types/user-settings";
@@ -19,8 +20,7 @@ export class UserSettingsIPCHandlers {
     this.trayManager = trayManager;
     this.registerHandlers();
     void this.syncLoginItemSettings();
-    void this.syncHotkeysToAllWindows();
-    void this.registerGlobalHotkeys();
+    void this.initializeHotkeys();
   }
 
   private async syncLoginItemSettings(): Promise<void> {
@@ -35,31 +35,29 @@ export class UserSettingsIPCHandlers {
     }
   }
 
-  private async syncHotkeysToAllWindows(): Promise<void> {
+  private async initializeHotkeys(): Promise<void> {
     try {
       const settings = await this.storage.getSettingsAsync();
-      if (settings.hotkeys) {
-        if (this.trayManager && settings.hotkeys.startRecording) {
-          this.trayManager.setRecordHotkey(settings.hotkeys.startRecording);
-        }
-        for (const win of BrowserWindow.getAllWindows()) {
-          win.webContents.send(IPC_CHANNELS.SETTINGS_HOTKEY_UPDATE, settings.hotkeys);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to sync hotkeys to windows on startup", error);
-    }
-  }
+      if (!settings.hotkeys) return;
 
-  private async registerGlobalHotkeys(): Promise<void> {
-    try {
-      const settings = await this.storage.getSettingsAsync();
       const result = this.hotkeyManager.registerHotkeys(settings.hotkeys);
       if (!result.success && result.failedActions) {
         console.error("Failed to register some hotkeys on startup:", result.failedActions);
       }
+
+      this.broadcastHotkeyConfig(settings.hotkeys);
     } catch (error) {
-      console.error("Failed to register global hotkeys on startup", error);
+      console.error("Failed to initialize hotkeys on startup", error);
+    }
+  }
+
+  private broadcastHotkeyConfig(hotkeys: Hotkeys): void {
+    if (this.trayManager && hotkeys.startRecording) {
+      this.trayManager.setRecordHotkey(hotkeys.startRecording);
+    }
+
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(IPC_CHANNELS.SETTINGS_HOTKEY_UPDATE, hotkeys);
     }
   }
 
@@ -85,13 +83,7 @@ export class UserSettingsIPCHandlers {
 
     await this.storage.updateSettingsAsync({ hotkeys });
 
-    if (this.trayManager && hotkeys.startRecording) {
-      this.trayManager.setRecordHotkey(hotkeys.startRecording);
-    }
-
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send(IPC_CHANNELS.SETTINGS_HOTKEY_UPDATE, hotkeys);
-    }
+    this.broadcastHotkeyConfig(hotkeys);
 
     return { success: true };
   }
