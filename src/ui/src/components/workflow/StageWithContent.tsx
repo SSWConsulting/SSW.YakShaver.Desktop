@@ -1,25 +1,16 @@
 import { AlertTriangle, Check, Play, Wrench, X } from "lucide-react";
 import type React from "react";
-import {
-  type MCPStep,
-  MCPStepType,
-  type MetadataPreview,
-  ProgressStage,
-  STAGE_CONFIG,
-  type VideoChapter,
-  type WorkflowProgress,
-  type WorkflowStage,
-} from "../../types";
+import { type MCPStep, MCPStepType, type MetadataPreview, type VideoChapter } from "../../types";
 import { deepParseJson } from "../../utils";
-import { AccordionContent, AccordionTrigger } from "../ui/accordion";
 import { ReasoningStep } from "./ReasoningStep";
 
 interface StageWithContentProps {
-  stage: WorkflowStage;
-  progress: WorkflowProgress;
-  mcpSteps: MCPStep[];
-  stepsRef: React.RefObject<HTMLDivElement | null>;
-  getStageIcon: (stage: WorkflowStage) => React.ReactNode;
+  stage: string;
+  payload: unknown;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
@@ -186,104 +177,119 @@ function ToolCallStep({
   );
 }
 
-export function StageWithContent({
-  stage,
-  progress,
-  mcpSteps,
-  stepsRef,
-  getStageIcon,
-}: StageWithContentProps) {
-  const isExternalSource = progress.sourceOrigin === "external";
+export function StageWithContent({ stage, payload }: StageWithContentProps) {
+  // If no payload or empty object, nothing to render
+  if (!payload) return null;
 
-  return (
-    <>
-      <AccordionTrigger className="px-4 hover:no-underline">
-        <div className="flex items-center gap-3">
-          {getStageIcon(stage)}
-          <span className="text-white/90 font-medium">{STAGE_CONFIG[stage]}</span>
-        </div>
-      </AccordionTrigger>
-      <AccordionContent className="px-4 pb-2">
-        {stage === ProgressStage.TRANSCRIBING &&
-          progress.transcript &&
-          progress.transcript.length > 0 && (
-            <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-sm whitespace-pre-wrap break-words overflow-hidden">
-              {progress.transcript.map((t) => t.text).join("")}
-            </div>
-          )}
-        {stage === ProgressStage.GENERATING_TASK &&
-          progress.intermediateOutput &&
-          progress.stage !== ProgressStage.GENERATING_TASK && (
-            <div className="p-3 bg-black/30 border border-white/10 rounded-md text-white/80 text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
-              {progress.intermediateOutput}
-            </div>
-          )}
-        {stage === ProgressStage.EXECUTING_TASK && mcpSteps.length > 0 && (
+  // Handing executing_task (MCP Steps)
+  if (stage === "executing_task" && isRecord(payload) && Array.isArray(payload.steps)) {
+    const mcpSteps = payload.steps as MCPStep[];
+
+    return (
+      <div className="max-h-[400px] overflow-y-auto space-y-2">
+        {mcpSteps.map((step, idx) => (
           <div
-            ref={stepsRef}
-            className="bg-black/30 border border-white/10 rounded-md p-3 max-h-[400px] overflow-y-auto space-y-2"
+            // timestamp might be undefined or duplicated, using index as fallback
+            key={`${step.timestamp}-${idx}`}
+            className="border-l-2 border-green-400/30 pl-3 py-1"
           >
-            {mcpSteps.map((step) => (
-              <div key={step.timestamp} className="border-l-2 border-green-400/30 pl-3 py-1">
-                {step.type === MCPStepType.START && (
-                  <div className="text-secondary font-medium flex items-center gap-2">
-                    <Play className="w-4 h-4" />
-                    {step.message || "Start task execution"}
-                  </div>
-                )}
-                {step.type === MCPStepType.REASONING && step.reasoning && (
-                  <ReasoningStep reasoning={step.reasoning} />
-                )}
-                {step.type === MCPStepType.TOOL_CALL && (
-                  <ToolCallStep
-                    toolName={step.toolName}
-                    serverName={step.serverName}
-                    args={step.args}
-                  />
-                )}
-                {step.type === MCPStepType.TOOL_APPROVAL_REQUIRED && (
-                  <div className="space-y-1">
-                    <ToolApprovalPending toolName={step.toolName} />
-                    <ToolCallStep
-                      toolName={step.toolName}
-                      serverName={step.serverName}
-                      args={step.args}
-                    />
-                  </div>
-                )}
-                {step.type === MCPStepType.TOOL_RESULT && (
-                  <div className="ml-4 space-y-1">
-                    {step.error ? (
-                      <ToolResultError error={step.error} />
-                    ) : (
-                      <ToolResultSuccess result={step.result} />
-                    )}
-                  </div>
-                )}
-                {step.type === MCPStepType.TOOL_DENIED && (
-                  <div className="ml-4">
-                    <ToolDeniedNotice message={step.message} />
-                  </div>
-                )}
-                {step.type === MCPStepType.FINAL_RESULT && (
-                  <div className="font-medium flex items-center gap-2">
-                    <Check className="w-4 h-4" />
-                    {step.message || "Generated final result"}
-                  </div>
+            {step.type === MCPStepType.START && (
+              <div className="text-secondary font-medium flex items-center gap-2">
+                <Play className="w-4 h-4" />
+                {step.message || "Start task execution"}
+              </div>
+            )}
+            {step.type === MCPStepType.REASONING && step.reasoning && (
+              <ReasoningStep reasoning={step.reasoning} />
+            )}
+            {step.type === MCPStepType.TOOL_CALL && (
+              <ToolCallStep
+                toolName={step.toolName}
+                serverName={step.serverName}
+                args={step.args}
+              />
+            )}
+            {step.type === MCPStepType.TOOL_APPROVAL_REQUIRED && (
+              <div className="space-y-1">
+                <ToolApprovalPending toolName={step.toolName} />
+                <ToolCallStep
+                  toolName={step.toolName}
+                  serverName={step.serverName}
+                  args={step.args}
+                />
+              </div>
+            )}
+            {step.type === MCPStepType.TOOL_RESULT && (
+              <div className="ml-4 space-y-1">
+                {step.error ? (
+                  <ToolResultError error={step.error} />
+                ) : (
+                  <ToolResultSuccess result={step.result} />
                 )}
               </div>
-            ))}
+            )}
+            {step.type === MCPStepType.TOOL_DENIED && (
+              <div className="ml-4">
+                <ToolDeniedNotice message={step.message} />
+              </div>
+            )}
+            {step.type === MCPStepType.FINAL_RESULT && (
+              <div className="font-medium flex items-center gap-2">
+                <Check className="w-4 h-4" />
+                {step.message || "Generated final result"}
+              </div>
+            )}
           </div>
-        )}
-        {stage === ProgressStage.UPDATING_METADATA && !isExternalSource && (
-          <MetadataPreviewCard
-            preview={progress.metadataPreview}
-            error={progress.metadataUpdateError || progress.error}
-          />
-        )}
-      </AccordionContent>
-    </>
+        ))}
+      </div>
+    );
+  }
+
+  if (stage === "transcribing" && typeof payload === "string") {
+    return <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">{payload}</div>;
+  }
+
+  if (stage === "transcribing" && isRecord(payload) && typeof payload.transcriptText === "string") {
+    return (
+      <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
+        {payload.transcriptText}
+      </div>
+    );
+  }
+
+  if (stage === "updating_metadata" && isRecord(payload)) {
+    const preview = isRecord(payload.metadataPreview)
+      ? (payload.metadataPreview as unknown as MetadataPreview)
+      : undefined;
+    const error =
+      typeof payload.metadataUpdateError === "string"
+        ? payload.metadataUpdateError
+        : typeof payload.error === "string"
+          ? payload.error
+          : undefined;
+
+    if (preview || error) {
+      return <MetadataPreviewCard preview={preview} error={error} />;
+    }
+  }
+
+  if (stage === "analyzing_transcript" || stage === "executing_task") {
+    // Could be intermediate output or other json
+    if (isRecord(payload) && payload.intermediateOutput) {
+      return (
+        <div className="text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
+          {typeof payload.intermediateOutput === "string"
+            ? payload.intermediateOutput
+            : JSON.stringify(payload.intermediateOutput, null, 2)}
+        </div>
+      );
+    }
+  }
+
+  // Fallback to JSON view
+  return (
+    <div className="text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
+      {typeof payload === "string" ? payload : JSON.stringify(payload, null, 2)}
+    </div>
   );
 }
-
-export type { StageWithContentProps };

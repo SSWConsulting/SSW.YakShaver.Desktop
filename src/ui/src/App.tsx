@@ -4,12 +4,15 @@ import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
 import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 import { DownloadProgressToast } from "./components/common/DownloadProgressToast";
-import { VideoHostPanel } from "./components/layout/VideoHostPanel";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { ScreenRecorder } from "./components/recording/ScreenRecorder";
 import { SettingsDialog } from "./components/settings/SettingsDialog";
 import { MyShavesDialog } from "./components/shaves/MyShavesDialog";
+<<<<<<< HEAD
 import { TestExecuteTaskButton } from "./components/test/TestExecuteTaskButton";
+=======
+import { ApprovalDialog } from "./components/workflow/ApprovalDialog";
+>>>>>>> main
 import { FinalResultPanel } from "./components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPanel";
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
@@ -51,6 +54,7 @@ export default function App() {
               <SettingsDialog />
               <MicrosoftAuthManager />
             </div>
+            <ApprovalDialog />
             <header className="z-10 relative">
               <div className="container mx-auto flex flex-col items-center gap-8">
                 <h1>
@@ -59,9 +63,8 @@ export default function App() {
               </div>
             </header>
 
-            <main className="z-10 relative">
+            <main className="z-10 relative flex flex-col items-center">
               <ScreenRecorder />
-              <VideoHostPanel />
               <WorkflowProgressPanel />
               <FinalResultPanel />
             </main>

@@ -1,4 +1,4 @@
-import type { ToolApprovalMode, ToolApprovalSettings } from "@shared/types/tool-approval";
+import type { ToolApprovalMode } from "@shared/types/user-settings";
 import { TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -44,15 +44,15 @@ const MODE_LABELS: Record<ToolApprovalMode, string> = {
 };
 
 export function ToolApprovalSettingsPanel({ isActive }: ToolApprovalSettingsPanelProps) {
-  const [settings, setSettings] = useState<ToolApprovalSettings>({ toolApprovalMode: "ask" });
+  const [settings, setSettings] = useState<ToolApprovalMode>("ask");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [pendingMode, setPendingMode] = useState<ToolApprovalMode | null>(null);
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const current = await ipcClient.toolApprovalSettings.get();
-      setSettings(current);
+      const current = await ipcClient.userSettings.get();
+      setSettings(current.toolApprovalMode);
     } catch (error) {
       console.error("Failed to load tool approval settings", error);
       toast.error("Failed to load tool approval settings");
@@ -70,13 +70,13 @@ export function ToolApprovalSettingsPanel({ isActive }: ToolApprovalSettingsPane
 
   const handleModeSelect = useCallback(
     async (mode: ToolApprovalMode) => {
-      if (mode === settings.toolApprovalMode) {
+      if (mode === settings) {
         return;
       }
       setPendingMode(mode);
       try {
-        await ipcClient.toolApprovalSettings.setMode(mode);
-        setSettings((prev) => ({ ...prev, toolApprovalMode: mode }));
+        await ipcClient.userSettings.update({ toolApprovalMode: mode });
+        setSettings(mode);
         toast.success(`${MODE_LABELS[mode]} mode enabled`);
       } catch (error) {
         console.error("Failed to update tool approval mode", error);
@@ -85,10 +85,10 @@ export function ToolApprovalSettingsPanel({ isActive }: ToolApprovalSettingsPane
         setPendingMode(null);
       }
     },
-    [settings.toolApprovalMode],
+    [settings],
   );
 
-  const currentMode = settings.toolApprovalMode;
+  const currentMode = settings;
 
   return (
     <div className="space-y-6">
