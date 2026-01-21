@@ -265,9 +265,6 @@ if (azure?.customProtocol) {
       : app.isDefaultProtocolClient(azure.customProtocol);
 
     if (!isDefault) {
-      // Remove any existing handler first to avoid duplicates
-      app.removeAsDefaultProtocolClient(azure.customProtocol);
-
       if (isDev) {
         // In dev mode, need to provide the electron executable and app path
         const devArgs = [app.getAppPath(), "--dev-protocol"];
