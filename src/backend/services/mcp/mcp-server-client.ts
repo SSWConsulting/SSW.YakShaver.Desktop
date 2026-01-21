@@ -4,7 +4,6 @@ import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
 import {
   authorizeWithPkceOnce,
-  checkDynamicRegistrationSupport,
   PersistedOAuthClientProvider,
   waitForAuthorizationCode,
 } from "./mcp-oauth";
@@ -59,25 +58,19 @@ export class MCPServerClient {
         return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
       }
 
-      // Check for dynamic client registration support for servers
-      let oauthEndpoint: string | null = null;
+      // Attempt OAuth flow via backend
       try {
-        oauthEndpoint = await checkDynamicRegistrationSupport(serverUrl);
-      } catch (detectionError) {
-        console.warn(
-          `[MCPServerClient]: Dynamic registration detection failed for ${mcpConfig.name}: ${formatErrorMessage(detectionError)}`,
-        );
-      }
-
-      if (oauthEndpoint) {
-        const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
-        const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|flow=dynamic`;
+        const callbackPort = await getPort({
+          port: Number(process.env.MCP_CALLBACK_PORT),
+        });
+        const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|flow=backend`;
         const authProvider = new PersistedOAuthClientProvider({
           callbackPort,
           tokenStorage: McpOAuthTokenStorage.getInstance(),
           tokenKey,
         });
         const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
+
         await withTimeout(
           authorizeWithPkceOnce(authProvider, serverUrl, () =>
             waitForAuthorizationCode(callbackPort),
@@ -85,6 +78,13 @@ export class MCPServerClient {
           authTimeoutMs,
           `${mcpConfig.name} OAuth`,
         );
+
+        // Ensure we have tokens before creating the client
+        const tokens = await authProvider.tokens();
+        if (!tokens) {
+          throw new Error("Tokens missing after successful OAuth flow");
+        }
+
         const client = await experimental_createMCPClient({
           transport: {
             type: "http",
@@ -93,39 +93,10 @@ export class MCPServerClient {
           },
         });
         return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
-      }
-
-      if (!oauthEndpoint && mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
-        const githubClientId = process.env.MCP_GITHUB_CLIENT_ID;
-        const githubClientSecret = process.env.MCP_GITHUB_CLIENT_SECRET;
-        const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
-
-        if (githubClientId && githubClientSecret) {
-          const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|clientId=${githubClientId}|flow=github`;
-          const authProvider = new PersistedOAuthClientProvider({
-            clientId: githubClientId,
-            clientSecret: githubClientSecret,
-            callbackPort,
-            tokenStorage: McpOAuthTokenStorage.getInstance(),
-            tokenKey,
-          });
-          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
-          await withTimeout(
-            authorizeWithPkceOnce(authProvider, serverUrl, () =>
-              waitForAuthorizationCode(callbackPort),
-            ),
-            authTimeoutMs,
-            `${mcpConfig.name} OAuth`,
-          );
-          const client = await experimental_createMCPClient({
-            transport: {
-              type: "http",
-              url: serverUrl,
-              authProvider,
-            },
-          });
-          return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
-        }
+      } catch (authError) {
+        console.warn(
+          `[MCPServerClient]: OAuth flow failed or not supported for ${mcpConfig.name}: ${formatErrorMessage(authError)}`,
+        );
       }
 
       // Fallback: Use headers if no OAuth is configured
@@ -213,7 +184,10 @@ export class MCPServerClient {
     }
   }
 
-  public async healthCheckAsync(): Promise<{ healthy: boolean; toolCount: number }> {
+  public async healthCheckAsync(): Promise<{
+    healthy: boolean;
+    toolCount: number;
+  }> {
     try {
       const toolCount = await this.toolCountAsync();
       return { healthy: true, toolCount: toolCount };

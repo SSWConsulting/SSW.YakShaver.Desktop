@@ -1,6 +1,7 @@
 // Used Vercel AI Example for OAuth: https://github.com/vercel/ai/tree/main/examples/mcp/src/mcp-with-auth
 import { exec } from "node:child_process";
 import { createServer } from "node:http";
+import https from "node:https";
 import type {
   OAuthClientInformation,
   OAuthClientMetadata,
@@ -9,7 +10,6 @@ import type {
 } from "@ai-sdk/mcp";
 import { auth } from "@ai-sdk/mcp";
 import { shell } from "electron";
-import { formatErrorMessage } from "../../utils/error-utils";
 import type { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 
 type TokenEndpointAuthMethod = "client_secret_post" | "client_secret_basic" | "none";
@@ -176,14 +176,117 @@ export async function authorizeWithPkceOnce(
   serverUrl: string,
   waitForCode: () => Promise<string>,
 ): Promise<void> {
-  const result = await auth(authProvider, { serverUrl: new URL(serverUrl) });
-  if (result !== "AUTHORIZED") {
-    const authorizationCode = await waitForCode();
+  try {
+    const result = await auth(authProvider, { serverUrl: new URL(serverUrl) });
+    if (result === "AUTHORIZED") return;
+  } catch (err) {
+    // If discovery fails (e.g. GitHub), we proceed with backend flow
+    console.log(
+      `[MCPServerClient]: Initial auth check failed, proceeding with backend flow: ${err}`,
+    );
+  }
+
+  // Call backend to initiate auth and get the URL
+  // Pass the desktop client's own redirect URL so the backend can redirect back to client
+  const redirectUri = "yakshaver-desktop://oauth/callback";
+  const authUrl = await getMcpAuthorizationUrlFromBackend(serverUrl, redirectUri);
+
+  // Open the browser with the backend-provided URL
+  await authProvider.redirectToAuthorization(new URL(authUrl));
+
+  // Wait for the redirect from the backend to our local server
+  const resultData = await waitForCode();
+
+  try {
+    const tokenData = JSON.parse(resultData);
+
+    // Save the tokens manually if we got them directly from the backend
+    if (tokenData.access_token) {
+      await authProvider.saveTokens({
+        access_token: tokenData.access_token,
+        token_type: tokenData.token_type,
+        refresh_token: tokenData.refresh_token,
+        expires_in: tokenData.expires_in ? Number(tokenData.expires_in) : undefined,
+      });
+    }
+  } catch (err) {
+    console.error(`[MCPServerClient]: Failed to parse or save tokens: ${err}`);
+    // Fallback to standard flow if it wasn't JSON tokens
     await auth(authProvider, {
       serverUrl: new URL(serverUrl),
-      authorizationCode,
+      authorizationCode: resultData,
     });
   }
+
+  // Verify authorization with the SDK for standard servers
+  const finalResult = await auth(authProvider, { serverUrl: new URL(serverUrl) });
+  if (finalResult !== "AUTHORIZED") {
+    throw new Error("Failed to authorize MCP client after token exchange");
+  }
+}
+
+/**
+ * Calls the .NET backend to initiate MCP OAuth flow.
+ */
+async function getMcpAuthorizationUrlFromBackend(
+  serverUrl: string,
+  redirectUri: string,
+): Promise<string> {
+  const portalUrl = process.env.PORTAL_API_URL || "https://localhost:7009/api";
+  const url = `${portalUrl}/mcp/auth/start?serverUrl=${encodeURIComponent(serverUrl)}&redirectUri=${encodeURIComponent(redirectUri)}`;
+
+  // Use a custom agent to allow self-signed certificates for local development
+  const isLocal = url.includes("localhost") || url.includes("127.0.0.1");
+  const fetchOptions: RequestInit = {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  };
+
+  // For local development with self-signed certificates, use https.get with rejectUnauthorized: false
+  if (isLocal) {
+    console.log(`[MCPServerClient]: Using SSL bypass for local backend: ${url}`);
+    return new Promise((resolve, reject) => {
+      const req = https.get(url, { rejectUnauthorized: false }, (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+        res.on("end", () => {
+          try {
+            if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+              reject(new Error(`Backend returned ${res.statusCode}: ${body}`));
+              return;
+            }
+            const data = JSON.parse(body);
+            if (!data.authorizationUrl) {
+              reject(new Error("Backend response missing authorizationUrl"));
+              return;
+            }
+            resolve(data.authorizationUrl);
+          } catch (e) {
+            reject(new Error(`Failed to parse backend response: ${e}`));
+          }
+        });
+      });
+      req.on("error", (err) => {
+        console.error(`[MCPServerClient]: HTTPS request failed: ${err.message}`);
+        reject(err);
+      });
+    });
+  }
+
+  const response = await fetch(url, fetchOptions);
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Backend returned ${response.status}: ${errorText || response.statusText}`);
+  }
+  const data = await response.json();
+  if (!data.authorizationUrl) {
+    throw new Error("Backend response missing authorizationUrl");
+  }
+  return data.authorizationUrl;
 }
 
 export function waitForAuthorizationCode(port: number): Promise<string> {
@@ -199,8 +302,21 @@ export function waitForAuthorizationCode(port: number): Promise<string> {
         return;
       }
       const code = url.searchParams.get("code");
+      const accessToken = url.searchParams.get("access_token");
       const err = url.searchParams.get("error");
-      if (code) {
+
+      if (accessToken) {
+        // Backend flow: we got tokens directly
+        res.writeHead(200, { "Content-Type": "text/html" });
+        res.end(
+          "<html><body><h1>Authorization Successful</h1><p>You can close this window.</p></body></html>",
+        );
+        setTimeout(() => server.close(), 100);
+
+        const tokenData = Object.fromEntries(url.searchParams.entries());
+        resolve(JSON.stringify(tokenData));
+      } else if (code) {
+        // Standard flow: we got a code
         res.writeHead(200, { "Content-Type": "text/html" });
         res.end(
           "<html><body><h1>Authorization Successful</h1><p>You can close this window.</p></body></html>",
@@ -222,47 +338,4 @@ export function waitForAuthorizationCode(port: number): Promise<string> {
     });
     server.listen(port);
   });
-}
-
-/**
- * Attempts to discover OAuth endpoints and dynamic client registration support from an MCP server.
- * @returns The OAuth authorization endpoint if dynamic registration is supported, null otherwise
- */
-export async function checkDynamicRegistrationSupport(serverUrl: string): Promise<string | null> {
-  try {
-    const baseUrl = new URL(serverUrl);
-    const metadataUrl = new URL("/.well-known/oauth-authorization-server", baseUrl.origin);
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const metadataResponse = await fetch(metadataUrl.toString(), {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (metadataResponse.ok) {
-        const metadata = await metadataResponse.json();
-
-        // Check if dynamic client registration endpoint exists
-        if (metadata.registration_endpoint) {
-          return metadata.authorization_endpoint;
-        }
-        return null;
-      }
-    } catch (metadataError) {
-      console.warn(
-        `[MCPServerClient]: OAuth metadata endpoint not available at ${metadataUrl}, error: ${formatErrorMessage(metadataError)}`,
-      );
-    }
-    return null;
-  } catch (error) {
-    console.error(
-      `[MCPServerClient]: Error checking dynamic registration support: ${formatErrorMessage(error)}`,
-    );
-    return null;
-  }
 }
