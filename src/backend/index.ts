@@ -29,6 +29,7 @@ import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { HotkeyManager } from "./services/settings/hotkey-manager";
 import { TrayManager } from "./services/tray/tray-manager";
 import { getIconPath } from "./utils/path-utils";
 
@@ -376,7 +377,8 @@ app.whenReady().then(async () => {
   _appControlHandlers = new AppControlIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
-  _userSettingsHandlers = new UserSettingsIPCHandlers();
+  _userSettingsHandlers = new UserSettingsIPCHandlers(trayManager);
+  await _userSettingsHandlers.initialize();
   _shaveHandlers = new ShaveIPCHandlers();
 
   // Pre-initialize recording windows for faster display
@@ -392,6 +394,7 @@ app.whenReady().then(async () => {
 
   if (mainWindow) {
     trayManager.setMainWindow(mainWindow);
+    HotkeyManager.getInstance().setMainWindow(mainWindow);
   }
 
   // Process any pending protocol URL that arrived during initialization
