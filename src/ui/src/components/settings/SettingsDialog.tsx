@@ -14,6 +14,7 @@ import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelManager";
 import { ToolApprovalSettingsPanel } from "./tool-approval/ToolApprovalSettingsPanel";
 import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
+import { HotkeySettingsPanel } from "./general/HotkeySettingsPanel";
 
 type LeaveHandler = () => Promise<boolean>;
 
@@ -26,6 +27,10 @@ const TABS: SettingsTab[] = [
   {
     id: "general",
     label: "General",
+  },
+  {
+    id: "hotkeys",
+    label: "Keyboard Shortcuts",
   },
   {
     id: "toolApproval",
@@ -175,6 +180,9 @@ export function SettingsDialog() {
               <div className="pb-4 pr-2">
                 {activeTab?.id === "general" && (
                   <GeneralSettingsPanel isActive={open && activeTabId === "general"} />
+                )}
+                {activeTab?.id === "hotkeys" && (
+                  <HotkeySettingsPanel isActive={open && activeTabId === "hotkeys"} />
                 )}
                 {activeTab?.id === "toolApproval" && (
                   <ToolApprovalSettingsPanel isActive={open && activeTabId === "toolApproval"} />

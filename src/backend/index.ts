@@ -8,6 +8,7 @@ import { initDatabase } from "./db";
 import { registerEventForwarders } from "./events/event-forwarder";
 import { AppControlIPCHandlers } from "./ipc/app-control-handlers";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
+import { IPC_CHANNELS } from "./ipc/channels";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
@@ -19,6 +20,7 @@ import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { ShaveIPCHandlers } from "./ipc/shave-handlers";
 import { UserSettingsIPCHandlers } from "./ipc/user-settings-handlers";
+import { handleProtocolUrl } from "./protocol/protocol-router";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPOrchestrator } from "./services/mcp/mcp-orchestrator";
@@ -27,10 +29,11 @@ import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { HotkeyManager } from "./services/settings/hotkey-manager";
 import { TrayManager } from "./services/tray/tray-manager";
 import { getIconPath } from "./utils/path-utils";
 
-const isDev = process.env.NODE_ENV === "development";
+const isDev = process.env.NODE_ENV === "development" || process.argv.includes("--dev-protocol");
 
 // Set a custom userData directory in development to avoid conflicts with production
 if (isDev) {
@@ -209,16 +212,29 @@ const createWindow = (): void => {
   }
 };
 
-// Helper to safely send protocol URL to renderer
-const sendProtocolUrlToRenderer = (window: BrowserWindow, url: string): void => {
-  if (window.webContents.isLoading()) {
-    // Queue until content finishes loading
-    window.webContents.once("did-finish-load", () => {
-      window.webContents.send("protocol-url", url);
+const getProtocolUrlFromArgs = (args: string[]): string | null => {
+  if (!azure?.customProtocol) return null;
+  return args.find((arg) => arg.startsWith(`${azure.customProtocol}://`)) ?? null;
+};
+
+// Handle protocol URL in the main process
+const handleProtocolUrlSafely = async (
+  window: BrowserWindow | null,
+  url: string,
+): Promise<void> => {
+  try {
+    await handleProtocolUrl(url, window);
+  } catch (error) {
+    console.error("Failed to handle protocol URL", {
+      url,
+      error: error instanceof Error ? error.message : String(error),
     });
-  } else {
-    // Send immediately if already loaded
-    window.webContents.send("protocol-url", url);
+    if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
+      window.webContents.send(
+        IPC_CHANNELS.PROTOCOL_ERROR,
+        "Failed to handle protocol URL. Please try again.",
+      );
+    }
   }
 };
 
@@ -243,11 +259,19 @@ if (azure?.customProtocol) {
   try {
     if (isDev) {
       // In dev mode, need to provide the electron executable and app path
-      app.setAsDefaultProtocolClient(azure.customProtocol, process.execPath, [app.getAppPath()]);
+      const devArgs = [app.getAppPath(), "--dev-protocol"];
+      app.removeAsDefaultProtocolClient(azure.customProtocol);
+      app.setAsDefaultProtocolClient(azure.customProtocol, process.execPath, devArgs);
     } else {
       // In production, the app itself is the executable
       app.setAsDefaultProtocolClient(azure.customProtocol);
     }
+    const isDefault = isDev
+      ? app.isDefaultProtocolClient(azure.customProtocol, process.execPath, [
+          app.getAppPath(),
+          "--dev-protocol",
+        ])
+      : app.isDefaultProtocolClient(azure.customProtocol);
   } catch (err) {
     console.error("Failed to set default protocol client:", err);
   }
@@ -272,7 +296,7 @@ if (!gotTheLock) {
       // Check for protocol URL in command line (Windows)
       const url = commandLine.find((arg) => arg.startsWith(`${azure?.customProtocol}://`));
       if (url) {
-        sendProtocolUrlToRenderer(mainWindow, url);
+        handleProtocolUrlSafely(mainWindow, url);
       }
     } else {
       // Store for later if window not ready yet
@@ -291,7 +315,7 @@ if (!gotTheLock) {
         mainWindow.restore();
       }
       mainWindow.focus();
-      sendProtocolUrlToRenderer(mainWindow, url);
+      handleProtocolUrlSafely(mainWindow, url);
     } else {
       // Store for later if window not ready yet
       pendingProtocolUrl = url;
@@ -306,6 +330,10 @@ app.setAboutPanelOptions({
 });
 
 app.whenReady().then(async () => {
+  if (!pendingProtocolUrl) {
+    pendingProtocolUrl = getProtocolUrlFromArgs(process.argv);
+  }
+
   // Initialize database on startup with automatic backup and rollback
   try {
     await initDatabase();
@@ -349,7 +377,8 @@ app.whenReady().then(async () => {
   _appControlHandlers = new AppControlIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
   _githubTokenHandlers = new GitHubTokenIPCHandlers();
-  _userSettingsHandlers = new UserSettingsIPCHandlers();
+  _userSettingsHandlers = new UserSettingsIPCHandlers(trayManager);
+  await _userSettingsHandlers.initialize();
   _shaveHandlers = new ShaveIPCHandlers();
 
   // Pre-initialize recording windows for faster display
@@ -365,11 +394,12 @@ app.whenReady().then(async () => {
 
   if (mainWindow) {
     trayManager.setMainWindow(mainWindow);
+    HotkeyManager.getInstance().setMainWindow(mainWindow);
   }
 
   // Process any pending protocol URL that arrived during initialization
   if (pendingProtocolUrl && mainWindow) {
-    sendProtocolUrlToRenderer(mainWindow, pendingProtocolUrl);
+    handleProtocolUrlSafely(mainWindow, pendingProtocolUrl);
     pendingProtocolUrl = null;
   }
 

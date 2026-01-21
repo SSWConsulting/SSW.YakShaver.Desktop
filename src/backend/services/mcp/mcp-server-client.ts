@@ -71,7 +71,7 @@ export class MCPServerClient {
 
       if (oauthEndpoint) {
         const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
-        const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|flow=dynamic`;
+        const tokenKey = mcpConfig.id;
         const authProvider = new PersistedOAuthClientProvider({
           callbackPort,
           tokenStorage: McpOAuthTokenStorage.getInstance(),
@@ -101,7 +101,7 @@ export class MCPServerClient {
         const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
 
         if (githubClientId && githubClientSecret) {
-          const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|clientId=${githubClientId}|flow=github`;
+          const tokenKey = mcpConfig.id;
           const authProvider = new PersistedOAuthClientProvider({
             clientId: githubClientId,
             clientSecret: githubClientSecret,

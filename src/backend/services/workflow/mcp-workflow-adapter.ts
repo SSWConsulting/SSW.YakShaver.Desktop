@@ -1,7 +1,7 @@
-import { MCPStep } from "../../../shared/types/mcp";
-import type { ExecutingTaskPayload } from "../../../shared/types/workflow-payloads";
-import { WorkflowStateManager } from "./workflow-state-manager";
+import type { MCPStep } from "../../../shared/types/mcp";
 import { ProgressStage as WorkflowProgressStage } from "../../../shared/types/workflow";
+import type { ExecutingTaskPayload } from "../../../shared/types/workflow-payloads";
+import type { WorkflowStateManager } from "./workflow-state-manager";
 
 export class McpWorkflowAdapter {
   private steps: MCPStep[] = [];
