@@ -19,7 +19,7 @@ export class ToolOutputBuffer {
   private outputs: Map<string, { toolName: string; content: string; timestamp: number }> =
     new Map();
 
-  private constructor() { }
+  private constructor() {}
 
   public static getInstance(): ToolOutputBuffer {
     if (!ToolOutputBuffer.instance) {
@@ -97,7 +97,7 @@ export class MCPOrchestrator {
   private static mcpServerManager: MCPServerManager | null = null;
   private pendingToolApprovals = new Map<string, (decision: ToolApprovalDecision) => void>();
 
-  private constructor() { }
+  private constructor() {}
 
   private resolveToolOutputReferences(input: Record<string, unknown>): Record<string, unknown> {
     const outputBuffer = ToolOutputBuffer.getInstance();
@@ -212,8 +212,8 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
       const toolWhiteList = bypassApprovalChecks
         ? new Set<string>()
         : new Set(
-          (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
-        );
+            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
+          );
 
       const llmResponse = await MCPOrchestrator.languageModelProvider
         .generateTextWithTools(messages, tools)
