@@ -2,10 +2,7 @@ import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-s
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
-import {
-  authorizeWithBackend,
-  PersistedOAuthClientProvider,
-} from "./mcp-oauth";
+import { authorizeWithBackend, PersistedOAuthClientProvider } from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
@@ -60,12 +57,17 @@ export class MCPServerClient {
 
       try {
         const tokens = await authProvider.tokens();
-        console.log(`[MCPServerClient] Tokens for ${mcpConfig.name}:`, tokens ? "Present" : "Missing");
+        console.log(
+          `[MCPServerClient] Tokens for ${mcpConfig.name}:`,
+          tokens ? "Present" : "Missing",
+        );
 
         if (!tokens) {
           const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
-          console.log(`[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl}`);
-          
+          console.log(
+            `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl}`,
+          );
+
           // This call will delegate discovery and DCR to the backend
           await withTimeout(
             authorizeWithBackend(tokenStorage, serverUrl, serverId, authTimeoutMs),
@@ -85,7 +87,8 @@ export class MCPServerClient {
         return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
       } catch (authError) {
         console.error(
-          `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`, authError
+          `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`,
+          authError,
         );
         console.log(`[MCPServerClient]: Falling back to headers for ${mcpConfig.name}`);
       }

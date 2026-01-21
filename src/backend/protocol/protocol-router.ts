@@ -30,10 +30,9 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     const serverId = params.serverId;
 
     if (!accessToken || !serverId) {
-      const missing = [
-        !accessToken ? "access_token" : null,
-        !serverId ? "serverId" : null,
-      ].filter(Boolean);
+      const missing = [!accessToken ? "access_token" : null, !serverId ? "serverId" : null].filter(
+        Boolean,
+      );
       console.warn("OAuth callback missing required parameters", {
         missing,
         url: url.toString(),

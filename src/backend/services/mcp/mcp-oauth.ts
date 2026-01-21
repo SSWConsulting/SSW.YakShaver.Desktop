@@ -68,12 +68,9 @@ export class PersistedOAuthClientProvider implements OAuthClientProvider {
 }
 
 /**
-  * Gets the authorization URL from the .NET backend for an MCP server.
-  */
-export async function getAuthUrlFromBackend(
-  serverUrl: string,
-  serverId: string,
-): Promise<string> {
+ * Gets the authorization URL from the .NET backend for an MCP server.
+ */
+export async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
   const portalApiUrl = config.portalApi().replace(/\/+$/, "");
   const redirectUri = `yakshaver-desktop://oauth/callback?serverId=${encodeURIComponent(serverId)}`;
   const endpoint = "/mcp/auth/start";
@@ -89,7 +86,9 @@ export async function getAuthUrlFromBackend(
     });
   } catch (fetchError) {
     console.error(`[McpOAuth] Fetch failed for ${url.toString()}:`, fetchError);
-    throw new Error(`Failed to connect to backend at ${url.toString()}. Ensure the backend is running and SSL certificates are trusted.`);
+    throw new Error(
+      `Failed to connect to backend at ${url.toString()}. Ensure the backend is running and SSL certificates are trusted.`,
+    );
   }
 
   if (!response.ok) {
