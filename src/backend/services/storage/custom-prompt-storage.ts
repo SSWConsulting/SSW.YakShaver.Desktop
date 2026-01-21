@@ -53,6 +53,7 @@ const DEFAULT_PROMPT: CustomPrompt = {
 5) Issue title rules (STRICT):
 - Title MUST follow the template frontmatter's title pattern exactly INCLUDING EMOJI.
 - Replace any {{ ... }} placeholders in the title pattern (e.g., "{{ BUG DESCRIPTION }}", "{{ FEATURE NAME }}", "{{ FEATURE DESCRIPTION }}") by substituting the entire token with an appropriate short summary derived from the transcript or user request.
+- If there is no substitute provided for a placeholder, replace it with an empty string (i.e., remove the placeholder entirely).
 - Do not omit any fixed words like "🐛 Bug -" and do not use a different emoji.
 
 6) Format the issue body to match the template (STRICT):
@@ -61,9 +62,9 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - Do NOT invent new sections or change heading text.
 - Remove template-only HTML comments like "<!-- ... -->" from the final issue body.
 - Replace placeholders (e.g., "Hi {{ USER }}") with appropriate values when known; if unknown, keep the greeting minimal but keep the structure.
-- Each checklist item MUST represent exactly ONE atomic task.
+- Each checklist item MUST represent exactly ONE atomic task meaning that the item describes a single action to be taken.
 - A task MUST NOT combine multiple actions (no "and", ";", "/", or comma-separated actions).
-- If multiple tasks are implied, they MUST be split into multiple - [ ] items.
+- If multiple tasks are implied, they MUST be split into multiple - [ ] task items.
 
 7) Screenshots from video (when video file path is available, recommended):
 - ALWAYS capture exactly one screenshot from the video using capture_video_frame.
