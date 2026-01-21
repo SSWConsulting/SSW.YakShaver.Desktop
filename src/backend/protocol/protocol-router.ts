@@ -81,8 +81,6 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
       return;
     }
 
-    const tokenKey = serverConfig.id;
-
     const tokens: OAuthTokens = {
       access_token: accessToken,
       refresh_token: refreshToken,
@@ -91,7 +89,7 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
       scope: params.scope,
     };
 
-    await McpOAuthTokenStorage.getInstance().saveTokensAsync(tokenKey, tokens);
+    await McpOAuthTokenStorage.getInstance().saveTokensAsync(serverId, tokens);
   },
 };
 

@@ -3,6 +3,7 @@ import type { OAuthTokens } from "@ai-sdk/mcp";
 import { BaseSecureStorage } from "./base-secure-storage";
 
 const MCP_OAUTH_TOKENS_FILE = "mcp-oauth-tokens.enc";
+const LEGACY_TOKEN_PREFIX = "mcp.oauth.v1|";
 
 type TokenMap = Record<string, OAuthTokens>;
 
@@ -29,29 +30,46 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
   }
 
   private async loadAllAsync(): Promise<StoredShape> {
-    const data = await this.decryptAndLoad<StoredShape>(this.getPath());
-    return data ?? { tokensByKey: {} };
+    const data = (await this.decryptAndLoad<StoredShape>(this.getPath())) ?? {
+      tokensByKey: {},
+    };
+
+    const legacyKeys = Object.keys(data.tokensByKey).filter((key) =>
+      key.startsWith(LEGACY_TOKEN_PREFIX),
+    );
+
+    if (legacyKeys.length === 0) {
+      return data;
+    }
+
+    const cleaned: StoredShape = { tokensByKey: { ...data.tokensByKey } };
+    for (const key of legacyKeys) {
+      delete cleaned.tokensByKey[key];
+    }
+
+    await this.saveAllAsync(cleaned);
+    return cleaned;
   }
 
   private async saveAllAsync(shape: StoredShape): Promise<void> {
     await this.encryptAndStore(this.getPath(), shape);
   }
 
-  async getTokensAsync(tokenKey: string): Promise<OAuthTokens | undefined> {
+  async getTokensAsync(serverId: string): Promise<OAuthTokens | undefined> {
     const data = await this.loadAllAsync();
-    return data.tokensByKey[tokenKey];
+    return data.tokensByKey[serverId];
   }
 
-  async saveTokensAsync(tokenKey: string, tokens: OAuthTokens): Promise<void> {
+  async saveTokensAsync(serverId: string, tokens: OAuthTokens): Promise<void> {
     const data = await this.loadAllAsync();
-    data.tokensByKey[tokenKey] = tokens;
+    data.tokensByKey[serverId] = tokens;
     await this.saveAllAsync(data);
   }
 
-  async clearTokensAsync(tokenKey: string): Promise<void> {
+  async clearTokensAsync(serverId: string): Promise<void> {
     const data = await this.loadAllAsync();
-    if (!(tokenKey in data.tokensByKey)) return;
-    delete data.tokensByKey[tokenKey];
+    if (!(serverId in data.tokensByKey)) return;
+    delete data.tokensByKey[serverId];
     await this.saveAllAsync(data);
   }
 }
