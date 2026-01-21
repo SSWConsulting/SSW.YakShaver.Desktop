@@ -4,6 +4,7 @@ import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMes
 import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
 import type { MCPStep, ToolApprovalDecision } from "../../../shared/types/mcp";
+import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
 import { UserSettingsStorage } from "../storage/user-settings-storage";
 import { LanguageModelProvider } from "./language-model-provider";
@@ -18,7 +19,7 @@ export class ToolOutputBuffer {
   private outputs: Map<string, { toolName: string; content: string; timestamp: number }> =
     new Map();
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): ToolOutputBuffer {
     if (!ToolOutputBuffer.instance) {
@@ -96,7 +97,7 @@ export class MCPOrchestrator {
   private static mcpServerManager: MCPServerManager | null = null;
   private pendingToolApprovals = new Map<string, (decision: ToolApprovalDecision) => void>();
 
-  private constructor() {}
+  private constructor() { }
 
   private resolveToolOutputReferences(input: Record<string, unknown>): Record<string, unknown> {
     const outputBuffer = ToolOutputBuffer.getInstance();
@@ -184,6 +185,11 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
     if (options.videoFilePath) {
       systemPrompt += `\n\nVideo file available for screenshot capture: ${options.videoFilePath}.`;
     }
+    systemPrompt = this.appendVideoInfoToSystemPrompt(
+      systemPrompt,
+      videoUploadResult,
+      options.videoFilePath,
+    );
 
     const messages: ModelMessage[] = [
       {
@@ -206,8 +212,8 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
       const toolWhiteList = bypassApprovalChecks
         ? new Set<string>()
         : new Set(
-            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
-          );
+          (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
+        );
 
       const llmResponse = await MCPOrchestrator.languageModelProvider
         .generateTextWithTools(messages, tools)
@@ -512,6 +518,7 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
     if (videoUrl) {
       systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.\nPlease include this URL in the task content that you create.`;
     }
+    systemPrompt = this.appendVideoInfoToSystemPrompt(systemPrompt, videoUploadResult);
 
     const messages: ModelMessage[] = [
       { role: "system", content: systemPrompt },
@@ -594,5 +601,38 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
       resolve({ kind: "deny_stop", feedback: reason });
     }
     this.pendingToolApprovals.clear();
+  }
+
+  private appendVideoInfoToSystemPrompt(
+    systemPrompt: string,
+    videoUploadResult?: VideoUploadResult,
+    videoFilePath?: string,
+  ): string {
+    const videoUrl = videoUploadResult?.data?.url;
+    const duration = videoUploadResult?.data?.duration;
+    if (videoUrl) {
+      const isValidDuration = typeof duration === "number" && duration > 0;
+
+      if (isValidDuration) {
+        const outputDuration = getDurationParts(duration);
+        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
+Video duration:
+- totalSeconds: ${outputDuration.totalSeconds}
+- hours: ${outputDuration.hours}
+- minutes: ${outputDuration.minutes}
+- seconds: ${outputDuration.seconds}
+Embed this URL and duration in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+      } else {
+        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
+Embed this URL in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+      }
+    }
+
+    // If a video file path is provided, add it to the system prompt for screenshot capture
+    if (videoFilePath) {
+      systemPrompt += `\n\nVideo file available for screenshot capture: ${videoFilePath}.`;
+    }
+
+    return systemPrompt;
   }
 }

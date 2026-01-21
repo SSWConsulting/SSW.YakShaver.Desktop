@@ -238,7 +238,7 @@ export class MCPServerManager {
     return MCPServerManager.mergeWithInternalServers(storedConfigs);
   }
 
-  private static async getServerConfigByIdAsync(id: string): Promise<MCPServerConfig | undefined> {
+  public static async getServerConfigByIdAsync(id: string): Promise<MCPServerConfig | undefined> {
     const configs = await MCPServerManager.getAllServerConfigsAsync();
     return configs.find((s) => s.id === id);
   }
@@ -330,19 +330,19 @@ export class MCPServerManager {
     return await MCPServerManager.getAllServerConfigsAsync();
   }
 
-  public async checkServerHealthAsync(name: string): Promise<HealthStatusInfo> {
-    const serverConfig = await MCPServerManager.resolveServerConfigAsync(name);
+  public async checkServerHealthAsync(serverId: string): Promise<HealthStatusInfo> {
+    const serverConfig = await MCPServerManager.resolveServerConfigAsync(serverId);
     if (!serverConfig) {
       throw new Error(
-        `[MCPServerManager]: CheckServerHealth - MCP server with name '${name}' not found`,
+        `[MCPServerManager]: CheckServerHealth - MCP server with id '${serverId}' not found`,
       );
     }
 
-    const client = await this.getMcpClientAsync(name);
+    const client = await this.getMcpClientAsync(serverId);
     if (!client) {
       return {
         isHealthy: false,
-        error: `MCP server client for '${name}' not found`,
+        error: `MCP server client for '${serverId}' not found`,
         isChecking: false,
       };
     }

@@ -1,12 +1,12 @@
 import { BrowserWindow } from "electron";
-import { IPC_CHANNELS } from "../../ipc/channels";
-import { formatErrorMessage } from "../../utils/error-utils";
 import {
   ProgressStage,
   type WorkflowState,
   type WorkflowStatus,
   type WorkflowStep,
 } from "../../../shared/types/workflow";
+import { IPC_CHANNELS } from "../../ipc/channels";
+import { formatErrorMessage } from "../../utils/error-utils";
 export class WorkflowStateManager {
   private shaveId: string;
   private state: WorkflowState;

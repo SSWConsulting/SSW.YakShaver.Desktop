@@ -145,6 +145,14 @@ export class ProcessVideoIPCHandlers {
     workflowManager.startStage(WorkflowProgressStage.UPLOADING_VIDEO);
     workflowManager.skipStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
 
+    // Get video source info for duration if shaveId exists
+    let duration: number | undefined;
+    if (shaveId) {
+      const shaveService = ShaveService.getInstance();
+      const videoSource = shaveService.getShaveVideoSourceInfo(shaveId);
+      duration = videoSource?.durationSeconds ?? undefined;
+    }
+
     // upload to YouTube
     notify(ProgressStage.UPLOADING_SOURCE, {
       sourceOrigin: "upload",
@@ -152,6 +160,11 @@ export class ProcessVideoIPCHandlers {
 
     try {
       const youtubeResult = await this.youtube.uploadVideo(filePath);
+
+      if (youtubeResult.success && youtubeResult.data && duration) {
+        youtubeResult.data.duration = duration;
+      }
+
       workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, youtubeResult.data?.url);
       notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
@@ -248,7 +261,7 @@ export class ProcessVideoIPCHandlers {
       const languageModelProvider = await LanguageModelProvider.getInstance();
 
       const userPrompt = `Process the following transcript into a structured JSON object:
-      
+
       ${transcriptText}`;
 
       const intermediateOutput = await languageModelProvider.generateJson(

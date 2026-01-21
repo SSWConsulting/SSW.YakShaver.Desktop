@@ -1,4 +1,4 @@
-import type { UserSettings } from "@shared/types/user-settings";
+import type { Hotkeys, UserSettings } from "@shared/types/user-settings";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { ToolApprovalDecision } from "../shared/types/mcp";
 import type {
@@ -45,6 +45,7 @@ const IPC_CHANNELS = {
   HIDE_CONTROL_BAR: "hide-control-bar",
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
+  OPEN_SOURCE_PICKER: "open-source-picker",
 
   // LLM
   LLM_SET_CONFIG: "llm:set-config",
@@ -89,6 +90,7 @@ const IPC_CHANNELS = {
   // General User Settings
   SETTINGS_GET: "settings:get",
   SETTINGS_UPDATE: "settings:update",
+  SETTINGS_HOTKEY_UPDATE: "settings:hotkey-update",
 
   // Release Channel
   RELEASE_CHANNEL_GET: "release-channel:get",
@@ -108,6 +110,9 @@ const IPC_CHANNELS = {
   // App Control
   APP_RESTART: "app:restart",
   APP_OPEN_EXTERNAL: "app:open-external",
+
+  // Protocol
+  PROTOCOL_ERROR: "protocol:error",
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
@@ -185,8 +190,8 @@ const electronAPI = {
     },
     onOpenSourcePicker: (callback: () => void) => {
       const listener = () => callback();
-      ipcRenderer.on("open-source-picker", listener);
-      return () => ipcRenderer.removeListener("open-source-picker", listener);
+      ipcRenderer.on(IPC_CHANNELS.OPEN_SOURCE_PICKER, listener);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.OPEN_SOURCE_PICKER, listener);
     },
   },
   controlBar: {
@@ -297,10 +302,14 @@ const electronAPI = {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
     update: (patch: Partial<UserSettings>) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE, patch),
+    onHotkeyUpdate: (callback: (hotkeys: Hotkeys) => void) =>
+      onIpcEvent(IPC_CHANNELS.SETTINGS_HOTKEY_UPDATE, callback),
   },
   app: {
     restart: () => ipcRenderer.invoke(IPC_CHANNELS.APP_RESTART),
     openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, url),
+    onProtocolError: (callback: (message: string) => void) =>
+      onIpcEvent<string>(IPC_CHANNELS.PROTOCOL_ERROR, callback),
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
