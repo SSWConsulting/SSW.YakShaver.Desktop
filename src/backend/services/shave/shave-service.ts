@@ -4,7 +4,6 @@ import type {
   CreateVideoSourceData,
   Shave,
   UpdateShaveData,
-  VideoSource,
 } from "../../db/schema";
 import * as dbShaveService from "../../db/services/shave-service";
 import * as dbVideoFileService from "../../db/services/video-files-service";
