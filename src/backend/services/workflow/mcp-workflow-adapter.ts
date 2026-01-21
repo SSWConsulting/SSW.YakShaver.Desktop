@@ -35,7 +35,7 @@ export class McpWorkflowAdapter {
 
     try {
       return JSON.parse(rawPayload) as ExecutingTaskPayload;
-    } catch (e) {
+    } catch {
       return { steps: [] };
     }
   }

@@ -257,21 +257,15 @@ let unregisterEventForwarders: (() => void) | undefined;
 const azure = config.azure();
 if (azure?.customProtocol) {
   try {
-    if (isDev) {
+    const args = isDev ? [app.getAppPath(), "--dev-protocol"] : undefined;
+    const path = isDev ? process.execPath : undefined;
+    const isDefault = app.isDefaultProtocolClient(azure.customProtocol, path, args);
+
+    if (!isDefault) {
       // In dev mode, need to provide the electron executable and app path
-      const devArgs = [app.getAppPath(), "--dev-protocol"];
-      app.removeAsDefaultProtocolClient(azure.customProtocol);
-      app.setAsDefaultProtocolClient(azure.customProtocol, process.execPath, devArgs);
-    } else {
       // In production, the app itself is the executable
-      app.setAsDefaultProtocolClient(azure.customProtocol);
+      app.setAsDefaultProtocolClient(azure.customProtocol, path, args);
     }
-    const isDefault = isDev
-      ? app.isDefaultProtocolClient(azure.customProtocol, process.execPath, [
-          app.getAppPath(),
-          "--dev-protocol",
-        ])
-      : app.isDefaultProtocolClient(azure.customProtocol);
   } catch (err) {
     console.error("Failed to set default protocol client:", err);
   }
