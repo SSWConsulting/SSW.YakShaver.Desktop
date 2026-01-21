@@ -3,16 +3,13 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
 import {
-  authorizeWithPkceOnce,
-  checkDynamicRegistrationSupport,
+  authorizeWithBackend,
   PersistedOAuthClientProvider,
-  waitForAuthorizationCode,
 } from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
 import type { ToolSet } from "ai";
-import getPort from "get-port";
 import { withTimeout } from "../../utils/async-utils";
 import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 
@@ -52,32 +49,32 @@ export class MCPServerClient {
         return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
       }
 
-      // Check for dynamic client registration support for servers
-      let oauthEndpoint: string | null = null;
-      try {
-        oauthEndpoint = await checkDynamicRegistrationSupport(serverUrl);
-      } catch (detectionError) {
-        console.warn(
-          `[MCPServerClient]: Dynamic registration detection failed for ${mcpConfig.name}: ${formatErrorMessage(detectionError)}`,
-        );
-      }
+      const serverId = mcpConfig.id;
+      const tokenStorage = McpOAuthTokenStorage.getInstance();
 
-      if (oauthEndpoint) {
-        const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
-        const serverId = mcpConfig.id;
-        const authProvider = new PersistedOAuthClientProvider({
-          callbackPort,
-          tokenStorage: McpOAuthTokenStorage.getInstance(),
-          tokenKey: serverId,
-        });
-        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
-        await withTimeout(
-          authorizeWithPkceOnce(authProvider, serverUrl, () =>
-            waitForAuthorizationCode(callbackPort),
-          ),
-          authTimeoutMs,
-          `${mcpConfig.name} OAuth`,
-        );
+      // For external HTTP servers, we attempt OAuth via the backend
+      const authProvider = new PersistedOAuthClientProvider({
+        tokenStorage,
+        tokenKey: serverId,
+      });
+
+      try {
+        const tokens = await authProvider.tokens();
+        console.log(`[MCPServerClient] Tokens for ${mcpConfig.name}:`, tokens ? "Present" : "Missing");
+
+        if (!tokens) {
+          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
+          console.log(`[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl}`);
+          
+          // This call will delegate discovery and DCR to the backend
+          await withTimeout(
+            authorizeWithBackend(tokenStorage, serverUrl, serverId, authTimeoutMs),
+            authTimeoutMs,
+            `${mcpConfig.name} OAuth`,
+          );
+        }
+
+        console.log(`[MCPServerClient] Creating MCP client for ${mcpConfig.name} with OAuth`);
         const client = await experimental_createMCPClient({
           transport: {
             type: "http",
@@ -86,42 +83,14 @@ export class MCPServerClient {
           },
         });
         return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+      } catch (authError) {
+        console.error(
+          `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`, authError
+        );
+        console.log(`[MCPServerClient]: Falling back to headers for ${mcpConfig.name}`);
       }
 
-      if (!oauthEndpoint && mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
-        const githubClientId = process.env.MCP_GITHUB_CLIENT_ID;
-        const githubClientSecret = process.env.MCP_GITHUB_CLIENT_SECRET;
-        const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
-
-        if (githubClientId && githubClientSecret) {
-          const serverId = mcpConfig.id;
-          const authProvider = new PersistedOAuthClientProvider({
-            clientId: githubClientId,
-            clientSecret: githubClientSecret,
-            callbackPort,
-            tokenStorage: McpOAuthTokenStorage.getInstance(),
-            tokenKey: serverId,
-          });
-          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
-          await withTimeout(
-            authorizeWithPkceOnce(authProvider, serverUrl, () =>
-              waitForAuthorizationCode(callbackPort),
-            ),
-            authTimeoutMs,
-            `${mcpConfig.name} OAuth`,
-          );
-          const client = await experimental_createMCPClient({
-            transport: {
-              type: "http",
-              url: serverUrl,
-              authProvider,
-            },
-          });
-          return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
-        }
-      }
-
-      // Fallback: Use headers if no OAuth is configured
+      // Fallback: Use headers if OAuth is not supported or failed
       const client = await experimental_createMCPClient({
         transport: {
           type: "http",

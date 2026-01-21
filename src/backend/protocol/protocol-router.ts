@@ -22,21 +22,17 @@ const normalizeProtocolPath = (url: URL) => {
   return combined.length > 1 ? combined.replace(/\/+$/u, "") : combined;
 };
 
-// temporary workaround: this will depend on how state was initially created
-const resolveStateToServerId = (state: string): string => decodeURIComponent(state);
-
 const routeHandlers: Record<string, ProtocolRouteHandler> = {
   "/oauth/callback": async (url, window) => {
     const params = Object.fromEntries(url.searchParams.entries());
     const accessToken = params.access_token;
     const refreshToken = params.refresh_token;
-    const state = params.state;
+    const serverId = params.serverId;
 
-    if (!accessToken || !refreshToken || !state) {
+    if (!accessToken || !serverId) {
       const missing = [
         !accessToken ? "access_token" : null,
-        !refreshToken ? "refresh_token" : null,
-        !state ? "state" : null,
+        !serverId ? "serverId" : null,
       ].filter(Boolean);
       console.warn("OAuth callback missing required parameters", {
         missing,
@@ -46,21 +42,6 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
         window.webContents.send(
           IPC_CHANNELS.PROTOCOL_ERROR,
           `OAuth callback missing required parameters: ${missing.join(", ")}`,
-        );
-      }
-      return;
-    }
-
-    const serverId = resolveStateToServerId(state);
-    if (!serverId) {
-      console.warn("OAuth callback state could not be resolved to server id", {
-        url: url.toString(),
-        state,
-      });
-      if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
-        window.webContents.send(
-          IPC_CHANNELS.PROTOCOL_ERROR,
-          "OAuth callback state does not map to a server id.",
         );
       }
       return;

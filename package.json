@@ -9,7 +9,7 @@
     "setup": "concurrently \"npm install\"  \"cd src/ui && npm install\"",
     "build": "tsc",
     "start": "npm run build && electron .",
-    "dev": "concurrently \"cd src/ui && npm run dev\" \"wait-on http://localhost:3000 && npm run build && cross-env NODE_ENV=development electron .\"",
+    "dev": "concurrently \"cd src/ui && npm run dev\" \"wait-on http://localhost:3000 && npm run build && cross-env NODE_ENV=development NODE_TLS_REJECT_UNAUTHORIZED=0 electron .\"",
     "package": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --dir",
     "make": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --config electron-builder.config.js",
     "publish": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --publish always --config electron-builder.config.js",

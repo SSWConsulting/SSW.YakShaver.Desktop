@@ -23,7 +23,7 @@ const getAzure = () => {
 
 const getPortalApi = () => {
   const { PORTAL_API_URL: url } = env;
-  return url || "http://localhost:7009/api";
+  return url || "https://localhost:7009/api";
 };
 
 const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;
