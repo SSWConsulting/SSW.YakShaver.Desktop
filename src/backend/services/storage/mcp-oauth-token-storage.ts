@@ -13,6 +13,7 @@ type StoredShape = {
 
 export class McpOAuthTokenStorage extends BaseSecureStorage {
   private static instance: McpOAuthTokenStorage;
+  private static legacyCleanupDone = false;
 
   private constructor() {
     super();
@@ -34,11 +35,16 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
       tokensByKey: {},
     };
 
+    if (McpOAuthTokenStorage.legacyCleanupDone) {
+      return data;
+    }
+
     const legacyKeys = Object.keys(data.tokensByKey).filter((key) =>
       key.startsWith(LEGACY_TOKEN_PREFIX),
     );
 
     if (legacyKeys.length === 0) {
+      McpOAuthTokenStorage.legacyCleanupDone = true;
       return data;
     }
 
@@ -48,6 +54,7 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
     }
 
     await this.saveAllAsync(cleaned);
+    McpOAuthTokenStorage.legacyCleanupDone = true;
     return cleaned;
   }
 
