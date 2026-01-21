@@ -28,7 +28,8 @@ const DEFAULT_PROMPT: CustomPrompt = {
 You MUST follow the target repository's GitHub issue templates exactly.
 
 1) When creating an issue:
-- If a video link is available, add it at the very top of the issue body.
+- If a video link is available, embed it at the very top of the issue body in the format of [▶️ Watch the video (duration)](videolink).
+- The duration is in the format of mm:ss
 - Always apply the "YakShaver" label IN ADDITION to any template-required labels.
 
 2) Choose the correct backlog (repository):
