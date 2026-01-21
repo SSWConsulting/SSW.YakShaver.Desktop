@@ -509,30 +509,8 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
 5. Do NOT use this if you need to transform or summarize the content first`;
 
     const videoUrl = videoUploadResult?.data?.url;
-    const duration = videoUploadResult?.data?.duration;
     if (videoUrl) {
-      const isValidDuration = typeof duration === "number" && duration > 0;
-
-      if (isValidDuration) {
-        const getDurationParts = (seconds: number) => {
-          const hours = Math.floor(seconds / 3600);
-          const mins = Math.floor((seconds % 3600) / 60);
-          const secs = Math.floor(seconds % 60);
-          return { totalSeconds: seconds, hours, minutes: mins, seconds: secs };
-        };
-        const outputDuration = getDurationParts(duration);
-        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
-Video duration:
-- totalSeconds: ${outputDuration.totalSeconds}
-- hours: ${outputDuration.hours}
-- minutes: ${outputDuration.minutes} 
-- seconds: ${outputDuration.seconds}
-Embed this URL and duration in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
-      } else {
-        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
-Video duration is currently unknown.
-Embed this URL in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
-      }
+      systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.\nPlease include this URL in the task content that you create.`;
     }
 
     const messages: ModelMessage[] = [

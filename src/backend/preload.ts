@@ -76,6 +76,7 @@ const IPC_CHANNELS = {
   PROCESS_VIDEO_FILE: "process-video:file",
   PROCESS_VIDEO_URL: "process-video:url",
   RETRY_VIDEO: "retry-video",
+
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
   SETTINGS_GET_ACTIVE_PROMPT: "settings:get-active-prompt",

@@ -79,18 +79,6 @@ export class ShaveService {
     }
   }
 
-  public getShaveVideoSourceInfo(shaveId: string): VideoSource | undefined {
-    try {
-      const shave = dbShaveService.getShaveById(shaveId);
-      if (!shave?.videoSourceId) {
-        return undefined;
-      }
-      return dbVideoSourceService.getVideoSourceById(shave.videoSourceId);
-    } catch (err) {
-      throw new Error(formatErrorMessage(err));
-    }
-  }
-
   public getAllShaves(): Shave[] {
     try {
       return dbShaveService.getAllShaves();
