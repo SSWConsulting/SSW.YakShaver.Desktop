@@ -1,7 +1,7 @@
 ---
 name: "🎥 Video"
 about: "Upload weekly Sprint Review & Planning videos to YouTube channel"
-title: "🎥 Upload Sprint {{ SPRINT_NUM }} video to YouTube channel"
+title: "🎥 Sprint - Upload Sprint {{ SPRINT_NUM }} video to YouTube channel"
 labels: "Type: Video"
 assignees: ""
 
@@ -43,4 +43,3 @@ Thumbnail Generation - take a screenshot in PowerPoint fullscreen mode (1920x108
 ### Information
 - YouTube Channel {{ YOUTUBE_CHANNEL_LINK }}
 - Playlist {{ PLAYLIST_LINK }}
-

@@ -1,7 +1,7 @@
 ---
 name: "♻️ Refactor"
 about: 'Something that needs improving while not changing functionality as per https://www.ssw.com.au/rules/technical-debt/'
-title: "♻️ {{ REFACTOR DESCRIPTION }}"
+title: "♻️ Refactor - {{ REFACTOR DESCRIPTION }}"
 labels: 'Type: Refactor'
 assignees: ''
 

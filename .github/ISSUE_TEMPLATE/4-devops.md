@@ -1,7 +1,7 @@
 ---
 name: "👷 DevOps"
 about: CI/CD and other DevOps concerns e.g. Updating the build, code analysis, test, deploy, application monitoring etc.
-title: "👷 {{ DEVOPS DESCRIPTION }}"
+title: "👷 DevOps - {{ DEVOPS DESCRIPTION }}"
 labels: 'Type: DevOps'
 assignees: ''
 
