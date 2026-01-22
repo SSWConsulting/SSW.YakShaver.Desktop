@@ -1,7 +1,7 @@
 ---
 name: "♻️ Refactor"
 about: 'Something that needs improving while not changing functionality as per https://www.ssw.com.au/rules/technical-debt/'
-title: "♻️ {{description}}"
+title: "♻️ {{ REFACTOR DESCRIPTION }}"
 labels: 'Type: Refactor'
 assignees: ''
 
@@ -14,7 +14,7 @@ Cc:
 Hi 
 
 <!-- duration in the format of xx min xx sec -->
-[▶️ Watch the video ({{duration}})]({{VIDEO_LINK}})
+[▶️ Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
 
 ### Pain
 <!-- Explain the pain you are experiencing -->

@@ -14,7 +14,7 @@ Cc:
 Hi {{ USER }}
 
 <!-- duration in the format of xx min xx sec -->
-[▶️ Watch the video ({{duration}})]({{VIDEO_LINK}})
+[▶️ Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
 
 ### Describe the Bug
 <!-- A clear and concise description of what the bug is. -->
