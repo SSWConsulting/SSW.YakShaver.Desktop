@@ -72,7 +72,8 @@ export class PersistedOAuthClientProvider implements OAuthClientProvider {
  */
 export async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
   const portalApiUrl = config.portalApi().replace(/\/+$/, "");
-  const redirectUri = `yakshaver-desktop://oauth/callback?serverId=${encodeURIComponent(serverId)}`;
+  const protocol = config.azure()?.customProtocol || "yakshaver-desktop";
+  const redirectUri = `${protocol}://oauth/callback?serverId=${encodeURIComponent(serverId)}`;
   const endpoint = "/mcp/auth/start";
   const url = new URL(`${portalApiUrl}${endpoint}`);
   url.searchParams.set("serverUrl", serverUrl);
