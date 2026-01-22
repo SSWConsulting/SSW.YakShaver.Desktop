@@ -24,10 +24,16 @@ const normalizeProtocolPath = (url: URL) => {
 
 const routeHandlers: Record<string, ProtocolRouteHandler> = {
   "/oauth/callback": async (url, window) => {
-    const params = Object.fromEntries(url.searchParams.entries());
-    const accessToken = params.access_token;
-    const refreshToken = params.refresh_token;
-    const serverId = params.serverId;
+    const params = new URLSearchParams(url.search);
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    const serverId = params.get("serverId");
+
+    console.log("[ProtocolRouter] Handling OAuth callback", {
+      serverId,
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+    });
 
     if (!accessToken || !refreshToken || !serverId) {
       const missing = [
@@ -35,7 +41,7 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
         !refreshToken ? "refresh_token" : null,
         !serverId ? "serverId" : null,
       ].filter(Boolean);
-      console.warn("OAuth callback missing required parameters", {
+      console.warn("[ProtocolRouter] OAuth callback missing required parameters", {
         missing,
         url: url.toString(),
       });
@@ -66,9 +72,9 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     const tokens: OAuthTokens = {
       access_token: accessToken,
       refresh_token: refreshToken,
-      token_type: params.token_type ?? "bearer",
-      expires_in: params.expires_in ? Number(params.expires_in) : undefined,
-      scope: params.scope,
+      token_type: params.get("token_type") ?? "bearer",
+      expires_in: params.get("expires_in") ? Number(params.get("expires_in")) : undefined,
+      scope: params.get("scope") ?? undefined,
     };
 
     await McpOAuthTokenStorage.getInstance().saveTokensAsync(serverId, tokens);

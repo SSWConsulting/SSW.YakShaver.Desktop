@@ -65,7 +65,7 @@ export class MCPServerClient {
         if (!tokens) {
           const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
           console.log(
-            `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl}`,
+            `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl} (Timeout: ${authTimeoutMs}ms)`,
           );
 
           // This call will delegate discovery and DCR to the backend

@@ -28,9 +28,12 @@ const getPortalApi = () => {
 
 const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;
 
+const getIsDev = () => env.NODE_ENV === "development";
+
 export const config = {
   youtube: getYouTube,
   azure: getAzure,
   portalApi: getPortalApi,
   commitHash: getCommitHash,
+  isDev: getIsDev,
 };

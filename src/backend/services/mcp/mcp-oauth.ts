@@ -72,7 +72,9 @@ export class PersistedOAuthClientProvider implements OAuthClientProvider {
  */
 export async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
   const portalApiUrl = config.portalApi().replace(/\/+$/, "");
-  const protocol = config.azure()?.customProtocol || "yakshaver-desktop";
+  const protocol =
+    config.azure()?.customProtocol ||
+    (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
   const redirectUri = `${protocol}://oauth/callback?serverId=${encodeURIComponent(serverId)}`;
   const endpoint = "/mcp/auth/start";
   const url = new URL(`${portalApiUrl}${endpoint}`);
@@ -116,11 +118,16 @@ export async function pollForTokens(
   timeoutMs: number = 60000,
 ): Promise<OAuthTokens> {
   const start = Date.now();
+  console.log(`[McpOAuth] Polling for tokens for server ${serverId} (Timeout: ${timeoutMs}ms)`);
   while (Date.now() - start < timeoutMs) {
     const tokens = await tokenStorage.getTokensAsync(serverId);
-    if (tokens) return tokens;
+    if (tokens) {
+      console.log(`[McpOAuth] Tokens found for server ${serverId}`);
+      return tokens;
+    }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
+  console.error(`[McpOAuth] Timed out waiting for OAuth tokens for server ${serverId}`);
   throw new Error(`Timed out waiting for OAuth tokens for server ${serverId}`);
 }
 
@@ -131,7 +138,7 @@ export async function authorizeWithBackend(
   tokenStorage: McpOAuthTokenStorage,
   serverUrl: string,
   serverId: string,
-  timeoutMs?: number,
+  timeoutMs: number = 60000,
 ): Promise<OAuthTokens> {
   const authUrl = await getAuthUrlFromBackend(serverUrl, serverId);
   await shell.openExternal(authUrl);
