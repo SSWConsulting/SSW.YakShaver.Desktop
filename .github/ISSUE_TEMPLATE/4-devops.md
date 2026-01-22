@@ -1,7 +1,7 @@
 ---
 name: "👷 DevOps"
 about: CI/CD and other DevOps concerns e.g. Updating the build, code analysis, test, deploy, application monitoring etc.
-title: "👷"
+title: "👷 DevOps - {{ DEVOPS DESCRIPTION }}"
 labels: 'Type: DevOps'
 assignees: ''
 
@@ -15,7 +15,7 @@ Cc:
 Hi 
 
 <!-- duration in the format of xx min xx sec -->
-[▶️ Watch the video ({{duration}})]({{VIDEO_LINK}})
+[▶️ Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
 
 ### Pain
 <!-- Explain the pain you are experiencing -->

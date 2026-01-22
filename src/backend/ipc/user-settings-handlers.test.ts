@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain } from "electron";
-import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { HotkeyManager } from "../services/settings/hotkey-manager";
 import { UserSettingsStorage } from "../services/storage/user-settings-storage";
 import type { TrayManager } from "../services/tray/tray-manager";

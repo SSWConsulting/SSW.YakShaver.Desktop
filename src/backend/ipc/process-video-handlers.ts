@@ -160,9 +160,11 @@ export class ProcessVideoIPCHandlers {
 
     try {
       const youtubeResult = await this.youtube.uploadVideo(filePath);
+
       if (youtubeResult.success && youtubeResult.data && duration) {
         youtubeResult.data.duration = duration;
       }
+
       workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, youtubeResult.data?.url);
       notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
@@ -259,7 +261,7 @@ export class ProcessVideoIPCHandlers {
       const languageModelProvider = await LanguageModelProvider.getInstance();
 
       const userPrompt = `Process the following transcript into a structured JSON object:
-      
+
       ${transcriptText}`;
 
       const intermediateOutput = await languageModelProvider.generateJson(
