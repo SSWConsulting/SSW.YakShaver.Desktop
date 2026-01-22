@@ -514,10 +514,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
 4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
 5. Do NOT use this if you need to transform or summarize the content first`;
 
-    const videoUrl = videoUploadResult?.data?.url;
-    if (videoUrl) {
-      systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.\nPlease include this URL in the task content that you create.`;
-    }
     systemPrompt = this.appendVideoInfoToSystemPrompt(systemPrompt, videoUploadResult);
 
     const messages: ModelMessage[] = [
