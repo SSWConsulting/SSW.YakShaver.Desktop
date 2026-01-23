@@ -13,6 +13,9 @@ Cc:
 <!-- add intended user next to **Hi** -->
 Hi {{ USER }}
 
+<!-- duration in the format of xx min xx sec -->
+[▶️ Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
+
 ### Describe the Bug
 <!-- A clear and concise description of what the bug is. -->
 

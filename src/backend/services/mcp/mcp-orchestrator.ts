@@ -4,10 +4,79 @@ import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMes
 import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
 import type { MCPStep, ToolApprovalDecision } from "../../../shared/types/mcp";
+import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
 import { UserSettingsStorage } from "../storage/user-settings-storage";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
+
+/**
+ * Tool Output Buffer for host-level tool chaining.
+ * Stores raw tool outputs so subsequent tools can reference them by ID, avoiding content modification by the LLM during chaining.
+ */
+export class ToolOutputBuffer {
+  private static instance: ToolOutputBuffer;
+  private outputs: Map<string, { toolName: string; content: string; timestamp: number }> =
+    new Map();
+
+  private constructor() {}
+
+  public static getInstance(): ToolOutputBuffer {
+    if (!ToolOutputBuffer.instance) {
+      ToolOutputBuffer.instance = new ToolOutputBuffer();
+    }
+    return ToolOutputBuffer.instance;
+  }
+
+  public store(toolName: string, content: string): string {
+    const id = `tool_output_${randomUUID().slice(0, 8)}`;
+    this.outputs.set(id, {
+      toolName,
+      content,
+      timestamp: Date.now(),
+    });
+    return id;
+  }
+
+  public get(id: string): string | undefined {
+    const entry = this.outputs.get(id);
+    if (entry) {
+      return entry.content;
+    }
+    console.warn(`[ToolOutputBuffer] Output not found for ID: ${id}`);
+    return undefined;
+  }
+
+  public has(id: string): boolean {
+    return this.outputs.has(id);
+  }
+
+  public getMetadata(
+    id: string,
+  ): { toolName: string; contentLength: number; timestamp: number } | undefined {
+    const entry = this.outputs.get(id);
+    if (entry) {
+      return {
+        toolName: entry.toolName,
+        contentLength: entry.content.length,
+        timestamp: entry.timestamp,
+      };
+    }
+    return undefined;
+  }
+
+  public clear(): void {
+    this.outputs.clear();
+  }
+
+  public listAll(): Array<{ id: string; toolName: string; contentLength: number }> {
+    return Array.from(this.outputs.entries()).map(([id, entry]) => ({
+      id,
+      toolName: entry.toolName,
+      contentLength: entry.content.length,
+    }));
+  }
+}
 
 const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 
@@ -29,6 +98,28 @@ export class MCPOrchestrator {
   private pendingToolApprovals = new Map<string, (decision: ToolApprovalDecision) => void>();
 
   private constructor() {}
+
+  private resolveToolOutputReferences(input: Record<string, unknown>): Record<string, unknown> {
+    const outputBuffer = ToolOutputBuffer.getInstance();
+    const resolved: Record<string, unknown> = { ...input };
+    for (const [key, value] of Object.entries(input)) {
+      // Check if the parameter name is "toolOutputRef" and the value is a string reference
+      if (key === "toolOutputRef" && typeof value === "string") {
+        const content = outputBuffer.get(value);
+        if (content) {
+          // Replace toolOutputRef with the actual content in a standard parameter name
+          delete resolved.toolOutputRef;
+          resolved.content = content;
+        } else {
+          console.warn(
+            `[MCPOrchestrator] Tool output reference '${value}' not found in buffer. Available: ${JSON.stringify(outputBuffer.listAll())}`,
+          );
+        }
+      }
+    }
+
+    return resolved;
+  }
 
   public static async getInstanceAsync(): Promise<MCPOrchestrator> {
     if (MCPOrchestrator.instance) {
@@ -75,15 +166,21 @@ export class MCPOrchestrator {
       options.systemPrompt ??
       "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
 
-    const videoUrl = videoUploadResult?.data?.url;
-    if (videoUrl) {
-      systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.\nPlease include this URL in the task content that you create.`;
-    }
+    // Add tool chaining instructions
+    systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
+When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
+If you need to pass one tool's output directly to another tool WITHOUT modification:
+1. Look for the Tool Output Reference ID in the previous tool result
+2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
+3. This passes the raw output directly, preserving all structure and content
+4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
+5. Do NOT use this if you need to transform or summarize the content first`;
 
-    // If a video file path is provided, add it to the system prompt for screenshot capture
-    if (options.videoFilePath) {
-      systemPrompt += `\n\nVideo file available for screenshot capture: ${options.videoFilePath}.`;
-    }
+    systemPrompt = this.appendVideoInfoToSystemPrompt(
+      systemPrompt,
+      videoUploadResult,
+      options.videoFilePath,
+    );
 
     const messages: ModelMessage[] = [
       {
@@ -112,7 +209,7 @@ export class MCPOrchestrator {
       const llmResponse = await MCPOrchestrator.languageModelProvider
         .generateTextWithTools(messages, tools)
         .catch((error) => {
-          console.log("[MCPOrchestrator]: Error in processMessageAsync:", error);
+          console.error("[MCPOrchestrator] Error generating response from LLM:", error);
           throw error;
         });
 
@@ -254,44 +351,81 @@ export class MCPOrchestrator {
           const toolToCall = tools[toolCall.toolName];
 
           if (toolToCall?.execute) {
-            const toolOutput = await toolToCall.execute(toolCall.input, {
-              toolCallId: toolCall.toolCallId,
-            } as ToolExecutionOptions);
+            try {
+              // Resolve any toolOutputRef parameters before executing the tool
+              const resolvedInput = this.resolveToolOutputReferences(toolCall.input);
 
-            // send event to UI about tool result
-            sendStepEvent({
-              type: "tool_result",
-              toolName: toolCall.toolName,
-              result: toolOutput,
-            });
-            options.onStep?.({
-              type: "tool_result",
-              toolName: toolCall.toolName,
-              result: toolOutput,
-            });
+              const toolOutput = await toolToCall.execute(resolvedInput, {
+                toolCallId: toolCall.toolCallId,
+              } as ToolExecutionOptions);
 
-            // construct tool result message and append to messages history
-            const toolMessage: ToolModelMessage = {
-              role: "tool",
-              content: [
-                {
-                  toolName: toolCall.toolName,
-                  toolCallId: toolCall.toolCallId,
-                  type: "tool-result",
-                  output: {
-                    type: toolOutput.content[0].type,
-                    value: toolOutput.content[0].text,
+              const rawOutputText =
+                toolOutput.content
+                  .map((item: { text?: string; type?: string; resource?: { text?: string } }) => {
+                    if (item.text) return item.text;
+                    if (item.type === "resource" && item.resource?.text) {
+                      return item.resource.text;
+                    }
+                    return "";
+                  })
+                  .filter(Boolean)
+                  .join("\n\n") || "(no text output)";
+
+              // Store complete raw output in buffer for tool chaining
+              const contentToStore = JSON.stringify(toolOutput.content);
+              const outputBuffer = ToolOutputBuffer.getInstance();
+              const outputRefId = outputBuffer.store(toolCall.toolName, contentToStore);
+
+              // send event to UI about tool result
+              sendStepEvent({
+                type: "tool_result",
+                toolName: toolCall.toolName,
+                result: toolOutput,
+              });
+              options.onStep?.({
+                type: "tool_result",
+                toolName: toolCall.toolName,
+                result: toolOutput,
+              });
+
+              // Construct tool result message with buffer reference for tool chaining
+              const toolResultValue = `${rawOutputText}\n\n[Tool Output Reference: ${outputRefId}] - Use this ID to reference the raw output in subsequent tool calls.`;
+
+              const toolMessage: ToolModelMessage = {
+                role: "tool",
+                content: [
+                  {
+                    toolName: toolCall.toolName,
+                    toolCallId: toolCall.toolCallId,
+                    type: "tool-result",
+                    output: {
+                      type: toolOutput.content[0].type,
+                      value: toolResultValue,
+                    },
                   },
-                },
-              ],
-            };
+                ],
+              };
 
-            messages.push(toolMessage);
+              messages.push(toolMessage);
+            } catch (toolError) {
+              console.error(
+                `[MCPOrchestrator] TOOL ERROR: ${toolCall.toolName} (${toolCall.toolCallId})`,
+                toolError,
+              );
+              throw toolError;
+            }
+          } else {
+            console.warn(
+              `[MCPOrchestrator] Tool '${toolCall.toolName}' not found or has no execute method`,
+            );
           }
         }
       } else if (llmResponse.finishReason === "stop") {
         console.log("Final message history by stop:");
         console.log(llmResponse.text);
+
+        // Clear the tool output buffer at session end
+        ToolOutputBuffer.getInstance().clear();
 
         // send final result event to UI
         sendStepEvent({
@@ -304,14 +438,17 @@ export class MCPOrchestrator {
         });
         return llmResponse.text;
       } else if (llmResponse.finishReason === "content-filter") {
-        console.log("Conversation ended due to content filter. ");
+        console.log("[MCPOrchestrator] Session ended: Content filter triggered");
+        ToolOutputBuffer.getInstance().clear();
         return "Conversation ended due to content filter.";
       } else if (llmResponse.finishReason === "length") {
-        console.log("Conversation ended due to length limit. ");
+        console.log("[MCPOrchestrator] Session ended: Maximum length reached");
+        ToolOutputBuffer.getInstance().clear();
         return "Conversation ended due to length limit.";
       } else {
-        console.log("Conversation ended by error or unknown stop. Reason: ");
+        console.log("[MCPOrchestrator] Session ended with unknown reason:");
         console.log(llmResponse.finishReason);
+        ToolOutputBuffer.getInstance().clear();
         break;
       }
     }
@@ -358,10 +495,17 @@ export class MCPOrchestrator {
       options.systemPrompt ??
       "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
 
-    const videoUrl = videoUploadResult?.data?.url;
-    if (videoUrl) {
-      systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.\nPlease include this URL in the task content that you create.`;
-    }
+    // Add tool chaining instructions
+    systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
+When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
+If you need to pass one tool's output directly to another tool WITHOUT modification:
+1. Look for the Tool Output Reference ID in the previous tool result
+2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
+3. This passes the raw output directly, preserving all structure and content
+4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
+5. Do NOT use this if you need to transform or summarize the content first`;
+
+    systemPrompt = this.appendVideoInfoToSystemPrompt(systemPrompt, videoUploadResult);
 
     const messages: ModelMessage[] = [
       { role: "system", content: systemPrompt },
@@ -444,5 +588,38 @@ export class MCPOrchestrator {
       resolve({ kind: "deny_stop", feedback: reason });
     }
     this.pendingToolApprovals.clear();
+  }
+
+  private appendVideoInfoToSystemPrompt(
+    systemPrompt: string,
+    videoUploadResult?: VideoUploadResult,
+    videoFilePath?: string,
+  ): string {
+    const videoUrl = videoUploadResult?.data?.url;
+    const duration = videoUploadResult?.data?.duration;
+    if (videoUrl) {
+      const isValidDuration = typeof duration === "number" && duration > 0;
+
+      if (isValidDuration) {
+        const outputDuration = getDurationParts(duration);
+        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
+Video duration:
+- totalSeconds: ${outputDuration.totalSeconds}
+- hours: ${outputDuration.hours}
+- minutes: ${outputDuration.minutes}
+- seconds: ${outputDuration.seconds}
+Embed this URL and duration in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+      } else {
+        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
+Embed this URL in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+      }
+    }
+
+    // If a video file path is provided, add it to the system prompt for screenshot capture
+    if (videoFilePath) {
+      systemPrompt += `\n\nVideo file available for screenshot capture: ${videoFilePath}.`;
+    }
+
+    return systemPrompt;
   }
 }

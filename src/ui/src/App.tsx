@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
 import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
@@ -14,6 +14,7 @@ import { WorkflowProgressPanel } from "./components/workflow/WorkflowProgressPan
 import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
 import { useShaveManager } from "./hooks/useShaveManager";
+import { ipcClient } from "./services/ipc-client";
 
 export default function App() {
   const [appVersion, setAppVersion] = useState<string>("");
@@ -33,6 +34,13 @@ export default function App() {
       }
     };
     fetchVersion();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = ipcClient.app.onProtocolError((message) => {
+      toast.error(message);
+    });
+    return () => unsubscribe();
   }, []);
 
   return (

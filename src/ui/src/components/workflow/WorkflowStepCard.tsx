@@ -1,7 +1,7 @@
-import { cn } from "@/lib/utils";
 import type { WorkflowStep } from "@shared/types/workflow";
 import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { StageWithContent } from "./StageWithContent";

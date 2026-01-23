@@ -1,15 +1,29 @@
-import { app, type IpcMainInvokeEvent, ipcMain } from "electron";
-import { PartialUserSettingsSchema } from "../../shared/types/user-settings";
+import { app, BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
+import {
+  type Hotkeys,
+  type PartialUserSettings,
+  PartialUserSettingsSchema,
+} from "../../shared/types/user-settings";
+import { HotkeyManager } from "../services/settings/hotkey-manager";
 import { UserSettingsStorage } from "../services/storage/user-settings-storage";
+import type { TrayManager } from "../services/tray/tray-manager";
 import { IPC_CHANNELS } from "./channels";
 
 export class UserSettingsIPCHandlers {
   private readonly storage: UserSettingsStorage;
+  private readonly hotkeyManager: HotkeyManager;
+  private trayManager: TrayManager;
 
-  constructor() {
+  constructor(trayManager: TrayManager) {
     this.storage = UserSettingsStorage.getInstance();
+    this.hotkeyManager = HotkeyManager.getInstance();
+    this.trayManager = trayManager;
     this.registerHandlers();
-    void this.syncLoginItemSettings();
+  }
+
+  public async initialize(): Promise<void> {
+    await this.syncLoginItemSettings();
+    await this.initializeHotkeys();
   }
 
   private async syncLoginItemSettings(): Promise<void> {
@@ -24,6 +38,69 @@ export class UserSettingsIPCHandlers {
     }
   }
 
+  private async initializeHotkeys(): Promise<void> {
+    try {
+      const settings = await this.storage.getSettingsAsync();
+      if (!settings.hotkeys) return;
+
+      const result = this.hotkeyManager.registerHotkeys(settings.hotkeys);
+      if (!result.success && result.failedActions) {
+        console.error("Failed to register some hotkeys on startup:", result.failedActions);
+      }
+
+      this.broadcastHotkeyConfig(settings.hotkeys);
+    } catch (error) {
+      console.error("Failed to initialize hotkeys on startup", error);
+    }
+  }
+
+  private broadcastHotkeyConfig(hotkeys: Hotkeys): void {
+    if (this.trayManager) {
+      const recordHotkey = hotkeys.startRecording ?? "";
+      this.trayManager.setRecordHotkey(recordHotkey);
+    }
+
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(IPC_CHANNELS.SETTINGS_HOTKEY_UPDATE, hotkeys);
+    }
+  }
+
+  private async handleHotkeysUpdate(
+    hotkeys: PartialUserSettings["hotkeys"],
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!hotkeys) {
+      return { success: true };
+    }
+
+    const currentSettings = await this.storage.getSettingsAsync();
+    const newHotkeys = { ...currentSettings.hotkeys, ...hotkeys };
+
+    const result = this.hotkeyManager.registerHotkeys(newHotkeys);
+
+    if (!result.success && result.failedActions) {
+      this.hotkeyManager.registerHotkeys(currentSettings.hotkeys);
+
+      const failedHotkey = result.failedActions[0];
+      return {
+        success: false,
+        error: `Failed to register "${failedHotkey.keybind}": ${failedHotkey.reason}`,
+      };
+    }
+
+    await this.storage.updateSettingsAsync({ hotkeys: newHotkeys });
+
+    this.broadcastHotkeyConfig(newHotkeys);
+
+    return { success: true };
+  }
+
+  private async handleOpenAtLoginUpdate(openAtLogin: boolean): Promise<void> {
+    app.setLoginItemSettings({
+      openAtLogin,
+      openAsHidden: false,
+    });
+  }
+
   private registerHandlers(): void {
     ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, async () => {
       return await this.storage.getSettingsAsync();
@@ -32,6 +109,7 @@ export class UserSettingsIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.SETTINGS_UPDATE,
       async (_event: IpcMainInvokeEvent, patch: unknown) => {
+        // Validate the patch
         const validation = PartialUserSettingsSchema.safeParse(patch);
         if (!validation.success) {
           console.error("Invalid settings patch:", validation.error);
@@ -39,12 +117,33 @@ export class UserSettingsIPCHandlers {
         }
 
         const validPatch = validation.data;
-        await this.storage.updateSettingsAsync(validPatch);
-        if (validPatch.openAtLogin !== undefined) {
-          app.setLoginItemSettings({
-            openAtLogin: validPatch.openAtLogin,
-            openAsHidden: false,
-          });
+
+        // Handle hotkeys separately (needs validation before saving)
+        if (validPatch.hotkeys !== undefined) {
+          const hotkeyResult = await this.handleHotkeysUpdate(validPatch.hotkeys);
+          if (!hotkeyResult.success) {
+            return hotkeyResult;
+          }
+
+          // Remove hotkeys from patch to avoid double-processing
+          const { hotkeys, ...restOfPatch } = validPatch;
+
+          // Save remaining settings
+          if (Object.keys(restOfPatch).length > 0) {
+            await this.storage.updateSettingsAsync(restOfPatch);
+
+            // Apply side effects for other settings
+            if (restOfPatch.openAtLogin !== undefined) {
+              await this.handleOpenAtLoginUpdate(restOfPatch.openAtLogin);
+            }
+          }
+        } else {
+          // No hotkeys, just save and apply side effects
+          await this.storage.updateSettingsAsync(validPatch);
+
+          if (validPatch.openAtLogin !== undefined) {
+            await this.handleOpenAtLoginUpdate(validPatch.openAtLogin);
+          }
         }
 
         return { success: true };

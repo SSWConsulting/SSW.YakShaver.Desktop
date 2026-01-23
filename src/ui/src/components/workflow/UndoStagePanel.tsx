@@ -1,4 +1,4 @@
-import { Check, Loader2, Undo2, Wrench, X } from "lucide-react";
+import { Check, ChevronRight, Loader2, Undo2, Wrench, X } from "lucide-react";
 import type React from "react";
 import { type MCPStep, MCPStepType } from "../../types";
 import { deepParseJson } from "../../utils";
@@ -28,9 +28,10 @@ function ToolResultSuccess({ result }: { result: unknown }) {
   return (
     <div className="space-y-1">
       {result !== undefined && result !== null && (
-        <details className="text-xs" onToggle={handleDetailsToggle(result)}>
-          <summary className="text-zinc-300 cursor-pointer hover:text-zinc-200 transition-colors">
-            View result
+        <details className="text-xs group" onToggle={handleDetailsToggle(result)}>
+          <summary className="flex items-center gap-2 text-zinc-300 cursor-pointer hover:text-zinc-200 transition-colors list-none [&::-webkit-details-marker]:hidden">
+            <span>Result</span>
+            <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
           </summary>
           <pre className="mt-1 p-2 bg-black rounded text-zinc-200 overflow-x-auto max-h-[200px] overflow-y-auto">
             Loading...
@@ -60,9 +61,10 @@ function ToolCallStep({
         <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>
       </div>
       {hasArgs && (
-        <details className="ml-4 text-xs" onToggle={handleDetailsToggle(args)}>
-          <summary className="text-zinc-300 cursor-pointer hover:text-zinc-100 transition-colors">
-            Arguments
+        <details className="ml-4 text-xs group" onToggle={handleDetailsToggle(args)}>
+          <summary className="flex items-center gap-2 text-zinc-300 cursor-pointer hover:text-zinc-100 transition-colors list-none [&::-webkit-details-marker]:hidden">
+            <span>Arguments</span>
+            <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
           </summary>
           <pre className="mt-1 p-2 bg-black rounded text-zinc-200 overflow-x-auto">Loading...</pre>
         </details>

@@ -39,13 +39,6 @@ export class MCPServerClient {
     // create streamableHttp transport MCP client
     if (mcpConfig.transport === "streamableHttp") {
       const serverUrl = expandHomePath(mcpConfig.url);
-      const authOrigin = (() => {
-        try {
-          return new URL(serverUrl).origin;
-        } catch {
-          return "";
-        }
-      })();
 
       // Don't use OAuth for built-in MCP server
       if (mcpConfig.builtin) {
@@ -71,11 +64,11 @@ export class MCPServerClient {
 
       if (oauthEndpoint) {
         const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
-        const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|flow=dynamic`;
+        const serverId = mcpConfig.id;
         const authProvider = new PersistedOAuthClientProvider({
           callbackPort,
           tokenStorage: McpOAuthTokenStorage.getInstance(),
-          tokenKey,
+          tokenKey: serverId,
         });
         const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
         await withTimeout(
@@ -101,13 +94,13 @@ export class MCPServerClient {
         const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
 
         if (githubClientId && githubClientSecret) {
-          const tokenKey = `mcp.oauth.v1|serverId=${mcpConfig.id}|authOrigin=${authOrigin}|clientId=${githubClientId}|flow=github`;
+          const serverId = mcpConfig.id;
           const authProvider = new PersistedOAuthClientProvider({
             clientId: githubClientId,
             clientSecret: githubClientSecret,
             callbackPort,
             tokenStorage: McpOAuthTokenStorage.getInstance(),
-            tokenKey,
+            tokenKey: serverId,
           });
           const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
           await withTimeout(

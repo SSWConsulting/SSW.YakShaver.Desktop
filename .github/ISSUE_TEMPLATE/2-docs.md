@@ -1,7 +1,7 @@
 ---
 name: "📝 Documentation"
 about: Updating documentation (e.g. README, Wiki, Guides etc.) as per https://www.ssw.com.au/rules/awesome-documentation/
-title: "📝"
+title: "📝 Doc - {{ DOC DESCRIPTION }}"
 labels: 'Type: Documentation'
 assignees: ''
 
@@ -12,6 +12,9 @@ assignees: ''
 Cc:
 <!-- add intended user next to **Hi** -->
 Hi 
+
+<!-- duration in the format of xx min xx sec -->
+[▶️ Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
 
 ### Pain
 <!-- Explain the pain you are experiencing -->

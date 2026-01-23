@@ -7,6 +7,7 @@ import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
 import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
+import { HotkeySettingsPanel } from "./general/HotkeySettingsPanel";
 import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
 import { LanguageModelKeyManager } from "./llm/LanguageModelKeyManager";
 import { TranscriptionModelKeyManager } from "./llm/TranscriptionModelKeyManager";
@@ -26,6 +27,10 @@ const TABS: SettingsTab[] = [
   {
     id: "general",
     label: "General",
+  },
+  {
+    id: "hotkeys",
+    label: "Keyboard Shortcuts",
   },
   {
     id: "toolApproval",
@@ -175,6 +180,9 @@ export function SettingsDialog() {
               <div className="pb-4 pr-2">
                 {activeTab?.id === "general" && (
                   <GeneralSettingsPanel isActive={open && activeTabId === "general"} />
+                )}
+                {activeTab?.id === "hotkeys" && (
+                  <HotkeySettingsPanel isActive={open && activeTabId === "hotkeys"} />
                 )}
                 {activeTab?.id === "toolApproval" && (
                   <ToolApprovalSettingsPanel isActive={open && activeTabId === "toolApproval"} />

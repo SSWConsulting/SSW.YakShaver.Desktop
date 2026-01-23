@@ -75,6 +75,15 @@ describe("TrayManager", () => {
     });
   });
 
+  describe("setRecordHotkey", () => {
+    it("should update tray menu with new hotkey", () => {
+      trayManager.createTray();
+      trayManager.setRecordHotkey("Ctrl+Shift+R");
+
+      expect(mockTray.setContextMenu).toHaveBeenCalledTimes(2); // Once on create, once on update
+    });
+  });
+
   describe("updateTrayMenu", () => {
     it("should update context menu when tray exists", () => {
       trayManager.createTray();

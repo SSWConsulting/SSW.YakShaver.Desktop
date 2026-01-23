@@ -29,6 +29,7 @@ export const IPC_CHANNELS = {
   RECORDING_TIME_UPDATE: "recording-time-update",
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
+  OPEN_SOURCE_PICKER: "open-source-picker",
 
   // LLM
   LLM_SET_CONFIG: "llm:set-config",
@@ -69,6 +70,7 @@ export const IPC_CHANNELS = {
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
   SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
+  SETTINGS_HOTKEY_UPDATE: "settings:hotkey-update",
 
   // Release Channel
   RELEASE_CHANNEL_GET: "release-channel:get",
@@ -92,6 +94,9 @@ export const IPC_CHANNELS = {
   // App Control
   APP_RESTART: "app:restart",
   APP_OPEN_EXTERNAL: "app:open-external",
+
+  // Protocol
+  PROTOCOL_ERROR: "protocol:error",
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
