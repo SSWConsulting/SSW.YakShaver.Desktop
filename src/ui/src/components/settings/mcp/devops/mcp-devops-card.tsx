@@ -55,6 +55,7 @@ export function McpAzureDevOpsCard({
 
   return (
     <McpCard
+      isReadOnly
       icon={<AzureDevOpsIcon />}
       config={configLocal}
       healthInfo={healthInfo}
