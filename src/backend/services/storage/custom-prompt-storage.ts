@@ -67,6 +67,9 @@ You MUST follow the target repository's GitHub issue templates exactly.
 - Make sure that all fields starting with "###" in the template such as "### Tasks" are present in the final issue body.
 - Do NOT invent new sections or change heading text.
 - Remove template-only HTML comments like "<!-- ... -->" from the final issue body.
+- Each checklist item MUST represent exactly ONE atomic task meaning that the item describes a single action to be taken.
+- A task MUST NOT combine multiple actions (no "and", ";", "/", or comma-separated actions).
+- If multiple tasks are implied, they MUST be split into multiple - [ ] task items.
 
 7) Screenshots from video (when video file path is available, recommended):
 - ALWAYS capture exactly one screenshot from the video using capture_video_frame.
