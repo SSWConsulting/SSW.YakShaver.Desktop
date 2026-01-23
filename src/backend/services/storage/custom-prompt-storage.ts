@@ -52,9 +52,14 @@ You MUST follow the target repository's GitHub issue templates exactly.
 - You MUST extract and use these values exactly as specified.
 - Apply all specified labels from the frontmatter to the created issue.
 
+4.5) Handle template placeholders (CRITICAL):
+- When encountering {{ placeholder }} patterns in templates, use the "fill_template" MCP tool to process them
+- Provide the template content and relevant transcript context to the fill_template tool
+- Let the fill_template tool generate appropriate values for all placeholders
+- Use the filled template returned by the tool for issue creation
+
 5) Issue title rules (STRICT):
 - Title MUST follow the template frontmatter's title pattern exactly INCLUDING EMOJI.
-- Replace any {{ ... }} placeholders in the title pattern (e.g., "{{ BUG DESCRIPTION }}", "{{ FEATURE NAME }}", "{{ FEATURE DESCRIPTION }}") by substituting the entire token with an appropriate short summary derived from the transcript or user request.
 - Do not omit any fixed words like "🐛 Bug -" and do not use a different emoji.
 
 6) Format the issue body to match the template (STRICT):
@@ -62,7 +67,6 @@ You MUST follow the target repository's GitHub issue templates exactly.
 - Make sure that all fields starting with "###" in the template such as "### Tasks" are present in the final issue body.
 - Do NOT invent new sections or change heading text.
 - Remove template-only HTML comments like "<!-- ... -->" from the final issue body.
-- Replace placeholders (e.g., "Hi {{ USER }}") with appropriate values when known; if unknown, keep the greeting minimal but keep the structure.
 
 7) Screenshots from video (when video file path is available, recommended):
 - ALWAYS capture exactly one screenshot from the video using capture_video_frame.
