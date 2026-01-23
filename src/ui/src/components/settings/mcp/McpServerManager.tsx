@@ -56,58 +56,97 @@ export function McpSettingsPanel({
     onHasEnabledServers?.(hasEnabled);
   }, [servers, onHasEnabledServers, includeBuiltin]);
 
-  const checkAllServersHealth = useCallback(async (serverList: MCPServerConfig[]) => {
-    const initialStatus: ServerHealthStatus<string> = {};
-    serverList.forEach((server) => {
-      if (!server.id) return;
-      if (server.enabled !== false) {
-        initialStatus[server.id] = { isHealthy: false, isChecking: true };
-      } else {
-        initialStatus[server.id] = {
+  const checkSingleServerHealth = useCallback(async (server: MCPServerConfig) => {
+    if (!server.id) return;
+
+    if (server.enabled === false) {
+      setHealthStatus((prev) => ({
+        ...prev,
+        [server.id as string]: {
           isHealthy: false,
           isChecking: false,
           successMessage: "Disabled",
-        };
-      }
-    });
-    setHealthStatus(initialStatus);
+        },
+      }));
+      return;
+    }
 
-    for (const server of serverList) {
-      if (server.enabled === false || !server.id) continue;
-      try {
-        const result = (await ipcClient.mcp.checkServerHealthAsync(server.id)) as HealthStatusInfo;
-        setHealthStatus((prev) => ({
-          ...prev,
-          [server.id as string]: { ...result, isChecking: false },
-        }));
-      } catch (e) {
-        setHealthStatus((prev) => ({
-          ...prev,
-          [server.id as string]: {
-            isHealthy: false,
-            error: formatErrorMessage(e),
-            isChecking: false,
-          },
-        }));
-      }
+    setHealthStatus((prev) => ({
+      ...prev,
+      [server.id as string]: { isHealthy: false, isChecking: true },
+    }));
+
+    try {
+      const result = (await ipcClient.mcp.checkServerHealthAsync(server.id)) as HealthStatusInfo;
+      setHealthStatus((prev) => ({
+        ...prev,
+        [server.id as string]: { ...result, isChecking: false },
+      }));
+    } catch (e) {
+      setHealthStatus((prev) => ({
+        ...prev,
+        [server.id as string]: {
+          isHealthy: false,
+          error: formatErrorMessage(e),
+          isChecking: false,
+        },
+      }));
     }
   }, []);
 
+  const checkAllServersHealth = useCallback(
+    async (serverList: MCPServerConfig[]) => {
+      setHealthStatus((prev) => {
+        const initialStatus: ServerHealthStatus<string> = { ...prev };
+        serverList.forEach((server) => {
+          if (!server.id) return;
+          if (server.enabled !== false) {
+            initialStatus[server.id] = { isHealthy: false, isChecking: true };
+          } else {
+            initialStatus[server.id] = {
+              isHealthy: false,
+              isChecking: false,
+              successMessage: "Disabled",
+            };
+          }
+        });
+
+        return initialStatus;
+      });
+
+      for (const server of serverList) {
+        if (server.enabled === false || !server.id) continue;
+        await checkSingleServerHealth(server);
+      }
+    },
+    [checkSingleServerHealth],
+  );
+
   const loadServers = useCallback(
-    async (includeBuiltin: boolean = false) => {
+    async (options?: { includeBuiltin?: boolean; serverIdToRefresh?: string }) => {
       setIsLoading(true);
       try {
         const list = await ipcClient.mcp.listServers();
-        const filteredList = includeBuiltin ? list : list.filter((server) => !server.builtin);
+        const filteredList = options?.includeBuiltin
+          ? list
+          : list.filter((server) => !server.builtin);
         setServers(filteredList);
-        await checkAllServersHealth(filteredList);
+
+        if (options?.serverIdToRefresh) {
+          const server = filteredList.find((s) => s.id === options.serverIdToRefresh);
+          if (server) {
+            await checkSingleServerHealth(server);
+          }
+        } else {
+          await checkAllServersHealth(filteredList);
+        }
       } catch (e) {
         toast.error(`Failed to load servers: ${formatErrorMessage(e)}`);
       } finally {
         setIsLoading(false);
       }
     },
-    [checkAllServersHealth],
+    [checkAllServersHealth, checkSingleServerHealth],
   );
 
   useEffect(() => {
@@ -151,18 +190,18 @@ export function McpSettingsPanel({
   ): Promise<void> {
     const updatedConfig = { ...configLocal, enabled: status };
     await ipcClient.mcp.updateServerAsync(serverId, updatedConfig);
+    await loadServers({ serverIdToRefresh: serverId });
   }
 
   async function handleSubmit(config: MCPServerConfig): Promise<void> {
-    console.log("Submitting MCP server config:", config, editingServer);
     setIsLoading(true);
     try {
-      if (editingServer?.id) {
-        await ipcClient.mcp.updateServerAsync(editingServer.id, config);
+      if (config.id) {
+        await ipcClient.mcp.updateServerAsync(config.id, config);
         toast.success(`Server '${config.name}' updated`);
         setShowAddCustomMcpForm(false);
         setEditingServer(null);
-        await loadServers();
+        await loadServers({ serverIdToRefresh: config.id });
       } else {
         await ipcClient.mcp.addServerAsync(config);
         toast.success(`Server '${config.name}' added`);
@@ -184,11 +223,12 @@ export function McpSettingsPanel({
     setEditingServer(null);
   }
 
-  function handleOnConnect(serverId: string, configLocal: MCPServerConfig): void {
-    toggleSettings(serverId, true, configLocal);
+  async function handleOnConnect(serverId: string, configLocal: MCPServerConfig): Promise<void> {
+    await toggleSettings(serverId, true, configLocal);
   }
-  function handleOnDisconnect(serverId: string, configLocal: MCPServerConfig): void {
-    toggleSettings(serverId, false, configLocal);
+
+  async function handleOnDisconnect(serverId: string, configLocal: MCPServerConfig): Promise<void> {
+    await toggleSettings(serverId, false, configLocal);
   }
 
   const sortedServers = useMemo(() => {
@@ -217,14 +257,14 @@ export function McpSettingsPanel({
       <div className="grid grid-cols-1 gap-4 mb-4">
         <McpGitHubCard
           config={github}
-          onChange={() => loadServers()}
+          onChange={() => loadServers({ serverIdToRefresh: McpGitHubCard.Id })}
           healthInfo={getHealthStatus(github?.id)}
           onTools={() => github && openWhitelistDialog(github)}
           viewMode={viewMode}
         />
         <McpAzureDevOpsCard
           config={azureDevOps}
-          onChange={() => loadServers()}
+          onChange={() => loadServers({ serverIdToRefresh: McpAzureDevOpsCard.Id })}
           healthInfo={getHealthStatus(McpAzureDevOpsCard.Id)}
           onTools={() => azureDevOps && openWhitelistDialog(azureDevOps)}
           viewMode={viewMode}
@@ -242,7 +282,7 @@ export function McpSettingsPanel({
               onDisconnect={() => handleOnDisconnect(String(server.id), server)}
               onUpdate={async (newConfig) => {
                 setEditingServer(server);
-                console.log("Updating server:", server.name, "with config:", newConfig);
+                await handleSubmit(newConfig);
               }}
               viewMode={viewMode}
             />
@@ -279,8 +319,13 @@ export function McpSettingsPanel({
         server={whitelistServer}
         onClose={() => setWhitelistServer(null)}
         onSaved={async () => {
+          const serverId = whitelistServer?.id;
           setWhitelistServer(null);
-          await loadServers();
+          if (serverId) {
+            await loadServers({ serverIdToRefresh: serverId });
+          } else {
+            await loadServers();
+          }
         }}
       />
 
