@@ -70,7 +70,7 @@
     "electron-builder": "^26.0.12",
     "electron-rebuild": "^3.2.9",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.15",
+    "vitest": "^4.0.18",
     "wait-on": "^9.0.3"
   }
 }
