@@ -58,7 +58,7 @@ export class MCPServerClient {
 
       // TODO: Need to implement refresh token logic here if the token is stale - https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/580
       if (tokens) {
-        // Tokens exist - use Bearer header directly, bypass SDK OAuth
+        // Tokens exist - use Bearer header
         console.log(`[MCPServerClient] Using existing tokens for ${mcpConfig.name}`);
         const client = await experimental_createMCPClient({
           transport: {
@@ -93,7 +93,9 @@ export class MCPServerClient {
           throw new Error(`OAuth completed but no tokens found for ${mcpConfig.name}`);
         }
 
-        console.log(`[MCPServerClient] Creating MCP client for ${mcpConfig.name} with Bearer token`);
+        console.log(
+          `[MCPServerClient] Creating MCP client for ${mcpConfig.name} with Bearer token`,
+        );
         const client = await experimental_createMCPClient({
           transport: {
             type: "http",
