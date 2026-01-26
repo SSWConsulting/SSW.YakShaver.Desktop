@@ -1,71 +1,7 @@
-// Used Vercel AI Example for OAuth: https://github.com/vercel/ai/tree/main/examples/mcp/src/mcp-with-auth
-import type {
-  OAuthClientInformation,
-  OAuthClientMetadata,
-  OAuthClientProvider,
-  OAuthTokens,
-} from "@ai-sdk/mcp";
+import type { OAuthTokens } from "@ai-sdk/mcp";
 import { shell } from "electron";
 import { config } from "../../config/env";
 import type { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
-
-export class PersistedOAuthClientProvider implements OAuthClientProvider {
-  private _tokens?: OAuthTokens;
-  private _tokenStorage?: McpOAuthTokenStorage;
-  private _tokenKey?: string;
-
-  constructor(opts: {
-    tokenStorage?: McpOAuthTokenStorage;
-    tokenKey?: string;
-  }) {
-    this._tokenStorage = opts.tokenStorage;
-    this._tokenKey = opts.tokenKey;
-  }
-
-  async tokens(): Promise<OAuthTokens | undefined> {
-    if (this._tokens) return this._tokens;
-    if (!this._tokenStorage || !this._tokenKey) return undefined;
-    const stored = await this._tokenStorage.getTokensAsync(this._tokenKey);
-    this._tokens = stored;
-    return stored;
-  }
-
-  async saveTokens(tokens: OAuthTokens): Promise<void> {
-    this._tokens = tokens;
-    if (this._tokenStorage && this._tokenKey) {
-      await this._tokenStorage.saveTokensAsync(this._tokenKey, tokens);
-    }
-  }
-
-  async invalidateCredentials(scope: "all" | "tokens") {
-    if (scope === "all" || scope === "tokens") {
-      this._tokens = undefined;
-      if (this._tokenStorage && this._tokenKey) {
-        await this._tokenStorage.clearTokensAsync(this._tokenKey);
-      }
-    }
-  }
-
-  // The following methods are required by the OAuthClientProvider interface
-  // but are not used in the backend-delegated OAuth flow.
-  get redirectUrl(): string | URL {
-    throw new Error("redirectUrl not supported in backend-delegated flow");
-  }
-  get clientMetadata(): OAuthClientMetadata {
-    throw new Error("clientMetadata not supported in backend-delegated flow");
-  }
-  async clientInformation(): Promise<OAuthClientInformation | undefined> {
-    return undefined;
-  }
-  async saveClientInformation(): Promise<void> {}
-  async redirectToAuthorization(): Promise<void> {
-    throw new Error("redirectToAuthorization not supported in backend-delegated flow");
-  }
-  async saveCodeVerifier(): Promise<void> {}
-  async codeVerifier(): Promise<string> {
-    throw new Error("codeVerifier not supported in backend-delegated flow");
-  }
-}
 
 /**
  * Gets the authorization URL from the .NET backend for an MCP server.

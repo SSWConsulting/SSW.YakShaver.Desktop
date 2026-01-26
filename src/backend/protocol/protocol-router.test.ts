@@ -37,7 +37,7 @@ describe("protocol-router", () => {
     const window = mockWindow(send);
 
     await handleProtocolUrl(
-      "yakshaver-desktop://oauth/callback?access_token=token&state=server-1",
+      "yakshaver-desktop://oauth/callback?access_token=token&serverId=server-1",
       window,
     );
 
@@ -77,7 +77,7 @@ describe("protocol-router", () => {
     } satisfies MCPServerConfig);
 
     await handleProtocolUrl(
-      "yakshaver-desktop://oauth/callback?access_token=token&refresh_token=refresh&state=server-1",
+      "yakshaver-desktop://oauth/callback?access_token=token&refresh_token=refresh&serverId=server-1",
       window,
     );
 

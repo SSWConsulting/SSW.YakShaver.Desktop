@@ -2,7 +2,7 @@ import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-s
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
-import { authorizeWithBackend, PersistedOAuthClientProvider } from "./mcp-oauth";
+import { authorizeWithBackend } from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
@@ -49,39 +49,59 @@ export class MCPServerClient {
       const serverId = mcpConfig.id;
       const tokenStorage = McpOAuthTokenStorage.getInstance();
 
-      // For external HTTP servers, we attempt OAuth via the backend
-      const authProvider = new PersistedOAuthClientProvider({
-        tokenStorage,
-        tokenKey: serverId,
-      });
+      // Check if we already have tokens
+      let tokens = await tokenStorage.getTokensAsync(serverId);
+      console.log(
+        `[MCPServerClient] Tokens for ${mcpConfig.name}:`,
+        tokens ? "Present" : "Missing",
+      );
 
-      try {
-        const tokens = await authProvider.tokens();
-        console.log(
-          `[MCPServerClient] Tokens for ${mcpConfig.name}:`,
-          tokens ? "Present" : "Missing",
-        );
-
-        if (!tokens) {
-          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
-          console.log(
-            `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl} (Timeout: ${authTimeoutMs}ms)`,
-          );
-
-          // This call will delegate discovery and DCR to the backend
-          await withTimeout(
-            authorizeWithBackend(tokenStorage, serverUrl, serverId, authTimeoutMs),
-            authTimeoutMs,
-            `${mcpConfig.name} OAuth`,
-          );
-        }
-
-        console.log(`[MCPServerClient] Creating MCP client for ${mcpConfig.name} with OAuth`);
+      // TODO: Need to implement refresh token logic here if the token is stale - https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/580
+      if (tokens) {
+        // Tokens exist - use Bearer header directly, bypass SDK OAuth
+        console.log(`[MCPServerClient] Using existing tokens for ${mcpConfig.name}`);
         const client = await experimental_createMCPClient({
           transport: {
             type: "http",
             url: serverUrl,
-            authProvider,
+            headers: {
+              ...mcpConfig.headers,
+              Authorization: `Bearer ${tokens.access_token}`,
+            },
+          },
+        });
+        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+      }
+
+      // No tokens - trigger backend OAuth flow
+      try {
+        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
+        console.log(
+          `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl} (Timeout: ${authTimeoutMs}ms)`,
+        );
+
+        // This call will delegate discovery and DCR to the backend
+        await withTimeout(
+          authorizeWithBackend(tokenStorage, serverUrl, serverId, authTimeoutMs),
+          authTimeoutMs,
+          `${mcpConfig.name} OAuth`,
+        );
+
+        // After OAuth, get tokens and use headers
+        tokens = await tokenStorage.getTokensAsync(serverId);
+        if (!tokens) {
+          throw new Error(`OAuth completed but no tokens found for ${mcpConfig.name}`);
+        }
+
+        console.log(`[MCPServerClient] Creating MCP client for ${mcpConfig.name} with Bearer token`);
+        const client = await experimental_createMCPClient({
+          transport: {
+            type: "http",
+            url: serverUrl,
+            headers: {
+              ...mcpConfig.headers,
+              Authorization: `Bearer ${tokens.access_token}`,
+            },
           },
         });
         return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
