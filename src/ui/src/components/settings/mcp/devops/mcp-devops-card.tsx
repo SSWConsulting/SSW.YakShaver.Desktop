@@ -55,7 +55,6 @@ export function McpAzureDevOpsCard({
 
   return (
     <McpCard
-      isReadOnly
       icon={<AzureDevOpsIcon />}
       config={configLocal}
       healthInfo={healthInfo}
@@ -63,6 +62,7 @@ export function McpAzureDevOpsCard({
       onDisconnect={handleOnDisconnect}
       onTools={onTools}
       viewMode={viewMode}
+      hideDelete={true}
     />
   );
 }
