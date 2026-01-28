@@ -123,7 +123,11 @@ export function McpSettingsPanel({
   );
 
   const loadServers = useCallback(
-    async (options?: { includeBuiltin?: boolean; serverIdToRefresh?: string }) => {
+    async (options?: {
+      includeBuiltin?: boolean;
+      serverIdToRefresh?: string;
+      skipHealthCheck?: boolean;
+    }) => {
       setIsLoading(true);
       try {
         const list = await ipcClient.mcp.listServers();
@@ -137,7 +141,7 @@ export function McpSettingsPanel({
           if (server) {
             await checkSingleServerHealth(server);
           }
-        } else {
+        } else if (!options?.skipHealthCheck) {
           await checkAllServersHealth(filteredList);
         }
       } catch (e) {
@@ -174,7 +178,7 @@ export function McpSettingsPanel({
     try {
       await ipcClient.mcp.removeServerAsync(serverToDelete.serverId);
       toast.success(`Server '${serverToDelete.serverName}' removed`);
-      await loadServers();
+      await loadServers({ skipHealthCheck: true });
     } catch (e) {
       toast.error(`Failed to remove: ${formatErrorMessage(e)}`);
     } finally {
@@ -203,11 +207,11 @@ export function McpSettingsPanel({
         setEditingServer(null);
         await loadServers({ serverIdToRefresh: config.id });
       } else {
-        await ipcClient.mcp.addServerAsync(config);
+        const result = await ipcClient.mcp.addServerAsync(config);
         toast.success(`Server '${config.name}' added`);
         setShowAddCustomMcpForm(false);
         setEditingServer(null);
-        await loadServers();
+        await loadServers({ serverIdToRefresh: result.data?.id ?? undefined });
       }
     } catch (e) {
       toast.error(`Failed to save: ${formatErrorMessage(e)}`);

@@ -259,7 +259,7 @@ export class MCPServerManager {
     );
   }
 
-  async addServerAsync(config: MCPServerConfig): Promise<void> {
+  async addServerAsync(config: MCPServerConfig): Promise<MCPServerConfig> {
     const server: MCPServerConfig = {
       ...(config as unknown as Record<string, unknown>),
       id: config.id?.trim() ? config.id : randomUUID(),
@@ -273,6 +273,7 @@ export class MCPServerManager {
 
     storedConfigs.push(server);
     await this.saveConfigAsync(storedConfigs);
+    return server;
   }
 
   async updateServerAsync(serverId: string, config: MCPServerConfig): Promise<void> {
