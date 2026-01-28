@@ -18,7 +18,7 @@ type StoredShape = {
 };
 
 export class McpOAuthTokenStorage extends BaseSecureStorage {
-  public static readonly TOKENS_UPDATED_EVENT = "tokens-updated";
+  public static readonly TOKENS_UPDATED_EVENT = "tokens-updated" as const;
 
   private static instance: McpOAuthTokenStorage;
   private static legacyCleanupDone = false;
@@ -35,11 +35,17 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
     return McpOAuthTokenStorage.instance;
   }
 
-  public on(event: string, listener: (...args: any[]) => void): void {
+  public on(
+    event: typeof McpOAuthTokenStorage.TOKENS_UPDATED_EVENT,
+    listener: (serverId: string) => void,
+  ): void {
     this.events.on(event, listener);
   }
 
-  public off(event: string, listener: (...args: any[]) => void): void {
+  public off(
+    event: typeof McpOAuthTokenStorage.TOKENS_UPDATED_EVENT,
+    listener: (serverId: string) => void,
+  ): void {
     this.events.off(event, listener);
   }
 
