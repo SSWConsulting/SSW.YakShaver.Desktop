@@ -1,7 +1,7 @@
 import type { OAuthTokens } from "@ai-sdk/mcp";
 import { shell } from "electron";
 import { config } from "../../config/env";
-import type { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
+import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 
 /**
  * Gets the authorization URL from the .NET backend for an MCP server.
@@ -46,25 +46,49 @@ export async function getAuthUrlFromBackend(serverUrl: string, serverId: string)
 }
 
 /**
- * Polls the token storage until tokens are available for a given server ID.
+ * Waits for tokens to be available for a given server ID using an event-driven approach.
  */
-export async function pollForTokens(
+export async function waitForTokens(
   tokenStorage: McpOAuthTokenStorage,
   serverId: string,
   timeoutMs: number = 60000,
 ): Promise<OAuthTokens> {
-  const start = Date.now();
-  console.log(`[McpOAuth] Polling for tokens for server ${serverId} (Timeout: ${timeoutMs}ms)`);
-  while (Date.now() - start < timeoutMs) {
-    const tokens = await tokenStorage.getTokensAsync(serverId);
-    if (tokens) {
-      console.log(`[McpOAuth] Tokens found for server ${serverId}`);
-      return tokens;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+  // 1. Check immediately if tokens are already there
+  const existingTokens = await tokenStorage.getTokensAsync(serverId);
+  if (existingTokens) {
+    console.log(`[McpOAuth] Tokens already present for server ${serverId}`);
+    return existingTokens;
   }
-  console.error(`[McpOAuth] Timed out waiting for OAuth tokens for server ${serverId}`);
-  throw new Error(`Timed out waiting for OAuth tokens for server ${serverId}`);
+
+  console.log(`[McpOAuth] Waiting for tokens for server ${serverId} (Timeout: ${timeoutMs}ms)...`);
+
+  return new Promise((resolve, reject) => {
+    let timeoutId: NodeJS.Timeout;
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      tokenStorage.off(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+    };
+
+    const onTokensUpdated = async (updatedServerId: string) => {
+      if (updatedServerId === serverId) {
+        console.log(`[McpOAuth] Received tokens-updated event for server ${serverId}`);
+        const tokens = await tokenStorage.getTokensAsync(serverId);
+        if (tokens) {
+          cleanup();
+          resolve(tokens);
+        }
+      }
+    };
+
+    tokenStorage.on(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+
+    timeoutId = setTimeout(() => {
+      cleanup();
+      console.error(`[McpOAuth] Timed out waiting for OAuth tokens for server ${serverId}`);
+      reject(new Error(`Timed out waiting for OAuth tokens for server ${serverId}`));
+    }, timeoutMs);
+  });
 }
 
 /**
@@ -78,7 +102,7 @@ export async function authorizeWithBackend(
 ): Promise<OAuthTokens> {
   const authUrl = await getAuthUrlFromBackend(serverUrl, serverId);
   await shell.openExternal(authUrl);
-  return pollForTokens(tokenStorage, serverId, timeoutMs);
+  return waitForTokens(tokenStorage, serverId, timeoutMs);
 }
 
 /**

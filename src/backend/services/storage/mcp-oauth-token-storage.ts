@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { join } from "node:path";
 import type { OAuthTokens } from "@ai-sdk/mcp";
 import { BaseSecureStorage } from "./base-secure-storage";
@@ -17,8 +18,11 @@ type StoredShape = {
 };
 
 export class McpOAuthTokenStorage extends BaseSecureStorage {
+  public static readonly TOKENS_UPDATED_EVENT = "tokens-updated";
+
   private static instance: McpOAuthTokenStorage;
   private static legacyCleanupDone = false;
+  private events = new EventEmitter();
 
   private constructor() {
     super();
@@ -29,6 +33,14 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
       McpOAuthTokenStorage.instance = new McpOAuthTokenStorage();
     }
     return McpOAuthTokenStorage.instance;
+  }
+
+  public on(event: string, listener: (...args: any[]) => void): void {
+    this.events.on(event, listener);
+  }
+
+  public off(event: string, listener: (...args: any[]) => void): void {
+    this.events.off(event, listener);
   }
 
   private getPath(): string {
@@ -79,6 +91,7 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
       storedAt: Date.now(),
     };
     await this.saveAllAsync(data);
+    this.events.emit(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, serverId);
   }
 
   public isTokenExpired(tokens: StoredOAuthTokens): boolean {
