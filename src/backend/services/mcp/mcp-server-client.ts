@@ -2,7 +2,7 @@ import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-s
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
-import { authorizeWithBackend } from "./mcp-oauth";
+import { authorizeWithBackend, refreshTokenWithBackend } from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
@@ -56,7 +56,24 @@ export class MCPServerClient {
         tokens ? "Present" : "Missing",
       );
 
-      // TODO: Need to implement refresh token logic here if the token is stale - https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/580
+      // Handle refresh token logic if the token is stale
+      if (tokens?.refresh_token && tokenStorage.isTokenExpired(tokens)) {
+        try {
+          console.log(`[MCPServerClient] Token expired for ${mcpConfig.name}, refreshing...`);
+          const newTokens = await refreshTokenWithBackend(serverUrl, tokens.refresh_token);
+          await tokenStorage.saveTokensAsync(serverId, newTokens);
+          tokens = await tokenStorage.getTokensAsync(serverId);
+        } catch (refreshError) {
+          console.error(
+            `[MCPServerClient] Failed to refresh token for ${mcpConfig.name}:`,
+            refreshError,
+          );
+          // If refresh fails, we clear the tokens to trigger re-auth.
+          await tokenStorage.clearTokensAsync(serverId);
+          tokens = undefined;
+        }
+      }
+
       if (tokens) {
         // Tokens exist - use Bearer header
         console.log(`[MCPServerClient] Using existing tokens for ${mcpConfig.name}`);

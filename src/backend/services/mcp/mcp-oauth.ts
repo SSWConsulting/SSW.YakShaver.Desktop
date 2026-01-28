@@ -7,7 +7,7 @@ import type { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
  * Gets the authorization URL from the .NET backend for an MCP server.
  */
 export async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
-  const portalApiUrl = config.portalApi().replace(/\/+$/, "");
+  const portalApiUrl = getPortalApiUrl();
   const protocol =
     config.azure()?.customProtocol ||
     (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
@@ -79,4 +79,47 @@ export async function authorizeWithBackend(
   const authUrl = await getAuthUrlFromBackend(serverUrl, serverId);
   await shell.openExternal(authUrl);
   return pollForTokens(tokenStorage, serverId, timeoutMs);
+}
+
+/**
+ * Refreshes the OAuth tokens using the .NET backend.
+ */
+export async function refreshTokenWithBackend(
+  serverUrl: string,
+  refreshToken: string,
+): Promise<OAuthTokens> {
+  const portalApiUrl = getPortalApiUrl();
+  const endpoint = "/mcp/auth/refresh";
+  const url = `${portalApiUrl}${endpoint}`;
+
+  console.log(`[McpOAuth] Refreshing tokens for ${serverUrl}`);
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      serverUrl,
+      refreshToken,
+    }),
+  });
+
+  if (!response.ok) {
+    let errorMessage = "Failed to refresh tokens from backend";
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.error || errorMessage;
+    } catch {
+      errorMessage = `${errorMessage} (Status: ${response.status})`;
+    }
+    throw new Error(errorMessage);
+  }
+
+  return await response.json();
+}
+
+function getPortalApiUrl(): string {
+  return config.portalApi().replace(/\/+$/, "");
 }
