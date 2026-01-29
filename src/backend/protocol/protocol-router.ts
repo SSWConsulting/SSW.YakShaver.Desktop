@@ -26,6 +26,14 @@ const normalizeProtocolPath = (url: URL) => {
 const resolveStateToServerId = (state: string): string => decodeURIComponent(state);
 
 const routeHandlers: Record<string, ProtocolRouteHandler> = {
+  // YouTube auth success deeplink - just focus the window
+  "/youtube/auth-success": (_url, window) => {
+    if (window && !window.isDestroyed()) {
+      window.show();
+      window.focus();
+    }
+  },
+
   "/oauth/callback": async (url, window) => {
     const params = Object.fromEntries(url.searchParams.entries());
     const accessToken = params.access_token;

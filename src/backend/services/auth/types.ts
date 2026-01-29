@@ -57,5 +57,4 @@ export interface YouTubeSnippetUpdate {
 
 export interface YouTubeConfig {
   clientId: string;
-  clientSecret: string;
 }

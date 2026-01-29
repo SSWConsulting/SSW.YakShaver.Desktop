@@ -29,7 +29,6 @@ export interface AuthState {
 
 export interface YouTubeConfig {
   clientId: string;
-  clientSecret: string;
 }
 
 export type VideoUploadOrigin = "upload" | "external";

@@ -1,8 +1,8 @@
 const { env } = process;
 
 const getYouTube = () => {
-  const { YOUTUBE_CLIENT_ID: id, YOUTUBE_CLIENT_SECRET: secret } = env;
-  return id && secret ? { clientId: id, clientSecret: secret } : null;
+  const { YOUTUBE_CLIENT_ID: id } = env;
+  return id ? { clientId: id } : null;
 };
 
 const getAzure = () => {
@@ -28,9 +28,12 @@ const getPortalApi = () => {
 
 const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;
 
+const getCustomProtocol: () => string | null = () => env.AZURE_AUTH_CUSTOM_PROTOCOL || null;
+
 export const config = {
   youtube: getYouTube,
   azure: getAzure,
   portalApi: getPortalApi,
   commitHash: getCommitHash,
+  customProtocol: getCustomProtocol,
 };
