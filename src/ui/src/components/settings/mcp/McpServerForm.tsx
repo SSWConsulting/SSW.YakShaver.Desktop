@@ -391,6 +391,7 @@ type McpServerFormWrapperProps = {
   onSubmit: (data: MCPServerConfig) => Promise<void>;
   onCancel: () => void;
   onDelete?: () => void;
+  hideDeleteServerButton?: boolean;
   isLoading: boolean;
   existingServerNames?: string[];
 };
@@ -401,6 +402,7 @@ export function McpServerFormWrapper({
   onSubmit,
   onCancel,
   onDelete,
+  hideDeleteServerButton,
   isLoading,
 }: McpServerFormWrapperProps) {
   const form = useForm<MCPServerFormData>({
@@ -566,7 +568,7 @@ export function McpServerFormWrapper({
         <McpServerForm form={form} />
 
         <div className="flex w-full items-center">
-          {onDelete && (
+          {onDelete && !hideDeleteServerButton && (
             <div className="flex flex-1 justify-start">
               <Button variant="destructive" onClick={onDelete}>
                 Delete Server

@@ -1,19 +1,28 @@
+import { EventEmitter } from "node:events";
 import { join } from "node:path";
 import type { OAuthTokens } from "@ai-sdk/mcp";
 import { BaseSecureStorage } from "./base-secure-storage";
 
 const MCP_OAUTH_TOKENS_FILE = "mcp-oauth-tokens.enc";
 const LEGACY_TOKEN_PREFIX = "mcp.oauth.v1|";
+const EXPIRY_BUFFER_MS = 60 * 1000; // 60 seconds buffer
 
-type TokenMap = Record<string, OAuthTokens>;
+export type StoredOAuthTokens = OAuthTokens & {
+  storedAt?: number;
+};
+
+type TokenMap = Record<string, StoredOAuthTokens>;
 
 type StoredShape = {
   tokensByKey: TokenMap;
 };
 
 export class McpOAuthTokenStorage extends BaseSecureStorage {
+  public static readonly TOKENS_UPDATED_EVENT = "tokens-updated" as const;
+
   private static instance: McpOAuthTokenStorage;
   private static legacyCleanupDone = false;
+  private events = new EventEmitter();
 
   private constructor() {
     super();
@@ -24,6 +33,20 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
       McpOAuthTokenStorage.instance = new McpOAuthTokenStorage();
     }
     return McpOAuthTokenStorage.instance;
+  }
+
+  public on(
+    event: typeof McpOAuthTokenStorage.TOKENS_UPDATED_EVENT,
+    listener: (serverId: string) => void,
+  ): void {
+    this.events.on(event, listener);
+  }
+
+  public off(
+    event: typeof McpOAuthTokenStorage.TOKENS_UPDATED_EVENT,
+    listener: (serverId: string) => void,
+  ): void {
+    this.events.off(event, listener);
   }
 
   private getPath(): string {
@@ -62,15 +85,28 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
     await this.encryptAndStore(this.getPath(), shape);
   }
 
-  async getTokensAsync(serverId: string): Promise<OAuthTokens | undefined> {
+  async getTokensAsync(serverId: string): Promise<StoredOAuthTokens | undefined> {
     const data = await this.loadAllAsync();
     return data.tokensByKey[serverId];
   }
 
   async saveTokensAsync(serverId: string, tokens: OAuthTokens): Promise<void> {
     const data = await this.loadAllAsync();
-    data.tokensByKey[serverId] = tokens;
+    data.tokensByKey[serverId] = {
+      ...tokens,
+      storedAt: Date.now(),
+    };
     await this.saveAllAsync(data);
+    this.events.emit(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, serverId);
+  }
+
+  public isTokenExpired(tokens: StoredOAuthTokens): boolean {
+    if (!tokens.expires_in || !tokens.storedAt) {
+      return false;
+    }
+
+    const expiresAt = tokens.storedAt + tokens.expires_in * 1000;
+    return Date.now() > expiresAt - EXPIRY_BUFFER_MS;
   }
 
   async clearTokensAsync(serverId: string): Promise<void> {

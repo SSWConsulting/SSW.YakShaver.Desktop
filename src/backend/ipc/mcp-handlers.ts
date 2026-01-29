@@ -24,8 +24,8 @@ export class McpIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.MCP_ADD_SERVER,
       async (_event: IpcMainInvokeEvent, config: MCPServerConfig) => {
-        await this.mcpServerManager.addServerAsync(config);
-        return { success: true };
+        const result = await this.mcpServerManager.addServerAsync(config);
+        return { success: true, data: result };
       },
     );
 

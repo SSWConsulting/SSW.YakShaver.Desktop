@@ -62,6 +62,7 @@ export function McpAzureDevOpsCard({
       onDisconnect={handleOnDisconnect}
       onTools={onTools}
       viewMode={viewMode}
+      hideDelete={true}
     />
   );
 }
