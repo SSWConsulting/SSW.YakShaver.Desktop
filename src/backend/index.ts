@@ -327,10 +327,14 @@ app.whenReady().then(async () => {
   });
 
   _authHandlers = new AuthIPCHandlers();
-  const microsoftAuthService = MicrosoftAuthService.getInstance();
-  _msAuthHandlers = new MicrosoftAuthIPCHandlers(microsoftAuthService);
+  try {
+    const microsoftAuthService = MicrosoftAuthService.getInstance();
+    _msAuthHandlers = new MicrosoftAuthIPCHandlers(microsoftAuthService);
+    registerPortalHandlers(microsoftAuthService);
+  } catch (error) {
+    console.error("Failed to initialize Microsoft Auth:", error);
+  }
   _processVideoHandlers = new ProcessVideoIPCHandlers();
-  registerPortalHandlers(microsoftAuthService);
 
   try {
     _llmSettingsHandlers = new LLMSettingsIPCHandlers();
