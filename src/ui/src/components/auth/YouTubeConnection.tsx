@@ -10,7 +10,7 @@ export interface YouTubeConnectionProps {
 }
 
 export function YouTubeConnection({ buttonSize = "lg", onStatusChange }: YouTubeConnectionProps) {
-  const { authState, startAuth, disconnect, hasConfig } = useYouTubeAuth();
+  const { authState, startAuth, disconnect } = useYouTubeAuth();
   const {
     countdown,
     isActive: isConnecting,
@@ -42,15 +42,6 @@ export function YouTubeConnection({ buttonSize = "lg", onStatusChange }: YouTube
     if (isConnecting) return `Connecting... (${countdown}s)`;
     return "Connect";
   };
-
-  if (!hasConfig) {
-    return (
-      <div className="text-center py-8 px-4 text-white/[0.56]">
-        <p className="mb-2 text-sm">No platforms available</p>
-        <p className="text-xs italic">Configure YouTube API credentials to get started</p>
-      </div>
-    );
-  }
 
   return (
     <PlatformConnectionCard

@@ -11,7 +11,6 @@ import {
 interface YouTubeAuthContextType {
   authState: AuthState;
   isLoading: boolean;
-  hasConfig: boolean;
   uploadStatus: UploadStatus;
   uploadResult: VideoUploadResult | null;
   startAuth: () => Promise<void>;
@@ -29,7 +28,6 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
     status: AuthStatus.NOT_AUTHENTICATED,
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [hasConfig, setHasConfig] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>(UploadStatus.IDLE);
   const [uploadResult, setUploadResult] = useState<VideoUploadResult | null>(null);
 
@@ -53,13 +51,8 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
     await withLoading(async () => {
       if (!window.electronAPI) throw new Error("electronAPI not available");
 
-      const [status, configExists] = await Promise.all([
-        ipcClient.youtube.getAuthStatus(),
-        ipcClient.config.hasYouTube(),
-      ]);
-
+      const status = await ipcClient.youtube.getAuthStatus();
       setAuthState(status);
-      setHasConfig(configExists);
     });
   }, [withLoading]);
 
@@ -141,7 +134,6 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
   const value = {
     authState,
     isLoading,
-    hasConfig,
     uploadStatus,
     uploadResult,
     startAuth,

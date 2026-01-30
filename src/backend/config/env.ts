@@ -1,10 +1,5 @@
 const { env } = process;
 
-const getYouTube = () => {
-  const { YOUTUBE_CLIENT_ID: id, YOUTUBE_CLIENT_SECRET: secret } = env;
-  return id && secret ? { clientId: id, clientSecret: secret } : null;
-};
-
 const getAzure = () => {
   const {
     AZURE_ENTRA_APP_CLIENT_ID: clientId,
@@ -21,9 +16,11 @@ const getAzure = () => {
     : null;
 };
 
-const getPortalApi = () => {
+const getPortalApiUrl = () => {
   const { PORTAL_API_URL: url } = env;
-  return url || "https://localhost:7009/api";
+  const baseUrl = url || "https://localhost:7009/api";
+  // Remove trailing slashes for consistent URL building
+  return baseUrl.replace(/\/+$/, "");
 };
 
 const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;
@@ -31,9 +28,8 @@ const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;
 const getIsDev = () => env.NODE_ENV === "development";
 
 export const config = {
-  youtube: getYouTube,
   azure: getAzure,
-  portalApi: getPortalApi,
+  portalApiUrl: getPortalApiUrl,
   commitHash: getCommitHash,
   isDev: getIsDev,
 };
