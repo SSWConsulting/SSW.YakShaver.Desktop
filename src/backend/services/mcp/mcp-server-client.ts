@@ -2,17 +2,11 @@ import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-s
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatErrorMessage } from "../../utils/error-utils";
-import {
-  authorizeWithPkceOnce,
-  checkDynamicRegistrationSupport,
-  PersistedOAuthClientProvider,
-  waitForAuthorizationCode,
-} from "./mcp-oauth";
+import { authorizeWithBackend, refreshTokenWithBackend } from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
 import type { ToolSet } from "ai";
-import getPort from "get-port";
 import { withTimeout } from "../../utils/async-utils";
 import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 
@@ -52,76 +46,93 @@ export class MCPServerClient {
         return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
       }
 
-      // Check for dynamic client registration support for servers
-      let oauthEndpoint: string | null = null;
-      try {
-        oauthEndpoint = await checkDynamicRegistrationSupport(serverUrl);
-      } catch (detectionError) {
-        console.warn(
-          `[MCPServerClient]: Dynamic registration detection failed for ${mcpConfig.name}: ${formatErrorMessage(detectionError)}`,
-        );
+      const serverId = mcpConfig.id;
+      const tokenStorage = McpOAuthTokenStorage.getInstance();
+
+      // Check if we already have tokens
+      let tokens = await tokenStorage.getTokensAsync(serverId);
+      console.log(
+        `[MCPServerClient] Tokens for ${mcpConfig.name}:`,
+        tokens ? "Present" : "Missing",
+      );
+
+      // Handle refresh token logic if the token is stale
+      if (tokens?.refresh_token && tokenStorage.isTokenExpired(tokens)) {
+        try {
+          console.log(`[MCPServerClient] Token expired for ${mcpConfig.name}, refreshing...`);
+          const newTokens = await refreshTokenWithBackend(serverUrl, tokens.refresh_token);
+          await tokenStorage.saveTokensAsync(serverId, newTokens);
+          tokens = await tokenStorage.getTokensAsync(serverId);
+        } catch (refreshError) {
+          console.error(
+            `[MCPServerClient] Failed to refresh token for ${mcpConfig.name}:`,
+            refreshError,
+          );
+          // If refresh fails, we clear the tokens to trigger re-auth.
+          await tokenStorage.clearTokensAsync(serverId);
+          tokens = undefined;
+        }
       }
 
-      if (oauthEndpoint) {
-        const callbackPort = await getPort({ port: Number(process.env.MCP_CALLBACK_PORT) });
-        const serverId = mcpConfig.id;
-        const authProvider = new PersistedOAuthClientProvider({
-          callbackPort,
-          tokenStorage: McpOAuthTokenStorage.getInstance(),
-          tokenKey: serverId,
-        });
-        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
-        await withTimeout(
-          authorizeWithPkceOnce(authProvider, serverUrl, () =>
-            waitForAuthorizationCode(callbackPort),
-          ),
-          authTimeoutMs,
-          `${mcpConfig.name} OAuth`,
-        );
+      if (tokens) {
+        // Tokens exist - use Bearer header
+        console.log(`[MCPServerClient] Using existing tokens for ${mcpConfig.name}`);
         const client = await experimental_createMCPClient({
           transport: {
             type: "http",
             url: serverUrl,
-            authProvider,
+            headers: {
+              ...mcpConfig.headers,
+              Authorization: `Bearer ${tokens.access_token}`,
+            },
           },
         });
         return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
       }
 
-      if (!oauthEndpoint && mcpConfig.url.includes("https://api.githubcopilot.com/mcp")) {
-        const githubClientId = process.env.MCP_GITHUB_CLIENT_ID;
-        const githubClientSecret = process.env.MCP_GITHUB_CLIENT_SECRET;
-        const callbackPort = Number(process.env.MCP_CALLBACK_PORT ?? 8090);
+      // No tokens - trigger backend OAuth flow
+      try {
+        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
+        console.log(
+          `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl} (Timeout: ${authTimeoutMs}ms)`,
+        );
 
-        if (githubClientId && githubClientSecret) {
-          const serverId = mcpConfig.id;
-          const authProvider = new PersistedOAuthClientProvider({
-            clientId: githubClientId,
-            clientSecret: githubClientSecret,
-            callbackPort,
-            tokenStorage: McpOAuthTokenStorage.getInstance(),
-            tokenKey: serverId,
-          });
-          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
-          await withTimeout(
-            authorizeWithPkceOnce(authProvider, serverUrl, () =>
-              waitForAuthorizationCode(callbackPort),
-            ),
-            authTimeoutMs,
-            `${mcpConfig.name} OAuth`,
-          );
-          const client = await experimental_createMCPClient({
-            transport: {
-              type: "http",
-              url: serverUrl,
-              authProvider,
-            },
-          });
-          return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+        // This call will delegate discovery and DCR to the backend
+        await withTimeout(
+          authorizeWithBackend(tokenStorage, serverUrl, serverId, authTimeoutMs),
+          authTimeoutMs,
+          `${mcpConfig.name} OAuth`,
+        );
+
+        // After OAuth, get tokens and use headers
+        tokens = await tokenStorage.getTokensAsync(serverId);
+        if (!tokens) {
+          throw new Error(`OAuth completed but no tokens found for ${mcpConfig.name}`);
         }
+
+        console.log(
+          `[MCPServerClient] Creating MCP client for ${mcpConfig.name} with Bearer token`,
+        );
+        const client = await experimental_createMCPClient({
+          transport: {
+            type: "http",
+            url: serverUrl,
+            headers: {
+              ...mcpConfig.headers,
+              Authorization: `Bearer ${tokens.access_token}`,
+            },
+          },
+        });
+        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+      } catch (authError) {
+        console.error(
+          `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`,
+          authError,
+        );
+        console.log(`[MCPServerClient]: Falling back to headers for ${mcpConfig.name}`);
       }
 
-      // Fallback: Use headers if no OAuth is configured
+      // Fallback: Use headers if OAuth is not supported or failed
       const client = await experimental_createMCPClient({
         transport: {
           type: "http",

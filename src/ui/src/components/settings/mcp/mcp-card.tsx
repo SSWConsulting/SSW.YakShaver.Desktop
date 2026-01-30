@@ -13,6 +13,7 @@ interface McpCardProps {
   onDisconnect?: () => void;
   onConnect?: () => void;
   onDelete?: () => void;
+  hideDelete?: boolean;
   onUpdate?: (data: MCPServerConfig) => Promise<void>;
   onTools?: () => void;
   viewMode: "compact" | "detailed";
@@ -24,6 +25,7 @@ export function McpCard({
   onConnect,
   onDisconnect,
   onDelete,
+  hideDelete,
   onUpdate,
   isReadOnly,
   onTools,
@@ -116,6 +118,7 @@ export function McpCard({
                     setShowSettings(false);
                   })
                 }
+                hideDeleteServerButton={hideDelete}
                 isLoading={false}
               />
             </div>

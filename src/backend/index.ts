@@ -213,8 +213,7 @@ const createWindow = (): void => {
 };
 
 const getProtocolUrlFromArgs = (args: string[]): string | null => {
-  if (!azure?.customProtocol) return null;
-  return args.find((arg) => arg.startsWith(`${azure.customProtocol}://`)) ?? null;
+  return args.find((arg) => arg.startsWith(`${customProtocol}://`)) ?? null;
 };
 
 // Handle protocol URL in the main process
@@ -255,20 +254,21 @@ let unregisterEventForwarders: (() => void) | undefined;
 
 // Register protocol handler
 const azure = config.azure();
-if (azure?.customProtocol) {
-  try {
-    const args = isDev ? [app.getAppPath(), "--dev-protocol"] : undefined;
-    const path = isDev ? process.execPath : undefined;
-    const isDefault = app.isDefaultProtocolClient(azure.customProtocol, path, args);
+const customProtocol =
+  azure?.customProtocol || (isDev ? "yakshaver-desktop-dev" : "yakshaver-desktop");
 
-    if (!isDefault) {
-      // In dev mode, need to provide the electron executable and app path
-      // In production, the app itself is the executable
-      app.setAsDefaultProtocolClient(azure.customProtocol, path, args);
-    }
-  } catch (err) {
-    console.error("Failed to set default protocol client:", err);
+try {
+  const args = isDev ? [app.getAppPath(), "--dev-protocol"] : undefined;
+  const path = isDev ? process.execPath : undefined;
+  const isDefault = app.isDefaultProtocolClient(customProtocol, path, args);
+
+  if (!isDefault) {
+    // In dev mode, need to provide the electron executable and app path
+    // In production, the app itself is the executable
+    app.setAsDefaultProtocolClient(customProtocol, path, args);
   }
+} catch (err) {
+  console.error("Failed to set default protocol client:", err);
 }
 
 // Single instance lock - prevents multiple instances of the app
@@ -288,13 +288,13 @@ if (!gotTheLock) {
       mainWindow.focus();
 
       // Check for protocol URL in command line (Windows)
-      const url = commandLine.find((arg) => arg.startsWith(`${azure?.customProtocol}://`));
+      const url = commandLine.find((arg) => arg.startsWith(`${customProtocol}://`));
       if (url) {
         handleProtocolUrlSafely(mainWindow, url);
       }
     } else {
       // Store for later if window not ready yet
-      const url = commandLine.find((arg) => arg.startsWith(`${azure?.customProtocol}://`));
+      const url = commandLine.find((arg) => arg.startsWith(`${customProtocol}://`));
       if (url) {
         pendingProtocolUrl = url;
       }
