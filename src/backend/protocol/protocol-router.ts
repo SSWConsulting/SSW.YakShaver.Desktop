@@ -1,8 +1,10 @@
 import type { OAuthTokens } from "@ai-sdk/mcp";
 import type { BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../ipc/channels";
+import type { TokenData } from "../services/auth/types";
 import { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import { McpOAuthTokenStorage } from "../services/storage/mcp-oauth-token-storage";
+import { YoutubeStorage } from "../services/storage/youtube-storage";
 
 export type ProtocolRouteHandler = (
   url: URL,
@@ -23,13 +25,14 @@ const normalizeProtocolPath = (url: URL) => {
 };
 
 const routeHandlers: Record<string, ProtocolRouteHandler> = {
+  // MCP OAuth callback handler
   "/oauth/callback": async (url, window) => {
     const params = new URLSearchParams(url.search);
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
     const serverId = params.get("serverId");
 
-    console.log("[ProtocolRouter] Handling OAuth callback", {
+    console.log("[ProtocolRouter] Handling MCP OAuth callback", {
       serverId,
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
@@ -41,7 +44,7 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
         !refreshToken ? "refresh_token" : null,
         !serverId ? "serverId" : null,
       ].filter(Boolean);
-      console.warn("[ProtocolRouter] OAuth callback missing required parameters", {
+      console.warn("[ProtocolRouter] MCP OAuth callback missing required parameters", {
         missing,
         url: url.toString(),
       });
@@ -56,7 +59,7 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
 
     const serverConfig = await MCPServerManager.getServerConfigByIdAsync(serverId);
     if (!serverConfig) {
-      console.warn("OAuth callback server id not found", {
+      console.warn("MCP OAuth callback server id not found", {
         url: url.toString(),
         serverId,
       });
@@ -78,6 +81,51 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     };
 
     await McpOAuthTokenStorage.getInstance().saveTokensAsync(serverId, tokens);
+  },
+
+  // YouTube OAuth callback handler
+  "/youtube/oauth/callback": async (url, window) => {
+    const params = new URLSearchParams(url.search);
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    const expiresIn = params.get("expires_in");
+    const scope = params.get("scope");
+
+    console.log("[ProtocolRouter] Handling YouTube OAuth callback", {
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+    });
+
+    if (!accessToken || !refreshToken) {
+      const missing = [
+        !accessToken ? "access_token" : null,
+        !refreshToken ? "refresh_token" : null,
+      ].filter(Boolean);
+      console.warn("[ProtocolRouter] YouTube OAuth callback missing required parameters", {
+        missing,
+        url: url.toString(),
+      });
+      if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
+        window.webContents.send(
+          IPC_CHANNELS.PROTOCOL_ERROR,
+          `YouTube OAuth callback missing required parameters: ${missing.join(", ")}`,
+        );
+      }
+      return;
+    }
+
+    // Convert to TokenData format used by YouTube storage
+    const expiresInSeconds = expiresIn ? Number(expiresIn) : 3600;
+    const tokenData: TokenData = {
+      accessToken,
+      refreshToken,
+      expiresAt: Date.now() + expiresInSeconds * 1000,
+      scope: scope?.split(" ") ?? [],
+    };
+
+    console.log("[ProtocolRouter] Storing YouTube tokens...");
+    await YoutubeStorage.getInstance().storeYouTubeTokens(tokenData);
+    console.log("[ProtocolRouter] YouTube tokens stored successfully");
   },
 };
 

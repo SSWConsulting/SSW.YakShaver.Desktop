@@ -7,7 +7,7 @@ import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
  * Gets the authorization URL from the .NET backend for an MCP server.
  */
 export async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
-  const portalApiUrl = getPortalApiUrl();
+  const portalApiUrl = config.portalApiUrl();
   const protocol =
     config.azure()?.customProtocol ||
     (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
@@ -112,7 +112,7 @@ export async function refreshTokenWithBackend(
   serverUrl: string,
   refreshToken: string,
 ): Promise<OAuthTokens> {
-  const portalApiUrl = getPortalApiUrl();
+  const portalApiUrl = config.portalApiUrl();
   const endpoint = "/mcp/auth/refresh";
   const url = `${portalApiUrl}${endpoint}`;
 
@@ -142,8 +142,4 @@ export async function refreshTokenWithBackend(
   }
 
   return await response.json();
-}
-
-function getPortalApiUrl(): string {
-  return config.portalApi().replace(/\/+$/, "");
 }

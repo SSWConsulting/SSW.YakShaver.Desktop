@@ -15,7 +15,7 @@ async function makePortalRequest(
   options: { body?: string | Buffer; headers?: Record<string, string> },
   accessToken: string,
 ): Promise<string> {
-  const apiUrl = config.portalApi();
+  const apiUrl = config.portalApiUrl();
   if (!apiUrl) {
     throw new Error("Portal API url is not configured.");
   }
@@ -130,7 +130,7 @@ export async function UploadScreenshotToPortal(
   const result = await ms.getToken();
 
   // Parse the portal API URL
-  const apiUrl = config.portalApi();
+  const apiUrl = config.portalApiUrl();
   if (!apiUrl) {
     return { success: false, error: "Portal API url is not configured." };
   }
