@@ -50,10 +50,14 @@ const DEFAULT_PROMPT: CustomPrompt = {
   - Determine labels, assignees, or issue type if required
 - ALWAYS remove the entire frontmatter block from the rendered issue body.
 
+4.5) Handle template placeholders (CRITICAL):
+- When encountering {{ placeholder }} patterns in templates, use the "fill_template" MCP tool to process them
+- Provide the template content and relevant transcript context to the fill_template tool
+- Let the fill_template tool generate appropriate values for all placeholders
+- Use the filled template returned by the tool for issue creation
+
 5) Issue title rules (STRICT):
 - Title MUST follow the template frontmatter's title pattern exactly INCLUDING EMOJI.
-- Replace any {{ ... }} placeholders in the title pattern (e.g., "{{ BUG DESCRIPTION }}", "{{ FEATURE NAME }}", "{{ FEATURE DESCRIPTION }}") by substituting the entire token with an appropriate short summary derived from the transcript or user request.
-- If there is no substitute provided for a placeholder, replace it with an empty string (i.e., remove the placeholder entirely).
 - Do not omit any fixed words like "🐛 Bug -" and do not use a different emoji.
 
 6) Format the issue body to match the template (STRICT):
@@ -61,7 +65,6 @@ const DEFAULT_PROMPT: CustomPrompt = {
 - Make sure that all sections starting with "###" in the template such as "### Tasks" are present in the final issue body.
 - Do NOT invent new sections or change heading text.
 - Remove template-only HTML comments like "<!-- ... -->" from the final issue body.
-- Replace placeholders (e.g., "Hi {{ USER }}") with appropriate values when known; if unknown, keep the greeting minimal but keep the structure.
 - Each checklist item MUST represent exactly ONE atomic task meaning that the item describes a single action to be taken.
 - A task MUST NOT combine multiple actions (no "and", ";", "/", or comma-separated actions).
 - If multiple tasks are implied, they MUST be split into multiple - [ ] task items.
