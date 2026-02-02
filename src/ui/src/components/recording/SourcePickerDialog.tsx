@@ -64,6 +64,29 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
   const fetchDevices = useCallback(async () => {
     try {
+      // Request permissions explicitly before enumerating devices
+      // This ensures the OS permission prompt is triggered if not already granted
+      // and that device labels are populated correctly
+      let permissionStream: MediaStream | null = null;
+      try {
+        permissionStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+      } catch (permissionError) {
+        // If permission is denied, show a helpful error message
+        const errorMessage = permissionError instanceof Error ? permissionError.message : String(permissionError);
+        if (errorMessage.includes("Permission denied") || errorMessage.includes("NotAllowedError")) {
+          toast.error("Camera and microphone permissions are required. Please grant permissions in your system settings.");
+        }
+        // Continue with enumeration even if permission is denied - some devices may still be listed
+      } finally {
+        // Stop the permission stream immediately - we only needed it to trigger permissions
+        if (permissionStream) {
+          permissionStream.getTracks().forEach((track) => track.stop());
+        }
+      }
+
       const devices = await navigator.mediaDevices.enumerateDevices();
       const cams = devices.filter((d) => d.kind === "videoinput");
       const mics = devices.filter((d) => d.kind === "audioinput");
