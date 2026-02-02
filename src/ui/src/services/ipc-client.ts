@@ -28,7 +28,6 @@ import type {
   UserInfo,
   VersionInfo,
   VideoUploadResult,
-  YouTubeConfig,
 } from "../types";
 
 declare global {
@@ -61,10 +60,6 @@ declare global {
         getConfig: () => Promise<LLMConfigV2 | null>;
         clearConfig: () => Promise<{ success: boolean }>;
         checkHealth: () => Promise<HealthStatusInfo>;
-      };
-      config: {
-        hasYouTube: () => Promise<boolean>;
-        getYouTube: () => Promise<YouTubeConfig | null>;
       };
       auth: {
         microsoft: {

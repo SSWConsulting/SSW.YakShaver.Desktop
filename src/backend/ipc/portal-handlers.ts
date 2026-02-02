@@ -12,7 +12,7 @@ export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthServic
       const result = await microsoftAuthService.getToken();
 
       // Parse the portal API URL
-      const apiUrl = config.portalApi();
+      const apiUrl = config.portalApiUrl();
       const url = new URL(apiUrl);
       const hostname = url.hostname;
       const port = url.port ? parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;

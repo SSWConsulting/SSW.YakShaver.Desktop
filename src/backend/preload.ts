@@ -24,9 +24,6 @@ const IPC_CHANNELS = {
   YOUTUBE_REFRESH_TOKEN: "youtube:refresh-token",
   YOUTUBE_UPLOAD_VIDEO: "youtube:upload-video",
 
-  CONFIG_HAS_YOUTUBE: "config:has-youtube",
-  CONFIG_GET_YOUTUBE: "config:get-youtube",
-
   // Microsoft auth
   MS_AUTH_LOGIN: "msauth:login",
   MS_AUTH_LOGOUT: "msauth:logout",
@@ -156,10 +153,6 @@ const electronAPI = {
     uploadVideo: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_UPLOAD_VIDEO),
     uploadRecordedVideo: (filePath?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.UPLOAD_RECORDED_VIDEO, filePath),
-  },
-  config: {
-    hasYouTube: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIG_HAS_YOUTUBE),
-    getYouTube: () => ipcRenderer.invoke(IPC_CHANNELS.CONFIG_GET_YOUTUBE),
   },
   auth: {
     microsoft: {

@@ -7,9 +7,6 @@ export const IPC_CHANNELS = {
   YOUTUBE_REFRESH_TOKEN: "youtube:refresh-token",
   YOUTUBE_UPLOAD_VIDEO: "youtube:upload-video",
 
-  CONFIG_HAS_YOUTUBE: "config:has-youtube",
-  CONFIG_GET_YOUTUBE: "config:get-youtube",
-
   // Microsoft auth
   MS_AUTH_LOGIN: "msauth:login",
   MS_AUTH_LOGOUT: "msauth:logout",

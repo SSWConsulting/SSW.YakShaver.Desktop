@@ -6,7 +6,7 @@ import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workf
 import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
-import { YouTubeAuthService } from "../services/auth/youtube-auth";
+import { YouTubeClient } from "../services/auth/youtube-client";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
 import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
@@ -40,7 +40,7 @@ export const TranscriptSummarySchema = z.object({
 });
 
 export class ProcessVideoIPCHandlers {
-  private readonly youtube = YouTubeAuthService.getInstance();
+  private readonly youtube = YouTubeClient.getInstance();
   private ffmpegService = FFmpegService.getInstance();
   private readonly customPromptStorage = CustomPromptStorage.getInstance();
   private readonly metadataBuilder: VideoMetadataBuilder;
