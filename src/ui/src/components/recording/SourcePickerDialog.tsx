@@ -75,11 +75,13 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
         });
       } catch (permissionError) {
         // If permission is denied, show a helpful error message
-        const errorMessage = permissionError instanceof Error ? permissionError.message : String(permissionError);
-        if (errorMessage.includes("Permission denied") || errorMessage.includes("NotAllowedError")) {
+        const isPermissionDenied =
+          (permissionError instanceof DOMException && permissionError.name === "NotAllowedError") ||
+          (permissionError instanceof Error && permissionError.message.includes("Permission denied"));
+        if (isPermissionDenied) {
           toast.error("Camera and microphone permissions are required. Please grant permissions in your system settings.");
         }
-        // Continue with enumeration even if permission is denied - some devices may still be listed
+        // Continue with enumeration even if permission is denied, though device labels may be generic/empty without permissions
       } finally {
         // Stop the permission stream immediately - we only needed it to trigger permissions
         if (permissionStream) {
