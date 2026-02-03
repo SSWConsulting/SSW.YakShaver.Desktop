@@ -49,8 +49,10 @@ module.exports = {
   },
   mac: {
     icon: "src/ui/public/icons/icon.icns",
-    target: ["default"],
-    arch: ["arm64", "x64"],
+   target: {
+      target: "default",
+      arch: ["x64", "arm64"]
+  },
     hardenedRuntime: true,
     gatekeeperAssess: false,
     entitlements: "assets/entitlements.mac.plist",
