@@ -292,7 +292,6 @@ jobs:
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
           # Disable minification for PR preview builds
           VITE_DEBUG_BUILD: "true"
-          CSC_FOR_PULL_REQUEST: "true"
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v6
