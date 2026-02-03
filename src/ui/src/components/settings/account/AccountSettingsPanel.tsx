@@ -63,7 +63,9 @@ export function AccountSettingsPanel({ isActive }: AccountSettingsPanelProps) {
       const servers = await ipcClient.mcp.listServers();
       for (const server of servers) {
         if (!server.builtin) {
-          await ipcClient.mcp.removeServerAsync(server.name);
+          if (server.id) {
+            await ipcClient.mcp.removeServerAsync(server.id);
+          }
         }
       }
 
