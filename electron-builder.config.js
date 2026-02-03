@@ -49,21 +49,20 @@ module.exports = {
   },
   mac: {
     icon: "src/ui/public/icons/icon.icns",
-    target: [
-      {
-        target: "dmg",
+    // "notarize": false,
+    target: {
+        target: "default",
         arch: ["x64", "arm64"],
-      },
-      {
-        target: "zip",
-        arch: ["x64", "arm64"],
-      },
-    ],
+    },
     hardenedRuntime: true,
     gatekeeperAssess: false,
     entitlements: "assets/entitlements.mac.plist",
     entitlementsInherit: "assets/entitlements.mac.plist",
+    notarize: {
+      teamId: process.env.TEAM_ID,
+    },
   },
+  // afterSign: "./scripts/notarize.js",
   linux: {
     icon: "src/ui/public/icons/icon.png",
     target: ["deb"],
