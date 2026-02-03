@@ -7,6 +7,7 @@ const VIDEO_MIME_TYPE = "video/mp4";
 interface RecordingStreams {
   video?: MediaStream;
   audio?: MediaStream;
+  systemAudio?: MediaStream;
 }
 interface ElectronVideoConstraints extends MediaTrackConstraints {
   mandatory?: {
@@ -33,6 +34,9 @@ export function useScreenRecording() {
       track.stop();
     });
     streamsRef.current.audio?.getTracks().forEach((track) => {
+      track.stop();
+    });
+    streamsRef.current.systemAudio?.getTracks().forEach((track) => {
       track.stop();
     });
 
@@ -63,11 +67,17 @@ export function useScreenRecording() {
     audioSourceRef.current = audioSource;
   }, []);
 
-  const setupRecorder = useCallback((videoStream: MediaStream, audioStream: MediaStream) => {
-    streamsRef.current = { video: videoStream, audio: audioStream };
+  const setupRecorder = useCallback((videoStream: MediaStream, audioStream: MediaStream, systemAudioStream?: MediaStream) => {
+    streamsRef.current = { video: videoStream, audio: audioStream, systemAudio: systemAudioStream };
+
+    // Combine all audio tracks: microphone + system audio (if available)
+    const audioTracks = [...audioStream.getAudioTracks()];
+    if (systemAudioStream) {
+      audioTracks.push(...systemAudioStream.getAudioTracks());
+    }
 
     const recorder = new MediaRecorder(
-      new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]),
+      new MediaStream([...videoStream.getVideoTracks(), ...audioTracks]),
       { mimeType: VIDEO_MIME_TYPE },
     );
 
@@ -132,9 +142,33 @@ export function useScreenRecording() {
           setIsRecording(true);
           toast.success("Recording started");
         } else {
-          // Screen recording mode (original behavior)
+          // Screen recording mode with system audio capture
           const result = await window.electronAPI.screenRecording.start(sourceId);
           if (!result.success) throw new Error("Failed to start recording");
+
+          // Request system audio via getDisplayMedia
+          // This will prompt the user to share system audio and capture audio from remote participants
+          let systemAudioStream: MediaStream | undefined;
+          try {
+            // Use getDisplayMedia to request system audio loopback
+            const displayStream = await navigator.mediaDevices.getDisplayMedia({
+              video: false,
+              audio: true, // Request system audio
+            });
+            
+            // Extract only audio tracks from the display stream
+            if (displayStream.getAudioTracks().length > 0) {
+              systemAudioStream = displayStream;
+              toast.success("System audio enabled - remote participants will be recorded");
+            } else {
+              // If no audio tracks, clean up the stream
+              displayStream.getTracks().forEach(track => track.stop());
+            }
+          } catch (displayError) {
+            // User may have denied system audio permission or it's not available
+            console.warn("System audio not available:", displayError);
+            toast.info("Recording without system audio - only microphone will be captured");
+          }
 
           const [videoStream, audioStream] = await Promise.all([
             navigator.mediaDevices.getUserMedia({
@@ -157,7 +191,7 @@ export function useScreenRecording() {
           ]);
 
           setupAudioContext(audioStream);
-          const recorder = setupRecorder(videoStream, audioStream);
+          const recorder = setupRecorder(videoStream, audioStream, systemAudioStream);
           await startRecorder(recorder, options?.cameraDeviceId);
 
           setIsRecording(true);

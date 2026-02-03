@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
+import { app, BrowserWindow, desktopCapturer, dialog, Menu, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { config } from "./config/env";
@@ -346,6 +346,28 @@ app.whenReady().then(async () => {
     callback(
       ["media", "clipboard-read", "clipboard-sanitized-write", "fullscreen"].includes(permission),
     );
+  });
+
+  // Setup display media handler to enable system audio capture
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    desktopCapturer.getSources({ types: ['screen', 'window'] }).then((sources) => {
+      // If a specific source was requested, use it; otherwise use the first screen source
+      const requestedSource = sources.find(source => 
+        request.frame.url.includes(source.id) || 
+        (request.video && source.display_id)
+      );
+      const source = requestedSource || sources.find(s => s.display_id) || sources[0];
+      
+      // Enable system audio loopback capture
+      // This allows capturing system audio (including audio from remote participants in Teams, etc.)
+      callback({ 
+        video: source,
+        audio: 'loopback'  // Request system audio loopback
+      });
+    }).catch((error) => {
+      console.error('Failed to get desktop sources for display media:', error);
+      callback({});
+    });
   });
 
   _authHandlers = new AuthIPCHandlers();
