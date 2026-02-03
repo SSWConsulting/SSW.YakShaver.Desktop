@@ -58,9 +58,6 @@ module.exports = {
     gatekeeperAssess: false,
     entitlements: "assets/entitlements.mac.plist",
     entitlementsInherit: "assets/entitlements.mac.plist",
-    notarize: {
-      teamId: process.env.TEAM_ID,
-    },
   },
   // afterSign: "./scripts/notarize.js",
   linux: {
