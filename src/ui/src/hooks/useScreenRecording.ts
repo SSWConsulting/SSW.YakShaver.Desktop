@@ -151,17 +151,16 @@ export function useScreenRecording() {
           let systemAudioStream: MediaStream | undefined;
           try {
             // Use getDisplayMedia to request system audio loopback
+            // The backend's setDisplayMediaRequestHandler will provide the loopback audio
             // Note: We request both video and audio because getDisplayMedia requires at least one
-            // We'll immediately stop and remove video tracks since we only need audio
             const displayStream = await navigator.mediaDevices.getDisplayMedia({
               video: true, // Required by getDisplayMedia API
-              audio: true, // Request system audio
+              audio: true, // Request system audio (loopback will be provided by backend handler)
             });
             
-            // Stop and remove video tracks immediately since we only want audio
+            // Stop video tracks immediately since we only want audio
             displayStream.getVideoTracks().forEach(track => {
               track.stop();
-              displayStream.removeTrack(track);
             });
             
             // Check if we got audio tracks

@@ -357,7 +357,8 @@ app.whenReady().then(async () => {
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
     desktopCapturer.getSources({ types: ['screen', 'window'] }).then((sources) => {
       // Select the first screen source (prefer screens over windows for system audio)
-      const source = sources.find(s => s.display_id) || sources[0];
+      // Use id.startsWith('screen:') to reliably identify screen sources
+      const source = sources.find(s => s.id.startsWith('screen:')) || sources[0];
       
       if (!source) {
         console.error('No desktop sources available for display media');
