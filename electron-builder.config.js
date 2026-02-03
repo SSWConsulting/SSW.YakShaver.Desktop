@@ -49,7 +49,12 @@ module.exports = {
   },
   mac: {
     icon: "src/ui/public/icons/icon.icns",
-    target: ["zip"],
+    target: ["default"],
+    arch:["arm64", "x64"],
+    hardenedRuntime: true,
+    gatekeeperAssess: false,
+    entitlements: "assets/entitlements.mac.plist",
+    entitlementsInherit: "assets/entitlements.mac.plist",
   },
   linux: {
     icon: "src/ui/public/icons/icon.png",
