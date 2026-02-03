@@ -49,7 +49,6 @@ module.exports = {
   },
   mac: {
     icon: "src/ui/public/icons/icon.icns",
-    // "notarize": false,
     target: {
         target: "default",
         arch: ["x64", "arm64"],
@@ -59,7 +58,6 @@ module.exports = {
     entitlements: "assets/entitlements.mac.plist",
     entitlementsInherit: "assets/entitlements.mac.plist",
   },
-  // afterSign: "./scripts/notarize.js",
   linux: {
     icon: "src/ui/public/icons/icon.png",
     target: ["deb"],
