@@ -166,11 +166,13 @@ export function useScreenRecording() {
             
             // Check if we got audio tracks
             if (displayStream.getAudioTracks().length > 0) {
+              // Store the stream with audio tracks for recording
               systemAudioStream = displayStream;
               toast.success("System audio capture enabled");
             } else {
-              // If no audio tracks, clean up the stream
+              // If no audio tracks, stop any remaining tracks to prevent resource leak
               displayStream.getTracks().forEach(track => track.stop());
+              console.warn("Display stream has no audio tracks");
             }
           } catch (displayError) {
             // User may have denied system audio permission or it's not available

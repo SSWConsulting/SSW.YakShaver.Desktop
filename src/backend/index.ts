@@ -349,6 +349,11 @@ app.whenReady().then(async () => {
   });
 
   // Setup display media handler to enable system audio capture
+  // Platform requirements:
+  // - Windows 10+ with audio loopback support
+  // - macOS 12.3+ with screen recording permission granted
+  // - Linux with PulseAudio/PipeWire
+  // Note: If loopback is not supported, the callback will succeed but no audio will be captured
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
     desktopCapturer.getSources({ types: ['screen', 'window'] }).then((sources) => {
       // Select the first screen source (prefer screens over windows for system audio)
