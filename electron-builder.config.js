@@ -64,9 +64,6 @@ module.exports = {
     entitlements: "assets/entitlements.mac.plist",
     entitlementsInherit: "assets/entitlements.mac.plist",
   },
-  dmg: {
-    sign: false, // Only sign the app bundle, not the DMG itself (saves time/complexity if notarization is skipped)
-  },
   linux: {
     icon: "src/ui/public/icons/icon.png",
     target: ["deb"],
