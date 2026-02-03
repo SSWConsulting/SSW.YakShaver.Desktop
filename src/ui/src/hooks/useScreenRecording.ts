@@ -151,15 +151,23 @@ export function useScreenRecording() {
           let systemAudioStream: MediaStream | undefined;
           try {
             // Use getDisplayMedia to request system audio loopback
+            // Note: We request both video and audio because getDisplayMedia requires at least one
+            // We'll immediately stop and remove video tracks since we only need audio
             const displayStream = await navigator.mediaDevices.getDisplayMedia({
-              video: false,
+              video: true, // Required by getDisplayMedia API
               audio: true, // Request system audio
             });
             
-            // Extract only audio tracks from the display stream
+            // Stop and remove video tracks immediately since we only want audio
+            displayStream.getVideoTracks().forEach(track => {
+              track.stop();
+              displayStream.removeTrack(track);
+            });
+            
+            // Check if we got audio tracks
             if (displayStream.getAudioTracks().length > 0) {
               systemAudioStream = displayStream;
-              toast.success("System audio enabled - remote participants will be recorded");
+              toast.success("System audio capture enabled");
             } else {
               // If no audio tracks, clean up the stream
               displayStream.getTracks().forEach(track => track.stop());

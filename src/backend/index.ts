@@ -351,15 +351,19 @@ app.whenReady().then(async () => {
   // Setup display media handler to enable system audio capture
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
     desktopCapturer.getSources({ types: ['screen', 'window'] }).then((sources) => {
-      // If a specific source was requested, use it; otherwise use the first screen source
-      const requestedSource = sources.find(source => 
-        request.frame.url.includes(source.id) || 
-        (request.video && source.display_id)
-      );
-      const source = requestedSource || sources.find(s => s.display_id) || sources[0];
+      // Select the first screen source (prefer screens over windows for system audio)
+      const source = sources.find(s => s.display_id) || sources[0];
+      
+      if (!source) {
+        console.error('No desktop sources available for display media');
+        callback({});
+        return;
+      }
       
       // Enable system audio loopback capture
       // This allows capturing system audio (including audio from remote participants in Teams, etc.)
+      // Note: We always provide both video and audio because getDisplayMedia requires at least one
+      // The frontend will handle stopping video tracks if only audio is needed
       callback({ 
         video: source,
         audio: 'loopback'  // Request system audio loopback
