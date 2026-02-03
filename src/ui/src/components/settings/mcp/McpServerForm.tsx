@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { MCPServerConfig, Transport } from "@shared/types/mcp";
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../../ui/accordion";
@@ -16,41 +17,7 @@ import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
 
-export type Transport = "streamableHttp" | "stdio" | "inMemory";
-
-type MCPBaseConfig = {
-  id: string | null;
-  name: string;
-  description?: string;
-  transport: Transport;
-  builtin?: boolean;
-  toolWhitelist?: string[];
-  enabled?: boolean;
-};
-
-type MCPHttpServerConfig = MCPBaseConfig & {
-  transport: "streamableHttp";
-  url: string;
-  headers?: Record<string, string>;
-  version?: string;
-  timeoutMs?: number;
-};
-
-type MCPStdioServerConfig = MCPBaseConfig & {
-  transport: "stdio";
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-  cwd?: string;
-  stderr?: "inherit" | "ignore" | "pipe";
-};
-
-type MCPInternalServerConfig = MCPBaseConfig & {
-  transport: "inMemory";
-  builtin: true;
-};
-
-export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig | MCPInternalServerConfig;
+export type { MCPServerConfig, Transport };
 
 export const mcpServerSchema = z
   .object({
@@ -468,7 +435,7 @@ export function McpServerFormWrapper({
       }
 
       const config: MCPServerConfig = {
-        id: initialData?.id ?? null,
+        id: initialData?.id ?? "",
         name: data.name.trim(),
         transport: "streamableHttp",
         url: data.url?.trim() ?? "",
@@ -477,7 +444,6 @@ export function McpServerFormWrapper({
         version: data.version?.trim() || undefined,
         timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
       };
-
       await onSubmit(config);
       return;
     }
@@ -546,7 +512,7 @@ export function McpServerFormWrapper({
     const command = sanitizeSegment(data.command ?? "");
 
     const config: MCPServerConfig = {
-      id: initialData?.id ?? null,
+      id: initialData?.id ?? "",
       name: data.name.trim(),
       transport: "stdio",
       command,
