@@ -62,10 +62,8 @@ export function AccountSettingsPanel({ isActive }: AccountSettingsPanelProps) {
       // Clear MCP servers (get all servers and remove them one by one)
       const servers = await ipcClient.mcp.listServers();
       for (const server of servers) {
-        if (!server.builtin) {
-          if (server.id) {
-            await ipcClient.mcp.removeServerAsync(server.id);
-          }
+        if (!server.builtin && server.id) {
+          await ipcClient.mcp.removeServerAsync(server.id);
         }
       }
 
