@@ -326,25 +326,25 @@ app.setAboutPanelOptions({
 // Enable Chromium feature flags for system audio loopback
 // These flags enable native system audio capture across different platforms
 const enableSystemAudioFeatureFlags = () => {
-  const featureSwitchKey = 'enable-features';
-  
+  const featureSwitchKey = "enable-features";
+
   // Get any existing enabled features from command line
   const existingFeatures = app.commandLine.getSwitchValue(featureSwitchKey);
-  const existingFeaturesArray = existingFeatures ? existingFeatures.split(',') : [];
-  
+  const existingFeaturesArray = existingFeatures ? existingFeatures.split(",") : [];
+
   // Required feature flags for system audio loopback
   const audioFeatureFlags = [
-    'PulseaudioLoopbackForScreenShare',     // Linux (PulseAudio)
-    'MacLoopbackAudioForScreenShare',       // macOS base support
-    'MacSckSystemAudioLoopbackOverride',    // macOS ScreenCaptureKit (modern)
+    "PulseaudioLoopbackForScreenShare", // Linux (PulseAudio)
+    "MacLoopbackAudioForScreenShare", // macOS base support
+    "MacSckSystemAudioLoopbackOverride", // macOS ScreenCaptureKit (modern)
   ];
-  
+
   // Combine existing features with audio features, removing duplicates
   const allFeatures = [...new Set([...existingFeaturesArray, ...audioFeatureFlags])];
-  
+
   // appendSwitch will add to existing, so remove first to replace with combined list
   app.commandLine.removeSwitch(featureSwitchKey);
-  app.commandLine.appendSwitch(featureSwitchKey, allFeatures.join(','));
+  app.commandLine.appendSwitch(featureSwitchKey, allFeatures.join(","));
 };
 
 enableSystemAudioFeatureFlags();
@@ -381,29 +381,32 @@ app.whenReady().then(async () => {
   // - Linux with PulseAudio/PipeWire
   // Note: If loopback is not supported, the callback will succeed but no audio will be captured
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-    desktopCapturer.getSources({ types: ['screen', 'window'] }).then((sources) => {
-      // Select the first screen source (prefer screens over windows for system audio)
-      // Use id.startsWith('screen:') to reliably identify screen sources
-      const source = sources.find(s => s.id.startsWith('screen:')) || sources[0];
-      
-      if (!source) {
-        console.error('No desktop sources available for display media');
+    desktopCapturer
+      .getSources({ types: ["screen", "window"] })
+      .then((sources) => {
+        // Select the first screen source (prefer screens over windows for system audio)
+        // Use id.startsWith('screen:') to reliably identify screen sources
+        const source = sources.find((s) => s.id.startsWith("screen:")) || sources[0];
+
+        if (!source) {
+          console.error("No desktop sources available for display media");
+          callback({});
+          return;
+        }
+
+        // Enable system audio loopback capture
+        // This allows capturing system audio (including audio from remote participants in Teams, etc.)
+        // Note: We always provide both video and audio because getDisplayMedia requires at least one
+        // The frontend will handle stopping video tracks if only audio is needed
+        callback({
+          video: source,
+          audio: "loopback", // Request system audio loopback
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to get desktop sources for display media:", error);
         callback({});
-        return;
-      }
-      
-      // Enable system audio loopback capture
-      // This allows capturing system audio (including audio from remote participants in Teams, etc.)
-      // Note: We always provide both video and audio because getDisplayMedia requires at least one
-      // The frontend will handle stopping video tracks if only audio is needed
-      callback({ 
-        video: source,
-        audio: 'loopback'  // Request system audio loopback
       });
-    }).catch((error) => {
-      console.error('Failed to get desktop sources for display media:', error);
-      callback({});
-    });
   });
 
   _authHandlers = new AuthIPCHandlers();

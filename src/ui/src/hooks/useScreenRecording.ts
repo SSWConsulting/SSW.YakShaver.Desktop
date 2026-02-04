@@ -73,79 +73,86 @@ export function useScreenRecording() {
     streamsRef.current = {};
   }, []);
 
-  const setupRecorder = useCallback((videoStream: MediaStream, audioStream: MediaStream, systemAudioStream?: MediaStream) => {
-    streamsRef.current = { video: videoStream, audio: audioStream, systemAudio: systemAudioStream };
+  const setupRecorder = useCallback(
+    (videoStream: MediaStream, audioStream: MediaStream, systemAudioStream?: MediaStream) => {
+      streamsRef.current = {
+        video: videoStream,
+        audio: audioStream,
+        systemAudio: systemAudioStream,
+      };
 
-    // Close existing audio context if present to prevent resource leaks
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch((err) => {
-        console.warn('Failed to close audio context:', err);
-      });
-    }
+      // Close existing audio context if present to prevent resource leaks
+      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+        audioContextRef.current.close().catch((err) => {
+          console.warn("Failed to close audio context:", err);
+        });
+      }
 
-    // Create a new AudioContext for mixing audio sources
-    const audioContext = new AudioContext();
-    
-    // Create source nodes for each audio stream
-    const micSource = audioContext.createMediaStreamSource(audioStream);
-    
-    // Create gain nodes for volume control
-    // Using gain boost to ensure adequate audio levels for better audibility
-    const micGain = audioContext.createGain();
-    micGain.gain.value = AUDIO_GAIN_BOOST;
-    
-    // Create a destination node that will output the mixed audio as a MediaStream
-    const destination = audioContext.createMediaStreamDestination();
-    
-    // Connect microphone through gain to destination
-    micSource.connect(micGain);
-    micGain.connect(destination);
-    
-    // Also create a silent pipeline to force Windows to keep the audio device active
-    // This prevents Windows from switching Bluetooth devices during recording
-    const silentGainNode = audioContext.createGain();
-    silentGainNode.gain.value = 0; // Silent
-    micSource.connect(silentGainNode);
-    silentGainNode.connect(audioContext.destination);
-    
-    // If we have system audio, mix it in
-    if (systemAudioStream && systemAudioStream.getAudioTracks().length > 0) {
-      const systemSource = audioContext.createMediaStreamSource(systemAudioStream);
-      
-      // Create gain node for system audio
-      const systemGain = audioContext.createGain();
-      systemGain.gain.value = AUDIO_GAIN_BOOST;
-      
-      // Connect system audio through gain to destination
-      systemSource.connect(systemGain);
-      systemGain.connect(destination);
-      
-      // Also connect system audio to the silent pipeline for consistency
-      systemSource.connect(silentGainNode);
-      systemAudioSourceRef.current = systemSource;
-    }
-    
-    // Store references for cleanup
-    audioContextRef.current = audioContext;
-    audioSourceRef.current = micSource;
-    mixedAudioDestinationRef.current = destination;
-    gainNodeRef.current = silentGainNode;
+      // Create a new AudioContext for mixing audio sources
+      const audioContext = new AudioContext();
 
-    // Create MediaRecorder with video and the MIXED audio stream
-    const recorder = new MediaRecorder(
-      new MediaStream([
-        ...videoStream.getVideoTracks(),
-        ...destination.stream.getAudioTracks() // Use the mixed audio from Web Audio API
-      ]),
-      { mimeType: VIDEO_MIME_TYPE },
-    );
+      // Create source nodes for each audio stream
+      const micSource = audioContext.createMediaStreamSource(audioStream);
 
-    chunksRef.current = [];
-    recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
+      // Create gain nodes for volume control
+      // Using gain boost to ensure adequate audio levels for better audibility
+      const micGain = audioContext.createGain();
+      micGain.gain.value = AUDIO_GAIN_BOOST;
 
-    mediaRecorderRef.current = recorder;
-    return recorder;
-  }, []);
+      // Create a destination node that will output the mixed audio as a MediaStream
+      const destination = audioContext.createMediaStreamDestination();
+
+      // Connect microphone through gain to destination
+      micSource.connect(micGain);
+      micGain.connect(destination);
+
+      // Also create a silent pipeline to force Windows to keep the audio device active
+      // This prevents Windows from switching Bluetooth devices during recording
+      const silentGainNode = audioContext.createGain();
+      silentGainNode.gain.value = 0; // Silent
+      micSource.connect(silentGainNode);
+      silentGainNode.connect(audioContext.destination);
+
+      // If we have system audio, mix it in
+      if (systemAudioStream && systemAudioStream.getAudioTracks().length > 0) {
+        const systemSource = audioContext.createMediaStreamSource(systemAudioStream);
+
+        // Create gain node for system audio
+        const systemGain = audioContext.createGain();
+        systemGain.gain.value = AUDIO_GAIN_BOOST;
+
+        // Connect system audio through gain to destination
+        systemSource.connect(systemGain);
+        systemGain.connect(destination);
+
+        // Also connect system audio to the silent pipeline for consistency
+        systemSource.connect(silentGainNode);
+        systemAudioSourceRef.current = systemSource;
+      }
+
+      // Store references for cleanup
+      audioContextRef.current = audioContext;
+      audioSourceRef.current = micSource;
+      mixedAudioDestinationRef.current = destination;
+      gainNodeRef.current = silentGainNode;
+
+      // Create MediaRecorder with video and the MIXED audio stream
+      const recorder = new MediaRecorder(
+        new MediaStream([
+          ...videoStream.getVideoTracks(),
+          ...destination.stream.getAudioTracks(), // Use the mixed audio from Web Audio API
+        ]),
+        { mimeType: VIDEO_MIME_TYPE },
+      );
+
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
+
+      mediaRecorderRef.current = recorder;
+      return recorder;
+    },
+    [],
+  );
 
   const startRecorder = useCallback(
     async (recorder: MediaRecorder, cameraDeviceId?: string | null) => {
@@ -215,12 +222,12 @@ export function useScreenRecording() {
               video: true, // Required by getDisplayMedia API
               audio: true, // Request system audio (loopback will be provided by backend handler)
             });
-            
+
             // Stop video tracks immediately since we only want audio
-            displayStream.getVideoTracks().forEach(track => {
+            displayStream.getVideoTracks().forEach((track) => {
               track.stop();
             });
-            
+
             // Check if we got audio tracks
             if (displayStream.getAudioTracks().length > 0) {
               // Store the stream with audio tracks for recording
@@ -228,7 +235,7 @@ export function useScreenRecording() {
               toast.success("System audio capture enabled");
             } else {
               // If no audio tracks, stop any remaining tracks to prevent resource leak
-              displayStream.getTracks().forEach(track => track.stop());
+              displayStream.getTracks().forEach((track) => track.stop());
               console.warn("Display stream has no audio tracks");
             }
           } catch (displayError) {
