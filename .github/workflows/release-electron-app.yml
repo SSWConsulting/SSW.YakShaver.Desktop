@@ -129,6 +129,25 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Create fixed-name artifacts for stable download links
+        shell: pwsh
+        run: |
+          $VERSION="${{ needs.check-release.outputs.version }}"
+          cd build
+          
+          # Find the generated installer (versioned name)
+          $installer = Get-ChildItem -Filter "*Setup*.exe" | Select-Object -First 1
+          if ($installer) {
+            # Create a copy with fixed name and upload
+            $fixedName = "YakShaver-latest-Setup.exe"
+            
+            Copy-Item $installer.FullName $fixedName
+            gh release upload "$VERSION" $fixedName --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
+            Write-Host "Uploaded $fixedName for stable download link"
+          }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-macos:
     needs: check-release
     runs-on: macos-latest
@@ -228,3 +247,28 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Create fixed-name artifacts for stable download links
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          cd build
+          
+          # Find DMG and ZIP files
+          DMG_FILE=$(find . -name "*.dmg" -type f | head -n 1)
+          ZIP_FILE=$(find . -name "*.zip" -type f | head -n 1)
+          
+          if [ -n "$DMG_FILE" ]; then
+            # Create copy with fixed name
+            cp "$DMG_FILE" "YakShaver-latest-arm64.dmg"
+            gh release upload "$VERSION" "YakShaver-latest-arm64.dmg" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
+            echo "Uploaded YakShaver-latest-arm64.dmg for stable download link"
+          fi
+          
+          if [ -n "$ZIP_FILE" ]; then
+            # Create copy with fixed name
+            cp "$ZIP_FILE" "YakShaver-latest-arm64.zip"
+            gh release upload "$VERSION" "YakShaver-latest-arm64.zip" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
+            echo "Uploaded YakShaver-latest-arm64.zip for stable download link"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
