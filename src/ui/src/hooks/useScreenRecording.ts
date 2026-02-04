@@ -58,9 +58,9 @@ export function useScreenRecording() {
       gainNodeRef.current.disconnect();
       gainNodeRef.current = null;
     }
-    // MediaStreamAudioDestinationNode is a destination node (sources connect TO it)
-    // so we don't disconnect it, but we clean up the reference
+    // Disconnect and clean up the MediaStreamAudioDestinationNode to free resources
     if (mixedAudioDestinationRef.current) {
+      mixedAudioDestinationRef.current.disconnect();
       mixedAudioDestinationRef.current = null;
     }
     if (audioContextRef.current) {
