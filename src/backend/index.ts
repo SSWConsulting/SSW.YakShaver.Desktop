@@ -323,6 +323,35 @@ app.setAboutPanelOptions({
   version: version,
 });
 
+// Enable Chromium feature flags for system audio loopback
+// These flags enable native system audio capture across different platforms
+const enableSystemAudioFeatureFlags = () => {
+  const featureSwitchKey = 'enable-features';
+  
+  // Get any existing enabled features from command line
+  const existingFeatures = app.commandLine.getSwitchValue(featureSwitchKey);
+  const existingFeaturesArray = existingFeatures ? existingFeatures.split(',') : [];
+  
+  // Required feature flags for system audio loopback
+  const audioFeatureFlags = [
+    'PulseaudioLoopbackForScreenShare',     // Linux (PulseAudio)
+    'MacLoopbackAudioForScreenShare',       // macOS base support
+    'MacSckSystemAudioLoopbackOverride',    // macOS ScreenCaptureKit (modern)
+  ];
+  
+  // Combine existing features with audio features, removing duplicates
+  const allFeatures = [...new Set([...existingFeaturesArray, ...audioFeatureFlags])];
+  
+  // Remove existing switch if present and re-add with combined features
+  if (app.commandLine.hasSwitch(featureSwitchKey)) {
+    app.commandLine.removeSwitch(featureSwitchKey);
+  }
+  
+  app.commandLine.appendSwitch(featureSwitchKey, allFeatures.join(','));
+};
+
+enableSystemAudioFeatureFlags();
+
 app.whenReady().then(async () => {
   if (!pendingProtocolUrl) {
     pendingProtocolUrl = getProtocolUrlFromArgs(process.argv);
