@@ -147,7 +147,7 @@ export class MCPServerManager {
     }
 
     let options: CreateClientOptions | undefined;
-    if (config.transport === "inMemory" && "inMemoryServerId" in config) {
+    if (config.transport === "inMemory" && config.inMemoryServerId) {
       const transport = MCPServerManager.internalClientTransports.get(config.inMemoryServerId);
       if (!transport) {
         throw new Error(

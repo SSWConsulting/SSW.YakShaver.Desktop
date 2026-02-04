@@ -1,41 +1,8 @@
-import type { IOType } from "node:child_process";
-import type Stream from "node:stream";
-
-interface MCPBaseConfig {
-  id: string;
-  name: string;
-  description?: string;
-  transport: "streamableHttp" | "stdio" | "inMemory";
-  builtin?: boolean; // True for internal/built-in servers
-  toolWhitelist?: string[];
-  enabled?: boolean;
-}
-
-interface MCPHttpServerConfig extends MCPBaseConfig {
-  transport: "streamableHttp";
-  url: string; // For HTTP-based transports
-  headers?: Record<string, string>;
-  version?: string;
-  timeoutMs?: number;
-}
-
-interface MCPStdioServerConfig extends MCPBaseConfig {
-  transport: "stdio";
-  command: string; // For stdio transport
-  args?: string[];
-  env?: Record<string, string>;
-  stderr?: IOType | Stream | number;
-  cwd?: string;
-}
-
-interface MCPInMemoryServerConfig extends MCPBaseConfig {
-  transport: "inMemory";
-  inMemoryServerId: string; // Identifier for the in-memory server implementation
-}
-
-export type MCPServerConfig = MCPHttpServerConfig | MCPStdioServerConfig | MCPInMemoryServerConfig;
-
-export interface MCPToolSummary {
-  name: string;
-  description?: string;
-}
+export type {
+  MCPHttpServerConfig,
+  MCPInMemoryServerConfig,
+  MCPServerConfig,
+  MCPStdioServerConfig,
+  MCPToolSummary,
+  Transport,
+} from "../../../shared/types/mcp";
