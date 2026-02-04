@@ -22,12 +22,10 @@ class SystemAudioBuffer {
   private buffer: Float32Array[] = [];
   private sampleRate = 48000;
   private isFloat = false;
-  private channelCount = 1;
 
   setMetadata(metadata: { sampleRate: number; isFloat: boolean; channelsPerFrame: number }) {
     this.sampleRate = metadata.sampleRate;
     this.isFloat = metadata.isFloat;
-    this.channelCount = metadata.channelsPerFrame;
     console.log("[SystemAudio] Metadata set:", metadata);
   }
 
