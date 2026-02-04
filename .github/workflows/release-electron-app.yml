@@ -134,7 +134,7 @@ jobs:
         run: |
           $VERSION="${{ needs.check-release.outputs.version }}"
           if (-not $VERSION) {
-            throw "Missing version output"
+            throw "Missing version output from 'check-release' job"
           }
           
           cd build
