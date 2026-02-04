@@ -25,6 +25,8 @@ export function useScreenRecording() {
   const streamsRef = useRef<RecordingStreams>({});
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const systemAudioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const mixedAudioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
   const cleanup = useCallback(async () => {
     mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
@@ -44,6 +46,14 @@ export function useScreenRecording() {
       audioSourceRef.current.disconnect();
       audioSourceRef.current = null;
     }
+    if (systemAudioSourceRef.current) {
+      systemAudioSourceRef.current.disconnect();
+      systemAudioSourceRef.current = null;
+    }
+    if (mixedAudioDestinationRef.current) {
+      mixedAudioDestinationRef.current.disconnect();
+      mixedAudioDestinationRef.current = null;
+    }
     if (audioContextRef.current) {
       await audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
@@ -54,30 +64,46 @@ export function useScreenRecording() {
     streamsRef.current = {};
   }, []);
 
-  const setupAudioContext = useCallback((audioStream: MediaStream) => {
-    const audioContext = new AudioContext();
-    const audioSource = audioContext.createMediaStreamSource(audioStream);
-    const gainNode = audioContext.createGain();
-    // Create a silent audio pipeline to force Windows to keep the audio device active (prevents Windows from switching Bluetooth devices)
-    gainNode.gain.value = 0;
-    audioSource.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    audioContextRef.current = audioContext;
-    audioSourceRef.current = audioSource;
-  }, []);
-
   const setupRecorder = useCallback((videoStream: MediaStream, audioStream: MediaStream, systemAudioStream?: MediaStream) => {
     streamsRef.current = { video: videoStream, audio: audioStream, systemAudio: systemAudioStream };
 
-    // Combine all audio tracks: microphone + system audio (if available)
-    const audioTracks = [...audioStream.getAudioTracks()];
-    if (systemAudioStream) {
-      audioTracks.push(...systemAudioStream.getAudioTracks());
+    // Create a new AudioContext for mixing audio sources
+    const audioContext = new AudioContext();
+    
+    // Create source nodes for each audio stream
+    const micSource = audioContext.createMediaStreamSource(audioStream);
+    
+    // Create a destination node that will output the mixed audio as a MediaStream
+    const destination = audioContext.createMediaStreamDestination();
+    
+    // Connect microphone to destination
+    micSource.connect(destination);
+    
+    // Also create a silent pipeline to force Windows to keep the audio device active
+    // This prevents Windows from switching Bluetooth devices during recording
+    const gainNode = audioContext.createGain();
+    gainNode.gain.value = 0; // Silent
+    micSource.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // If we have system audio, mix it in
+    if (systemAudioStream && systemAudioStream.getAudioTracks().length > 0) {
+      const systemSource = audioContext.createMediaStreamSource(systemAudioStream);
+      systemSource.connect(destination);
+      systemAudioSourceRef.current = systemSource;
     }
+    
+    // Store references for cleanup
+    audioContextRef.current = audioContext;
+    audioSourceRef.current = micSource;
+    mixedAudioDestinationRef.current = destination;
 
+    // Create MediaRecorder with video and the MIXED audio stream
     const recorder = new MediaRecorder(
-      new MediaStream([...videoStream.getVideoTracks(), ...audioTracks]),
+      new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...destination.stream.getAudioTracks() // Use the mixed audio from Web Audio API
+      ]),
       { mimeType: VIDEO_MIME_TYPE },
     );
 
@@ -134,7 +160,6 @@ export function useScreenRecording() {
             }),
           ]);
 
-          setupAudioContext(audioStream);
           const recorder = setupRecorder(cameraStream, audioStream);
           // Pass null for camera device ID to indicate no camera PIP should be shown
           await startRecorder(recorder, null);
@@ -199,7 +224,6 @@ export function useScreenRecording() {
             }),
           ]);
 
-          setupAudioContext(audioStream);
           const recorder = setupRecorder(videoStream, audioStream, systemAudioStream);
           await startRecorder(recorder, options?.cameraDeviceId);
 
@@ -214,7 +238,7 @@ export function useScreenRecording() {
         setIsProcessing(false);
       }
     },
-    [cleanup, setupAudioContext, setupRecorder, startRecorder],
+    [cleanup, setupRecorder, startRecorder],
   );
 
   const stop = useCallback(async (): Promise<{
