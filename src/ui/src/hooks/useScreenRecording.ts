@@ -78,7 +78,9 @@ export function useScreenRecording() {
 
     // Close existing audio context if present to prevent resource leaks
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current.close().catch((err) => {
+        console.warn('Failed to close audio context:', err);
+      });
     }
 
     // Create a new AudioContext for mixing audio sources
