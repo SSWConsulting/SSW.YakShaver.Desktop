@@ -283,8 +283,19 @@ jobs:
           fi
           npm version "$VERSION" --no-git-tag-version
 
+      # - name: Publish macOS pre-release
+      #   run: npm run publish -- --mac --publish never
+      #   env:
+      #     NODE_ENV: production
+      #     CI: true
+      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
+      #     # Disable minification for PR preview builds
+      #     VITE_DEBUG_BUILD: "true"
+
+      # Testing notarization force to publish on Pre release (will remove on merge)
       - name: Publish macOS pre-release
-        run: npm run publish -- --mac --publish never
+        run: npm run publish -- --mac
         env:
           NODE_ENV: production
           CI: true
@@ -292,6 +303,12 @@ jobs:
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
           # Disable minification for PR preview builds
           VITE_DEBUG_BUILD: "true"
+          CSC_FOR_PULL_REQUEST: "true"
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v6
