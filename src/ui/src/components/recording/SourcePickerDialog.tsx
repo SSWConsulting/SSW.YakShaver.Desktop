@@ -64,9 +64,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
   const fetchDevices = useCallback(async () => {
     try {
-      // Request permissions explicitly before enumerating devices
-      // This ensures the OS permission prompt is triggered if not already granted
-      // and that device labels are populated correctly
+      // Use a “test stream” to trigger permission prompt if not already granted
       let permissionStream: MediaStream | null = null;
       try {
         permissionStream = await navigator.mediaDevices.getUserMedia({
@@ -74,17 +72,16 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           audio: true,
         });
       } catch (permissionError) {
-        // If permission is denied, show a helpful error message
-        // NotAllowedError is the standard DOMException for permission denials per Media Capture API spec
         if (permissionError instanceof DOMException && permissionError.name === "NotAllowedError") {
-          toast.error("Camera and microphone permissions are required. Please grant permissions in your system settings.");
+          toast.error(
+            "Camera and microphone permissions are required. Please grant permissions in your system settings.",
+          );
         }
-        // Continue with enumeration - devices will be listed but with generic labels (e.g., 'Camera 1')
-        // Users can still attempt to select devices, which will trigger another permission prompt
       } finally {
-        // Stop the permission stream immediately - we only needed it to trigger permissions
         if (permissionStream) {
-          permissionStream.getTracks().forEach((track) => track.stop());
+          permissionStream.getTracks().forEach((track) => {
+            track.stop();
+          });
         }
       }
 
@@ -389,7 +386,7 @@ function CameraOnlyTile({ onClick }: { onClick: () => void }) {
         <span className="w-full max-w-full text-center text-sm font-medium">
           No Screen / Camera Only
         </span>
-        <span className="w-full max-w-full text-center text-xs text-neutral-500 whitespace-normal break-words">
+        <span className="w-full max-w-full text-center text-xs text-neutral-500 whitespace-normal wrap-break-word">
           Record camera feed without screen capture
         </span>
       </div>
