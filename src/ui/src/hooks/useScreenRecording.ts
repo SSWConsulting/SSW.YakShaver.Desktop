@@ -27,6 +27,7 @@ export function useScreenRecording() {
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const systemAudioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const mixedAudioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
 
   const cleanup = useCallback(async () => {
     mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
@@ -50,8 +51,13 @@ export function useScreenRecording() {
       systemAudioSourceRef.current.disconnect();
       systemAudioSourceRef.current = null;
     }
+    if (gainNodeRef.current) {
+      gainNodeRef.current.disconnect();
+      gainNodeRef.current = null;
+    }
+    // Note: MediaStreamAudioDestinationNode doesn't have disconnect() method
+    // It's automatically cleaned up when the AudioContext is closed
     if (mixedAudioDestinationRef.current) {
-      mixedAudioDestinationRef.current.disconnect();
       mixedAudioDestinationRef.current = null;
     }
     if (audioContextRef.current) {
@@ -66,6 +72,11 @@ export function useScreenRecording() {
 
   const setupRecorder = useCallback((videoStream: MediaStream, audioStream: MediaStream, systemAudioStream?: MediaStream) => {
     streamsRef.current = { video: videoStream, audio: audioStream, systemAudio: systemAudioStream };
+
+    // Close existing audio context if present to prevent resource leaks
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {});
+    }
 
     // Create a new AudioContext for mixing audio sources
     const audioContext = new AudioContext();
@@ -97,6 +108,7 @@ export function useScreenRecording() {
     audioContextRef.current = audioContext;
     audioSourceRef.current = micSource;
     mixedAudioDestinationRef.current = destination;
+    gainNodeRef.current = gainNode;
 
     // Create MediaRecorder with video and the MIXED audio stream
     const recorder = new MediaRecorder(
