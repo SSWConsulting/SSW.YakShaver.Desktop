@@ -88,6 +88,15 @@ declare global {
         stopFromControlBar: () => Promise<{ success: boolean }>;
         minimizeMainWindow: () => Promise<{ success: boolean }>;
         restoreMainWindow: () => Promise<{ success: boolean }>;
+        startSystemAudio: () => Promise<{ success: boolean; error?: string; metadata?: unknown }>;
+        stopSystemAudio: () => Promise<{ success: boolean }>;
+        getSystemAudioStatus: () => Promise<{
+          isRecording: boolean;
+          permissionStatus: string;
+          isAvailable: boolean;
+        }>;
+        onSystemAudioData: (callback: (data: { data: ArrayBuffer }) => void) => () => void;
+        onSystemAudioMetadata: (callback: (metadata: unknown) => void) => () => void;
         onStopRequest: (callback: () => void) => () => void;
         onOpenSourcePicker: (callback: () => void) => () => void;
       };

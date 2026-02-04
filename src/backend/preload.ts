@@ -176,6 +176,20 @@ const electronAPI = {
     stopFromControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR),
     minimizeMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.MINIMIZE_MAIN_WINDOW),
     restoreMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.RESTORE_MAIN_WINDOW),
+    // System audio via native-audio-node
+    startSystemAudio: () => ipcRenderer.invoke("system-audio:start"),
+    stopSystemAudio: () => ipcRenderer.invoke("system-audio:stop"),
+    getSystemAudioStatus: () => ipcRenderer.invoke("system-audio:status"),
+    onSystemAudioData: (callback: (data: { data: ArrayBuffer }) => void) => {
+      const listener = (_: IpcRendererEvent, data: { data: ArrayBuffer }) => callback(data);
+      ipcRenderer.on("system-audio:data", listener);
+      return () => ipcRenderer.removeListener("system-audio:data", listener);
+    },
+    onSystemAudioMetadata: (callback: (metadata: unknown) => void) => {
+      const listener = (_: IpcRendererEvent, metadata: unknown) => callback(metadata);
+      ipcRenderer.on("system-audio:metadata", listener);
+      return () => ipcRenderer.removeListener("system-audio:metadata", listener);
+    },
     onStopRequest: (callback: () => void) => {
       const listener = () => callback();
       ipcRenderer.on("stop-recording-request", listener);

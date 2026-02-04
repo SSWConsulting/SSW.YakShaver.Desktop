@@ -374,40 +374,10 @@ app.whenReady().then(async () => {
     );
   });
 
-  // Setup display media handler to enable system audio capture
-  // Platform requirements:
-  // - Windows 10+ with audio loopback support
-  // - macOS 12.3+ with screen recording permission granted
-  // - Linux with PulseAudio/PipeWire
-  // Note: If loopback is not supported, the callback will succeed but no audio will be captured
-  session.defaultSession.setDisplayMediaRequestHandler((_, callback) => {
-    desktopCapturer
-      .getSources({ types: ["screen", "window"] })
-      .then((sources) => {
-        // Select the first screen source (prefer screens over windows for system audio)
-        // Use id.startsWith('screen:') to reliably identify screen sources
-        const source = sources.find((s) => s.id.startsWith("screen:")) || sources[0];
-
-        if (!source) {
-          console.error("No desktop sources available for display media");
-          callback({});
-          return;
-        }
-
-        // Enable system audio loopback capture
-        // This allows capturing system audio (including audio from remote participants in Teams, etc.)
-        // Note: We always provide both video and audio because getDisplayMedia requires at least one
-        // The frontend will handle stopping video tracks if only audio is needed
-        callback({
-          video: source,
-          audio: "loopback", // Request system audio loopback
-        });
-      })
-      .catch((error) => {
-        console.error("Failed to get desktop sources for display media:", error);
-        callback({});
-      });
-  });
+  // System audio loopback is handled by electron-audio-loopback package
+  // The package registers IPC handlers: 'enable-loopback-audio' and 'disable-loopback-audio'
+  // The frontend must call enableLoopbackAudio() before getDisplayMedia() to capture system audio
+  // See: https://github.com/alectrocute/electron-audio-loopback
 
   _authHandlers = new AuthIPCHandlers();
   try {
@@ -426,6 +396,13 @@ app.whenReady().then(async () => {
   }
 
   _screenRecordingHandlers = new ScreenRecordingIPCHandlers();
+
+  // Initialize system audio service and pass it the main window
+  const { SystemAudioService } = await import("./services/recording/system-audio-service");
+  const systemAudioService = SystemAudioService.getInstance();
+  if (mainWindow) {
+    systemAudioService.setMainWindow(mainWindow);
+  }
 
   // Initialize in-memory MCP servers
   await registerAllInternalMcpServers();

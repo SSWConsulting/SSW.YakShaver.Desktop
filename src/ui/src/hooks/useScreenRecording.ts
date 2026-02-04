@@ -1,22 +1,95 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CAMERA_ONLY_SOURCE_ID } from "../constants/recording";
 
 const VIDEO_MIME_TYPE = "video/mp4";
-// Audio gain boost value to ensure adequate volume levels in recordings
-// A value of 1.5 (50% boost) provides clear audio without distortion
 const AUDIO_GAIN_BOOST = 1.5;
 
 interface RecordingStreams {
   video?: MediaStream;
   audio?: MediaStream;
-  systemAudio?: MediaStream;
 }
+
 interface ElectronVideoConstraints extends MediaTrackConstraints {
   mandatory?: {
     chromeMediaSource: string;
     chromeMediaSourceId: string;
   };
+}
+
+// Buffer for receiving system audio PCM data from main process
+class SystemAudioBuffer {
+  private buffer: Float32Array[] = [];
+  private sampleRate = 48000;
+  private isFloat = false;
+  private channelCount = 1;
+
+  setMetadata(metadata: { sampleRate: number; isFloat: boolean; channelsPerFrame: number }) {
+    this.sampleRate = metadata.sampleRate;
+    this.isFloat = metadata.isFloat;
+    this.channelCount = metadata.channelsPerFrame;
+    console.log("[SystemAudio] Metadata set:", metadata);
+  }
+
+  pushData(data: ArrayBuffer) {
+    // Convert raw PCM to Float32
+    let float32Data: Float32Array;
+    
+    if (this.isFloat) {
+      // Already 32-bit float
+      float32Data = new Float32Array(data);
+    } else {
+      // 16-bit signed integer - convert to float
+      const int16Data = new Int16Array(data);
+      float32Data = new Float32Array(int16Data.length);
+      for (let i = 0; i < int16Data.length; i++) {
+        float32Data[i] = int16Data[i] / 32768;
+      }
+    }
+    
+    this.buffer.push(float32Data);
+    
+    // Keep buffer from growing too large (max ~1 second)
+    while (this.buffer.length > 10) {
+      this.buffer.shift();
+    }
+  }
+
+  // Get samples to fill an output buffer
+  getSamples(outputLength: number): Float32Array {
+    const result = new Float32Array(outputLength);
+    let resultIndex = 0;
+    
+    while (resultIndex < outputLength && this.buffer.length > 0) {
+      const chunk = this.buffer[0];
+      const remaining = outputLength - resultIndex;
+      const toCopy = Math.min(remaining, chunk.length);
+      
+      result.set(chunk.subarray(0, toCopy), resultIndex);
+      resultIndex += toCopy;
+      
+      if (toCopy >= chunk.length) {
+        this.buffer.shift();
+      } else {
+        // Partial copy - remove used portion
+        this.buffer[0] = chunk.subarray(toCopy);
+      }
+    }
+    
+    return result;
+  }
+
+  hasData(): boolean {
+    return this.buffer.length > 0;
+  }
+
+  clear() {
+    this.buffer = [];
+  }
+
+  getSampleRate(): number {
+    return this.sampleRate;
+  }
 }
 
 export function useScreenRecording() {
@@ -28,37 +101,57 @@ export function useScreenRecording() {
   const streamsRef = useRef<RecordingStreams>({});
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const systemAudioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const mixedAudioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
+  const systemAudioBufferRef = useRef<SystemAudioBuffer>(new SystemAudioBuffer());
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const unsubscribeDataRef = useRef<(() => void) | null>(null);
+  const unsubscribeMetadataRef = useRef<(() => void) | null>(null);
+
+  // Set up system audio data listener
+  const setupSystemAudioListener = useCallback(() => {
+    // Subscribe to system audio data from main process
+    unsubscribeDataRef.current = window.electronAPI.screenRecording.onSystemAudioData((data) => {
+      systemAudioBufferRef.current.pushData(data.data);
+    });
+
+    unsubscribeMetadataRef.current = window.electronAPI.screenRecording.onSystemAudioMetadata(
+      (metadata) => {
+        systemAudioBufferRef.current.setMetadata(
+          metadata as { sampleRate: number; isFloat: boolean; channelsPerFrame: number }
+        );
+      }
+    );
+  }, []);
+
+  const cleanupSystemAudioListener = useCallback(() => {
+    if (unsubscribeDataRef.current) {
+      unsubscribeDataRef.current();
+      unsubscribeDataRef.current = null;
+    }
+    if (unsubscribeMetadataRef.current) {
+      unsubscribeMetadataRef.current();
+      unsubscribeMetadataRef.current = null;
+    }
+  }, []);
 
   const cleanup = useCallback(async () => {
-    mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
-      track.stop();
-    });
-    streamsRef.current.video?.getTracks().forEach((track) => {
-      track.stop();
-    });
-    streamsRef.current.audio?.getTracks().forEach((track) => {
-      track.stop();
-    });
-    streamsRef.current.systemAudio?.getTracks().forEach((track) => {
-      track.stop();
-    });
+    // Stop system audio capture
+    await window.electronAPI.screenRecording.stopSystemAudio().catch(() => {});
+    cleanupSystemAudioListener();
+    systemAudioBufferRef.current.clear();
+
+    mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+    streamsRef.current.video?.getTracks().forEach((track) => track.stop());
+    streamsRef.current.audio?.getTracks().forEach((track) => track.stop());
 
     if (audioSourceRef.current) {
       audioSourceRef.current.disconnect();
       audioSourceRef.current = null;
     }
-    if (systemAudioSourceRef.current) {
-      systemAudioSourceRef.current.disconnect();
-      systemAudioSourceRef.current = null;
+    if (scriptProcessorRef.current) {
+      scriptProcessorRef.current.disconnect();
+      scriptProcessorRef.current = null;
     }
-    if (gainNodeRef.current) {
-      gainNodeRef.current.disconnect();
-      gainNodeRef.current = null;
-    }
-    // Disconnect and clean up the MediaStreamAudioDestinationNode to free resources
     if (mixedAudioDestinationRef.current) {
       mixedAudioDestinationRef.current.disconnect();
       mixedAudioDestinationRef.current = null;
@@ -71,78 +164,75 @@ export function useScreenRecording() {
     mediaRecorderRef.current = null;
     chunksRef.current = [];
     streamsRef.current = {};
-  }, []);
+  }, [cleanupSystemAudioListener]);
 
   const setupRecorder = useCallback(
-    (videoStream: MediaStream, audioStream: MediaStream, systemAudioStream?: MediaStream) => {
-      streamsRef.current = {
-        video: videoStream,
-        audio: audioStream,
-        systemAudio: systemAudioStream,
-      };
+    (videoStream: MediaStream, audioStream: MediaStream, includeSystemAudio: boolean) => {
+      streamsRef.current = { video: videoStream, audio: audioStream };
 
-      // Close existing audio context if present to prevent resource leaks
+      // Close existing audio context if present
       if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-        audioContextRef.current.close().catch((err) => {
-          console.warn("Failed to close audio context:", err);
-        });
+        audioContextRef.current.close().catch(() => {});
       }
 
-      // Create a new AudioContext for mixing audio sources
-      const audioContext = new AudioContext();
-
-      // Create source nodes for each audio stream
+      const audioContext = new AudioContext({ sampleRate: 48000 });
       const micSource = audioContext.createMediaStreamSource(audioStream);
-
-      // Create gain nodes for volume control
-      // Using gain boost to ensure adequate audio levels for better audibility
       const micGain = audioContext.createGain();
       micGain.gain.value = AUDIO_GAIN_BOOST;
-
-      // Create a destination node that will output the mixed audio as a MediaStream
       const destination = audioContext.createMediaStreamDestination();
 
-      // Connect microphone through gain to destination
+      // Connect microphone
       micSource.connect(micGain);
       micGain.connect(destination);
 
-      // Also create a silent pipeline to force Windows to keep the audio device active
-      // This prevents Windows from switching Bluetooth devices during recording
-      const silentGainNode = audioContext.createGain();
-      silentGainNode.gain.value = 0; // Silent
-      micSource.connect(silentGainNode);
-      silentGainNode.connect(audioContext.destination);
-
-      // If we have system audio, mix it in
-      if (systemAudioStream && systemAudioStream.getAudioTracks().length > 0) {
-        const systemSource = audioContext.createMediaStreamSource(systemAudioStream);
-
-        // Create gain node for system audio
+      // If including system audio, create a ScriptProcessor to inject PCM data
+      if (includeSystemAudio) {
+        console.log("[SetupRecorder] Setting up system audio injection...");
+        
+        // ScriptProcessorNode is deprecated but works reliably for this use case
+        // Buffer size of 4096 gives ~85ms latency at 48kHz
+        const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
         const systemGain = audioContext.createGain();
         systemGain.gain.value = AUDIO_GAIN_BOOST;
-
-        // Connect system audio through gain to destination
-        systemSource.connect(systemGain);
+        
+        scriptProcessor.onaudioprocess = (event) => {
+          const outputBuffer = event.outputBuffer.getChannelData(0);
+          const samples = systemAudioBufferRef.current.getSamples(outputBuffer.length);
+          outputBuffer.set(samples);
+        };
+        
+        // Connect: scriptProcessor -> systemGain -> destination
+        scriptProcessor.connect(systemGain);
         systemGain.connect(destination);
-
-        // Also connect system audio to the silent pipeline for consistency
-        systemSource.connect(silentGainNode);
-        systemAudioSourceRef.current = systemSource;
+        
+        // Also need a dummy input to keep scriptProcessor running
+        // Create an oscillator at 0 Hz (DC) with 0 gain
+        const oscillator = audioContext.createOscillator();
+        const silentGain = audioContext.createGain();
+        silentGain.gain.value = 0;
+        oscillator.connect(silentGain);
+        silentGain.connect(scriptProcessor);
+        oscillator.start();
+        
+        scriptProcessorRef.current = scriptProcessor;
+        console.log("[SetupRecorder] System audio injection ready");
       }
 
-      // Store references for cleanup
       audioContextRef.current = audioContext;
       audioSourceRef.current = micSource;
       mixedAudioDestinationRef.current = destination;
-      gainNodeRef.current = silentGainNode;
 
-      // Create MediaRecorder with video and the MIXED audio stream
+      // Ensure AudioContext is running
+      if (audioContext.state === "suspended") {
+        audioContext.resume();
+      }
+
       const recorder = new MediaRecorder(
         new MediaStream([
           ...videoStream.getVideoTracks(),
-          ...destination.stream.getAudioTracks(), // Use the mixed audio from Web Audio API
+          ...destination.stream.getAudioTracks(),
         ]),
-        { mimeType: VIDEO_MIME_TYPE },
+        { mimeType: VIDEO_MIME_TYPE }
       );
 
       chunksRef.current = [];
@@ -151,7 +241,7 @@ export function useScreenRecording() {
       mediaRecorderRef.current = recorder;
       return recorder;
     },
-    [],
+    []
   );
 
   const startRecorder = useCallback(
@@ -169,7 +259,7 @@ export function useScreenRecording() {
         throw error;
       }
     },
-    [cleanup],
+    [cleanup]
   );
 
   const start = useCallback(
@@ -179,7 +269,7 @@ export function useScreenRecording() {
         const isCameraOnly = sourceId === CAMERA_ONLY_SOURCE_ID;
 
         if (isCameraOnly) {
-          // Camera-only mode: use camera as main video source
+          // Camera-only mode
           if (!options?.cameraDeviceId) {
             throw new Error("Camera device is required for camera-only mode");
           }
@@ -189,7 +279,6 @@ export function useScreenRecording() {
               audio: false,
               video: {
                 deviceId: { exact: options.cameraDeviceId },
-                // Most cameras don't support 4K, so we use Full HD (1920x1080) as a reasonable default.
                 width: { ideal: 1920 },
                 height: { ideal: 1080 },
               },
@@ -200,49 +289,42 @@ export function useScreenRecording() {
             }),
           ]);
 
-          const recorder = setupRecorder(cameraStream, audioStream);
-          // Pass null for camera device ID to indicate no camera PIP should be shown
+          const recorder = setupRecorder(cameraStream, audioStream, false);
           await startRecorder(recorder, null);
 
           setIsRecording(true);
           toast.success("Recording started");
         } else {
-          // Screen recording mode with system audio capture
+          // Screen recording mode
           const result = await window.electronAPI.screenRecording.start(sourceId);
           if (!result.success) throw new Error("Failed to start recording");
 
-          // Request system audio via getDisplayMedia
-          // This will prompt the user to share system audio and capture audio from remote participants
-          let systemAudioStream: MediaStream | undefined;
+          // Try to start system audio capture
+          let systemAudioEnabled = false;
           try {
-            // Use getDisplayMedia to request system audio loopback
-            // The backend's setDisplayMediaRequestHandler will provide the loopback audio
-            // Note: We request both video and audio because getDisplayMedia requires at least one
-            const displayStream = await navigator.mediaDevices.getDisplayMedia({
-              video: true, // Required by getDisplayMedia API
-              audio: true, // Request system audio (loopback will be provided by backend handler)
-            });
-
-            // Stop video tracks immediately since we only want audio
-            displayStream.getVideoTracks().forEach((track) => {
-              track.stop();
-            });
-
-            // Check if we got audio tracks
-            if (displayStream.getAudioTracks().length > 0) {
-              // Store the stream with audio tracks for recording
-              systemAudioStream = displayStream;
+            console.log("[Recording] Starting system audio capture...");
+            setupSystemAudioListener();
+            
+            const systemAudioResult = await window.electronAPI.screenRecording.startSystemAudio();
+            console.log("[Recording] System audio result:", systemAudioResult);
+            if (systemAudioResult.success) {
+              systemAudioEnabled = true;
+              console.log("[Recording] System audio capture started");
               toast.success("System audio capture enabled");
             } else {
-              // If no audio tracks, stop any remaining tracks to prevent resource leak
-              displayStream.getTracks().forEach((track) => {
-                track.stop();
-              });
-              console.warn("Display stream has no audio tracks");
+              console.warn("[Recording] System audio not available:", systemAudioResult.error);
+              cleanupSystemAudioListener();
+              if (systemAudioResult.error?.includes("permission")) {
+                toast.warning("System audio requires permission. Check System Settings.", {
+                  duration: 5000,
+                });
+              } else {
+                toast.info("Recording without system audio - only microphone will be captured");
+              }
             }
-          } catch (displayError) {
-            // User may have denied system audio permission or it's not available
-            console.warn("System audio not available:", displayError);
+          } catch (error) {
+            console.warn("[Recording] System audio error:", error);
+            cleanupSystemAudioListener();
             toast.info("Recording without system audio - only microphone will be captured");
           }
 
@@ -253,7 +335,6 @@ export function useScreenRecording() {
                 mandatory: {
                   chromeMediaSource: "desktop",
                   chromeMediaSourceId: result.sourceId,
-                  // Set to 4K resolution (3840x2160) and 30 FPS to ensure high-quality recordings.
                   maxWidth: 3840,
                   maxHeight: 2160,
                   maxFrameRate: 30,
@@ -266,7 +347,7 @@ export function useScreenRecording() {
             }),
           ]);
 
-          const recorder = setupRecorder(videoStream, audioStream, systemAudioStream);
+          const recorder = setupRecorder(videoStream, audioStream, systemAudioEnabled);
           await startRecorder(recorder, options?.cameraDeviceId);
 
           setIsRecording(true);
@@ -280,7 +361,7 @@ export function useScreenRecording() {
         setIsProcessing(false);
       }
     },
-    [cleanup, setupRecorder, startRecorder],
+    [cleanup, setupRecorder, startRecorder, setupSystemAudioListener, cleanupSystemAudioListener]
   );
 
   const stop = useCallback(async (): Promise<{
@@ -302,7 +383,7 @@ export function useScreenRecording() {
 
           const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
           const result = await window.electronAPI.screenRecording.stop(
-            new Uint8Array(await blob.arrayBuffer()),
+            new Uint8Array(await blob.arrayBuffer())
           );
 
           if (!result.success || !result.filePath) {
@@ -329,6 +410,13 @@ export function useScreenRecording() {
         recorder.stop();
       }
     });
+  }, [cleanup]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
   }, [cleanup]);
 
   return {
