@@ -3,6 +3,9 @@ import { toast } from "sonner";
 import { CAMERA_ONLY_SOURCE_ID } from "../constants/recording";
 
 const VIDEO_MIME_TYPE = "video/mp4";
+// Audio gain boost value to ensure adequate volume levels in recordings
+// A value of 1.5 (50% boost) provides clear audio without distortion
+const AUDIO_GAIN_BOOST = 1.5;
 
 interface RecordingStreams {
   video?: MediaStream;
@@ -85,9 +88,9 @@ export function useScreenRecording() {
     const micSource = audioContext.createMediaStreamSource(audioStream);
     
     // Create gain nodes for volume control
-    // Using gain value of 1.5 to boost the audio levels for better audibility
+    // Using gain boost to ensure adequate audio levels for better audibility
     const micGain = audioContext.createGain();
-    micGain.gain.value = 1.5;
+    micGain.gain.value = AUDIO_GAIN_BOOST;
     
     // Create a destination node that will output the mixed audio as a MediaStream
     const destination = audioContext.createMediaStreamDestination();
@@ -109,7 +112,7 @@ export function useScreenRecording() {
       
       // Create gain node for system audio
       const systemGain = audioContext.createGain();
-      systemGain.gain.value = 1.5;
+      systemGain.gain.value = AUDIO_GAIN_BOOST;
       
       // Connect system audio through gain to destination
       systemSource.connect(systemGain);
