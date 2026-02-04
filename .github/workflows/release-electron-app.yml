@@ -270,7 +270,7 @@ jobs:
           
           VERSION="${{ needs.check-release.outputs.version }}"
           if [[ -z "$VERSION" ]]; then
-            echo "Error: Missing version output" >&2
+            echo "Error: Missing version output from 'check-release' job (needs.check-release.outputs.version). Ensure the 'check-release' job completed successfully and produced a 'version' output." >&2
             exit 1
           fi
           
