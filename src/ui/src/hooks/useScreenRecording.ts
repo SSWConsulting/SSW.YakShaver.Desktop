@@ -235,7 +235,9 @@ export function useScreenRecording() {
               toast.success("System audio capture enabled");
             } else {
               // If no audio tracks, stop any remaining tracks to prevent resource leak
-              displayStream.getTracks().forEach((track) => track.stop());
+              displayStream.getTracks().forEach((track) => {
+                track.stop();
+              });
               console.warn("Display stream has no audio tracks");
             }
           } catch (displayError) {

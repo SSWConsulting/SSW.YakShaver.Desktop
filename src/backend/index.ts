@@ -380,7 +380,7 @@ app.whenReady().then(async () => {
   // - macOS 12.3+ with screen recording permission granted
   // - Linux with PulseAudio/PipeWire
   // Note: If loopback is not supported, the callback will succeed but no audio will be captured
-  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+  session.defaultSession.setDisplayMediaRequestHandler((_, callback) => {
     desktopCapturer
       .getSources({ types: ["screen", "window"] })
       .then((sources) => {
