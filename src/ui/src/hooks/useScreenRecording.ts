@@ -55,8 +55,8 @@ export function useScreenRecording() {
       gainNodeRef.current.disconnect();
       gainNodeRef.current = null;
     }
-    // Note: MediaStreamAudioDestinationNode doesn't have disconnect() method
-    // It's automatically cleaned up when the AudioContext is closed
+    // MediaStreamAudioDestinationNode is a destination node (sources connect TO it)
+    // so we don't disconnect it, but we clean up the reference
     if (mixedAudioDestinationRef.current) {
       mixedAudioDestinationRef.current = null;
     }
@@ -101,6 +101,8 @@ export function useScreenRecording() {
     if (systemAudioStream && systemAudioStream.getAudioTracks().length > 0) {
       const systemSource = audioContext.createMediaStreamSource(systemAudioStream);
       systemSource.connect(destination);
+      // Also connect system audio to the silent pipeline for consistency
+      systemSource.connect(gainNode);
       systemAudioSourceRef.current = systemSource;
     }
     
