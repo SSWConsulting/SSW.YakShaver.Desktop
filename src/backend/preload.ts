@@ -181,59 +181,24 @@ const electronAPI = {
     stopSystemAudio: () => ipcRenderer.invoke("system-audio:stop"),
     getSystemAudioStatus: () => ipcRenderer.invoke("system-audio:status"),
     onSystemAudioData: (callback: (data: { data: ArrayBuffer }) => void) => {
-      const listener = (
-        _: IpcRendererEvent,
-        payload:
-          | Buffer
-          | Uint8Array
-          | ArrayBuffer
-          | { data: unknown }
-          | { type: string; data: number[] },
-      ) => {
-        let arrayBuffer: ArrayBuffer;
-
+      const listener = (_: IpcRendererEvent, payload: unknown) => {
         try {
-          if (payload instanceof ArrayBuffer) {
-            arrayBuffer = payload;
-          } else if (payload instanceof Uint8Array) {
+          let arrayBuffer: ArrayBuffer;
+
+          if (payload instanceof Uint8Array) {
+            // Uint8Array - extract the underlying ArrayBuffer
             arrayBuffer = payload.buffer.slice(
               payload.byteOffset,
               payload.byteOffset + payload.byteLength,
             ) as ArrayBuffer;
-          } else if (typeof payload === "object" && payload !== null) {
-            // Check for serialized Buffer format: { type: 'Buffer', data: [...] }
-            const bufferLike = payload as { type?: string; data?: number[] | unknown };
-            if (bufferLike.type === "Buffer" && Array.isArray(bufferLike.data)) {
-              arrayBuffer = new Uint8Array(bufferLike.data).buffer;
-            } else if ("data" in payload && payload.data) {
-              // Nested data object
-              const innerData = payload.data;
-              if (innerData instanceof ArrayBuffer) {
-                arrayBuffer = innerData;
-              } else if (innerData instanceof Uint8Array) {
-                arrayBuffer = innerData.buffer.slice(
-                  innerData.byteOffset,
-                  innerData.byteOffset + innerData.byteLength,
-                ) as ArrayBuffer;
-              } else if (typeof innerData === "object" && innerData !== null) {
-                const innerBufferLike = innerData as { type?: string; data?: number[] };
-                if (innerBufferLike.type === "Buffer" && Array.isArray(innerBufferLike.data)) {
-                  arrayBuffer = new Uint8Array(innerBufferLike.data).buffer;
-                } else {
-                  // Plain object with numeric keys
-                  const values = Object.values(innerData) as number[];
-                  arrayBuffer = new Uint8Array(values).buffer;
-                }
-              } else {
-                return;
-              }
-            } else {
-              // Plain object with numeric keys (serialized Uint8Array)
-              const values = Object.values(payload) as number[];
-              arrayBuffer = new Uint8Array(values).buffer;
-            }
           } else {
-            return;
+            // Fallback: serialized Buffer format { type: 'Buffer', data: number[] }
+            const bufferLike = payload as { type?: string; data?: number[] };
+            if (bufferLike?.type === "Buffer" && Array.isArray(bufferLike.data)) {
+              arrayBuffer = new Uint8Array(bufferLike.data).buffer;
+            } else {
+              return;
+            }
           }
 
           callback({ data: arrayBuffer });
