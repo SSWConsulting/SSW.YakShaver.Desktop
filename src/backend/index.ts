@@ -342,11 +342,8 @@ const enableSystemAudioFeatureFlags = () => {
   // Combine existing features with audio features, removing duplicates
   const allFeatures = [...new Set([...existingFeaturesArray, ...audioFeatureFlags])];
   
-  // Remove existing switch if present and re-add with combined features
-  if (app.commandLine.hasSwitch(featureSwitchKey)) {
-    app.commandLine.removeSwitch(featureSwitchKey);
-  }
-  
+  // appendSwitch will add to existing, so remove first to replace with combined list
+  app.commandLine.removeSwitch(featureSwitchKey);
   app.commandLine.appendSwitch(featureSwitchKey, allFeatures.join(','));
 };
 
