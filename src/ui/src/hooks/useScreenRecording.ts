@@ -84,25 +84,39 @@ export function useScreenRecording() {
     // Create source nodes for each audio stream
     const micSource = audioContext.createMediaStreamSource(audioStream);
     
+    // Create gain nodes for volume control
+    // Using gain value of 1.5 to boost the audio levels for better audibility
+    const micGain = audioContext.createGain();
+    micGain.gain.value = 1.5;
+    
     // Create a destination node that will output the mixed audio as a MediaStream
     const destination = audioContext.createMediaStreamDestination();
     
-    // Connect microphone to destination
-    micSource.connect(destination);
+    // Connect microphone through gain to destination
+    micSource.connect(micGain);
+    micGain.connect(destination);
     
     // Also create a silent pipeline to force Windows to keep the audio device active
     // This prevents Windows from switching Bluetooth devices during recording
-    const gainNode = audioContext.createGain();
-    gainNode.gain.value = 0; // Silent
-    micSource.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+    const silentGainNode = audioContext.createGain();
+    silentGainNode.gain.value = 0; // Silent
+    micSource.connect(silentGainNode);
+    silentGainNode.connect(audioContext.destination);
     
     // If we have system audio, mix it in
     if (systemAudioStream && systemAudioStream.getAudioTracks().length > 0) {
       const systemSource = audioContext.createMediaStreamSource(systemAudioStream);
-      systemSource.connect(destination);
+      
+      // Create gain node for system audio
+      const systemGain = audioContext.createGain();
+      systemGain.gain.value = 1.5;
+      
+      // Connect system audio through gain to destination
+      systemSource.connect(systemGain);
+      systemGain.connect(destination);
+      
       // Also connect system audio to the silent pipeline for consistency
-      systemSource.connect(gainNode);
+      systemSource.connect(silentGainNode);
       systemAudioSourceRef.current = systemSource;
     }
     
@@ -110,7 +124,7 @@ export function useScreenRecording() {
     audioContextRef.current = audioContext;
     audioSourceRef.current = micSource;
     mixedAudioDestinationRef.current = destination;
-    gainNodeRef.current = gainNode;
+    gainNodeRef.current = silentGainNode;
 
     // Create MediaRecorder with video and the MIXED audio stream
     const recorder = new MediaRecorder(
