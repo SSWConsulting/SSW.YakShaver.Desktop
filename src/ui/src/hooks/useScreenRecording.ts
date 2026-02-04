@@ -3,10 +3,14 @@ import { toast } from "sonner";
 import { CAMERA_ONLY_SOURCE_ID } from "../constants/recording";
 
 const VIDEO_MIME_TYPE = "video/mp4";
+// Audio gain boost value to ensure adequate volume levels in recordings
+// A value of 1.5 (50% boost) provides clear audio without distortion
+const AUDIO_GAIN_BOOST = 1.5;
 
 interface RecordingStreams {
   video?: MediaStream;
   audio?: MediaStream;
+  systemAudio?: MediaStream;
 }
 interface ElectronVideoConstraints extends MediaTrackConstraints {
   mandatory?: {
@@ -24,6 +28,9 @@ export function useScreenRecording() {
   const streamsRef = useRef<RecordingStreams>({});
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const systemAudioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const mixedAudioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
 
   const cleanup = useCallback(async () => {
     mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
@@ -35,10 +42,26 @@ export function useScreenRecording() {
     streamsRef.current.audio?.getTracks().forEach((track) => {
       track.stop();
     });
+    streamsRef.current.systemAudio?.getTracks().forEach((track) => {
+      track.stop();
+    });
 
     if (audioSourceRef.current) {
       audioSourceRef.current.disconnect();
       audioSourceRef.current = null;
+    }
+    if (systemAudioSourceRef.current) {
+      systemAudioSourceRef.current.disconnect();
+      systemAudioSourceRef.current = null;
+    }
+    if (gainNodeRef.current) {
+      gainNodeRef.current.disconnect();
+      gainNodeRef.current = null;
+    }
+    // Disconnect and clean up the MediaStreamAudioDestinationNode to free resources
+    if (mixedAudioDestinationRef.current) {
+      mixedAudioDestinationRef.current.disconnect();
+      mixedAudioDestinationRef.current = null;
     }
     if (audioContextRef.current) {
       await audioContextRef.current.close().catch(() => {});
@@ -50,33 +73,86 @@ export function useScreenRecording() {
     streamsRef.current = {};
   }, []);
 
-  const setupAudioContext = useCallback((audioStream: MediaStream) => {
-    const audioContext = new AudioContext();
-    const audioSource = audioContext.createMediaStreamSource(audioStream);
-    const gainNode = audioContext.createGain();
-    // Create a silent audio pipeline to force Windows to keep the audio device active (prevents Windows from switching Bluetooth devices)
-    gainNode.gain.value = 0;
-    audioSource.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+  const setupRecorder = useCallback(
+    (videoStream: MediaStream, audioStream: MediaStream, systemAudioStream?: MediaStream) => {
+      streamsRef.current = {
+        video: videoStream,
+        audio: audioStream,
+        systemAudio: systemAudioStream,
+      };
 
-    audioContextRef.current = audioContext;
-    audioSourceRef.current = audioSource;
-  }, []);
+      // Close existing audio context if present to prevent resource leaks
+      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+        audioContextRef.current.close().catch((err) => {
+          console.warn("Failed to close audio context:", err);
+        });
+      }
 
-  const setupRecorder = useCallback((videoStream: MediaStream, audioStream: MediaStream) => {
-    streamsRef.current = { video: videoStream, audio: audioStream };
+      // Create a new AudioContext for mixing audio sources
+      const audioContext = new AudioContext();
 
-    const recorder = new MediaRecorder(
-      new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]),
-      { mimeType: VIDEO_MIME_TYPE },
-    );
+      // Create source nodes for each audio stream
+      const micSource = audioContext.createMediaStreamSource(audioStream);
 
-    chunksRef.current = [];
-    recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
+      // Create gain nodes for volume control
+      // Using gain boost to ensure adequate audio levels for better audibility
+      const micGain = audioContext.createGain();
+      micGain.gain.value = AUDIO_GAIN_BOOST;
 
-    mediaRecorderRef.current = recorder;
-    return recorder;
-  }, []);
+      // Create a destination node that will output the mixed audio as a MediaStream
+      const destination = audioContext.createMediaStreamDestination();
+
+      // Connect microphone through gain to destination
+      micSource.connect(micGain);
+      micGain.connect(destination);
+
+      // Also create a silent pipeline to force Windows to keep the audio device active
+      // This prevents Windows from switching Bluetooth devices during recording
+      const silentGainNode = audioContext.createGain();
+      silentGainNode.gain.value = 0; // Silent
+      micSource.connect(silentGainNode);
+      silentGainNode.connect(audioContext.destination);
+
+      // If we have system audio, mix it in
+      if (systemAudioStream && systemAudioStream.getAudioTracks().length > 0) {
+        const systemSource = audioContext.createMediaStreamSource(systemAudioStream);
+
+        // Create gain node for system audio
+        const systemGain = audioContext.createGain();
+        systemGain.gain.value = AUDIO_GAIN_BOOST;
+
+        // Connect system audio through gain to destination
+        systemSource.connect(systemGain);
+        systemGain.connect(destination);
+
+        // Also connect system audio to the silent pipeline for consistency
+        systemSource.connect(silentGainNode);
+        systemAudioSourceRef.current = systemSource;
+      }
+
+      // Store references for cleanup
+      audioContextRef.current = audioContext;
+      audioSourceRef.current = micSource;
+      mixedAudioDestinationRef.current = destination;
+      gainNodeRef.current = silentGainNode;
+
+      // Create MediaRecorder with video and the MIXED audio stream
+      const recorder = new MediaRecorder(
+        new MediaStream([
+          ...videoStream.getVideoTracks(),
+          ...destination.stream.getAudioTracks(), // Use the mixed audio from Web Audio API
+        ]),
+        { mimeType: VIDEO_MIME_TYPE },
+      );
+
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
+
+      mediaRecorderRef.current = recorder;
+      return recorder;
+    },
+    [],
+  );
 
   const startRecorder = useCallback(
     async (recorder: MediaRecorder, cameraDeviceId?: string | null) => {
@@ -124,7 +200,6 @@ export function useScreenRecording() {
             }),
           ]);
 
-          setupAudioContext(audioStream);
           const recorder = setupRecorder(cameraStream, audioStream);
           // Pass null for camera device ID to indicate no camera PIP should be shown
           await startRecorder(recorder, null);
@@ -132,9 +207,44 @@ export function useScreenRecording() {
           setIsRecording(true);
           toast.success("Recording started");
         } else {
-          // Screen recording mode (original behavior)
+          // Screen recording mode with system audio capture
           const result = await window.electronAPI.screenRecording.start(sourceId);
           if (!result.success) throw new Error("Failed to start recording");
+
+          // Request system audio via getDisplayMedia
+          // This will prompt the user to share system audio and capture audio from remote participants
+          let systemAudioStream: MediaStream | undefined;
+          try {
+            // Use getDisplayMedia to request system audio loopback
+            // The backend's setDisplayMediaRequestHandler will provide the loopback audio
+            // Note: We request both video and audio because getDisplayMedia requires at least one
+            const displayStream = await navigator.mediaDevices.getDisplayMedia({
+              video: true, // Required by getDisplayMedia API
+              audio: true, // Request system audio (loopback will be provided by backend handler)
+            });
+
+            // Stop video tracks immediately since we only want audio
+            displayStream.getVideoTracks().forEach((track) => {
+              track.stop();
+            });
+
+            // Check if we got audio tracks
+            if (displayStream.getAudioTracks().length > 0) {
+              // Store the stream with audio tracks for recording
+              systemAudioStream = displayStream;
+              toast.success("System audio capture enabled");
+            } else {
+              // If no audio tracks, stop any remaining tracks to prevent resource leak
+              displayStream.getTracks().forEach((track) => {
+                track.stop();
+              });
+              console.warn("Display stream has no audio tracks");
+            }
+          } catch (displayError) {
+            // User may have denied system audio permission or it's not available
+            console.warn("System audio not available:", displayError);
+            toast.info("Recording without system audio - only microphone will be captured");
+          }
 
           const [videoStream, audioStream] = await Promise.all([
             navigator.mediaDevices.getUserMedia({
@@ -156,8 +266,7 @@ export function useScreenRecording() {
             }),
           ]);
 
-          setupAudioContext(audioStream);
-          const recorder = setupRecorder(videoStream, audioStream);
+          const recorder = setupRecorder(videoStream, audioStream, systemAudioStream);
           await startRecorder(recorder, options?.cameraDeviceId);
 
           setIsRecording(true);
@@ -171,7 +280,7 @@ export function useScreenRecording() {
         setIsProcessing(false);
       }
     },
-    [cleanup, setupAudioContext, setupRecorder, startRecorder],
+    [cleanup, setupRecorder, startRecorder],
   );
 
   const stop = useCallback(async (): Promise<{
