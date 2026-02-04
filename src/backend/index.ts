@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, desktopCapturer, dialog, Menu, session, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { config } from "./config/env";
@@ -397,12 +397,9 @@ app.whenReady().then(async () => {
 
   _screenRecordingHandlers = new ScreenRecordingIPCHandlers();
 
-  // Initialize system audio service and pass it the main window
+  // Initialize system audio service
   const { SystemAudioService } = await import("./services/recording/system-audio-service");
-  const systemAudioService = SystemAudioService.getInstance();
-  if (mainWindow) {
-    systemAudioService.setMainWindow(mainWindow);
-  }
+  SystemAudioService.getInstance();
 
   // Initialize in-memory MCP servers
   await registerAllInternalMcpServers();

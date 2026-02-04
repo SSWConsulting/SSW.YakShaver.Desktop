@@ -1,4 +1,4 @@
-import { type BrowserWindow, ipcMain } from "electron";
+import { ipcMain, webContents } from "electron";
 import {
   getSystemAudioPermissionStatus,
   openSystemSettings,
@@ -15,7 +15,6 @@ const SYSTEM_AUDIO_STATUS_CHANNEL = "system-audio:status";
 export class SystemAudioService {
   private static instance: SystemAudioService;
   private recorder: SystemAudioRecorder | null = null;
-  private mainWindow: BrowserWindow | null = null;
   private isRecording = false;
 
   private constructor() {
@@ -29,8 +28,14 @@ export class SystemAudioService {
     return SystemAudioService.instance;
   }
 
-  setMainWindow(window: BrowserWindow) {
-    this.mainWindow = window;
+  // Send to all renderer windows to ensure the right one receives it
+  private sendToAllWindows(channel: string, data: unknown) {
+    const allWebContents = webContents.getAllWebContents();
+    for (const wc of allWebContents) {
+      if (!wc.isDestroyed()) {
+        wc.send(channel, data);
+      }
+    }
   }
 
   private registerHandlers() {
@@ -52,7 +57,12 @@ export class SystemAudioService {
     });
   }
 
-  async start(): Promise<{ success: boolean; error?: string; metadata?: unknown; needsPermission?: boolean }> {
+  async start(): Promise<{
+    success: boolean;
+    error?: string;
+    metadata?: unknown;
+    needsPermission?: boolean;
+  }> {
     if (this.isRecording) {
       return { success: true };
     }
@@ -66,14 +76,15 @@ export class SystemAudioService {
         // Try to request permission
         const granted = await requestSystemAudioPermission();
         console.log("[SystemAudio] Permission request result:", granted);
-        
+
         if (!granted) {
           // Open system settings for user to grant permission
           console.log("[SystemAudio] Opening system settings...");
           openSystemSettings();
           return {
             success: false,
-            error: "System audio permission required. Please enable 'Screen & System Audio Recording' for this app in System Settings, then restart the app.",
+            error:
+              "System audio permission required. Please enable 'Screen & System Audio Recording' for this app in System Settings, then restart the app.",
             needsPermission: true,
           };
         }
@@ -86,24 +97,21 @@ export class SystemAudioService {
         stereo: false, // Mono for simpler mixing
       });
 
+      let chunkCount = 0;
       // Send audio data to renderer
       this.recorder.on("data", (chunk) => {
-        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-          // Send raw PCM data as ArrayBuffer
-          this.mainWindow.webContents.send(SYSTEM_AUDIO_DATA_CHANNEL, {
-            data: chunk.data.buffer.slice(
-              chunk.data.byteOffset,
-              chunk.data.byteOffset + chunk.data.byteLength,
-            ),
-          });
+        chunkCount++;
+        if (chunkCount === 1 || chunkCount % 50 === 0) {
+          console.log(`[SystemAudio] Sending chunk #${chunkCount}, size: ${chunk.data.byteLength}`);
         }
+        // Send raw PCM data to all windows - copy to a new Buffer to ensure clean transfer
+        const buffer = Buffer.from(chunk.data);
+        this.sendToAllWindows(SYSTEM_AUDIO_DATA_CHANNEL, buffer);
       });
 
       this.recorder.on("metadata", (metadata) => {
         console.log("[SystemAudio] Metadata:", metadata);
-        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-          this.mainWindow.webContents.send("system-audio:metadata", metadata);
-        }
+        this.sendToAllWindows("system-audio:metadata", metadata);
       });
 
       this.recorder.on("error", (error) => {

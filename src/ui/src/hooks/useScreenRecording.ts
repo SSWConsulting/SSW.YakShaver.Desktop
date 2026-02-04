@@ -26,13 +26,12 @@ class SystemAudioBuffer {
   setMetadata(metadata: { sampleRate: number; isFloat: boolean; channelsPerFrame: number }) {
     this.sampleRate = metadata.sampleRate;
     this.isFloat = metadata.isFloat;
-    console.log("[SystemAudio] Metadata set:", metadata);
   }
 
   pushData(data: ArrayBuffer) {
     // Convert raw PCM to Float32
     let float32Data: Float32Array;
-    
+
     if (this.isFloat) {
       // Already 32-bit float
       float32Data = new Float32Array(data);
@@ -44,9 +43,9 @@ class SystemAudioBuffer {
         float32Data[i] = int16Data[i] / 32768;
       }
     }
-    
+
     this.buffer.push(float32Data);
-    
+
     // Keep buffer from growing too large (max ~1 second)
     while (this.buffer.length > 10) {
       this.buffer.shift();
@@ -57,15 +56,15 @@ class SystemAudioBuffer {
   getSamples(outputLength: number): Float32Array {
     const result = new Float32Array(outputLength);
     let resultIndex = 0;
-    
+
     while (resultIndex < outputLength && this.buffer.length > 0) {
       const chunk = this.buffer[0];
       const remaining = outputLength - resultIndex;
       const toCopy = Math.min(remaining, chunk.length);
-      
+
       result.set(chunk.subarray(0, toCopy), resultIndex);
       resultIndex += toCopy;
-      
+
       if (toCopy >= chunk.length) {
         this.buffer.shift();
       } else {
@@ -73,7 +72,7 @@ class SystemAudioBuffer {
         this.buffer[0] = chunk.subarray(toCopy);
       }
     }
-    
+
     return result;
   }
 
@@ -115,9 +114,9 @@ export function useScreenRecording() {
     unsubscribeMetadataRef.current = window.electronAPI.screenRecording.onSystemAudioMetadata(
       (metadata) => {
         systemAudioBufferRef.current.setMetadata(
-          metadata as { sampleRate: number; isFloat: boolean; channelsPerFrame: number }
+          metadata as { sampleRate: number; isFloat: boolean; channelsPerFrame: number },
         );
-      }
+      },
     );
   }, []);
 
@@ -138,9 +137,15 @@ export function useScreenRecording() {
     cleanupSystemAudioListener();
     systemAudioBufferRef.current.clear();
 
-    mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
-    streamsRef.current.video?.getTracks().forEach((track) => track.stop());
-    streamsRef.current.audio?.getTracks().forEach((track) => track.stop());
+    mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
+      track.stop();
+    });
+    streamsRef.current.video?.getTracks().forEach((track) => {
+      track.stop();
+    });
+    streamsRef.current.audio?.getTracks().forEach((track) => {
+      track.stop();
+    });
 
     if (audioSourceRef.current) {
       audioSourceRef.current.disconnect();
@@ -185,24 +190,22 @@ export function useScreenRecording() {
 
       // If including system audio, create a ScriptProcessor to inject PCM data
       if (includeSystemAudio) {
-        console.log("[SetupRecorder] Setting up system audio injection...");
-        
         // ScriptProcessorNode is deprecated but works reliably for this use case
         // Buffer size of 4096 gives ~85ms latency at 48kHz
         const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
         const systemGain = audioContext.createGain();
         systemGain.gain.value = AUDIO_GAIN_BOOST;
-        
+
         scriptProcessor.onaudioprocess = (event) => {
           const outputBuffer = event.outputBuffer.getChannelData(0);
           const samples = systemAudioBufferRef.current.getSamples(outputBuffer.length);
           outputBuffer.set(samples);
         };
-        
+
         // Connect: scriptProcessor -> systemGain -> destination
         scriptProcessor.connect(systemGain);
         systemGain.connect(destination);
-        
+
         // Also need a dummy input to keep scriptProcessor running
         // Create an oscillator at 0 Hz (DC) with 0 gain
         const oscillator = audioContext.createOscillator();
@@ -211,9 +214,8 @@ export function useScreenRecording() {
         oscillator.connect(silentGain);
         silentGain.connect(scriptProcessor);
         oscillator.start();
-        
+
         scriptProcessorRef.current = scriptProcessor;
-        console.log("[SetupRecorder] System audio injection ready");
       }
 
       audioContextRef.current = audioContext;
@@ -226,11 +228,8 @@ export function useScreenRecording() {
       }
 
       const recorder = new MediaRecorder(
-        new MediaStream([
-          ...videoStream.getVideoTracks(),
-          ...destination.stream.getAudioTracks(),
-        ]),
-        { mimeType: VIDEO_MIME_TYPE }
+        new MediaStream([...videoStream.getVideoTracks(), ...destination.stream.getAudioTracks()]),
+        { mimeType: VIDEO_MIME_TYPE },
       );
 
       chunksRef.current = [];
@@ -239,7 +238,7 @@ export function useScreenRecording() {
       mediaRecorderRef.current = recorder;
       return recorder;
     },
-    []
+    [],
   );
 
   const startRecorder = useCallback(
@@ -257,7 +256,7 @@ export function useScreenRecording() {
         throw error;
       }
     },
-    [cleanup]
+    [cleanup],
   );
 
   const start = useCallback(
@@ -302,7 +301,7 @@ export function useScreenRecording() {
           try {
             console.log("[Recording] Starting system audio capture...");
             setupSystemAudioListener();
-            
+
             const systemAudioResult = await window.electronAPI.screenRecording.startSystemAudio();
             console.log("[Recording] System audio result:", systemAudioResult);
             if (systemAudioResult.success) {
@@ -359,7 +358,7 @@ export function useScreenRecording() {
         setIsProcessing(false);
       }
     },
-    [cleanup, setupRecorder, startRecorder, setupSystemAudioListener, cleanupSystemAudioListener]
+    [cleanup, setupRecorder, startRecorder, setupSystemAudioListener, cleanupSystemAudioListener],
   );
 
   const stop = useCallback(async (): Promise<{
@@ -381,7 +380,7 @@ export function useScreenRecording() {
 
           const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
           const result = await window.electronAPI.screenRecording.stop(
-            new Uint8Array(await blob.arrayBuffer())
+            new Uint8Array(await blob.arrayBuffer()),
           );
 
           if (!result.success || !result.filePath) {
