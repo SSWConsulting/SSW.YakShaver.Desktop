@@ -64,6 +64,27 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
   const fetchDevices = useCallback(async () => {
     try {
+      // Use a “test stream” to trigger permission prompt if not already granted
+      let permissionStream: MediaStream | null = null;
+      try {
+        permissionStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+      } catch (permissionError) {
+        if (permissionError instanceof DOMException && permissionError.name === "NotAllowedError") {
+          toast.error(
+            "Camera and microphone permissions are required. Please grant permissions in your system settings.",
+          );
+        }
+      } finally {
+        if (permissionStream) {
+          permissionStream.getTracks().forEach((track) => {
+            track.stop();
+          });
+        }
+      }
+
       const devices = await navigator.mediaDevices.enumerateDevices();
       const cams = devices.filter((d) => d.kind === "videoinput");
       const mics = devices.filter((d) => d.kind === "audioinput");
@@ -365,7 +386,7 @@ function CameraOnlyTile({ onClick }: { onClick: () => void }) {
         <span className="w-full max-w-full text-center text-sm font-medium">
           No Screen / Camera Only
         </span>
-        <span className="w-full max-w-full text-center text-xs text-neutral-500 whitespace-normal break-words">
+        <span className="w-full max-w-full text-center text-xs text-neutral-500 whitespace-normal wrap-break-word">
           Record camera feed without screen capture
         </span>
       </div>
