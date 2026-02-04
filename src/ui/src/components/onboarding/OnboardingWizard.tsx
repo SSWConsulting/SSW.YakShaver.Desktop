@@ -70,7 +70,11 @@ const LANGUAGE_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
   (providerName) => LLM_PROVIDER_CONFIGS[providerName].defaultLanguageModel !== undefined,
 ).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
 
-export function OnboardingWizard() {
+export function OnboardingWizard({
+  onVisibilityChange,
+}: {
+  onVisibilityChange?: (isVisible: boolean) => void;
+}) {
   const [currentStep, setCurrentStep] = useState(1);
 
   const [isMcpFormOpen, setIsMcpFormOpen] = useState(false);
@@ -85,6 +89,10 @@ export function OnboardingWizard() {
     const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
     return completed !== "true";
   });
+  useEffect(() => {
+    onVisibilityChange?.(isVisible);
+  }, [isVisible, onVisibilityChange]);
+
   const stepListRef = useRef<HTMLDivElement | null>(null);
   const stepIconRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [connectorPositions, setConnectorPositions] = useState<ConnectorPosition[]>([]);
