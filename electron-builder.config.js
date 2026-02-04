@@ -38,7 +38,7 @@ module.exports = {
     target: [
       {
         target: "nsis",
-        arch: ["x64"],
+        arch: ["x64", "arm64"],
       },
     ],
   },
@@ -60,7 +60,12 @@ module.exports = {
   },
   linux: {
     icon: "src/ui/public/icons/icon.png",
-    target: ["deb"],
+    target: [
+      {
+        target: "deb",
+        arch: ["x64", "arm64"],
+      },
+    ],
   },
   generateUpdatesFilesForAllChannels: true,
   publish: [
