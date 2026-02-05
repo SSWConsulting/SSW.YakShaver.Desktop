@@ -74,70 +74,54 @@ export class MCPServerClient {
         }
       }
 
-      if (tokens) {
-        // Tokens exist - use Bearer header
-        console.log(`[MCPServerClient] Using existing tokens for ${mcpConfig.name}`);
-        const client = await experimental_createMCPClient({
-          transport: {
-            type: "http",
-            url: serverUrl,
-            headers: {
-              ...mcpConfig.headers,
-              Authorization: `Bearer ${tokens.access_token}`,
-            },
-          },
-        });
-        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
-      }
+      // If no valid tokens, trigger backend OAuth flow
+      if (!tokens?.access_token) {
+        try {
+          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
+          console.log(
+            `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl} (Timeout: ${authTimeoutMs}ms)`,
+          );
 
-      // No tokens - trigger backend OAuth flow
-      try {
-        const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
-        console.log(
-          `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl} (Timeout: ${authTimeoutMs}ms)`,
-        );
+          // This call will delegate discovery and DCR to the backend
+          await withTimeout(
+            authorizeWithBackend(tokenStorage, serverUrl, serverId, authTimeoutMs),
+            authTimeoutMs,
+            `${mcpConfig.name} OAuth`,
+          );
 
-        // This call will delegate discovery and DCR to the backend
-        await withTimeout(
-          authorizeWithBackend(tokenStorage, serverUrl, serverId, authTimeoutMs),
-          authTimeoutMs,
-          `${mcpConfig.name} OAuth`,
-        );
-
-        // After OAuth, get tokens and use headers
-        tokens = await tokenStorage.getTokensAsync(serverId);
-        if (!tokens) {
-          throw new Error(`OAuth completed but no tokens found for ${mcpConfig.name}`);
+          // After OAuth, get tokens
+          tokens = await tokenStorage.getTokensAsync(serverId);
+          if (!tokens) {
+            console.warn(
+              `[MCPServerClient]: OAuth flow for ${mcpConfig.name} (id: ${serverId}) completed but no tokens were retrieved from storage.`,
+            );
+          }
+        } catch (authError) {
+          console.error(
+            `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`,
+            authError,
+          );
+          console.log(
+            `[MCPServerClient]: Falling back to default headers without authentication for ${mcpConfig.name}`,
+          );
         }
-
-        console.log(
-          `[MCPServerClient] Creating MCP client for ${mcpConfig.name} with Bearer token`,
-        );
-        const client = await experimental_createMCPClient({
-          transport: {
-            type: "http",
-            url: serverUrl,
-            headers: {
-              ...mcpConfig.headers,
-              Authorization: `Bearer ${tokens.access_token}`,
-            },
-          },
-        });
-        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
-      } catch (authError) {
-        console.error(
-          `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`,
-          authError,
-        );
-        console.log(`[MCPServerClient]: Falling back to headers for ${mcpConfig.name}`);
       }
 
-      // Fallback: Use headers if OAuth is not supported or failed
+      // Prepare headers with Bearer token if available
+      const headers = { ...mcpConfig.headers };
+
+      if (tokens?.access_token) {
+        console.log(`[MCPServerClient] Using Bearer token for ${mcpConfig.name}`);
+        headers.Authorization = `Bearer ${tokens.access_token}`;
+      } else {
+        console.log(`[MCPServerClient] Using default headers for ${mcpConfig.name}`);
+      }
+
       const client = await experimental_createMCPClient({
         transport: {
           type: "http",
           url: serverUrl,
-          headers: mcpConfig.headers,
+          headers,
         },
       });
       return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
