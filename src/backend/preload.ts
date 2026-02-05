@@ -176,6 +176,9 @@ const electronAPI = {
     stopFromControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR),
     minimizeMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.MINIMIZE_MAIN_WINDOW),
     restoreMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.RESTORE_MAIN_WINDOW),
+    // System audio loopback APIs (provided by electron-audio-loopback package)
+    enableLoopbackAudio: () => ipcRenderer.invoke("enable-loopback-audio"),
+    disableLoopbackAudio: () => ipcRenderer.invoke("disable-loopback-audio"),
     onStopRequest: (callback: () => void) => {
       const listener = () => callback();
       ipcRenderer.on("stop-recording-request", listener);

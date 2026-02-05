@@ -88,6 +88,8 @@ declare global {
         stopFromControlBar: () => Promise<{ success: boolean }>;
         minimizeMainWindow: () => Promise<{ success: boolean }>;
         restoreMainWindow: () => Promise<{ success: boolean }>;
+        enableLoopbackAudio: () => Promise<void>;
+        disableLoopbackAudio: () => Promise<void>;
         onStopRequest: (callback: () => void) => () => void;
         onOpenSourcePicker: (callback: () => void) => () => void;
       };
