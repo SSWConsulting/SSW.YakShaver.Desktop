@@ -1,3 +1,6 @@
+// NOTE: IPC_CHANNELS must be defined inline in preload.ts because Electron's sandbox
+// prevents preload scripts from requiring external modules. Keep in sync with
+// src/shared/constants/ipc-channels.ts
 import type { Hotkeys, UserSettings } from "@shared/types/user-settings";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { ToolApprovalDecision } from "../shared/types/mcp";
@@ -12,9 +15,6 @@ import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 import type { ShaveStatus } from "./types";
 
-// TODO: the IPC_CHANNELS constant is repeated in the channels.ts file;
-// Need to make single source of truth
-// Importing IPC_CHANNELS from channels.ts file is breaking the preload script
 const IPC_CHANNELS = {
   // YouTube auth and config
   YOUTUBE_START_AUTH: "youtube:start-auth",
@@ -40,9 +40,17 @@ const IPC_CHANNELS = {
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
   HIDE_CONTROL_BAR: "hide-control-bar",
+  RECORDING_TIME_UPDATE: "recording-time-update",
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
   OPEN_SOURCE_PICKER: "open-source-picker",
+
+  // System audio
+  SYSTEM_AUDIO_START: "system-audio:start",
+  SYSTEM_AUDIO_STOP: "system-audio:stop",
+  SYSTEM_AUDIO_STATUS: "system-audio:status",
+  SYSTEM_AUDIO_DATA: "system-audio:data",
+  SYSTEM_AUDIO_METADATA: "system-audio:metadata",
 
   // LLM
   LLM_SET_CONFIG: "llm:set-config",
@@ -83,11 +91,11 @@ const IPC_CHANNELS = {
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
   SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
   SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
+  SETTINGS_HOTKEY_UPDATE: "settings:hotkey-update",
 
-  // General User Settings
+  // General Settings
   SETTINGS_GET: "settings:get",
   SETTINGS_UPDATE: "settings:update",
-  SETTINGS_HOTKEY_UPDATE: "settings:hotkey-update",
 
   // Release Channel
   RELEASE_CHANNEL_GET: "release-channel:get",
@@ -177,9 +185,9 @@ const electronAPI = {
     minimizeMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.MINIMIZE_MAIN_WINDOW),
     restoreMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.RESTORE_MAIN_WINDOW),
     // System audio via native-audio-node
-    startSystemAudio: () => ipcRenderer.invoke("system-audio:start"),
-    stopSystemAudio: () => ipcRenderer.invoke("system-audio:stop"),
-    getSystemAudioStatus: () => ipcRenderer.invoke("system-audio:status"),
+    startSystemAudio: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_AUDIO_START),
+    stopSystemAudio: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_AUDIO_STOP),
+    getSystemAudioStatus: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_AUDIO_STATUS),
     onSystemAudioData: (callback: (data: { data: ArrayBuffer }) => void) => {
       const listener = (_: IpcRendererEvent, payload: unknown) => {
         try {
@@ -206,13 +214,13 @@ const electronAPI = {
           console.error("[Preload] Error processing system audio data:", err);
         }
       };
-      ipcRenderer.on("system-audio:data", listener);
-      return () => ipcRenderer.removeListener("system-audio:data", listener);
+      ipcRenderer.on(IPC_CHANNELS.SYSTEM_AUDIO_DATA, listener);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.SYSTEM_AUDIO_DATA, listener);
     },
     onSystemAudioMetadata: (callback: (metadata: unknown) => void) => {
       const listener = (_: IpcRendererEvent, metadata: unknown) => callback(metadata);
-      ipcRenderer.on("system-audio:metadata", listener);
-      return () => ipcRenderer.removeListener("system-audio:metadata", listener);
+      ipcRenderer.on(IPC_CHANNELS.SYSTEM_AUDIO_METADATA, listener);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.SYSTEM_AUDIO_METADATA, listener);
     },
     onStopRequest: (callback: () => void) => {
       const listener = () => callback();

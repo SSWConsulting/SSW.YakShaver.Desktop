@@ -5,12 +5,7 @@ import {
   requestSystemAudioPermission,
   SystemAudioRecorder,
 } from "native-audio-node";
-
-// IPC channel for streaming audio data to renderer
-const SYSTEM_AUDIO_DATA_CHANNEL = "system-audio:data";
-const SYSTEM_AUDIO_START_CHANNEL = "system-audio:start";
-const SYSTEM_AUDIO_STOP_CHANNEL = "system-audio:stop";
-const SYSTEM_AUDIO_STATUS_CHANNEL = "system-audio:status";
+import { IPC_CHANNELS } from "../../ipc/channels";
 
 export class SystemAudioService {
   private static instance: SystemAudioService;
@@ -39,15 +34,15 @@ export class SystemAudioService {
   }
 
   private registerHandlers() {
-    ipcMain.handle(SYSTEM_AUDIO_START_CHANNEL, async () => {
+    ipcMain.handle(IPC_CHANNELS.SYSTEM_AUDIO_START, async () => {
       return this.start();
     });
 
-    ipcMain.handle(SYSTEM_AUDIO_STOP_CHANNEL, async () => {
+    ipcMain.handle(IPC_CHANNELS.SYSTEM_AUDIO_STOP, async () => {
       return this.stop();
     });
 
-    ipcMain.handle(SYSTEM_AUDIO_STATUS_CHANNEL, async () => {
+    ipcMain.handle(IPC_CHANNELS.SYSTEM_AUDIO_STATUS, async () => {
       const permissionStatus = getSystemAudioPermissionStatus();
       return {
         isRecording: this.isRecording,
@@ -106,12 +101,12 @@ export class SystemAudioService {
         }
         // Send raw PCM data to all windows - copy to a new Buffer to ensure clean transfer
         const buffer = Buffer.from(chunk.data);
-        this.sendToAllWindows(SYSTEM_AUDIO_DATA_CHANNEL, buffer);
+        this.sendToAllWindows(IPC_CHANNELS.SYSTEM_AUDIO_DATA, buffer);
       });
 
       this.recorder.on("metadata", (metadata) => {
         console.log("[SystemAudio] Metadata:", metadata);
-        this.sendToAllWindows("system-audio:metadata", metadata);
+        this.sendToAllWindows(IPC_CHANNELS.SYSTEM_AUDIO_METADATA, metadata);
       });
 
       this.recorder.on("error", (error) => {
