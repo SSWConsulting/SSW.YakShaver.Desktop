@@ -286,6 +286,7 @@ if (!gotTheLock) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
       }
+      mainWindow.show();
       mainWindow.focus();
 
       // Check for protocol URL in command line (Windows)
@@ -446,7 +447,11 @@ app.on("before-quit", async (event) => {
 });
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (mainWindow) {
+    mainWindow.show();
+  } else if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });
 
 export function getMainWindow(): BrowserWindow | null {
