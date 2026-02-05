@@ -128,6 +128,7 @@ declare global {
         listServerTools: (
           serverId: string,
         ) => Promise<Array<{ name: string; description?: string }>>;
+        clearTokensAsync: (serverId: string) => Promise<{ success: boolean }>;
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;

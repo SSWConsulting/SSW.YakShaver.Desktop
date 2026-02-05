@@ -38,7 +38,6 @@ export function McpAzureDevOpsCard({
 
   async function toggleSettings(status: boolean): Promise<void> {
     const updatedConfig = { ...configLocal, enabled: status };
-    console.log("Updating Azure DevOps MCP config:", updatedConfig, McpAzureDevOpsCard.Id);
     await ipcClient.mcp.updateServerAsync(McpAzureDevOpsCard.Id, updatedConfig);
 
     if (onChange) {
@@ -49,8 +48,10 @@ export function McpAzureDevOpsCard({
   function handleOnConnect(): void {
     toggleSettings(true);
   }
-  function handleOnDisconnect(): void {
-    toggleSettings(false);
+
+  async function handleOnDisconnect(): Promise<void> {
+    await ipcClient.mcp.clearTokensAsync(McpAzureDevOpsCard.Id);
+    await toggleSettings(false);
   }
 
   return (
