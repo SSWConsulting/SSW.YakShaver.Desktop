@@ -138,13 +138,15 @@ jobs:
           }
           
           cd build
-          
-          # Find the generated installer with specific pattern
-          $installer = Get-ChildItem -Filter "YakShaver-Setup-*.exe" | Select-Object -First 1
+          # Find the generated installer - look for any exe file with "Setup" in the name
+          $installer = Get-ChildItem -Filter "*Setup*.exe" | 
+                       Sort-Object LastWriteTime -Descending | 
+                       Select-Object -First 1
           
           if (-not $installer) {
-            Write-Error "No installer file found matching pattern 'YakShaver-Setup-*.exe'"
-            Get-ChildItem -Filter "*.exe" | ForEach-Object { Write-Host "Found: $($_.Name)" }
+            Write-Host "All .exe files in build directory:"
+            Get-ChildItem -Filter "*.exe" | ForEach-Object { Write-Host "  $($_.Name)" }
+            Write-Error "No installer file found with 'Setup' in the name"
             exit 1
           }
           
@@ -289,19 +291,5 @@ jobs:
           cp "$DMG_FILE" "YakShaver-latest-arm64.dmg"
           gh release upload "$VERSION" "YakShaver-latest-arm64.dmg" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
           echo "Successfully uploaded YakShaver-latest-arm64.dmg for stable download link"
-          
-          # Find ZIP file with specific pattern
-          ZIP_FILE=$(find . -name "YakShaver-*-arm64-mac.zip" -type f | head -n 1)
-          if [[ -z "$ZIP_FILE" ]]; then
-            echo "Error: No ZIP file found matching pattern 'YakShaver-*-arm64-mac.zip'" >&2
-            echo "Available files:" >&2
-            ls -la >&2
-            exit 1
-          fi
-          
-          echo "Found ZIP: $ZIP_FILE"
-          cp "$ZIP_FILE" "YakShaver-latest-arm64-mac.zip"
-          gh release upload "$VERSION" "YakShaver-latest-arm64-mac.zip" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
-          echo "Successfully uploaded YakShaver-latest-arm64-mac.zip for stable download link"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
