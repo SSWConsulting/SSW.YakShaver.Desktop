@@ -249,7 +249,9 @@ export function useScreenRecording() {
             }
           } catch (displayError) {
             // Ensure loopback is disabled even on error
-            await window.electronAPI.screenRecording.disableLoopbackAudio().catch(() => {});
+            await window.electronAPI.screenRecording.disableLoopbackAudio().catch((err) => {
+              console.error("Failed to disable loopback audio after display error:", err);
+            });
             // User may have denied system audio permission or it's not available
             console.warn("System audio not available:", displayError);
             toast.info("Recording without system audio - only microphone will be captured");
