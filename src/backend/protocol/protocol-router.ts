@@ -83,6 +83,13 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     await McpOAuthTokenStorage.getInstance().saveTokensAsync(serverId, tokens);
   },
 
+  // Main app auth callback (triggered by success template to refocus app)
+  "/auth": async () => {
+    console.log("[ProtocolRouter] Handling Main App Auth callback");
+    // No action needed, just prevents "Unhandled protocol route" error
+    // The window focus is handled by the main process event listener
+  },
+
   // YouTube OAuth callback handler
   "/youtube/oauth/callback": async (url, window) => {
     const params = new URLSearchParams(url.search);

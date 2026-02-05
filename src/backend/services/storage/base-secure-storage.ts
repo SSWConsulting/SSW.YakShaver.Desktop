@@ -46,6 +46,18 @@ export abstract class BaseSecureStorage {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return null; // File doesn't exist
       }
+
+      // Handle decryption errors (e.g. different machine, OS update, or corrupted file)
+      // The error message from Electron's safeStorage is usually:
+      // "Error while decrypting the ciphertext provided to safeStorage.decryptString."
+      const errorMessage = (error as Error).message || "";
+      if (errorMessage.includes("Error while decrypting")) {
+        console.warn(
+          `[BaseSecureStorage] Failed to decrypt ${filePath}. The file might be corrupted or encrypted with a different key. Ignoring file. Error: ${errorMessage}`,
+        );
+        return null;
+      }
+
       throw error;
     }
   }

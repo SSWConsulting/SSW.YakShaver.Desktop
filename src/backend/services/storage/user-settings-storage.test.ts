@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import { safeStorage } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_USER_SETTINGS, type UserSettings } from "../../../shared/types/user-settings";
 import { UserSettingsStorage } from "./user-settings-storage";
@@ -53,6 +54,27 @@ describe("UserSettingsStorage", () => {
       expect(settings).toEqual(DEFAULT_USER_SETTINGS);
       // It should NOT try to write defaults to disk implicitly on get (based on current implementation)
       expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it("should return default settings and log warning when decryption fails", async () => {
+      // Mock readFile success (file exists but is corrupted/wrong key)
+      vi.mocked(fs.readFile).mockResolvedValueOnce(Buffer.from("corrupted-data"));
+
+      // Force decryptString to throw the specific error
+      vi.mocked(safeStorage.decryptString).mockImplementationOnce(() => {
+        throw new Error(
+          "Error while decrypting the ciphertext provided to safeStorage.decryptString.",
+        );
+      });
+
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const settings = await storage.getSettingsAsync();
+
+      expect(settings).toEqual(DEFAULT_USER_SETTINGS);
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to decrypt"));
+
+      consoleSpy.mockRestore();
     });
 
     it("should load and decrypt existing settings", async () => {
