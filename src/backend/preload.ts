@@ -39,6 +39,8 @@ const IPC_CHANNELS = {
   CLEANUP_TEMP_FILE: "cleanup-temp-file",
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
+  ENABLE_LOOPBACK_AUDIO: "enable-loopback-audio",
+  DISABLE_LOOPBACK_AUDIO: "disable-loopback-audio",
   HIDE_CONTROL_BAR: "hide-control-bar",
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
@@ -177,8 +179,8 @@ const electronAPI = {
     minimizeMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.MINIMIZE_MAIN_WINDOW),
     restoreMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.RESTORE_MAIN_WINDOW),
     // System audio loopback APIs (provided by electron-audio-loopback package)
-    enableLoopbackAudio: () => ipcRenderer.invoke("enable-loopback-audio"),
-    disableLoopbackAudio: () => ipcRenderer.invoke("disable-loopback-audio"),
+    enableLoopbackAudio: () => ipcRenderer.invoke(IPC_CHANNELS.ENABLE_LOOPBACK_AUDIO),
+    disableLoopbackAudio: () => ipcRenderer.invoke(IPC_CHANNELS.DISABLE_LOOPBACK_AUDIO),
     onStopRequest: (callback: () => void) => {
       const listener = () => callback();
       ipcRenderer.on("stop-recording-request", listener);
