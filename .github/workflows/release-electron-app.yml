@@ -129,6 +129,41 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Create fixed-name artifacts for stable download links
+        shell: pwsh
+        run: |
+          $VERSION="${{ needs.check-release.outputs.version }}"
+          if (-not $VERSION) {
+            throw "Missing version output from 'check-release' job"
+          }
+          
+          cd build
+          
+          # Find the generated installer with specific pattern
+          $installer = Get-ChildItem -Filter "YakShaver-Setup-*.exe" | Select-Object -First 1
+          
+          if (-not $installer) {
+            Write-Error "No installer file found matching pattern 'YakShaver-Setup-*.exe'"
+            Get-ChildItem -Filter "*.exe" | ForEach-Object { Write-Host "Found: $($_.Name)" }
+            exit 1
+          }
+          
+          Write-Host "Found installer: $($installer.Name)"
+          
+          # Create a copy with fixed name
+          $fixedName = "YakShaver-latest-Setup.exe"
+          Copy-Item $installer.FullName $fixedName
+          
+          # Upload to release
+          gh release upload "$VERSION" $fixedName --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to upload $fixedName"
+          }
+          
+          Write-Host "Successfully uploaded $fixedName for stable download link"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-macos:
     needs: check-release
     runs-on: macos-latest
@@ -228,3 +263,45 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Create fixed-name artifacts for stable download links
+        run: |
+          set -e
+          
+          VERSION="${{ needs.check-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Error: Missing version output from 'check-release' job (needs.check-release.outputs.version). Ensure the 'check-release' job completed successfully and produced a 'version' output." >&2
+            exit 1
+          fi
+          
+          cd build
+          
+          # Find DMG file with specific pattern
+          DMG_FILE=$(find . -name "YakShaver-*-arm64.dmg" -type f | head -n 1)
+          if [[ -z "$DMG_FILE" ]]; then
+            echo "Error: No DMG file found matching pattern 'YakShaver-*-arm64.dmg'" >&2
+            echo "Available files:" >&2
+            ls -la >&2
+            exit 1
+          fi
+          
+          echo "Found DMG: $DMG_FILE"
+          cp "$DMG_FILE" "YakShaver-latest-arm64.dmg"
+          gh release upload "$VERSION" "YakShaver-latest-arm64.dmg" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
+          echo "Successfully uploaded YakShaver-latest-arm64.dmg for stable download link"
+          
+          # Find ZIP file with specific pattern
+          ZIP_FILE=$(find . -name "YakShaver-*-arm64-mac.zip" -type f | head -n 1)
+          if [[ -z "$ZIP_FILE" ]]; then
+            echo "Error: No ZIP file found matching pattern 'YakShaver-*-arm64-mac.zip'" >&2
+            echo "Available files:" >&2
+            ls -la >&2
+            exit 1
+          fi
+          
+          echo "Found ZIP: $ZIP_FILE"
+          cp "$ZIP_FILE" "YakShaver-latest-arm64-mac.zip"
+          gh release upload "$VERSION" "YakShaver-latest-arm64-mac.zip" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
+          echo "Successfully uploaded YakShaver-latest-arm64-mac.zip for stable download link"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
