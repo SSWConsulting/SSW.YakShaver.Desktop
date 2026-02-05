@@ -101,7 +101,9 @@ export class MCPServerClient {
             `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`,
             authError,
           );
-          console.log(`[MCPServerClient]: Falling back to headers for ${mcpConfig.name}`);
+          console.log(
+            `[MCPServerClient]: Falling back to default headers without authentication for ${mcpConfig.name}`,
+          );
         }
       }
 
