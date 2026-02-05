@@ -91,6 +91,11 @@ export class MCPServerClient {
 
           // After OAuth, get tokens
           tokens = await tokenStorage.getTokensAsync(serverId);
+          if (!tokens) {
+            console.warn(
+              `[MCPServerClient]: OAuth flow for ${mcpConfig.name} (id: ${serverId}) completed but no tokens were retrieved from storage.`,
+            );
+          }
         } catch (authError) {
           console.error(
             `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`,
