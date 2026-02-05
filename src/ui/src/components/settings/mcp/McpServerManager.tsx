@@ -232,6 +232,7 @@ export function McpSettingsPanel({
   }
 
   async function handleOnDisconnect(serverId: string, configLocal: MCPServerConfig): Promise<void> {
+    await ipcClient.mcp.clearTokensAsync(serverId);
     await toggleSettings(serverId, false, configLocal);
   }
 

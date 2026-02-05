@@ -46,6 +46,7 @@ export const IPC_CHANNELS = {
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
   MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
+  MCP_CLEAR_TOKENS: "mcp:clear-tokens",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",

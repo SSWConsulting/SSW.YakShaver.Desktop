@@ -4,6 +4,7 @@ import type { VideoUploadResult } from "../services/auth/types";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import type { MCPServerConfig, MCPToolSummary } from "../services/mcp/types";
+import { McpOAuthTokenStorage } from "../services/storage/mcp-oauth-token-storage";
 import { IPC_CHANNELS } from "./channels";
 
 type ProcessMessageOptions = Parameters<MCPOrchestrator["manualLoopAsync"]>[2];
@@ -127,6 +128,14 @@ export class McpIPCHandlers {
           serverName,
           toolName,
         );
+        return { success: true };
+      },
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_CLEAR_TOKENS,
+      async (_event: IpcMainInvokeEvent, serverId: string) => {
+        await McpOAuthTokenStorage.getInstance().clearTokensAsync(serverId);
         return { success: true };
       },
     );

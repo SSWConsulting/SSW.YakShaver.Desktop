@@ -8,7 +8,7 @@ import type {
   UpdateShaveData,
 } from "./db/schema";
 import type { VideoUploadResult } from "./services/auth/types";
-import type { MCPServerConfig, MCPToolSummary } from "./services/mcp/types";
+import type { MCPServerConfig } from "./services/mcp/types";
 import type { ReleaseChannel } from "./services/storage/release-channel-storage";
 import type { ShaveStatus } from "./types";
 
@@ -64,6 +64,7 @@ const IPC_CHANNELS = {
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
   MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
+  MCP_CLEAR_TOKENS: "mcp:clear-tokens",
 
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
@@ -257,8 +258,10 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE_SERVER, serverId),
     checkServerHealthAsync: (serverId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_CHECK_SERVER_HEALTH, serverId),
-    listServerTools: (serverId: string): Promise<MCPToolSummary[]> =>
+    listServerTools: (serverId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, serverId),
+    clearTokensAsync: (serverId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_CLEAR_TOKENS, serverId),
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),

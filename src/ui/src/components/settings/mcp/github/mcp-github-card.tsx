@@ -34,7 +34,6 @@ export function McpGitHubCard({
 
   async function toggleSettings(status: boolean): Promise<void> {
     const updatedConfig = { ...configLocal, enabled: status };
-    console.log("Updating GitHub MCP config:", updatedConfig, McpGitHubCard.Id);
     await ipcClient.mcp.updateServerAsync(McpGitHubCard.Id, updatedConfig);
 
     if (onChange) {
@@ -45,8 +44,10 @@ export function McpGitHubCard({
   function handleOnConnect(): void {
     toggleSettings(true);
   }
-  function handleOnDisconnect(): void {
-    toggleSettings(false);
+
+  async function handleOnDisconnect(): Promise<void> {
+    await ipcClient.mcp.clearTokensAsync(McpGitHubCard.Id);
+    await toggleSettings(false);
   }
 
   return (
