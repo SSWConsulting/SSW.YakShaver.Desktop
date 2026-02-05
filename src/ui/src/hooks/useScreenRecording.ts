@@ -211,22 +211,29 @@ export function useScreenRecording() {
           const result = await window.electronAPI.screenRecording.start(sourceId);
           if (!result.success) throw new Error("Failed to start recording");
 
-          // Request system audio via getDisplayMedia
-          // This will prompt the user to share system audio and capture audio from remote participants
+          // Request system audio via getDisplayMedia with electron-audio-loopback
+          // This enables cross-platform system audio capture (macOS, Windows, Linux)
           let systemAudioStream: MediaStream | undefined;
           try {
-            // Use getDisplayMedia to request system audio loopback
-            // The backend's setDisplayMediaRequestHandler will provide the loopback audio
-            // Note: We request both video and audio because getDisplayMedia requires at least one
+            // Enable system audio loopback mode before calling getDisplayMedia
+            // This overrides the default getDisplayMedia behavior to provide loopback audio
+            await window.electronAPI.screenRecording.enableLoopbackAudio();
+
+            // Get a MediaStream with system audio loopback
+            // Note: getDisplayMedia requires video: true even though we only need audio
             const displayStream = await navigator.mediaDevices.getDisplayMedia({
               video: true, // Required by getDisplayMedia API
-              audio: true, // Request system audio (loopback will be provided by backend handler)
+              audio: true, // Request system audio loopback
             });
 
-            // Stop video tracks immediately since we only want audio
+            // Stop and remove video tracks since we only need audio
             displayStream.getVideoTracks().forEach((track) => {
               track.stop();
+              displayStream.removeTrack(track);
             });
+
+            // Disable loopback mode to restore normal getDisplayMedia behavior
+            await window.electronAPI.screenRecording.disableLoopbackAudio();
 
             // Check if we got audio tracks
             if (displayStream.getAudioTracks().length > 0) {
@@ -241,6 +248,10 @@ export function useScreenRecording() {
               console.warn("Display stream has no audio tracks");
             }
           } catch (displayError) {
+            // Ensure loopback is disabled even on error
+            await window.electronAPI.screenRecording.disableLoopbackAudio().catch((err) => {
+              console.error("Failed to disable loopback audio after display error:", err);
+            });
             // User may have denied system audio permission or it's not available
             console.warn("System audio not available:", displayError);
             toast.info("Recording without system audio - only microphone will be captured");
