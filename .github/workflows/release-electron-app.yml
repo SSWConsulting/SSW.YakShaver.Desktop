@@ -144,6 +144,8 @@ jobs:
                        Select-Object -First 1
           
           if (-not $installer) {
+            Write-Host "All .exe files in build directory:"
+            Get-ChildItem -Filter "*.exe" | ForEach-Object { Write-Host "  $($_.Name)" }
             Write-Error "No installer file found with 'Setup' in the name"
             exit 1
           }
