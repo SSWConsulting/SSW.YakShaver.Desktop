@@ -60,6 +60,16 @@ describe("protocol-router", () => {
     );
   });
 
+  it("handles /auth route successfully (no error)", async () => {
+    const send = vi.fn();
+    const window = mockWindow(send);
+
+    const handled = await handleProtocolUrl("yakshaver-desktop://auth", window);
+
+    expect(handled).toBe(true);
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("stores tokens for valid OAuth callback", async () => {
     const send = vi.fn();
     const window = mockWindow(send);

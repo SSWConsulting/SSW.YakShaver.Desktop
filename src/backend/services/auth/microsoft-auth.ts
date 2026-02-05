@@ -195,7 +195,16 @@ export class MicrosoftAuthService {
         throw new Error(`Error template not found: ${errorPath}`);
       }
 
-      const successHtml = fs.readFileSync(successPath, "utf8");
+      // Determine protocol for deep linking back to the app
+      const azureConfig = config.azure();
+      const protocol =
+        azureConfig?.customProtocol ||
+        (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
+      const redirectUrl = `${protocol}://auth`;
+
+      let successHtml = fs.readFileSync(successPath, "utf8");
+      successHtml = successHtml.replace("redirectUrl", redirectUrl);
+
       const errorHtml = fs.readFileSync(errorPath, "utf8");
       const openBrowser = async (url: string) => await shell.openExternal(url);
       const interactiveRequest: InteractiveRequest = {
