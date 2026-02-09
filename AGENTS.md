@@ -3,7 +3,6 @@
 ## Agent Information
 
 - **Name**: SSW YakShaver Desktop
-- **Version**: 0.6.0
 - **Type**: Desktop Application (Electron)
 - **Description**: An AI agent that helps you trim the fluff and get straight to the point
 - **Author**: SSW Consulting
@@ -28,6 +27,29 @@ YakShaver is a desktop AI agent with the following capabilities:
 - YouTube video transcription and processing
 - Graph API integration for Microsoft services
 - Audio recording and processing capabilities
+
+## Project Context & Knowledge Base
+
+### Purpose
+YakShaver Desktop is an Electron-based AI agent designed to process and summarize content efficiently. It integrates with multiple AI providers and services to analyze YouTube videos, audio content, and other media formats.
+
+### Key Components
+- **Backend**: Electron main process handling IPC, database operations, and external API integrations
+- **Frontend**: React-based UI with Vite build system for user interactions
+- **Database**: SQLite with Drizzle ORM for local data persistence
+- **MCP Integration**: Model Context Protocol servers for extended AI capabilities
+- **Audio Processing**: FFmpeg-based audio loopback and transcription
+
+### Architecture Patterns
+- Event-driven architecture using Electron IPC for frontend-backend communication
+- Service-oriented design with separate modules for workflows, MCP servers, and external integrations
+- Repository pattern for database operations using Drizzle ORM
+- Type-safe API boundaries between frontend and backend
+
+### Important Documentation
+- [Architecture Decision Records](/docs/adr/README.md) - Historical context for key technical decisions
+- [Database README](/src/backend/db/README.md) - Database schema and migration information
+- [Release Notes](RELEASE.md) - Version history and changelog
 
 ## Technical Stack
 
@@ -123,6 +145,117 @@ npm run lint
 npm run format
 ```
 
+## Guidelines & Standards
+
+### Coding Standards
+
+#### TypeScript
+- **Strict Mode**: TypeScript strict mode is enabled (`"strict": true` in tsconfig.json)
+- **Type Safety**: Always use explicit types; avoid implicit `any`
+- **Interfaces vs Types**: Prefer `interface` for object shapes, `type` for unions/intersections
+- **Null Safety**: Use optional chaining (`?.`) and nullish coalescing (`??`) operators
+
+#### Naming Conventions
+- **Files**: Use kebab-case for file names (e.g., `workflow-state-manager.ts`)
+- **Components**: Use PascalCase for React components (e.g., `WorkflowProgressPanel.tsx`)
+- **Functions/Variables**: Use camelCase (e.g., `getUserInfo`, `authStatus`)
+- **Constants**: Use SCREAMING_SNAKE_CASE for true constants (e.g., `MCP_CALLBACK_PORT`)
+- **Interfaces/Types**: Use PascalCase (e.g., `UserInfo`, `AuthResult`)
+- **Enums**: Use PascalCase for enum names and SCREAMING_SNAKE_CASE for values
+
+#### Code Organization
+- **Imports**: Use path aliases (`@shared/*`) for shared code
+- **Import Order**: Organize imports automatically with Biome
+- **Module Structure**: Separate concerns into services, types, utils, and components directories
+
+### Preferred Patterns
+
+#### Error Handling
+- Use try-catch blocks for asynchronous operations
+- Return structured error objects with `success`, `error` properties
+- Format errors consistently using utility functions (see `src/backend/utils/error-utils.ts`)
+- Log errors with appropriate context before propagating
+
+#### State Management
+- Use React hooks for local component state
+- Use IPC for frontend-backend communication
+- Maintain workflow state in backend service layer
+- Emit events for state changes that need to propagate to UI
+
+#### Async Operations
+- Use `async/await` syntax (not callbacks or raw promises)
+- Handle promise rejections explicitly
+- Use proper TypeScript return types for async functions
+
+#### Database Operations
+- Use Drizzle ORM schema definitions for type safety
+- Perform migrations through Drizzle Kit
+- Use transactions for multi-step database operations
+
+### Code Quality Tools
+- **Linter**: Biome with recommended rules enabled
+- **Formatter**: Biome with 2-space indentation, 100 character line width
+- **Testing**: Vitest for unit and integration tests
+
+## Guardrails & Constraints
+
+### Forbidden Patterns
+
+#### TypeScript
+- **Never use `any` type**: Always provide explicit types or use `unknown` with proper type guards
+- **Avoid type assertions**: Use type guards and narrowing instead of `as` assertions unless absolutely necessary
+- **No implicit returns**: Always explicitly return values from functions
+- **No unused variables**: Remove or prefix with underscore if intentionally unused
+
+#### React
+- **No inline function definitions in JSX props**: Extract to named functions for performance
+- **Avoid prop drilling**: Use context or proper state management for deeply nested props
+- **No direct DOM manipulation**: Use React refs and declarative patterns
+
+#### General
+- **No console.log in production code**: Use proper logging utilities
+- **No commented-out code**: Remove dead code; use version control instead
+- **No magic numbers**: Define constants with descriptive names
+- **No synchronous file operations**: Use async file operations to avoid blocking
+
+### Security/Privacy
+
+#### API Keys and Secrets
+- **Never commit API keys**: Use environment variables (`.env` file, not committed)
+- **Never output hardcoded API keys**: Even placeholders like `"sk-..."` should not be hardcoded
+- **Use secure storage**: Store user tokens with Electron's `safeStorage` API
+- **Encrypt sensitive data**: All API keys stored locally must be encrypted
+
+#### Data Handling
+- **Minimize data collection**: Only collect data necessary for functionality
+- **No telemetry without consent**: Don't track user behavior without explicit permission
+- **Secure API communication**: Use HTTPS for all external API calls
+- **Validate input**: Always validate and sanitize user input before processing
+
+#### Third-Party Integration
+- **Transparent data flow**: Document what data is sent to external services (OpenAI, Azure, YouTube, etc.)
+- **User control**: Allow users to configure which services they use
+- **No data leakage**: Don't log sensitive information (API keys, user tokens, personal data)
+
+### Scope Creep
+
+#### Change Boundaries
+- **Do not refactor unrelated files**: Only modify files directly related to the issue being addressed
+- **Maintain existing patterns**: Follow established patterns in the codebase unless explicitly improving them
+- **No unnecessary dependencies**: Don't add new packages without strong justification
+- **Preserve backward compatibility**: Don't break existing APIs unless part of the planned change
+
+#### Testing Requirements
+- **Test only what you change**: Focus tests on modified functionality
+- **Don't fix unrelated bugs**: Address only the issue at hand
+- **No premature optimization**: Don't optimize code that isn't causing problems
+- **Respect existing tests**: Don't remove or modify tests unless they're blocking legitimate changes
+
+#### Documentation
+- **Update relevant docs only**: Modify documentation directly affected by your changes
+- **Maintain consistency**: Match existing documentation style and format
+- **No over-documentation**: Document complex logic, not obvious code
+
 ## Support
 
 - **Issues**: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues
@@ -140,7 +273,5 @@ For important architectural changes and decisions, see [Architecture Decision Re
 - Open source under AGPL-3.0-only license for transparency
 
 ## Version History
-
-Current version: 0.6.0
 
 For release notes and version history, see [RELEASE.md](RELEASE.md).
