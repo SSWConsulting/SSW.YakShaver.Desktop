@@ -509,7 +509,7 @@ npm run db:generate    # Generate Drizzle ORM migrations
 - **Never hardcode secrets** - even placeholder values like `"sk-..."`
 - **Use Electron's `safeStorage` API** - for all token/credential encryption
 - **Encrypt all stored credentials** - via `BaseSecureStorage` subclasses
-- **HTTPS for all external API calls**
+- **Use HTTPS for all non-local/external API calls** (HTTP is only acceptable for `localhost` in local development)
 - **Validate and sanitize user input** before processing
 - **No telemetry without consent**
 - **No logging of sensitive data** (API keys, user tokens, personal data)
