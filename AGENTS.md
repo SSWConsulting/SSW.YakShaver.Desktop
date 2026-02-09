@@ -161,7 +161,22 @@ npm run format   # Auto-format code
 
 ### Rule 6: Keep AGENTS.md Up to Date
 
-When making changes that affect features, technical stack, architecture patterns, project structure, or development workflows, update this `AGENTS.md` file as part of the same PR. This includes adding/removing dependencies, introducing new patterns, changing directory structure, or modifying build/dev commands. This file is the source of truth for how the project works. 
+When making changes that affect features, technical stack, architecture patterns, project structure, or development workflows, update this `AGENTS.md` file as part of the same PR. This includes adding/removing dependencies, introducing new patterns, changing directory structure, or modifying build/dev commands. This file is the source of truth for how the project works.
+
+### Rule 7: Check Before Creating
+
+Before adding new IPC channels, handlers, services, or utility functions, check if a similar one already exists. Specifically:
+- **IPC channels**: Search `src/backend/ipc/channels.ts` for an existing domain (e.g., `youtube:`, `mcp:`, `llm:`) before creating a new one. Add to the existing domain if it fits.
+- **Handler classes**: Check if a handler class for that domain already exists in `src/backend/ipc/`. Extend the existing class instead of creating a new file.
+- **Services & utils**: Search for existing functions that do something similar. Modify or extend them rather than duplicating logic in a new function.
+- **Components & hooks**: Check if an existing component or hook already covers the use case before creating a new one.
+
+Prefer extending existing code over creating new files. Duplicated logic is harder to maintain than a slightly larger existing module.
+
+### Rule 8: DRY and KISS
+
+- **DRY (Don't Repeat Yourself)**: If the same logic appears in more than one place, extract it into a shared function, hook, or utility. Duplicated code leads to bugs when one copy is updated but the other is forgotten.
+- **KISS (Keep It Simple, Stupid)**: Choose the simplest solution that works. Don't over-abstract, over-engineer, or add layers of indirection for hypothetical future needs. A few lines of straightforward code is better than a clever abstraction that's hard to follow.
 
 ## Good Practices
 
