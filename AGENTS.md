@@ -159,6 +159,10 @@ npm run lint     # Auto-fix linting issues
 npm run format   # Auto-format code
 ```
 
+### Rule 6: Keep AGENTS.md Up to Date
+
+When making changes that affect features, technical stack, architecture patterns, project structure, or development workflows, update this `AGENTS.md` file as part of the same PR. This includes adding/removing dependencies, introducing new patterns, changing directory structure, or modifying build/dev commands. This file is the source of truth for how the project works. 
+
 ## Good Practices
 
 ### General
