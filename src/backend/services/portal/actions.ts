@@ -202,7 +202,7 @@ export async function UploadScreenshotToPortal(
 
     return { success: true, url: validatedResponse.url };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatErrorMessage(error);
     return { success: false, error: message };
   }
 }
