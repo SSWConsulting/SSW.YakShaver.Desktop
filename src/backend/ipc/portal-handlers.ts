@@ -89,9 +89,8 @@ export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthServic
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(
-          `Portal API call failed (${response.status}): ${errorText || response.statusText}`,
-        );
+        console.warn("Portal API error:", errorText);
+        return { success: false, error: errorText || response.statusText } as const;
       }
 
       return { success: true } as const;

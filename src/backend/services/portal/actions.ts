@@ -4,6 +4,7 @@ import { basename } from "node:path";
 import FormData from "form-data";
 import { z } from "zod";
 import { config } from "../../config/env";
+import { formatErrorMessage } from "../../utils/error-utils";
 import { MicrosoftAuthService } from "../auth/microsoft-auth";
 
 /**
@@ -112,7 +113,7 @@ export async function SendWorkItemDetailsToPortal(
     const validated = PostTaskRecordResponseSchema.parse(parsed);
     return { success: true, workItemId: validated.workItemId } as const;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatErrorMessage(error);
     return { success: false, error: message } as const;
   }
 }
