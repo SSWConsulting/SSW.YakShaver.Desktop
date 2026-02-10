@@ -188,7 +188,7 @@ export function ScreenRecorder() {
     setUploadResult(null);
 
     try {
-      let shaveId: number | undefined;
+      let shaveId: string | undefined;
       const existingShaveId = await checkExistingShave(trimmedUrl);
       if (existingShaveId) {
         shaveId = existingShaveId;

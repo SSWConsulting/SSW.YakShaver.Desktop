@@ -135,6 +135,7 @@ export const shaves = sqliteTable(
     title: text("title").notNull(),
     projectName: text("project_name"),
     workItemUrl: text("work_item_url"),
+    portalWorkItemId: text("portal_work_item_id"),
     shaveStatus: text("shave_status").$type<ShaveStatus>().default(ShaveStatus.Unknown).notNull(),
     videoEmbedUrl: text("video_embed_url"),
     totalTokens: integer("total_tokens"),

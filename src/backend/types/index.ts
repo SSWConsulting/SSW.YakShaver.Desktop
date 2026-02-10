@@ -41,6 +41,7 @@ export enum ShaveStatus {
   Pending = "Pending",
   Processing = "Processing",
   Completed = "Completed",
+  Cancelled = "Cancelled",
   Failed = "Failed",
 }
 

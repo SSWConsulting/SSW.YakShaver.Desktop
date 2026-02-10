@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ShaveStatus, VideoHostingProvider } from "../../types";
 import { createTestDb } from "../client";
@@ -142,6 +143,15 @@ describe("ShaveService", () => {
       expect(updated?.videoEmbedUrl).toBe(testShaveData.videoEmbedUrl);
     });
 
+    it("should update portal work item id", () => {
+      const created = createShave(testShaveData);
+
+      const updated = updateShave(created.id, { portalWorkItemId: randomUUID() });
+
+      expect(updated).toBeDefined();
+      expect(updated?.portalWorkItemId).toBeTruthy();
+    });
+
     it("should return undefined when updating non-existent shave", () => {
       const result = updateShave("non-existent-id", { title: "New Title" });
       expect(result).toBeUndefined();
@@ -166,6 +176,15 @@ describe("ShaveService", () => {
 
       expect(updated).toBeDefined();
       expect(updated?.shaveStatus).toBe(ShaveStatus.Completed);
+    });
+
+    it("should update to cancelled status", () => {
+      const created = createShave(testShaveData);
+
+      const updated = updateShaveStatus(created.id, ShaveStatus.Cancelled);
+
+      expect(updated).toBeDefined();
+      expect(updated?.shaveStatus).toBe(ShaveStatus.Cancelled);
     });
 
     it("should return undefined when updating non-existent shave", () => {

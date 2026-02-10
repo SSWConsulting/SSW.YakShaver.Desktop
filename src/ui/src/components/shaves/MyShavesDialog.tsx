@@ -53,6 +53,8 @@ export function MyShavesDialog() {
     switch (status) {
       case "Completed":
         return "success";
+      case "Cancelled":
+        return "secondary";
       case "Processing":
         return "secondary";
       case "Failed":
