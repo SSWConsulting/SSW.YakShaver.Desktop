@@ -8,6 +8,7 @@ import {
   type MCPStep,
   MCPStepType,
   ProgressStage,
+  ShaveStatus,
   type WorkflowProgress,
   type WorkflowStage,
 } from "../../types";
@@ -516,7 +517,7 @@ const emitUndoEvent = (type: UndoEventDetail["type"]) => {
 export function FinalResultPanel() {
   const [finalOutput, setFinalOutput] = useState<string | undefined>();
   const [intermediateOutput, setIntermediateOutput] = useState<string | undefined>();
-  const [shaveId, setShaveId] = useState<number | undefined>(undefined);
+  const [shaveId, setShaveId] = useState<string | undefined>(undefined);
   const [uploadResult, setUploadResult] = useState<WorkflowProgress["uploadResult"]>();
   const [mcpSteps, setMcpSteps] = useState<MCPStep[]>([]);
   const [reprocessDialogOpen, setReprocessDialogOpen] = useState(false);
@@ -530,6 +531,31 @@ export function FinalResultPanel() {
   const [lastUndoPrompt, setLastUndoPrompt] = useState<string | null>(null);
 
   const stageRef = useRef<WorkflowStage>(ProgressStage.IDLE);
+
+  const markCancelled = useCallback(async () => {
+    if (!shaveId) return;
+
+    try {
+      await ipcClient.shave.updateStatus(shaveId, ShaveStatus.Cancelled);
+    } catch (error) {
+      console.error("[Undo] Failed to update local shave status:", error);
+    }
+
+    try {
+      const shaveResult = await ipcClient.shave.getById(shaveId);
+      const portalWorkItemId = shaveResult.success ? shaveResult.data?.portalWorkItemId : undefined;
+      if (!portalWorkItemId) return;
+
+      const portalResult = await ipcClient.portal.cancelWorkItem(portalWorkItemId);
+      if (!portalResult.success) {
+        throw new Error(portalResult.error ?? "Portal cancel failed");
+      }
+    } catch (error) {
+      toast.error("Failed to mark portal work item as cancelled", {
+        description: formatErrorMessage(error),
+      });
+    }
+  }, [shaveId]);
 
   const resetForNewRun = useCallback(() => {
     setFinalOutput(undefined);
@@ -635,6 +661,7 @@ export function FinalResultPanel() {
       await ipcClient.mcp.processMessage(mergedPrompt);
       emitUndoEvent("complete");
       setLastUndoPrompt(mergedPrompt);
+      await markCancelled();
       setReprocessDialogOpen(false);
       toast.success("Undo reprocess request sent. Monitor the purple undo panel.");
     } catch (error) {
@@ -643,7 +670,7 @@ export function FinalResultPanel() {
     } finally {
       setReprocessLoading(false);
     }
-  }, [lastUndoPrompt, reprocessInstructions]);
+  }, [lastUndoPrompt, markCancelled, reprocessInstructions]);
 
   const handleUndo = useCallback(async () => {
     setUndoLoading(true);
@@ -660,6 +687,7 @@ export function FinalResultPanel() {
       await ipcClient.mcp.processMessage(prompt);
       emitUndoEvent("complete");
       setHasUndoCompleted(true);
+      await markCancelled();
       toast.success("Undo workflow running. Check the purple undo panel.");
     } catch (error) {
       emitUndoEvent("error");
@@ -667,7 +695,7 @@ export function FinalResultPanel() {
     } finally {
       setUndoLoading(false);
     }
-  }, [finalOutput, intermediateOutput, mcpSteps]);
+  }, [finalOutput, intermediateOutput, markCancelled, mcpSteps]);
 
   const handleReprocess = useCallback(async () => {
     if (reprocessMode === "original") {

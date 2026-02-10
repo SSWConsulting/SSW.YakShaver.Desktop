@@ -4,6 +4,7 @@ import { basename } from "node:path";
 import FormData from "form-data";
 import { z } from "zod";
 import { config } from "../../config/env";
+import { formatErrorMessage } from "../../utils/error-utils";
 import { MicrosoftAuthService } from "../auth/microsoft-auth";
 
 /**
@@ -80,20 +81,24 @@ export const WorkItemDtoSchema = z.object({
 });
 export type WorkItemDto = z.infer<typeof WorkItemDtoSchema>;
 
+const PostTaskRecordResponseSchema = z.object({
+  workItemId: z.string().uuid(),
+});
+
 /**
  * Sends work item details to the portal API.
  * Requires the user to be authenticated with Microsoft.
  */
 export async function SendWorkItemDetailsToPortal(
   payload: WorkItemDto,
-): Promise<{ success: true } | { success: false; error: string }> {
+): Promise<{ success: true; workItemId: string } | { success: false; error: string }> {
   const ms = MicrosoftAuthService.getInstance();
   const result = await ms.getToken();
 
   const body = JSON.stringify(payload);
 
   try {
-    await makePortalRequest(
+    const responseData = await makePortalRequest(
       "/desktopapp/post-task-record",
       {
         headers: {
@@ -104,6 +109,34 @@ export async function SendWorkItemDetailsToPortal(
       result.accessToken,
     );
 
+    const parsed = JSON.parse(responseData);
+    const validated = PostTaskRecordResponseSchema.parse(parsed);
+    return { success: true, workItemId: validated.workItemId } as const;
+  } catch (error) {
+    const message = formatErrorMessage(error);
+    return { success: false, error: message } as const;
+  }
+}
+
+export async function CancelWorkItemInPortal(
+  workItemId: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  const ms = MicrosoftAuthService.getInstance();
+  if (!(await ms.isAuthenticated())) {
+    return { success: false, error: "User is not authenticated with Microsoft" };
+  }
+  const result = await ms.getToken();
+
+  try {
+    await makePortalRequest(
+      `/desktopapp/work-items/${workItemId}:cancel`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+      result.accessToken,
+    );
     return { success: true } as const;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -169,7 +202,7 @@ export async function UploadScreenshotToPortal(
 
     return { success: true, url: validatedResponse.url };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatErrorMessage(error);
     return { success: false, error: message };
   }
 }

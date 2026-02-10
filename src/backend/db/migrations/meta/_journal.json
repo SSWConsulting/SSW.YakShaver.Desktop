@@ -15,6 +15,13 @@
       "when": 1767769174030,
       "tag": "0001_schema_v2_add_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1770622000000,
+      "tag": "0002_add_portal_work_item_id_to_shaves",
+      "breakpoints": true
     }
   ]
 }

@@ -116,6 +116,7 @@ const IPC_CHANNELS = {
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
+  PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 
   // Shave Management
   SHAVE_CREATE: "shave:create",
@@ -136,14 +137,14 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideoFile: (filePath: string, shaveId?: number) =>
+    processVideoFile: (filePath: string, shaveId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId),
-    processVideoUrl: (url: string, shaveId?: number) =>
+    processVideoUrl: (url: string, shaveId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url, shaveId),
     retryVideo: (
       intermediateOutput: string,
       videoUploadResult: VideoUploadResult,
-      shaveId?: number,
+      shaveId?: string,
     ) =>
       ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult, shaveId),
   },
@@ -314,6 +315,8 @@ const electronAPI = {
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
+    cancelWorkItem: (workItemId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PORTAL_CANCEL_WORK_ITEM, workItemId),
   },
   shave: {
     create: (

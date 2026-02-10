@@ -65,4 +65,38 @@ export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthServic
       return { success: false, error: formatErrorMessage(error) };
     }
   });
+
+  ipcMain.handle(IPC_CHANNELS.PORTAL_CANCEL_WORK_ITEM, async (_event, workItemId?: string) => {
+    if (!workItemId) {
+      return { success: false, error: "Work item id is required" };
+    }
+
+    try {
+      const result = await microsoftAuthService.getToken();
+
+      const apiUrl = config.portalApiUrl();
+      const portalApiUrl = new URL(apiUrl);
+      const requestUrl = new URL(portalApiUrl.origin);
+      requestUrl.pathname = `${portalApiUrl.pathname.replace(/\/$/, "")}/desktopapp/work-items/${workItemId}:cancel`;
+
+      const response = await fetch(requestUrl.toString(), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${result.accessToken}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn("Portal API error:", errorText);
+        return { success: false, error: errorText || response.statusText } as const;
+      }
+
+      return { success: true } as const;
+    } catch (error) {
+      console.error("Portal API error:", formatErrorMessage(error));
+      return { success: false, error: formatErrorMessage(error) } as const;
+    }
+  });
 }

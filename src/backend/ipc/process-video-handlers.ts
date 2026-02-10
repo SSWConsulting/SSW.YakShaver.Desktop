@@ -305,6 +305,13 @@ export class ProcessVideoIPCHandlers {
           const errorMessage = formatErrorMessage(portalResult.error);
           notify(ProgressStage.ERROR, { error: errorMessage });
           workflowManager.failStage(WorkflowProgressStage.UPDATING_METADATA, errorMessage);
+        } else if (shaveId) {
+          try {
+            const shaveService = ShaveService.getInstance();
+            shaveService.updateShave(shaveId, { portalWorkItemId: portalResult.workItemId });
+          } catch (savePortalIdError) {
+            console.warn("[ProcessVideo] Failed to persist portal work item id", savePortalIdError);
+          }
         }
       }
 

@@ -51,7 +51,7 @@ export function useShaveManager() {
   /**
    * Check if a video URL already has a shave in the database.
    */
-  const checkExistingShave = useCallback(async (videoUrl: string): Promise<number | null> => {
+  const checkExistingShave = useCallback(async (videoUrl: string): Promise<string | null> => {
     if (!videoUrl) return null;
 
     try {

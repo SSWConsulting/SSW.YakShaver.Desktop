@@ -132,7 +132,7 @@ export const STAGE_CONFIG: Record<WorkflowStage, string> = {
 };
 
 export interface WorkflowProgress {
-  shaveId?: number;
+  shaveId?: string;
   stage: WorkflowStage;
   transcript?: TranscriptSegment[];
   intermediateOutput?: string;
@@ -254,18 +254,19 @@ export enum ShaveStatus {
   Pending = "Pending",
   Processing = "Processing",
   Completed = "Completed",
+  Cancelled = "Cancelled",
   Failed = "Failed",
 }
 
 export type Shave = {
-  id: number;
-  workItemSource: string;
+  id: string;
+  clientOrigin: string | null;
   title: string;
-  videoFile: VideoFileMetadata | null;
   shaveStatus: ShaveStatus;
   projectName: string | null;
   workItemUrl: string | null;
   videoEmbedUrl: string | null;
+  portalWorkItemId: string | null;
   createdAt: string;
   updatedAt: string | null;
 };

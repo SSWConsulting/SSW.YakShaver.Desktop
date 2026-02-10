@@ -34,12 +34,12 @@ declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideoFile: (filePath: string, shaveId?: number) => Promise<void>;
-        processVideoUrl: (url: string, shaveId?: number) => Promise<void>;
+        processVideoFile: (filePath: string, shaveId?: string) => Promise<void>;
+        processVideoUrl: (url: string, shaveId?: string) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
-          shaveId?: number,
+          shaveId?: string,
         ) => Promise<{
           success: boolean;
           finalOutput?: string | null;
@@ -198,6 +198,10 @@ declare global {
         getMyShaves: () => Promise<{
           success: boolean;
           data?: GetMyShavesResponse;
+          error?: string;
+        }>;
+        cancelWorkItem: (workItemId: string) => Promise<{
+          success: boolean;
           error?: string;
         }>;
       };
