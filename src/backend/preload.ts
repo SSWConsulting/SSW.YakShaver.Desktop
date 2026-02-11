@@ -175,7 +175,8 @@ const electronAPI = {
     listSources: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_SCREEN_SOURCES),
     cleanupTempFile: (filePath: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.CLEANUP_TEMP_FILE, filePath),
-    hasAudio: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.CHECK_VIDEO_HAS_AUDIO, filePath),
+    hasAudio: (filePath: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CHECK_VIDEO_HAS_AUDIO, filePath),
     showControlBar: (cameraDeviceId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SHOW_CONTROL_BAR, cameraDeviceId),
     hideControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.HIDE_CONTROL_BAR),
