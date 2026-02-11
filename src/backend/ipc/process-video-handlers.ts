@@ -240,6 +240,16 @@ export class ProcessVideoIPCHandlers {
       this.lastVideoFilePath = filePath;
       workflowManager.startStage(WorkflowProgressStage.CONVERTING_AUDIO);
       notify(ProgressStage.CONVERTING_AUDIO);
+
+      const hasAudio = await this.ffmpegService.hasAudibleAudio(filePath);
+      if (!hasAudio) {
+        const errorMessage =
+          "No audio detected in this video. Please re-record and make sure the correct microphone is selected and unmuted.";
+        workflowManager.failStage(WorkflowProgressStage.CONVERTING_AUDIO, errorMessage);
+        notify(ProgressStage.ERROR, { error: errorMessage });
+        return { success: false, error: errorMessage };
+      }
+
       const mp3FilePath = await this.convertVideoToMp3(filePath);
 
       workflowManager.completeStage(WorkflowProgressStage.CONVERTING_AUDIO);
@@ -250,6 +260,14 @@ export class ProcessVideoIPCHandlers {
       notify(ProgressStage.TRANSCRIBING);
       const transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
       const transcriptText = transcript.map((seg) => seg.text).join("");
+
+      if (!transcriptText.trim()) {
+        const errorMessage =
+          "No speech detected in this recording. Please re-record and check your microphone and audio levels.";
+        workflowManager.failStage(WorkflowProgressStage.TRANSCRIBING, errorMessage);
+        notify(ProgressStage.ERROR, { error: errorMessage });
+        return { success: false, error: errorMessage };
+      }
 
       notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
 

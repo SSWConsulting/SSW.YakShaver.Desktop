@@ -136,6 +136,14 @@ export function ScreenRecorder() {
     }
 
     const { filePath, fileName } = recordedVideo;
+    const audioCheck = await window.electronAPI.screenRecording.hasAudio(filePath);
+    if (audioCheck?.success && audioCheck.hasAudio === false) {
+      toast.error(
+        "No audio detected in this recording. Please re-record and make sure the correct microphone is selected and unmuted.",
+      );
+      return;
+    }
+
     resetPreview();
 
     try {

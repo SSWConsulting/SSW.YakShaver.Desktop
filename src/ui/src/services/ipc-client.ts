@@ -83,6 +83,7 @@ declare global {
         stop: (videoData: Uint8Array) => Promise<ScreenRecordingStopResult>;
         listSources: () => Promise<ScreenSource[]>;
         cleanupTempFile: (filePath: string) => Promise<void>;
+        hasAudio: (filePath: string) => Promise<{ success: boolean; hasAudio?: boolean; error?: string }>;
         showControlBar: (cameraDeviceId?: string) => Promise<{ success: boolean }>;
         hideControlBar: () => Promise<{ success: boolean }>;
         stopFromControlBar: () => Promise<{ success: boolean }>;

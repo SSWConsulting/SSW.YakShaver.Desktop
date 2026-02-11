@@ -111,6 +111,81 @@ export class FFmpegService {
     });
   }
 
+  async hasAudibleAudio(inputPath: string, minMaxVolumeDb = -50): Promise<boolean> {
+    await this.ensureInputFileExists(inputPath);
+    await this.ensureFfmpegExists();
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-hide_banner",
+        "-nostats",
+        "-i",
+        inputPath,
+        "-map",
+        "0:a:0",
+        "-vn",
+        "-af",
+        "volumedetect",
+        "-f",
+        "null",
+        "-",
+      ];
+
+      const ffmpegProcess = this.processSpawner.spawn(this.ffmpegPath, args);
+      let stderr = "";
+
+      ffmpegProcess.stderr?.on("data", (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      ffmpegProcess.on("close", (code: number | null) => {
+        if (code !== 0) {
+          const normalized = stderr.toLowerCase();
+          const indicatesNoAudio =
+            normalized.includes("matches no streams") ||
+            normalized.includes("does not contain any stream") ||
+            normalized.includes("stream map");
+
+          if (indicatesNoAudio) {
+            resolve(false);
+            return;
+          }
+
+          reject(
+            new Error(
+              `FFmpeg audible-audio check failed with code ${code ?? "unknown"}. Error: ${stderr || "Unknown error"}`,
+            ),
+          );
+          return;
+        }
+
+        const maxVolumeMatch = stderr.match(/max_volume:\s*(-?inf|[-\d.]+)\s*dB/i);
+        if (!maxVolumeMatch) {
+          resolve(false);
+          return;
+        }
+
+        const raw = maxVolumeMatch[1].toLowerCase();
+        if (raw === "-inf" || raw === "inf") {
+          resolve(false);
+          return;
+        }
+
+        const maxVolumeDb = Number.parseFloat(raw);
+        if (Number.isNaN(maxVolumeDb)) {
+          resolve(false);
+          return;
+        }
+
+        resolve(maxVolumeDb >= minMaxVolumeDb);
+      });
+
+      ffmpegProcess.on("error", (error: Error) => {
+        reject(new Error(`Failed to start FFmpeg: ${error.message}`));
+      });
+    });
+  }
+
   async captureNthFrame(
     inputPath: string,
     outputImagePath: string,
