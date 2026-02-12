@@ -120,11 +120,6 @@ export function VideoPreviewModal({
               microphone is selected and unmuted.
             </div>
           )}
-          {audioCheck.status === "error" && (
-            <p className="text-sm text-muted-foreground">
-              Couldn&apos;t verify audio: {audioCheck.error}
-            </p>
-          )}
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={handleRetry}>
