@@ -41,6 +41,13 @@ export function VideoPreviewModal({
 }: VideoPreviewModalProps) {
   const [videoUrl, setVideoUrl] = useState("");
   const [showConfirmExit, setShowConfirmExit] = useState(false);
+  const [audioCheck, setAudioCheck] = useState<
+    | { status: "idle" }
+    | { status: "checking" }
+    | { status: "has_audio" }
+    | { status: "no_audio" }
+    | { status: "error"; error: string }
+  >({ status: "idle" });
 
   useEffect(() => {
     if (!videoBlob) return;
@@ -48,6 +55,32 @@ export function VideoPreviewModal({
     setVideoUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [videoBlob]);
+
+  useEffect(() => {
+    if (!open) {
+      setAudioCheck({ status: "idle" });
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      setAudioCheck({ status: "checking" });
+      const result = await window.electronAPI.screenRecording.hasAudio(videoFilePath);
+      if (cancelled) return;
+
+      if (!result?.success) {
+        setAudioCheck({ status: "error", error: result?.error || "Audio check failed" });
+        return;
+      }
+
+      setAudioCheck(result.hasAudio ? { status: "has_audio" } : { status: "no_audio" });
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, videoFilePath]);
 
   const cleanupFile = () => window.electronAPI.screenRecording.cleanupTempFile(videoFilePath);
 
@@ -78,12 +111,26 @@ export function VideoPreviewModal({
             />
           )}
 
+          {audioCheck.status === "checking" && (
+            <p className="text-sm text-muted-foreground">Checking audio…</p>
+          )}
+          {audioCheck.status === "no_audio" && (
+            <div className="rounded-md border border-ssw-red/30 bg-ssw-red/10 px-3 py-2 text-sm text-ssw-red-foreground">
+              No audio detected in this recording. Please re-record and make sure the correct
+              microphone is selected and unmuted.
+            </div>
+          )}
+
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={handleRetry}>
               <RotateCcw className="w-4 h-4" />
               Re-record
             </Button>
-            <Button variant="default" onClick={onContinue}>
+            <Button
+              variant="default"
+              onClick={onContinue}
+              disabled={audioCheck.status === "checking" || audioCheck.status === "no_audio"}
+            >
               <ArrowRight className="w-4 h-4" />
               Continue
             </Button>

@@ -42,6 +42,7 @@ const IPC_CHANNELS = {
   ENABLE_LOOPBACK_AUDIO: "enable-loopback-audio",
   DISABLE_LOOPBACK_AUDIO: "disable-loopback-audio",
   HIDE_CONTROL_BAR: "hide-control-bar",
+  CHECK_VIDEO_HAS_AUDIO: "check-video-has-audio",
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
   OPEN_SOURCE_PICKER: "open-source-picker",
@@ -174,6 +175,8 @@ const electronAPI = {
     listSources: () => ipcRenderer.invoke(IPC_CHANNELS.LIST_SCREEN_SOURCES),
     cleanupTempFile: (filePath: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.CLEANUP_TEMP_FILE, filePath),
+    hasAudio: (filePath: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CHECK_VIDEO_HAS_AUDIO, filePath),
     showControlBar: (cameraDeviceId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SHOW_CONTROL_BAR, cameraDeviceId),
     hideControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.HIDE_CONTROL_BAR),

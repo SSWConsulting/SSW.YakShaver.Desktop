@@ -1,9 +1,11 @@
 import { ipcMain } from "electron";
 import { getMainWindow } from "../index";
+import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
 import { CameraWindow } from "../services/recording/camera-window";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { CountdownWindow } from "../services/recording/countdown-window";
 import { RecordingService } from "../services/recording/recording-service";
+import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class ScreenRecordingIPCHandlers {
@@ -11,6 +13,7 @@ export class ScreenRecordingIPCHandlers {
   private controlBar = RecordingControlBarWindow.getInstance();
   private cameraWindow = CameraWindow.getInstance();
   private countdownWindow = CountdownWindow.getInstance();
+  private ffmpegService = FFmpegService.getInstance();
 
   constructor() {
     const handlers = {
@@ -28,6 +31,14 @@ export class ScreenRecordingIPCHandlers {
       [IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR]: () => this.stopRecordingFromControlBar(),
       [IPC_CHANNELS.MINIMIZE_MAIN_WINDOW]: () => this.minimizeMainWindow(),
       [IPC_CHANNELS.RESTORE_MAIN_WINDOW]: () => this.restoreMainWindow(),
+      [IPC_CHANNELS.CHECK_VIDEO_HAS_AUDIO]: async (_: unknown, filePath: string) => {
+        try {
+          const hasAudio = await this.ffmpegService.hasAudibleAudio(filePath);
+          return { success: true, hasAudio };
+        } catch (error) {
+          return { success: false, error: formatErrorMessage(error) };
+        }
+      },
     };
 
     for (const [channel, handler] of Object.entries(handlers)) {

@@ -207,6 +207,79 @@ describe("FFmpegService", () => {
     });
   });
 
+  describe("hasAudibleAudio", () => {
+    it("should resolve false when file has no audio stream", async () => {
+      const service = new FFmpegService("/mock/ffmpeg", mockFileSystem, mockProcessSpawner);
+
+      const resultPromise = service.hasAudibleAudio("/input/video.mp4");
+
+      setImmediate(() => {
+        mockChildProcess.stderr?.emit(
+          "data",
+          Buffer.from("Stream map '0:a:0' matches no streams.\n"),
+        );
+        mockChildProcess.emit("close", 1);
+      });
+
+      await expect(resultPromise).resolves.toBe(false);
+    });
+
+    it("should resolve false when max_volume is -inf dB", async () => {
+      const service = new FFmpegService("/mock/ffmpeg", mockFileSystem, mockProcessSpawner);
+
+      const resultPromise = service.hasAudibleAudio("/input/video.mp4");
+
+      setImmediate(() => {
+        mockChildProcess.stderr?.emit("data", Buffer.from("max_volume: -inf dB\n"));
+        mockChildProcess.emit("close", 0);
+      });
+
+      await expect(resultPromise).resolves.toBe(false);
+    });
+
+    it("should resolve false when max_volume is below threshold", async () => {
+      const service = new FFmpegService("/mock/ffmpeg", mockFileSystem, mockProcessSpawner);
+
+      const resultPromise = service.hasAudibleAudio("/input/video.mp4", -50);
+
+      setImmediate(() => {
+        mockChildProcess.stderr?.emit("data", Buffer.from("max_volume: -80.0 dB\n"));
+        mockChildProcess.emit("close", 0);
+      });
+
+      await expect(resultPromise).resolves.toBe(false);
+    });
+
+    it("should resolve true when max_volume meets threshold", async () => {
+      const service = new FFmpegService("/mock/ffmpeg", mockFileSystem, mockProcessSpawner);
+
+      const resultPromise = service.hasAudibleAudio("/input/video.mp4", -50);
+
+      setImmediate(() => {
+        mockChildProcess.stderr?.emit("data", Buffer.from("max_volume: -10.0 dB\n"));
+        mockChildProcess.emit("close", 0);
+      });
+
+      await expect(resultPromise).resolves.toBe(true);
+    });
+
+    it("should reject when ffmpeg audible-audio check fails for other reasons", async () => {
+      const service = new FFmpegService("/mock/ffmpeg", mockFileSystem, mockProcessSpawner);
+
+      const resultPromise = service.hasAudibleAudio("/input/video.mp4");
+
+      setImmediate(() => {
+        mockChildProcess.stderr?.emit(
+          "data",
+          Buffer.from("Invalid data found when processing input\n"),
+        );
+        mockChildProcess.emit("close", 1);
+      });
+
+      await expect(resultPromise).rejects.toThrow("FFmpeg audible-audio check failed with code 1");
+    });
+  });
+
   describe("getInstance", () => {
     it("should return the same instance (singleton)", () => {
       const instance1 = FFmpegService.getInstance();
