@@ -7,7 +7,7 @@ import { Button } from "../../ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../../ui/form";
 import { Input } from "../../ui/input";
 
-export type LLMProvider = "openai" | "deepseek" | "azure";
+export type LLMProvider = "openai" | "deepseek" | "azure" | "byteplus";
 
 type LLMProviderFormProps = {
   form: UseFormReturn<ModelConfig>;
@@ -15,7 +15,7 @@ type LLMProviderFormProps = {
   onClear: () => Promise<void>;
   isLoading: boolean;
   hasConfig: boolean;
-  handleProviderChange: (value: "openai" | "deepseek" | "azure") => void;
+  handleProviderChange: (value: "openai" | "deepseek" | "azure" | "byteplus") => void;
   providerOptions?: ProviderOption[];
   healthStatus?: HealthStatusInfo | null;
 };
@@ -85,3 +85,4 @@ export function LLMProviderForm({
     </Form>
   );
 }
+

@@ -236,11 +236,15 @@ export function OnboardingWizard({
           [modelType]: values,
         };
         await ipcClient.llm.setConfig(configToSave);
-        toast.success(
+        const providerLabel =
           values.provider === "openai"
-            ? "OpenAI configuration saved"
-            : "DeepSeek configuration saved",
-        );
+            ? "OpenAI"
+            : values.provider === "deepseek"
+              ? "DeepSeek"
+              : values.provider === "byteplus"
+                ? "BytePlus (ByteDance)"
+                : "Azure OpenAI";
+        toast.success(`${providerLabel} configuration saved`);
         setHasLLMConfig(true);
       } catch (e) {
         toast.error(`Failed to save configuration: ${formatErrorMessage(e)}`);
@@ -349,11 +353,15 @@ export function OnboardingWizard({
       return false;
     }
 
-    toast.success(
+    const providerLabel =
       llmForm.getValues().provider === "openai"
-        ? "OpenAI configuration saved"
-        : "DeepSeek configuration saved",
-    );
+        ? "OpenAI"
+        : llmForm.getValues().provider === "deepseek"
+          ? "DeepSeek"
+          : llmForm.getValues().provider === "byteplus"
+            ? "BytePlus (ByteDance)"
+            : "Azure OpenAI";
+    toast.success(`${providerLabel} configuration saved`);
     setCurrentStep((s) => s + 1);
     return true;
   }, [hasLLMConfig, healthStatus?.isHealthy, llmForm, currentStep]);
@@ -589,3 +597,4 @@ export function OnboardingWizard({
     </div>
   );
 }
+

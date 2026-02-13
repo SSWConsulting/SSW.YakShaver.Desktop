@@ -113,7 +113,9 @@ export function BaseModelKeyManager({
             ? "OpenAI"
             : values.provider === "deepseek"
               ? "DeepSeek"
-              : "Azure OpenAI";
+              : values.provider === "byteplus"
+                ? "BytePlus (ByteDance)"
+                : "Azure OpenAI";
 
         toast.success(
           `${providerName} ${
@@ -179,3 +181,4 @@ export function BaseModelKeyManager({
     </div>
   );
 }
+

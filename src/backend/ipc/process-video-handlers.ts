@@ -1,9 +1,12 @@
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
+import type { LLMConfigV2 } from "../../shared/types/llm";
+import type { TranscriptSegment } from "../../shared/types/transcript";
 import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workflow";
-import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../constants/prompts";
+import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT, VIDEO_FRAME_SUMMARY_PROMPT } from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
@@ -14,6 +17,7 @@ import { TranscriptionModelProvider } from "../services/mcp/transcription-model-
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import { ShaveService } from "../services/shave/shave-service";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
+import { LlmStorage } from "../services/storage/llm-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
@@ -238,56 +242,88 @@ export class ProcessVideoIPCHandlers {
 
     try {
       this.lastVideoFilePath = filePath;
-      workflowManager.startStage(WorkflowProgressStage.CONVERTING_AUDIO);
-      notify(ProgressStage.CONVERTING_AUDIO);
 
-      const hasAudio = await this.ffmpegService.hasAudibleAudio(filePath);
-      if (!hasAudio) {
-        const errorMessage =
-          "No audio detected in this video. Please re-record and make sure the correct microphone is selected and unmuted.";
-        workflowManager.failStage(WorkflowProgressStage.CONVERTING_AUDIO, errorMessage);
-        notify(ProgressStage.ERROR, { error: errorMessage });
-        return { success: false, error: errorMessage };
-      }
+      const useBytePlusVideoPipeline = await this.isBytePlusLanguageProviderSelected();
+      let transcript: TranscriptSegment[] = [];
+      let transcriptText = "";
+      let intermediateOutput = "";
 
-      const mp3FilePath = await this.convertVideoToMp3(filePath);
+      if (useBytePlusVideoPipeline) {
+        workflowManager.skipStage(WorkflowProgressStage.CONVERTING_AUDIO);
+        workflowManager.skipStage(WorkflowProgressStage.TRANSCRIBING);
+        workflowManager.skipStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
 
-      workflowManager.completeStage(WorkflowProgressStage.CONVERTING_AUDIO);
+        notify(ProgressStage.GENERATING_TASK, {
+          mode: "byteplus_video",
+        });
 
-      const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
+        intermediateOutput = await this.analyzeVideoWithBytePlus(
+          filePath,
+          youtubeResult.data?.duration,
+        );
+        transcriptText = this.extractTranscriptTextFromIntermediateOutput(intermediateOutput);
+        transcript = [
+          {
+            text: transcriptText || "Visual summary generated from sampled video frames.",
+            startSecond: 0,
+            endSecond: youtubeResult.data?.duration ?? 0,
+          },
+        ];
+      } else {
+        workflowManager.startStage(WorkflowProgressStage.CONVERTING_AUDIO);
+        notify(ProgressStage.CONVERTING_AUDIO);
 
-      workflowManager.startStage(WorkflowProgressStage.TRANSCRIBING);
-      notify(ProgressStage.TRANSCRIBING);
-      const transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
-      const transcriptText = transcript.map((seg) => seg.text).join("");
+        const hasAudio = await this.ffmpegService.hasAudibleAudio(filePath);
+        if (!hasAudio) {
+          const errorMessage =
+            "No audio detected in this video. Please re-record and make sure the correct microphone is selected and unmuted.";
+          workflowManager.failStage(WorkflowProgressStage.CONVERTING_AUDIO, errorMessage);
+          notify(ProgressStage.ERROR, { error: errorMessage });
+          return { success: false, error: errorMessage };
+        }
 
-      if (!transcriptText.trim()) {
-        const errorMessage =
-          "No speech detected in this recording. Please re-record and check your microphone and audio levels.";
-        workflowManager.failStage(WorkflowProgressStage.TRANSCRIBING, errorMessage);
-        notify(ProgressStage.ERROR, { error: errorMessage });
-        return { success: false, error: errorMessage };
-      }
+        const mp3FilePath = await this.convertVideoToMp3(filePath);
 
-      notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
+        workflowManager.completeStage(WorkflowProgressStage.CONVERTING_AUDIO);
 
-      workflowManager.completeStage(WorkflowProgressStage.TRANSCRIBING, transcriptText);
+        const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
 
-      workflowManager.startStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
-      notify(ProgressStage.GENERATING_TASK);
+        workflowManager.startStage(WorkflowProgressStage.TRANSCRIBING);
+        notify(ProgressStage.TRANSCRIBING);
+        transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
+        transcriptText = transcript.map((seg) => seg.text).join("");
 
-      const languageModelProvider = await LanguageModelProvider.getInstance();
+        if (!transcriptText.trim()) {
+          const errorMessage =
+            "No speech detected in this recording. Please re-record and check your microphone and audio levels.";
+          workflowManager.failStage(WorkflowProgressStage.TRANSCRIBING, errorMessage);
+          notify(ProgressStage.ERROR, { error: errorMessage });
+          return { success: false, error: errorMessage };
+        }
 
-      const userPrompt = `Process the following transcript into a structured JSON object:
+        notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
+
+        workflowManager.completeStage(WorkflowProgressStage.TRANSCRIBING, transcriptText);
+
+        workflowManager.startStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
+        notify(ProgressStage.GENERATING_TASK);
+
+        const languageModelProvider = await LanguageModelProvider.getInstance();
+
+        const userPrompt = `Process the following transcript into a structured JSON object:
 
       ${transcriptText}`;
 
-      const intermediateOutput = await languageModelProvider.generateJson(
-        userPrompt,
-        INITIAL_SUMMARY_PROMPT,
-      );
+        intermediateOutput = await languageModelProvider.generateJson(
+          userPrompt,
+          INITIAL_SUMMARY_PROMPT,
+        );
 
-      workflowManager.completeStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT, intermediateOutput);
+        workflowManager.completeStage(
+          WorkflowProgressStage.ANALYZING_TRANSCRIPT,
+          intermediateOutput,
+        );
+      }
 
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
 
@@ -413,6 +449,101 @@ export class ProcessVideoIPCHandlers {
     }
   }
 
+  private async isBytePlusLanguageProviderSelected(): Promise<boolean> {
+    const llmConfig = (await LlmStorage.getInstance().getLLMConfig()) as LLMConfigV2 | null;
+    return llmConfig?.languageModel?.provider === "byteplus";
+  }
+
+  private extractTranscriptTextFromIntermediateOutput(intermediateOutput: string): string {
+    try {
+      const parsed = TranscriptSummarySchema.parse(JSON.parse(intermediateOutput));
+      return parsed.formattedContent;
+    } catch {
+      return intermediateOutput;
+    }
+  }
+
+  private async analyzeVideoWithBytePlus(filePath: string, durationSeconds?: number): Promise<string> {
+    const timestamps = this.getFrameTimestamps(durationSeconds);
+    const capturedFrames: Array<{ timestamp: number; path: string }> = [];
+
+    for (const timestamp of timestamps) {
+      try {
+        const outputPath = tmp.tmpNameSync({ postfix: `-yakshaver-byteplus-frame-${randomUUID().slice(0, 8)}.png` });
+        await this.ffmpegService.captureNthFrame(filePath, outputPath, timestamp);
+        capturedFrames.push({ timestamp, path: outputPath });
+      } catch (error) {
+        console.warn(`[ProcessVideo] Failed to capture frame at ${timestamp}s`, error);
+      }
+    }
+
+    if (!capturedFrames.length) {
+      throw new Error("Failed to capture any video frames for BytePlus analysis.");
+    }
+
+    try {
+      const languageModelProvider = await LanguageModelProvider.getInstance();
+      const content: Array<{ type: "text"; text: string } | { type: "image"; image: string; mediaType: string }> = [
+        {
+          type: "text",
+          text: `${VIDEO_FRAME_SUMMARY_PROMPT}`,
+        },
+      ];
+
+      for (const frame of capturedFrames) {
+        const imageBuffer = await fs.promises.readFile(frame.path);
+        content.push({ type: "text", text: `Frame timestamp: ${frame.timestamp.toFixed(2)}s` });
+        content.push({
+          type: "image",
+          image: `data:image/png;base64,${imageBuffer.toString("base64")}`,
+          mediaType: "image/png",
+        });
+      }
+
+      const rawResponse = await languageModelProvider.generateText([{ role: "user", content }]);
+      const parsed = this.parseTranscriptSummary(rawResponse);
+      return JSON.stringify(parsed);
+    } finally {
+      for (const frame of capturedFrames) {
+        try {
+          if (fs.existsSync(frame.path)) {
+            fs.unlinkSync(frame.path);
+          }
+        } catch (cleanupError) {
+          console.warn("[ProcessVideo] Failed to clean up temporary frame", cleanupError);
+        }
+      }
+    }
+  }
+
+  private parseTranscriptSummary(rawResponse: string): z.infer<typeof TranscriptSummarySchema> {
+    const cleaned = rawResponse.trim();
+    try {
+      return TranscriptSummarySchema.parse(JSON.parse(cleaned));
+    } catch {
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (!match) {
+        throw new Error("BytePlus response did not include valid JSON.");
+      }
+      return TranscriptSummarySchema.parse(JSON.parse(match[0]));
+    }
+  }
+
+  private getFrameTimestamps(durationSeconds?: number): number[] {
+    if (!durationSeconds || durationSeconds <= 0) {
+      return [2, 10, 20];
+    }
+
+    const safeDuration = Math.max(durationSeconds, 1);
+    const first = Math.min(2, Math.max(safeDuration - 0.2, 0));
+    const middle = safeDuration * 0.5;
+    const end = Math.max(safeDuration - 1, 0);
+
+    return Array.from(new Set([first, middle, end].map((t) => Number(t.toFixed(3))))).sort(
+      (a, b) => a - b,
+    );
+  }
+
   private async convertVideoToMp3(inputPath: string): Promise<string> {
     const outputFilePath = tmp.tmpNameSync({ postfix: ".mp3" });
     const result = await this.ffmpegService.ConvertVideoToMp3(inputPath, outputFilePath);
@@ -433,3 +564,4 @@ export class ProcessVideoIPCHandlers {
       });
   }
 }
+
