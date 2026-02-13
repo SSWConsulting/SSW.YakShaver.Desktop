@@ -2,6 +2,7 @@ import { SCREEN_RECORDING_ERRORS } from "@shared/constants/error-messages";
 import { Camera } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { formatErrorMessage } from "@/utils";
 import { CAMERA_ONLY_SOURCE_ID } from "../../constants/recording";
 import { ipcClient } from "../../services/ipc-client";
@@ -25,6 +26,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   const [microphoneDevices, setMicrophoneDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string | undefined>(undefined);
   const [selectedMicrophoneId, setSelectedMicrophoneId] = useState<string | undefined>(undefined);
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
   const cameraPreviewStreamRef = useRef<MediaStream | null>(null);
   const stopCameraPreviewStream = useCallback(() => {
@@ -130,6 +132,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
     setLoading(false);
     setCameraDevices([]);
     setMicrophoneDevices([]);
+    setSelectedSourceId(null);
     setDevicesReady(false);
     stopCameraPreviewStream();
   }, [open, fetchSources, fetchDevices, stopCameraPreviewStream]);
@@ -170,6 +173,30 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
   const screens = useMemo(() => sources.filter((s) => s.type === "screen"), [sources]);
   // const windows = useMemo(() => sources.filter((s) => s.type === "window"), [sources]);
+  const canConfirm =
+    selectedSourceId === CAMERA_ONLY_SOURCE_ID
+      ? Boolean(selectedCameraId)
+      : sources.some((source) => source.id === selectedSourceId);
+
+  const handleConfirm = async () => {
+    if (!selectedSourceId) return;
+    if (selectedSourceId === CAMERA_ONLY_SOURCE_ID) {
+      await window.electronAPI.screenRecording.minimizeMainWindow();
+      onSelect(CAMERA_ONLY_SOURCE_ID, {
+        cameraId: selectedCameraId,
+        microphoneId: selectedMicrophoneId,
+      });
+      return;
+    }
+    const selectedSource = sources.find((source) => source.id === selectedSourceId);
+    if (selectedSource && !selectedSource.isMainWindow) {
+      await window.electronAPI.screenRecording.minimizeMainWindow();
+    }
+    onSelect(selectedSourceId, {
+      cameraId: selectedCameraId,
+      microphoneId: selectedMicrophoneId,
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -177,7 +204,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
         <DialogHeader>
           <DialogTitle>Choose a source to record</DialogTitle>
           <DialogDescription>
-            Select a screen to capture. Hover to preview and click to start recording.
+            Select a screen to capture, then click Start to begin recording.
           </DialogDescription>
         </DialogHeader>
 
@@ -275,12 +302,8 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-5">
                 <CameraOnlyTile
-                  onClick={() =>
-                    onSelect(CAMERA_ONLY_SOURCE_ID, {
-                      cameraId: selectedCameraId,
-                      microphoneId: selectedMicrophoneId,
-                    })
-                  }
+                  isSelected={selectedSourceId === CAMERA_ONLY_SOURCE_ID}
+                  onClick={() => setSelectedSourceId(CAMERA_ONLY_SOURCE_ID)}
                 />
               </div>
             </section>
@@ -289,12 +312,8 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           <SourceSection
             label="Screens"
             sources={screens}
-            onSelect={(id) =>
-              onSelect(id, {
-                cameraId: selectedCameraId,
-                microphoneId: selectedMicrophoneId,
-              })
-            }
+            selectedSourceId={selectedSourceId}
+            onSelect={setSelectedSourceId}
           />
 
           {/**
@@ -313,6 +332,14 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
             </div>
           )}
         </div>
+        <div className="flex justify-end gap-2 border-t border-border pt-3">
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleConfirm} disabled={!canConfirm}>
+            Start
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -321,10 +348,12 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 function SourceSection({
   label,
   sources,
+  selectedSourceId,
   onSelect,
 }: {
   label: string;
   sources: ScreenSource[];
+  selectedSourceId: string | null;
   onSelect: (id: string) => void;
 }) {
   if (sources.length === 0) return null;
@@ -333,31 +362,38 @@ function SourceSection({
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</h3>
       <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-5">
         {sources.map((src) => (
-          <ImageTile key={src.id} source={src} onClick={() => onSelect(src.id)} />
+          <ImageTile
+            key={src.id}
+            source={src}
+            isSelected={selectedSourceId === src.id}
+            onClick={() => onSelect(src.id)}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function ImageTile({ source, onClick }: { source: ScreenSource; onClick: () => void }) {
+function ImageTile({
+  source,
+  isSelected,
+  onClick,
+}: {
+  source: ScreenSource;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
   const preview = source.thumbnailDataURL ?? source.appIconDataURL;
-
-  const handleClick = async () => {
-    // Only minimize if we're not recording the main app window itself
-    if (!source.isMainWindow) {
-      await window.electronAPI.screenRecording.minimizeMainWindow();
-    }
-
-    onClick();
-  };
 
   return (
     <Button
       variant="ghost"
-      onClick={handleClick}
+      onClick={onClick}
       title={source.name}
-      className="group relative block aspect-video w-full h-auto overflow-hidden rounded-lg bg-neutral-800 p-0 ring-offset-neutral-900 transition-all hover:ring-2 hover:ring-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 hover:bg-neutral-800"
+      className={cn(
+        "group relative block aspect-video w-full h-auto overflow-hidden rounded-lg bg-neutral-800 p-0 ring-offset-neutral-900 transition-all hover:ring-2 hover:ring-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 hover:bg-neutral-800",
+        isSelected && "ring-2 ring-primary-500",
+      )}
     >
       {preview ? (
         <img src={preview} alt={source.name} className="h-full w-full object-cover" />
@@ -368,18 +404,16 @@ function ImageTile({ source, onClick }: { source: ScreenSource; onClick: () => v
   );
 }
 
-function CameraOnlyTile({ onClick }: { onClick: () => void }) {
-  const handleClick = async () => {
-    await window.electronAPI.screenRecording.minimizeMainWindow();
-    onClick();
-  };
-
+function CameraOnlyTile({ isSelected, onClick }: { isSelected: boolean; onClick: () => void }) {
   return (
     <Button
       variant="ghost"
-      onClick={handleClick}
+      onClick={onClick}
       title="Camera Only - No Screen"
-      className="group relative block aspect-video w-full h-auto overflow-hidden rounded-lg bg-neutral-800 p-4 ring-offset-neutral-900 transition-all hover:ring-2 hover:ring-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 hover:bg-neutral-800"
+      className={cn(
+        "group relative block aspect-video w-full h-auto overflow-hidden rounded-lg bg-neutral-800 p-4 ring-offset-neutral-900 transition-all hover:ring-2 hover:ring-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 hover:bg-neutral-800",
+        isSelected && "ring-2 ring-primary-500",
+      )}
     >
       <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-neutral-400">
         <Camera className="h-12 w-12" />
