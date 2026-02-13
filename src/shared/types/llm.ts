@@ -36,4 +36,3 @@ export interface LLMConfigV2 {
 }
 
 export type LLMConfig = LLMConfigV1 | LLMConfigV2;
-

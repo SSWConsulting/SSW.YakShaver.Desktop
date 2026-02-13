@@ -156,7 +156,6 @@ export function buildTaskExecutionPrompt(customPrompt?: string): string {
   ${TASK_EXECUTION_PROMPT}`;
 }
 
-
 export const VIDEO_FRAME_SUMMARY_PROMPT = `You are a precise visual information structuring AI. You will receive sampled video frames in chronological order and produce a structured JSON summary suitable for downstream task execution.
 
 Output a single valid JSON object with these fields:

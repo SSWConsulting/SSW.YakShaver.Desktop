@@ -129,4 +129,3 @@ export class LlmStorage extends BaseSecureStorage {
     return currentConfig as LLMConfigV2;
   }
 }
-

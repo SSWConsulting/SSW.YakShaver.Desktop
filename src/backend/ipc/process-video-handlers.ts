@@ -1,12 +1,16 @@
-import fs from "node:fs";
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
 import type { LLMConfigV2 } from "../../shared/types/llm";
 import type { TranscriptSegment } from "../../shared/types/transcript";
 import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workflow";
-import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT, VIDEO_FRAME_SUMMARY_PROMPT } from "../constants/prompts";
+import {
+  buildTaskExecutionPrompt,
+  INITIAL_SUMMARY_PROMPT,
+  VIDEO_FRAME_SUMMARY_PROMPT,
+} from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
@@ -463,13 +467,18 @@ export class ProcessVideoIPCHandlers {
     }
   }
 
-  private async analyzeVideoWithBytePlus(filePath: string, durationSeconds?: number): Promise<string> {
+  private async analyzeVideoWithBytePlus(
+    filePath: string,
+    durationSeconds?: number,
+  ): Promise<string> {
     const timestamps = this.getFrameTimestamps(durationSeconds);
     const capturedFrames: Array<{ timestamp: number; path: string }> = [];
 
     for (const timestamp of timestamps) {
       try {
-        const outputPath = tmp.tmpNameSync({ postfix: `-yakshaver-byteplus-frame-${randomUUID().slice(0, 8)}.png` });
+        const outputPath = tmp.tmpNameSync({
+          postfix: `-yakshaver-byteplus-frame-${randomUUID().slice(0, 8)}.png`,
+        });
         await this.ffmpegService.captureNthFrame(filePath, outputPath, timestamp);
         capturedFrames.push({ timestamp, path: outputPath });
       } catch (error) {
@@ -483,7 +492,9 @@ export class ProcessVideoIPCHandlers {
 
     try {
       const languageModelProvider = await LanguageModelProvider.getInstance();
-      const content: Array<{ type: "text"; text: string } | { type: "image"; image: string; mediaType: string }> = [
+      const content: Array<
+        { type: "text"; text: string } | { type: "image"; image: string; mediaType: string }
+      > = [
         {
           type: "text",
           text: `${VIDEO_FRAME_SUMMARY_PROMPT}`,
@@ -564,4 +575,3 @@ export class ProcessVideoIPCHandlers {
       });
   }
 }
-

@@ -597,4 +597,3 @@ export function OnboardingWizard({
     </div>
   );
 }
-
