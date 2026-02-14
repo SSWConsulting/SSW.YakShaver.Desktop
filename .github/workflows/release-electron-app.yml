@@ -72,6 +72,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_AUTH_SCOPE: ${{ secrets.AZURE_AUTH_SCOPE }}
           AZURE_AUTH_CUSTOM_PROTOCOL: yakshaver-desktop
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         run: |
           Add-Content -Path ".env" -Value "`nMCP_CALLBACK_PORT=$env:MCP_CALLBACK_PORT"
           Add-Content -Path ".env" -Value "`nMCP_AUTH_TIMEOUT_MS=$env:MCP_AUTH_TIMEOUT_MS"
@@ -80,6 +81,7 @@ jobs:
           Add-Content -Path ".env" -Value "`nAZURE_TENANT_ID=$env:AZURE_TENANT_ID"
           Add-Content -Path ".env" -Value "`nAZURE_AUTH_SCOPE=$env:AZURE_AUTH_SCOPE"
           Add-Content -Path ".env" -Value "`nAZURE_AUTH_CUSTOM_PROTOCOL=$env:AZURE_AUTH_CUSTOM_PROTOCOL"
+          Add-Content -Path ".env" -Value "`nAPPLICATIONINSIGHTS_CONNECTION_STRING=$env:APPLICATIONINSIGHTS_CONNECTION_STRING"
           $COMMIT_HASH = git rev-parse HEAD
           Add-Content -Path ".env" -Value "`nCOMMIT_HASH=$COMMIT_HASH"
 
@@ -192,6 +194,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_AUTH_SCOPE: ${{ secrets.AZURE_AUTH_SCOPE }}
           AZURE_AUTH_CUSTOM_PROTOCOL: yakshaver-desktop
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         run: |
           printf "MCP_CALLBACK_PORT=%s\n" "$MCP_CALLBACK_PORT" >> .env
           printf "MCP_AUTH_TIMEOUT_MS=%s\n" "$MCP_AUTH_TIMEOUT_MS" >> .env
@@ -200,6 +203,7 @@ jobs:
           printf "AZURE_TENANT_ID=%s\n" "$AZURE_TENANT_ID" >> .env
           printf "AZURE_AUTH_SCOPE=%s\n" "$AZURE_AUTH_SCOPE" >> .env
           printf "AZURE_AUTH_CUSTOM_PROTOCOL=%s\n" "$AZURE_AUTH_CUSTOM_PROTOCOL" >> .env
+          printf "APPLICATIONINSIGHTS_CONNECTION_STRING=%s\n" "$APPLICATIONINSIGHTS_CONNECTION_STRING" >> .env
           COMMIT_HASH=$(git rev-parse HEAD)
           printf "COMMIT_HASH=%s\n" "$COMMIT_HASH" >> .env
 
