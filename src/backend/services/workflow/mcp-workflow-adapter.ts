@@ -56,10 +56,6 @@ export class McpWorkflowAdapter {
       ...this.getPayload(),
       mcpResult: typeof finalResult === "string" ? finalResult : JSON.stringify(finalResult),
     };
-    this.workflowManager.updateStagePayload(
-      WorkflowProgressStage.EXECUTING_TASK,
-      payload,
-      "completed",
-    );
+    this.workflowManager.completeStage(WorkflowProgressStage.EXECUTING_TASK, payload);
   }
 }

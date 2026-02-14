@@ -1,6 +1,7 @@
 import type { Hotkeys, UserSettings } from "@shared/types/user-settings";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { ToolApprovalDecision } from "../shared/types/mcp";
+import type { TelemetrySettings } from "../shared/types/telemetry";
 import type {
   CreateShaveData,
   CreateVideoData,
@@ -128,6 +129,12 @@ const IPC_CHANNELS = {
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
+
+  // Telemetry
+  TELEMETRY_GET_SETTINGS: "telemetry:get-settings",
+  TELEMETRY_UPDATE_SETTINGS: "telemetry:update-settings",
+  TELEMETRY_GET_CONSENT_STATUS: "telemetry:get-consent-status",
+  TELEMETRY_REQUEST_CONSENT: "telemetry:request-consent",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -338,6 +345,14 @@ const electronAPI = {
     updateStatus: (id: string, status: ShaveStatus) =>
       ipcRenderer.invoke(IPC_CHANNELS.SHAVE_UPDATE_STATUS, id, status),
     delete: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_DELETE, id),
+  },
+  telemetry: {
+    getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.TELEMETRY_GET_SETTINGS),
+    updateSettings: (settings: Partial<TelemetrySettings>) =>
+      ipcRenderer.invoke(IPC_CHANNELS.TELEMETRY_UPDATE_SETTINGS, settings),
+    getConsentStatus: () => ipcRenderer.invoke(IPC_CHANNELS.TELEMETRY_GET_CONSENT_STATUS),
+    requestConsent: (consent: { granted: boolean; userId?: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.TELEMETRY_REQUEST_CONSENT, consent),
   },
   // Camera window
   onSetCameraDevice: (callback: (deviceId: string) => void) => {
