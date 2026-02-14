@@ -1,11 +1,9 @@
-import { Activity, BarChart3, Bug, CheckCircle, Shield, XCircle } from "lucide-react";
+import { Activity, BarChart3, Bug } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useTelemetryConsent } from "@/hooks/useTelemetryConsent";
 import { TelemetryConsentDialog } from "./TelemetryConsentDialog";
@@ -47,26 +45,16 @@ export function TelemetrySettingsPanel() {
     await updateSettings({ allowUsageMetrics: checked });
   };
 
-  const handleToggleAnonymization = async (checked: boolean) => {
-    if (!isEnabled) {
-      toast.error("Please enable telemetry first");
-      return;
-    }
-    await updateSettings({ anonymizeData: checked });
-  };
-
   const handleAcceptConsent = async (options: {
     allowErrorReporting: boolean;
     allowWorkflowTracking: boolean;
     allowUsageMetrics: boolean;
-    anonymizeData: boolean;
   }) => {
     await grantConsent();
     await updateSettings({
       allowErrorReporting: options.allowErrorReporting,
       allowWorkflowTracking: options.allowWorkflowTracking,
       allowUsageMetrics: options.allowUsageMetrics,
-      anonymizeData: options.anonymizeData,
     });
     setShowConsentDialog(false);
   };
@@ -99,40 +87,12 @@ export function TelemetrySettingsPanel() {
             Telemetry & Usage Data
           </CardTitle>
           <CardDescription>
-            Control what anonymous usage data is sent to help improve YakShaver
+            We'd like to collect anonymous usage data to help improve YakShaver. Your privacy is
+            important to us - no personal information or video content is ever collected.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Status Section */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium">Telemetry Status</h3>
-              <p className="text-sm text-muted-foreground">
-                {hasMadeDecision
-                  ? isEnabled
-                    ? "Telemetry is currently enabled"
-                    : "Telemetry is currently disabled"
-                  : "You haven't made a decision yet"}
-              </p>
-            </div>
-            <Badge variant={isEnabled ? "default" : "secondary"}>
-              {isEnabled ? (
-                <>
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                  Enabled
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-3 w-3 mr-1" />
-                  Disabled
-                </>
-              )}
-            </Badge>
-          </div>
-
-          <Separator />
-
           {/* Consent Button */}
           {!hasMadeDecision || !isEnabled ? (
             <div className="bg-muted/50 p-4 rounded-lg">
@@ -150,9 +110,9 @@ export function TelemetrySettingsPanel() {
                   <div className="flex items-start gap-3">
                     <Bug className="h-4 w-4 mt-1 text-muted-foreground" />
                     <div>
-                      <Label className="text-sm font-medium">Error Reporting</Label>
+                      <Label className="text-sm font-medium">Error reports</Label>
                       <p className="text-xs text-muted-foreground">
-                        Send error reports and stack traces to help us fix bugs
+                        Stack traces and error messages to help us fix bugs
                       </p>
                     </div>
                   </div>
@@ -167,9 +127,9 @@ export function TelemetrySettingsPanel() {
                   <div className="flex items-start gap-3">
                     <Activity className="h-4 w-4 mt-1 text-muted-foreground" />
                     <div>
-                      <Label className="text-sm font-medium">Workflow Tracking</Label>
+                      <Label className="text-sm font-medium">Workflow performance</Label>
                       <p className="text-xs text-muted-foreground">
-                        Track processing stage durations (transcription, analysis, etc.)
+                        How long processing stages take (transcription, analysis, etc.)
                       </p>
                     </div>
                   </div>
@@ -184,7 +144,7 @@ export function TelemetrySettingsPanel() {
                   <div className="flex items-start gap-3">
                     <BarChart3 className="h-4 w-4 mt-1 text-muted-foreground" />
                     <div>
-                      <Label className="text-sm font-medium">Usage Metrics</Label>
+                      <Label className="text-sm font-medium">Usage metrics</Label>
                       <p className="text-xs text-muted-foreground">
                         Feature usage counts and app version information
                       </p>
@@ -196,30 +156,7 @@ export function TelemetrySettingsPanel() {
                     disabled={!isEnabled}
                   />
                 </div>
-
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <Shield className="h-4 w-4 mt-1 text-muted-foreground" />
-                    <div>
-                      <Label className="text-sm font-medium">Anonymize Data</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Use random IDs instead of identifiable information
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={settings?.anonymizeData ?? true}
-                    onCheckedChange={handleToggleAnonymization}
-                    disabled={!isEnabled}
-                  />
-                </div>
               </div>
-
-              <Separator />
-
-              <Button variant="outline" size="sm" onClick={() => setShowConsentDialog(true)}>
-                Update Preferences
-              </Button>
             </div>
           )}
         </CardContent>

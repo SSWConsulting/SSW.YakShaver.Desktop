@@ -9,7 +9,6 @@ export const TelemetrySettingsSchema = z.object({
   allowErrorReporting: z.boolean().default(true),
   allowWorkflowTracking: z.boolean().default(true),
   allowUsageMetrics: z.boolean().default(true),
-  anonymizeData: z.boolean().default(true),
   userId: z.string().optional(),
 });
 
@@ -20,7 +19,6 @@ export const DEFAULT_TELEMETRY_SETTINGS: TelemetrySettings = {
   allowErrorReporting: true,
   allowWorkflowTracking: true,
   allowUsageMetrics: true,
-  anonymizeData: true,
 };
 
 export interface TelemetryEvent {

@@ -41,7 +41,6 @@ export function TelemetryConsentInitializer({ children }: TelemetryConsentInitia
     allowErrorReporting: boolean;
     allowWorkflowTracking: boolean;
     allowUsageMetrics: boolean;
-    anonymizeData: boolean;
   }) => {
     try {
       // Generate an anonymous user ID
@@ -57,7 +56,6 @@ export function TelemetryConsentInitializer({ children }: TelemetryConsentInitia
           allowErrorReporting: options.allowErrorReporting,
           allowWorkflowTracking: options.allowWorkflowTracking,
           allowUsageMetrics: options.allowUsageMetrics,
-          anonymizeData: options.anonymizeData,
         });
 
         if (settingsResult.success) {

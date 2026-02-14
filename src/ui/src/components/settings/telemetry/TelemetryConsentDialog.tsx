@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bug, Shield } from "lucide-react";
+import { Activity, BarChart3, Bug } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,7 +19,6 @@ interface TelemetryConsentDialogProps {
     allowErrorReporting: boolean;
     allowWorkflowTracking: boolean;
     allowUsageMetrics: boolean;
-    anonymizeData: boolean;
   }) => void;
   onDecline: () => void;
 }
@@ -33,14 +32,12 @@ export function TelemetryConsentDialog({
   const [allowErrorReporting, setAllowErrorReporting] = useState(true);
   const [allowWorkflowTracking, setAllowWorkflowTracking] = useState(true);
   const [allowUsageMetrics, setAllowUsageMetrics] = useState(true);
-  const [anonymizeData, setAnonymizeData] = useState(true);
 
   const handleAccept = () => {
     onAccept({
       allowErrorReporting,
       allowWorkflowTracking,
       allowUsageMetrics,
-      anonymizeData,
     });
   };
 
@@ -115,27 +112,6 @@ export function TelemetryConsentDialog({
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 ml-6">
                   Feature usage counts and app version information
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t pt-4">
-            <div className="flex items-start space-x-3">
-              <Shield className="h-4 w-4 mt-0.5 text-muted-foreground" />
-              <div className="flex-1">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="anonymize"
-                    checked={anonymizeData}
-                    onCheckedChange={(checked) => setAnonymizeData(checked as boolean)}
-                  />
-                  <Label htmlFor="anonymize" className="text-sm font-medium">
-                    Anonymize all data
-                  </Label>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1 ml-6">
-                  Replace identifiers with random IDs so data cannot be traced back to you
                 </p>
               </div>
             </div>
