@@ -155,3 +155,18 @@ export function buildTaskExecutionPrompt(customPrompt?: string): string {
   CONTEXT (use as reference if needed):
   ${TASK_EXECUTION_PROMPT}`;
 }
+
+export const VIDEO_FRAME_SUMMARY_PROMPT = `You are a precise visual information structuring AI. You will receive sampled video frames in chronological order and produce a structured JSON summary suitable for downstream task execution.
+
+Output a single valid JSON object with these fields:
+- "taskType": string representing the user intent inferred from visible context
+- "detectedLanguage": string in BCP 47 format (for visible text context, e.g. "en-US")
+- "formattedContent": markdown summary of what the video is showing, ordered by timeline
+- "mentionedEntities": array of key entities shown (repos, project names, services, file names, users)
+- "contextKeywords": array of important technical/context keywords
+- "uncertainTerms": array of ambiguous items that need follow-up
+
+Rules:
+- Output ONLY JSON
+- Keep facts grounded in visible evidence
+- If evidence is uncertain, include it in "uncertainTerms" instead of guessing`;

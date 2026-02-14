@@ -39,6 +39,12 @@ export class LlmStorage extends BaseSecureStorage {
         model: config.model,
         apiKey: config.apiKey,
       };
+    } else if (config.provider === "byteplus") {
+      modelConfig = {
+        provider: "byteplus",
+        model: config.model,
+        apiKey: config.apiKey,
+      };
     } else {
       throw new Error(`[LlmStorage]: Unknown provider ${config} during migration`);
     }

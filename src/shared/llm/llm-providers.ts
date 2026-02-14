@@ -16,6 +16,15 @@ export const LLM_PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
     defaultTranscriptionModel: "whisper-1",
     defaultLanguageModel: "gpt-5-mini",
   },
+  byteplus: {
+    label: "BytePlus (ByteDance)",
+    factory: ({ apiKey }: { apiKey: string }) =>
+      createOpenAI({
+        apiKey,
+        baseURL: "https://ark.cn-beijing.volces.com/api/v3",
+      }),
+    defaultLanguageModel: "doubao-1-5-thinking-vision-pro-250428",
+  },
   // TODO: This will need to be expanded when Azure is enabled as a provider.
   // https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/530
   azure: {
