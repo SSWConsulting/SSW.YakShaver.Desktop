@@ -43,8 +43,7 @@ export function TelemetryConsentInitializer({ children }: TelemetryConsentInitia
     allowUsageMetrics: boolean;
   }) => {
     try {
-      // Generate an anonymous user ID
-      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const userId = crypto.randomUUID();
 
       const consentResult = await ipcClient.telemetry.requestConsent({
         granted: true,
