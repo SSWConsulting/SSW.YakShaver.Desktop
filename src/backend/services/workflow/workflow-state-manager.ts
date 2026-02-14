@@ -6,14 +6,19 @@ import {
   type WorkflowStep,
 } from "../../../shared/types/workflow";
 import { IPC_CHANNELS } from "../../ipc/channels";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
+import { TelemetryService } from "../telemetry/telemetry-service";
+
 export class WorkflowStateManager {
   private shaveId: string;
   private state: WorkflowState;
+  private telemetryService: TelemetryService;
+  private stageStartTimes: Map<string, number> = new Map();
 
   public constructor(shaveId?: string) {
     this.shaveId = shaveId ?? crypto.randomUUID();
     this.state = this.initiateStates();
+    this.telemetryService = TelemetryService.getInstance();
   }
 
   private initiateStates(): WorkflowState {
@@ -55,11 +60,20 @@ export class WorkflowStateManager {
    * Sets status to 'in_progress' and records start time.
    */
   public startStage(stageKey: keyof WorkflowState) {
+    const startTime = Date.now();
+    this.stageStartTimes.set(stageKey as string, startTime);
+
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "in_progress",
-      createdAt: Date.now(),
+      createdAt: startTime,
     };
+
+    this.telemetryService.trackWorkflowStage({
+      workflowId: this.shaveId,
+      stage: stageKey as string,
+      status: "started",
+    });
 
     this.broadcast();
   }
@@ -69,19 +83,41 @@ export class WorkflowStateManager {
    * Sets status to 'completed' and attaches payload.
    */
   public completeStage(stageKey: keyof WorkflowState, payload?: unknown) {
+    const startTime = this.stageStartTimes.get(stageKey as string);
+    const duration = startTime ? Date.now() - startTime : undefined;
+
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "completed",
       payload: payload ? JSON.stringify(payload) : undefined,
     };
+
+    this.telemetryService.trackWorkflowStage({
+      workflowId: this.shaveId,
+      stage: stageKey as string,
+      status: "completed",
+      duration,
+    });
+
     this.broadcast();
   }
 
   public skipStage(stageKey: keyof WorkflowState) {
+    const startTime = this.stageStartTimes.get(stageKey as string);
+    const duration = startTime ? Date.now() - startTime : undefined;
+
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "skipped",
     };
+
+    this.telemetryService.trackWorkflowStage({
+      workflowId: this.shaveId,
+      stage: stageKey as string,
+      status: "skipped",
+      duration,
+    });
+
     this.broadcast();
   }
 
@@ -89,13 +125,34 @@ export class WorkflowStateManager {
    * Fail a specific stage in the workflow.
    */
   public failStage(stageKey: keyof WorkflowState, error: string | Error) {
-    const errorMessage = formatErrorMessage(error);
+    const errorMessage = formatAndReportError(error, "workflow_stage_failure");
+    const startTime = this.stageStartTimes.get(stageKey as string);
+    const duration = startTime ? Date.now() - startTime : undefined;
 
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "failed",
       payload: JSON.stringify({ error: errorMessage }),
     };
+
+    this.telemetryService.trackWorkflowStage({
+      workflowId: this.shaveId,
+      stage: stageKey as string,
+      status: "failed",
+      duration,
+      error: errorMessage,
+    });
+
+    this.telemetryService.trackError({
+      error: error instanceof Error ? error : new Error(errorMessage),
+      context: `workflow_stage_${stageKey as string}`,
+      workflowId: this.shaveId,
+      additionalProperties: {
+        stage: stageKey as string,
+        duration: duration?.toString() ?? "unknown",
+      },
+    });
+
     this.broadcast();
   }
 

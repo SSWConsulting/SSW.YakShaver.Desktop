@@ -110,4 +110,10 @@ export const IPC_CHANNELS = {
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
+
+  // Telemetry
+  TELEMETRY_GET_SETTINGS: "telemetry:get-settings",
+  TELEMETRY_UPDATE_SETTINGS: "telemetry:update-settings",
+  TELEMETRY_GET_CONSENT_STATUS: "telemetry:get-consent-status",
+  TELEMETRY_REQUEST_CONSENT: "telemetry:request-consent",
 } as const;

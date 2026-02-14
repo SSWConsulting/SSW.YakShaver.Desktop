@@ -1,4 +1,5 @@
 import type { LLMConfigV2 } from "@shared/types/llm";
+import type { TelemetrySettings } from "@shared/types/telemetry";
 import type { UserSettings } from "@shared/types/user-settings";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
@@ -234,6 +235,21 @@ declare global {
           status: ShaveStatus,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         delete: (id: string) => Promise<{ success: boolean; data?: boolean; error?: string }>;
+      };
+      telemetry: {
+        getSettings: () => Promise<{ success: boolean; data?: TelemetrySettings; error?: string }>;
+        updateSettings: (
+          settings: Partial<TelemetrySettings>,
+        ) => Promise<{ success: boolean; data?: TelemetrySettings; error?: string }>;
+        getConsentStatus: () => Promise<{
+          success: boolean;
+          data?: { hasMadeDecision: boolean; isEnabled: boolean };
+          error?: string;
+        }>;
+        requestConsent: (consent: {
+          granted: boolean;
+          userId?: string;
+        }) => Promise<{ success: boolean; error?: string }>;
       };
     };
   }

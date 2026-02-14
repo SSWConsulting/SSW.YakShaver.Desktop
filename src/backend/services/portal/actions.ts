@@ -4,7 +4,7 @@ import { basename } from "node:path";
 import FormData from "form-data";
 import { z } from "zod";
 import { config } from "../../config/env";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import { MicrosoftAuthService } from "../auth/microsoft-auth";
 
 /**
@@ -113,7 +113,7 @@ export async function SendWorkItemDetailsToPortal(
     const validated = PostTaskRecordResponseSchema.parse(parsed);
     return { success: true, workItemId: validated.workItemId } as const;
   } catch (error) {
-    const message = formatErrorMessage(error);
+    const message = formatAndReportError(error, "portal_action");
     return { success: false, error: message } as const;
   }
 }
@@ -202,7 +202,7 @@ export async function UploadScreenshotToPortal(
 
     return { success: true, url: validatedResponse.url };
   } catch (error) {
-    const message = formatErrorMessage(error);
+    const message = formatAndReportError(error, "portal_action");
     return { success: false, error: message };
   }
 }

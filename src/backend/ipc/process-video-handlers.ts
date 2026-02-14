@@ -19,7 +19,7 @@ import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
 import { ProgressStage } from "../types";
-import { formatErrorMessage } from "../utils/error-utils";
+import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 type VideoProcessingContext = {
@@ -123,7 +123,7 @@ export class ProcessVideoIPCHandlers {
           });
           return { success: true, finalOutput: mcpResult };
         } catch (error) {
-          const errorMessage = formatErrorMessage(error);
+          const errorMessage = formatAndReportError(error, "retry_video_processing");
           notify(ProgressStage.ERROR, { error: errorMessage });
           return { success: false, error: errorMessage };
         }
@@ -180,7 +180,7 @@ export class ProcessVideoIPCHandlers {
         workflowManager,
       );
     } catch (uploadError) {
-      const errorMessage = formatErrorMessage(uploadError);
+      const errorMessage = formatAndReportError(uploadError, "video_upload");
       workflowManager.failStage(WorkflowProgressStage.UPLOADING_VIDEO, errorMessage);
       return { success: false, error: errorMessage };
     }
@@ -216,7 +216,7 @@ export class ProcessVideoIPCHandlers {
         workflowManager,
       );
     } catch (error) {
-      const errorMessage = formatErrorMessage(error);
+      const errorMessage = formatAndReportError(error, "video_download");
       workflowManager.failStage(WorkflowProgressStage.DOWNLOADING_VIDEO, errorMessage);
       notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
@@ -320,7 +320,7 @@ export class ProcessVideoIPCHandlers {
         );
         if (!portalResult.success) {
           console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
-          const errorMessage = formatErrorMessage(portalResult.error);
+          const errorMessage = formatAndReportError(portalResult.error, "portal_submission");
           notify(ProgressStage.ERROR, { error: errorMessage });
           workflowManager.failStage(WorkflowProgressStage.UPDATING_METADATA, errorMessage);
         } else if (shaveId) {
@@ -372,11 +372,9 @@ export class ProcessVideoIPCHandlers {
             }
           } catch (metadataError) {
             console.warn("Metadata update failed", metadataError);
-            workflowManager.failStage(
-              WorkflowProgressStage.UPDATING_METADATA,
-              formatErrorMessage(metadataError),
-            );
-            metadataUpdateError = formatErrorMessage(metadataError);
+            const metadataErrorMsg = formatAndReportError(metadataError, "metadata_update");
+            workflowManager.failStage(WorkflowProgressStage.UPDATING_METADATA, metadataErrorMsg);
+            metadataUpdateError = metadataErrorMsg;
           }
         }
       }
@@ -392,7 +390,7 @@ export class ProcessVideoIPCHandlers {
 
       return { youtubeResult, mcpResult };
     } catch (error) {
-      const errorMessage = formatErrorMessage(error);
+      const errorMessage = formatAndReportError(error, "video_processing");
       notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     } finally {

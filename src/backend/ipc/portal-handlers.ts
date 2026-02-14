@@ -3,7 +3,7 @@ import { ipcMain } from "electron";
 import { config } from "../config/env";
 import type { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { GetMyShavesResponse } from "../types";
-import { formatErrorMessage } from "../utils/error-utils";
+import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthService) {
@@ -44,7 +44,11 @@ export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthServic
                 const parsedData = JSON.parse(responseData);
                 resolve(parsedData);
               } catch (error) {
-                reject(new Error(`Failed to parse JSON response: ${formatErrorMessage(error)}`));
+                reject(
+                  new Error(
+                    `Failed to parse JSON response: ${formatAndReportError(error, "portal_api")}`,
+                  ),
+                );
               }
             } else {
               reject(new Error(`API call failed: ${res.statusCode} ${res.statusMessage}`));
@@ -61,8 +65,8 @@ export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthServic
 
       return { success: true, data };
     } catch (error) {
-      console.error("Portal API error:", formatErrorMessage(error));
-      return { success: false, error: formatErrorMessage(error) };
+      console.error("Portal API error:", formatAndReportError(error, "portal_api"));
+      return { success: false, error: formatAndReportError(error, "portal_api") };
     }
   });
 
@@ -95,8 +99,8 @@ export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthServic
 
       return { success: true } as const;
     } catch (error) {
-      console.error("Portal API error:", formatErrorMessage(error));
-      return { success: false, error: formatErrorMessage(error) } as const;
+      console.error("Portal API error:", formatAndReportError(error, "portal_api"));
+      return { success: false, error: formatAndReportError(error, "portal_api") } as const;
     }
   });
 }
