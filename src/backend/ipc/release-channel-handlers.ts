@@ -4,7 +4,7 @@ import { config } from "../config/env";
 import { GitHubTokenStorage } from "../services/storage/github-token-storage";
 import type { ReleaseChannel } from "../services/storage/release-channel-storage";
 import { ReleaseChannelStorage } from "../services/storage/release-channel-storage";
-import { formatErrorMessage } from "../utils/error-utils";
+import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 interface GitHubRelease {
@@ -173,7 +173,7 @@ export class ReleaseChannelIPCHandlers {
 
       return { releases: this.processReleases(releases) };
     } catch (error) {
-      const errMsg = formatErrorMessage(error);
+      const errMsg = formatAndReportError(error, "fetch_releases");
       return {
         releases: [],
         error: errMsg,
@@ -318,7 +318,7 @@ export class ReleaseChannelIPCHandlers {
               };
             }
           } catch (error) {
-            const errMsg = formatErrorMessage(error);
+            const errMsg = formatAndReportError(error, "check_prerelease");
             return {
               available: false,
               error: errMsg,
@@ -345,7 +345,7 @@ export class ReleaseChannelIPCHandlers {
       }
       return { available: false };
     } catch (error) {
-      const errMsg = formatErrorMessage(error);
+      const errMsg = formatAndReportError(error, "check_update");
       return {
         available: false,
         error: errMsg,

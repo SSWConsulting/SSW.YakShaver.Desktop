@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { GitHubTokenStorage } from "../services/storage/github-token-storage";
-import { formatErrorMessage } from "../utils/error-utils";
+import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class GitHubTokenIPCHandlers {
@@ -89,7 +89,7 @@ export class GitHubTokenIPCHandlers {
         rateLimitRemaining,
       };
     } catch (error) {
-      return { isValid: false, error: formatErrorMessage(error) };
+      return { isValid: false, error: formatAndReportError(error, "github_token") };
     }
   }
 }

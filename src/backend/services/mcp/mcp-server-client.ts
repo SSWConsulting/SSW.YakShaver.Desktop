@@ -1,7 +1,7 @@
 import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import { authorizeWithBackend, refreshTokenWithBackend } from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
@@ -195,8 +195,9 @@ export class MCPServerClient {
         return Object.keys(tools).length;
       }
     } catch (error) {
+      const errorMsg = formatAndReportError(error, "mcp_tool_count");
       throw new Error(
-        `Failed to get tool count from MCP server: ${this.mcpClientName}. Error: ${formatErrorMessage(error)}`,
+        `Failed to get tool count from MCP server: ${this.mcpClientName}. Error: ${errorMsg}`,
       );
     }
   }

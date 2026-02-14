@@ -12,7 +12,7 @@ import type { ZodType, z } from "zod";
 import { LLM_PROVIDER_CONFIGS } from "../../../shared/llm/llm-providers";
 import type { LLMConfig } from "../../../shared/types/llm";
 import type { HealthStatusInfo } from "../../types";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import { LlmStorage } from "../storage/llm-storage";
 
 type StepType =
@@ -230,7 +230,7 @@ export class LanguageModelProvider {
     } catch (err) {
       return {
         isHealthy: false,
-        error: formatErrorMessage(err),
+        error: formatAndReportError(err, "llm_health_check"),
         isChecking: false,
       };
     }

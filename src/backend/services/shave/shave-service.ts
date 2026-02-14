@@ -10,7 +10,7 @@ import * as dbShaveService from "../../db/services/shave-service";
 import * as dbVideoFileService from "../../db/services/video-files-service";
 import * as dbVideoSourceService from "../../db/services/video-source-service";
 import type { ShaveStatus } from "../../types";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import { normalizeYouTubeUrl } from "../../utils/youtube-url-utils";
 
 export class ShaveService {
@@ -37,7 +37,7 @@ export class ShaveService {
           const videoSourceResult = dbVideoSourceService.createVideoSource(videoSource);
           videoSourceId = videoSourceResult.id;
         } catch (err) {
-          const errorMsg = formatErrorMessage(err);
+          const errorMsg = formatAndReportError(err, "shave_service");
           console.error("[ShaveService] Failed to create video source:", errorMsg);
         }
       }
@@ -51,7 +51,7 @@ export class ShaveService {
           };
           dbVideoFileService.createVideoFile(videoFileData);
         } catch (err) {
-          const errorMsg = formatErrorMessage(err);
+          const errorMsg = formatAndReportError(err, "shave_service");
           console.error("[ShaveService] Failed to create video file:", errorMsg);
         }
       }
@@ -67,7 +67,7 @@ export class ShaveService {
       const newShave = dbShaveService.createShave(normalizedShave);
       return newShave;
     } catch (err) {
-      throw new Error(formatErrorMessage(err));
+      throw new Error(formatAndReportError(err, "shave_service"));
     }
   }
 
@@ -75,7 +75,7 @@ export class ShaveService {
     try {
       return dbShaveService.getShaveById(id);
     } catch (err) {
-      throw new Error(formatErrorMessage(err));
+      throw new Error(formatAndReportError(err, "shave_service"));
     }
   }
 
@@ -87,7 +87,7 @@ export class ShaveService {
       }
       return dbVideoSourceService.getVideoSourceById(shave.videoSourceId);
     } catch (err) {
-      throw new Error(formatErrorMessage(err));
+      throw new Error(formatAndReportError(err, "shave_service"));
     }
   }
 
@@ -95,7 +95,7 @@ export class ShaveService {
     try {
       return dbShaveService.getAllShaves();
     } catch (err) {
-      throw new Error(formatErrorMessage(err));
+      throw new Error(formatAndReportError(err, "shave_service"));
     }
   }
 
@@ -107,7 +107,7 @@ export class ShaveService {
 
       return dbShaveService.findShaveByVideoUrl(normalizedUrl);
     } catch (err) {
-      throw new Error(formatErrorMessage(err));
+      throw new Error(formatAndReportError(err, "shave_service"));
     }
   }
 
@@ -121,7 +121,7 @@ export class ShaveService {
 
       return dbShaveService.updateShave(id, normalizedData);
     } catch (err) {
-      throw new Error(formatErrorMessage(err));
+      throw new Error(formatAndReportError(err, "shave_service"));
     }
   }
 
@@ -139,7 +139,7 @@ export class ShaveService {
       const videoSourceResult = dbVideoSourceService.createVideoSource(videoSource);
       return dbShaveService.updateShave(shaveId, { videoSourceId: videoSourceResult.id });
     } catch (err) {
-      throw new Error(formatErrorMessage(err));
+      throw new Error(formatAndReportError(err, "shave_service"));
     }
   }
 
@@ -147,7 +147,7 @@ export class ShaveService {
     try {
       return dbShaveService.updateShaveStatus(id, status);
     } catch (err) {
-      throw new Error(formatErrorMessage(err));
+      throw new Error(formatAndReportError(err, "shave_service"));
     }
   }
 
@@ -178,7 +178,7 @@ export class ShaveService {
       dbVideoFileService.markVideoFileAsDeleted(videoFile.id);
       return true;
     } catch (err) {
-      throw new Error(formatErrorMessage(err));
+      throw new Error(formatAndReportError(err, "shave_service"));
     }
   }
 
@@ -186,7 +186,7 @@ export class ShaveService {
     try {
       return dbShaveService.deleteShave(id);
     } catch (err) {
-      throw new Error(formatErrorMessage(err));
+      throw new Error(formatAndReportError(err, "shave_service"));
     }
   }
 }

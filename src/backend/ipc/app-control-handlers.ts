@@ -1,5 +1,5 @@
 import { app, ipcMain, shell } from "electron";
-import { formatErrorMessage } from "../utils/error-utils";
+import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class AppControlIPCHandlers {
@@ -30,7 +30,7 @@ export class AppControlIPCHandlers {
         return { success: true };
       } catch (error) {
         console.error("Failed to open external url:", error);
-        return { success: false, error: formatErrorMessage(error) };
+        return { success: false, error: formatAndReportError(error, "app_control") };
       }
     });
 
@@ -45,7 +45,7 @@ export class AppControlIPCHandlers {
         return { success: true };
       } catch (error) {
         console.error("Failed to restart app:", error);
-        return { success: false, error: formatErrorMessage(error) };
+        return { success: false, error: formatAndReportError(error, "app_control") };
       }
     });
   }

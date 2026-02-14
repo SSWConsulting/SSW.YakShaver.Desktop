@@ -5,7 +5,7 @@ import { desktopCapturer, systemPreferences } from "electron";
 import tmp from "tmp";
 import { SCREEN_RECORDING_ERRORS } from "../../../shared/constants/error-messages";
 import { getMainWindow } from "../../index";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import type { VideoUploadResult } from "../auth/types";
 import type { ScreenSource, StartRecordingResult, StopRecordingResult } from "./types";
 
@@ -43,7 +43,7 @@ export class RecordingService extends EventEmitter {
 
       return { success: true, sourceId: selected.id };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "start_recording") };
     }
   }
 
@@ -60,7 +60,7 @@ export class RecordingService extends EventEmitter {
       const fileName = basename(tempFile.name);
       return { success: true, filePath: tempFile.name, fileName };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "stop_recording") };
     }
   }
 
