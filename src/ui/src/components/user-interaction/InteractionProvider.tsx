@@ -19,6 +19,7 @@ export const useInteraction = () => {
 };
 
 import { ApprovalDialog } from "../workflow/ApprovalDialog";
+import { ProjectSelectionDialog } from "../workflow/ProjectSelectionDialog";
 
 export const InteractionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentRequest, setCurrentRequest] = useState<InteractionRequest | null>(null);
@@ -63,6 +64,13 @@ export const InteractionProvider: React.FC<{ children: React.ReactNode }> = ({ c
       {children}
       {currentRequest?.type === "tool_approval" && (
         <ApprovalDialog
+          request={currentRequest}
+          onSubmit={submitResponse}
+          error={submitError}
+        />
+      )}
+      {currentRequest?.type === "project_selection" && (
+        <ProjectSelectionDialog
           request={currentRequest}
           onSubmit={submitResponse}
           error={submitError}

@@ -2,14 +2,15 @@ import { BrowserWindow } from "electron";
 import { randomUUID } from "node:crypto";
 import type {
   InteractionRequest,
-  InteractionResponse,
+  ProjectSelectionPayload,
+  ProjectSelectionResponse,
   ToolApprovalDecision,
   ToolApprovalPayload,
 } from "../../../shared/types/user-interaction";
 
 export class UserInteractionService {
   private static instance: UserInteractionService;
-  private pendingInteractions = new Map<string, (response: any) => void>();
+  private pendingInteractions = new Map<string, (response: unknown) => void>();
 
   private constructor() {}
 
@@ -34,6 +35,16 @@ export class UserInteractionService {
     };
 
     return this.request<ToolApprovalDecision>("tool_approval", payload, options);
+  }
+
+  /**
+   * Request confirmation for a project selection
+   */
+  public async requestProjectSelection(
+    payload: ProjectSelectionPayload,
+    options?: { autoApproveAt?: number; message?: string },
+  ): Promise<ProjectSelectionResponse> {
+    return this.request<ProjectSelectionResponse>("project_selection", payload, options);
   }
 
   /**

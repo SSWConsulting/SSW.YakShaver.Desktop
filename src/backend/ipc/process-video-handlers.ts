@@ -16,6 +16,8 @@ import { ShaveService } from "../services/shave/shave-service";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
+import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
+import { UserSettingsStorage } from "../services/storage/user-settings-storage";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
 import { ProgressStage } from "../types";
@@ -283,13 +285,61 @@ export class ProcessVideoIPCHandlers {
       console.log("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
       const promptManager = PromptManager.getInstance();
       const projectPrompts = await promptManager.getAllPrompts();
-      const selectedProject = await this.selectProjectPrompt(
+      let selectedProject = await this.selectProjectPrompt(
         languageModelProvider,
         projectPrompts,
         transcriptText,
       );
 
       console.log("+++++ Selected project prompt:", selectedProject);
+
+      // Confirm project selection with user if not in YOLO mode
+      if (selectedProject) {
+        const userSettings = await UserSettingsStorage.getInstance().getSettingsAsync();
+        const mode = userSettings?.toolApprovalMode || "ask";
+
+        if (mode !== "yolo") {
+          // In "wait" mode, auto-approve after 15 seconds
+          const autoApproveAt = mode === "wait" ? Date.now() + 15000 : undefined;
+
+          try {
+            const userResponse = await UserInteractionService.getInstance().requestProjectSelection(
+              {
+                selectedProject: {
+                  id: selectedProject.id,
+                  name: selectedProject.name,
+                  description: selectedProject.description,
+                  reason: selectedProject.reason,
+                },
+                allProjects: projectPrompts.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  description: p.description,
+                })),
+              },
+              { autoApproveAt },
+            );
+
+            // Update selected project if user changed it
+            if (userResponse.projectId !== selectedProject.id) {
+              const newProject = projectPrompts.find((p) => p.id === userResponse.projectId);
+              if (newProject) {
+                selectedProject = {
+                  id: newProject.id,
+                  name: newProject.name,
+                  description: newProject.description,
+                  reason: "User manually selected this project.",
+                };
+                console.log("User changed project to:", selectedProject);
+              }
+            }
+          } catch (error) {
+            console.error("Project selection interaction failed or was cancelled:", error);
+            // If cancelled, maybe we should stop? Or just proceed with original?
+            // Assuming proceeding with original or throwing if necessary.
+          }
+        }
+      }
 
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
 
