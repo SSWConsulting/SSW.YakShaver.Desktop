@@ -101,10 +101,24 @@ export function ProjectSelectionDialog({ request, onSubmit, error: pError }: Pro
     };
   }, [autoApproveAt, resolveSelection, initialProject.id, view]);
 
-  const filteredProjects = allProjects.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    p.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const lowerQuery = searchQuery.toLowerCase();
+  const filteredProjects = allProjects
+    .filter(
+      (p) =>
+        p.name.toLowerCase().includes(lowerQuery) ||
+        p.description?.toLowerCase().includes(lowerQuery),
+    )
+    .sort((a, b) => {
+      // 1. Projects with name matches come first
+      const aNameMatch = a.name.toLowerCase().includes(lowerQuery);
+      const bNameMatch = b.name.toLowerCase().includes(lowerQuery);
+
+      if (aNameMatch && !bNameMatch) return -1;
+      if (!aNameMatch && bNameMatch) return 1;
+
+      // 2. Alphabetical sort by name
+      return a.name.localeCompare(b.name);
+    });
 
   return (
     <AlertDialog open={true}>
