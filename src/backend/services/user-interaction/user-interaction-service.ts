@@ -1,0 +1,106 @@
+import { BrowserWindow } from "electron";
+import { randomUUID } from "node:crypto";
+import type {
+  InteractionRequest,
+  InteractionResponse,
+  ToolApprovalDecision,
+  ToolApprovalPayload,
+} from "../../../shared/types/user-interaction";
+
+export class UserInteractionService {
+  private static instance: UserInteractionService;
+  private pendingInteractions = new Map<string, (response: any) => void>();
+
+  private constructor() {}
+
+  public static getInstance(): UserInteractionService {
+    if (!UserInteractionService.instance) {
+      UserInteractionService.instance = new UserInteractionService();
+    }
+    return UserInteractionService.instance;
+  }
+
+  /**
+   * Request approval for a tool execution from the user
+   */
+  public async requestToolApproval(
+    toolName: string,
+    args: unknown,
+    options?: { autoApproveAt?: number; message?: string },
+  ): Promise<ToolApprovalDecision> {
+    const payload: ToolApprovalPayload = {
+      toolName,
+      args,
+    };
+
+    return this.request<ToolApprovalDecision>("tool_approval", payload, options);
+  }
+
+  /**
+   * Generic method to request interaction from the user via IPC
+   */
+  private async request<TResponse>(
+    type: InteractionRequest["type"],
+    payload: unknown,
+    options?: { autoApproveAt?: number; message?: string },
+  ): Promise<TResponse> {
+    const requestId = randomUUID();
+
+    const request: InteractionRequest = {
+      requestId,
+      type,
+      payload,
+      autoApproveAt: options?.autoApproveAt,
+      message: options?.message,
+    };
+
+    // Broadcast to all windows - the frontend InteractionProvider will pick it up
+    this.broadcastRequest(request);
+
+    return new Promise<TResponse>((resolve) => {
+      this.pendingInteractions.set(requestId, (response) => {
+        resolve(response as TResponse);
+      });
+    });
+  }
+
+  /**
+   * Handle a response coming back from the frontend
+   */
+  public resolveInteraction(requestId: string, responseData: unknown): boolean {
+    const resolver = this.pendingInteractions.get(requestId);
+    if (!resolver) {
+      return false;
+    }
+
+    this.pendingInteractions.delete(requestId);
+    resolver(responseData);
+    return true;
+  }
+
+  /**
+   * Cancel all pending interactions (e.g. when session ends)
+   */
+  public cancelAllPending(reason = "Session cancelled"): void {
+    for (const [id, resolve] of this.pendingInteractions.entries()) {
+      // For tool approvals, we can default to deny
+      // For generic requests, we might need a specific error or cancellation type
+      // Here we assume most current usage is tool approval capable of handling 'deny_stop'
+      // If the promise expects a different type, this might need refinement or casting
+      try {
+        resolve({ kind: "deny_stop", feedback: reason });
+      } catch (e) {
+        console.error(`Failed to cancel interaction ${id}`, e);
+      }
+    }
+    this.pendingInteractions.clear();
+  }
+
+  private broadcastRequest(request: InteractionRequest): void {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send("user-interaction:request", request);
+      }
+    }
+  }
+}

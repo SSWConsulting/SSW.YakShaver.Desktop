@@ -1,5 +1,4 @@
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
-import type { ToolApprovalDecision } from "../../shared/types/mcp";
 import type { VideoUploadResult } from "../services/auth/types";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { MCPServerManager } from "../services/mcp/mcp-server-manager";
@@ -98,17 +97,7 @@ export class McpIPCHandlers {
       },
     );
 
-    ipcMain.handle(
-      IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION,
-      async (
-        _event: IpcMainInvokeEvent,
-        payload: { requestId: string; decision: ToolApprovalDecision },
-      ) => {
-        const orchestrator = await MCPOrchestrator.getInstanceAsync();
-        const success = orchestrator.resolveToolApproval(payload.requestId, payload.decision);
-        return { success };
-      },
-    );
+    // MCP_TOOL_APPROVAL_DECISION handler removed - use USER_INTERACTION_RESPONSE instead
 
     ipcMain.handle(
       IPC_CHANNELS.MCP_ADD_TOOL_TO_WHITELIST,

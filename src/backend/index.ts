@@ -20,6 +20,7 @@ import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { ShaveIPCHandlers } from "./ipc/shave-handlers";
+import { registerUserInteractionHandlers } from "./ipc/user-interaction-handlers";
 import { UserSettingsIPCHandlers } from "./ipc/user-settings-handlers";
 import { handleProtocolUrl } from "./protocol/protocol-router";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
@@ -384,6 +385,8 @@ app.whenReady().then(async () => {
   _userSettingsHandlers = new UserSettingsIPCHandlers(trayManager);
   await _userSettingsHandlers.initialize();
   _shaveHandlers = new ShaveIPCHandlers();
+
+  registerUserInteractionHandlers();
 
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);

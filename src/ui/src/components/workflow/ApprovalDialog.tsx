@@ -1,8 +1,9 @@
+import type { InteractionRequest, ToolApprovalPayload } from "@shared/types/user-interaction";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
-import { MCPStepType, ProgressStage, type WorkflowProgress } from "../../types";
-import { deepParseJson, formatErrorMessage } from "../../utils";
+import { formatErrorMessage } from "../../utils";
+import { deepParseJson } from "../../utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,63 +18,32 @@ import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 
-export function ApprovalDialog() {
-  const [pendingToolApproval, setPendingToolApproval] = useState<{
-    requestId: string;
-    toolName?: string;
-    args?: unknown;
-    autoApproveAt?: number;
-  } | null>(null);
+interface ApprovalDialogProps {
+  request: InteractionRequest;
+  onSubmit: (data: unknown) => Promise<void>;
+  error?: string | null;
+}
+
+export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDialogProps) {
+  const payload = request.payload as ToolApprovalPayload;
+  const { toolName, args } = payload;
+  const autoApproveAt = request.autoApproveAt;
+
   const [approvalSubmitting, setApprovalSubmitting] = useState(false);
-  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [autoApprovalCountdown, setAutoApprovalCountdown] = useState<number | null>(null);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
 
-  const isOpen = Boolean(pendingToolApproval);
+  const displayError = pError || localError;
 
+  // Reset internal state when request changes
   useEffect(() => {
-    const unsubscribeProgress = ipcClient.workflow.onProgress((data: unknown) => {
-      const progressData = data as WorkflowProgress;
-      if (
-        progressData.stage === ProgressStage.CONVERTING_AUDIO ||
-        progressData.stage === ProgressStage.IDLE
-      ) {
-        setPendingToolApproval(null);
-        setApprovalSubmitting(false);
-        setApprovalError(null);
-      }
-    });
-
-    const unsubscribeSteps = ipcClient.mcp.onStepUpdate((step) => {
-      if (step.type === MCPStepType.TOOL_APPROVAL_REQUIRED && step.requestId) {
-        setPendingToolApproval({
-          requestId: step.requestId,
-          toolName: step.toolName,
-          args: step.args,
-          autoApproveAt: step.autoApproveAt,
-        });
-        setApprovalError(null);
-      }
-
-      if (step.type === MCPStepType.TOOL_DENIED) {
-        setPendingToolApproval((prev) => {
-          if (!prev) {
-            return prev;
-          }
-          if (!step.requestId || step.requestId === prev.requestId) {
-            return null;
-          }
-          return prev;
-        });
-        setApprovalSubmitting(false);
-      }
-    });
-
-    return () => {
-      unsubscribeProgress();
-      unsubscribeSteps();
-    };
+    setApprovalSubmitting(false);
+    setLocalError(null);
+    setShowCorrectionForm(false);
+    setCorrectionText("");
+    setAutoApprovalCountdown(null);
   }, []);
 
   type ApprovalAction =
@@ -83,20 +53,14 @@ export function ApprovalDialog() {
 
   const resolveToolApproval = useCallback(
     async (action: ApprovalAction) => {
-      if (!pendingToolApproval?.requestId) {
-        return;
-      }
-
       setApprovalSubmitting(true);
-      setApprovalError(null);
+      setLocalError(null);
       try {
         if (action.kind === "approve" && action.whitelist) {
-          if (!pendingToolApproval.toolName) {
+          if (!toolName) {
             throw new Error("Tool name missing for whitelist request.");
           }
-          const whitelistResponse = await ipcClient.mcp.addToolToWhitelist(
-            pendingToolApproval.toolName,
-          );
+          const whitelistResponse = await ipcClient.mcp.addToolToWhitelist(toolName);
           if (!whitelistResponse?.success) {
             throw new Error("Failed to add tool to whitelist.");
           }
@@ -118,39 +82,30 @@ export function ApprovalDialog() {
           return { kind: "approve" } as const;
         })();
 
-        const result = await ipcClient.mcp.respondToToolApproval(
-          pendingToolApproval.requestId,
-          decisionPayload,
-        );
-        if (!result?.success) {
-          throw new Error("Unable to submit tool approval decision.");
-        }
-        setPendingToolApproval(null);
+        await onSubmit(decisionPayload);
       } catch (error) {
-        setApprovalError(formatErrorMessage(error));
-      } finally {
-        setApprovalSubmitting(false);
+        setLocalError(formatErrorMessage(error));
+        setApprovalSubmitting(false); // Only stop loading on error, otherwise allow parent to unmount
       }
     },
-    [pendingToolApproval],
+    [toolName, onSubmit],
   );
 
   useEffect(() => {
-    if (!pendingToolApproval?.autoApproveAt || !pendingToolApproval.requestId) {
+    if (!autoApproveAt) {
       setAutoApprovalCountdown(null);
       return;
     }
 
-    const deadline = pendingToolApproval.autoApproveAt;
     const updateCountdown = () => {
-      const remainingMs = deadline - Date.now();
+      const remainingMs = autoApproveAt - Date.now();
       setAutoApprovalCountdown(Math.max(0, Math.ceil(remainingMs / 1000)));
     };
 
     updateCountdown();
 
     const intervalId = window.setInterval(updateCountdown, 500);
-    const timeoutDelay = Math.max(0, deadline - Date.now());
+    const timeoutDelay = Math.max(0, autoApproveAt - Date.now());
     const timeoutId = window.setTimeout(() => {
       updateCountdown();
       void resolveToolApproval({ kind: "approve" });
@@ -160,28 +115,26 @@ export function ApprovalDialog() {
       window.clearInterval(intervalId);
       window.clearTimeout(timeoutId);
     };
-  }, [pendingToolApproval?.autoApproveAt, pendingToolApproval?.requestId, resolveToolApproval]);
+  }, [autoApproveAt, resolveToolApproval]);
 
   useEffect(() => {
-    if (!isOpen) {
-      setShowCorrectionForm(false);
-      setCorrectionText("");
-    }
-  }, [isOpen]);
+    // Reset form when request changes
+    setShowCorrectionForm(false);
+    setCorrectionText("");
+  }, []);
 
-  if (!isOpen) {
-    return null;
-  }
+  // Always open if we have a request
+  const isOpen = true;
 
-  const approvalArgsText = pendingToolApproval?.args
+  const approvalArgsText = args
     ? (() => {
         try {
-          return JSON.stringify(deepParseJson(pendingToolApproval.args), null, 2);
+          return JSON.stringify(deepParseJson(args), null, 2);
         } catch {
           try {
-            return JSON.stringify(pendingToolApproval.args, null, 2);
+            return JSON.stringify(args, null, 2);
           } catch {
-            return String(pendingToolApproval.args);
+            return String(args);
           }
         }
       })()
@@ -192,9 +145,7 @@ export function ApprovalDialog() {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {pendingToolApproval?.toolName
-              ? `Allow ${pendingToolApproval.toolName}?`
-              : "Approve requested tool?"}
+            {toolName ? `Allow ${toolName}?` : "Approve requested tool?"}
           </AlertDialogTitle>
           <AlertDialogDescription>
             The orchestrator needs your confirmation before executing this MCP tool.
@@ -212,7 +163,7 @@ export function ApprovalDialog() {
             </pre>
           </div>
         )}
-        {approvalError && <p className="text-red-400 text-sm">{approvalError}</p>}
+        {displayError && <p className="text-red-400 text-sm">{displayError}</p>}
         {showCorrectionForm && (
           <div className="space-y-2">
             <div className="space-y-1">
@@ -303,7 +254,7 @@ export function ApprovalDialog() {
               <Button
                 type="button"
                 variant="secondary"
-                disabled={approvalSubmitting || !pendingToolApproval?.toolName}
+                disabled={approvalSubmitting || !toolName}
                 onClick={(event) => {
                   event.preventDefault();
                   void resolveToolApproval({ kind: "approve", whitelist: true });

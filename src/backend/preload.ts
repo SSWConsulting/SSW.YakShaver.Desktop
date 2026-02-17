@@ -127,6 +127,10 @@ const IPC_CHANNELS = {
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
+
+  // User Interaction (Generic)
+  USER_INTERACTION_REQUEST: "user-interaction:request",
+  USER_INTERACTION_RESPONSE: "user-interaction:response",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -275,6 +279,12 @@ const electronAPI = {
     setActivePrompt: (id: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
     clearCustomPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS),
+  },
+  userInteraction: {
+    sendResponse: (responseData: unknown) =>
+      ipcRenderer.invoke(IPC_CHANNELS.USER_INTERACTION_RESPONSE, responseData),
+    onRequest: (callback: (request: unknown) => void) =>
+      onIpcEvent(IPC_CHANNELS.USER_INTERACTION_REQUEST, callback),
   },
   releaseChannel: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),

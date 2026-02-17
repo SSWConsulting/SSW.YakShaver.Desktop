@@ -109,4 +109,8 @@ export const IPC_CHANNELS = {
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
+
+  // User Interaction (Generic)
+  USER_INTERACTION_REQUEST: "user-interaction:request",
+  USER_INTERACTION_RESPONSE: "user-interaction:response",
 } as const;

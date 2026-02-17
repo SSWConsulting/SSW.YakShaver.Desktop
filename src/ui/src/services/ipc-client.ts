@@ -154,6 +154,10 @@ declare global {
         setActivePrompt: (id: string) => Promise<boolean>;
         clearCustomPrompts: () => Promise<void>;
       };
+      userInteraction: {
+        sendResponse(data: unknown): Promise<void>;
+        onRequest(callback: (request: unknown) => void): () => void;
+      };
       releaseChannel: {
         get: () => Promise<ReleaseChannel>;
         set: (channel: ReleaseChannel) => Promise<void>;
