@@ -21,6 +21,7 @@ import { WorkflowStateManager } from "../services/workflow/workflow-state-manage
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import { PromptManager, type PromptSummary } from "../services/prompt/prompt-manager";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -38,6 +39,13 @@ export const TranscriptSummarySchema = z.object({
   contextKeywords: z.array(z.string()).optional().default([]),
   uncertainTerms: z.array(z.string()).optional().default([]),
 });
+
+interface ProjectSelectionResult {
+  id: string;
+  name: string;
+  description?: string;
+  reason: string; // The reasoning behind why this project was selected, for transparency
+}
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeClient.getInstance();
@@ -271,6 +279,18 @@ export class ProcessVideoIPCHandlers {
 
       workflowManager.completeStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT, intermediateOutput);
 
+      // Select project prompt based on transcript
+      console.log("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+      const promptManager = PromptManager.getInstance();
+      const projectPrompts = await promptManager.getAllPrompts();
+      const selectedProject = await this.selectProjectPrompt(
+        languageModelProvider,
+        projectPrompts,
+        transcriptText,
+      );
+
+      console.log("+++++ Selected project prompt:", selectedProject);
+
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
 
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
@@ -399,6 +419,77 @@ export class ProcessVideoIPCHandlers {
     const outputFilePath = tmp.tmpNameSync({ postfix: ".mp3" });
     const result = await this.ffmpegService.ConvertVideoToMp3(inputPath, outputFilePath);
     return result;
+  }
+
+  public async selectProjectPrompt(
+    languageModelProvider: LanguageModelProvider,
+    projectSummaries: PromptSummary[],
+    videoTranscription: string,
+  ): Promise<ProjectSelectionResult | null> {
+    if (!projectSummaries.length) {
+      console.warn("[MCPOrchestrator] No project prompts available for selection");
+      return null;
+    }
+
+    if (!videoTranscription?.trim()) {
+      console.warn("[MCPOrchestrator] Empty video transcription provided");
+      return null;
+    }
+
+    const selectedProjectPromptSchema = z.object({
+      id: z.string(),
+      reason: z.string().describe("The reason why this project was selected"),
+    });
+
+    const projectsList = projectSummaries
+      .map((p) => `- ID: ${p.id}\n  Name: ${p.name}\n  Description: ${p.description || "N/A"}`)
+      .join("\n\n");
+
+    const systemPrompt = `You are an AI assistant helping to select the most relevant project for a video transcription.
+Your task is to analyze the user's video transcription and match it to one of the most relevant projects based on the project name and description.
+If no project is a good match, try your best to provide a reason why with id is "0000-0000-0000-0000".
+
+format example:
+{
+  "id": "the id of the selected project, or '0000-0000-0000-0000' if no project is relevant",
+  "reason": "a brief explanation of why this project was selected or why no project was selected"
+}
+
+Available Projects:
+${projectsList}`;
+
+    console.log("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+    console.log("systemPrompt:", systemPrompt);
+
+    try {
+      if (!languageModelProvider) {
+        throw new Error("[MCPOrchestrator]: LLM client not initialized");
+      }
+
+      const result = await languageModelProvider.generateObject(
+        `Please select the best matching project for this transcription:\n\n"${videoTranscription}"`,
+        selectedProjectPromptSchema,
+        systemPrompt,
+      );
+
+      if (result?.id) {
+        // Validation: Ensure the selected project ID exists in the provided list
+        const matchedProject = projectSummaries.find((p) => p.id === result.id);
+        if (matchedProject) {
+          return {
+            id: matchedProject.id,
+            name: matchedProject.name,
+            description: matchedProject.description,
+            reason: result.reason,
+          };
+        }
+      }
+      console.warn(`[MCPOrchestrator] LLM selected unknown project ID: ${result?.id}`);
+      return null;
+    } catch (error) {
+      console.error("[MCPOrchestrator] Failed to select project prompt:", error);
+      return null;
+    }
   }
 
   // TODO: Separate the Watch Video Pannel and Final Result Panel event triggers from this, and remove this event sender
