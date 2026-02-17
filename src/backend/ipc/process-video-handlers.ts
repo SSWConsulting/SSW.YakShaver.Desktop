@@ -492,7 +492,7 @@ ${projectsList}`;
     }
   }
 
-  // TODO: Separate the Watch Video Pannel and Final Result Panel event triggers from this, and remove this event sender
+  // TODO: Separate the Undo feature and Final Result Panel event triggers from this, and remove this event sender
   // ISSUE: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/602
   private emitProgress(stage: string, data?: Record<string, unknown>, shaveId?: string) {
     BrowserWindow.getAllWindows()
