@@ -46,6 +46,7 @@ interface ProjectSelectionResult {
   id: string;
   name: string;
   description?: string;
+  source: "local" | "remote";
   reason: string; // The reasoning behind why this project was selected, for transparency
 }
 
@@ -310,11 +311,13 @@ export class ProcessVideoIPCHandlers {
                   name: selectedProject.name,
                   description: selectedProject.description,
                   reason: selectedProject.reason,
+                  source: selectedProject.source,
                 },
                 allProjects: projectPrompts.map((p) => ({
                   id: p.id,
                   name: p.name,
                   description: p.description,
+                  source: p.source,
                 })),
               },
               { autoApproveAt },
@@ -329,17 +332,25 @@ export class ProcessVideoIPCHandlers {
                   name: newProject.name,
                   description: newProject.description,
                   reason: "User manually selected this project.",
+                  source: newProject.source,
                 };
                 console.log("User changed project to:", selectedProject);
               }
             }
           } catch (error) {
             console.error("Project selection interaction failed or was cancelled:", error);
-            // If cancelled, maybe we should stop? Or just proceed with original?
-            // Assuming proceeding with original or throwing if necessary.
           }
         }
+
+        const projectDetails = await promptManager.getProjectDetails(
+          selectedProject.id,
+          selectedProject.source,
+        );
+        console.log("++++ Fetched project details:", projectDetails);
       }
+
+      console.log("+++++ Final selected project prompt after user interaction:", selectedProject);
+      console.log("-----------------------------------------------------------------------------");
 
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
 
@@ -508,8 +519,8 @@ format example:
 Available Projects:
 ${projectsList}`;
 
-    console.log("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
-    console.log("systemPrompt:", systemPrompt);
+    // console.log("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+    // console.log("systemPrompt:", systemPrompt);
 
     try {
       if (!languageModelProvider) {
@@ -531,6 +542,7 @@ ${projectsList}`;
             name: matchedProject.name,
             description: matchedProject.description,
             reason: result.reason,
+            source: matchedProject.source,
           };
         }
       }

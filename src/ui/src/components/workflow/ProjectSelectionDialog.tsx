@@ -134,7 +134,12 @@ export function ProjectSelectionDialog({ request, onSubmit, error: pError }: Pro
             </AlertDialogHeader>
 
             <div className="bg-secondary/20 p-4 rounded-md space-y-2 mt-2">
-              <h3 className="font-medium text-lg text-primary">{initialProject.name}</h3>
+              <h3 className="font-medium text-lg text-primary">
+                {initialProject.name}{" "}
+                <span className="text-secondary-foreground/60 text-sm font-normal">
+                  ({initialProject.source === "local" ? "local prompt" : "portal prompt"})
+                </span>
+              </h3>
               {initialProject.description && (
                 <p className="text-sm text-muted-foreground">{initialProject.description}</p>
               )}
@@ -220,11 +225,26 @@ export function ProjectSelectionDialog({ request, onSubmit, error: pError }: Pro
                         }`}
                         onClick={() => setTempSelectedProjectId(project.id)}
                       >
-                        <div className="font-medium">{project.name}</div>
+                        <div className="font-medium">
+                          {project.name}{" "}
+                          <span
+                            className={`text-xs font-normal ${
+                              tempSelectedProjectId === project.id
+                                ? "text-primary-foreground/80"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            ({project.source === "local" ? "local prompt" : "portal prompt"})
+                          </span>
+                        </div>
                         {project.description && (
-                          <div className={`text-xs mt-1 ${
-                            tempSelectedProjectId === project.id ? "text-primary-foreground/80" : "text-muted-foreground"
-                          }`}>
+                          <div
+                            className={`text-xs mt-1 ${
+                              tempSelectedProjectId === project.id
+                                ? "text-primary-foreground/80"
+                                : "text-muted-foreground"
+                            }`}
+                          >
                             {project.description}
                           </div>
                         )}

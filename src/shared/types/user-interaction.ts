@@ -26,11 +26,13 @@ export interface ProjectSelectionPayload {
     name: string;
     description?: string;
     reason: string;
+    source?: "local" | "remote";
   };
   allProjects: {
     id: string;
     name: string;
     description?: string;
+    source?: "local" | "remote";
   }[];
 }
 
