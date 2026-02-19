@@ -28,7 +28,6 @@ export const InteractionProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     // Listen for requests from backend
     const unsubscribe = ipcClient.userInteraction.onRequest((req: unknown) => {
-      console.log("Received interaction request:", req);
       const request = req as InteractionRequest;
       setCurrentRequest(request);
       setSubmitError(null);
