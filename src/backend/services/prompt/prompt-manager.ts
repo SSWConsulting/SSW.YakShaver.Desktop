@@ -62,8 +62,7 @@ export class PromptManager {
       this.getLocalPrompts(),
       this.getRemotePrompts(),
     ]);
-    console.log("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-    console.log("localPrompts:", localPrompts);
+
     // Combine local and remote prompts
     // You might want to deduplicate or prioritize here if needed
     // For now, just concatenating them
@@ -94,9 +93,14 @@ export class PromptManager {
   /**
    * Retrieves prompts from the remote API.
    * Endpoint: api.yakshaver.ai/api/projects/summaries
+   * If 
    */
   async getRemotePrompts(): Promise<PromptSummary[]> {
     try {
+      if (!(await this.microsoftAuthService.isAuthenticated())) {
+        return [];
+      }
+
       const tokenResult = await this.microsoftAuthService.getToken();
       if (!tokenResult || !tokenResult.accessToken) {
         console.warn("No access token available for remote prompts.");

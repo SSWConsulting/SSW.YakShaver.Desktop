@@ -85,11 +85,19 @@ export class MicrosoftAuthService {
           scopes: this.getScopes(),
           account: account,
         };
-        const accountInfo = await this.loginSilent(tokenRequest);
-        if (accountInfo) {
-          return { status: AuthStatus.AUTHENTICATED, accountInfo } as AuthState;
-        } else {
-          return { status: AuthStatus.NOT_AUTHENTICATED } as AuthState;
+        // Use tokenRequest which already has the account
+        // We want to verify the token is valid, but NOT prompt if it isn't.
+        // loginSilent previously called getTokenSilent which defaulted to interactive.
+        // We must avoid interactive here.
+        try {
+          const response = await this.getTokenSilent(tokenRequest, false);
+          MicrosoftAuthService.account = response.account;
+          return { status: AuthStatus.AUTHENTICATED, accountInfo: account } as AuthState;
+        } catch (error) {
+          if (error instanceof InteractionRequiredAuthError) {
+            return { status: AuthStatus.NOT_AUTHENTICATED } as AuthState;
+          }
+          throw error;
         }
       } catch (e) {
         if (e instanceof InteractionRequiredAuthError) {
@@ -161,10 +169,16 @@ export class MicrosoftAuthService {
     }
   }
 
-  async getTokenSilent(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
+  async getTokenSilent(
+    tokenRequest: SilentFlowRequest,
+    allowInteractiveFallback = true,
+  ): Promise<AuthenticationResult> {
     try {
       return await MicrosoftAuthService.pca.acquireTokenSilent(tokenRequest);
-    } catch (_error) {
+    } catch (error) {
+      if (!allowInteractiveFallback) {
+        throw error;
+      }
       console.warn("Silent token acquisition failed, acquiring token using pop up");
       return await this.getTokenInteractive(tokenRequest);
     }
