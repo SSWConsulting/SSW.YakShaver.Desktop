@@ -129,7 +129,7 @@ export class MCPOrchestrator {
     prompt: string,
     videoUploadResult?: VideoUploadResult,
     options: {
-      systemPrompt?: string;
+      projectDetailPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
       videoFilePath?: string; // local video file path for screenshot capture
       serverFilter?: string[]; // if provided, only include tools from these server IDs
@@ -141,6 +141,11 @@ export class MCPOrchestrator {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
 
+    console.log(
+      "[MCPOrchestrator] Starting manual loop with projectDetailPrompt:",
+      options.projectDetailPrompt,
+    );
+
     // Ensure MCP server manager is initialized
     const serverManager = MCPOrchestrator.mcpServerManager;
     if (!serverManager) {
@@ -151,19 +156,28 @@ export class MCPOrchestrator {
     const tools = await serverManager.collectToolsWithServerPrefixAsync();
     const userSettingsStorage = UserSettingsStorage.getInstance();
 
-    let systemPrompt =
-      options.systemPrompt ??
-      "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
+    let systemPrompt = `You are a helpful AI that helping user to achieve their goals. Use the provided tools to satisfy the user request. When you have the final result, return the final result with a stuctured summary without questions so the session can end.
+You will be given a **Project Prompt** and a **user video transcription** following the details of the project, use the information to create tasks and call tools to get the job done.
 
-    // Add tool chaining instructions
-    systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
-When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
-If you need to pass one tool's output directly to another tool WITHOUT modification:
-1. Look for the Tool Output Reference ID in the previous tool result
-2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
-3. This passes the raw output directly, preserving all structure and content
-4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
-5. Do NOT use this if you need to transform or summarize the content first`;
+**Project Prompt** - A detailed document that describes the a project, that is associated with the user's transcription. It may contain specific requirements, constraints, or guidelines that you MUST follow when creating tasks and calling tools. Always prioritize the instructions in the Project Prompt over any other information. If there is conflicting information, the Project Prompt takes precedence. Always follow the requirements in the Project Prompt STRICTLY. Do not deviate from the instructions in the Project Prompt.
+**User Video Transcription** - A transcription of the user's video that may contain important information about the user's request, context, and requirements. Use the transcription to understand the user's needs and to extract relevant information that can help you create tasks and call tools effectively. The transcription is auto generated althogh it provides context it may contain typos, if there is any conflict between the transcription and the Project Prompt, prioritize the Project Prompt.
+
+1. Do not ask the user for clarification, confirmation or additional questions, user won't be able to answer.
+2. Do your best with the information you have and execute the tools you are given to achieve the user's goal.`;
+
+    systemPrompt += options.projectDetailPrompt
+      ? `\n---\nProject Prompt: ${options.projectDetailPrompt}`
+      : "";
+
+    //  // Add tool chaining instructions
+    //     systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
+    // When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
+    // If you need to pass one tool's output directly to another tool WITHOUT modification:
+    // 1. Look for the Tool Output Reference ID in the previous tool result
+    // 2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
+    // 3. This passes the raw output directly, preserving all structure and content
+    // 4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
+    // 5. Do NOT use this if you need to transform or summarize the content first`;
 
     systemPrompt = this.appendVideoInfoToSystemPrompt(
       systemPrompt,

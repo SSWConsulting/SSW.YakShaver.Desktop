@@ -3,7 +3,7 @@ import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
 import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workflow";
-import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../constants/prompts";
+import { INITIAL_SUMMARY_PROMPT } from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
@@ -102,8 +102,15 @@ export class ProcessVideoIPCHandlers {
         try {
           notify(ProgressStage.EXECUTING_TASK);
 
+          const languageModelProvider = await LanguageModelProvider.getInstance();
+          const projectDetails = await this.getConfirmedProjectDetails(
+            languageModelProvider,
+            intermediateOutput,
+          );
+
           const customPrompt = await this.customPromptStorage.getActivePrompt();
-          const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+          // const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+          const projectDetailPrompt = JSON.stringify(projectDetails);
           const serverFilter = customPrompt?.selectedMcpServerIds;
 
           const filePath =
@@ -119,7 +126,7 @@ export class ProcessVideoIPCHandlers {
             intermediateOutput,
             videoUploadResult,
             {
-              systemPrompt,
+              projectDetailPrompt,
               videoFilePath: filePath,
               serverFilter,
               onStep: mcpAdapter.onStep,
@@ -140,6 +147,73 @@ export class ProcessVideoIPCHandlers {
         }
       },
     );
+  }
+
+  private async getConfirmedProjectDetails(
+    languageModelProvider: LanguageModelProvider,
+    transcriptText: string,
+  ) {
+    const promptManager = PromptManager.getInstance();
+    const projectPrompts = await promptManager.getAllPrompts();
+    let selectedProject = await this.selectProjectPrompt(
+      languageModelProvider,
+      projectPrompts,
+      transcriptText,
+    );
+
+    // Confirm project selection with user if not in YOLO mode
+    const userSettings = await UserSettingsStorage.getInstance().getSettingsAsync();
+    const mode = userSettings?.toolApprovalMode || "ask";
+
+    if (mode !== "yolo") {
+      // In "wait" mode, auto-approve after 15 seconds
+      const autoApproveAt = mode === "wait" ? Date.now() + 15000 : undefined;
+
+      try {
+        const userResponse = await UserInteractionService.getInstance().requestProjectSelection(
+          {
+            selectedProject: {
+              id: selectedProject.id,
+              name: selectedProject.name,
+              description: selectedProject.description,
+              reason: selectedProject.reason,
+              source: selectedProject.source,
+            },
+            allProjects: projectPrompts.map((p) => ({
+              id: p.id,
+              name: p.name,
+              description: p.description,
+              source: p.source,
+            })),
+          },
+          { autoApproveAt },
+        );
+
+        // Update selected project if user changed it
+        if (userResponse.projectId !== selectedProject.id) {
+          const newProject = projectPrompts.find((p) => p.id === userResponse.projectId);
+          if (newProject) {
+            selectedProject = {
+              id: newProject.id,
+              name: newProject.name,
+              description: newProject.description,
+              reason: "User manually selected this project.",
+              source: newProject.source,
+            };
+            console.log("User changed project to:", selectedProject);
+          }
+        }
+      } catch (error) {
+        console.error("Project selection interaction failed or was cancelled:", error);
+      }
+    }
+
+    const projectDetails = await promptManager.getProjectDetails(
+      selectedProject.id,
+      selectedProject.source,
+    );
+
+    return projectDetails;
   }
 
   private async processFileVideo(filePath: string, shaveId?: string) {
@@ -284,80 +358,17 @@ export class ProcessVideoIPCHandlers {
 
       // Select project prompt based on transcript
       console.log("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
-      const promptManager = PromptManager.getInstance();
-      const projectPrompts = await promptManager.getAllPrompts();
-      let selectedProject = await this.selectProjectPrompt(
+      const projectDetails = await this.getConfirmedProjectDetails(
         languageModelProvider,
-        projectPrompts,
         transcriptText,
       );
-
-      console.log("+++++ Selected project prompt:", selectedProject);
-
-      // Confirm project selection with user if not in YOLO mode
-      if (selectedProject) {
-        const userSettings = await UserSettingsStorage.getInstance().getSettingsAsync();
-        const mode = userSettings?.toolApprovalMode || "ask";
-
-        if (mode !== "yolo") {
-          // In "wait" mode, auto-approve after 15 seconds
-          const autoApproveAt = mode === "wait" ? Date.now() + 15000 : undefined;
-
-          try {
-            const userResponse = await UserInteractionService.getInstance().requestProjectSelection(
-              {
-                selectedProject: {
-                  id: selectedProject.id,
-                  name: selectedProject.name,
-                  description: selectedProject.description,
-                  reason: selectedProject.reason,
-                  source: selectedProject.source,
-                },
-                allProjects: projectPrompts.map((p) => ({
-                  id: p.id,
-                  name: p.name,
-                  description: p.description,
-                  source: p.source,
-                })),
-              },
-              { autoApproveAt },
-            );
-
-            // Update selected project if user changed it
-            if (userResponse.projectId !== selectedProject.id) {
-              const newProject = projectPrompts.find((p) => p.id === userResponse.projectId);
-              if (newProject) {
-                selectedProject = {
-                  id: newProject.id,
-                  name: newProject.name,
-                  description: newProject.description,
-                  reason: "User manually selected this project.",
-                  source: newProject.source,
-                };
-                console.log("User changed project to:", selectedProject);
-              }
-            }
-          } catch (error) {
-            console.error("Project selection interaction failed or was cancelled:", error);
-          }
-        }
-
-        const projectDetails = await promptManager.getProjectDetails(
-          selectedProject.id,
-          selectedProject.source,
-        );
-        console.log("++++ Fetched project details:", projectDetails);
-      }
-
-      console.log("+++++ Final selected project prompt after user interaction:", selectedProject);
-      console.log("-----------------------------------------------------------------------------");
-
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
 
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
-      const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+      // const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+      const projectDetailPrompt = JSON.stringify(projectDetails);
       const serverFilter = customPrompt?.selectedMcpServerIds;
 
       const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
@@ -367,7 +378,7 @@ export class ProcessVideoIPCHandlers {
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
       const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
-        systemPrompt,
+        projectDetailPrompt,
         videoFilePath: filePath,
         serverFilter,
         onStep: mcpAdapter.onStep,
@@ -486,15 +497,27 @@ export class ProcessVideoIPCHandlers {
     languageModelProvider: LanguageModelProvider,
     projectSummaries: PromptSummary[],
     videoTranscription: string,
-  ): Promise<ProjectSelectionResult | null> {
+  ): Promise<ProjectSelectionResult> {
     if (!projectSummaries.length) {
       console.warn("[MCPOrchestrator] No project prompts available for selection");
-      return null;
+      return {
+        id: "0000-0000-0000-0000",
+        name: "N/A",
+        description: "N/A",
+        reason: "No project prompts available for selection",
+        source: "local",
+      };
     }
 
     if (!videoTranscription?.trim()) {
       console.warn("[MCPOrchestrator] Empty video transcription provided");
-      return null;
+      return {
+        id: "0000-0000-0000-0000",
+        name: "N/A",
+        description: "N/A",
+        reason: "Empty video transcription provided",
+        source: "local",
+      };
     }
 
     const selectedProjectPromptSchema = z.object({
@@ -508,7 +531,7 @@ export class ProcessVideoIPCHandlers {
 
     const systemPrompt = `You are an AI assistant helping to select the most relevant project for a video transcription.
 Your task is to analyze the user's video transcription and match it to one of the most relevant projects based on the project name and description.
-If no project is a good match, try your best to provide a reason why with id is "0000-0000-0000-0000".
+If no project is a good match, try your best to provide a reason why".
 
 format example:
 {
@@ -519,12 +542,9 @@ format example:
 Available Projects:
 ${projectsList}`;
 
-    // console.log("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
-    // console.log("systemPrompt:", systemPrompt);
-
     try {
       if (!languageModelProvider) {
-        throw new Error("[MCPOrchestrator]: LLM client not initialized");
+        throw new Error("[process-video-handlers]: LLM client not initialized");
       }
 
       const result = await languageModelProvider.generateObject(
@@ -546,11 +566,23 @@ ${projectsList}`;
           };
         }
       }
-      console.warn(`[MCPOrchestrator] LLM selected unknown project ID: ${result?.id}`);
-      return null;
+      console.warn(`[process-video-handlers] LLM selected unknown project ID: ${result?.id}`);
+      return {
+        id: "0000-0000-0000-0000",
+        name: "N/A",
+        description: "N/A",
+        reason: result?.reason || "Failed to select project prompt due to an error",
+        source: "local",
+      };
     } catch (error) {
-      console.error("[MCPOrchestrator] Failed to select project prompt:", error);
-      return null;
+      console.error("[process-video-handlers] Failed to select project prompt:", error);
+      return {
+        id: "0000-0000-0000-0000",
+        name: "N/A",
+        description: "N/A",
+        reason: "Failed to select project prompt due to an error",
+        source: "local",
+      };
     }
   }
 
