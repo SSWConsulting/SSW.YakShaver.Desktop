@@ -129,7 +129,7 @@ export class PromptSelectionService {
 
     const systemPrompt = `You are an AI assistant helping to select the most relevant project for a video transcription.
 Your task is to analyze the user's video transcription and match it to one of the most relevant projects based on the project name and description.
-If no project is a good match, try your best to provide a reason why".
+If no project is a good match, try your best to provide a reason why.
 
 format example:
 {
