@@ -6,7 +6,7 @@ import { CustomPromptStorage } from "../storage/custom-prompt-storage";
 
 // Define the Prompt interface that consolidates local and remote prompts
 export interface PromptSummary {
-  id: string; // UUID or string
+  id: string; 
   name: string;
   description?: string;
   isActive: boolean;
