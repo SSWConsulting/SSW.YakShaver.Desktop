@@ -63,11 +63,7 @@ export const InteractionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     <InteractionContext.Provider value={{ currentRequest, submitResponse }}>
       {children}
       {currentRequest?.type === "tool_approval" && (
-        <ApprovalDialog
-          request={currentRequest}
-          onSubmit={submitResponse}
-          error={submitError}
-        />
+        <ApprovalDialog request={currentRequest} onSubmit={submitResponse} error={submitError} />
       )}
       {currentRequest?.type === "project_selection" && (
         <ProjectSelectionDialog

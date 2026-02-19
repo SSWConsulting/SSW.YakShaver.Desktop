@@ -258,9 +258,7 @@ export function StageWithContent({ stage, payload }: StageWithContentProps) {
         <div className="font-medium text-sm">{name || "Unknown Project"}</div>
         {description && <div className="text-xs text-white/70">{description}</div>}
         {selectionReason && (
-          <div className="text-xs text-white/50 italic">
-            Reason: {selectionReason}
-          </div>
+          <div className="text-xs text-white/50 italic">Reason: {selectionReason}</div>
         )}
       </div>
     );

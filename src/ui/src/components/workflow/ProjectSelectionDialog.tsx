@@ -21,7 +21,11 @@ interface ProjectSelectionDialogProps {
   error?: string | null;
 }
 
-export function ProjectSelectionDialog({ request, onSubmit, error: pError }: ProjectSelectionDialogProps) {
+export function ProjectSelectionDialog({
+  request,
+  onSubmit,
+  error: pError,
+}: ProjectSelectionDialogProps) {
   const payload = request.payload as ProjectSelectionPayload;
   const { selectedProject: initialProject, allProjects } = payload;
   const autoApproveAt = request.autoApproveAt;
@@ -29,10 +33,10 @@ export function ProjectSelectionDialog({ request, onSubmit, error: pError }: Pro
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [autoApprovalCountdown, setAutoApprovalCountdown] = useState<number | null>(null);
-  
+
   // View state: 'confirm' or 'select'
   const [view, setView] = useState<"confirm" | "select">("confirm");
-  
+
   // Selection state
   const [searchQuery, setSearchQuery] = useState("");
   const [tempSelectedProjectId, setTempSelectedProjectId] = useState<string | null>(null);
@@ -86,7 +90,7 @@ export function ProjectSelectionDialog({ request, onSubmit, error: pError }: Pro
 
     const intervalId = window.setInterval(updateCountdown, 500);
     const timeoutDelay = Math.max(0, autoApproveAt - Date.now());
-    
+
     const timeoutId = window.setTimeout(() => {
       // Only auto-approve if we are still in confirm view
       if (view === "confirm") {
@@ -255,7 +259,9 @@ export function ProjectSelectionDialog({ request, onSubmit, error: pError }: Pro
               </ScrollArea>
             </div>
 
-            {displayError && <p className="text-destructive text-sm font-medium mt-2">{displayError}</p>}
+            {displayError && (
+              <p className="text-destructive text-sm font-medium mt-2">{displayError}</p>
+            )}
 
             <AlertDialogFooter className="mt-4">
               <Button
