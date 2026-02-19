@@ -15,7 +15,7 @@ export interface PromptSummary {
 
 // Define the ProjectSummaryDto interface based on the API response
 interface ProjectSummaryDto {
-  id: string; // Guid
+  id: string; 
   title: string;
   description?: string;
 }
