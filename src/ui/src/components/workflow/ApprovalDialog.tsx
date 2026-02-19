@@ -117,12 +117,6 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
     };
   }, [autoApproveAt, resolveToolApproval]);
 
-  useEffect(() => {
-    // Reset form when request changes
-    setShowCorrectionForm(false);
-    setCorrectionText("");
-  }, []);
-
   // Always open if we have a request
   const isOpen = true;
 
