@@ -247,7 +247,7 @@ export function StageWithContent({ stage, payload }: StageWithContentProps) {
     );
   }
 
-  if (stage === "selecting_project" && isRecord(payload)) {
+  if (stage === "selecting_prompt" && isRecord(payload)) {
     const { name, description, selectionReason } = payload as {
       name?: string;
       description?: string;

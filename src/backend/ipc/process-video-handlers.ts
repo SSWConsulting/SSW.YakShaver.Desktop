@@ -21,7 +21,7 @@ import { WorkflowStateManager } from "../services/workflow/workflow-state-manage
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { ProjectSelectionService } from "../services/workflow/project-selection-service";
+import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -95,7 +95,7 @@ export class ProcessVideoIPCHandlers {
           const languageModelProvider = await LanguageModelProvider.getInstance();
 
           const projectDetails =
-            await ProjectSelectionService.getInstance().getConfirmedProjectDetails(
+            await PromptSelectionService.getInstance().getConfirmedProjectDetails(
               languageModelProvider,
               intermediateOutput,
             );
@@ -280,15 +280,15 @@ export class ProcessVideoIPCHandlers {
 
       workflowManager.completeStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT, intermediateOutput);
 
-      workflowManager.startStage(WorkflowProgressStage.SELECTING_PROJECT);
+      workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
 
       // Select project prompt based on transcript
-      const projectDetails = await ProjectSelectionService.getInstance().getConfirmedProjectDetails(
+      const projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
         languageModelProvider,
         transcriptText,
       );
 
-      workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROJECT, projectDetails);
+      workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
 
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
 

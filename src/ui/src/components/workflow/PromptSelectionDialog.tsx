@@ -15,17 +15,17 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { ScrollArea } from "../ui/scroll-area";
 
-interface ProjectSelectionDialogProps {
+interface PromptSelectionDialogProps {
   request: InteractionRequest;
   onSubmit: (data: unknown) => Promise<void>;
   error?: string | null;
 }
 
-export function ProjectSelectionDialog({
+export function PromptSelectionDialog({
   request,
   onSubmit,
   error: pError,
-}: ProjectSelectionDialogProps) {
+}: PromptSelectionDialogProps) {
   const payload = request.payload as ProjectSelectionPayload;
   const { selectedProject: initialProject, allProjects } = payload;
   const autoApproveAt = request.autoApproveAt;
@@ -130,10 +130,10 @@ export function ProjectSelectionDialog({
         {view === "confirm" ? (
           <>
             <AlertDialogHeader>
-              <AlertDialogTitle>Confirm Project Selection</AlertDialogTitle>
+              <AlertDialogTitle>Confirm Project Prompt Selection</AlertDialogTitle>
               <AlertDialogDescription>
-                The AI has selected a project for this video. Do you want to proceed with this
-                project?
+                YakShaver has selected a Project prompt for this video. Do you want to proceed with this
+                prompt?
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -170,7 +170,7 @@ export function ProjectSelectionDialog({
                   setView("select");
                 }}
               >
-                Change Project
+                Change Prompt
               </Button>
               <AlertDialogAction
                 disabled={submitting}
@@ -185,7 +185,7 @@ export function ProjectSelectionDialog({
                     Confirming...
                   </>
                 ) : (
-                  "Confirm Project"
+                  "Confirm Prompt"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -193,9 +193,9 @@ export function ProjectSelectionDialog({
         ) : (
           <>
             <AlertDialogHeader>
-              <AlertDialogTitle>Select a Project</AlertDialogTitle>
+              <AlertDialogTitle>Select a Prompt for your project</AlertDialogTitle>
               <AlertDialogDescription>
-                Search and select the correct project for this video.
+                Search and select the correct prompt for this video.
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -203,7 +203,7 @@ export function ProjectSelectionDialog({
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search projects..."
+                  placeholder="Search prompts..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8"
@@ -214,7 +214,7 @@ export function ProjectSelectionDialog({
               <ScrollArea className="h-50 rounded-md border p-2">
                 {filteredProjects.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground py-4">
-                    No projects found.
+                    No prompts found.
                   </p>
                 ) : (
                   <div className="space-y-1">
@@ -290,7 +290,7 @@ export function ProjectSelectionDialog({
                     Selecting...
                   </>
                 ) : (
-                  "Select Project"
+                  "Select Prompt"
                 )}
               </Button>
             </AlertDialogFooter>

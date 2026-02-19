@@ -4,7 +4,7 @@ import { UserInteractionService } from "../user-interaction/user-interaction-ser
 import { UserSettingsStorage } from "../storage/user-settings-storage";
 import { z } from "zod";
 
-export interface ProjectSelectionResult {
+export interface PromptSelectionResult {
   id: string;
   name: string;
   description?: string;
@@ -12,16 +12,16 @@ export interface ProjectSelectionResult {
   reason: string;
 }
 
-export class ProjectSelectionService {
-  private static instance: ProjectSelectionService;
+export class PromptSelectionService {
+  private static instance: PromptSelectionService;
 
   private constructor() {}
 
-  public static getInstance(): ProjectSelectionService {
-    if (!ProjectSelectionService.instance) {
-      ProjectSelectionService.instance = new ProjectSelectionService();
+  public static getInstance(): PromptSelectionService {
+    if (!PromptSelectionService.instance) {
+      PromptSelectionService.instance = new PromptSelectionService();
     }
-    return ProjectSelectionService.instance;
+    return PromptSelectionService.instance;
   }
 
   public async getConfirmedProjectDetails(
@@ -38,7 +38,7 @@ export class ProjectSelectionService {
       transcriptText,
     );
 
-    // Confirm project selection with user if not in YOLO mode
+    // Confirm project prompt selection with user if not in YOLO mode
     selectedProject = await this.confirmSelectionWithUser(selectedProject, projectPrompts);
 
     const projectDetails = await promptManager.getProjectDetails(
@@ -57,9 +57,9 @@ export class ProjectSelectionService {
   }
 
   private async confirmSelectionWithUser(
-    selectedProject: ProjectSelectionResult,
+    selectedProject: PromptSelectionResult,
     allProjects: PromptSummary[],
-  ): Promise<ProjectSelectionResult> {
+  ): Promise<PromptSelectionResult> {
     const userSettings = await UserSettingsStorage.getInstance().getSettingsAsync();
     const mode = userSettings?.toolApprovalMode || "ask";
 
@@ -115,18 +115,15 @@ export class ProjectSelectionService {
 
   public async selectProjectPrompt(
     languageModelProvider: LanguageModelProvider,
-    projectSummaries: PromptSummary[],
+    promptSummaries: PromptSummary[],
     videoTranscription: string,
-  ): Promise<ProjectSelectionResult> {
-    const errorResult = await this.validateSelectProjectInputs(
-      projectSummaries,
-      videoTranscription,
-    );
+  ): Promise<PromptSelectionResult> {
+    const errorResult = await this.validateSelectProjectInputs(promptSummaries, videoTranscription);
     if (errorResult) {
       return errorResult;
     }
 
-    const projectsList = projectSummaries
+    const projectsList = promptSummaries
       .map((p) => `- ID: ${p.id}\n  Name: ${p.name}\n  Description: ${p.description || "N/A"}`)
       .join("\n\n");
 
@@ -145,7 +142,7 @@ ${projectsList}`;
 
     try {
       if (!languageModelProvider) {
-        throw new Error("[ProjectSelectionService]: LLM client not initialized");
+        throw new Error("[PromptSelectionService]: LLM client not initialized");
       }
 
       const selectedProjectPromptSchema = z.object({
@@ -159,7 +156,7 @@ ${projectsList}`;
         systemPrompt,
       );
 
-      return this.mapLlmResultToProject(result, projectSummaries);
+      return this.mapLlmResultToProject(result, promptSummaries);
     } catch (error) {
       console.error("[ProjectSelectionService] Failed to select project prompt:", error);
       return this.createErrorResult("Failed to select project prompt due to an error");
@@ -167,16 +164,16 @@ ${projectsList}`;
   }
 
   private async validateSelectProjectInputs(
-    projectSummaries: PromptSummary[],
+    promptSummaries: PromptSummary[],
     videoTranscription: string,
-  ): Promise<ProjectSelectionResult | null> {
-    if (!projectSummaries.length) {
-      console.warn("[ProjectSelectionService] No project prompts available for selection");
+  ): Promise<PromptSelectionResult | null> {
+    if (!promptSummaries.length) {
+      console.warn("[PromptSelectionService] No project prompts available for selection");
       return this.createErrorResult("No project prompts available for selection");
     }
 
     if (!videoTranscription?.trim()) {
-      console.warn("[ProjectSelectionService] Empty video transcription provided");
+      console.warn("[PromptSelectionService] Empty video transcription provided");
       return this.createErrorResult("Empty video transcription provided");
     }
     return null;
@@ -184,10 +181,10 @@ ${projectsList}`;
 
   private mapLlmResultToProject(
     result: { id?: string; reason?: string } | undefined,
-    projectSummaries: PromptSummary[],
-  ): ProjectSelectionResult {
+    promptSummaries: PromptSummary[],
+  ): PromptSelectionResult {
     if (result?.id) {
-      const matchedProject = projectSummaries.find((p) => p.id === result.id);
+      const matchedProject = promptSummaries.find((p) => p.id === result.id);
       if (matchedProject) {
         return {
           id: matchedProject.id,
@@ -199,13 +196,13 @@ ${projectsList}`;
       }
     }
 
-    console.warn(`[ProjectSelectionService] LLM selected unknown project ID: ${result?.id}`);
+    console.warn(`[PromptSelectionService] LLM selected unknown project ID: ${result?.id}`);
     return this.createErrorResult(
       result?.reason || "Failed to select project prompt due to an error",
     );
   }
 
-  private createErrorResult(reason: string): ProjectSelectionResult {
+  private createErrorResult(reason: string): PromptSelectionResult {
     return {
       id: "0000-0000-0000-0000",
       name: "N/A",

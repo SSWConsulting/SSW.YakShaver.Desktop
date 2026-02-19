@@ -9,7 +9,7 @@ const STEP_LABELS: Record<keyof WorkflowState, string> = {
   converting_audio: "Converting Audio",
   transcribing: "Transcribing",
   analyzing_transcript: "Analyzing Transcript",
-  selecting_project: "Selecting Project",
+  selecting_prompt: "Selecting Prompt",
   executing_task: "Executing Task",
   updating_metadata: "Updating Metadata",
 };
@@ -20,7 +20,7 @@ const STEP_ORDER: (keyof WorkflowState)[] = [
   "converting_audio",
   "transcribing",
   "analyzing_transcript",
-  "selecting_project",
+  "selecting_prompt",
   "executing_task",
   "updating_metadata",
 ];
