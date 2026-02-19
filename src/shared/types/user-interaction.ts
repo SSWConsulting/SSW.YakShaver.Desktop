@@ -38,7 +38,6 @@ export interface ProjectSelectionPayload {
 
 export interface ProjectSelectionResponse {
   projectId: string;
-  // name?: string; // Optional if we just return ID
 }
 
 // Re-export decision type for convenience

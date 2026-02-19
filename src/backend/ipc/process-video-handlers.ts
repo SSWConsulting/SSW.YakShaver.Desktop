@@ -101,7 +101,6 @@ export class ProcessVideoIPCHandlers {
             );
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
-          // const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
           const projectDetailPrompt = JSON.stringify(projectDetails);
           const serverFilter = customPrompt?.selectedMcpServerIds;
 

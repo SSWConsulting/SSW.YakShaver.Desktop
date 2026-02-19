@@ -62,7 +62,6 @@ const IPC_CHANNELS = {
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
-  MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
 
@@ -247,11 +246,6 @@ const electronAPI = {
         autoApproveAt?: number;
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
-    respondToToolApproval: (requestId: string, decision: ToolApprovalDecision) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION, {
-        requestId,
-        decision,
-      }),
     addToolToWhitelist: (toolName: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_TOOL_TO_WHITELIST, { toolName }),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),

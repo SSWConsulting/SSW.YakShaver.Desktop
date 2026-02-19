@@ -169,16 +169,6 @@ You will be given a **Project Prompt** and a **user video transcription** follow
       ? `\n---\nProject Prompt: ${options.projectDetailPrompt}`
       : "";
 
-    //  // Add tool chaining instructions
-    //     systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
-    // When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
-    // If you need to pass one tool's output directly to another tool WITHOUT modification:
-    // 1. Look for the Tool Output Reference ID in the previous tool result
-    // 2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
-    // 3. This passes the raw output directly, preserving all structure and content
-    // 4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
-    // 5. Do NOT use this if you need to transform or summarize the content first`;
-
     systemPrompt = this.appendVideoInfoToSystemPrompt(
       systemPrompt,
       videoUploadResult,
@@ -490,9 +480,6 @@ You will be given a **Project Prompt** and a **user video transcription** follow
 
     return { requestId, decision };
   }
-
-  // No longer needed as UserInteractionService handles it
-  // public resolveToolApproval(requestId: string, decision: ToolApprovalDecision): boolean { ... }
 
   public cancelAllPendingApprovals(reason = "Session cancelled"): void {
     UserInteractionService.getInstance().cancelAllPending(reason);

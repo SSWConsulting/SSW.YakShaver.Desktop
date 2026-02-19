@@ -64,8 +64,6 @@ export class PromptManager {
     ]);
 
     // Combine local and remote prompts
-    // You might want to deduplicate or prioritize here if needed
-    // For now, just concatenating them
     return [...localPrompts, ...remotePrompts];
   }
 
@@ -93,7 +91,7 @@ export class PromptManager {
   /**
    * Retrieves prompts from the remote API.
    * Endpoint: api.yakshaver.ai/api/projects/summaries
-   * If 
+   * If user is not authenticated, returns an empty array.
    */
   async getRemotePrompts(): Promise<PromptSummary[]> {
     try {

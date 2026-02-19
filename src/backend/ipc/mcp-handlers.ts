@@ -97,8 +97,6 @@ export class McpIPCHandlers {
       },
     );
 
-    // MCP_TOOL_APPROVAL_DECISION handler removed - use USER_INTERACTION_RESPONSE instead
-
     ipcMain.handle(
       IPC_CHANNELS.MCP_ADD_TOOL_TO_WHITELIST,
       async (_event: IpcMainInvokeEvent, payload: { toolName: string }) => {
