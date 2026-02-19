@@ -281,11 +281,16 @@ export class ProcessVideoIPCHandlers {
 
       workflowManager.completeStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT, intermediateOutput);
 
+      workflowManager.startStage(WorkflowProgressStage.SELECTING_PROJECT);
+
       // Select project prompt based on transcript
       const projectDetails = await ProjectSelectionService.getInstance().getConfirmedProjectDetails(
         languageModelProvider,
         transcriptText,
       );
+
+      workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROJECT, projectDetails);
+
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
 
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });

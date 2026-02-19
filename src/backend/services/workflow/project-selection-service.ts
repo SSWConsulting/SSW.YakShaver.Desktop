@@ -46,6 +46,13 @@ export class ProjectSelectionService {
       selectedProject.source,
     );
 
+    if (projectDetails) {
+      return {
+        ...projectDetails,
+        selectionReason: selectedProject.reason,
+      };
+    }
+
     return projectDetails;
   }
 
