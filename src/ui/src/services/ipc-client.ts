@@ -155,7 +155,7 @@ declare global {
         clearCustomPrompts: () => Promise<void>;
       };
       userInteraction: {
-        sendResponse(data: unknown): Promise<void>;
+        sendResponse(data: unknown): Promise<boolean>;
         onRequest(callback: (request: unknown) => void): () => void;
       };
       releaseChannel: {

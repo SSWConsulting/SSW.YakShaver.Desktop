@@ -45,13 +45,19 @@ export const InteractionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
 
     try {
-      await ipcClient.userInteraction.sendResponse({
+      const success = await ipcClient.userInteraction.sendResponse({
         requestId: currentRequest.requestId,
         data,
       });
-      // Clear current request after successful submission
-      setCurrentRequest(null);
-      setSubmitError(null);
+
+      if (success) {
+        // Clear current request after successful submission
+        setCurrentRequest(null);
+        setSubmitError(null);
+      } else {
+        console.error("Interaction request no longer valid or already handled");
+        setSubmitError("This request is no longer valid or has already been handled.");
+      }
     } catch (error) {
       console.error("Failed to submit interaction response:", error);
       setSubmitError(String(error));
