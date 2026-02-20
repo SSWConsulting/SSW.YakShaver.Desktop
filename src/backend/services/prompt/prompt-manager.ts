@@ -1,12 +1,12 @@
 import https from "node:https";
 import { config } from "../../config/env";
-import { formatErrorMessage } from "../../utils/error-utils"; 
+import { formatErrorMessage } from "../../utils/error-utils";
 import { MicrosoftAuthService } from "../auth/microsoft-auth";
 import { CustomPromptStorage } from "../storage/custom-prompt-storage";
 
 // Define the Prompt interface that consolidates local and remote prompts
 export interface PromptSummary {
-  id: string; 
+  id: string;
   name: string;
   description?: string;
   isActive: boolean;
@@ -15,7 +15,7 @@ export interface PromptSummary {
 
 // Define the ProjectSummaryDto interface based on the API response
 interface ProjectSummaryDto {
-  id: string; 
+  id: string;
   title: string;
   description?: string;
 }

@@ -770,11 +770,7 @@ export function FinalResultPanel() {
                     onClick={handleUndo}
                     className="flex-1"
                   >
-                    {undoLoading ? (
-                      <LoadingState />
-                    ) : (
-                      <Undo2 className="h-4 w-4" />
-                    )}
+                    {undoLoading ? <LoadingState /> : <Undo2 className="h-4 w-4" />}
                     Undo
                   </Button>
                 )}

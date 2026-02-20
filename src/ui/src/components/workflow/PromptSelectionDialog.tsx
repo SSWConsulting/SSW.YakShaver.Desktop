@@ -133,8 +133,8 @@ export function PromptSelectionDialog({
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Project Prompt Selection</AlertDialogTitle>
               <AlertDialogDescription>
-                YakShaver has selected a Project prompt for this video. Do you want to proceed with this
-                prompt?
+                YakShaver has selected a Project prompt for this video. Do you want to proceed with
+                this prompt?
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -182,7 +182,7 @@ export function PromptSelectionDialog({
               >
                 {submitting ? (
                   <>
-                   <LoadingState />
+                    <LoadingState />
                     Confirming...
                   </>
                 ) : (
