@@ -90,7 +90,8 @@ export class ProcessVideoIPCHandlers {
         };
 
         try {
-          notify(ProgressStage.EXECUTING_TASK);
+          const workflowManager = new WorkflowStateManager(shaveId);
+          workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
 
           const languageModelProvider = await LanguageModelProvider.getInstance();
 
@@ -99,6 +100,10 @@ export class ProcessVideoIPCHandlers {
               languageModelProvider,
               intermediateOutput,
             );
+
+          workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
+          workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
+          notify(ProgressStage.EXECUTING_TASK);
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
           const projectDetailPrompt = JSON.stringify(projectDetails);
@@ -109,7 +114,6 @@ export class ProcessVideoIPCHandlers {
               ? this.lastVideoFilePath
               : undefined;
 
-          const workflowManager = new WorkflowStateManager(shaveId);
           const mcpAdapter = new McpWorkflowAdapter(workflowManager);
 
           const orchestrator = await MCPOrchestrator.getInstanceAsync();
