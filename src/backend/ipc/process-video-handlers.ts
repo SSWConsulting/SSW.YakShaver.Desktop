@@ -3,7 +3,7 @@ import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
 import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workflow";
-import { buildTaskExecutionPrompt, INITIAL_SUMMARY_PROMPT } from "../constants/prompts";
+import { INITIAL_SUMMARY_PROMPT } from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
@@ -21,6 +21,7 @@ import { WorkflowStateManager } from "../services/workflow/workflow-state-manage
 import { ProgressStage } from "../types";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 
 type VideoProcessingContext = {
   filePath: string;
@@ -89,10 +90,23 @@ export class ProcessVideoIPCHandlers {
         };
 
         try {
+          const workflowManager = new WorkflowStateManager(shaveId);
+          workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
+
+          const languageModelProvider = await LanguageModelProvider.getInstance();
+
+          const projectDetails =
+            await PromptSelectionService.getInstance().getConfirmedProjectDetails(
+              languageModelProvider,
+              intermediateOutput,
+            );
+
+          workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
+          workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
           notify(ProgressStage.EXECUTING_TASK);
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
-          const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+          const projectDetailPrompt = JSON.stringify(projectDetails);
           const serverFilter = customPrompt?.selectedMcpServerIds;
 
           const filePath =
@@ -100,7 +114,6 @@ export class ProcessVideoIPCHandlers {
               ? this.lastVideoFilePath
               : undefined;
 
-          const workflowManager = new WorkflowStateManager(shaveId);
           const mcpAdapter = new McpWorkflowAdapter(workflowManager);
 
           const orchestrator = await MCPOrchestrator.getInstanceAsync();
@@ -108,7 +121,7 @@ export class ProcessVideoIPCHandlers {
             intermediateOutput,
             videoUploadResult,
             {
-              systemPrompt,
+              projectDetailPrompt,
               videoFilePath: filePath,
               serverFilter,
               onStep: mcpAdapter.onStep,
@@ -289,12 +302,23 @@ export class ProcessVideoIPCHandlers {
 
       workflowManager.completeStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT, intermediateOutput);
 
+      workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
+
+      // Select project prompt based on transcript
+      const projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
+        languageModelProvider,
+        transcriptText,
+      );
+
+      workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
+
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
 
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
-      const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+      // const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
+      const projectDetailPrompt = JSON.stringify(projectDetails);
       const serverFilter = customPrompt?.selectedMcpServerIds;
 
       const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
@@ -304,7 +328,7 @@ export class ProcessVideoIPCHandlers {
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
       const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
-        systemPrompt,
+        projectDetailPrompt,
         videoFilePath: filePath,
         serverFilter,
         onStep: mcpAdapter.onStep,
@@ -419,7 +443,7 @@ export class ProcessVideoIPCHandlers {
     return result;
   }
 
-  // TODO: Separate the Watch Video Pannel and Final Result Panel event triggers from this, and remove this event sender
+  // TODO: Separate the Undo feature and Final Result Panel event triggers from this, and remove this event sender
   // ISSUE: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/602
   private emitProgress(stage: string, data?: Record<string, unknown>, shaveId?: string) {
     BrowserWindow.getAllWindows()

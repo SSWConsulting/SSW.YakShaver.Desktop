@@ -247,6 +247,23 @@ export function StageWithContent({ stage, payload }: StageWithContentProps) {
     );
   }
 
+  if (stage === "selecting_prompt" && isRecord(payload)) {
+    const { name, description, selectionReason } = payload as {
+      name?: string;
+      description?: string;
+      selectionReason?: string;
+    };
+    return (
+      <div className="space-y-2">
+        <div className="font-medium text-sm">{name || "Unknown Project"}</div>
+        {description && <div className="text-xs text-white/70">{description}</div>}
+        {selectionReason && (
+          <div className="text-xs text-white/50 italic">Reason: {selectionReason}</div>
+        )}
+      </div>
+    );
+  }
+
   if (stage === "transcribing" && typeof payload === "string") {
     return <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">{payload}</div>;
   }

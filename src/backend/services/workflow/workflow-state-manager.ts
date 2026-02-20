@@ -28,6 +28,7 @@ export class WorkflowStateManager {
       [ProgressStage.CONVERTING_AUDIO]: createStep(ProgressStage.CONVERTING_AUDIO),
       [ProgressStage.TRANSCRIBING]: createStep(ProgressStage.TRANSCRIBING),
       [ProgressStage.ANALYZING_TRANSCRIPT]: createStep(ProgressStage.ANALYZING_TRANSCRIPT),
+      [ProgressStage.SELECTING_PROMPT]: createStep(ProgressStage.SELECTING_PROMPT),
       [ProgressStage.EXECUTING_TASK]: createStep(ProgressStage.EXECUTING_TASK),
       [ProgressStage.UPDATING_METADATA]: createStep(ProgressStage.UPDATING_METADATA),
     };

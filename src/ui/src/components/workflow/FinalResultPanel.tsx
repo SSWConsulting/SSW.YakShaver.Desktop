@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, Loader2, RotateCcw, Undo2 } from "lucide-react";
+import { Copy, ExternalLink, RotateCcw, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
@@ -25,6 +25,7 @@ import {
 } from "../ui/dialog";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
+import { LoadingState } from "../common/LoadingState";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
@@ -741,7 +742,7 @@ export function FinalResultPanel() {
                   onClick={() => openReprocessDialog("original")}
                 >
                   {reprocessLoading && reprocessMode === "original" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <LoadingState />
                   ) : (
                     <RotateCcw className="h-4 w-4" />
                   )}
@@ -756,7 +757,7 @@ export function FinalResultPanel() {
                     onClick={() => openReprocessDialog("undo")}
                   >
                     {reprocessLoading && reprocessMode === "undo" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <LoadingState />
                     ) : (
                       <RotateCcw className="h-4 w-4" />
                     )}
@@ -769,11 +770,7 @@ export function FinalResultPanel() {
                     onClick={handleUndo}
                     className="flex-1"
                   >
-                    {undoLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Undo2 className="h-4 w-4" />
-                    )}
+                    {undoLoading ? <LoadingState /> : <Undo2 className="h-4 w-4" />}
                     Undo
                   </Button>
                 )}
@@ -810,7 +807,7 @@ export function FinalResultPanel() {
                       Cancel
                     </Button>
                     <Button type="button" onClick={handleReprocess} disabled={reprocessLoading}>
-                      {reprocessLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {reprocessLoading && <LoadingState />}
                       Run reprocess
                     </Button>
                   </DialogFooter>

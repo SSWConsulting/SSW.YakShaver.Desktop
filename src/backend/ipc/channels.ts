@@ -45,7 +45,6 @@ export const IPC_CHANNELS = {
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
-  MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
 
@@ -110,4 +109,8 @@ export const IPC_CHANNELS = {
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
+
+  // User Interaction (Generic)
+  USER_INTERACTION_REQUEST: "user-interaction:request",
+  USER_INTERACTION_RESPONSE: "user-interaction:response",
 } as const;
