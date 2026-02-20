@@ -1,5 +1,5 @@
 import type { InteractionRequest, ProjectSelectionPayload } from "@shared/types/user-interaction";
-import { Loader2, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { formatErrorMessage } from "../../utils";
 import {
@@ -14,6 +14,7 @@ import {
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { ScrollArea } from "../ui/scroll-area";
+import { LoadingState } from "../common/LoadingState";
 
 interface PromptSelectionDialogProps {
   request: InteractionRequest;
@@ -181,7 +182,7 @@ export function PromptSelectionDialog({
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                   <LoadingState />
                     Confirming...
                   </>
                 ) : (
@@ -286,7 +287,7 @@ export function PromptSelectionDialog({
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <LoadingState />
                     Selecting...
                   </>
                 ) : (
