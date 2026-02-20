@@ -1,5 +1,4 @@
 import type { InteractionRequest, ToolApprovalPayload } from "@shared/types/user-interaction";
-import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import { formatErrorMessage } from "../../utils";
@@ -17,6 +16,7 @@ import {
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
+import { LoadingState } from "../common/LoadingState";
 
 interface ApprovalDialogProps {
   request: InteractionRequest;
@@ -205,7 +205,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoadingState />
                     Cancelling...
                   </span>
                 ) : (
@@ -226,7 +226,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoadingState />
                     Sending...
                   </span>
                 ) : (
@@ -256,7 +256,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoadingState />
                     Saving...
                   </span>
                 ) : (
@@ -272,7 +272,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoadingState />
                     Processing...
                   </span>
                 ) : (
