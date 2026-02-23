@@ -1,7 +1,6 @@
 import type { LanguageModelProvider } from "../mcp/language-model-provider";
 import { PromptManager, type PromptSummary } from "../prompt/prompt-manager";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
-import { UserSettingsStorage } from "../storage/user-settings-storage";
 import { z } from "zod";
 
 export interface PromptSelectionResult {
@@ -60,36 +59,24 @@ export class PromptSelectionService {
     selectedProject: PromptSelectionResult,
     allProjects: PromptSummary[],
   ): Promise<PromptSelectionResult> {
-    const userSettings = await UserSettingsStorage.getInstance().getSettingsAsync();
-    const mode = userSettings?.toolApprovalMode || "ask";
-
-    if (mode === "yolo") {
-      return selectedProject;
-    }
-
-    // In "wait" mode, auto-approve after 15 seconds
-    const autoApproveAt = mode === "wait" ? Date.now() + 15000 : undefined;
-
     try {
       // Send project selection to user for confirmation, allowing them to change the selection if they want
-      const userResponse = await UserInteractionService.getInstance().requestProjectSelection(
-        {
-          selectedProject: {
-            id: selectedProject.id,
-            name: selectedProject.name,
-            description: selectedProject.description,
-            reason: selectedProject.reason,
-            source: selectedProject.source,
-          },
-          allProjects: allProjects.map((p) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            source: p.source,
-          })),
+      // The UserInteractionService handles logic for yolo/wait/ask modes internally
+      const userResponse = await UserInteractionService.getInstance().requestProjectSelection({
+        selectedProject: {
+          id: selectedProject.id,
+          name: selectedProject.name,
+          description: selectedProject.description,
+          reason: selectedProject.reason,
+          source: selectedProject.source,
         },
-        { autoApproveAt },
-      );
+        allProjects: allProjects.map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          source: p.source,
+        })),
+      });
 
       // Update selected project if user changed it
       if (userResponse.projectId !== selectedProject.id) {

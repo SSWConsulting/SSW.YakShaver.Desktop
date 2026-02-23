@@ -1,5 +1,6 @@
 import { BrowserWindow } from "electron";
 import { randomUUID } from "node:crypto";
+import { UserSettingsStorage } from "../storage/user-settings-storage";
 import type {
   InteractionRequest,
   ProjectSelectionPayload,
@@ -7,6 +8,8 @@ import type {
   ToolApprovalDecision,
   ToolApprovalPayload,
 } from "../../../shared/types/user-interaction";
+
+const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 
 export class UserInteractionService {
   private static instance: UserInteractionService;
@@ -27,14 +30,27 @@ export class UserInteractionService {
   public async requestToolApproval(
     toolName: string,
     args: unknown,
-    options?: { autoApproveAt?: number; message?: string },
+    options?: { message?: string },
   ): Promise<ToolApprovalDecision> {
+    const settings = await UserSettingsStorage.getInstance().getSettingsAsync();
+    const mode = settings?.toolApprovalMode || "ask";
+
+    if (mode === "yolo") {
+      return { kind: "approve" };
+    }
+
+    const autoApproveAt =
+      mode === "wait" ? Date.now() + WAIT_MODE_AUTO_APPROVE_DELAY_MS : undefined;
+
     const payload: ToolApprovalPayload = {
       toolName,
       args,
     };
 
-    return this.request<ToolApprovalDecision>("tool_approval", payload, options);
+    return this.request<ToolApprovalDecision>("tool_approval", payload, {
+      ...options,
+      autoApproveAt,
+    });
   }
 
   /**
@@ -42,9 +58,24 @@ export class UserInteractionService {
    */
   public async requestProjectSelection(
     payload: ProjectSelectionPayload,
-    options?: { autoApproveAt?: number; message?: string },
+    options?: { message?: string },
   ): Promise<ProjectSelectionResponse> {
-    return this.request<ProjectSelectionResponse>("project_selection", payload, options);
+    const settings = await UserSettingsStorage.getInstance().getSettingsAsync();
+    const mode = settings?.toolApprovalMode || "ask";
+
+    if (mode === "yolo") {
+      return {
+        projectId: payload.selectedProject.id,
+      };
+    }
+
+    const autoApproveAt =
+      mode === "wait" ? Date.now() + WAIT_MODE_AUTO_APPROVE_DELAY_MS : undefined;
+
+    return this.request<ProjectSelectionResponse>("project_selection", payload, {
+      ...options,
+      autoApproveAt,
+    });
   }
 
   /**
