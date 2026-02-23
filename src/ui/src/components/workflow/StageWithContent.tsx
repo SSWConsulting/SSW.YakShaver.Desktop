@@ -211,16 +211,6 @@ export function StageWithContent({ stage, payload }: StageWithContentProps) {
                 args={step.args}
               />
             )}
-            {step.type === MCPStepType.TOOL_APPROVAL_REQUIRED && (
-              <div className="space-y-1">
-                <ToolApprovalPending toolName={step.toolName} />
-                <ToolCallStep
-                  toolName={step.toolName}
-                  serverName={step.serverName}
-                  args={step.args}
-                />
-              </div>
-            )}
             {step.type === MCPStepType.TOOL_RESULT && (
               <div className="ml-4 space-y-1">
                 {step.error ? (

@@ -218,13 +218,6 @@ You will be given a **Project Prompt** and a **user video transcription** follow
 
           if (!isWhitelisted) {
             const requestId = randomUUID();
-            options.onStep?.({
-              type: "tool_approval_required",
-              toolName: toolCall.toolName,
-              args: toolCall.input,
-              requestId,
-              message: `Approval required to run ${toolCall.toolName}`,
-            });
 
             const decision = await UserInteractionService.getInstance().requestToolApproval(
               toolCall.toolName,

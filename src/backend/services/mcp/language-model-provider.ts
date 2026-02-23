@@ -1,12 +1,4 @@
-import {
-  generateText,
-  type LanguageModel,
-  type ModelMessage,
-  Output,
-  stepCountIs,
-  streamText,
-  type ToolSet,
-} from "ai";
+import { generateText, type LanguageModel, type ModelMessage, Output, type ToolSet } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType, z } from "zod";
 import { LLM_PROVIDER_CONFIGS } from "../../../shared/llm/llm-providers";
@@ -21,7 +13,6 @@ type StepType =
   | "tool_call"
   | "tool_result"
   | "final_result"
-  | "tool_approval_required"
   | "tool_denied";
 
 interface MCPStep {
