@@ -230,14 +230,7 @@ const electronAPI = {
       onIpcEvent<string>(IPC_CHANNELS.MCP_PREFILL_PROMPT, callback),
     onStepUpdate: (
       callback: (step: {
-        type:
-          | "start"
-          | "reasoning"
-          | "tool_call"
-          | "tool_result"
-          | "final_result"
-          | "tool_approval_required"
-          | "tool_denied";
+        type: "start" | "reasoning" | "tool_call" | "tool_result" | "final_result" | "tool_denied";
         message?: string;
         toolName?: string;
         serverName?: string;

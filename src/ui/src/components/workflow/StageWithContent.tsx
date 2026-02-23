@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ChevronRight, Play, Wrench, X } from "lucide-react";
+import { Check, ChevronRight, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import { type MCPStep, MCPStepType, type MetadataPreview, type VideoChapter } from "../../types";
 import { deepParseJson } from "../../utils";
@@ -47,15 +47,6 @@ function ToolResultSuccess({ result }: { result: unknown }) {
           </pre>
         </details>
       )}
-    </div>
-  );
-}
-
-function ToolApprovalPending({ toolName }: { toolName?: string }) {
-  return (
-    <div className="text-amber-300 flex items-center gap-2">
-      <AlertTriangle className="w-4 h-4" />
-      Waiting for approval to run {toolName ?? "the requested tool"}
     </div>
   );
 }
@@ -210,16 +201,6 @@ export function StageWithContent({ stage, payload }: StageWithContentProps) {
                 serverName={step.serverName}
                 args={step.args}
               />
-            )}
-            {step.type === MCPStepType.TOOL_APPROVAL_REQUIRED && (
-              <div className="space-y-1">
-                <ToolApprovalPending toolName={step.toolName} />
-                <ToolCallStep
-                  toolName={step.toolName}
-                  serverName={step.serverName}
-                  args={step.args}
-                />
-              </div>
             )}
             {step.type === MCPStepType.TOOL_RESULT && (
               <div className="ml-4 space-y-1">

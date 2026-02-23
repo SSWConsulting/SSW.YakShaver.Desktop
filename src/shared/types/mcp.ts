@@ -4,7 +4,6 @@ export type StepType =
   | "tool_call"
   | "tool_result"
   | "final_result"
-  | "tool_approval_required"
   | "tool_denied";
 
 export type ToolApprovalDecision =

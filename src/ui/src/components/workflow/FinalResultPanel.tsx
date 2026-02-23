@@ -419,10 +419,6 @@ const summarizeSteps = (steps: MCPStep[]): string => {
           }
           return `${prefix} TOOL RESULT — ${truncateText(formatValue(step.result))}`;
         }
-        case MCPStepType.TOOL_APPROVAL_REQUIRED:
-          return `${prefix} TOOL APPROVAL — Awaiting permission to run ${
-            step.toolName ?? "unknown tool"
-          }.`;
         case MCPStepType.TOOL_DENIED:
           return `${prefix} TOOL DENIED — ${step.message ?? "Operator cancelled the tool call."}`;
         case MCPStepType.FINAL_RESULT:

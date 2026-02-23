@@ -1,11 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { ToolApprovalMode } from "@shared/types/user-settings";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import type { ZodType } from "zod";
-import type { MCPStep, ToolApprovalDecision } from "../../../shared/types/mcp";
+import type { MCPStep } from "../../../shared/types/mcp";
 import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
-import { UserSettingsStorage } from "../storage/user-settings-storage";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
@@ -77,8 +75,6 @@ export class ToolOutputBuffer {
     }));
   }
 }
-
-const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 
 export class MCPOrchestrator {
   private static instance: MCPOrchestrator;
@@ -154,7 +150,6 @@ export class MCPOrchestrator {
 
     // Get tools and apply the server filter if provided
     const tools = await serverManager.collectToolsWithServerPrefixAsync();
-    const userSettingsStorage = UserSettingsStorage.getInstance();
 
     let systemPrompt = `You are a helpful AI that helps users achieve their goals. Use the provided tools to satisfy the user's request. When you have the final result, return it with a structured summary without questions so the session can end.
 You will be given a **Project Prompt** and a **user video transcription** following the details of the project. Use this information to create tasks and call tools to get the job done.
@@ -162,7 +157,7 @@ You will be given a **Project Prompt** and a **user video transcription** follow
 **Project Prompt** - A detailed document that describes a project that is associated with the user's transcription. It may contain specific requirements, constraints, or guidelines that you MUST follow when creating tasks and calling tools. Always prioritize the instructions in the Project Prompt over any other information. If there is conflicting information, the Project Prompt takes precedence. Always follow the requirements in the Project Prompt STRICTLY. Do not deviate from the instructions in the Project Prompt.
 **User Video Transcription** - A transcription of the user's video that may contain important information about the user's request, context, and requirements. Use the transcription to understand the user's needs and to extract relevant information that can help you create tasks and call tools effectively. The transcription is auto generated; although it provides context, it may contain typos. If there is any conflict between the transcription and the Project Prompt, prioritize the Project Prompt.
 
-1. Do not ask the user for clarification, confirmation, or additional questions; the user will not be able to answer.
+1. Do not ask the user for clarification, confirmation, or additional questions, the user will not be able to answer.
 2. Do your best with the information you have and execute the tools you are given to achieve the user's goal.`;
 
     systemPrompt += options.projectDetailPrompt
@@ -190,15 +185,6 @@ You will be given a **Project Prompt** and a **user video transcription** follow
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
-      const toolApprovalSettings = await userSettingsStorage.getSettingsAsync();
-      const toolApprovalMode: ToolApprovalMode = toolApprovalSettings.toolApprovalMode;
-      const bypassApprovalChecks = toolApprovalMode === "yolo";
-      const toolWhiteList = bypassApprovalChecks
-        ? new Set<string>()
-        : new Set(
-            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
-          );
-
       const llmResponse = await MCPOrchestrator.languageModelProvider
         .generateTextWithTools(messages, tools)
         .catch((error) => {
@@ -225,17 +211,18 @@ You will be given a **Project Prompt** and a **user video transcription** follow
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
         for (const toolCall of llmResponse.toolCalls) {
-          const requiresApproval = !bypassApprovalChecks && !toolWhiteList.has(toolCall.toolName);
+          const toolWhiteList = new Set(
+            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
+          );
+          const isWhitelisted = toolWhiteList.has(toolCall.toolName);
 
-          if (requiresApproval) {
-            const autoApproveAt =
-              toolApprovalMode === "wait"
-                ? Date.now() + WAIT_MODE_AUTO_APPROVE_DELAY_MS
-                : undefined;
-            const { decision, requestId } = await this.requestToolApproval(
+          if (!isWhitelisted) {
+            const requestId = randomUUID();
+
+            const decision = await UserInteractionService.getInstance().requestToolApproval(
               toolCall.toolName,
               toolCall.input,
-              { autoApproveAt, onStep: options.onStep },
+              { message: `Approval required to run ${toolCall.toolName}` },
             );
 
             if (decision.kind === "deny_stop") {
@@ -446,39 +433,6 @@ You will be given a **Project Prompt** and a **user video transcription** follow
     ].filter(Boolean);
 
     return feedbackLines.join("\n\n");
-  }
-
-  private async requestToolApproval(
-    toolName: string,
-    args: unknown,
-    options?: { autoApproveAt?: number; onStep?: (step: MCPStep) => void },
-  ): Promise<{ requestId: string; decision: ToolApprovalDecision }> {
-    if (!MCPOrchestrator.instance) {
-      throw new Error("[MCPOrchestrator]: requestToolApproval called before initialization");
-    }
-
-    const interactionService = UserInteractionService.getInstance();
-    const requestId = randomUUID(); // Generate one for logging purposes if needed, but Service generates its own
-
-    // Notify UI via options callback for logging history
-    if (options?.onStep) {
-      options.onStep({
-        type: "tool_approval_required",
-        toolName,
-        args,
-        requestId, // Using local ID for logging consistency, though service uses its own
-        message: `Approval required to run ${toolName}`,
-        autoApproveAt: options?.autoApproveAt,
-      });
-    }
-
-    // Delegate to UserInteractionService
-    const decision = await interactionService.requestToolApproval(toolName, args, {
-      autoApproveAt: options?.autoApproveAt,
-      message: `Approval required to run ${toolName}`,
-    });
-
-    return { requestId, decision };
   }
 
   public cancelAllPendingApprovals(reason = "Session cancelled"): void {
