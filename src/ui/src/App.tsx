@@ -50,7 +50,7 @@ export default function App() {
       <YouTubeAuthProvider>
         <TelemetryConsentInitializer>
           <InteractionProvider>
-          <div className="relative min-h-screen py-8 text-white">
+            <div className="relative min-h-screen py-8 text-white">
               <Toaster />
               <DownloadProgressToast />
               <OnboardingWizard onVisibilityChange={setIsOnboardingVisible} />
@@ -71,20 +71,20 @@ export default function App() {
                     </div>
                   </header>
 
-                <main className="z-10 relative flex flex-col items-center">
-                  <ScreenRecorder />
-                  <WorkflowProgressPanel />
-                  <FinalResultPanel />
-                </main>
-              </div>
-            )}
+                  <main className="z-10 relative flex flex-col items-center">
+                    <ScreenRecorder />
+                    <WorkflowProgressPanel />
+                    <FinalResultPanel />
+                  </main>
+                </div>
+              )}
 
               <div className="fixed bottom-2 left-2 text-[10px] text-white/30 z-50 pointer-events-none font-mono">
                 {appVersion && `v${appVersion} `}
                 {commitHash && `(${commitHash})`}
               </div>
             </div>
-        </InteractionProvider>
+          </InteractionProvider>
         </TelemetryConsentInitializer>
       </YouTubeAuthProvider>
     </AdvancedSettingsProvider>
