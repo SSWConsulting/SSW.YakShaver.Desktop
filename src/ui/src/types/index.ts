@@ -189,7 +189,6 @@ export enum MCPStepType {
   TOOL_CALL = "tool_call",
   TOOL_RESULT = "tool_result",
   FINAL_RESULT = "final_result",
-  TOOL_APPROVAL_REQUIRED = "tool_approval_required",
   TOOL_DENIED = "tool_denied",
 }
 

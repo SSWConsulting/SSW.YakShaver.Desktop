@@ -1,12 +1,4 @@
-import {
-  generateText,
-  type LanguageModel,
-  type ModelMessage,
-  Output,
-  stepCountIs,
-  streamText,
-  type ToolSet,
-} from "ai";
+import { generateText, type LanguageModel, type ModelMessage, Output, type ToolSet } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType, z } from "zod";
 import { LLM_PROVIDER_CONFIGS } from "../../../shared/llm/llm-providers";
@@ -21,7 +13,6 @@ type StepType =
   | "tool_call"
   | "tool_result"
   | "final_result"
-  | "tool_approval_required"
   | "tool_denied";
 
 interface MCPStep {
@@ -160,44 +151,6 @@ export class LanguageModelProvider {
           error instanceof Error ? error.message : String(error)
         }`,
       );
-    }
-  }
-
-  public async sendMessage(
-    message: ModelMessage[],
-    tools: ToolSet,
-  ): Promise<Awaited<ReturnType<typeof streamText>>> {
-    if (!this.languageModel) {
-      throw new Error("[LanguageModelProvider]: LLM client not initialized");
-    }
-
-    try {
-      return streamText({
-        model: this.languageModel,
-        tools,
-        messages: message,
-        stopWhen: stepCountIs(50),
-        onFinish: (result) => sendStepEvent({ type: "final_result", message: result.finishReason }),
-        onChunk: ({ chunk }) => {
-          switch (chunk.type) {
-            case "tool-call":
-              // send an event to your orchestrator UI: "Calling tool X …"
-              sendStepEvent({ type: "tool_call", toolName: chunk.toolName, args: chunk.input });
-              break;
-            case "tool-result":
-              // show the result once the tool returns
-              sendStepEvent({
-                type: "tool_result",
-                toolName: chunk.toolName,
-                result: chunk.output,
-              });
-              break;
-          }
-        },
-      });
-    } catch (error) {
-      console.error("[LanguageModelProvider]: Error in sendMessage:", error);
-      throw error;
     }
   }
 

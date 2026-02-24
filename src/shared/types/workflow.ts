@@ -4,6 +4,7 @@ export enum ProgressStage {
   CONVERTING_AUDIO = "converting_audio",
   TRANSCRIBING = "transcribing",
   ANALYZING_TRANSCRIPT = "analyzing_transcript",
+  SELECTING_PROMPT = "selecting_prompt",
   EXECUTING_TASK = "executing_task",
   UPDATING_METADATA = "updating_metadata",
 }
@@ -27,6 +28,7 @@ export interface WorkflowState {
   converting_audio: WorkflowStep;
   transcribing: WorkflowStep;
   analyzing_transcript: WorkflowStep;
+  selecting_prompt: WorkflowStep;
   executing_task: WorkflowStep;
   updating_metadata: WorkflowStep;
 }

@@ -64,7 +64,6 @@ const IPC_CHANNELS = {
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
-  MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
 
@@ -129,6 +128,10 @@ const IPC_CHANNELS = {
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
+
+  // User Interaction (Generic)
+  USER_INTERACTION_REQUEST: "user-interaction:request",
+  USER_INTERACTION_RESPONSE: "user-interaction:response",
 
   // Telemetry
   TELEMETRY_GET_SETTINGS: "telemetry:get-settings",
@@ -234,14 +237,7 @@ const electronAPI = {
       onIpcEvent<string>(IPC_CHANNELS.MCP_PREFILL_PROMPT, callback),
     onStepUpdate: (
       callback: (step: {
-        type:
-          | "start"
-          | "reasoning"
-          | "tool_call"
-          | "tool_result"
-          | "final_result"
-          | "tool_approval_required"
-          | "tool_denied";
+        type: "start" | "reasoning" | "tool_call" | "tool_result" | "final_result" | "tool_denied";
         message?: string;
         toolName?: string;
         serverName?: string;
@@ -253,11 +249,6 @@ const electronAPI = {
         autoApproveAt?: number;
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
-    respondToToolApproval: (requestId: string, decision: ToolApprovalDecision) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION, {
-        requestId,
-        decision,
-      }),
     addToolToWhitelist: (toolName: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_TOOL_TO_WHITELIST, { toolName }),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
@@ -285,6 +276,12 @@ const electronAPI = {
     setActivePrompt: (id: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
     clearCustomPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS),
+  },
+  userInteraction: {
+    sendResponse: (responseData: unknown) =>
+      ipcRenderer.invoke(IPC_CHANNELS.USER_INTERACTION_RESPONSE, responseData),
+    onRequest: (callback: (request: unknown) => void) =>
+      onIpcEvent(IPC_CHANNELS.USER_INTERACTION_REQUEST, callback),
   },
   releaseChannel: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),

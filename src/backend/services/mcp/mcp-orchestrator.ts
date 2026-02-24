@@ -1,13 +1,11 @@
 import { randomUUID } from "node:crypto";
-import type { ToolApprovalMode } from "@shared/types/user-settings";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
-import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
-import type { MCPStep, ToolApprovalDecision } from "../../../shared/types/mcp";
+import type { MCPStep } from "../../../shared/types/mcp";
 import { getDurationParts } from "../../utils/duration-utils";
 import { formatAndReportError } from "../../utils/error-utils";
 import type { VideoUploadResult } from "../auth/types";
-import { UserSettingsStorage } from "../storage/user-settings-storage";
+import { UserInteractionService } from "../user-interaction/user-interaction-service";
 import { TelemetryService } from "../telemetry/telemetry-service";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
@@ -80,24 +78,11 @@ export class ToolOutputBuffer {
   }
 }
 
-const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
-
-// TODO: Separate the ApprovalDialog event trigger from this, and remove this event sender
-// ISSUE: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/602
-function sendStepEvent(event: MCPStep): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send("mcp:step-update", event);
-    }
-  }
-}
-
 export class MCPOrchestrator {
   private static instance: MCPOrchestrator;
 
   private static languageModelProvider: LanguageModelProvider | null = null;
   private static mcpServerManager: MCPServerManager | null = null;
-  private pendingToolApprovals = new Map<string, (decision: ToolApprovalDecision) => void>();
 
   private constructor() {}
 
@@ -142,7 +127,7 @@ export class MCPOrchestrator {
     prompt: string,
     videoUploadResult?: VideoUploadResult,
     options: {
-      systemPrompt?: string;
+      projectDetailPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
       videoFilePath?: string; // local video file path for screenshot capture
       serverFilter?: string[]; // if provided, only include tools from these server IDs
@@ -154,6 +139,11 @@ export class MCPOrchestrator {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
 
+    console.log(
+      "[MCPOrchestrator] Starting manual loop with projectDetailPrompt:",
+      options.projectDetailPrompt,
+    );
+
     // Ensure MCP server manager is initialized
     const serverManager = MCPOrchestrator.mcpServerManager;
     if (!serverManager) {
@@ -162,21 +152,19 @@ export class MCPOrchestrator {
 
     // Get tools and apply the server filter if provided
     const tools = await serverManager.collectToolsWithServerPrefixAsync();
-    const userSettingsStorage = UserSettingsStorage.getInstance();
 
-    let systemPrompt =
-      options.systemPrompt ??
-      "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
+    let systemPrompt = `You are a helpful AI that helps users achieve their goals. Use the provided tools to satisfy the user's request. When you have the final result, return it with a structured summary without questions so the session can end.
+You will be given a **Project Prompt** and a **user video transcription** following the details of the project. Use this information to create tasks and call tools to get the job done.
 
-    // Add tool chaining instructions
-    systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
-When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
-If you need to pass one tool's output directly to another tool WITHOUT modification:
-1. Look for the Tool Output Reference ID in the previous tool result
-2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
-3. This passes the raw output directly, preserving all structure and content
-4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
-5. Do NOT use this if you need to transform or summarize the content first`;
+**Project Prompt** - A detailed document that describes a project that is associated with the user's transcription. It may contain specific requirements, constraints, or guidelines that you MUST follow when creating tasks and calling tools. Always prioritize the instructions in the Project Prompt over any other information. If there is conflicting information, the Project Prompt takes precedence. Always follow the requirements in the Project Prompt STRICTLY. Do not deviate from the instructions in the Project Prompt.
+**User Video Transcription** - A transcription of the user's video that may contain important information about the user's request, context, and requirements. Use the transcription to understand the user's needs and to extract relevant information that can help you create tasks and call tools effectively. The transcription is auto generated; although it provides context, it may contain typos. If there is any conflict between the transcription and the Project Prompt, prioritize the Project Prompt.
+
+1. Do not ask the user for clarification, confirmation, or additional questions, the user will not be able to answer.
+2. Do your best with the information you have and execute the tools you are given to achieve the user's goal.`;
+
+    systemPrompt += options.projectDetailPrompt
+      ? `\n---\nProject Prompt: ${options.projectDetailPrompt}`
+      : "";
 
     systemPrompt = this.appendVideoInfoToSystemPrompt(
       systemPrompt,
@@ -199,15 +187,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
-      const toolApprovalSettings = await userSettingsStorage.getSettingsAsync();
-      const toolApprovalMode: ToolApprovalMode = toolApprovalSettings.toolApprovalMode;
-      const bypassApprovalChecks = toolApprovalMode === "yolo";
-      const toolWhiteList = bypassApprovalChecks
-        ? new Set<string>()
-        : new Set(
-            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
-          );
-
       const llmResponse = await MCPOrchestrator.languageModelProvider
         .generateTextWithTools(messages, tools)
         .catch((error) => {
@@ -225,10 +204,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
 
       const reasoningContent = llmResponse.content.find((resp) => resp.type === "text");
       if (reasoningContent && llmResponse.finishReason !== "stop") {
-        sendStepEvent({
-          type: "reasoning",
-          reasoning: JSON.stringify(reasoningContent),
-        });
         options.onStep?.({
           type: "reasoning",
           reasoning: JSON.stringify(reasoningContent),
@@ -239,18 +214,19 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
       if (llmResponse.finishReason === "tool-calls") {
         const telemetryService = TelemetryService.getInstance();
         for (const toolCall of llmResponse.toolCalls) {
-          const requiresApproval = !bypassApprovalChecks && !toolWhiteList.has(toolCall.toolName);
+          const toolWhiteList = new Set(
+            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
+          );
+          const isWhitelisted = toolWhiteList.has(toolCall.toolName);
           const toolStartTime = Date.now();
 
-          if (requiresApproval) {
-            const autoApproveAt =
-              toolApprovalMode === "wait"
-                ? Date.now() + WAIT_MODE_AUTO_APPROVE_DELAY_MS
-                : undefined;
-            const { decision, requestId } = await this.requestToolApproval(
+          if (!isWhitelisted) {
+            const requestId = randomUUID();
+
+            const decision = await UserInteractionService.getInstance().requestToolApproval(
               toolCall.toolName,
               toolCall.input,
-              { autoApproveAt, onStep: options.onStep },
+              { message: `Approval required to run ${toolCall.toolName}` },
             );
 
             if (decision.kind === "deny_stop") {
@@ -269,23 +245,12 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
                 },
               });
 
-              sendStepEvent({
-                type: "tool_denied",
-                toolName: toolCall.toolName,
-                args: toolCall.input,
-                requestId,
-                message: denialMessage,
-              });
               options.onStep?.({
                 type: "tool_denied",
                 toolName: toolCall.toolName,
                 args: toolCall.input,
                 requestId,
                 message: denialMessage,
-              });
-              sendStepEvent({
-                type: "final_result",
-                message: "Tool execution cancelled by user",
               });
               options.onStep?.({
                 type: "final_result",
@@ -324,13 +289,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
                 ),
                 userVisibleMessage,
               };
-              sendStepEvent({
-                type: "tool_denied",
-                toolName: toolCall.toolName,
-                args: toolCall.input,
-                requestId,
-                message: userVisibleMessage,
-              });
               options.onStep?.({
                 type: "tool_denied",
                 toolName: toolCall.toolName,
@@ -367,11 +325,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
           }
 
           // send event to UI about tool call now that it is approved/whitelisted
-          sendStepEvent({
-            type: "tool_call",
-            toolName: toolCall.toolName,
-            args: toolCall.input,
-          });
           options.onStep?.({
             type: "tool_call",
             toolName: toolCall.toolName,
@@ -418,11 +371,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
               const outputRefId = outputBuffer.store(toolCall.toolName, contentToStore);
 
               // send event to UI about tool result
-              sendStepEvent({
-                type: "tool_result",
-                toolName: toolCall.toolName,
-                result: toolOutput,
-              });
               options.onStep?.({
                 type: "tool_result",
                 toolName: toolCall.toolName,
@@ -507,10 +455,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
         ToolOutputBuffer.getInstance().clear();
 
         // send final result event to UI
-        sendStepEvent({
-          type: "final_result",
-          message: llmResponse.finishReason,
-        });
         options.onStep?.({
           type: "final_result",
           message: llmResponse.finishReason,
@@ -547,55 +491,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
     }
   }
 
-  public async autoLoopAsync(
-    prompt: string,
-    videoUploadResult?: VideoUploadResult,
-    options: {
-      serverFilter?: string[]; // if provided, only include tools from these servers
-      systemPrompt?: string;
-      maxToolIterations?: number; // safety cap to avoid infinite loops
-    } = {},
-  ): Promise<string> {
-    // Ensure LLM has been initialized
-    if (!MCPOrchestrator.languageModelProvider) {
-      throw new Error("[MCPOrchestrator]: LLM client not initialized");
-    }
-
-    // Ensure MCP server manager is initialized
-    const serverManager = MCPOrchestrator.mcpServerManager;
-    if (!serverManager) {
-      throw new Error("[MCPOrchestrator]: MCP server manager not initialized");
-    }
-
-    // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsForSelectedServersAsync(options.serverFilter);
-
-    let systemPrompt =
-      options.systemPrompt ??
-      "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
-
-    // Add tool chaining instructions
-    systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
-When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
-If you need to pass one tool's output directly to another tool WITHOUT modification:
-1. Look for the Tool Output Reference ID in the previous tool result
-2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
-3. This passes the raw output directly, preserving all structure and content
-4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
-5. Do NOT use this if you need to transform or summarize the content first`;
-
-    systemPrompt = this.appendVideoInfoToSystemPrompt(systemPrompt, videoUploadResult);
-
-    const messages: ModelMessage[] = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: prompt },
-    ];
-
-    //  this is the AI SDK's automatic orchestrator loop, can be used for YOLO mode
-    const response = await MCPOrchestrator.languageModelProvider.sendMessage(messages, tools);
-    return response.text;
-  }
-
   private formatToolCorrectionMessage(
     toolName: string,
     originalArgs: unknown,
@@ -619,54 +514,8 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
     return feedbackLines.join("\n\n");
   }
 
-  private async requestToolApproval(
-    toolName: string,
-    args: unknown,
-    options?: { autoApproveAt?: number; onStep?: (step: MCPStep) => void },
-  ): Promise<{ requestId: string; decision: ToolApprovalDecision }> {
-    if (!MCPOrchestrator.instance) {
-      throw new Error("[MCPOrchestrator]: requestToolApproval called before initialization");
-    }
-
-    const requestId = randomUUID();
-    const event: MCPStep = {
-      type: "tool_approval_required",
-      toolName,
-      args,
-      requestId,
-      message: `Approval required to run ${toolName}`,
-      autoApproveAt: options?.autoApproveAt,
-    };
-    sendStepEvent(event);
-    options?.onStep?.(event);
-
-    const decision = await new Promise<ToolApprovalDecision>((resolve) => {
-      // Store resolver for normal approval/denial
-      this.pendingToolApprovals.set(requestId, (result: ToolApprovalDecision) => {
-        this.pendingToolApprovals.delete(requestId);
-        resolve(result);
-      });
-    });
-
-    return { requestId, decision };
-  }
-
-  public resolveToolApproval(requestId: string, decision: ToolApprovalDecision): boolean {
-    const resolver = this.pendingToolApprovals.get(requestId);
-    if (!resolver) {
-      return false;
-    }
-
-    this.pendingToolApprovals.delete(requestId);
-    resolver(decision);
-    return true;
-  }
-
   public cancelAllPendingApprovals(reason = "Session cancelled"): void {
-    for (const resolve of this.pendingToolApprovals.values()) {
-      resolve({ kind: "deny_stop", feedback: reason });
-    }
-    this.pendingToolApprovals.clear();
+    UserInteractionService.getInstance().cancelAllPending(reason);
   }
 
   private appendVideoInfoToSystemPrompt(
