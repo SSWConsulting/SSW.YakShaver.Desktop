@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import { config } from "../config/env";
+import { setIsQuitting } from "../index";
 import { GitHubTokenStorage } from "../services/storage/github-token-storage";
 import type { ReleaseChannel } from "../services/storage/release-channel-storage";
 import { ReleaseChannelStorage } from "../services/storage/release-channel-storage";
@@ -91,6 +92,8 @@ export class ReleaseChannelIPCHandlers {
         })
         .then((result) => {
           if (result.response === 0) {
+            // Set isQuitting to true so that the before-quit handler allows the app to quit
+            setIsQuitting(true);
             // Force immediate quit and install
             setImmediate(() => {
               // isSilent: false, isForceRunAfter: true, check docs: https://www.jsdocs.io/package/electron-updater#AppUpdater.quitAndInstall
