@@ -1,8 +1,8 @@
 import type { InteractionRequest, ToolApprovalPayload } from "@shared/types/user-interaction";
 import { useCallback, useEffect, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
-import { formatErrorMessage } from "../../utils";
-import { deepParseJson } from "../../utils";
+import { deepParseJson, formatErrorMessage } from "../../utils";
+import { LoadingState } from "../common/LoadingState";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +16,6 @@ import {
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { LoadingState } from "../common/LoadingState";
 
 interface ApprovalDialogProps {
   request: InteractionRequest;
