@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatErrorMessage } from "@/utils";
-import { ScreenFrameWindow } from "../../../../backend/services/recording/screen-frame-window";
 import { CAMERA_ONLY_SOURCE_ID } from "../../constants/recording";
 import { ipcClient } from "../../services/ipc-client";
 import type { ScreenSource } from "../../types";
@@ -164,7 +163,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           cameraPreviewVideo.addEventListener("loadedmetadata", handler);
           cameraPreviewVideo.srcObject = stream;
         });
-        await cameraPreviewVideo.play().catch(() => {});
+        await cameraPreviewVideo.play().catch(() => { });
       } catch {
         stopCameraPreviewStream();
       }
