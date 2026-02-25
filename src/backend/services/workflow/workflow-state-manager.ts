@@ -6,7 +6,7 @@ import {
   type WorkflowStep,
 } from "../../../shared/types/workflow";
 import { IPC_CHANNELS } from "../../ipc/channels";
-import { formatAndReportError, formatErrorMessage } from "../../utils/error-utils";
+import { formatErrorMessage } from "../../utils/error-utils";
 import { TelemetryService } from "../telemetry/telemetry-service";
 
 export class WorkflowStateManager {
