@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { BrowserWindow, dialog, screen } from "electron";
+import { desktopCapturer } from "electron";
 
 export class ScreenFrameWindow {
   private static instance: ScreenFrameWindow;
@@ -15,22 +16,27 @@ export class ScreenFrameWindow {
     this.isDev = isDev;
   }
 
-  show(displayId?: string): void {
+  async show(displayId?: string): Promise<void> {
     if (this.window) {
       this.window.destroy();
     }
 
-    const { x, y, width, height } = this.getDisplayBounds(displayId);
+    const sources = await desktopCapturer.getSources({
+      types: ["screen", "window"],
+    });
+
+
+    const selected =
+      sources.find((s) => s.id === displayId) || sources.find((s) => s.display_id) || sources[0];
+
+
+
+
+    const { x, y, width, height } = this.getDisplayBounds(selected.display_id);
     const url = this.isDev
       ? "http://localhost:3000/frame-overlay.html"
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/frame-overlay.html");
 
-    dialog.showMessageBox({
-      type: "info",
-      title: "Screen Recording",
-      message: "displayId: " + displayId,
-      buttons: ["OK"],
-    });
     this.window = new BrowserWindow({
       x,
       y,
@@ -41,6 +47,7 @@ export class ScreenFrameWindow {
       skipTaskbar: true,
       resizable: false,
       show: false,
+      fullscreen: true,
       alwaysOnTop: true,
       webPreferences: {
         preload: join(__dirname, "../../preload.js"),
