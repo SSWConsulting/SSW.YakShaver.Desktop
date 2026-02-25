@@ -27,7 +27,7 @@ export class ScreenFrameWindow {
     const selected =
       sources.find((s) => s.id === displayId) || sources.find((s) => s.display_id) || sources[0];
 
-    const { x, y, width, height } = this.getDisplayBounds(selected.display_id);
+    const { x, y, width, height, } = this.getDisplayBounds(selected.display_id);
     const url = this.isDev
       ? "http://localhost:3000/frame-overlay.html"
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/frame-overlay.html");
@@ -80,6 +80,17 @@ export class ScreenFrameWindow {
       ? (displays.find((d) => d.id.toString() === displayId || d.id === Number(displayId)) ??
         screen.getPrimaryDisplay())
       : screen.getPrimaryDisplay();
-    return display.bounds;
+
+    // NOTE: on MacOS the taskbar is included in the bounds returned by screen.getAllDisplays()
+    //       but on Windows it is not, so we need to use workArea which excludes the taskbar
+    //       to ensure the frame is not hidden behind the taskbar on Windows.
+    //       Either we return bounds for windows and workarea for macOS or
+    //       we can just always return workArea which seems to work correctly on both platforms.
+    //
+    //       Another observation we had on macOS was that even when using bounds, on one screen it
+    //       would return the correct size but on a second screen it would return a smaller size
+    //       and offset by the taskbar size which caused the frame to be in the wrong position
+    //       and be cut off at the bottom. Might need some more testing on macOS
+    return display.workArea;
   }
 }

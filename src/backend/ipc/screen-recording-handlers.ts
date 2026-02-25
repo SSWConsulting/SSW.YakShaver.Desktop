@@ -71,7 +71,7 @@ export class ScreenRecordingIPCHandlers {
   private async showScreenFrame(displayId?: string | null) {
     try {
       if (displayId) await this.screenFrameWindow.show(displayId);
-      else await this.screenFrameWindow.hide();
+
       return { success: true };
     } catch (error) {
       return { success: false, error: formatErrorMessage(error) };
@@ -98,11 +98,13 @@ export class ScreenRecordingIPCHandlers {
     return { success: true };
   }
 
-  private stopRecordingFromControlBar() {
+  private async stopRecordingFromControlBar() {
     const mainWindow = getMainWindow();
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
       mainWindow.webContents.send("stop-recording-request");
     }
+
+    this.screenFrameWindow.hide();
 
     setTimeout(() => {
       this.cameraWindow.hide();
