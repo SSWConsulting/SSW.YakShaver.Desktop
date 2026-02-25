@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, net, session, shell } from "electron";
 import { initMain as initAudioLoopback } from "electron-audio-loopback";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
@@ -331,6 +331,12 @@ app.setAboutPanelOptions({
 initAudioLoopback();
 
 app.whenReady().then(async () => {
+  // Route all fetch traffic through Chromium's network stack.
+  // Node.js's built-in fetch (undici) cannot resolve DNS or connect to external
+  // services from Electron's main process, causing timeouts for Google APIs,
+  // LLM providers, and other external HTTP calls.
+  globalThis.fetch = net.fetch as typeof globalThis.fetch;
+
   if (!pendingProtocolUrl) {
     pendingProtocolUrl = getProtocolUrlFromArgs(process.argv);
   }
