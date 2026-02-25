@@ -183,8 +183,8 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.CHECK_VIDEO_HAS_AUDIO, filePath),
     showControlBar: (cameraDeviceId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SHOW_CONTROL_BAR, cameraDeviceId),
-    highlightSourceSelection: (sourceId?: string | null) =>
-      ipcRenderer.invoke(IPC_CHANNELS.HIGHLIGHT_SCREEN_SOURCE_SELECTION, sourceId),
+    highlightSourceSelection: async (sourceId?: string | null) =>
+      await ipcRenderer.invoke(IPC_CHANNELS.HIGHLIGHT_SCREEN_SOURCE_SELECTION, sourceId),
     hideControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.HIDE_CONTROL_BAR),
     stopFromControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR),
     minimizeMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.MINIMIZE_MAIN_WINDOW),

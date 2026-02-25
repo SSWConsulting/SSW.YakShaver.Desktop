@@ -179,9 +179,26 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       ? Boolean(selectedCameraId)
       : sources.some((source) => source.id === selectedSourceId);
 
+
+
+  useEffect(() => {
+    const highlightSource = async (id: string | null) => {
+      await window.electronAPI.screenRecording.highlightSourceSelection(id);
+    };
+    void highlightSource(selectedSourceId);
+    return () => {
+      highlightSource(null);
+    }
+  }, [selectedSourceId, sources]);
+
+
+  const handleCancel = async () => {
+    onOpenChange(false);
+    setSelectedSourceId(null);
+  }
   const handleConfirm = async () => {
 
-    window.electronAPI.screenRecording.highlightSourceSelection(null);
+
 
     if (!selectedSourceId) return;
     if (selectedSourceId === CAMERA_ONLY_SOURCE_ID) {
@@ -338,7 +355,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           )}
         </div>
         <div className="flex justify-end gap-2 border-t border-border pt-3">
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="secondary" onClick={handleCancel}>
             Cancel
           </Button>
           <Button type="button" onClick={handleConfirm} disabled={!canConfirm}>
@@ -371,11 +388,9 @@ function SourceSection({
             key={src.id}
             source={src}
             isSelected={selectedSourceId === src.id}
-            onClick={() => {
-              onSelect(src.id);
-              const selectedScreen = sources.find((source) => source.id === selectedSourceId);
-              selectedScreen && window.electronAPI.screenRecording.highlightSourceSelection(selectedScreen.id);
-            }}
+            onClick={async () =>
+              onSelect(src.id)
+            }
           />
         ))}
       </div>

@@ -25,7 +25,7 @@ export class ScreenRecordingIPCHandlers {
       [IPC_CHANNELS.STOP_SCREEN_RECORDING]: (_: unknown, videoData: Uint8Array) =>
         this.service.handleStopRecording(videoData),
       [IPC_CHANNELS.LIST_SCREEN_SOURCES]: () => this.service.listSources(),
-      [IPC_CHANNELS.HIGHLIGHT_SCREEN_SOURCE_SELECTION]: (_: unknown, sourceId?: string | null) => this.showScreenFrame(sourceId),
+      [IPC_CHANNELS.HIGHLIGHT_SCREEN_SOURCE_SELECTION]: async (_: unknown, sourceId?: string | null) => await this.showScreenFrame(sourceId),
       [IPC_CHANNELS.CLEANUP_TEMP_FILE]: (_: unknown, filePath: string) =>
         this.service.cleanupTempFile(filePath),
       [IPC_CHANNELS.SHOW_CONTROL_BAR]: (_: unknown, cameraDeviceId?: string) =>
