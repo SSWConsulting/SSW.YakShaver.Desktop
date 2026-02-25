@@ -63,8 +63,7 @@ export function useTelemetryConsent(): UseTelemetryConsentReturn {
   const grantConsent = useCallback(async () => {
     try {
       setIsLoading(true);
-      // Generate an anonymous user ID if anonymization is enabled
-      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const userId = settings?.userId ?? crypto.randomUUID();
 
       const result = await ipcClient.telemetry.requestConsent({
         granted: true,
@@ -82,7 +81,7 @@ export function useTelemetryConsent(): UseTelemetryConsentReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [refreshSettings]);
+  }, [settings?.userId, refreshSettings]);
 
   const denyConsent = useCallback(async () => {
     try {
