@@ -164,7 +164,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           cameraPreviewVideo.addEventListener("loadedmetadata", handler);
           cameraPreviewVideo.srcObject = stream;
         });
-        await cameraPreviewVideo.play().catch(() => { });
+        await cameraPreviewVideo.play().catch(() => {});
       } catch {
         stopCameraPreviewStream();
       }
@@ -179,8 +179,6 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       ? Boolean(selectedCameraId)
       : sources.some((source) => source.id === selectedSourceId);
 
-
-
   useEffect(() => {
     const highlightSource = async (id: string | null) => {
       await window.electronAPI.screenRecording.highlightSourceSelection(id);
@@ -188,18 +186,14 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
     void highlightSource(selectedSourceId);
     return () => {
       highlightSource(null);
-    }
+    };
   }, [selectedSourceId, sources]);
-
 
   const handleCancel = async () => {
     onOpenChange(false);
     setSelectedSourceId(null);
-  }
+  };
   const handleConfirm = async () => {
-
-
-
     if (!selectedSourceId) return;
     if (selectedSourceId === CAMERA_ONLY_SOURCE_ID) {
       await window.electronAPI.screenRecording.minimizeMainWindow();
@@ -388,9 +382,7 @@ function SourceSection({
             key={src.id}
             source={src}
             isSelected={selectedSourceId === src.id}
-            onClick={async () =>
-              onSelect(src.id)
-            }
+            onClick={async () => onSelect(src.id)}
           />
         ))}
       </div>

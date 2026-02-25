@@ -25,12 +25,8 @@ export class ScreenFrameWindow {
       types: ["screen", "window"],
     });
 
-
     const selected =
       sources.find((s) => s.id === displayId) || sources.find((s) => s.display_id) || sources[0];
-
-
-
 
     const { x, y, width, height } = this.getDisplayBounds(selected.display_id);
     const url = this.isDev
@@ -63,9 +59,7 @@ export class ScreenFrameWindow {
     this.window.setAlwaysOnTop(true, "screen-saver");
     this.window.setIgnoreMouseEvents(true);
 
-    this.isDev
-      ? this.window.loadURL(url)
-      : this.window.loadFile(url);
+    this.isDev ? this.window.loadURL(url) : this.window.loadFile(url);
 
     this.window.showInactive();
   }
