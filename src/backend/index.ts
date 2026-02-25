@@ -460,3 +460,7 @@ app.on("activate", () => {
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
+
+export function setIsQuitting(value: boolean): void {
+  isQuitting = value;
+}
