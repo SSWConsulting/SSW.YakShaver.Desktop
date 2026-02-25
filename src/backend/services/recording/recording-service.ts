@@ -1,7 +1,7 @@
 import EventEmitter from "node:events";
 import { unlink, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
-import { desktopCapturer, dialog, systemPreferences } from "electron";
+import { desktopCapturer, systemPreferences } from "electron";
 import tmp from "tmp";
 import { SCREEN_RECORDING_ERRORS } from "../../../shared/constants/error-messages";
 import { getMainWindow } from "../../index";
@@ -37,7 +37,6 @@ export class RecordingService extends EventEmitter {
       // BUG: it seems like it will always end up with source[0] which is the primary screen which causes the countdown not to have the right size
       const selected =
         sources.find((s) => s.id === sourceId) || sources.find((s) => s.display_id) || sources[0];
-
 
       if (!selected) return { success: false, error: "Requested source not found" };
 
@@ -76,7 +75,7 @@ export class RecordingService extends EventEmitter {
       tempFile.removeCallback();
       this.tempFiles.delete(filePath);
     } else {
-      await unlink(filePath).catch(() => { });
+      await unlink(filePath).catch(() => {});
     }
   }
 
