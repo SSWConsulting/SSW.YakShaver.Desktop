@@ -193,7 +193,7 @@ Prefer extending existing code over creating new files. Duplicated logic is hard
 - **Early Returns**: Use guard clauses to reduce nesting. Return early for error/edge cases instead of deep if-else chains.
 - **Descriptive Names**: Variable and function names should describe their purpose. Avoid abbreviations (`btn` -> `button`, `msg` -> `message`) except for well-known acronyms (URL, API, IPC).
 - **Constants Over Literals**: Extract string/number literals into named constants. Use `IPC_CHANNELS.YOUTUBE_START_AUTH` not `"youtube:start-auth"` directly.
-- **Fail Explicitly**: Throw meaningful error messages with context. `throw new Error(\`Failed to load config for provider ${name}: ${formatErrorMessage(error)}\`)`is better than`throw error`.
+- **Fail Explicitly**: Throw meaningful error messages with context. `throw new Error(\`Failed to load config for provider ${name}: ${formatErrorMessage(error)}\`)` is better than `throw error`.
 - **Clean Imports**: Remove unused imports. Use `import type { X }` for type-only imports to avoid bundling unnecessary code.
 
 ### TypeScript
