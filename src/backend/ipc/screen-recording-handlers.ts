@@ -65,7 +65,7 @@ export class ScreenRecordingIPCHandlers {
     return { success: true };
   }
 
-  private async showScreenFrame(displayId?: string) {
+  private async showScreenFrame(displayId?: string | null) {
     try {
 
       if (displayId)
