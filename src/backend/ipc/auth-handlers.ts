@@ -1,7 +1,7 @@
 import { ipcMain } from "electron";
 import { type AuthState, AuthStatus } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
-import { formatErrorMessage } from "../utils/error-utils";
+import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class AuthIPCHandlers {
@@ -42,7 +42,7 @@ export class AuthIPCHandlers {
     } catch (error) {
       return {
         status: AuthStatus.ERROR,
-        error: formatErrorMessage(error),
+        error: formatAndReportError(error, "youtube_auth"),
       };
     }
   }

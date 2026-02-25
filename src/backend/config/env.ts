@@ -27,9 +27,14 @@ const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;
 
 const getIsDev = () => env.NODE_ENV === "development";
 
+const getAppInsightsConnectionString = () => {
+  return env.APPLICATIONINSIGHTS_CONNECTION_STRING || null;
+};
+
 export const config = {
   azure: getAzure,
   portalApiUrl: getPortalApiUrl,
   commitHash: getCommitHash,
   isDev: getIsDev,
+  appInsightsConnectionString: getAppInsightsConnectionString,
 };

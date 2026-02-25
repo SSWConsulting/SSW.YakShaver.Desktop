@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import type { MicrosoftAuthService } from "../services/auth/microsoft-auth";
-import { formatErrorMessage } from "../utils/error-utils";
+import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class MicrosoftAuthIPCHandlers {
@@ -22,21 +22,21 @@ export class MicrosoftAuthIPCHandlers {
             return { success: false, error: "Authentication failed" };
           }
         } catch (error) {
-          return { success: false, error: formatErrorMessage(error) };
+          return { success: false, error: formatAndReportError(error, "microsoft_auth") };
         }
       },
       [IPC_CHANNELS.MS_AUTH_LOGOUT]: async () => {
         try {
           return await this.microsoftAuthService.logout();
         } catch (error) {
-          return { success: false, error: formatErrorMessage(error) };
+          return { success: false, error: formatAndReportError(error, "microsoft_auth") };
         }
       },
       [IPC_CHANNELS.MS_AUTH_STATUS]: async () => {
         try {
           return await this.microsoftAuthService.getAuthState();
         } catch (error) {
-          return { status: "error", error: formatErrorMessage(error) };
+          return { status: "error", error: formatAndReportError(error, "microsoft_auth") };
         }
       },
       [IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO]: async () => {
@@ -44,7 +44,7 @@ export class MicrosoftAuthIPCHandlers {
           const accountInfo = this.microsoftAuthService.currentAccount();
           return { success: true, data: accountInfo };
         } catch (error) {
-          return { success: false, error: formatErrorMessage(error) };
+          return { success: false, error: formatAndReportError(error, "microsoft_auth") };
         }
       },
     } as const;

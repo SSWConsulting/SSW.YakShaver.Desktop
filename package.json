@@ -41,6 +41,7 @@
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "ai": "^6.0.14",
+    "applicationinsights": "^3.13.0",
     "better-sqlite3": "^12.5.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
