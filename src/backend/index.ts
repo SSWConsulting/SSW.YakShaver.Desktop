@@ -192,6 +192,15 @@ const createWindow = (): void => {
     if (!isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
+
+      // Ensure screen frame overlay is closed
+      try {
+        const screenFrame = require("./services/recording/screen-frame-window");
+        screenFrame.ScreenFrameWindow.getInstance().hide();
+      } catch (err) {
+        console.error("ScreenFrameWindow cleanup error:", err);
+      }
+
       return false;
     }
   });
