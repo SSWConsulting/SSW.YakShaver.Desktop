@@ -1,6 +1,5 @@
 import { join } from "node:path";
-import { BrowserWindow, dialog, screen } from "electron";
-import { desktopCapturer } from "electron";
+import { BrowserWindow, desktopCapturer, screen } from "electron";
 
 export class ScreenFrameWindow {
   private static instance: ScreenFrameWindow;
