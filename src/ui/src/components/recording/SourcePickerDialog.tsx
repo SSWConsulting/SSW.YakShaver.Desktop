@@ -164,7 +164,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           cameraPreviewVideo.addEventListener("loadedmetadata", handler);
           cameraPreviewVideo.srcObject = stream;
         });
-        await cameraPreviewVideo.play().catch(() => { });
+        await cameraPreviewVideo.play().catch(() => {});
       } catch {
         stopCameraPreviewStream();
       }
