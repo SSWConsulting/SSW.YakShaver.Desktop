@@ -382,7 +382,9 @@ Database services use plain exported functions (not classes) because better-sqli
 
 #### Error Handling Pattern
 
-Always use `formatAndReportError()` from `src/backend/utils/error-utils.ts` for backend errors. IPC handlers return structured `{ success, error }` results.### Frontend Patterns
+Always use `formatAndReportError()` from `src/backend/utils/error-utils.ts` for backend errors. IPC handlers return structured `{ success, error }` results.
+
+### Frontend Patterns
 
 #### Component Organization (Feature-Based)
 
