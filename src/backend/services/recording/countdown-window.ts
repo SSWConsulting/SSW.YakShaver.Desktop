@@ -35,6 +35,7 @@ export class CountdownWindow {
       skipTaskbar: true,
       resizable: false,
       show: false,
+      fullscreen: true,
       alwaysOnTop: true,
       webPreferences: {
         preload: join(__dirname, "../../preload.js"),
