@@ -6,7 +6,7 @@ import {
   type WorkflowStep,
 } from "../../../shared/types/workflow";
 import { IPC_CHANNELS } from "../../ipc/channels";
-import { formatAndReportError } from "../../utils/error-utils";
+import { formatAndReportError, formatErrorMessage } from "../../utils/error-utils";
 import { TelemetryService } from "../telemetry/telemetry-service";
 
 export class WorkflowStateManager {
@@ -126,7 +126,7 @@ export class WorkflowStateManager {
    * Fail a specific stage in the workflow.
    */
   public failStage(stageKey: keyof WorkflowState, error: string | Error) {
-    const errorMessage = formatAndReportError(error, "workflow_stage_failure");
+    const errorMessage = formatErrorMessage(error);
     const startTime = this.stageStartTimes.get(stageKey as string);
     const duration = startTime ? Date.now() - startTime : undefined;
 
