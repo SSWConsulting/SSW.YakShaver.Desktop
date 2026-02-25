@@ -13,6 +13,7 @@ import {
   type WorkflowStage,
 } from "../../types";
 import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
+import { LoadingState } from "../common/LoadingState";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import {
@@ -25,7 +26,6 @@ import {
 } from "../ui/dialog";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { LoadingState } from "../common/LoadingState";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 

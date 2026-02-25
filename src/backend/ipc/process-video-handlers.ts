@@ -17,11 +17,11 @@ import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
+import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
 import { ProgressStage } from "../types";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 
 type VideoProcessingContext = {
   filePath: string;

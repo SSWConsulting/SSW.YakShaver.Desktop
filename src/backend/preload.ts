@@ -1,6 +1,5 @@
 import type { Hotkeys, UserSettings } from "@shared/types/user-settings";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
-import type { ToolApprovalDecision } from "../shared/types/mcp";
 import type { TelemetrySettings } from "../shared/types/telemetry";
 import type {
   CreateShaveData,

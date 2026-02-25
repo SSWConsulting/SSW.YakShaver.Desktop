@@ -27,7 +27,7 @@ interface MCPStep {
   timestamp?: number;
 }
 
-function sendStepEvent(event: MCPStep): void {
+function _sendStepEvent(event: MCPStep): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
       win.webContents.send("mcp:step-update", event);
