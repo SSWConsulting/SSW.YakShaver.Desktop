@@ -35,7 +35,8 @@ export class CountdownWindow {
       skipTaskbar: true,
       resizable: false,
       show: false,
-      fullscreen: true,
+      // NOTE: on windows it behaves correct but on MacOS it will create a new space/screen which is undesired
+      fullscreen: false,
       alwaysOnTop: true,
       webPreferences: {
         preload: join(__dirname, "../../preload.js"),
@@ -43,6 +44,11 @@ export class CountdownWindow {
         nodeIntegration: false,
       },
     });
+
+    // NOTE: there is a bug where the above code doesn't set the correct size and it always ends up
+    //       with the size of the primary display, even if a different display is selected.
+    //       Manually setting the size again seems to fix it, but it's unclear why this is happening.
+    this.window.setSize(width, height);
 
     this.window.on("closed", () => {
       this.window = null;
