@@ -2,6 +2,7 @@ import type { InteractionRequest, ProjectSelectionPayload } from "@shared/types/
 import { Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { formatErrorMessage } from "../../utils";
+import { LoadingState } from "../common/LoadingState";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +15,6 @@ import {
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { ScrollArea } from "../ui/scroll-area";
-import { LoadingState } from "../common/LoadingState";
 
 interface PromptSelectionDialogProps {
   request: InteractionRequest;

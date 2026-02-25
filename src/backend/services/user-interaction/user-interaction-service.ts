@@ -1,6 +1,5 @@
-import { BrowserWindow } from "electron";
 import { randomUUID } from "node:crypto";
-import { UserSettingsStorage } from "../storage/user-settings-storage";
+import { BrowserWindow } from "electron";
 import type {
   InteractionRequest,
   ProjectSelectionPayload,
@@ -8,6 +7,7 @@ import type {
   ToolApprovalDecision,
   ToolApprovalPayload,
 } from "../../../shared/types/user-interaction";
+import { UserSettingsStorage } from "../storage/user-settings-storage";
 
 const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 

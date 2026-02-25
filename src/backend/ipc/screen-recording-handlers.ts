@@ -5,9 +5,9 @@ import { CameraWindow } from "../services/recording/camera-window";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { CountdownWindow } from "../services/recording/countdown-window";
 import { RecordingService } from "../services/recording/recording-service";
+import { ScreenFrameWindow } from "../services/recording/screen-frame-window";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { ScreenFrameWindow } from "../services/recording/screen-frame-window";
 
 export class ScreenRecordingIPCHandlers {
   private service = RecordingService.getInstance();
