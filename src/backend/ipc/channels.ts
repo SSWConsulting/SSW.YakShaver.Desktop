@@ -19,6 +19,7 @@ export const IPC_CHANNELS = {
   STOP_SCREEN_RECORDING: "stop-screen-recording",
   STOP_RECORDING_FROM_CONTROL_BAR: "stop-recording-from-control-bar",
   LIST_SCREEN_SOURCES: "list-screen-sources",
+  HIGHLIGHT_SCREEN_SOURCE_SELECTION: "highlight-screen-source-selection",
   CLEANUP_TEMP_FILE: "cleanup-temp-file",
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",

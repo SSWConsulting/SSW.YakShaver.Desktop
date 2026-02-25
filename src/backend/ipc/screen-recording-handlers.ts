@@ -7,12 +7,14 @@ import { CountdownWindow } from "../services/recording/countdown-window";
 import { RecordingService } from "../services/recording/recording-service";
 import { formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import { ScreenFrameWindow } from "../services/recording/screen-frame-window";
 
 export class ScreenRecordingIPCHandlers {
   private service = RecordingService.getInstance();
   private controlBar = RecordingControlBarWindow.getInstance();
   private cameraWindow = CameraWindow.getInstance();
   private countdownWindow = CountdownWindow.getInstance();
+  private screenFrameWindow = ScreenFrameWindow.getInstance();
   private ffmpegService = FFmpegService.getInstance();
 
   constructor() {
@@ -23,6 +25,7 @@ export class ScreenRecordingIPCHandlers {
       [IPC_CHANNELS.STOP_SCREEN_RECORDING]: (_: unknown, videoData: Uint8Array) =>
         this.service.handleStopRecording(videoData),
       [IPC_CHANNELS.LIST_SCREEN_SOURCES]: () => this.service.listSources(),
+      [IPC_CHANNELS.HIGHLIGHT_SCREEN_SOURCE_SELECTION]: (_: unknown, sourceId?: string | null) => this.showScreenFrame(sourceId),
       [IPC_CHANNELS.CLEANUP_TEMP_FILE]: (_: unknown, filePath: string) =>
         this.service.cleanupTempFile(filePath),
       [IPC_CHANNELS.SHOW_CONTROL_BAR]: (_: unknown, cameraDeviceId?: string) =>
@@ -60,6 +63,19 @@ export class ScreenRecordingIPCHandlers {
       mainWindow.restore();
     }
     return { success: true };
+  }
+
+  private async showScreenFrame(displayId?: string) {
+    try {
+
+      if (displayId)
+        await this.screenFrameWindow.show(displayId);
+      else
+        await this.screenFrameWindow.hide();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: formatErrorMessage(error) };
+    }
   }
 
   private async showControlBarWithCamera(cameraDeviceId?: string) {

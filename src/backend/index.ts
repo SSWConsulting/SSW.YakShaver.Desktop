@@ -34,6 +34,7 @@ import { RecordingService } from "./services/recording/recording-service";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
 import { TrayManager } from "./services/tray/tray-manager";
 import { getIconPath } from "./utils/path-utils";
+import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 
 const isDev = process.env.NODE_ENV === "development" || process.argv.includes("--dev-protocol");
 
@@ -392,6 +393,7 @@ app.whenReady().then(async () => {
   RecordingControlBarWindow.getInstance().initialize(isDev);
   CameraWindow.getInstance().initialize(isDev);
   CountdownWindow.getInstance().initialize(isDev);
+  ScreenFrameWindow.getInstance().initialize(isDev);
   unregisterEventForwarders = registerEventForwarders();
 
   // Create application menu

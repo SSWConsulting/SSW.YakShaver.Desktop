@@ -11,6 +11,7 @@ import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { MacScreenRecordingPermissionDialog } from "./MacScreenRecordingPermissionDialog";
+import { ScreenFrameWindow } from "../../../../backend/services/recording/screen-frame-window";
 
 type SourcePickerDialogProps = {
   open: boolean;
@@ -163,7 +164,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           cameraPreviewVideo.addEventListener("loadedmetadata", handler);
           cameraPreviewVideo.srcObject = stream;
         });
-        await cameraPreviewVideo.play().catch(() => {});
+        await cameraPreviewVideo.play().catch(() => { });
       } catch {
         stopCameraPreviewStream();
       }
@@ -179,6 +180,9 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
       : sources.some((source) => source.id === selectedSourceId);
 
   const handleConfirm = async () => {
+
+    window.electronAPI.screenRecording.highlightSourceSelection(null);
+
     if (!selectedSourceId) return;
     if (selectedSourceId === CAMERA_ONLY_SOURCE_ID) {
       await window.electronAPI.screenRecording.minimizeMainWindow();
@@ -192,6 +196,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
     if (selectedSource && !selectedSource.isMainWindow) {
       await window.electronAPI.screenRecording.minimizeMainWindow();
     }
+
     onSelect(selectedSourceId, {
       cameraId: selectedCameraId,
       microphoneId: selectedMicrophoneId,
@@ -366,7 +371,11 @@ function SourceSection({
             key={src.id}
             source={src}
             isSelected={selectedSourceId === src.id}
-            onClick={() => onSelect(src.id)}
+            onClick={() => {
+              onSelect(src.id);
+              const selectedScreen = sources.find((source) => source.id === selectedSourceId);
+              selectedScreen && window.electronAPI.screenRecording.highlightSourceSelection(selectedScreen.id);
+            }}
           />
         ))}
       </div>
