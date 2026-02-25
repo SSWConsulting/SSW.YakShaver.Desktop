@@ -13,6 +13,7 @@ export function TelemetryConsentInitializer({ children }: TelemetryConsentInitia
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const checkConsentStatus = async () => {
       try {
         const result = await ipcClient.telemetry.getConsentStatus();
@@ -21,8 +22,7 @@ export function TelemetryConsentInitializer({ children }: TelemetryConsentInitia
           const { hasMadeDecision } = result.data;
 
           if (!hasMadeDecision) {
-            // Delay showing the dialog slightly to let the app fully load
-            setTimeout(() => {
+            timeoutId = setTimeout(() => {
               setShowConsentDialog(true);
             }, 2000);
           }
@@ -35,6 +35,11 @@ export function TelemetryConsentInitializer({ children }: TelemetryConsentInitia
     };
 
     checkConsentStatus();
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   const handleAcceptConsent = async (options: {
