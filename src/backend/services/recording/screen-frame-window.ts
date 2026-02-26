@@ -52,6 +52,9 @@ export class ScreenFrameWindow {
       },
     });
 
+    // Don't include this window in the recording
+    this.window.setContentProtection(true);
+
     // NOTE: there is a bug where the above code doesn't set the correct size and it always ends up
     //       with the size of the primary display, even if a different display is selected.
     //       Manually setting the size again seems to fix it, but it's unclear why this is happening.
@@ -91,6 +94,6 @@ export class ScreenFrameWindow {
     //       would return the correct size but on a second screen it would return a smaller size
     //       and offset by the taskbar size which caused the frame to be in the wrong position
     //       and be cut off at the bottom. Might need some more testing on macOS
-    return display.workArea;
+    return display.bounds;
   }
 }
