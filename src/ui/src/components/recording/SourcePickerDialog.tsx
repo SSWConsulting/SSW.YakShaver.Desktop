@@ -381,7 +381,7 @@ function SourceSection({
             key={src.id}
             source={src}
             isSelected={selectedSourceId === src.id}
-            onClick={async () => onSelect(src.id)}
+            onClick={() => onSelect(src.id)}
           />
         ))}
       </div>
