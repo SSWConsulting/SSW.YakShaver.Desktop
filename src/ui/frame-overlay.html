@@ -218,6 +218,8 @@
     style="position: fixed; bottom: 8px; right: 12px; width: 120px; height: auto; z-index: 10001; pointer-events: none; display: none; transform: scaleX(-1); transform-origin: center;" />
   <div id="speech-bubble" class="speech-bubble"></div>
   <script>
+    const today = new Date();
+    const isAprilFools = today.getMonth() === 3 && today.getDate() === 1;
     const speechPhrases = [
       "Did you know we have a rule on that?",
       "Mmmmmm... Ice Cream 🤤! Don't tell Anastasia. 😉",
@@ -235,11 +237,11 @@
       "What we need is a Dev with a good design eye. 🎨",
     ];
 
-    const today = new Date();
-    if (today.getMonth() === 3 && today.getDate() === 1) {
+    if (isAprilFools) {
       document.getElementById('frame').style.borderColor = 'hsl(220, 80%, 60%)';
       document.getElementById('adam-cogan-img').style.display = 'block';
       document.getElementById('googly-eyes').style.display = 'flex';
+      document.getElementById('speech-bubble').style.display = 'block';
     }
 
     function getRandomPhrase() {
@@ -332,8 +334,10 @@
       tick();
     }
 
-    startRandomEyeMovement();
-    startRandomSpeechBubbles();
+    if (isAprilFools) {
+      startRandomEyeMovement();
+      startRandomSpeechBubbles();
+    }
   </script>
 </body>
 
