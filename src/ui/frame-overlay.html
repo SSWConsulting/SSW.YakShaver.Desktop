@@ -25,6 +25,11 @@
       animation: pulse-frame 1.2s infinite;
     }
 
+    /* April Fools: Blue border */
+    .april-fools {
+      border-color: hsl(220, 80%, 60%) !important;
+    }
+
     @keyframes pulse-frame {
       0% {
         border-color: hsl(0, 60%, 20%);
@@ -47,6 +52,16 @@
 
 <body>
   <div id="frame"></div>
+  <img id="adam-cogan-img" src="/background/adam-cogan.png" alt="Adam Cogan"
+    style="position: fixed; bottom: 8px; right: 12px; width: 120px; height: auto; z-index: 10001; pointer-events: none; display: none;" />
+  <script>
+
+    const today = new Date();
+    if (today.getMonth() === 3 - 1 && today.getDate() === 1 || true) {
+      document.getElementById('frame').classList.add('april-fools');
+      document.getElementById('adam-cogan-img').style.display = 'block';
+    }
+  </script>
 </body>
 
 </html>
