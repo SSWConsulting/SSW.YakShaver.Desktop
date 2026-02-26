@@ -197,8 +197,8 @@ const createWindow = (): void => {
 
       // Ensure screen frame overlay is closed
       try {
-        const screenFrame = require("./services/recording/screen-frame-window");
-        screenFrame.ScreenFrameWindow.getInstance().hide();
+
+        ScreenFrameWindow.getInstance().hide();
       } catch (err) {
         console.error("ScreenFrameWindow cleanup error:", err);
       }
