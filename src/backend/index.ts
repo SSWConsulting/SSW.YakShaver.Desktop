@@ -197,7 +197,6 @@ const createWindow = (): void => {
 
       // Ensure screen frame overlay is closed
       try {
-
         ScreenFrameWindow.getInstance().hide();
       } catch (err) {
         console.error("ScreenFrameWindow cleanup error:", err);
