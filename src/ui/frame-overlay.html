@@ -85,6 +85,56 @@
       z-index: 10003;
       pointer-events: none;
       display: none;
+      opacity: 0;
+      transform: translateY(8px) scale(0.95);
+      transform-origin: 90% 100%;
+      will-change: opacity, transform, filter;
+    }
+
+    .speech-bubble.speech-in {
+      animation: speech-fade-in 260ms ease-out forwards;
+    }
+
+    .speech-bubble.speech-out {
+      animation: speech-explode-out 320ms cubic-bezier(0.55, 0.055, 0.675, 0.19) forwards;
+    }
+
+    @keyframes speech-fade-in {
+      0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.95);
+      }
+
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes speech-explode-out {
+      0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+      }
+
+      35% {
+        opacity: 1;
+        transform: translateY(-2px) scale(1.06);
+        filter: blur(0.4px);
+      }
+
+      65% {
+        opacity: 1;
+        transform: translateY(-9px) scale(1.28);
+        filter: blur(1.4px);
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateY(-28px) scale(2.35);
+        filter: blur(8px);
+      }
     }
 
     .speech-bubble::after {
@@ -196,6 +246,8 @@
         return;
       }
 
+      const exitAnimationDurationMs = 320;
+
       const showBubble = () => {
         const phrase = getRandomPhrase();
         if (!phrase) {
@@ -206,13 +258,22 @@
 
         bubble.textContent = phrase;
         bubble.style.display = 'block';
+        bubble.classList.remove('speech-out');
+        void bubble.offsetWidth;
+        bubble.classList.add('speech-in');
 
         const visibleFor = 2500 + Math.floor(Math.random() * 1600);
         window.setTimeout(() => {
-          bubble.style.display = 'none';
+          bubble.classList.remove('speech-in');
+          bubble.classList.add('speech-out');
 
-          const nextShowIn = 1800 + Math.floor(Math.random() * 4200);
-          window.setTimeout(showBubble, nextShowIn);
+          window.setTimeout(() => {
+            bubble.style.display = 'none';
+            bubble.classList.remove('speech-out');
+
+            const nextShowIn = 1800 + Math.floor(Math.random() * 4200);
+            window.setTimeout(showBubble, nextShowIn);
+          }, exitAnimationDurationMs);
         }, visibleFor);
       };
 
