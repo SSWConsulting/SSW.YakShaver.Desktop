@@ -1,4 +1,4 @@
-import { type Mock, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, type Mock, vi } from "vitest";
 import { formatAndReportError, formatErrorMessage } from "./error-utils";
 
 vi.mock("../services/telemetry/telemetry-service", () => {

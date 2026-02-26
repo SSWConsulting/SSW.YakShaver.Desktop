@@ -5,8 +5,8 @@ import type { MCPStep } from "../../../shared/types/mcp";
 import { getDurationParts } from "../../utils/duration-utils";
 import { formatAndReportError } from "../../utils/error-utils";
 import type { VideoUploadResult } from "../auth/types";
-import { UserInteractionService } from "../user-interaction/user-interaction-service";
 import { TelemetryService } from "../telemetry/telemetry-service";
+import { UserInteractionService } from "../user-interaction/user-interaction-service";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 

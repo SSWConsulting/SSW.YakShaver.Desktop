@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Screen Frame Overlay</title>
+  <style>
+    /* Googly eyes styles */
+    .googly-eyes-container {
+      position: fixed;
+      bottom: 36px;
+      right: 35px;
+      width: 80px;
+      height: 40px;
+      z-index: 10002;
+      gap: 2px;
+      pointer-events: none;
+      display: none;
+    }
+
+    .eye {
+      width: 24px;
+      height: 18px;
+      background: #fff;
+      border-radius: 50%;
+      border: 2px solid #222;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .pupil {
+      width: 12px;
+      height: 12px;
+      background: #222;
+      border-radius: 50%;
+      position: absolute;
+      top: 6px;
+      left: 2px;
+      transition: top 0.18s linear, left 0.18s linear;
+    }
+
+    .eyelid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #f3a260;
+      border-radius: 50%;
+      z-index: 2;
+      animation: blink 4s infinite;
+      opacity: 0;
+    }
+
+    @keyframes blink {
+
+      0%,
+      90%,
+      100% {
+        opacity: 0;
+      }
+
+      92%,
+      98% {
+        opacity: 1;
+      }
+    }
+
+    .speech-bubble {
+      position: fixed;
+      right: 90px;
+      bottom: 120px;
+      max-width: 220px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 2px solid #222;
+      background: #ffffff;
+      color: #222;
+      font-family: Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.2;
+      z-index: 10003;
+      pointer-events: none;
+      display: none;
+      opacity: 0;
+      transform: translateY(8px) scale(0.95);
+      transform-origin: 90% 100%;
+      will-change: opacity, transform, filter;
+    }
+
+    .speech-bubble.speech-in {
+      animation: speech-fade-in 260ms ease-out forwards;
+    }
+
+    .speech-bubble.speech-out {
+      animation: speech-explode-out 320ms cubic-bezier(0.55, 0.055, 0.675, 0.19) forwards;
+    }
+
+    @keyframes speech-fade-in {
+      0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.95);
+      }
+
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes speech-explode-out {
+      0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+      }
+
+      35% {
+        opacity: 1;
+        transform: translateY(-2px) scale(1.06);
+        filter: blur(0.4px);
+      }
+
+      65% {
+        opacity: 1;
+        transform: translateY(-9px) scale(1.28);
+        filter: blur(1.4px);
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateY(-28px) scale(2.35);
+        filter: blur(8px);
+      }
+    }
+
+    .speech-bubble::after {
+      content: "";
+      position: absolute;
+      right: 18px;
+      bottom: -10px;
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 10px solid #ffffff;
+    }
+
+    .speech-bubble::before {
+      content: "";
+      position: absolute;
+      right: 16px;
+      bottom: -14px;
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-top: 12px solid #222;
+      z-index: -1;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #frame {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      border: 8px solid hsl(0, 60%, 50%);
+      box-sizing: border-box;
+      /* animation: pulse-frame 1.2s infinite; */
+    }
+
+
+
+    @keyframes pulse-frame {
+      0% {
+        border-color: hsl(0, 60%, 20%);
+        /* SSW Red */
+        box-shadow: 0 0 0 0 hsla(0, 60%, 50%, 0.5);
+      }
+
+      50% {
+        border-color: hsl(0, 80%, 70%);
+        box-shadow: 0 0 24px 8px hsla(0, 60%, 50%, 0.35);
+      }
+
+      100% {
+        border-color: hsl(0, 60%, 20%);
+        box-shadow: 0 0 0 0 hsla(0, 60%, 50%, 0.5);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="frame"></div>
+  <div id="googly-eyes" class="googly-eyes-container">
+    <div class="eye left">
+      <div class="pupil"></div>
+      <div class="eyelid"></div>
+    </div>
+    <div class="eye right">
+      <div class="pupil"></div>
+      <div class="eyelid"></div>
+    </div>
+  </div>
+  <img id="adam-cogan-img" src="/background/adam-cogan.png" alt="Adam Cogan"
+    style="position: fixed; bottom: 8px; right: 12px; width: 120px; height: auto; z-index: 10001; pointer-events: none; display: none; transform: scaleX(-1); transform-origin: center;" />
+  <div id="speech-bubble" class="speech-bubble"></div>
+  <script>
+    const speechPhrases = [
+      "Did you know we have a rule on that?",
+      "Mmmmmm... Ice Cream 🤤! Don't tell Anastasia. 😉",
+      "Can you make a v2?",
+      "Steven, are you working on the leaderboard?",
+      "Hey! I'm watching you! 👀",
+      "What are you working on?",
+      "April Fools! 😜",
+      "Tom I is the best! 👑",
+      "The YakShaver Team gets a payrise! 🤑",
+      "It's Tom I's birthday today! 🎉",
+      "Remember to take breaks! 🧘‍♂️",
+      "My favourite colour is blue! 💙",
+      "YakShaver is the best screen recording software! 🚀",
+      "What we need is a Dev with a good design eye. 🎨",
+    ];
+
+    const today = new Date();
+    if (today.getMonth() === 3 && today.getDate() === 1) {
+      document.getElementById('frame').style.borderColor = 'hsl(220, 80%, 60%)';
+      document.getElementById('adam-cogan-img').style.display = 'block';
+      document.getElementById('googly-eyes').style.display = 'flex';
+    }
+
+    function getRandomPhrase() {
+      if (speechPhrases.length === 0) {
+        return '';
+      }
+
+      const index = Math.floor(Math.random() * speechPhrases.length);
+      return speechPhrases[index];
+    }
+
+    function startRandomSpeechBubbles() {
+      const bubble = document.getElementById('speech-bubble');
+      if (!bubble) {
+        return;
+      }
+
+      const exitAnimationDurationMs = 320;
+
+      const showBubble = () => {
+        const phrase = getRandomPhrase();
+        if (!phrase) {
+          const nextShowIn = 1800 + Math.floor(Math.random() * 4200);
+          window.setTimeout(showBubble, nextShowIn);
+          return;
+        }
+
+        bubble.textContent = phrase;
+        bubble.style.display = 'block';
+        bubble.classList.remove('speech-out');
+        void bubble.offsetWidth;
+        bubble.classList.add('speech-in');
+
+        const visibleFor = 2500 + Math.floor(Math.random() * 1600);
+        window.setTimeout(() => {
+          bubble.classList.remove('speech-in');
+          bubble.classList.add('speech-out');
+
+          window.setTimeout(() => {
+            bubble.style.display = 'none';
+            bubble.classList.remove('speech-out');
+
+            const nextShowIn = 1800 + Math.floor(Math.random() * 4200);
+            window.setTimeout(showBubble, nextShowIn);
+          }, exitAnimationDurationMs);
+        }, visibleFor);
+      };
+
+      const firstShowIn = 600 + Math.floor(Math.random() * 1800);
+      window.setTimeout(showBubble, firstShowIn);
+    }
+
+    function startRandomEyeMovement() {
+      const eyes = Array.from(document.querySelectorAll('.eye'));
+
+      const tick = () => {
+        const referenceEye = eyes[0];
+        if (!referenceEye) {
+          return;
+        }
+
+        const referencePupil = referenceEye.querySelector('.pupil');
+        if (!referencePupil) {
+          return;
+        }
+
+        const maxLeft = Math.max(0, referenceEye.clientWidth - referencePupil.clientWidth - 2);
+        const maxTop = Math.max(0, referenceEye.clientHeight - referencePupil.clientHeight - 2);
+
+        const randomLeft = Math.floor(Math.random() * (maxLeft + 1));
+        const randomTop = Math.floor(Math.random() * (maxTop + 1));
+
+        eyes.forEach((eye) => {
+          const pupil = eye.querySelector('.pupil');
+          if (!pupil) {
+            return;
+          }
+
+          pupil.style.left = `${randomLeft}px`;
+          pupil.style.top = `${randomTop}px`;
+        });
+
+        const shouldPause = Math.random() < 0.35;
+        const nextDelay = shouldPause
+          ? 900 + Math.floor(Math.random() * 1500)
+          : 120 + Math.floor(Math.random() * 280);
+        window.setTimeout(tick, nextDelay);
+      };
+
+      tick();
+    }
+
+    startRandomEyeMovement();
+    startRandomSpeechBubbles();
+  </script>
+</body>
+
+</html>

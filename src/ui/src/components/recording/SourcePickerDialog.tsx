@@ -172,12 +172,26 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   }, [open, selectedCameraId, devicesReady, stopCameraPreviewStream]);
 
   const screens = useMemo(() => sources.filter((s) => s.type === "screen"), [sources]);
-  // const windows = useMemo(() => sources.filter((s) => s.type === "window"), [sources]);
   const canConfirm =
     selectedSourceId === CAMERA_ONLY_SOURCE_ID
       ? Boolean(selectedCameraId)
       : sources.some((source) => source.id === selectedSourceId);
 
+  useEffect(() => {
+    const highlightSource = async (id: string | null) => {
+      await window.electronAPI.screenRecording.highlightSourceSelection(id);
+    };
+    void highlightSource(selectedSourceId);
+    return () => {
+      highlightSource(null);
+    };
+  }, [selectedSourceId]);
+
+  const handleCancel = async () => {
+    onOpenChange(false);
+    setSelectedSourceId(null);
+    await window.electronAPI.screenRecording.highlightSourceSelection("close");
+  };
   const handleConfirm = async () => {
     if (!selectedSourceId) return;
     if (selectedSourceId === CAMERA_ONLY_SOURCE_ID) {
@@ -192,6 +206,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
     if (selectedSource && !selectedSource.isMainWindow) {
       await window.electronAPI.screenRecording.minimizeMainWindow();
     }
+
     onSelect(selectedSourceId, {
       cameraId: selectedCameraId,
       microphoneId: selectedMicrophoneId,
@@ -333,7 +348,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           )}
         </div>
         <div className="flex justify-end gap-2 border-t border-border pt-3">
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="secondary" onClick={handleCancel}>
             Cancel
           </Button>
           <Button type="button" onClick={handleConfirm} disabled={!canConfirm}>

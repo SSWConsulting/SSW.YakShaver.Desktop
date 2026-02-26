@@ -20,8 +20,8 @@ import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { ShaveIPCHandlers } from "./ipc/shave-handlers";
-import { registerUserInteractionHandlers } from "./ipc/user-interaction-handlers";
 import { TelemetryIPCHandlers } from "./ipc/telemetry-handlers";
+import { registerUserInteractionHandlers } from "./ipc/user-interaction-handlers";
 import { UserSettingsIPCHandlers } from "./ipc/user-settings-handlers";
 import { handleProtocolUrl } from "./protocol/protocol-router";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
@@ -32,6 +32,7 @@ import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
 import { TelemetryService } from "./services/telemetry/telemetry-service";
 import { TrayManager } from "./services/tray/tray-manager";
@@ -193,6 +194,14 @@ const createWindow = (): void => {
     if (!isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
+
+      // Ensure screen frame overlay is closed
+      try {
+        ScreenFrameWindow.getInstance().hide();
+      } catch (err) {
+        console.error("ScreenFrameWindow cleanup error:", err);
+      }
+
       return false;
     }
   });
@@ -400,6 +409,7 @@ app.whenReady().then(async () => {
   RecordingControlBarWindow.getInstance().initialize(isDev);
   CameraWindow.getInstance().initialize(isDev);
   CountdownWindow.getInstance().initialize(isDev);
+  ScreenFrameWindow.getInstance().initialize(isDev);
   unregisterEventForwarders = registerEventForwarders();
 
   // Create application menu

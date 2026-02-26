@@ -34,6 +34,7 @@ export class RecordingService extends EventEmitter {
       });
       if (!sources.length) return { success: false, error: "No screen sources available" };
 
+      // BUG: it seems like it will always end up with source[0] which is the primary screen which causes the countdown not to have the right size
       const selected =
         sources.find((s) => s.id === sourceId) || sources.find((s) => s.display_id) || sources[0];
 
