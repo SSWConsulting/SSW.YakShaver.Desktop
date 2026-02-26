@@ -222,10 +222,21 @@
     style="position: fixed; bottom: 8px; right: 12px; width: 120px; height: auto; z-index: 10001; pointer-events: none; display: none; transform: scaleX(-1); transform-origin: center;" />
   <div id="speech-bubble" class="speech-bubble"></div>
   <script>
+    const speechPhrases = [
+      "Did you know we have a rule on that?",
+      "Mmmmmm... Ice Cream 🤤! Don't tell Anna. 😉",
+      "Can you make a v2?",
+      "Steven, are you working on the leaderboard?",
+      "Hey! I'm watching you! 👀",
+      "What are you working on?",
+      "April Fools! 😜",
+      "Tom I is the best! 👑",
+      "The YakShaver Team get's a payrise! 🤑",
+      "It's Tom I's birthday today! 🎉",
+    ];
 
     const today = new Date();
-    const speechPhrases = ["Did you know we have a rule on that?", "Can you make a v2", "Steven, are you working on the leaderboard?", "👀 Hey! I'm watching you!", "What are you working on?", " 😜 April Fools!", "👑 Tom I is the best!", "🤑 The YakShaver Team get's a payrise!"];
-    if (today.getMonth() === 3 - 1 && today.getDate() === 1 || true) {
+    if (today.getMonth() === 3 - 1 && today.getDate() === 1) {
       document.getElementById('frame').classList.add('april-fools');
       document.getElementById('adam-cogan-img').style.display = 'block';
       document.getElementById('googly-eyes').style.display = 'flex';
