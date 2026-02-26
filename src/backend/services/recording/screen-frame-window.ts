@@ -19,6 +19,10 @@ export class ScreenFrameWindow {
     if (this.window) {
       this.window.destroy();
     }
+    if (displayId === "close") {
+      this.hide();
+      return;
+    }
 
     const sources = await desktopCapturer.getSources({
       types: ["screen", "window"],
@@ -27,7 +31,7 @@ export class ScreenFrameWindow {
     const selected =
       sources.find((s) => s.id === displayId) || sources.find((s) => s.display_id) || sources[0];
 
-    const { x, y, width, height, } = this.getDisplayBounds(selected.display_id);
+    const { x, y, width, height } = this.getDisplayBounds(selected.display_id);
     const url = this.isDev
       ? "http://localhost:3000/frame-overlay.html"
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/frame-overlay.html");

@@ -172,7 +172,6 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   }, [open, selectedCameraId, devicesReady, stopCameraPreviewStream]);
 
   const screens = useMemo(() => sources.filter((s) => s.type === "screen"), [sources]);
-  // const windows = useMemo(() => sources.filter((s) => s.type === "window"), [sources]);
   const canConfirm =
     selectedSourceId === CAMERA_ONLY_SOURCE_ID
       ? Boolean(selectedCameraId)
@@ -191,6 +190,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
   const handleCancel = async () => {
     onOpenChange(false);
     setSelectedSourceId(null);
+    await window.electronAPI.screenRecording.highlightSourceSelection("close");
   };
   const handleConfirm = async () => {
     if (!selectedSourceId) return;
