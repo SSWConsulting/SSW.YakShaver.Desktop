@@ -46,7 +46,7 @@ export class ScreenFrameWindow {
       skipTaskbar: true,
       resizable: false,
       show: false,
-      // NOTE: on windows it behaves correct but on MacOS it will create a new space/screen which is undesired
+      // NOTE: on windows it behaves correctly but on MacOS it will create a new space/screen which is undesired
       fullscreen: false,
       alwaysOnTop: true,
       webPreferences: {
