@@ -10,7 +10,7 @@
     .googly-eyes-container {
       position: fixed;
       bottom: 36px;
-      right: 7px;
+      right: 35px;
       width: 80px;
       height: 40px;
       z-index: 10002;
@@ -71,8 +71,8 @@
 
     .speech-bubble {
       position: fixed;
-      right: 110px;
-      bottom: 125px;
+      right: 90px;
+      bottom: 120px;
       max-width: 220px;
       padding: 8px 12px;
       border-radius: 12px;
@@ -169,7 +169,7 @@
     </div>
   </div>
   <img id="adam-cogan-img" src="/background/adam-cogan.png" alt="Adam Cogan"
-    style="position: fixed; bottom: 8px; right: 12px; width: 120px; height: auto; z-index: 10001; pointer-events: none; display: none;" />
+    style="position: fixed; bottom: 8px; right: 12px; width: 120px; height: auto; z-index: 10001; pointer-events: none; display: none; transform: scaleX(-1); transform-origin: center;" />
   <div id="speech-bubble" class="speech-bubble"></div>
   <script>
 
@@ -199,19 +199,21 @@
       const showBubble = () => {
         const phrase = getRandomPhrase();
         if (!phrase) {
+          const nextShowIn = 1800 + Math.floor(Math.random() * 4200);
+          window.setTimeout(showBubble, nextShowIn);
           return;
         }
 
         bubble.textContent = phrase;
         bubble.style.display = 'block';
 
-        const visibleFor = 2000 + Math.floor(Math.random() * 1600);
+        const visibleFor = 2500 + Math.floor(Math.random() * 1600);
         window.setTimeout(() => {
           bubble.style.display = 'none';
-        }, visibleFor);
 
-        const nextShowIn = 1800 + Math.floor(Math.random() * 4200);
-        window.setTimeout(showBubble, nextShowIn);
+          const nextShowIn = 1800 + Math.floor(Math.random() * 4200);
+          window.setTimeout(showBubble, nextShowIn);
+        }, visibleFor);
       };
 
       const firstShowIn = 600 + Math.floor(Math.random() * 1800);
@@ -259,6 +261,7 @@
     }
 
     startRandomEyeMovement();
+    startRandomSpeechBubbles();
   </script>
 </body>
 
