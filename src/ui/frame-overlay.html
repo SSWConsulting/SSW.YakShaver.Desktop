@@ -39,7 +39,7 @@
       position: absolute;
       top: 6px;
       left: 2px;
-      transition: all 0.2s;
+      transition: top 0.18s linear, left 0.18s linear;
     }
 
     .eyelid {
@@ -53,10 +53,6 @@
       z-index: 2;
       animation: blink 4s infinite;
       opacity: 0;
-    }
-
-    .eye.right .eyelid {
-      animation-delay: 2s;
     }
 
     @keyframes blink {
@@ -139,6 +135,48 @@
       document.getElementById('adam-cogan-img').style.display = 'block';
       document.getElementById('googly-eyes').style.display = 'flex';
     }
+
+    function startRandomEyeMovement() {
+      const eyes = Array.from(document.querySelectorAll('.eye'));
+
+      const tick = () => {
+        const referenceEye = eyes[0];
+        if (!referenceEye) {
+          return;
+        }
+
+        const referencePupil = referenceEye.querySelector('.pupil');
+        if (!referencePupil) {
+          return;
+        }
+
+        const maxLeft = Math.max(0, referenceEye.clientWidth - referencePupil.clientWidth - 2);
+        const maxTop = Math.max(0, referenceEye.clientHeight - referencePupil.clientHeight - 2);
+
+        const randomLeft = Math.floor(Math.random() * (maxLeft + 1));
+        const randomTop = Math.floor(Math.random() * (maxTop + 1));
+
+        eyes.forEach((eye) => {
+          const pupil = eye.querySelector('.pupil');
+          if (!pupil) {
+            return;
+          }
+
+          pupil.style.left = `${randomLeft}px`;
+          pupil.style.top = `${randomTop}px`;
+        });
+
+        const shouldPause = Math.random() < 0.35;
+        const nextDelay = shouldPause
+          ? 900 + Math.floor(Math.random() * 1500)
+          : 120 + Math.floor(Math.random() * 280);
+        window.setTimeout(tick, nextDelay);
+      };
+
+      tick();
+    }
+
+    startRandomEyeMovement();
   </script>
 </body>
 
