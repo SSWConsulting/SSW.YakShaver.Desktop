@@ -13,6 +13,7 @@ import { LanguageModelKeyManager } from "./llm/LanguageModelKeyManager";
 import { TranscriptionModelKeyManager } from "./llm/TranscriptionModelKeyManager";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelManager";
+import { TelemetrySettingsPanel } from "./telemetry/TelemetrySettingsPanel";
 import { ToolApprovalSettingsPanel } from "./tool-approval/ToolApprovalSettingsPanel";
 import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
 
@@ -63,6 +64,10 @@ const TABS: SettingsTab[] = [
   {
     id: "videoHost",
     label: "Video Host",
+  },
+  {
+    id: "telemetry",
+    label: "Telemetry",
   },
   {
     id: "advanced",
@@ -213,6 +218,7 @@ export function SettingsDialog() {
                 {activeTab?.id === "videoHost" && (
                   <VideoHostSettingsPanel isActive={open && activeTabId === "videoHost"} />
                 )}
+                {activeTab?.id === "telemetry" && <TelemetrySettingsPanel />}
                 {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
                 {activeTab?.id === "account" && (
                   <AccountSettingsPanel isActive={open && activeTabId === "account"} />

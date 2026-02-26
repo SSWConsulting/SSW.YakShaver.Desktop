@@ -7,6 +7,7 @@ import { CountdownWindow } from "../services/recording/countdown-window";
 import { RecordingService } from "../services/recording/recording-service";
 import { ScreenFrameWindow } from "../services/recording/screen-frame-window";
 import { formatErrorMessage } from "../utils/error-utils";
+import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class ScreenRecordingIPCHandlers {
@@ -42,7 +43,7 @@ export class ScreenRecordingIPCHandlers {
           const hasAudio = await this.ffmpegService.hasAudibleAudio(filePath);
           return { success: true, hasAudio };
         } catch (error) {
-          return { success: false, error: formatErrorMessage(error) };
+          return { success: false, error: formatAndReportError(error, "check_video_audio") };
         }
       },
     };

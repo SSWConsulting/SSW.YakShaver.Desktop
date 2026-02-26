@@ -21,6 +21,7 @@ import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { ShaveIPCHandlers } from "./ipc/shave-handlers";
 import { registerUserInteractionHandlers } from "./ipc/user-interaction-handlers";
+import { TelemetryIPCHandlers } from "./ipc/telemetry-handlers";
 import { UserSettingsIPCHandlers } from "./ipc/user-settings-handlers";
 import { handleProtocolUrl } from "./protocol/protocol-router";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
@@ -33,6 +34,7 @@ import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
 import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
+import { TelemetryService } from "./services/telemetry/telemetry-service";
 import { TrayManager } from "./services/tray/tray-manager";
 import { getIconPath } from "./utils/path-utils";
 
@@ -262,6 +264,7 @@ let _githubTokenHandlers: GitHubTokenIPCHandlers;
 let _userSettingsHandlers: UserSettingsIPCHandlers;
 let _shaveHandlers: ShaveIPCHandlers;
 let _appControlHandlers: AppControlIPCHandlers;
+let _telemetryHandlers: TelemetryIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 // Register protocol handler
@@ -397,6 +400,11 @@ app.whenReady().then(async () => {
   _shaveHandlers = new ShaveIPCHandlers();
 
   registerUserInteractionHandlers();
+  _telemetryHandlers = new TelemetryIPCHandlers();
+
+  // Initialize telemetry service (checks consent and sets up App Insights if granted)
+  const telemetryService = TelemetryService.getInstance();
+  await telemetryService.initializeAsync();
 
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);

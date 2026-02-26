@@ -114,4 +114,10 @@ export const IPC_CHANNELS = {
   // User Interaction (Generic)
   USER_INTERACTION_REQUEST: "user-interaction:request",
   USER_INTERACTION_RESPONSE: "user-interaction:response",
+
+  // Telemetry
+  TELEMETRY_GET_SETTINGS: "telemetry:get-settings",
+  TELEMETRY_UPDATE_SETTINGS: "telemetry:update-settings",
+  TELEMETRY_GET_CONSENT_STATUS: "telemetry:get-consent-status",
+  TELEMETRY_REQUEST_CONSENT: "telemetry:request-consent",
 } as const;

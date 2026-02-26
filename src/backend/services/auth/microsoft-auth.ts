@@ -3,7 +3,7 @@
 import { join } from "node:path";
 import { InteractionRequiredAuthError, LogLevel, PublicClientApplication } from "@azure/msal-node";
 import { app, shell } from "electron";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import { MsalSecureCachePlugin } from "./msal-cache-plugin";
 import type { AuthState } from "./types";
 import { AuthStatus } from "./types";
@@ -103,10 +103,16 @@ export class MicrosoftAuthService {
         if (e instanceof InteractionRequiredAuthError) {
           return { status: AuthStatus.NOT_AUTHENTICATED } as AuthState;
         }
-        return { status: AuthStatus.ERROR, error: formatErrorMessage(e) } as AuthState;
+        return {
+          status: AuthStatus.ERROR,
+          error: formatAndReportError(e, "microsoft_auth"),
+        } as AuthState;
       }
     } catch (error) {
-      return { status: AuthStatus.ERROR, error: formatErrorMessage(error) } as AuthState;
+      return {
+        status: AuthStatus.ERROR,
+        error: formatAndReportError(error, "microsoft_auth"),
+      } as AuthState;
     }
   }
 
@@ -128,7 +134,7 @@ export class MicrosoftAuthService {
       await MicrosoftAuthService.pca.getTokenCache().removeAccount(MicrosoftAuthService.account);
       MicrosoftAuthService.account = null;
     } catch (error) {
-      const errorMsg = formatErrorMessage(error);
+      const errorMsg = formatAndReportError(error, "microsoft_auth");
       console.error("Logout error:", errorMsg);
     }
   }
@@ -164,7 +170,7 @@ export class MicrosoftAuthService {
       MicrosoftAuthService.account = authResponse.account;
       return authResponse;
     } catch (error) {
-      console.error("Error getting token:", formatErrorMessage(error));
+      console.error("Error getting token:", formatAndReportError(error, "microsoft_auth"));
       throw error;
     }
   }
@@ -233,7 +239,10 @@ export class MicrosoftAuthService {
         await MicrosoftAuthService.pca.acquireTokenInteractive(interactiveRequest);
       return authResponse;
     } catch (error) {
-      console.error("Error getting token interactively:", formatErrorMessage(error));
+      console.error(
+        "Error getting token interactively:",
+        formatAndReportError(error, "microsoft_auth"),
+      );
       throw error;
     }
   }

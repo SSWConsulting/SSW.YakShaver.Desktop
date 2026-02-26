@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { app } from "electron";
 import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import { YoutubeStorage } from "../storage/youtube-storage";
 import type {
   AuthResult,
@@ -64,7 +64,7 @@ export class YouTubeClient {
       console.error("[YouTubeClient] Authentication failed:", error);
       return {
         success: false,
-        error: formatErrorMessage(error),
+        error: formatAndReportError(error, "youtube_upload"),
       };
     }
   }
@@ -187,7 +187,7 @@ export class YouTubeClient {
     } catch (error) {
       return {
         success: false,
-        error: formatErrorMessage(error),
+        error: formatAndReportError(error, "youtube_upload"),
       };
     }
   }
@@ -241,7 +241,7 @@ export class YouTubeClient {
     } catch (error) {
       return {
         success: false,
-        error: formatErrorMessage(error),
+        error: formatAndReportError(error, "youtube_upload"),
       };
     }
   }

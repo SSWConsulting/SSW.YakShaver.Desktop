@@ -3,8 +3,10 @@ import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMes
 import type { ZodType } from "zod";
 import type { MCPStep } from "../../../shared/types/mcp";
 import { getDurationParts } from "../../utils/duration-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import type { VideoUploadResult } from "../auth/types";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
+import { TelemetryService } from "../telemetry/telemetry-service";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 
@@ -210,11 +212,13 @@ You will be given a **Project Prompt** and a **user video transcription** follow
 
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
+        const telemetryService = TelemetryService.getInstance();
         for (const toolCall of llmResponse.toolCalls) {
           const toolWhiteList = new Set(
             (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
           );
           const isWhitelisted = toolWhiteList.has(toolCall.toolName);
+          const toolStartTime = Date.now();
 
           if (!isWhitelisted) {
             const requestId = randomUUID();
@@ -229,6 +233,17 @@ You will be given a **Project Prompt** and a **user video transcription** follow
               const denialMessage = decision.feedback?.trim()?.length
                 ? `User cancelled tool: ${decision.feedback.trim()}`
                 : "Tool execution cancelled by user";
+
+              // Track tool denial
+              telemetryService.trackEvent({
+                name: "MCPToolCall",
+                properties: {
+                  toolName: toolCall.toolName,
+                  status: "denied",
+                  serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                  denialReason: decision.feedback?.trim() || "user_cancelled",
+                },
+              });
 
               options.onStep?.({
                 type: "tool_denied",
@@ -245,6 +260,22 @@ You will be given a **Project Prompt** and a **user video transcription** follow
             }
 
             if (decision.kind === "request_changes") {
+              // Track tool change request
+              const durationMs = Date.now() - toolStartTime;
+              telemetryService.trackEvent({
+                name: "MCPToolCall",
+                properties: {
+                  toolName: toolCall.toolName,
+                  status: "change_requested",
+                  serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                  durationMs: durationMs.toString(),
+                  feedback: decision.feedback?.trim() || "no_feedback",
+                },
+                measurements: {
+                  duration: durationMs,
+                },
+              });
+
               let retryFeedback: { message: string; userVisibleMessage: string } | null = null;
               const formattedFeedback = decision.feedback.trim();
               const userVisibleMessage = formattedFeedback
@@ -305,6 +336,16 @@ You will be given a **Project Prompt** and a **user video transcription** follow
 
           if (toolToCall?.execute) {
             try {
+              // Track tool call start
+              telemetryService.trackEvent({
+                name: "MCPToolCall",
+                properties: {
+                  toolName: toolCall.toolName,
+                  status: "started",
+                  serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                },
+              });
+
               // Resolve any toolOutputRef parameters before executing the tool
               const resolvedInput = this.resolveToolOutputReferences(toolCall.input);
 
@@ -336,6 +377,21 @@ You will be given a **Project Prompt** and a **user video transcription** follow
                 result: toolOutput,
               });
 
+              // Track successful tool completion
+              const toolDuration = Date.now() - toolStartTime;
+              telemetryService.trackEvent({
+                name: "MCPToolCall",
+                properties: {
+                  toolName: toolCall.toolName,
+                  status: "completed",
+                  serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                  durationMs: toolDuration.toString(),
+                },
+                measurements: {
+                  duration: toolDuration,
+                },
+              });
+
               // Construct tool result message with buffer reference for tool chaining
               const toolResultValue = `${rawOutputText}\n\n[Tool Output Reference: ${outputRefId}] - Use this ID to reference the raw output in subsequent tool calls.`;
 
@@ -360,6 +416,29 @@ You will be given a **Project Prompt** and a **user video transcription** follow
                 `[MCPOrchestrator] TOOL ERROR: ${toolCall.toolName} (${toolCall.toolCallId})`,
                 toolError,
               );
+
+              // Track tool failure
+              const toolDuration = Date.now() - toolStartTime;
+              const errorMessage = formatAndReportError(toolError, "mcp_tool_execution", {
+                toolName: toolCall.toolName,
+                serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                durationMs: toolDuration,
+              });
+
+              telemetryService.trackEvent({
+                name: "MCPToolCall",
+                properties: {
+                  toolName: toolCall.toolName,
+                  status: "failed",
+                  serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                  durationMs: toolDuration.toString(),
+                  error: errorMessage,
+                },
+                measurements: {
+                  duration: toolDuration,
+                },
+              });
+
               throw toolError;
             }
           } else {
