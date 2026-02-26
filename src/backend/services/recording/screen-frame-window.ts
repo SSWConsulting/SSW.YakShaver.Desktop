@@ -71,7 +71,7 @@ export class ScreenFrameWindow {
     this.window.setAlwaysOnTop(true, "screen-saver");
     this.window.setIgnoreMouseEvents(true);
 
-    this.isDev ? this.window.loadURL(url) : this.window.loadFile(url);
+    this.isDev ? await this.window.loadURL(url) : await this.window.loadFile(url);
 
     this.window.showInactive();
   }
