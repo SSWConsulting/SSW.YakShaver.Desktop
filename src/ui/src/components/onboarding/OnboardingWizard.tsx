@@ -38,7 +38,7 @@ const STEPS = [
     id: 1,
     icon: monitorPlay,
     title: "Video Hosting",
-    description: "Sign in and Authorise YakShaver to publish videos for you.",
+    description: "Authorise YakShaver to publish videos for you.",
   },
   {
     id: 2,
@@ -56,7 +56,31 @@ const STEPS = [
     id: 4,
     icon: monitorPlay,
     title: "Connecting an MCP",
-    description: "Choose or configure which MCP server YakShaver will call.",
+    description: "Configure or Choose which MCP server YakShaver will call.",
+  },
+];
+
+const SIDEBAR_STEPS = [
+  {
+    id: 1,
+    icon: monitorPlay,
+    title: "Video Hosting",
+    description: "Authorise YakShaver to publish videos for you.",
+    navSteps: [1],
+  },
+  {
+    id: 2,
+    icon: cpu,
+    title: "Connecting an LLM",
+    description: "Choose your provider and save the API details",
+    navSteps: [2, 3],
+  },
+  {
+    id: 3,
+    icon: monitorPlay,
+    title: "Connecting an MCP",
+    description: "Configure or Choose which MCP server YakShaver will call.",
+    navSteps: [4],
   },
 ];
 
@@ -380,9 +404,10 @@ export function OnboardingWizard({
     }
   };
 
-  const getStepStatus = (step: number) => {
-    if (step < currentStep) return "completed";
-    if (step === currentStep) return "current";
+  const getSidebarStepStatus = (sidebarStep: (typeof SIDEBAR_STEPS)[number]) => {
+    const navSteps = sidebarStep.navSteps;
+    if (navSteps.some((s) => s === currentStep)) return "current";
+    if (navSteps.every((s) => s < currentStep)) return "completed";
     return "pending";
   };
 
@@ -395,7 +420,7 @@ export function OnboardingWizard({
   if (!isVisible) return null;
 
   const rightPanelContent = (
-    <div className={`flex flex-col w-full`}>
+    <div className="flex flex-col w-full max-w-[599px]">
       {/* Step indicator */}
       <div className="px-6">
         <p className="text-sm font-medium leading-6 text-white">
@@ -503,27 +528,28 @@ export function OnboardingWizard({
       <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
 
       <div className="relative flex w-full max-w-[1295px] h-[840px] bg-black/[0.44] border border-white/[0.24] rounded-lg shadow-sm p-2.5 gap-10">
-        <div className="hidden md:flex flex-col md:w-[360px] lg:w-[440px] xl:w-[480px] h-full bg-[#1C0D05] rounded-md px-5 py-10">
-          {/* Logo */}
-          <div className="w-full">
-            <div className="flex items-center ml-10">
+        <div className="hidden md:flex flex-col items-center md:w-[360px] lg:w-[440px] xl:w-[480px] h-full bg-[#1C0D05] rounded-md px-5 pt-[150px] pb-[150px]">
+          <div className="w-[300px]">
+            {/* Logo */}
+            <div className="flex items-center mb-3">
               <img src={logo} alt="YakShaver" className="w-18 h-auto pr-2.5" />
               <span className="text-3xl font-bold text-ssw-red">Yak</span>
               <span className="text-3xl">Shaver</span>
             </div>
-          </div>
+            <p className="text-base font-normal leading-5 text-white/[0.76] pb-6">
+              Get started by setting up your workspace.
+            </p>
 
-          <div className="flex mt-25 justify-center flex-1">
-            <div ref={stepListRef} className="relative flex gap-10 flex-col ">
+            <div ref={stepListRef} className="relative flex gap-10 flex-col">
               {connectorPositions.map((position, index) => {
-                const nextStep = STEPS[index + 1];
-                if (!nextStep) return null;
+                const nextSidebarStep = SIDEBAR_STEPS[index + 1];
+                if (!nextSidebarStep) return null;
 
-                const status = getStepStatus(nextStep.id);
+                const status = getSidebarStepStatus(nextSidebarStep);
 
                 return (
                   <div
-                    key={`connector-${nextStep.id}`}
+                    key={`connector-${nextSidebarStep.id}`}
                     className={`absolute w-px transition-colors duration-300 ${
                       status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
                     }`}
@@ -536,47 +562,49 @@ export function OnboardingWizard({
                 );
               })}
 
-              {STEPS.map((step, index) => (
-                <div key={step.id} className="flex gap-8">
-                  <div className="flex flex-col items-center">
-                    <div
-                      ref={(element) => {
-                        stepIconRefs.current[index] = element;
-                      }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                        getStepStatus(step.id) === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                      }`}
-                    >
-                      <img
-                        src={step.icon}
-                        alt={step.title}
-                        className={`w-6 h-6 transition-opacity duration-300 ${
-                          getStepStatus(step.id) === "pending" ? "opacity-40" : "opacity-100"
+              {SIDEBAR_STEPS.map((step, index) => {
+                const status = getSidebarStepStatus(step);
+                return (
+                  <div key={step.id} className="flex gap-8">
+                    <div className="flex flex-col items-center">
+                      <div
+                        ref={(element) => {
+                          stepIconRefs.current[index] = element;
+                        }}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
+                          status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
                         }`}
-                      />
+                      >
+                        <img
+                          src={step.icon}
+                          alt={step.title}
+                          className={`w-6 h-6 transition-opacity duration-300 ${
+                            status === "pending" ? "opacity-40" : "opacity-100"
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col justify-center w-[219px]">
+                      <p
+                        className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
+                          status === "pending" ? "text-white/[0.65]" : "text-white/[0.98]"
+                        }`}
+                      >
+                        {step.title}
+                      </p>
+                      <p className="text-sm font-normal leading-5 text-white/[0.55]">
+                        {step.description}
+                      </p>
                     </div>
                   </div>
-
-                  <div className="flex flex-col justify-center w-[219px]">
-                    <p
-                      className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                        getStepStatus(step.id) === "pending"
-                          ? "text-white/[0.56]"
-                          : "text-white/[0.98]"
-                      }`}
-                    >
-                      {step.title}
-                    </p>
-                    <p className="text-sm font-normal leading-5 text-white/[0.76]">
-                      {step.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
         <div className="flex flex-col flex-1 min-w-0 h-full">
+
           {currentStep === 4 ? (
             <ScrollArea className="w-full h-full">
               <div className="flex flex-col px-20 py-40">{rightPanelContent}</div>
