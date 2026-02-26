@@ -69,6 +69,49 @@
       }
     }
 
+    .speech-bubble {
+      position: fixed;
+      right: 110px;
+      bottom: 125px;
+      max-width: 220px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 2px solid #222;
+      background: #ffffff;
+      color: #222;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.2;
+      z-index: 10003;
+      pointer-events: none;
+      display: none;
+    }
+
+    .speech-bubble::after {
+      content: "";
+      position: absolute;
+      right: 18px;
+      bottom: -10px;
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 10px solid #ffffff;
+    }
+
+    .speech-bubble::before {
+      content: "";
+      position: absolute;
+      right: 16px;
+      bottom: -14px;
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-top: 12px solid #222;
+      z-index: -1;
+    }
+
     html,
     body {
       width: 100%;
@@ -127,13 +170,52 @@
   </div>
   <img id="adam-cogan-img" src="/background/adam-cogan.png" alt="Adam Cogan"
     style="position: fixed; bottom: 8px; right: 12px; width: 120px; height: auto; z-index: 10001; pointer-events: none; display: none;" />
+  <div id="speech-bubble" class="speech-bubble"></div>
   <script>
 
     const today = new Date();
+    const speechPhrases = ["Did you know we have a rule on that?", "Can you make a v2", "Steven, are you working on the leaderboard?", "👀 Hey! I'm watching you!", "What are you working on?", " 😜 April Fools!", "👑 Tom I is the best!", "🤑 The YakShaver Team get's a payrise!"];
     if (today.getMonth() === 3 - 1 && today.getDate() === 1 || true) {
       document.getElementById('frame').classList.add('april-fools');
       document.getElementById('adam-cogan-img').style.display = 'block';
       document.getElementById('googly-eyes').style.display = 'flex';
+    }
+
+    function getRandomPhrase() {
+      if (speechPhrases.length === 0) {
+        return '';
+      }
+
+      const index = Math.floor(Math.random() * speechPhrases.length);
+      return speechPhrases[index];
+    }
+
+    function startRandomSpeechBubbles() {
+      const bubble = document.getElementById('speech-bubble');
+      if (!bubble) {
+        return;
+      }
+
+      const showBubble = () => {
+        const phrase = getRandomPhrase();
+        if (!phrase) {
+          return;
+        }
+
+        bubble.textContent = phrase;
+        bubble.style.display = 'block';
+
+        const visibleFor = 2000 + Math.floor(Math.random() * 1600);
+        window.setTimeout(() => {
+          bubble.style.display = 'none';
+        }, visibleFor);
+
+        const nextShowIn = 1800 + Math.floor(Math.random() * 4200);
+        window.setTimeout(showBubble, nextShowIn);
+      };
+
+      const firstShowIn = 600 + Math.floor(Math.random() * 1800);
+      window.setTimeout(showBubble, firstShowIn);
     }
 
     function startRandomEyeMovement() {
