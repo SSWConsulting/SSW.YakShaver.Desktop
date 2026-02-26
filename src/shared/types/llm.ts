@@ -21,6 +21,8 @@ export interface AzureOpenAIConfig extends LLMConfigBase {
 
 export type ModelConfig = OpenAIConfig | AzureOpenAIConfig | DeepSeekConfig;
 
+export type ProviderApiKeys = Readonly<Partial<Record<ProviderName, string>>>;
+
 export type LLMConfigV1 = ModelConfig & {
   version?: 1;
 };
@@ -29,6 +31,8 @@ export interface LLMConfigV2 {
   version: 2;
   languageModel: ModelConfig | null;
   transcriptionModel: ModelConfig | null;
+  /** Persisted API keys per provider, enabling restoration when switching providers */
+  providerApiKeys?: ProviderApiKeys;
 }
 
 export type LLMConfig = LLMConfigV1 | LLMConfigV2;

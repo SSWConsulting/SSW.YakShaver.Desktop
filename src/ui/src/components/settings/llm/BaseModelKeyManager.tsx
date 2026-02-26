@@ -49,7 +49,7 @@ export function BaseModelKeyManager({
     try {
       const cfg = await ipcClient.llm.getConfig();
       const processCfg = cfg?.[modelType];
-      setHasConfig(!!cfg);
+      setHasConfig(!!processCfg);
       setCurrentLLMConfig(cfg);
       form.reset(
         processCfg ?? {
@@ -105,6 +105,10 @@ export function BaseModelKeyManager({
           version: 2,
           languageModel: currentLLMConfig?.languageModel ?? null,
           transcriptionModel: currentLLMConfig?.transcriptionModel ?? null,
+          providerApiKeys: {
+            ...currentLLMConfig?.providerApiKeys,
+            [values.provider]: values.apiKey,
+          },
           [modelType]: values,
         };
         await ipcClient.llm.setConfig(configToSave);
@@ -134,25 +138,60 @@ export function BaseModelKeyManager({
   const onClear = useCallback(async () => {
     setIsLoading(true);
     try {
-      await ipcClient.llm.setConfig({
-        ...(currentLLMConfig as LLMConfigV2),
+      // Fetch fresh config to avoid stale state
+      const freshConfig = await ipcClient.llm.getConfig();
+
+      // Only clear the provider currently shown in the form
+      const formProvider = form.getValues("provider") as ProviderName;
+      const updatedKeys = { ...freshConfig?.providerApiKeys };
+      const otherModelType = modelType === "languageModel" ? "transcriptionModel" : "languageModel";
+      const otherModelProvider = freshConfig?.[otherModelType]?.provider;
+      if (otherModelProvider !== formProvider) {
+        delete updatedKeys[formProvider];
+      }
+
+      const newConfig: LLMConfigV2 = {
+        ...(freshConfig as LLMConfigV2),
+        providerApiKeys: updatedKeys,
         [modelType]: null,
-      });
+      };
+      await ipcClient.llm.setConfig(newConfig);
+
+      // Stay on the same provider but clear the key
+      setCurrentLLMConfig(newConfig);
+      setHasConfig(false);
+      form.reset({
+        provider: formProvider,
+        apiKey: "",
+        ...(formProvider === "azure" ? { endpoint: "", version: "", deployment: "" } : {}),
+      } as ModelConfig);
 
       toast.success("LLM configuration cleared");
       setHealthStatus(null);
-      await refreshStatus();
     } catch (e) {
       toast.error(`Failed to clear configuration: ${formatErrorMessage(e)}`);
     } finally {
       setIsLoading(false);
     }
-  }, [refreshStatus, currentLLMConfig, modelType]);
+  }, [modelType, form]);
 
-  const handleProviderChange = (value: LLMProvider) => {
+  const handleProviderChange = async (value: LLMProvider) => {
+    // Clear health status for the new provider
+    setHealthStatus(null);
+
+    // Fetch fresh config to restore saved API key for this provider
+    let savedKey = "";
+    try {
+      const freshConfig = await ipcClient.llm.getConfig();
+      setCurrentLLMConfig(freshConfig);
+      savedKey = freshConfig?.providerApiKeys?.[value as ProviderName] ?? "";
+    } catch (_e) {
+      // fall through with empty key
+    }
+
     form.reset({
       provider: value,
-      apiKey: "",
+      apiKey: savedKey,
       ...(value === "azure" ? { endpoint: "", version: "", deployment: "" } : {}),
     } as ModelConfig);
   };

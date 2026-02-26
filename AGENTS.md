@@ -205,6 +205,7 @@ Prefer extending existing code over creating new files. Duplicated logic is hard
   ```typescript
   const PROVIDERS: readonly string[] = ["openai", "azure", "deepseek"];
   ```
+- **Use named domain type aliases for shared mapped types** instead of inline utility types in contracts (e.g., `ProviderApiKeys` over `Partial<Record<ProviderName, string>>`).
 - **Avoid type assertions (`as`)** - use type guards and narrowing. If you must assert, add a comment explaining why.
 - **Use `satisfies`** for type checking without widening:
   ```typescript
