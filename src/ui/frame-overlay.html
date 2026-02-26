@@ -14,7 +14,6 @@
       width: 80px;
       height: 40px;
       z-index: 10002;
-      display: flex;
       gap: 2px;
       pointer-events: none;
       display: none;
@@ -80,7 +79,7 @@
       background: #ffffff;
       color: #222;
       font-family: Arial, sans-serif;
-      font-size: 14px;
+      font-size: 16px;
       line-height: 1.2;
       z-index: 10003;
       pointer-events: none;
@@ -181,10 +180,7 @@
       /* animation: pulse-frame 1.2s infinite; */
     }
 
-    /* April Fools: Blue border */
-    .april-fools {
-      border-color: hsl(220, 80%, 60%) !important;
-    }
+
 
     @keyframes pulse-frame {
       0% {
@@ -240,7 +236,7 @@
 
     const today = new Date();
     if (today.getMonth() === 3 - 1 && today.getDate() === 1) {
-      document.getElementById('frame').classList.add('april-fools');
+      document.getElementById('frame').style.borderColor = 'hsl(220, 80%, 60%)';
       document.getElementById('adam-cogan-img').style.display = 'block';
       document.getElementById('googly-eyes').style.display = 'flex';
     }

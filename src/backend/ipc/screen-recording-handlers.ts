@@ -6,8 +6,7 @@ import { RecordingControlBarWindow } from "../services/recording/control-bar-win
 import { CountdownWindow } from "../services/recording/countdown-window";
 import { RecordingService } from "../services/recording/recording-service";
 import { ScreenFrameWindow } from "../services/recording/screen-frame-window";
-import { formatErrorMessage } from "../utils/error-utils";
-import { formatAndReportError } from "../utils/error-utils";
+import { formatAndReportError, formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class ScreenRecordingIPCHandlers {
