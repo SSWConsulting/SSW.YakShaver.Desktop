@@ -94,6 +94,7 @@ export class ScreenFrameWindow {
     //       would return the correct size but on a second screen it would return a smaller size
     //       and offset by the taskbar size which caused the frame to be in the wrong position
     //       and be cut off at the bottom. Might need some more testing on macOS
-    return display.bounds;
+
+    return process.platform === "darwin" ? display.workArea : display.bounds;
   }
 }
