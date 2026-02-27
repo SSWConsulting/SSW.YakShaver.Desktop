@@ -9,7 +9,7 @@ import { TelemetryService } from "../telemetry/telemetry-service";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
-import { orchestratorSystemPrompt } from "./prompt";
+import { orchestratorSystemPrompt } from "./prompts";
 
 /**
  * Tool Output Buffer for host-level tool chaining.
