@@ -141,13 +141,14 @@ export function BaseModelKeyManager({
       // Fetch fresh config to avoid stale state
       const freshConfig = await ipcClient.llm.getConfig();
 
-      // Only clear the provider currently shown in the form
+      // Clear the API key for the saved model's provider, not the current form selection
+      const savedProvider = freshConfig?.[modelType]?.provider as ProviderName | undefined;
       const formProvider = form.getValues("provider") as ProviderName;
       const updatedKeys = { ...freshConfig?.providerApiKeys };
       const otherModelType = modelType === "languageModel" ? "transcriptionModel" : "languageModel";
       const otherModelProvider = freshConfig?.[otherModelType]?.provider;
-      if (otherModelProvider !== formProvider) {
-        delete updatedKeys[formProvider];
+      if (savedProvider && otherModelProvider !== savedProvider) {
+        delete updatedKeys[savedProvider];
       }
 
       const newConfig: LLMConfigV2 = {

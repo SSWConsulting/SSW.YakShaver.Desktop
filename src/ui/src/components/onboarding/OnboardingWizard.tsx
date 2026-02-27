@@ -244,10 +244,21 @@ export function OnboardingWizard({
 
         // Load transcription model config
         const transCfg = enrichedCfg?.transcriptionModel;
-        setHasTranscriptionConfig(!!transCfg);
         if (transCfg) {
+          setHasTranscriptionConfig(true);
           transcriptionForm.reset(transCfg);
+        } else if (
+          langCfg &&
+          LLM_PROVIDER_CONFIGS[langCfg.provider]?.defaultTranscriptionModel !== undefined
+        ) {
+          // Language provider supports transcription, so transcription is implicitly ready
+          setHasTranscriptionConfig(true);
+          transcriptionForm.reset({
+            provider: langCfg.provider,
+            apiKey: langCfg.apiKey,
+          } as ModelConfig);
         } else {
+          setHasTranscriptionConfig(false);
           transcriptionForm.reset({ provider: "openai", apiKey: "" });
         }
       } catch (_error) {
@@ -325,8 +336,17 @@ export function OnboardingWizard({
     }
   };
 
-  const handleTranscriptionProviderChange = (value: ProviderName) => {
-    transcriptionForm.reset({ provider: value, apiKey: "" } as ModelConfig);
+  const handleTranscriptionProviderChange = async (value: ProviderName) => {
+    let freshConfig: LLMConfigV2 | null = null;
+    try {
+      freshConfig = await ipcClient.llm.getConfig();
+      setCurrentLLMConfig(freshConfig);
+    } catch (_e) {
+      // fall through with null
+    }
+
+    const savedKey = freshConfig?.providerApiKeys?.[value] ?? "";
+    transcriptionForm.reset({ provider: value, apiKey: savedKey } as ModelConfig);
     setHasTranscriptionConfig(false);
   };
 
@@ -417,11 +437,15 @@ export function OnboardingWizard({
         const timeoutId = setTimeout(async () => {
           try {
             const values = transcriptionForm.getValues();
+            const updatedProviderApiKeys = {
+              ...(currentLLMConfig?.providerApiKeys ?? {}),
+              [(values as ModelConfig).provider as ProviderName]: (values as ModelConfig).apiKey,
+            };
             const configToSave: LLMConfigV2 = {
               version: 2,
               languageModel: currentLLMConfig?.languageModel ?? null,
               transcriptionModel: values as ModelConfig,
-              providerApiKeys: currentLLMConfig?.providerApiKeys,
+              providerApiKeys: updatedProviderApiKeys,
             };
             await ipcClient.llm.setConfig(configToSave);
             setCurrentLLMConfig(configToSave);
@@ -556,7 +580,9 @@ export function OnboardingWizard({
               <div className="flex items-start gap-3 rounded-md border border-destructive/50 p-4">
                 <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
                 <div>
-                  <p className="text-sm font-medium text-destructive">Transcription Model Required</p>
+                  <p className="text-sm font-medium text-destructive">
+                    Transcription Model Required
+                  </p>
                   <p className="text-sm text-destructive/70">
                     {LLM_PROVIDER_CONFIGS[languageProvider]?.label} doesn&apos;t support video
                     transcription. Please add a model for transcription.
@@ -567,8 +593,8 @@ export function OnboardingWizard({
 
             {/* Transcription Model Section */}
             {!languageProviderSupportsTranscription && (
-              <div className="w-full rounded-lg border border-white/20 p-4">
-                <div className="flex items-center gap-2 mb-4">
+              <div className="flex w-full flex-col gap-4 rounded-lg border border-white/20 p-4">
+                <div className="flex items-center gap-2">
                   <Mic className="size-4 text-white/70" />
                   <p className="text-sm font-medium text-white">Transcription Model</p>
                 </div>
