@@ -12,6 +12,7 @@ import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
+import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
@@ -101,14 +102,8 @@ export class ProcessVideoIPCHandlers {
               intermediateOutput,
             );
 
-          // split the project details into metadata and prompt
-          let projectMetaData: string | undefined;
-          let desktopAgentProjectPrompt: string | undefined;
-          if (projectDetails) {
-            const { desktopAgentProjectPrompt: prompt, ...metaData } = projectDetails;
-            desktopAgentProjectPrompt = prompt;
-            projectMetaData = JSON.stringify(metaData);
-          }
+          const { desktopAgentProjectPrompt, projectMetaData } =
+            this.formatProjectDetails(projectDetails);
 
           workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
           workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
@@ -319,14 +314,8 @@ export class ProcessVideoIPCHandlers {
         transcriptText,
       );
 
-      // split the project details into metadata and prompt
-      let projectMetaData: string | undefined;
-      let desktopAgentProjectPrompt: string | undefined;
-      if (projectDetails) {
-        const { desktopAgentProjectPrompt: prompt, ...metaData } = projectDetails;
-        desktopAgentProjectPrompt = prompt;
-        projectMetaData = JSON.stringify(metaData);
-      }
+      const { desktopAgentProjectPrompt, projectMetaData } =
+        this.formatProjectDetails(projectDetails);
 
       workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
@@ -455,6 +444,23 @@ export class ProcessVideoIPCHandlers {
     const outputFilePath = tmp.tmpNameSync({ postfix: ".mp3" });
     const result = await this.ffmpegService.ConvertVideoToMp3(inputPath, outputFilePath);
     return result;
+  }
+
+  private formatProjectDetails(
+    projectDetails: (ProjectDto & { selectionReason: string }) | undefined | null,
+  ): {
+    desktopAgentProjectPrompt: string | undefined;
+    projectMetaData: string | undefined;
+  } {
+    if (!projectDetails) {
+      return { desktopAgentProjectPrompt: undefined, projectMetaData: undefined };
+    }
+
+    const { desktopAgentProjectPrompt, ...metaData } = projectDetails;
+    return {
+      desktopAgentProjectPrompt,
+      projectMetaData: JSON.stringify(metaData),
+    };
   }
 
   // TODO: Separate the Undo feature and Final Result Panel event triggers from this, and remove this event sender
