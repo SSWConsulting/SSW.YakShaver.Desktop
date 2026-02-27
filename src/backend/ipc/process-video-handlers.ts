@@ -319,24 +319,21 @@ export class ProcessVideoIPCHandlers {
         transcriptText,
       );
 
-      workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
-
-      workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
-
-      notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
-
-      const customPrompt = await this.customPromptStorage.getActivePrompt();
-      // const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
-
+      // split the project details into metadata and prompt
       let projectMetaData: string | undefined;
       let desktopAgentProjectPrompt: string | undefined;
-
       if (projectDetails) {
         const { desktopAgentProjectPrompt: prompt, ...metaData } = projectDetails;
         desktopAgentProjectPrompt = prompt;
         projectMetaData = JSON.stringify(metaData);
       }
 
+      workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
+      workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
+
+      notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
+
+      const customPrompt = await this.customPromptStorage.getActivePrompt();
       const serverFilter = customPrompt?.selectedMcpServerIds;
 
       const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
