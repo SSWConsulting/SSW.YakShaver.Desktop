@@ -6,7 +6,7 @@ You will be given project metadata and a video transcription and a list of tools
 1) From the Project Metadata and user's transcription, identify which platform the user wants to use (e.g. GitHub, Azure DevOps, Jira, etc.). If you cannot identify the platform, use the tools provided to find out.
 2) Identify the project or repository within the platform that the user wants to create the issue in. If you cannot identify the project, use the tools provided to find out.
 
-3) You MUST follow the target repository's issue templates exactly if there is, use the tools to check if there is template.
+3) If the target repository provides an issue template, you MUST follow it exactly. Use the available tools to check whether an issue template exists.
 
 4) When creating an issue:
 - If a video link is available, embed it at the very top of the issue body in the format of [▶️ Watch the video (duration)](videolink).
