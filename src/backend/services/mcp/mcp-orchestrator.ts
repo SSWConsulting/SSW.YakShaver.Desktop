@@ -124,10 +124,11 @@ export class MCPOrchestrator {
   }
 
   public async manualLoopAsync(
-    prompt: string,
+    videoTranscription: string,
     videoUploadResult?: VideoUploadResult,
     options: {
-      projectDetailPrompt?: string;
+      projectMetaData?: string;
+      desktopAgentProjectPrompt?: string;
       maxToolIterations?: number; // safety cap to avoid infinite loops
       videoFilePath?: string; // local video file path for screenshot capture
       serverFilter?: string[]; // if provided, only include tools from these server IDs
@@ -139,10 +140,7 @@ export class MCPOrchestrator {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
 
-    console.log(
-      "[MCPOrchestrator] Starting manual loop with projectDetailPrompt:",
-      options.projectDetailPrompt,
-    );
+    console.log("[MCPOrchestrator] Starting manual loop with prompt strings");
 
     // Ensure MCP server manager is initialized
     const serverManager = MCPOrchestrator.mcpServerManager;
@@ -153,17 +151,23 @@ export class MCPOrchestrator {
     // Get tools and apply the server filter if provided
     const tools = await serverManager.collectToolsWithServerPrefixAsync();
 
-    let systemPrompt = `You are a helpful AI that helps users achieve their goals. Use the provided tools to satisfy the user's request. When you have the final result, return it with a structured summary without questions so the session can end.
-You will be given a **Project Prompt** and a **user video transcription** following the details of the project. Use this information to create tasks and call tools to get the job done.
+    let systemPrompt = `
+    You are a helpful AI with tool calling capabilities that helps users achieve their goals.  
+    You may be given a **Project Prompt**, a **Project Metadata** and a **user video transcription**. Make good use of the tools and inforamtions provided and do your best to achieve the user's request.
+    User will not be able to reply to you, DO NOT ask for confirmation or questions, DO NOT just prepare the Content, use your best judgment to proceed and execute actions as needed.
 
-**Project Prompt** - A detailed document that describes a project that is associated with the user's transcription. It may contain specific requirements, constraints, or guidelines that you MUST follow when creating tasks and calling tools. Always prioritize the instructions in the Project Prompt over any other information. If there is conflicting information, the Project Prompt takes precedence. Always follow the requirements in the Project Prompt STRICTLY. Do not deviate from the instructions in the Project Prompt.
-**User Video Transcription** - A transcription of the user's video that may contain important information about the user's request, context, and requirements. Use the transcription to understand the user's needs and to extract relevant information that can help you create tasks and call tools effectively. The transcription is auto generated; although it provides context, it may contain typos. If there is any conflict between the transcription and the Project Prompt, prioritize the Project Prompt.
+    - **Project Metadata** - A list of the project inofromations. It may contain the project name, Project backlog, associated members.
+    - **Project Prompt** - A detailed instruction and requirements that you MUST follow when creating issues/PBIs. Always prioritize the Project Prompt over any other information. If there is conflicting information, the Project Prompt takes precedence.
+    - **User Video Transcription** - A transcription of the user's video that may contain important information about the user's request, context, content and requirements. Use the transcription to understand the user's needs and to extract relevant information that can help you create tasks and call tools effectively. 
+    The transcription is auto generated, although it provides context, it may contain typos. If there is any conflict between the transcription and the Project Prompt, prioritize the Project Prompt.
+    `;
 
-1. Do not ask the user for clarification, confirmation, or additional questions, the user will not be able to answer.
-2. Do your best with the information you have and execute the tools you are given to achieve the user's goal.`;
+    systemPrompt += options.projectMetaData
+      ? `\n---\nProject Metadata:\n${options.projectMetaData}`
+      : "";
 
-    systemPrompt += options.projectDetailPrompt
-      ? `\n---\nProject Prompt: ${options.projectDetailPrompt}`
+    systemPrompt += options.desktopAgentProjectPrompt
+      ? `\n---\nProject Prompt:\n${options.desktopAgentProjectPrompt}`
       : "";
 
     systemPrompt = this.appendVideoInfoToSystemPrompt(
@@ -182,7 +186,7 @@ You will be given a **Project Prompt** and a **user video transcription** follow
         role: "system",
         content: "When selecting tools, briefly explain the reason for choosing them.",
       },
-      { role: "user", content: prompt },
+      { role: "user", content: `video transcription: ${videoTranscription}` },
     ];
 
     // the orchestrator loop

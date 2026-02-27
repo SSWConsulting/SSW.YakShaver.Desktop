@@ -35,7 +35,7 @@ export interface ProjectDto {
   allowCreatePbi: boolean;
   gitHubProjectId?: string;
   placeItemOnTopOfProductBacklog: boolean;
-  customPromptInput?: string;
+  desktopAgentProjectPrompt?: string;
 }
 
 export class PromptManager {
@@ -183,8 +183,8 @@ export class PromptManager {
         id: localPrompt.id,
         name: localPrompt.name,
         description: localPrompt.description,
-        // Map local prompt content to customPromptInput
-        customPromptInput: localPrompt.content,
+        // Map local prompt content to desktopAgentProjectPrompt
+        desktopAgentProjectPrompt: localPrompt.content,
         // Set defaults for other required fields
         videoHostType: "SharePoint", // Default
         recentWorkItemsCount: 0,

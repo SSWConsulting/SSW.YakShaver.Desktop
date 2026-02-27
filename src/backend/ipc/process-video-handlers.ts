@@ -101,12 +101,20 @@ export class ProcessVideoIPCHandlers {
               intermediateOutput,
             );
 
+          // split the project details into metadata and prompt
+          let projectMetaData: string | undefined;
+          let desktopAgentProjectPrompt: string | undefined;
+          if (projectDetails) {
+            const { desktopAgentProjectPrompt: prompt, ...metaData } = projectDetails;
+            desktopAgentProjectPrompt = prompt;
+            projectMetaData = JSON.stringify(metaData);
+          }
+
           workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
           workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
           notify(ProgressStage.EXECUTING_TASK);
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
-          const projectDetailPrompt = JSON.stringify(projectDetails);
           const serverFilter = customPrompt?.selectedMcpServerIds;
 
           const filePath =
@@ -121,7 +129,8 @@ export class ProcessVideoIPCHandlers {
             intermediateOutput,
             videoUploadResult,
             {
-              projectDetailPrompt,
+              projectMetaData,
+              desktopAgentProjectPrompt,
               videoFilePath: filePath,
               serverFilter,
               onStep: mcpAdapter.onStep,
@@ -318,7 +327,16 @@ export class ProcessVideoIPCHandlers {
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
       // const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
-      const projectDetailPrompt = JSON.stringify(projectDetails);
+
+      let projectMetaData: string | undefined;
+      let desktopAgentProjectPrompt: string | undefined;
+
+      if (projectDetails) {
+        const { desktopAgentProjectPrompt: prompt, ...metaData } = projectDetails;
+        desktopAgentProjectPrompt = prompt;
+        projectMetaData = JSON.stringify(metaData);
+      }
+
       const serverFilter = customPrompt?.selectedMcpServerIds;
 
       const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
@@ -328,7 +346,8 @@ export class ProcessVideoIPCHandlers {
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
       const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
-        projectDetailPrompt,
+        projectMetaData,
+        desktopAgentProjectPrompt,
         videoFilePath: filePath,
         serverFilter,
         onStep: mcpAdapter.onStep,
