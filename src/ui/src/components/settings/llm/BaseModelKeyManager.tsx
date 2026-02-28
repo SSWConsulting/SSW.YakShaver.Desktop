@@ -138,37 +138,21 @@ export function BaseModelKeyManager({
   const onClear = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch fresh config to avoid stale state
-      const freshConfig = await ipcClient.llm.getConfig();
-
-      const formProvider = form.getValues("provider") as ProviderName;
-      const updatedKeys = { ...freshConfig?.providerApiKeys };
-      delete updatedKeys[formProvider];
-
-      const newConfig: LLMConfigV2 = {
-        ...(freshConfig as LLMConfigV2),
-        providerApiKeys: updatedKeys,
+      await ipcClient.llm.setConfig({
+        ...(currentLLMConfig as LLMConfigV2),
+        providerApiKeys: {},
         [modelType]: null,
-      };
-      await ipcClient.llm.setConfig(newConfig);
-
-      // Stay on the same provider but clear the key
-      setCurrentLLMConfig(newConfig);
-      setHasConfig(false);
-      form.reset({
-        provider: formProvider,
-        apiKey: "",
-        ...(formProvider === "azure" ? { endpoint: "", version: "", deployment: "" } : {}),
-      } as ModelConfig);
+      });
 
       toast.success("LLM configuration cleared");
       setHealthStatus(null);
+      await refreshStatus();
     } catch (e) {
       toast.error(`Failed to clear configuration: ${formatErrorMessage(e)}`);
     } finally {
       setIsLoading(false);
     }
-  }, [modelType, form]);
+  }, [refreshStatus, currentLLMConfig, modelType]);
 
   const handleProviderChange = async (value: LLMProvider) => {
     // Clear health status for the new provider

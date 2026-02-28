@@ -348,6 +348,11 @@ export function OnboardingWizard({
     const savedKey = freshConfig?.providerApiKeys?.[value] ?? "";
     transcriptionForm.reset({ provider: value, apiKey: savedKey } as ModelConfig);
     setHasTranscriptionConfig(false);
+
+    // Trigger the auto-save watch subscription so the restored key gets saved
+    if (savedKey.length > 10) {
+      transcriptionForm.setValue("apiKey", savedKey, { shouldDirty: true });
+    }
   };
 
   // Auto-validate language model API key on input change
