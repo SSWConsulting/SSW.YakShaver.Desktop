@@ -56,7 +56,7 @@ const STEPS = [
     icon: monitorPlay,
     title: "Connecting an MCP",
     description: "Configure or Choose which MCP server YakShaver will call.",
-    sidebarDescription: "Configure or Choose which MCP server YakShaver will call.",
+    sidebarDescription: "Configure or choose which MCP server YakShaver will call.",
     navSteps: [3],
   },
 ];
