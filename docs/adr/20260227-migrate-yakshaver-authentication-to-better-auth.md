@@ -20,12 +20,12 @@ How can we expand authentication options quickly while balancing long-term archi
 
 ## Considered Options
 
-- Migrate from Next-Auth to Better-Auth (successor to Next-Auth)
-- Migrate to SSW.IdentityServer
+1. Migrate from Next-Auth to Better-Auth (successor to Next-Auth)
+2. Migrate to SSW.IdentityServer
 
 ## Decision Outcome
 
-Chosen option: "**Option 1: Migrate from Next-Auth to Better-Auth (successor to Next-Auth)**", because it enables faster delivery under current time constraints while supporting required social sign-in features. Although migrating to SSW.IdentityServer would better align with long-term SSW strategy, the additional effort (4–5 sprints) conflicts with the immediate release goals for YakShaver.
+Chosen option: "**Option 1 - Migrate from Next-Auth to Better-Auth (successor to Next-Auth)**", because it enables faster delivery under current time constraints while supporting required social sign-in features. Although migrating to SSW.IdentityServer would better align with long-term SSW strategy, the additional effort (4–5 sprints) conflicts with the immediate release goals for YakShaver.
 The team has voted to proceed with Better-Auth and revisit IdentityServer alignment in the future if required.
 
 
@@ -40,7 +40,7 @@ The team has voted to proceed with Better-Auth and revisit IdentityServer alignm
 
 ## Pros and Cons of the Options <!-- optional -->
 
-### Migrate from Next-Auth to Better-Auth (successor to Next-Auth)
+### Option 1 - Migrate from Next-Auth to Better-Auth (successor to Next-Auth)
 
 Better-Auth (the successor to Next-Auth) integrates directly with Next.js and provides built-in support for social providers and passwordless authentication. <!-- optional: example | description | pointer to more information | … -->
 
@@ -51,7 +51,7 @@ Better-Auth (the successor to Next-Auth) integrates directly with Next.js and pr
 - ❌ Auth logic lives in the frontend tier rather than a dedicated identity service
 - ❌ No unified SSW account across products
 
-### Migrate to SSW.IdentityServer
+### Option 2 - Migrate to SSW.IdentityServer
 
 Adopt the central SSW identity platform (based on IdentityServer) to unify authentication across all SSW products. <!-- optional: example | description | pointer to more information | … -->
 
