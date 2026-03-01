@@ -83,7 +83,7 @@ export function McpCard({
               )}
               {config.enabled && (
                 <Button
-                  variant="destructive"
+                  variant="destructiveOutline"
                   className="cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
