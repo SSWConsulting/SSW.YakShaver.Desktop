@@ -1,3 +1,5 @@
+# Migrate YakShaver Authentication to Better-Auth <!-- short title of solved problem and solution -->
+
 - Status: accepted <!-- optional: draft | proposed | rejected | accepted | deprecated | … | superseded by [xxx](yyyymmdd-xxx.md) -->
 - Deciders: @ricksu978 @tomek-i @steven0x51 @yaqi-lyu @calumjs @Hajir2005 @jeoffreyfischer <!-- optional: list everyone involved in the decision -->
 - Date: 2026-02-27 <!-- optional. YYYY-MM-DD when the decision was last updated. To customize the ordering without relying on Git creation dates and filenames -->
