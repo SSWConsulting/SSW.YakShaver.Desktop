@@ -67,4 +67,3 @@ Adopt the central SSW identity platform (based on IdentityServer) to unify authe
 ## Links <!-- optional -->
 
 - [Better-Auth](https://better-auth.com) <!-- example: Refined by [xxx](yyyymmdd-xxx.md) -->
-- … <!-- numbers of links can vary -->
