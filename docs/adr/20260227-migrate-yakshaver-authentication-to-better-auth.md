@@ -44,7 +44,7 @@ The team has voted to proceed with Better-Auth and revisit IdentityServer alignm
 
 Better-Auth (the successor to Next-Auth) integrates directly with Next.js and provides built-in support for social providers and passwordless authentication. <!-- optional: example | description | pointer to more information | … -->
 
-- ✅ Integrates with social sign-ons and email/password out-of-the-box
+- ✅ Integrates with social sign-in and email/password out-of-the-box
 - ✅ Supports magic link (passwordless authentication)
 - ✅ Low implementation effort (~1 sprint)
 - ❌ Requires migration effort from current Entra ID setup
