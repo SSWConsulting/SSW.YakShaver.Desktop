@@ -6,7 +6,7 @@ Technical Story: [Enable social sign-in (GitHub, Google) and reduce sign-up fric
 
 ## Context and Problem Statement
 
-YakShaver Portal and Desktop app currently only supports enterprise authentication via Microsoft Entra ID, which blocks non-enterprise users from signing up. As a customer-facing product, YakShaver should provide modern social sign-in options (e.g. GitHub and Google) and align with the authentication experience of other SSW products such as SugarLearning, TimePro, and SSW Rewards. 
+YakShaver Portal and Desktop app currently only support enterprise authentication via Microsoft Entra ID, which blocks non-enterprise users from signing up. As a customer-facing product, YakShaver should provide modern social sign-in options (e.g. GitHub and Google) and align with the authentication experience of other SSW products such as SugarLearning, TimePro, and SSW Rewards. 
 How can we expand authentication options quickly while balancing long-term architectural alignment with the broader SSW ecosystem? 
 <!-- required: Describe the context and problem statement, e.g., in free form using two to three sentences. You may want to articulate the problem in the form of a question. -->
 
