@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { BaseSecureStorage } from "./base-secure-storage";
-import { defaultProjectPrompt } from "../workflow/prompts";
+import { defaultCustomPrompt } from "./default-custom-prompt";
 
 export interface CustomPrompt {
   id: string;
@@ -24,7 +24,7 @@ const DEFAULT_PROMPT: CustomPrompt = {
   id: "default",
   name: "Default Prompt",
   description: "This is the default prompt for YakShaver",
-  content: defaultProjectPrompt,
+  content: defaultCustomPrompt,
 
   isDefault: true,
   createdAt: Date.now(),
