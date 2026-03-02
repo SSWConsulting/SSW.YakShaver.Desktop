@@ -12,6 +12,7 @@ import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
+import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
 import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
@@ -101,12 +102,14 @@ export class ProcessVideoIPCHandlers {
               intermediateOutput,
             );
 
+          const { desktopAgentProjectPrompt, projectMetaData } =
+            this.formatProjectDetails(projectDetails);
+
           workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
           workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
           notify(ProgressStage.EXECUTING_TASK);
 
           const customPrompt = await this.customPromptStorage.getActivePrompt();
-          const projectDetailPrompt = JSON.stringify(projectDetails);
           const serverFilter = customPrompt?.selectedMcpServerIds;
 
           const filePath =
@@ -121,7 +124,8 @@ export class ProcessVideoIPCHandlers {
             intermediateOutput,
             videoUploadResult,
             {
-              projectDetailPrompt,
+              projectMetaData,
+              desktopAgentProjectPrompt,
               videoFilePath: filePath,
               serverFilter,
               onStep: mcpAdapter.onStep,
@@ -310,15 +314,15 @@ export class ProcessVideoIPCHandlers {
         transcriptText,
       );
 
-      workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
+      const { desktopAgentProjectPrompt, projectMetaData } =
+        this.formatProjectDetails(projectDetails);
 
+      workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
 
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
       const customPrompt = await this.customPromptStorage.getActivePrompt();
-      // const systemPrompt = buildTaskExecutionPrompt(customPrompt?.content);
-      const projectDetailPrompt = JSON.stringify(projectDetails);
       const serverFilter = customPrompt?.selectedMcpServerIds;
 
       const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
@@ -328,7 +332,8 @@ export class ProcessVideoIPCHandlers {
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
       const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
-        projectDetailPrompt,
+        projectMetaData,
+        desktopAgentProjectPrompt,
         videoFilePath: filePath,
         serverFilter,
         onStep: mcpAdapter.onStep,
@@ -439,6 +444,23 @@ export class ProcessVideoIPCHandlers {
     const outputFilePath = tmp.tmpNameSync({ postfix: ".mp3" });
     const result = await this.ffmpegService.ConvertVideoToMp3(inputPath, outputFilePath);
     return result;
+  }
+
+  private formatProjectDetails(
+    projectDetails: (ProjectDto & { selectionReason: string }) | undefined | null,
+  ): {
+    desktopAgentProjectPrompt: string | undefined;
+    projectMetaData: string | undefined;
+  } {
+    if (!projectDetails) {
+      return { desktopAgentProjectPrompt: undefined, projectMetaData: undefined };
+    }
+
+    const { desktopAgentProjectPrompt, ...metaData } = projectDetails;
+    return {
+      desktopAgentProjectPrompt,
+      projectMetaData: JSON.stringify(metaData),
+    };
   }
 
   // TODO: Separate the Undo feature and Final Result Panel event triggers from this, and remove this event sender

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { LanguageModelProvider } from "../mcp/language-model-provider";
 import { PromptManager, type PromptSummary } from "../prompt/prompt-manager";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
+import { defaultProjectPrompt } from "./prompts";
 
 export interface PromptSelectionResult {
   id: string;
@@ -46,6 +47,8 @@ export class PromptSelectionService {
     );
 
     if (projectDetails) {
+      // use default prompt if project doesn't have a custom one
+      projectDetails.desktopAgentProjectPrompt ||= defaultProjectPrompt;
       return {
         ...projectDetails,
         selectionReason: selectedProject.reason,
