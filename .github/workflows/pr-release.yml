@@ -335,13 +335,13 @@ jobs:
       needs.cleanup-release.outputs.pr_number != ''
     steps:
       - name: Download Windows artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: windows-build
           path: artifacts/
 
       - name: Download macOS artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: macos-build
           path: artifacts/
