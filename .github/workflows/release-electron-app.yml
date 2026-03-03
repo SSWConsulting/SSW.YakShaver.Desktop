@@ -282,18 +282,30 @@ jobs:
           
           cd build
           
-          # Find DMG file with specific pattern
-          DMG_FILE=$(find . -name "YakShaver-*-arm64.dmg" -type f | head -n 1)
-          if [[ -z "$DMG_FILE" ]]; then
+          # Find and upload arm64 DMG
+          DMG_ARM64=$(find . -name "YakShaver-*-arm64.dmg" -type f | head -n 1)
+          if [[ -z "$DMG_ARM64" ]]; then
             echo "Error: No DMG file found matching pattern 'YakShaver-*-arm64.dmg'" >&2
             echo "Available files:" >&2
             ls -la >&2
             exit 1
           fi
-          
-          echo "Found DMG: $DMG_FILE"
-          cp "$DMG_FILE" "YakShaver-latest-arm64.dmg"
+          echo "Found arm64 DMG: $DMG_ARM64"
+          cp "$DMG_ARM64" "YakShaver-latest-arm64.dmg"
           gh release upload "$VERSION" "YakShaver-latest-arm64.dmg" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
           echo "Successfully uploaded YakShaver-latest-arm64.dmg for stable download link"
+          
+          # Find and upload x64 (Intel) DMG
+          DMG_X64=$(find . -name "YakShaver-*-x64.dmg" -type f | head -n 1)
+          if [[ -z "$DMG_X64" ]]; then
+            echo "Error: No DMG file found matching pattern 'YakShaver-*-x64.dmg'" >&2
+            echo "Available files:" >&2
+            ls -la >&2
+            exit 1
+          fi
+          echo "Found x64 DMG: $DMG_X64"
+          cp "$DMG_X64" "YakShaver-latest-x64.dmg"
+          gh release upload "$VERSION" "YakShaver-latest-x64.dmg" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
+          echo "Successfully uploaded YakShaver-latest-x64.dmg for stable download link"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
