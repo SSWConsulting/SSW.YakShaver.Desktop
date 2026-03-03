@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../services/ipc-client";
 import type { HealthStatusInfo } from "../types";
+import { LLM_STEP_ID } from "../types/onboarding";
 
 export function useOnboardingLLM(currentStep: number) {
   const [currentLLMConfig, setCurrentLLMConfig] = useState<LLMConfigV2 | null>(null);
@@ -14,6 +15,8 @@ export function useOnboardingLLM(currentStep: number) {
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
   const [hasTranscriptionConfig, setHasTranscriptionConfig] = useState(false);
   const activeHealthCheckProvider = useRef<ProviderName | null>(null);
+  const llmDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transcriptionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const llmForm = useForm<ModelConfig>({
     defaultValues: {
@@ -33,9 +36,9 @@ export function useOnboardingLLM(currentStep: number) {
   const languageProviderSupportsTranscription =
     LLM_PROVIDER_CONFIGS[languageProvider]?.defaultTranscriptionModel !== undefined;
 
-  // Check LLM configuration status when on step 2
+  // Check LLM configuration status when on the LLM step
   useEffect(() => {
-    if (currentStep !== 2) return;
+    if (currentStep !== LLM_STEP_ID) return;
 
     let cancelled = false;
 
@@ -235,11 +238,12 @@ export function useOnboardingLLM(currentStep: number) {
 
   // Auto-validate language model API key on input change
   useEffect(() => {
-    if (currentStep !== 2) return;
+    if (currentStep !== LLM_STEP_ID) return;
 
     const subscription = llmForm.watch(async (value, { name }) => {
       if (name === "apiKey" && value.apiKey && value.apiKey.length > 10) {
-        const timeoutId = setTimeout(async () => {
+        if (llmDebounceRef.current) clearTimeout(llmDebounceRef.current);
+        llmDebounceRef.current = setTimeout(async () => {
           setIsLLMSaving(true);
           setHealthStatus({ isHealthy: false, isChecking: true });
 
@@ -250,14 +254,22 @@ export function useOnboardingLLM(currentStep: number) {
             const supportsTranscription =
               LLM_PROVIDER_CONFIGS[provider]?.defaultTranscriptionModel !== undefined;
 
+            // Fetch fresh config to avoid stale providerApiKeys
+            let freshConfig: LLMConfigV2 | null = null;
+            try {
+              freshConfig = await ipcClient.llm.getConfig();
+            } catch (_e) {
+              // fall through with null
+            }
+
             const configToSave: LLMConfigV2 = {
               version: 2,
               languageModel: values as ModelConfig,
               transcriptionModel: supportsTranscription
                 ? (values as ModelConfig)
-                : (currentLLMConfig?.transcriptionModel ?? null),
+                : (freshConfig?.transcriptionModel ?? null),
               providerApiKeys: {
-                ...currentLLMConfig?.providerApiKeys,
+                ...freshConfig?.providerApiKeys,
                 [provider]: (values as ModelConfig).apiKey,
               },
             };
@@ -300,33 +312,44 @@ export function useOnboardingLLM(currentStep: number) {
             setIsLLMSaving(false);
           }
         }, 500);
-
-        return () => clearTimeout(timeoutId);
       } else if (name === "apiKey") {
         setHealthStatus(null);
         setHasLLMConfig(false);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [llmForm, currentLLMConfig, currentStep, transcriptionForm]);
+    return () => {
+      subscription.unsubscribe();
+      if (llmDebounceRef.current) clearTimeout(llmDebounceRef.current);
+    };
+  }, [llmForm, currentStep, transcriptionForm]);
 
   // Auto-save transcription model API key on input change
   useEffect(() => {
-    if (currentStep !== 2 || languageProviderSupportsTranscription) return;
+    if (currentStep !== LLM_STEP_ID || languageProviderSupportsTranscription) return;
 
     const subscription = transcriptionForm.watch(async (value, { name }) => {
       if (name === "apiKey" && value.apiKey && value.apiKey.length > 10) {
-        const timeoutId = setTimeout(async () => {
+        if (transcriptionDebounceRef.current) clearTimeout(transcriptionDebounceRef.current);
+        transcriptionDebounceRef.current = setTimeout(async () => {
           try {
             const values = transcriptionForm.getValues();
+
+            // Fetch fresh config to avoid stale providerApiKeys
+            let freshConfig: LLMConfigV2 | null = null;
+            try {
+              freshConfig = await ipcClient.llm.getConfig();
+            } catch (_e) {
+              // fall through with null
+            }
+
             const updatedProviderApiKeys = {
-              ...(currentLLMConfig?.providerApiKeys ?? {}),
+              ...(freshConfig?.providerApiKeys ?? {}),
               [(values as ModelConfig).provider as ProviderName]: (values as ModelConfig).apiKey,
             };
             const configToSave: LLMConfigV2 = {
               version: 2,
-              languageModel: currentLLMConfig?.languageModel ?? null,
+              languageModel: freshConfig?.languageModel ?? null,
               transcriptionModel: values as ModelConfig,
               providerApiKeys: updatedProviderApiKeys,
             };
@@ -337,15 +360,16 @@ export function useOnboardingLLM(currentStep: number) {
             setHasTranscriptionConfig(false);
           }
         }, 500);
-
-        return () => clearTimeout(timeoutId);
       } else if (name === "apiKey") {
         setHasTranscriptionConfig(false);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [transcriptionForm, currentLLMConfig, currentStep, languageProviderSupportsTranscription]);
+    return () => {
+      subscription.unsubscribe();
+      if (transcriptionDebounceRef.current) clearTimeout(transcriptionDebounceRef.current);
+    };
+  }, [transcriptionForm, currentStep, languageProviderSupportsTranscription]);
 
   return {
     currentLLMConfig,

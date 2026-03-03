@@ -50,6 +50,8 @@ export const STEPS: readonly OnboardingStep[] = [
   },
 ] satisfies OnboardingStep[];
 
+export const LLM_STEP_ID = 2;
+
 const PROVIDER_NAMES = Object.keys(LLM_PROVIDER_CONFIGS) as ProviderName[];
 
 export const TRANSCRIPTION_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
