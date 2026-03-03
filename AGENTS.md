@@ -111,6 +111,7 @@ SSW.YakShaver.Desktop/
 │           ├── components/            # Feature-based components
 │           │   ├── ui/                # Radix UI primitives (shadcn/ui)
 │           │   ├── auth/              # Authentication UI
+│           │   ├── onboarding/        # Onboarding wizard (multi-step setup)
 │           │   ├── recording/         # Screen recording feature
 │           │   ├── workflow/          # AI workflow visualization
 │           │   ├── settings/          # Settings panels (llm/, mcp/, custom-prompt/, etc.)
@@ -180,7 +181,30 @@ Before adding new IPC channels, handlers, services, or utility functions, check 
 
 Prefer extending existing code over creating new files. Duplicated logic is harder to maintain than a slightly larger existing module.
 
-### Rule 8: DRY and KISS
+### Rule 8: Small and Maintainable Components
+
+React component files must not exceed ~200 lines. When a component grows beyond this limit, break it down:
+
+1. **Extract sub-components** into the same feature directory (e.g., `OnboardingSidebar.tsx`, `LLMStep.tsx`, `StepFooter.tsx` inside `components/onboarding/`)
+2. **Extract business logic into custom hooks** in `src/ui/src/hooks/` (e.g., `useOnboardingLLM.ts`, `useOnboardingWizard.ts`)
+3. **Co-locate feature-specific types** in a `types.ts` file within the feature directory (e.g., `components/onboarding/types.ts`)
+4. **Keep the main component as a thin orchestrator** that composes sub-components and hooks
+
+Reference implementation: `src/ui/src/components/onboarding/` demonstrates this pattern with `OnboardingWizard.tsx` composing `OnboardingSidebar`, `VideoHostingStep`, `LLMStep`, `MCPStep`, and `StepFooter`, with logic extracted into `useOnboardingLLM` and `useOnboardingWizard` hooks.
+
+### Rule 9: Type Placement
+
+Place types in the correct location based on their scope:
+
+| Scope | Location | Path Alias | Example |
+| --- | --- | --- | --- |
+| Shared between frontend & backend | `src/shared/types/` | `@shared/types/*` | LLM configs, workflow payloads, MCP types |
+| Frontend-only (used across features) | `src/ui/src/types/` | `@/types` | `AuthStatus`, `HealthStatusInfo`, `WorkflowProgress` |
+| Feature-scoped (used within one feature) | `src/ui/src/components/{feature}/types.ts` | Relative import | Onboarding step types, form-specific types |
+
+Never put frontend-only types in `src/shared/types/`. Never put types shared with the backend in `src/ui/src/types/`.
+
+### Rule 10: DRY and KISS
 
 - **DRY (Don't Repeat Yourself)**: If the same logic appears in more than one place, extract it into a shared function, hook, or utility. Duplicated code leads to bugs when one copy is updated but the other is forgotten.
 - **KISS (Keep It Simple, Stupid)**: Choose the simplest solution that works. Don't over-abstract, over-engineer, or add layers of indirection for hypothetical future needs. A few lines of straightforward code is better than a clever abstraction that's hard to follow.
