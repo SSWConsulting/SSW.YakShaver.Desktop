@@ -3,7 +3,7 @@ import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
 import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workflow";
-import { INITIAL_SUMMARY_PROMPT } from "../constants/prompts";
+import { INITIAL_SUMMARY_PROMPT, TASK_EXECUTION_PROMPT } from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
@@ -134,11 +134,13 @@ export class ProcessVideoIPCHandlers {
 
           mcpAdapter.complete(mcpResult);
 
+          const finalOutput = await this.formatFinalResult(mcpResult);
+
           notify(ProgressStage.COMPLETED, {
             mcpResult,
-            finalOutput: mcpResult,
+            finalOutput,
           });
-          return { success: true, finalOutput: mcpResult };
+          return { success: true, finalOutput };
         } catch (error) {
           const errorMessage = formatAndReportError(error, "retry_video_processing");
           notify(ProgressStage.ERROR, { error: errorMessage });
@@ -341,6 +343,8 @@ export class ProcessVideoIPCHandlers {
 
       mcpAdapter.complete(mcpResult);
 
+      const finalOutput = await this.formatFinalResult(mcpResult);
+
       // if user logged in, send work item details to the portal
       if (mcpResult && (await MicrosoftAuthService.getInstance().isAuthenticated())) {
         const objectResult = await orchestrator.convertToObjectAsync(mcpResult, WorkItemDtoSchema);
@@ -412,7 +416,7 @@ export class ProcessVideoIPCHandlers {
         transcript,
         intermediateOutput,
         mcpResult,
-        finalOutput: mcpResult,
+        finalOutput,
         uploadResult: youtubeResult,
         metadataUpdateError,
       });
@@ -444,6 +448,22 @@ export class ProcessVideoIPCHandlers {
     const outputFilePath = tmp.tmpNameSync({ postfix: ".mp3" });
     const result = await this.ffmpegService.ConvertVideoToMp3(inputPath, outputFilePath);
     return result;
+  }
+
+  private async formatFinalResult(mcpResult: string | undefined): Promise<string | undefined> {
+    if (!mcpResult) return undefined;
+
+    try {
+      const languageModelProvider = await LanguageModelProvider.getInstance();
+      const prompt = `Given the following task execution result, format it as a structured JSON final output:\n\n${mcpResult}`;
+      return await languageModelProvider.generateJson(prompt, TASK_EXECUTION_PROMPT);
+    } catch (error) {
+      console.warn(
+        "[ProcessVideo] Failed to format final result, falling back to raw output",
+        error,
+      );
+      return mcpResult;
+    }
   }
 
   private formatProjectDetails(

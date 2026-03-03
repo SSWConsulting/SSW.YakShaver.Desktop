@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import type { ZodType } from "zod";
 import type { MCPStep } from "../../../shared/types/mcp";
-import { TASK_EXECUTION_PROMPT } from "../../constants/prompts";
 import { getDurationParts } from "../../utils/duration-utils";
 import { formatAndReportError } from "../../utils/error-utils";
 import type { VideoUploadResult } from "../auth/types";
@@ -154,7 +153,6 @@ export class MCPOrchestrator {
     const tools = await serverManager.collectToolsWithServerPrefixAsync();
 
     let systemPrompt = orchestratorSystemPrompt;
-    systemPrompt += `\n---\n${TASK_EXECUTION_PROMPT}`;
 
     systemPrompt += options.projectMetaData
       ? `\n---\nProject Metadata:\n${options.projectMetaData}`
