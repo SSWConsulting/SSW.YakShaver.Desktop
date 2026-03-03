@@ -1,4 +1,4 @@
-import { STEPS } from "@/types/onboarding";
+import { LLM_STEP_ID, STEPS } from "@/types/onboarding";
 import { Button } from "../ui/button";
 
 interface StepFooterProps {
@@ -17,7 +17,7 @@ export function StepFooter({
   onPrevious,
 }: StepFooterProps) {
   const getButtonLabel = () => {
-    if (currentStep === 2 && isLLMSaving) return "Checking...";
+    if (currentStep === LLM_STEP_ID && isLLMSaving) return "Checking...";
     if (currentStep === STEPS.length) return "Finish";
     return "Next";
   };
@@ -44,6 +44,7 @@ export function StepFooter({
         <Button
           className="flex items-center justify-center px-4 py-2"
           size="sm"
+          type="button"
           onClick={onNext}
           disabled={isNextDisabled}
         >

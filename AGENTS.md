@@ -187,7 +187,7 @@ React component files must not exceed ~200 lines. When a component grows beyond 
 
 1. **Extract sub-components** into the same feature directory (e.g., `OnboardingSidebar.tsx`, `LLMStep.tsx`, `StepFooter.tsx` inside `components/onboarding/`)
 2. **Extract business logic into custom hooks** in `src/ui/src/hooks/` (e.g., `useOnboardingLLM.ts`, `useOnboardingWizard.ts`)
-3. **Co-locate feature-specific types** in a `types.ts` file within the feature directory (e.g., `components/onboarding/types.ts`)
+3. **Extract cross-layer feature types** (used by both hooks and components) to `src/ui/src/types/{feature}.ts` (e.g., `src/ui/src/types/onboarding.ts`)
 4. **Keep the main component as a thin orchestrator** that composes sub-components and hooks
 
 Reference implementation: `src/ui/src/components/onboarding/` demonstrates this pattern with `OnboardingWizard.tsx` composing `OnboardingSidebar`, `VideoHostingStep`, `LLMStep`, `MCPStep`, and `StepFooter`, with logic extracted into `useOnboardingLLM` and `useOnboardingWizard` hooks.
@@ -199,10 +199,10 @@ Place types in the correct location based on their scope:
 | Scope | Location | Path Alias | Example |
 | --- | --- | --- | --- |
 | Shared between frontend & backend | `src/shared/types/` | `@shared/types/*` | LLM configs, workflow payloads, MCP types |
-| Frontend-only (used across features) | `src/ui/src/types/` | `@/types` | `AuthStatus`, `HealthStatusInfo`, `WorkflowProgress` |
-| Feature-scoped (used within one feature) | `src/ui/src/components/{feature}/types.ts` | Relative import | Onboarding step types, form-specific types |
+| Frontend-only or cross-layer within a feature (used by hooks + components) | `src/ui/src/types/` | `@/types` | `AuthStatus`, `HealthStatusInfo`, `WorkflowProgress`, `OnboardingLLMState`, `LLM_STEP_ID` |
+| Component-internal (used only within a single component file) | `src/ui/src/components/{feature}/types.ts` | Relative import | Form-specific prop types used in one component |
 
-Never put frontend-only types in `src/shared/types/`. Never put types shared with the backend in `src/ui/src/types/`.
+Never put frontend-only types in `src/shared/types/`. Never put types shared with the backend in `src/ui/src/types/`. When a type or constant is consumed by both a hook (in `src/ui/src/hooks/`) and a component, place it in `src/ui/src/types/` — not in `components/{feature}/types.ts`.
 
 ### Rule 10: DRY and KISS
 

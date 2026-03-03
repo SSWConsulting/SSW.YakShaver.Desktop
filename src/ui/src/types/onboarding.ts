@@ -51,6 +51,7 @@ export const STEPS: readonly OnboardingStep[] = [
 ] satisfies OnboardingStep[];
 
 export const LLM_STEP_ID = 2;
+export const MCP_STEP_ID = 3;
 
 const PROVIDER_NAMES = Object.keys(LLM_PROVIDER_CONFIGS) as ProviderName[];
 

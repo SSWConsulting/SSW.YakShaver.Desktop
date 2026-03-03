@@ -1,6 +1,6 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { STEPS } from "@/types/onboarding";
+import { LLM_STEP_ID, MCP_STEP_ID, STEPS } from "@/types/onboarding";
 import { ONBOARDING_COMPLETED_KEY } from "../../constants/onboarding";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useOnboardingLLM } from "../../hooks/useOnboardingLLM";
@@ -37,15 +37,15 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
 
   const isNextDisabled =
     (wizard.currentStep === 1 && !isConnected) ||
-    (wizard.currentStep === 2 &&
+    (wizard.currentStep === LLM_STEP_ID &&
       (llm.isLLMSaving ||
         !llm.hasLLMConfig ||
         !llm.healthStatus?.isHealthy ||
         !llm.hasTranscriptionConfig)) ||
-    (wizard.currentStep === 3 && !hasEnabledMcpServers);
+    (wizard.currentStep === MCP_STEP_ID && !hasEnabledMcpServers);
 
-  const handleNext = useCallback(async () => {
-    if (wizard.currentStep === 2) {
+  const handleNext = async () => {
+    if (wizard.currentStep === LLM_STEP_ID) {
       const isValid = await llm.llmForm.trigger();
       if (!isValid) return;
 
@@ -64,13 +64,13 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
       return;
     }
 
-    if (wizard.currentStep === 3) {
+    if (wizard.currentStep === MCP_STEP_ID) {
       wizard.completeOnboarding();
       return;
     }
 
     wizard.goToNextStep();
-  }, [wizard, llm]);
+  };
 
   if (!wizard.isVisible) return null;
 
@@ -98,8 +98,8 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
       {/* Card content */}
       <div className="flex flex-col gap-6 px-6 pb-6 w-full">
         {wizard.currentStep === 1 && <VideoHostingStep />}
-        {wizard.currentStep === 2 && <LLMStep llmState={llm} />}
-        {wizard.currentStep === 3 && (
+        {wizard.currentStep === LLM_STEP_ID && <LLMStep llmState={llm} />}
+        {wizard.currentStep === MCP_STEP_ID && (
           <MCPStep
             onFormOpenChange={setIsMcpFormOpen}
             onHasEnabledServers={setHasEnabledMcpServers}

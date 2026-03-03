@@ -20,7 +20,7 @@ export function OnboardingSidebar({
       <div className="w-[300px]">
         {/* Logo */}
         <div className="flex items-center mb-3">
-          <img src={logo} alt="YakShaver" className="w-18 h-auto pr-2.5" />
+          <img src={logo} alt="YakShaver" className="w-20 h-auto pr-2.5" />
           <span className="text-3xl font-bold text-ssw-red">Yak</span>
           <span className="text-3xl">Shaver</span>
         </div>
