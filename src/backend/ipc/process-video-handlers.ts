@@ -132,9 +132,8 @@ export class ProcessVideoIPCHandlers {
             },
           );
 
-          mcpAdapter.complete(mcpResult);
-
           const finalOutput = await this.formatFinalResult(mcpResult);
+          mcpAdapter.complete(mcpResult);
 
           notify(ProgressStage.COMPLETED, {
             mcpResult,
