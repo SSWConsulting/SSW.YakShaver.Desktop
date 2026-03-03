@@ -340,9 +340,8 @@ export class ProcessVideoIPCHandlers {
         onStep: mcpAdapter.onStep,
       });
 
-      mcpAdapter.complete(mcpResult);
-
       const finalOutput = await this.formatFinalResult(mcpResult);
+      mcpAdapter.complete(mcpResult);
 
       // if user logged in, send work item details to the portal
       if (mcpResult && (await MicrosoftAuthService.getInstance().isAuthenticated())) {
