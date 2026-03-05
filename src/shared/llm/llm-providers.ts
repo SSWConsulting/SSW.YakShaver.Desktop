@@ -14,7 +14,7 @@ export const LLM_PROVIDER_CONFIGS: Record<ProviderName, ProviderConfig> = {
     label: "OpenAI",
     factory: createOpenAI,
     defaultTranscriptionModel: "whisper-1",
-    defaultLanguageModel: "gpt-5-mini",
+    defaultLanguageModel: "gpt-5.2",
   },
   // TODO: This will need to be expanded when Azure is enabled as a provider.
   // https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/530
