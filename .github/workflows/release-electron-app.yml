@@ -168,7 +168,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-macos:
+  build-macos-arm64:
     needs: check-release
     runs-on: macos-latest
     env:
@@ -258,8 +258,8 @@ jobs:
           npm version "$VERSION" --no-git-tag-version
           echo "Updated package.json version to $VERSION"
 
-      - name: Publish macOS app
-        run: npm run publish -- --mac
+      - name: Publish macOS arm64 app
+        run: npm run publish -- --mac --arm64
         env:
           NODE_ENV: production
           CI: true
@@ -270,30 +270,203 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-      - name: Create fixed-name artifacts for stable download links
+      - name: Create fixed-name artifact for stable download link
         run: |
           set -e
-          
+
           VERSION="${{ needs.check-release.outputs.version }}"
           if [[ -z "$VERSION" ]]; then
-            echo "Error: Missing version output from 'check-release' job (needs.check-release.outputs.version). Ensure the 'check-release' job completed successfully and produced a 'version' output." >&2
+            echo "Error: Missing version output from 'check-release' job." >&2
             exit 1
           fi
-          
+
           cd build
-          
-          # Find DMG file with specific pattern
-          DMG_FILE=$(find . -name "YakShaver-*-arm64.dmg" -type f | head -n 1)
-          if [[ -z "$DMG_FILE" ]]; then
+
+          DMG_ARM64=$(find . -name "YakShaver-*-arm64.dmg" -type f | head -n 1)
+          if [[ -z "$DMG_ARM64" ]]; then
             echo "Error: No DMG file found matching pattern 'YakShaver-*-arm64.dmg'" >&2
             echo "Available files:" >&2
             ls -la >&2
             exit 1
           fi
-          
-          echo "Found DMG: $DMG_FILE"
-          cp "$DMG_FILE" "YakShaver-latest-arm64.dmg"
+          echo "Found arm64 DMG: $DMG_ARM64"
+          cp "$DMG_ARM64" "YakShaver-latest-arm64.dmg"
           gh release upload "$VERSION" "YakShaver-latest-arm64.dmg" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
           echo "Successfully uploaded YakShaver-latest-arm64.dmg for stable download link"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos-x64:
+    needs: check-release
+    # Use an Intel (x64) runner so native modules are compiled for x64 without cross-compilation issues
+    runs-on: macos-13
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.check-release.outputs.target }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
+      - name: Create .env from secrets
+        env:
+          MCP_CALLBACK_PORT: 8090
+          MCP_AUTH_TIMEOUT_MS: 60000
+          PORTAL_API_URL: https://api.yakshaver.ai/api
+          AZURE_ENTRA_APP_CLIENT_ID: ${{ secrets.AZURE_ENTRA_APP_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_AUTH_SCOPE: ${{ secrets.AZURE_AUTH_SCOPE }}
+          AZURE_AUTH_CUSTOM_PROTOCOL: yakshaver-desktop
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        run: |
+          printf "MCP_CALLBACK_PORT=%s\n" "$MCP_CALLBACK_PORT" >> .env
+          printf "MCP_AUTH_TIMEOUT_MS=%s\n" "$MCP_AUTH_TIMEOUT_MS" >> .env
+          printf "PORTAL_API_URL=%s\n" "$PORTAL_API_URL" >> .env
+          printf "AZURE_ENTRA_APP_CLIENT_ID=%s\n" "$AZURE_ENTRA_APP_CLIENT_ID" >> .env
+          printf "AZURE_TENANT_ID=%s\n" "$AZURE_TENANT_ID" >> .env
+          printf "AZURE_AUTH_SCOPE=%s\n" "$AZURE_AUTH_SCOPE" >> .env
+          printf "AZURE_AUTH_CUSTOM_PROTOCOL=%s\n" "$AZURE_AUTH_CUSTOM_PROTOCOL" >> .env
+          printf "APPLICATIONINSIGHTS_CONNECTION_STRING=%s\n" "$APPLICATIONINSIGHTS_CONNECTION_STRING" >> .env
+          COMMIT_HASH=$(git rev-parse HEAD)
+          printf "COMMIT_HASH=%s\n" "$COMMIT_HASH" >> .env
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: true
+          # Explicitly set arch to x64 to ensure all optional dependencies install x64 binaries
+          npm_config_arch: x64
+
+      # Explicitly rebuild better-sqlite3 for x64 Electron to guarantee correct native module architecture
+      - name: Rebuild native modules for x64
+        run: npx electron-rebuild -f -w better-sqlite3 --arch x64
+
+      # Manual download is needed because the youtube-dl-exec script hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find the yt-dlp binary.
+      - name: Install yt-dlp binary manually
+        run: |
+          mkdir -p node_modules/youtube-dl-exec/bin
+
+          PATTERN="yt-dlp_macos"
+          OUTPUT_FILE="node_modules/youtube-dl-exec/bin/yt-dlp"
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+
+          until gh release download \
+            --repo yt-dlp/yt-dlp \
+            --pattern "$PATTERN" \
+            --clobber \
+            --output "$OUTPUT_FILE"; do
+
+            echo "Attempt $ATTEMPT to download yt-dlp binary failed." >&2
+
+            if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+              echo "Failed to download yt-dlp binary after $MAX_ATTEMPTS attempts." >&2
+              exit 1
+            fi
+
+            ATTEMPT=$((ATTEMPT+1))
+            sleep 5
+          done
+
+          # Make the binary executable
+          chmod +x "$OUTPUT_FILE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
+      - name: Update version for release
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Missing version output"
+            exit 1
+          fi
+          npm version "$VERSION" --no-git-tag-version
+          echo "Updated package.json version to $VERSION"
+
+      - name: Publish macOS x64 app
+        run: npm run publish -- --mac --x64
+        env:
+          NODE_ENV: production
+          CI: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Verify x64 architecture of built app
+        run: |
+          set -e
+          echo "Verifying built app architecture..."
+
+          # Find the .app bundle
+          APP_PATH=$(find build/mac-x64 build/mac -name "YakShaver.app" -type d 2>/dev/null | head -n 1)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "Warning: Could not find .app bundle to verify architecture"
+            echo "Build directory contents:"
+            ls -la build/ 2>/dev/null || echo "No build directory"
+          else
+            BINARY="$APP_PATH/Contents/MacOS/YakShaver"
+            if [[ -f "$BINARY" ]]; then
+              ARCH_INFO=$(file "$BINARY")
+              echo "Binary architecture: $ARCH_INFO"
+              if echo "$ARCH_INFO" | grep -q "x86_64"; then
+                echo "✅ Confirmed: Binary is x86_64 (Intel)"
+              else
+                echo "❌ ERROR: Binary is NOT x86_64!"
+                echo "$ARCH_INFO"
+                exit 1
+              fi
+            fi
+          fi
+
+          # Also verify better-sqlite3 native module if accessible
+          SQLITE_NODE=$(find build -name "better_sqlite3.node" -type f 2>/dev/null | head -n 1)
+          if [[ -n "$SQLITE_NODE" ]]; then
+            SQLITE_ARCH=$(file "$SQLITE_NODE")
+            echo "better-sqlite3 native module: $SQLITE_ARCH"
+            if echo "$SQLITE_ARCH" | grep -q "x86_64"; then
+              echo "✅ Confirmed: better-sqlite3 native module is x86_64"
+            else
+              echo "❌ ERROR: better-sqlite3 native module is NOT x86_64!"
+              echo "$SQLITE_ARCH"
+              exit 1
+            fi
+          fi
+
+      - name: Create fixed-name artifact for stable download link
+        run: |
+          set -e
+
+          VERSION="${{ needs.check-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Error: Missing version output from 'check-release' job." >&2
+            exit 1
+          fi
+
+          cd build
+
+          DMG_X64=$(find . -name "YakShaver-*-x64.dmg" -type f | head -n 1)
+          if [[ -z "$DMG_X64" ]]; then
+            echo "Error: No DMG file found matching pattern 'YakShaver-*-x64.dmg'" >&2
+            echo "Available files:" >&2
+            ls -la >&2
+            exit 1
+          fi
+          echo "Found x64 DMG: $DMG_X64"
+          cp "$DMG_X64" "YakShaver-latest-x64.dmg"
+          gh release upload "$VERSION" "YakShaver-latest-x64.dmg" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
+          echo "Successfully uploaded YakShaver-latest-x64.dmg for stable download link"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

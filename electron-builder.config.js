@@ -51,7 +51,7 @@ module.exports = {
     icon: "src/ui/public/icons/icon.icns",
     target: {
       target: "default",
-      arch: ["arm64"],
+      arch: ["arm64", "x64"],
     },
     hardenedRuntime: true,
     gatekeeperAssess: false,
