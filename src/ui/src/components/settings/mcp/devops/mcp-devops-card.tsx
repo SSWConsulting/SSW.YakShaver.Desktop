@@ -24,7 +24,7 @@ export function McpAzureDevOpsCard({
 }: McpDevOpsCardProps) {
   const configLocal = config ?? {
     id: McpAzureDevOpsCard.Id,
-    name: "Azure_DevOps",
+    name: "Azure_DevOps", // quick fix for MCP name can't have space.
     transport: "stdio",
     command: "npx",
     //TODO: need to be able to customize this last parameter
