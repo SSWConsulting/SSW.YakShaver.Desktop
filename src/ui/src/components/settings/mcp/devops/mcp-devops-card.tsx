@@ -12,7 +12,7 @@ interface McpDevOpsCardProps {
   viewMode: "compact" | "detailed";
 }
 
-McpAzureDevOpsCard.Name = "Azure DevOps";
+McpAzureDevOpsCard.Name = "Azure_DevOps";
 McpAzureDevOpsCard.Id = "483d49a4-0902-415a-a987-832a21bd3d63";
 
 export function McpAzureDevOpsCard({
