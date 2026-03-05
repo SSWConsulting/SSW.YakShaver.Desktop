@@ -138,32 +138,32 @@ jobs:
           if (-not $VERSION) {
             throw "Missing version output from 'check-release' job"
           }
-          
+
           cd build
           # Find the generated installer - look for any exe file with "Setup" in the name
           $installer = Get-ChildItem -Filter "*Setup*.exe" | 
                        Sort-Object LastWriteTime -Descending | 
                        Select-Object -First 1
-          
+
           if (-not $installer) {
             Write-Host "All .exe files in build directory:"
             Get-ChildItem -Filter "*.exe" | ForEach-Object { Write-Host "  $($_.Name)" }
             Write-Error "No installer file found with 'Setup' in the name"
             exit 1
           }
-          
+
           Write-Host "Found installer: $($installer.Name)"
-          
+
           # Create a copy with fixed name
           $fixedName = "YakShaver-latest-Setup.exe"
           Copy-Item $installer.FullName $fixedName
-          
+
           # Upload to release
           gh release upload "$VERSION" $fixedName --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to upload $fixedName"
           }
-          
+
           Write-Host "Successfully uploaded $fixedName for stable download link"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -299,7 +299,8 @@ jobs:
   build-macos-x64:
     needs: check-release
     # Use an Intel (x64) runner so native modules are compiled for x64 without cross-compilation issues
-    runs-on: macos-13
+    # Reason for using macos-15-intel: https://github.com/actions/runner-images/issues/13046
+    runs-on: macos-15-intel
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
