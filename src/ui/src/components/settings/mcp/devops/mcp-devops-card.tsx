@@ -24,7 +24,7 @@ export function McpAzureDevOpsCard({
 }: McpDevOpsCardProps) {
   const configLocal = config ?? {
     id: McpAzureDevOpsCard.Id,
-    name: McpAzureDevOpsCard.Name,
+    name: "Azure_DevOps",
     transport: "stdio",
     command: "npx",
     //TODO: need to be able to customize this last parameter
