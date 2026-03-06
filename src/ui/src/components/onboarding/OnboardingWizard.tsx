@@ -1,5 +1,5 @@
-import { type ReactNode, useState } from "react";
-import { toast } from "sonner";
+import { type ReactNode, useCallback, useRef, useState } from "react";
+import type { StepHandlers } from "@/types/onboarding";
 import { LLM_STEP_ID, MCP_STEP_ID, STEPS, VIDEO_STEP_ID } from "@/types/onboarding";
 import { ONBOARDING_COMPLETED_KEY } from "../../constants/onboarding";
 import { useOnboardingWizard } from "../../hooks/useOnboardingWizard";
@@ -49,19 +49,32 @@ function StepLayoutWrapper({ currentStep, children }: StepLayoutWrapperProps) {
 
 export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) {
   const [isMcpFormOpen, setIsMcpFormOpen] = useState(false);
+  const [stepIsReady, setStepIsReady] = useState(false);
   const wizard = useOnboardingWizard({ onVisibilityChange });
+  const handlersRef = useRef<StepHandlers | null>(null);
+
+  const registerHandlers = useCallback((handlers: StepHandlers) => {
+    handlersRef.current = handlers;
+    setStepIsReady(handlers.isReady);
+  }, []);
 
   const handleNext = async () => {
-    if (wizard.currentStep === LLM_STEP_ID) {
-      toast.success("LLM configuration saved");
+    setStepIsReady(false); // disable immediately to prevent duplicate clicks
+    const isValid = (await handlersRef.current?.validate()) ?? true;
+    if (!isValid) {
+      setStepIsReady(handlersRef.current?.isReady ?? false); // restore on failure
+      return;
     }
 
     if (wizard.currentStep === STEPS.length) {
       wizard.completeOnboarding();
       return;
     }
-
     wizard.goToNextStep();
+  };
+
+  const handlePrevious = () => {
+    wizard.goToPreviousStep();
   };
 
   if (!wizard.isVisible) return null;
@@ -90,16 +103,11 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
       {/* Card content */}
       <div className="flex flex-col gap-6 px-6 pb-6 w-full">
         {wizard.currentStep === VIDEO_STEP_ID && (
-          <VideoHostingStep onValidationChange={wizard.setIsNextEnabled} />
+          <VideoHostingStep onRegisterHandlers={registerHandlers} />
         )}
-        {wizard.currentStep === LLM_STEP_ID && (
-          <LLMStep onValidationChange={wizard.setIsNextEnabled} />
-        )}
+        {wizard.currentStep === LLM_STEP_ID && <LLMStep onRegisterHandlers={registerHandlers} />}
         {wizard.currentStep === MCP_STEP_ID && (
-          <MCPStep
-            onFormOpenChange={setIsMcpFormOpen}
-            onValidationChange={wizard.setIsNextEnabled}
-          />
+          <MCPStep onFormOpenChange={setIsMcpFormOpen} onRegisterHandlers={registerHandlers} />
         )}
       </div>
 
@@ -107,9 +115,9 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
       {!isMcpFormOpen && (
         <StepFooter
           currentStep={wizard.currentStep}
-          isNextDisabled={!wizard.isNextEnabled}
+          isNextDisabled={!stepIsReady}
           onNext={handleNext}
-          onPrevious={wizard.goToPreviousStep}
+          onPrevious={handlePrevious}
         />
       )}
     </div>

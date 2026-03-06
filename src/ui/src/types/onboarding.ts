@@ -64,6 +64,11 @@ export const LANGUAGE_PROVIDER_NAMES: ProviderOption[] = PROVIDER_NAMES.filter(
   (providerName) => LLM_PROVIDER_CONFIGS[providerName].defaultLanguageModel !== undefined,
 ).map((name) => ({ label: LLM_PROVIDER_CONFIGS[name].label, value: name }));
 
+export interface StepHandlers {
+  isReady: boolean;
+  validate: () => boolean | Promise<boolean>;
+}
+
 export interface OnboardingLLMState {
   currentLLMConfig: LLMConfigV2 | null;
   hasLLMConfig: boolean;

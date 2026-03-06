@@ -2,7 +2,9 @@ import { LLM_PROVIDER_CONFIGS } from "@shared/llm/llm-providers";
 import type { ProviderName } from "@shared/types/llm";
 import { CircleAlert, Mic } from "lucide-react";
 import { useEffect } from "react";
+import { toast } from "sonner";
 import { LLMProviderFields } from "@/components/llm/LLMProviderFields";
+import type { StepHandlers } from "@/types/onboarding";
 import {
   LANGUAGE_PROVIDER_NAMES,
   LLM_STEP_ID,
@@ -12,10 +14,10 @@ import { useOnboardingLLM } from "../../hooks/useOnboardingLLM";
 import { Form } from "../ui/form";
 
 interface LLMStepProps {
-  onValidationChange: (isValid: boolean) => void;
+  onRegisterHandlers: (handlers: StepHandlers) => void;
 }
 
-export function LLMStep({ onValidationChange }: LLMStepProps) {
+export function LLMStep({ onRegisterHandlers }: LLMStepProps) {
   const {
     llmForm,
     transcriptionForm,
@@ -28,8 +30,14 @@ export function LLMStep({ onValidationChange }: LLMStepProps) {
   } = useOnboardingLLM(LLM_STEP_ID);
 
   useEffect(() => {
-    onValidationChange(isNextEnabled);
-  }, [isNextEnabled, onValidationChange]);
+    onRegisterHandlers({
+      isReady: isNextEnabled,
+      validate: () => {
+        if (isNextEnabled) toast.success("LLM configuration saved");
+        return isNextEnabled;
+      },
+    });
+  }, [isNextEnabled, onRegisterHandlers]);
 
   const languageProvider = llmForm.watch("provider") as ProviderName;
 

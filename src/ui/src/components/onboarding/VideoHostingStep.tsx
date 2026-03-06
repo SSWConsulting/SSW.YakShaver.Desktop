@@ -1,19 +1,20 @@
 import { useEffect } from "react";
 import { YouTubeConnection } from "@/components/auth/YouTubeConnection";
+import type { StepHandlers } from "@/types/onboarding";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { AuthStatus } from "../../types";
 
 interface VideoHostingStepProps {
-  onValidationChange: (isValid: boolean) => void;
+  onRegisterHandlers: (handlers: StepHandlers) => void;
 }
 
-export function VideoHostingStep({ onValidationChange }: VideoHostingStepProps) {
+export function VideoHostingStep({ onRegisterHandlers }: VideoHostingStepProps) {
   const { authState } = useYouTubeAuth();
   const isConnected = authState.status === AuthStatus.AUTHENTICATED;
 
   useEffect(() => {
-    onValidationChange(isConnected);
-  }, [isConnected, onValidationChange]);
+    onRegisterHandlers({ isReady: isConnected, validate: () => isConnected });
+  }, [isConnected, onRegisterHandlers]);
 
   return <YouTubeConnection buttonSize="lg" />;
 }

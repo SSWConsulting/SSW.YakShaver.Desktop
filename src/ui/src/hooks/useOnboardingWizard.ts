@@ -13,7 +13,6 @@ export function useOnboardingWizard({ onVisibilityChange }: UseOnboardingWizardP
     const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY);
     return completed !== "true";
   });
-  const [isNextEnabled, setIsNextEnabled] = useState(false);
 
   const stepListRef = useRef<HTMLDivElement | null>(null);
   const stepIconRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -85,14 +84,12 @@ export function useOnboardingWizard({ onVisibilityChange }: UseOnboardingWizardP
 
   const goToNextStep = useCallback(() => {
     if (currentStep < STEPS.length) {
-      setIsNextEnabled(false);
       setCurrentStep((step) => step + 1);
     }
   }, [currentStep]);
 
   const goToPreviousStep = useCallback(() => {
     if (currentStep > 1) {
-      setIsNextEnabled(false);
       setCurrentStep(currentStep - 1);
     }
   }, [currentStep]);
@@ -100,8 +97,6 @@ export function useOnboardingWizard({ onVisibilityChange }: UseOnboardingWizardP
   return {
     currentStep,
     isVisible,
-    isNextEnabled,
-    setIsNextEnabled,
     connectorPositions,
     stepListRef,
     stepIconRefs,
