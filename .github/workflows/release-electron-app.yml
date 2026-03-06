@@ -259,7 +259,7 @@ jobs:
           echo "Updated package.json version to $VERSION"
 
       - name: Publish macOS arm64 app
-        run: npm run publish -- --mac --arm64
+        run: npm run publish -- --mac --arm64 -c.mac.target.arch=arm64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}'
         env:
           NODE_ENV: production
           CI: true
@@ -282,9 +282,9 @@ jobs:
 
           cd build
 
-          DMG_ARM64=$(find . -name "YakShaver-*-arm64.dmg" -type f | head -n 1)
+          DMG_ARM64=$(find . -name "YakShaver-*-arm64-mac.dmg" -type f | head -n 1)
           if [[ -z "$DMG_ARM64" ]]; then
-            echo "Error: No DMG file found matching pattern 'YakShaver-*-arm64.dmg'" >&2
+            echo "Error: No DMG file found matching pattern 'YakShaver-*-arm64-mac.dmg'" >&2
             echo "Available files:" >&2
             ls -la >&2
             exit 1
@@ -395,7 +395,7 @@ jobs:
           echo "Updated package.json version to $VERSION"
 
       - name: Publish macOS x64 app
-        run: npm run publish -- --mac --x64
+        run: npm run publish -- --mac --x64 -c.mac.target.arch=x64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}'
         env:
           NODE_ENV: production
           CI: true
@@ -458,9 +458,9 @@ jobs:
 
           cd build
 
-          DMG_X64=$(find . -name "YakShaver-*-x64.dmg" -type f | head -n 1)
+          DMG_X64=$(find . -name "YakShaver-*-x64-mac.dmg" -type f | head -n 1)
           if [[ -z "$DMG_X64" ]]; then
-            echo "Error: No DMG file found matching pattern 'YakShaver-*-x64.dmg'" >&2
+            echo "Error: No DMG file found matching pattern 'YakShaver-*-x64-mac.dmg'" >&2
             echo "Available files:" >&2
             ls -la >&2
             exit 1
