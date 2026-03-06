@@ -39,23 +39,22 @@ export abstract class BaseSecureStorage {
       }
 
       const encryptedData = await fs.readFile(filePath);
-      const decryptedString = safeStorage.decryptString(encryptedData);
 
-      return JSON.parse(decryptedString) as T;
+      // Handle decryption and parse errors separately so all platform-specific errors
+      // (e.g. Windows DPAPI "The data is invalid.", macOS "Error while decrypting...") are
+      // caught uniformly instead of only the macOS-specific message.
+      try {
+        const decryptedString = safeStorage.decryptString(encryptedData);
+        return JSON.parse(decryptedString) as T;
+      } catch (decryptError) {
+        console.warn(
+          `[BaseSecureStorage] Failed to decrypt/parse ${filePath}. The file might be corrupted or encrypted with a different key. Ignoring file. Error: ${(decryptError as Error).message}`,
+        );
+        return null;
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return null; // File doesn't exist
-      }
-
-      // Handle decryption errors (e.g. different machine, OS update, or corrupted file)
-      // The error message from Electron's safeStorage is usually:
-      // "Error while decrypting the ciphertext provided to safeStorage.decryptString."
-      const errorMessage = (error as Error).message || "";
-      if (errorMessage.includes("Error while decrypting")) {
-        console.warn(
-          `[BaseSecureStorage] Failed to decrypt ${filePath}. The file might be corrupted or encrypted with a different key. Ignoring file. Error: ${errorMessage}`,
-        );
-        return null;
       }
 
       throw error;

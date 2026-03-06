@@ -56,15 +56,35 @@ describe("UserSettingsStorage", () => {
       expect(fs.writeFile).not.toHaveBeenCalled();
     });
 
-    it("should return default settings and log warning when decryption fails", async () => {
+    it("should return default settings and log warning when macOS decryption fails", async () => {
       // Mock readFile success (file exists but is corrupted/wrong key)
       vi.mocked(fs.readFile).mockResolvedValueOnce(Buffer.from("corrupted-data"));
 
-      // Force decryptString to throw the specific error
+      // Force decryptString to throw the macOS-specific error
       vi.mocked(safeStorage.decryptString).mockImplementationOnce(() => {
         throw new Error(
           "Error while decrypting the ciphertext provided to safeStorage.decryptString.",
         );
+      });
+
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const settings = await storage.getSettingsAsync();
+
+      expect(settings).toEqual(DEFAULT_USER_SETTINGS);
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to decrypt"));
+
+      consoleSpy.mockRestore();
+    });
+
+    it("should return default settings and log warning when Windows DPAPI decryption fails", async () => {
+      // Reproduces the Windows sign-in bug: DPAPI throws a different error message than macOS.
+      // The old code only caught "Error while decrypting..." so Windows errors escaped silently.
+      vi.mocked(fs.readFile).mockResolvedValueOnce(Buffer.from("stale-dpapi-data"));
+
+      // Simulate Windows DPAPI error (the exact message that broke sign-in on Windows)
+      vi.mocked(safeStorage.decryptString).mockImplementationOnce(() => {
+        throw new Error("The data is invalid.");
       });
 
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
