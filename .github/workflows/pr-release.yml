@@ -288,7 +288,7 @@ jobs:
           npm version "$VERSION" --no-git-tag-version
 
       - name: Publish macOS pre-release (arm64)
-        run: npm run publish -- --mac --arm64 -c.mac.target.arch=arm64 --publish never
+        run: npm run publish -- --mac --arm64 -c.mac.target.arch=arm64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
         env:
           NODE_ENV: production
           CI: true
@@ -319,8 +319,8 @@ jobs:
         with:
           name: macos-arm64-build
           path: |
-            build/YakShaver-*-mac.zip
-            build/YakShaver-*-mac.zip.blockmap
+            build/YakShaver-*-arm64-mac.zip
+            build/YakShaver-*-arm64-mac.zip.blockmap
             build/*-mac.yml
           retention-days: 1
 
@@ -421,7 +421,7 @@ jobs:
           npm version "$VERSION" --no-git-tag-version
 
       - name: Publish macOS pre-release (x64)
-        run: npm run publish -- --mac --x64 -c.mac.target.arch=x64 --publish never
+        run: npm run publish -- --mac --x64 -c.mac.target.arch=x64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
         env:
           NODE_ENV: production
           CI: true
@@ -475,8 +475,8 @@ jobs:
         with:
           name: macos-x64-build
           path: |
-            build/YakShaver-*-mac.zip
-            build/YakShaver-*-mac.zip.blockmap
+            build/YakShaver-*-x64-mac.zip
+            build/YakShaver-*-x64-mac.zip.blockmap
             build/*-mac.yml
           retention-days: 1
 
