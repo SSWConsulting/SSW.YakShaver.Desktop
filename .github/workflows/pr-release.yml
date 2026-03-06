@@ -288,7 +288,7 @@ jobs:
           npm version "$VERSION" --no-git-tag-version
 
       - name: Publish macOS pre-release (arm64)
-        run: npm run publish -- --mac --arm64 --publish never
+        run: npm run publish -- --mac --arm64 -c.mac.target.arch=arm64 --publish never
         env:
           NODE_ENV: production
           CI: true
@@ -421,7 +421,7 @@ jobs:
           npm version "$VERSION" --no-git-tag-version
 
       - name: Publish macOS pre-release (x64)
-        run: npm run publish -- --mac --x64 --publish never
+        run: npm run publish -- --mac --x64 -c.mac.target.arch=x64 --publish never
         env:
           NODE_ENV: production
           CI: true
