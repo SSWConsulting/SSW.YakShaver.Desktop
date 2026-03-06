@@ -32,9 +32,7 @@ See https://www.ssw.com.au/rules/acceptance-criteria.
 ### Tasks
 Tasks help developers to track small bits of work needed to meet the ACs. This is **HOW** the work will be done.
 
-```[tasklist]
 - [ ] {{ TASK 1 }}
-```
 
 ### More Information
 <!-- Add any other context here. -->
