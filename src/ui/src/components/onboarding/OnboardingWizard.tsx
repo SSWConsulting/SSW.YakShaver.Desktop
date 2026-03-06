@@ -2,7 +2,6 @@ import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { LLM_STEP_ID, MCP_STEP_ID, STEPS, VIDEO_STEP_ID } from "@/types/onboarding";
 import { ONBOARDING_COMPLETED_KEY } from "../../constants/onboarding";
-import { useOnboardingLLM } from "../../hooks/useOnboardingLLM";
 import { useOnboardingWizard } from "../../hooks/useOnboardingWizard";
 import { ScrollArea } from "../ui/scroll-area";
 import { LLMStep } from "./LLMStep";
@@ -50,31 +49,19 @@ function StepLayoutWrapper({ currentStep, children }: StepLayoutWrapperProps) {
 
 export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) {
   const [isMcpFormOpen, setIsMcpFormOpen] = useState(false);
-  const [isNextEnabled, setIsNextEnabled] = useState(false);
-
   const wizard = useOnboardingWizard({ onVisibilityChange });
-  const llm = useOnboardingLLM(wizard.currentStep);
 
   const handleNext = async () => {
-    setIsNextEnabled(false);
-
     if (wizard.currentStep === LLM_STEP_ID) {
       toast.success("LLM configuration saved");
-      wizard.goToNextStep();
-      return;
     }
 
-    if (wizard.currentStep === MCP_STEP_ID) {
+    if (wizard.currentStep === STEPS.length) {
       wizard.completeOnboarding();
       return;
     }
 
     wizard.goToNextStep();
-  };
-
-  const handlePrevious = () => {
-    setIsNextEnabled(false);
-    wizard.goToPreviousStep();
   };
 
   if (!wizard.isVisible) return null;
@@ -103,13 +90,16 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
       {/* Card content */}
       <div className="flex flex-col gap-6 px-6 pb-6 w-full">
         {wizard.currentStep === VIDEO_STEP_ID && (
-          <VideoHostingStep onValidationChange={setIsNextEnabled} />
+          <VideoHostingStep onValidationChange={wizard.setIsNextEnabled} />
         )}
         {wizard.currentStep === LLM_STEP_ID && (
-          <LLMStep llmState={llm} onValidationChange={setIsNextEnabled} />
+          <LLMStep onValidationChange={wizard.setIsNextEnabled} />
         )}
         {wizard.currentStep === MCP_STEP_ID && (
-          <MCPStep onFormOpenChange={setIsMcpFormOpen} onValidationChange={setIsNextEnabled} />
+          <MCPStep
+            onFormOpenChange={setIsMcpFormOpen}
+            onValidationChange={wizard.setIsNextEnabled}
+          />
         )}
       </div>
 
@@ -117,10 +107,9 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
       {!isMcpFormOpen && (
         <StepFooter
           currentStep={wizard.currentStep}
-          isNextDisabled={!isNextEnabled}
-          isLLMSaving={llm.isLLMSaving}
+          isNextDisabled={!wizard.isNextEnabled}
           onNext={handleNext}
-          onPrevious={handlePrevious}
+          onPrevious={wizard.goToPreviousStep}
         />
       )}
     </div>

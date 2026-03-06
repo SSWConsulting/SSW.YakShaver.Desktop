@@ -1,23 +1,15 @@
-import { LLM_STEP_ID, STEPS } from "@/types/onboarding";
+import { STEPS } from "@/types/onboarding";
 import { Button } from "../ui/button";
 
 interface StepFooterProps {
   currentStep: number;
   isNextDisabled: boolean;
-  isLLMSaving: boolean;
   onNext: () => void;
   onPrevious: () => void;
 }
 
-export function StepFooter({
-  currentStep,
-  isNextDisabled,
-  isLLMSaving,
-  onNext,
-  onPrevious,
-}: StepFooterProps) {
+export function StepFooter({ currentStep, isNextDisabled, onNext, onPrevious }: StepFooterProps) {
   const getButtonLabel = () => {
-    if (currentStep === LLM_STEP_ID && isLLMSaving) return "Checking...";
     if (currentStep === STEPS.length) return "Finish";
     return "Next";
   };

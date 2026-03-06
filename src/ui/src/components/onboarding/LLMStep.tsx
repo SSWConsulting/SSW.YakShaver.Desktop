@@ -3,16 +3,19 @@ import type { ProviderName } from "@shared/types/llm";
 import { CircleAlert, Mic } from "lucide-react";
 import { useEffect } from "react";
 import { LLMProviderFields } from "@/components/llm/LLMProviderFields";
-import type { OnboardingLLMState } from "@/types/onboarding";
-import { LANGUAGE_PROVIDER_NAMES, TRANSCRIPTION_PROVIDER_NAMES } from "@/types/onboarding";
+import {
+  LANGUAGE_PROVIDER_NAMES,
+  LLM_STEP_ID,
+  TRANSCRIPTION_PROVIDER_NAMES,
+} from "@/types/onboarding";
+import { useOnboardingLLM } from "../../hooks/useOnboardingLLM";
 import { Form } from "../ui/form";
 
 interface LLMStepProps {
-  llmState: OnboardingLLMState;
   onValidationChange: (isValid: boolean) => void;
 }
 
-export function LLMStep({ llmState, onValidationChange }: LLMStepProps) {
+export function LLMStep({ onValidationChange }: LLMStepProps) {
   const {
     llmForm,
     transcriptionForm,
@@ -22,7 +25,7 @@ export function LLMStep({ llmState, onValidationChange }: LLMStepProps) {
     handleLLMSubmit,
     handleProviderChange,
     handleTranscriptionProviderChange,
-  } = llmState;
+  } = useOnboardingLLM(LLM_STEP_ID);
 
   useEffect(() => {
     onValidationChange(isNextEnabled);
