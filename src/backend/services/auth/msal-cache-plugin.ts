@@ -30,16 +30,30 @@ export class MsalSecureCachePlugin implements ICachePlugin {
   private storage = new SecureCacheStorage();
 
   async beforeCacheAccess(cacheContext: TokenCacheContext): Promise<void> {
-    const content = await this.storage.read();
-    if (content) {
-      cacheContext.tokenCache.deserialize(content);
+    try {
+      const content = await this.storage.read();
+      if (content) {
+        cacheContext.tokenCache.deserialize(content);
+      }
+    } catch (error) {
+      // If the cache can't be read, clear it and start fresh so auth can proceed.
+      console.warn(
+        "[MsalSecureCachePlugin] Failed to read MSAL cache. Clearing and starting fresh.",
+        error,
+      );
+      await this.storage.clear().catch(() => {});
     }
   }
 
   async afterCacheAccess(cacheContext: TokenCacheContext): Promise<void> {
     if (cacheContext.cacheHasChanged) {
-      const content = cacheContext.tokenCache.serialize();
-      await this.storage.write(content);
+      try {
+        const content = cacheContext.tokenCache.serialize();
+        await this.storage.write(content);
+      } catch (error) {
+        // Log but don't throw — a write failure should not break the current auth session.
+        console.warn("[MsalSecureCachePlugin] Failed to persist MSAL cache.", error);
+      }
     }
   }
 }
