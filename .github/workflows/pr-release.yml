@@ -197,7 +197,7 @@ jobs:
             build/YakShaver*Setup*.exe.blockmap
           retention-days: 1
 
-  build-macos:
+  build-macos-arm64:
     needs: cleanup-release
     if: |
       github.event_name != 'pull_request' ||
@@ -287,8 +287,8 @@ jobs:
           fi
           npm version "$VERSION" --no-git-tag-version
 
-      - name: Publish macOS pre-release
-        run: npm run publish -- --mac --publish never
+      - name: Publish macOS pre-release (arm64)
+        run: npm run publish -- --mac --arm64 -c.mac.target.arch=arm64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
         env:
           NODE_ENV: production
           CI: true
@@ -314,13 +314,169 @@ jobs:
       #     APPLE_ID: ${{ secrets.APPLE_ID }}
       #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-      - name: Upload macOS artifacts
+      - name: Upload macOS (arm64) artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: macos-build
+          name: macos-arm64-build
           path: |
-            build/YakShaver-*-mac.zip
-            build/YakShaver-*-mac.zip.blockmap
+            build/YakShaver-*-arm64-mac.zip
+            build/YakShaver-*-arm64-mac.zip.blockmap
+            build/*-mac.yml
+          retention-days: 1
+
+  build-macos-x64:
+    needs: cleanup-release
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.action != 'closed'
+    runs-on: macos-15-intel
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
+      - name: Create .env from secrets
+        env:
+          MCP_CALLBACK_PORT: 8090
+          MCP_AUTH_TIMEOUT_MS: 60000
+          PORTAL_API_URL: https://api-staging.yakshaver.ai/api
+          AZURE_ENTRA_APP_CLIENT_ID: ${{ secrets.AZURE_ENTRA_APP_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_AUTH_SCOPE: ${{ secrets.AZURE_AUTH_SCOPE }}
+          AZURE_AUTH_CUSTOM_PROTOCOL: yakshaver-desktop
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        run: |
+          printf "MCP_CALLBACK_PORT=%s\n" "$MCP_CALLBACK_PORT" >> .env
+          printf "MCP_AUTH_TIMEOUT_MS=%s\n" "$MCP_AUTH_TIMEOUT_MS" >> .env
+          printf "PORTAL_API_URL=%s\n" "$PORTAL_API_URL" >> .env
+          printf "AZURE_ENTRA_APP_CLIENT_ID=%s\n" "$AZURE_ENTRA_APP_CLIENT_ID" >> .env
+          printf "AZURE_TENANT_ID=%s\n" "$AZURE_TENANT_ID" >> .env
+          printf "AZURE_AUTH_SCOPE=%s\n" "$AZURE_AUTH_SCOPE" >> .env
+          printf "AZURE_AUTH_CUSTOM_PROTOCOL=%s\n" "$AZURE_AUTH_CUSTOM_PROTOCOL" >> .env
+          printf "APPLICATIONINSIGHTS_CONNECTION_STRING=%s\n" "$APPLICATIONINSIGHTS_CONNECTION_STRING" >> .env
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: true
+          # Explicitly set arch to x64 to ensure all optional dependencies install x64 binaries
+          npm_config_arch: x64
+
+      # Explicitly rebuild better-sqlite3 for x64 Electron to guarantee correct native module architecture
+      - name: Rebuild native modules for x64
+        run: npx electron-rebuild -f -w better-sqlite3 --arch x64
+
+      # Manual download is needed because the youtube-dl-exec script hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find the yt-dlp binary.
+      - name: Install yt-dlp binary manually
+        run: |
+          mkdir -p node_modules/youtube-dl-exec/bin
+
+          PATTERN="yt-dlp_macos"
+          OUTPUT_FILE="node_modules/youtube-dl-exec/bin/yt-dlp"
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+
+          until gh release download \
+            --repo yt-dlp/yt-dlp \
+            --pattern "$PATTERN" \
+            --clobber \
+            --output "$OUTPUT_FILE"; do
+
+            echo "Attempt $ATTEMPT to download yt-dlp binary failed." >&2
+
+            if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+              echo "Failed to download yt-dlp binary after $MAX_ATTEMPTS attempts." >&2
+              exit 1
+            fi
+
+            ATTEMPT=$((ATTEMPT+1))
+            sleep 5
+          done
+
+          # Make the binary executable
+          chmod +x "$OUTPUT_FILE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
+      - name: Update version for pre-release
+        run: |
+          VERSION="${{ needs.cleanup-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Missing version output"
+            exit 1
+          fi
+          npm version "$VERSION" --no-git-tag-version
+
+      - name: Publish macOS pre-release (x64)
+        run: npm run publish -- --mac --x64 -c.mac.target.arch=x64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
+        env:
+          NODE_ENV: production
+          CI: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
+          # Disable minification for PR preview builds
+          VITE_DEBUG_BUILD: "true"
+
+      - name: Verify x64 architecture of built app
+        run: |
+          set -e
+          echo "Verifying built app architecture..."
+
+          # Find the .app bundle
+          APP_PATH=$(find build/mac-x64 build/mac -name "YakShaver.app" -type d 2>/dev/null | head -n 1)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "Warning: Could not find .app bundle to verify architecture"
+            echo "Build directory contents:"
+            ls -la build/ 2>/dev/null || echo "No build directory"
+          else
+            BINARY="$APP_PATH/Contents/MacOS/YakShaver"
+            if [[ -f "$BINARY" ]]; then
+              ARCH_INFO=$(file "$BINARY")
+              echo "Binary architecture: $ARCH_INFO"
+              if echo "$ARCH_INFO" | grep -q "x86_64"; then
+                echo "✅ Confirmed: Binary is x86_64 (Intel)"
+              else
+                echo "❌ ERROR: Binary is NOT x86_64!"
+                echo "$ARCH_INFO"
+                exit 1
+              fi
+            fi
+          fi
+
+          # Also verify better-sqlite3 native module if accessible
+          SQLITE_NODE=$(find build -name "better_sqlite3.node" -type f 2>/dev/null | head -n 1)
+          if [[ -n "$SQLITE_NODE" ]]; then
+            SQLITE_ARCH=$(file "$SQLITE_NODE")
+            echo "better-sqlite3 native module: $SQLITE_ARCH"
+            if echo "$SQLITE_ARCH" | grep -q "x86_64"; then
+              echo "✅ Confirmed: better-sqlite3 native module is x86_64"
+            else
+              echo "❌ ERROR: better-sqlite3 native module is NOT x86_64!"
+              echo "$SQLITE_ARCH"
+              exit 1
+            fi
+          fi
+
+      - name: Upload macOS (x64) artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-x64-build
+          path: |
+            build/YakShaver-*-x64-mac.zip
+            build/YakShaver-*-x64-mac.zip.blockmap
             build/*-mac.yml
           retention-days: 1
 
@@ -329,7 +485,8 @@ jobs:
     needs:
       - cleanup-release
       - build-windows
-      - build-macos
+      - build-macos-arm64
+      - build-macos-x64
     if: |
       github.event.action != 'closed' &&
       needs.cleanup-release.outputs.pr_number != ''
@@ -340,10 +497,16 @@ jobs:
           name: windows-build
           path: artifacts/
 
-      - name: Download macOS artifacts
+      - name: Download macOS (arm64) artifacts
         uses: actions/download-artifact@v8
         with:
-          name: macos-build
+          name: macos-arm64-build
+          path: artifacts/
+
+      - name: Download macOS (x64) artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-x64-build
           path: artifacts/
 
       - name: Create single GitHub release with all artifacts
