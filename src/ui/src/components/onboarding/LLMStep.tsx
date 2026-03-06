@@ -1,6 +1,7 @@
 import { LLM_PROVIDER_CONFIGS } from "@shared/llm/llm-providers";
 import type { ProviderName } from "@shared/types/llm";
 import { CircleAlert, Mic } from "lucide-react";
+import { useEffect } from "react";
 import { LLMProviderFields } from "@/components/llm/LLMProviderFields";
 import type { OnboardingLLMState } from "@/types/onboarding";
 import { LANGUAGE_PROVIDER_NAMES, TRANSCRIPTION_PROVIDER_NAMES } from "@/types/onboarding";
@@ -8,18 +9,24 @@ import { Form } from "../ui/form";
 
 interface LLMStepProps {
   llmState: OnboardingLLMState;
+  onValidationChange: (isValid: boolean) => void;
 }
 
-export function LLMStep({ llmState }: LLMStepProps) {
+export function LLMStep({ llmState, onValidationChange }: LLMStepProps) {
   const {
     llmForm,
     transcriptionForm,
     healthStatus,
+    isNextEnabled,
     languageProviderSupportsTranscription,
     handleLLMSubmit,
     handleProviderChange,
     handleTranscriptionProviderChange,
   } = llmState;
+
+  useEffect(() => {
+    onValidationChange(isNextEnabled);
+  }, [isNextEnabled, onValidationChange]);
 
   const languageProvider = llmForm.watch("provider") as ProviderName;
 

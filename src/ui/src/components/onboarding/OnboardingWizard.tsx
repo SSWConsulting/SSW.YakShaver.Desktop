@@ -1,11 +1,9 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
-import { LLM_STEP_ID, MCP_STEP_ID, STEPS } from "@/types/onboarding";
+import { LLM_STEP_ID, MCP_STEP_ID, STEPS, VIDEO_STEP_ID } from "@/types/onboarding";
 import { ONBOARDING_COMPLETED_KEY } from "../../constants/onboarding";
-import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useOnboardingLLM } from "../../hooks/useOnboardingLLM";
 import { useOnboardingWizard } from "../../hooks/useOnboardingWizard";
-import { AuthStatus } from "../../types";
 import { ScrollArea } from "../ui/scroll-area";
 import { LLMStep } from "./LLMStep";
 import { MCPStep } from "./MCPStep";
@@ -25,40 +23,42 @@ export const resetOnboarding = () => {
   localStorage.removeItem(ONBOARDING_COMPLETED_KEY);
 };
 
+interface StepLayoutWrapperProps {
+  currentStep: number;
+  children: ReactNode;
+}
+
+function StepLayoutWrapper({ currentStep, children }: StepLayoutWrapperProps) {
+  if (currentStep === LLM_STEP_ID) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-full px-20 py-10">
+        {children}
+      </div>
+    );
+  }
+
+  if (currentStep === MCP_STEP_ID) {
+    return (
+      <ScrollArea className="w-full h-full">
+        <div className="flex flex-col px-20 py-40">{children}</div>
+      </ScrollArea>
+    );
+  }
+
+  return <div className="flex flex-col w-full px-20 py-40">{children}</div>;
+}
+
 export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) {
   const [isMcpFormOpen, setIsMcpFormOpen] = useState(false);
-  const [hasEnabledMcpServers, setHasEnabledMcpServers] = useState(false);
+  const [isNextEnabled, setIsNextEnabled] = useState(false);
 
   const wizard = useOnboardingWizard({ onVisibilityChange });
   const llm = useOnboardingLLM(wizard.currentStep);
 
-  const { authState } = useYouTubeAuth();
-  const isConnected = authState.status === AuthStatus.AUTHENTICATED;
-
-  const isNextDisabled =
-    (wizard.currentStep === 1 && !isConnected) ||
-    (wizard.currentStep === LLM_STEP_ID &&
-      (llm.isLLMSaving ||
-        !llm.hasLLMConfig ||
-        !llm.healthStatus?.isHealthy ||
-        !llm.hasTranscriptionConfig)) ||
-    (wizard.currentStep === MCP_STEP_ID && !hasEnabledMcpServers);
-
   const handleNext = async () => {
+    setIsNextEnabled(false);
+
     if (wizard.currentStep === LLM_STEP_ID) {
-      const isValid = await llm.llmForm.trigger();
-      if (!isValid) return;
-
-      if (!llm.hasLLMConfig || !llm.healthStatus?.isHealthy) {
-        toast.error("Please enter a valid API key before proceeding");
-        return;
-      }
-
-      if (!llm.hasTranscriptionConfig) {
-        toast.error("Please configure a transcription model before proceeding");
-        return;
-      }
-
       toast.success("LLM configuration saved");
       wizard.goToNextStep();
       return;
@@ -70,6 +70,11 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
     }
 
     wizard.goToNextStep();
+  };
+
+  const handlePrevious = () => {
+    setIsNextEnabled(false);
+    wizard.goToPreviousStep();
   };
 
   if (!wizard.isVisible) return null;
@@ -97,13 +102,14 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
 
       {/* Card content */}
       <div className="flex flex-col gap-6 px-6 pb-6 w-full">
-        {wizard.currentStep === 1 && <VideoHostingStep />}
-        {wizard.currentStep === LLM_STEP_ID && <LLMStep llmState={llm} />}
+        {wizard.currentStep === VIDEO_STEP_ID && (
+          <VideoHostingStep onValidationChange={setIsNextEnabled} />
+        )}
+        {wizard.currentStep === LLM_STEP_ID && (
+          <LLMStep llmState={llm} onValidationChange={setIsNextEnabled} />
+        )}
         {wizard.currentStep === MCP_STEP_ID && (
-          <MCPStep
-            onFormOpenChange={setIsMcpFormOpen}
-            onHasEnabledServers={setHasEnabledMcpServers}
-          />
+          <MCPStep onFormOpenChange={setIsMcpFormOpen} onValidationChange={setIsNextEnabled} />
         )}
       </div>
 
@@ -111,10 +117,10 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
       {!isMcpFormOpen && (
         <StepFooter
           currentStep={wizard.currentStep}
-          isNextDisabled={isNextDisabled}
+          isNextDisabled={!isNextEnabled}
           isLLMSaving={llm.isLLMSaving}
           onNext={handleNext}
-          onPrevious={wizard.goToPreviousStep}
+          onPrevious={handlePrevious}
         />
       )}
     </div>
@@ -132,17 +138,9 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
           getSidebarStepStatus={wizard.getSidebarStepStatus}
         />
         <div className="flex flex-col flex-1 min-w-0 h-full">
-          {wizard.currentStep === 2 ? (
-            <div className="flex flex-col items-center justify-center w-full h-full px-20 py-10">
-              {rightPanelContent}
-            </div>
-          ) : wizard.currentStep === 3 ? (
-            <ScrollArea className="w-full h-full">
-              <div className="flex flex-col px-20 py-40">{rightPanelContent}</div>
-            </ScrollArea>
-          ) : (
-            <div className="flex flex-col w-full px-20 py-40">{rightPanelContent}</div>
-          )}
+          <StepLayoutWrapper currentStep={wizard.currentStep}>
+            {rightPanelContent}
+          </StepLayoutWrapper>
         </div>
       </div>
     </div>

@@ -50,6 +50,7 @@ export const STEPS: readonly OnboardingStep[] = [
   },
 ] satisfies OnboardingStep[];
 
+export const VIDEO_STEP_ID = 1;
 export const LLM_STEP_ID = 2;
 export const MCP_STEP_ID = 3;
 
@@ -67,6 +68,7 @@ export interface OnboardingLLMState {
   currentLLMConfig: LLMConfigV2 | null;
   hasLLMConfig: boolean;
   isLLMSaving: boolean;
+  isNextEnabled: boolean;
   healthStatus: HealthStatusInfo | null;
   hasTranscriptionConfig: boolean;
   languageProviderSupportsTranscription: boolean;

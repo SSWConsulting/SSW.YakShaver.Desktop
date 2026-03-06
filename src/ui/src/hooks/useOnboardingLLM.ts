@@ -371,10 +371,14 @@ export function useOnboardingLLM(currentStep: number) {
     };
   }, [transcriptionForm, currentStep, languageProviderSupportsTranscription]);
 
+  const isNextEnabled =
+    !isLLMSaving && hasLLMConfig && !!healthStatus?.isHealthy && hasTranscriptionConfig;
+
   return {
     currentLLMConfig,
     hasLLMConfig,
     isLLMSaving,
+    isNextEnabled,
     healthStatus,
     hasTranscriptionConfig,
     languageProviderSupportsTranscription,

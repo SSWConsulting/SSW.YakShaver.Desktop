@@ -2,14 +2,14 @@ import { McpSettingsPanel } from "../settings/mcp/McpServerManager";
 
 interface MCPStepProps {
   onFormOpenChange: (isOpen: boolean) => void;
-  onHasEnabledServers: (hasEnabled: boolean) => void;
+  onValidationChange: (isValid: boolean) => void;
 }
 
-export function MCPStep({ onFormOpenChange, onHasEnabledServers }: MCPStepProps) {
+export function MCPStep({ onFormOpenChange, onValidationChange }: MCPStepProps) {
   return (
     <McpSettingsPanel
       onFormOpenChange={onFormOpenChange}
-      onHasEnabledServers={onHasEnabledServers}
+      onHasEnabledServers={onValidationChange}
       includeBuiltin={false}
       viewMode="compact"
     />

@@ -216,7 +216,7 @@ Never put frontend-only types in `src/shared/types/`. Never put types shared wit
 - **Single Responsibility**: Each file, function, and class should do one thing well. If a function exceeds ~50 lines, consider extracting logic into helper functions.
 - **Early Returns**: Use guard clauses to reduce nesting. Return early for error/edge cases instead of deep if-else chains.
 - **Descriptive Names**: Variable and function names should describe their purpose. Avoid abbreviations (`btn` -> `button`, `msg` -> `message`) except for well-known acronyms (URL, API, IPC).
-- **Constants Over Literals**: Extract string/number literals into named constants. Use `IPC_CHANNELS.YOUTUBE_START_AUTH` not `"youtube:start-auth"` directly.
+- **Constants Over Literals**: Extract string/number literals into named constants. Use `IPC_CHANNELS.YOUTUBE_START_AUTH` not `"youtube:start-auth"` directly. For multi-step flows, define every step as a named constant (e.g. `VIDEO_STEP_ID`, `LLM_STEP_ID`) in the shared types file — never compare against raw numbers like `currentStep === 2`.
 - **Fail Explicitly**: Throw meaningful error messages with context. `throw new Error(\`Failed to load config for provider ${name}: ${formatErrorMessage(error)}\`)` is better than `throw error`.
 - **Clean Imports**: Remove unused imports. Use `import type { X }` for type-only imports to avoid bundling unnecessary code.
 
@@ -279,6 +279,7 @@ Never put frontend-only types in `src/shared/types/`. Never put types shared wit
   ```
 - **Use `useId()` for form element IDs**, not `Math.random()` or hardcoded strings.
 - **Co-locate related code**: Keep Zod schemas (`schema.ts`), local types (`types.ts`), and sub-components in the same feature directory.
+- **Each step/section component owns its validation state**. Never centralize validation logic for multiple steps in a parent/orchestrator component. Instead, each step component accepts an `onValidationChange` callback and calls it (via `useEffect`) whenever its own validity changes. The parent simply holds a single `isNextEnabled` boolean state and reacts to it — it has no knowledge of what makes each step valid. This keeps steps self-contained and eliminates complex boolean expressions in the parent as the number of steps grows.
 
 ### Error Handling
 
