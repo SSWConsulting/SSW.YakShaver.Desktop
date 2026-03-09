@@ -20,6 +20,7 @@ tools:
     mode: remote
     toolsets: [default]
     github-token: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
+  bash: true
 
 network: {}
 
@@ -35,6 +36,25 @@ steps:
     env:
       GH_AW_PAT: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
       GH_TOKEN: ${{ github.token }}
+  - name: Prepare comment output directory
+    run: mkdir -p /tmp/gh-aw/comments
+
+post-steps:
+  - name: Post summary to SSW.YakShaver epics
+    run: |
+      for ISSUE in 2811 3494; do
+        FILE="/tmp/gh-aw/comments/comment-yakshaver-${ISSUE}.md"
+        if [ -f "$FILE" ]; then
+          echo "Posting comment to SSWConsulting/SSW.YakShaver#${ISSUE}..."
+          gh issue comment "$ISSUE" \
+            --repo SSWConsulting/SSW.YakShaver \
+            --body-file "$FILE"
+        else
+          echo "No comment file found for SSW.YakShaver#${ISSUE} — skipping."
+        fi
+      done
+    env:
+      GH_TOKEN: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
 
 safe-outputs:
   github-token: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
@@ -147,85 +167,82 @@ Use plain `SSWConsulting/RepoName#number` references (not Markdown links) — Gi
 
 ---
 
-## Step 4 — Post a Summary Comment on Desktop App Epic #677
+## Step 4 — Post Summary Comments on All Three Original Epics
 
-After all new epics are created, call `add_comment` **once** to post a comprehensive summary on the Desktop App epic.
+After all new epics are created, post a reorganisation summary on each of the three original epics.
 
-**Important constraints:**
-- Always provide `item_number: 677` — this workflow is triggered by `workflow_dispatch` so auto-targeting does NOT work; the tool will fail without an explicit `item_number`
-- All `add_comment` calls go to `SSWConsulting/SSW.YakShaver.Desktop` (configured in frontmatter); cross-repo commenting on `SSW.YakShaver` issues #2811 and #3494 is **not supported** by the tool and must be done manually
-- Use plain `SSWConsulting/RepoName#number` cross-references (not Markdown links `[text](url)`) — the tool enforces a hard limit of 50 HTTP/HTTPS links per comment; with ~60 total PBIs across the three epics, explicit links will breach this limit
+### 4a — Write per-epic comment files (for SSW.YakShaver epics)
 
-**Call:**
+The `add_comment` tool can only post to `SSWConsulting/SSW.YakShaver.Desktop`. For the two epics in `SSWConsulting/SSW.YakShaver` (#2811 and #3494), use the `bash` tool to write their comment bodies to files — a `post-steps:` job will pick them up and post via `gh issue comment`.
 
+Use `bash` to write each file:
+
+```bash
+cat > /tmp/gh-aw/comments/comment-yakshaver-2811.md << 'EOF'
+<comment body for Agent 2.0 — see template below>
+EOF
+
+cat > /tmp/gh-aw/comments/comment-yakshaver-3494.md << 'EOF'
+<comment body for Auth Migration — see template below>
+EOF
 ```
-add_comment(
-  item_number: 677,
-  body: <comment body below>
-)
-```
 
-**Comment body template:**
+### 4b — Post comment on Desktop App epic #677
+
+Call `add_comment` with `item_number: 677` for the Desktop App epic (same repo, no cross-repo needed).
+
+**Always provide `item_number: 677` explicitly** — `workflow_dispatch` triggers do not support auto-targeting.
+
+Use plain `SSWConsulting/RepoName#number` references (not Markdown links) — the tool has a hard limit of 50 HTTP/HTTPS links per comment. With ~60 PBIs total, plain references avoid breaching this limit.
+
+If the comment body would exceed ~60 PBI rows, split into two `add_comment` calls (max 3 total comments allowed). Always include `item_number: 677` on every call.
+
+---
+
+### Comment template (use for all three epics, tailoring PBI section to each epic's own PBIs)
 
 ```markdown
 ## 🗂️ Epic Reorganised — [N] Smaller Epics Created
 
 The three large YakShaver epics have been clustered thematically into smaller, focused epics
-(all in SSWConsulting/SSW.YakShaver.Desktop). PBIs from Desktop App and Agent 2.0 that share
+in SSWConsulting/SSW.YakShaver.Desktop. PBIs from Desktop App and Agent 2.0 that share
 the same theme have been grouped together.
 
-### New Epics Created
+### New Epics (containing PBIs from this epic)
 
 | Epic | Scope |
 |------|-------|
 | SSWConsulting/SSW.YakShaver.Desktop#[number] | [~10 word description] |
-[... one row per new epic; use plain org/repo#number, NOT markdown links ...]
+[... only rows for new epics that contain at least one PBI from THIS epic; plain org/repo#number only ...]
 
-### PBI Assignment — Agent 2.0 (SSWConsulting/SSW.YakShaver#2811)
-
-| PBI | State | New Epic |
-|-----|-------|---------|
-| SSWConsulting/SSW.YakShaver#[number] [title] | open/closed | SSWConsulting/SSW.YakShaver.Desktop#[number] |
-[... all PBIs from Agent 2.0 epic ...]
-
-### PBI Assignment — Desktop App (SSWConsulting/SSW.YakShaver.Desktop#677)
+### PBI Assignment
 
 | PBI | State | New Epic |
 |-----|-------|---------|
-| SSWConsulting/SSW.YakShaver.Desktop#[number] [title] | open/closed | SSWConsulting/SSW.YakShaver.Desktop#[number] |
-[... all PBIs from Desktop App epic ...]
-
-### PBI Assignment — Auth Migration (SSWConsulting/SSW.YakShaver#3494)
-
-| PBI | State | New Epic |
-|-----|-------|---------|
-| SSWConsulting/SSW.YakShaver#[number] [title] | open/closed | SSWConsulting/SSW.YakShaver.Desktop#[number] |
-[... all PBIs from Auth Migration epic ...]
+| SSWConsulting/[SourceRepo]#[number] [title] | open/closed | SSWConsulting/SSW.YakShaver.Desktop#[number] |
+[... all PBIs that belong to THIS original epic, open and closed ...]
 
 ### 📌 Action Required
 
-1. **Link each new epic as a sub-issue of its source epic** (progress bar will update automatically)
-2. **Re-assign each PBI as a sub-issue of its new smaller epic** (remove from old epic → add to new)
-3. **Manually post the same summary** on SSWConsulting/SSW.YakShaver#2811 and SSWConsulting/SSW.YakShaver#3494 (cross-repo commenting is not supported by this workflow)
+1. **Link each new epic above as a sub-issue of this epic** so the GitHub progress bar updates
+2. **Re-assign each PBI as a sub-issue of its new smaller epic** (remove from this epic → add to the new one)
 
-GitHub CLI commands for bulk re-assignment:
+GitHub CLI commands:
 
 ```bash
-# Add a new epic as a sub-issue of the original epic
-gh api repos/SSWConsulting/[SOURCE_REPO]/issues/[SOURCE_EPIC]/sub_issues \
+# Add a new epic as a sub-issue of this epic
+gh api repos/SSWConsulting/[SOURCE_REPO]/issues/[THIS_EPIC]/sub_issues \
   --method POST -f sub_issue_id=[NEW_EPIC_NUMBER]
 
-# Move a PBI: remove from old epic, add to new epic
-gh api repos/SSWConsulting/[SOURCE_REPO]/issues/[SOURCE_EPIC]/sub_issues/[PBI_NUMBER] \
+# Move a PBI: remove from this epic, add to new epic
+gh api repos/SSWConsulting/[SOURCE_REPO]/issues/[THIS_EPIC]/sub_issues/[PBI_NUMBER] \
   --method DELETE
 gh api repos/SSWConsulting/SSW.YakShaver.Desktop/issues/[NEW_EPIC_NUMBER]/sub_issues \
   --method POST -f sub_issue_id=[PBI_NUMBER]
 ```
 
-> ℹ️ PBIs remain in their original repos. Only the tracking epics move to SSW.YakShaver.Desktop.
+> ℹ️ PBIs stay in their original repos. Only the tracking epics move to SSW.YakShaver.Desktop.
 ```
-
-If the comment body would exceed ~60 PBI rows, split into two `add_comment` calls (the workflow allows max 3 comments): first call covers Agent 2.0 PBIs, second covers Desktop App + Auth Migration PBIs. Always include `item_number: 677` on every call.
 
 ---
 
@@ -234,9 +251,8 @@ If the comment body would exceed ~60 PBI rows, split into two `add_comment` call
 - Include **all** PBIs — open and closed — so new epics show real progress
 - Cluster **holistically across all three source epics** — PBIs from Desktop App and Agent 2.0 may share the same new smaller epic
 - All-closed clusters are acceptable — group by theme, not state
-- Each new epic body **must** include the full ✅/🔲 progress table with every PBI and its source repo
 - The three original epics must stay open and untouched — do not modify or close them
+- Use `bash` to write comment files for #2811 and #3494 before calling `add_comment` for #677 — the `post-steps:` job will post them automatically
 - The `GH_AW_CROSS_REPO_PAT` secret must have:
   - **Read** access to `SSWConsulting/SSW.YakShaver`
-  - **Read + Write** access to `SSWConsulting/SSW.YakShaver.Desktop`
-- If the secret is missing or has insufficient scope, stop and post a warning comment on the Desktop App epic (#677) instructing the team to add `GH_AW_CROSS_REPO_PAT` at **Settings → Secrets → Actions** in `SSWConsulting/SSW.YakShaver.Desktop`
+  - **Read + Write (Issues)** access to `SSWConsulting/SSW.YakShaver.Desktop`

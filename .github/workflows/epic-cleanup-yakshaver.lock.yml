@@ -25,7 +25,7 @@
 # PBIs (open and closed) thematically into focused smaller epics — all created in
 # SSWConsulting/SSW.YakShaver.Desktop — for better sprint planning and progress tracking.
 #
-# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"06b67ed2b5d5f818817a5d2067296713aae48d0a1a0171cdae138f55601eb867","compiler_version":"v0.56.2","strict":true}
+# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"5ababe00126282abab56ec2b6aebee20d13c5bfbf7642b4851e86579a574c737","compiler_version":"v0.56.2","strict":true}
 
 name: "Epic Cleanup — Cluster PBIs into Smaller Epics"
 "on":
@@ -266,6 +266,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         name: Validate GH_AW_CROSS_REPO_PAT
         run: "if [ -z \"$GH_AW_PAT\" ]; then\n  echo \"::error::GH_AW_CROSS_REPO_PAT secret is not configured.\"\n  BODY=\"## ⚠️ Epic Cleanup workflow failed to start\\n\\nThe \\`GH_AW_CROSS_REPO_PAT\\` secret is missing. This workflow needs a PAT to read issues from \\`SSW.YakShaver\\` and create epics in \\`SSW.YakShaver.Desktop\\`.\\n\\nGo to **Settings → Secrets → Actions → New repository secret**, add \\`GH_AW_CROSS_REPO_PAT\\` with a fine-grained token that has Issues Read+Write on both \\`SSWConsulting/SSW.YakShaver\\` and \\`SSWConsulting/SSW.YakShaver.Desktop\\`, then re-run this workflow.\"\n  printf '%b' \"$BODY\" | gh issue comment 677 --repo SSWConsulting/SSW.YakShaver.Desktop --body-file -\n  exit 1\nfi\n"
+      - name: Prepare comment output directory
+        run: mkdir -p /tmp/gh-aw/comments
 
       - name: Configure Git credentials
         env:
@@ -880,6 +882,11 @@ jobs:
           else
             echo 'AWF binary not installed, skipping firewall log summary'
           fi
+      - env:
+          GH_TOKEN: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
+        name: Post summary to SSW.YakShaver epics
+        run: "for ISSUE in 2811 3494; do\n  FILE=\"/tmp/gh-aw/comments/comment-yakshaver-${ISSUE}.md\"\n  if [ -f \"$FILE\" ]; then\n    echo \"Posting comment to SSWConsulting/SSW.YakShaver#${ISSUE}...\"\n    gh issue comment \"$ISSUE\" \\\n      --repo SSWConsulting/SSW.YakShaver \\\n      --body-file \"$FILE\"\n  else\n    echo \"No comment file found for SSW.YakShaver#${ISSUE} — skipping.\"\n  fi\ndone\n"
+
       - name: Upload agent artifacts
         if: always()
         continue-on-error: true
