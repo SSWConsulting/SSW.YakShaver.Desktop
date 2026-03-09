@@ -111,6 +111,7 @@ SSW.YakShaver.Desktop/
 │           ├── components/            # Feature-based components
 │           │   ├── ui/                # Radix UI primitives (shadcn/ui)
 │           │   ├── auth/              # Authentication UI
+│           │   ├── onboarding/        # Onboarding wizard (multi-step setup)
 │           │   ├── recording/         # Screen recording feature
 │           │   ├── workflow/          # AI workflow visualization
 │           │   ├── settings/          # Settings panels (llm/, mcp/, custom-prompt/, etc.)
@@ -180,7 +181,30 @@ Before adding new IPC channels, handlers, services, or utility functions, check 
 
 Prefer extending existing code over creating new files. Duplicated logic is harder to maintain than a slightly larger existing module.
 
-### Rule 8: DRY and KISS
+### Rule 8: Small and Maintainable Components
+
+React component files must not exceed ~200 lines. When a component grows beyond this limit, break it down:
+
+1. **Extract sub-components** into the same feature directory (e.g., `OnboardingSidebar.tsx`, `LLMStep.tsx`, `StepFooter.tsx` inside `components/onboarding/`)
+2. **Extract business logic into custom hooks** in `src/ui/src/hooks/` (e.g., `useOnboardingLLM.ts`, `useOnboardingWizard.ts`)
+3. **Extract cross-layer feature types** (used by both hooks and components) to `src/ui/src/types/{feature}.ts` (e.g., `src/ui/src/types/onboarding.ts`)
+4. **Keep the main component as a thin orchestrator** that composes sub-components and hooks
+
+Reference implementation: `src/ui/src/components/onboarding/` demonstrates this pattern with `OnboardingWizard.tsx` composing `OnboardingSidebar`, `VideoHostingStep`, `LLMStep`, `MCPStep`, and `StepFooter`, with logic extracted into `useOnboardingLLM` and `useOnboardingWizard` hooks.
+
+### Rule 9: Type Placement
+
+Place types in the correct location based on their scope:
+
+| Scope | Location | Path Alias | Example |
+| --- | --- | --- | --- |
+| Shared between frontend & backend | `src/shared/types/` | `@shared/types/*` | LLM configs, workflow payloads, MCP types |
+| Frontend-only or cross-layer within a feature (used by hooks + components) | `src/ui/src/types/` | `@/types` | `AuthStatus`, `HealthStatusInfo`, `WorkflowProgress`, `OnboardingLLMState`, `LLM_STEP_ID` |
+| Component-internal (used only within a single component file) | `src/ui/src/components/{feature}/types.ts` | Relative import | Form-specific prop types used in one component |
+
+Never put frontend-only types in `src/shared/types/`. Never put types shared with the backend in `src/ui/src/types/`. When a type or constant is consumed by both a hook (in `src/ui/src/hooks/`) and a component, place it in `src/ui/src/types/` — not in `components/{feature}/types.ts`.
+
+### Rule 10: DRY and KISS
 
 - **DRY (Don't Repeat Yourself)**: If the same logic appears in more than one place, extract it into a shared function, hook, or utility. Duplicated code leads to bugs when one copy is updated but the other is forgotten.
 - **KISS (Keep It Simple, Stupid)**: Choose the simplest solution that works. Don't over-abstract, over-engineer, or add layers of indirection for hypothetical future needs. A few lines of straightforward code is better than a clever abstraction that's hard to follow.
@@ -192,7 +216,7 @@ Prefer extending existing code over creating new files. Duplicated logic is hard
 - **Single Responsibility**: Each file, function, and class should do one thing well. If a function exceeds ~50 lines, consider extracting logic into helper functions.
 - **Early Returns**: Use guard clauses to reduce nesting. Return early for error/edge cases instead of deep if-else chains.
 - **Descriptive Names**: Variable and function names should describe their purpose. Avoid abbreviations (`btn` -> `button`, `msg` -> `message`) except for well-known acronyms (URL, API, IPC).
-- **Constants Over Literals**: Extract string/number literals into named constants. Use `IPC_CHANNELS.YOUTUBE_START_AUTH` not `"youtube:start-auth"` directly.
+- **Constants Over Literals**: Extract string/number literals into named constants. Use `IPC_CHANNELS.YOUTUBE_START_AUTH` not `"youtube:start-auth"` directly. For multi-step flows, define every step as a named constant (e.g. `VIDEO_STEP_ID`, `LLM_STEP_ID`) in the shared types file — never compare against raw numbers like `currentStep === 2`.
 - **Fail Explicitly**: Throw meaningful error messages with context. `throw new Error(\`Failed to load config for provider ${name}: ${formatErrorMessage(error)}\`)` is better than `throw error`.
 - **Clean Imports**: Remove unused imports. Use `import type { X }` for type-only imports to avoid bundling unnecessary code.
 
@@ -255,6 +279,7 @@ Prefer extending existing code over creating new files. Duplicated logic is hard
   ```
 - **Use `useId()` for form element IDs**, not `Math.random()` or hardcoded strings.
 - **Co-locate related code**: Keep Zod schemas (`schema.ts`), local types (`types.ts`), and sub-components in the same feature directory.
+- **Each step/section component owns its validation state**. Never centralize validation logic for multiple steps in a parent/orchestrator component. Instead, each step component accepts an `onValidationChange` callback and calls it (via `useEffect`) whenever its own validity changes. The parent simply holds a single `isNextEnabled` boolean state and reacts to it — it has no knowledge of what makes each step valid. This keeps steps self-contained and eliminates complex boolean expressions in the parent as the number of steps grows.
 
 ### Error Handling
 
