@@ -1,9 +1,9 @@
 ---
-name: Epic Cleanup — Cluster PBIs into Smaller Sub-Epics
+name: Epic Cleanup — Cluster PBIs into Smaller Epics
 description: |
-  Analyses the three large YakShaver epics in the Product Backlog, clusters their
-  open PBIs thematically, and creates focused smaller sub-epics — all in
-  SSWConsulting/SSW.YakShaver.Desktop — for better sprint planning.
+  Analyses the three large YakShaver epics in the Product Backlog, clusters ALL their
+  PBIs (open and closed) thematically into focused smaller epics — all created in
+  SSWConsulting/SSW.YakShaver.Desktop — for better sprint planning and progress tracking.
 
 on:
   workflow_dispatch:
@@ -24,17 +24,17 @@ network: {}
 safe-outputs:
   github-token: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
   create-issue:
-    max: 15
+    max: 12
   add-comment:
     max: 6
     target: "*"
 ---
 
-# Epic Cleanup — Cluster PBIs into Smaller Sub-Epics
+# Epic Cleanup — Cluster PBIs into Smaller Epics
 
-You are an expert product backlog manager. Your task is to reorganise three large, unwieldy epics in the YakShaver Product Backlog by clustering their open PBIs into smaller, focused sub-epics.
+You are an expert product backlog manager. Your task is to reorganise three large, unwieldy epics in the YakShaver Product Backlog. For each epic, you will read **all** of its PBIs (open and closed), cluster them into a small number of focused themes, and create one new, smaller epic per theme.
 
-**All new sub-epic issues must be created in `SSWConsulting/SSW.YakShaver.Desktop`**, regardless of which repo the original epic lives in. This centralises the Desktop product's backlog in one place.
+**All new epic issues must be created in `SSWConsulting/SSW.YakShaver.Desktop`**, regardless of which repo the original epic lives in. This centralises the Desktop product's backlog.
 
 ## Epics to Reorganise
 
@@ -44,135 +44,157 @@ You are an expert product backlog manager. Your task is to reorganise three larg
 | ✨ YakShaver Desktop App | SSWConsulting/SSW.YakShaver.Desktop | #677 |
 | ♻️ Auth Migration | SSWConsulting/SSW.YakShaver | #3494 |
 
-## Step 1 — Read the Epics
+---
 
-For each epic listed above, use the GitHub MCP tools to:
+## Step 1 — Read Every PBI in Each Epic
 
-1. Get the epic issue details (title, body, labels) — use the `github-token` configured for cross-repo access to read from both `SSWConsulting/SSW.YakShaver` and `SSWConsulting/SSW.YakShaver.Desktop`
-2. Get all sub-issues of the epic
-3. For each **open** sub-issue, read its title, labels, and body to understand its theme and functional area
+For each of the three epics:
 
-Skip any sub-issues that are already closed/completed.
+1. Read the epic issue body and labels
+2. Fetch **all sub-issues** — including both open and closed ones
+3. For every sub-issue, record:
+   - Issue number and title
+   - State: `open` or `closed`
+   - Labels (e.g., Type: Bug, Type: Feature, Type: Refactor)
+   - A one-line summary of what it does (from title or first sentence of body)
 
-## Step 2 — Cluster Open PBIs Thematically
+Do **not** skip closed PBIs — they are needed to show full progress context in the new epics.
 
-Analyse all **open** sub-issues for each epic and group them into 2–4 thematic clusters.
+---
 
-**Clustering guidelines:**
-- Group by functional area (e.g., authentication, MCP integration, UI/UX, infrastructure)
-- Group by issue type only if that is the dominant distinction (e.g., a large batch of bugs)
-- Aim for 3–8 PBIs per cluster — not too fine-grained, not too broad
-- A PBI that clearly spans two clusters goes in the most relevant one
+## Step 2 — Cluster All PBIs Holistically Across the Three Epics
 
-**Suggested starting clusters (validate against actual PBI content and adjust):**
+After reading all PBIs from all three epics, treat them as **one unified pool** and cluster them by theme. PBIs from different source epics may end up in the same new smaller epic if they are closely related.
 
-### YakShaver Agent 2.0 (SSWConsulting/SSW.YakShaver #2811)
-- `🔌 MCP Integration` — MCP service configuration, default services, fallback/error handling for MCP
-- `🏗️ Core Infrastructure` — database redesign, configurable settings, architecture/roadmap items
+**Clustering rules:**
 
-### YakShaver Desktop App (SSWConsulting/SSW.YakShaver.Desktop #677)
-- `🐛 Bug Fixes` — all defects (camera/audio, auth errors, recording issues, UI glitches, sign-in failures)
-- `✨ Features & UX` — new capabilities (stop button, project selection, transcript optimisation, system prompts)
-- `🏗️ Platform & Infrastructure` — code signing, centralised logging, onboarding wizard refactor, LLM provider support, Intel macOS installer
+- Each cluster should represent a coherent functional area or delivery theme
+- **Cross-epic clustering is encouraged** — Desktop App PBIs and Agent 2.0 PBIs that share the same theme (e.g., MCP integration, video pipeline) should be grouped together
+- Target **10–20 PBIs per cluster** — coarse-grained, not fine-grained
+- Aim for **5–8 clusters total** across all three epics combined — let the actual PBI themes drive the count, not the source epic structure
+- It is fine for a cluster to consist entirely of closed PBIs — group by theme, not by state
+- Auth Migration PBIs are self-contained (auth/identity scope) and should remain in their own cluster(s)
+- A PBI that spans two themes goes in whichever is more dominant
 
-### Auth Migration (SSWConsulting/SSW.YakShaver #3494)
-- `♻️ Scope 1: Enterprise Auth Simplification` — Make Entra permission optional, ADR revision, Better-Auth spike follow-up, implementation
-- `🌐 Scope 2: Extended Login Providers` — Non-Entra tenant policy, invitation system for external users
+**Suggested starting clusters — validate against actual PBI content and adjust:**
 
-## Step 3 — Create Smaller Sub-Epic Issues
+- `🔌 MCP & AI Pipeline` — MCP host/client, MCP service config, fallback/error handling, OpenAI integration, transcript pipeline (from Agent 2.0 and Desktop App)
+- `🎬 Video Recording & Processing` — screen capture, local video processing, FFmpeg, upload pipeline, recording confirmation, video hosting (from Agent 2.0 and Desktop App)
+- `✨ Features & UX` — stop button, project selection, transcript optimisation, fallback/system prompt, additional LLM providers, customisable prompt (from Desktop App)
+- `🐛 Bug Fixes & Quality` — all defects across Desktop App: camera/audio, auth errors, sign-in failures, UI glitches, download confusion, Azure DevOps MCP bugs
+- `🏗️ Platform & Infrastructure` — Tauri app init, database redesign, configurable settings, code signing, centralised logging, onboarding wizard refactor, Intel macOS installer, architecture/roadmap (from Agent 2.0 and Desktop App)
+- `♻️ Auth Scope 1 — Enterprise Auth` — Make Entra permission optional, Better-Auth spike, ADR revision, implementation (from Auth Migration)
+- `🌐 Auth Scope 2 — Extended Login Providers` — non-Entra tenant policy, invitation system (from Auth Migration)
 
-For each cluster, create a new sub-epic issue using `create-issue`.
+---
 
-⚠️ **All new sub-epics must be created in `SSWConsulting/SSW.YakShaver.Desktop`** — always set `target-repo: SSWConsulting/SSW.YakShaver.Desktop` on every `create-issue` call.
+## Step 3 — Create One New Epic per Cluster
 
-**Required fields for each new sub-epic:**
+For each cluster identified in Step 2, create a new epic issue using `create-issue`.
 
-- **title**: Format — `[Emoji] [Cluster Name] — [Parent Epic Short Name]`
-  - Example: `🔌 MCP Integration — YakShaver Agent 2.0`
+⚠️ **Set `target-repo: SSWConsulting/SSW.YakShaver.Desktop` on every `create-issue` call.**
+
+**Issue fields:**
+
+- **title**: `[Emoji] [Cluster Name]`
+  - Example: `🔌 MCP & AI Pipeline`
 - **issue_type**: `Epic`
-- **labels**: `Type: Feature` for feature/agent clusters; `Type: Bug` for bug clusters; `Type: Refactor` for refactor clusters
-- **target-repo**: `SSWConsulting/SSW.YakShaver.Desktop` _(always)_
-- **body**: Use the template below
+- **labels**: `Type: Feature` for feature/AI clusters; `Type: Bug` for bug clusters; `Type: Refactor` for refactor clusters
+- **target-repo**: `SSWConsulting/SSW.YakShaver.Desktop`
+- **body**: Use the template below exactly
 
-**Body template:**
+**Body template for each new epic:**
 
-```
-Part of [Parent Epic Title] [SourceOrg/SourceRepo]#[ParentIssueNumber]
+```markdown
+Consolidates PBIs from:
+- [source epic 1 title] — [SourceOrg/SourceRepo]#[number]
+- [source epic 2 title] — [SourceOrg/SourceRepo]#[number]  (if this cluster spans multiple source epics)
 
 ### Scope
-[1–2 sentences describing what this sub-epic covers and why it is grouped together]
+[2–3 sentences describing what this epic covers, which source epics it draws from, and the value it delivers]
 
-### PBIs
-<!-- These existing PBIs should be linked here as sub-issues -->
-- [SourceOrg/SourceRepo]#[number] — [title]
-- [SourceOrg/SourceRepo]#[number] — [title]
-[... list all open PBIs in this cluster with their source repo prefix ...]
+### Progress
+
+> ✅ = done · 🔲 = open / in progress
+
+| # | Repo | Title | Status |
+|---|------|-------|--------|
+| [number] | SSW.YakShaver | [title] | ✅ |
+| [number] | SSW.YakShaver.Desktop | [title] | 🔲 |
+[... one row per PBI in this cluster, all states, all source repos ...]
+
+**[X] / [total] done**
 
 ### Acceptance Criteria
-This sub-epic is complete when all listed PBIs above are done.
+This epic is complete when all 🔲 open PBIs in the progress table above are closed.
 ```
+
+---
 
 ## Step 4 — Comment on Each Original Epic
 
-After creating all new sub-epics, use `add-comment` to post a reorganisation summary on each of the three **original** epics.
+After all new epics are created, post one summary comment on each of the three **original** epics using `add-comment`.
 
-Use `target-repo` to direct comments to the correct repository:
+Target repos for comments:
 - `target-repo: SSWConsulting/SSW.YakShaver` for Agent 2.0 (#2811) and Auth Migration (#3494)
 - `target-repo: SSWConsulting/SSW.YakShaver.Desktop` for Desktop App (#677)
 
-**Comment template:**
+**Comment body:**
 
 ```markdown
-## 🗂️ Epic Reorganised into Smaller Sub-Epics
+## 🗂️ Epic Reorganised — Smaller Epics Created
 
-This epic was too large for effective sprint planning. It has been split into smaller,
-focused sub-epics in [SSWConsulting/SSW.YakShaver.Desktop](https://github.com/SSWConsulting/SSW.YakShaver.Desktop).
-Each sub-epic groups related PBIs by functional area.
+This epic's PBIs have been clustered thematically (along with related PBIs from sibling epics)
+into focused smaller epics in
+[SSWConsulting/SSW.YakShaver.Desktop](https://github.com/SSWConsulting/SSW.YakShaver.Desktop).
 
-### New Sub-Epics Created
+### New Epics (containing PBIs from this epic)
 
-| Sub-Epic | Scope |
-|----------|-------|
-| SSWConsulting/SSW.YakShaver.Desktop#[number] — [name] | [brief scope, ~8 words] |
-| SSWConsulting/SSW.YakShaver.Desktop#[number] — [name] | [brief scope, ~8 words] |
+| Epic | Open | Done | Scope |
+|------|------|------|-------|
+| [SSW.YakShaver.Desktop#number](link) — [name] | [X] open | [Y] done | [~10 word description] |
+[... only list new epics that contain at least one PBI from *this* original epic ...]
 
-### PBI Assignments
+### PBIs from This Epic → New Epic Assignment
 
-| PBI | Moved to Sub-Epic |
-|-----|------------------|
-| #[number] [title] | SSWConsulting/SSW.YakShaver.Desktop#[sub_epic_number] |
-[... list all open PBIs and their assigned sub-epic ...]
+| PBI | State | New Epic |
+|-----|-------|---------|
+| SSWConsulting/[repo]#[number] [title] | ✅/🔲 | [SSW.YakShaver.Desktop#number](link) |
+[... all PBIs from this original epic, open and closed ...]
 
-### 📌 Action Required — Complete the Sub-Issue Linking
+### 📌 Action Required
 
-The new sub-epics have been created. To finish the reorganisation:
+1. **Link each new epic above as a sub-issue of this epic** so the GitHub progress bar updates
+2. **Re-assign each PBI as a sub-issue of its new epic** (remove from this epic → add to the smaller one)
 
-1. **Open each new sub-epic in SSW.YakShaver.Desktop and set this issue as its parent**
-2. **Move each PBI to be a sub-issue of its new sub-epic** (remove from this epic → add to sub-epic)
-
-Or complete in bulk via GitHub CLI:
+GitHub CLI commands:
 
 ```bash
-# For each new sub-epic — reference it as a sub-issue of this epic (cross-repo)
-gh api repos/SSWConsulting/[SOURCE_REPO]/issues/[THIS_EPIC_NUMBER]/sub_issues \
-  --method POST -f sub_issue_id=[NEW_DESKTOP_SUB_EPIC_NUMBER]
+# Add a new epic as a sub-issue of this epic
+gh api repos/SSWConsulting/[SOURCE_REPO]/issues/[THIS_EPIC]/sub_issues \
+  --method POST -f sub_issue_id=[NEW_EPIC_NUMBER]
 
-# For each PBI — remove from this epic, link to new sub-epic in Desktop repo
-gh api repos/SSWConsulting/[SOURCE_REPO]/issues/[THIS_EPIC_NUMBER]/sub_issues/[PBI_NUMBER] \
+# Move a PBI: remove from this epic
+gh api repos/SSWConsulting/[SOURCE_REPO]/issues/[THIS_EPIC]/sub_issues/[PBI_NUMBER] \
   --method DELETE
+# Move a PBI: add to new epic in Desktop repo
+gh api repos/SSWConsulting/SSW.YakShaver.Desktop/issues/[NEW_EPIC_NUMBER]/sub_issues \
+  --method POST -f sub_issue_id=[PBI_NUMBER]
 ```
 
-> ℹ️ Replacing the sub-issue links is a manual step because the PBIs remain in their original
-> repos — only the sub-epic tracking issues have moved to SSW.YakShaver.Desktop.
+> ℹ️ PBIs remain in their original repos. Only the tracking epics move to SSW.YakShaver.Desktop.
 ```
+
+---
 
 ## Important Notes
 
-- Only process **open** PBIs — do not touch closed/completed sub-issues
-- The three original epics must remain open and unmodified
-- Every new sub-epic goes in `SSWConsulting/SSW.YakShaver.Desktop` — no exceptions
-- The `GH_AW_CROSS_REPO_PAT` secret is required for:
-  - Reading issues in `SSWConsulting/SSW.YakShaver` (Agent 2.0, Auth Migration)
-  - Creating all new sub-epics in `SSWConsulting/SSW.YakShaver.Desktop`
-  - Posting comments on `SSWConsulting/SSW.YakShaver` issues
-- If the secret is missing, warn clearly in a comment on each epic that the PAT must be configured at **Settings → Secrets → Actions → `GH_AW_CROSS_REPO_PAT`** in `SSWConsulting/SSW.YakShaver.Desktop`
+- Include **all** PBIs — open and closed — so new epics show real progress
+- Cluster **holistically across all three source epics** — PBIs from Desktop App and Agent 2.0 may share the same new smaller epic
+- All-closed clusters are acceptable — group by theme, not state
+- Each new epic body **must** include the full ✅/🔲 progress table with every PBI and its source repo
+- The three original epics must stay open and untouched — do not modify or close them
+- The `GH_AW_CROSS_REPO_PAT` secret must have:
+  - **Read** access to `SSWConsulting/SSW.YakShaver`
+  - **Read + Write** access to `SSWConsulting/SSW.YakShaver.Desktop`
+- If the secret is missing or has insufficient scope, stop and post a warning comment on the Desktop App epic (#677) instructing the team to add `GH_AW_CROSS_REPO_PAT` at **Settings → Secrets → Actions** in `SSWConsulting/SSW.YakShaver.Desktop`
