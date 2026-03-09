@@ -25,7 +25,7 @@
 # PBIs (open and closed) thematically into focused smaller epics — all created in
 # SSWConsulting/SSW.YakShaver.Desktop — for better sprint planning and progress tracking.
 #
-# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"b53ec64627f7f6cead85b7120d13411405930041ae1712f9a01b2f28b2a970a1","compiler_version":"v0.56.2","strict":true}
+# gh-aw-metadata: {"schema_version":"v2","frontmatter_hash":"06b67ed2b5d5f818817a5d2067296713aae48d0a1a0171cdae138f55601eb867","compiler_version":"v0.56.2","strict":true}
 
 name: "Epic Cleanup — Cluster PBIs into Smaller Epics"
 "on":
@@ -40,7 +40,7 @@ run-name: "Epic Cleanup — Cluster PBIs into Smaller Epics"
 
 jobs:
   activation:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -261,6 +261,12 @@ jobs:
           persist-credentials: false
       - name: Create gh-aw temp directory
         run: bash /opt/gh-aw/actions/create_gh_aw_tmp_dir.sh
+      - env:
+          GH_AW_PAT: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
+          GH_TOKEN: ${{ github.token }}
+        name: Validate GH_AW_CROSS_REPO_PAT
+        run: "if [ -z \"$GH_AW_PAT\" ]; then\n  echo \"::error::GH_AW_CROSS_REPO_PAT secret is not configured.\"\n  BODY=\"## ⚠️ Epic Cleanup workflow failed to start\\n\\nThe \\`GH_AW_CROSS_REPO_PAT\\` secret is missing. This workflow needs a PAT to read issues from \\`SSW.YakShaver\\` and create epics in \\`SSW.YakShaver.Desktop\\`.\\n\\nGo to **Settings → Secrets → Actions → New repository secret**, add \\`GH_AW_CROSS_REPO_PAT\\` with a fine-grained token that has Issues Read+Write on both \\`SSWConsulting/SSW.YakShaver\\` and \\`SSWConsulting/SSW.YakShaver.Desktop\\`, then re-run this workflow.\"\n  printf '%b' \"$BODY\" | gh issue comment 677 --repo SSWConsulting/SSW.YakShaver.Desktop --body-file -\n  exit 1\nfi\n"
+
       - name: Configure Git credentials
         env:
           REPO_NAME: ${{ github.repository }}
@@ -310,12 +316,12 @@ jobs:
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
           cat > /opt/gh-aw/safeoutputs/config.json << 'GH_AW_SAFE_OUTPUTS_CONFIG_EOF'
-          {"add_comment":{"max":6,"target":"*"},"create_issue":{"max":12},"missing_data":{},"missing_tool":{},"noop":{"max":1}}
+          {"add_comment":{"max":3,"target":"*","target-repo":"SSWConsulting/SSW.YakShaver.Desktop"},"create_issue":{"max":12},"missing_data":{},"missing_tool":{},"noop":{"max":1}}
           GH_AW_SAFE_OUTPUTS_CONFIG_EOF
           cat > /opt/gh-aw/safeoutputs/tools.json << 'GH_AW_SAFE_OUTPUTS_TOOLS_EOF'
           [
             {
-              "description": "Create a new GitHub issue for tracking bugs, feature requests, or tasks. Use this for actionable work items that need assignment, labeling, and status tracking. For reports, announcements, or status updates that don't require task tracking, use create_discussion instead. CONSTRAINTS: Maximum 12 issue(s) can be created.",
+              "description": "Create a new GitHub issue for tracking bugs, feature requests, or tasks. Use this for actionable work items that need assignment, labeling, and status tracking. For reports, announcements, or status updates that don't require task tracking, use create_discussion instead. CONSTRAINTS: Maximum 12 issue(s) can be created. Title will be prefixed with \"[YakShaver 2.0] \". Issues will be created in repository \"SSWConsulting/SSW.YakShaver.Desktop\".",
               "inputSchema": {
                 "additionalProperties": false,
                 "properties": {
@@ -364,7 +370,7 @@ jobs:
               "name": "create_issue"
             },
             {
-              "description": "Add a comment to an existing GitHub issue, pull request, or discussion. Use this to provide feedback, answer questions, or add information to an existing conversation. For creating new items, use create_issue, create_discussion, or create_pull_request instead. IMPORTANT: Comments are subject to validation constraints enforced by the MCP server - maximum 65536 characters for the complete comment (including footer which is added automatically), 10 mentions (@username), and 50 links. Exceeding these limits will result in an immediate error with specific guidance. NOTE: By default, this tool requires discussions:write permission. If your GitHub App lacks Discussions permission, set 'discussions: false' in the workflow's safe-outputs.add-comment configuration to exclude this permission. CONSTRAINTS: Maximum 6 comment(s) can be added. Target: *.",
+              "description": "Add a comment to an existing GitHub issue, pull request, or discussion. Use this to provide feedback, answer questions, or add information to an existing conversation. For creating new items, use create_issue, create_discussion, or create_pull_request instead. IMPORTANT: Comments are subject to validation constraints enforced by the MCP server - maximum 65536 characters for the complete comment (including footer which is added automatically), 10 mentions (@username), and 50 links. Exceeding these limits will result in an immediate error with specific guidance. NOTE: By default, this tool requires discussions:write permission. If your GitHub App lacks Discussions permission, set 'discussions: false' in the workflow's safe-outputs.add-comment configuration to exclude this permission. CONSTRAINTS: Maximum 3 comment(s) can be added. Target: *. Comments will be added in repository \"SSWConsulting/SSW.YakShaver.Desktop\".",
               "inputSchema": {
                 "additionalProperties": false,
                 "properties": {
@@ -1015,7 +1021,7 @@ jobs:
       - agent
       - safe_outputs
     if: (always()) && (needs.agent.result != 'skipped')
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       discussions: write
@@ -1115,7 +1121,7 @@ jobs:
   safe_outputs:
     needs: agent
     if: ((!cancelled()) && (needs.agent.result != 'skipped')) && (needs.agent.outputs.detection_success == 'true')
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       discussions: write
@@ -1164,7 +1170,7 @@ jobs:
           GH_AW_ALLOWED_DOMAINS: "api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.github.com,api.githubcopilot.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org,telemetry.enterprise.githubcopilot.com"
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_API_URL: ${{ github.api_url }}
-          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":6,\"target\":\"*\"},\"create_issue\":{\"max\":12},\"missing_data\":{},\"missing_tool\":{}}"
+          GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: "{\"add_comment\":{\"max\":3,\"target\":\"*\",\"target-repo\":\"SSWConsulting/SSW.YakShaver.Desktop\"},\"create_issue\":{\"max\":12,\"target-repo\":\"SSWConsulting/SSW.YakShaver.Desktop\",\"title_prefix\":\"[YakShaver 2.0] \"},\"missing_data\":{},\"missing_tool\":{}}"
         with:
           github-token: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
           script: |
