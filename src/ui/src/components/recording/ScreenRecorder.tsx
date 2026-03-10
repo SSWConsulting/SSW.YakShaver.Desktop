@@ -12,6 +12,7 @@ import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { Kbd } from "../ui/kbd";
 import { Label } from "../ui/label";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
@@ -239,7 +240,7 @@ export function ScreenRecorder() {
   return (
     <>
       <section className="flex flex-col gap-4 items-center w-full">
-        <div className="flex flex-row items-center gap-2">
+        <div className="flex flex-col items-center gap-1">
           <Button
             className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90"
             onClick={toggleRecording}
@@ -249,8 +250,13 @@ export function ScreenRecorder() {
               ? "Stop Recording"
               : isTranscribing
                 ? "Transcribing..."
-                : `Start Recording${recordHotkey ? ` (${recordHotkey})` : ""}`}
+                : "Start Recording"}
           </Button>
+          {!isRecording && !isTranscribing && recordHotkey && (
+            <p className="text-xs text-muted-foreground">
+              Press <Kbd>{recordHotkey}</Kbd> to record
+            </p>
+          )}
         </div>
         {!isAuthenticated && (
           <p className="text-sm text-muted-foreground text-center">
