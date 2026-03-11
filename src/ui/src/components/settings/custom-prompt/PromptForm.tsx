@@ -156,23 +156,31 @@ export function PromptForm({
 
     const data = form.getValues();
 
-    // Validate that at least one connected non-built-in MCP server is selected (if any are available).
     if (!isDefault) {
-      const availableEnabledNonBuiltinServers = mcpServers.filter(
-        (server) => !server.builtin && server.enabled !== false,
-      );
-      if (availableEnabledNonBuiltinServers.length > 0) {
-        const selectedEnabledNonBuiltinServers = availableEnabledNonBuiltinServers.filter(
-          (server) => server.id && data.selectedMcpServerIds?.includes(server.id),
-        );
-        if (selectedEnabledNonBuiltinServers.length === 0) {
-          form.setError("selectedMcpServerIds", {
-            type: "manual",
-            message: "Please select at least one enabled MCP server (excluding built-in servers)",
-          });
-          return;
-        }
+      const nonBuiltinServers = mcpServers.filter((s) => !s.builtin);
+
+      // Case 1: no non-builtin servers exist at all → hard block
+      if (nonBuiltinServers.length === 0) {
+        form.setError("selectedMcpServerIds", {
+          type: "manual",
+          message: "No MCP servers configured. Please add a server in the MCP settings tab.",
+        });
+        return;
       }
+
+      // Case 2: non-builtin servers exist but none are selected → hard block
+      const selectedNonBuiltinIds = (data.selectedMcpServerIds ?? []).filter((id) =>
+        nonBuiltinServers.some((s) => s.id === id),
+      );
+      if (selectedNonBuiltinIds.length === 0) {
+        form.setError("selectedMcpServerIds", {
+          type: "manual",
+          message: "Please select at least one MCP server  (excluding built-in servers).",
+        });
+        return;
+      }
+
+      // Case 3: all selected non-builtins are disconnected → soft warning, allow save (handled in UI)
     }
 
     await onSubmit(data, andActivate);
@@ -270,6 +278,12 @@ export function PromptForm({
                 .filter((s) => field.value?.includes(s.id))
                 .map((s) => s.name);
 
+              const hasDisconnectedSelection =
+                !isDefault &&
+                serversWithIds.some(
+                  (s) => !s.builtin && s.enabled === false && field.value?.includes(s.id),
+                );
+
               return (
                 <FormItem className="shrink-0">
                   <FormLabel>MCP Servers *</FormLabel>
@@ -296,7 +310,8 @@ export function PromptForm({
                       const isServerDisabled = server.enabled === false;
                       const isChecked =
                         isDefault || isBuiltin || (field.value?.includes(server.id) ?? false);
-                      const isCheckboxDisabled = isDefault || isBuiltin || isServerDisabled;
+                      // Only lock for default prompts and built-ins; disabled servers remain toggleable
+                      const isCheckboxDisabled = isDefault || isBuiltin;
                       const handleToggle = () => {
                         const newValue = isChecked
                           ? (field.value || []).filter((id) => id !== server.id)
@@ -304,12 +319,7 @@ export function PromptForm({
                         field.onChange(newValue);
                       };
                       return (
-                        <div
-                          key={server.id}
-                          className={`flex items-center gap-3 p-1 rounded ${
-                            isServerDisabled ? "opacity-50" : ""
-                          }`}
-                        >
+                        <div key={server.id} className="flex items-center gap-3 p-1 rounded">
                           <Checkbox
                             id={`server-${server.id}`}
                             checked={isChecked}
@@ -327,7 +337,9 @@ export function PromptForm({
                               <span className="ml-2 text-xs text-white/50">(Built-in)</span>
                             )}
                             {isServerDisabled && (
-                              <span className="ml-2 text-xs text-yellow-500/70">(Disabled)</span>
+                              <span className="ml-2 text-xs text-yellow-500/70">
+                                (Disconnected)
+                              </span>
                             )}
                           </label>
                         </div>
@@ -365,6 +377,12 @@ export function PromptForm({
                       </div>
                     )}
                   </div>
+                  {hasDisconnectedSelection && (
+                    <p className="text-xs text-yellow-500/80 mt-1">
+                      Some selected servers are disconnected. Connect them in MCP settings tab to
+                      make their tools available.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               );
@@ -372,7 +390,7 @@ export function PromptForm({
           />
         )}
 
-        {serversLoaded && mcpServers.length === 0 && (
+        {serversLoaded && mcpServers.every((s) => s.builtin) && (
           <div className="text-sm text-yellow-500/80 p-3 rounded-md border border-yellow-500/30 bg-yellow-500/10">
             No MCP servers configured. Please add MCP servers in the MCP settings tab.
           </div>
