@@ -1,4 +1,4 @@
-import { ipcClient } from "@/services/ipc-client";
+import { useMcpCardActions } from "@/hooks/useMcpCardActions";
 import type { HealthStatusInfo } from "../../../../../../backend/types";
 import type { MCPServerConfig } from "../McpServerForm";
 import { McpCard } from "../mcp-card";
@@ -36,23 +36,11 @@ export function McpAzureDevOpsCard({
     enabled: false,
   };
 
-  async function toggleSettings(status: boolean): Promise<void> {
-    const updatedConfig = { ...configLocal, enabled: status };
-    await ipcClient.mcp.updateServerAsync(McpAzureDevOpsCard.Id, updatedConfig);
-
-    if (onChange) {
-      onChange(updatedConfig);
-    }
-  }
-
-  function handleOnConnect(): void {
-    toggleSettings(true);
-  }
-
-  async function handleOnDisconnect(): Promise<void> {
-    await ipcClient.mcp.clearTokensAsync(McpAzureDevOpsCard.Id);
-    await toggleSettings(false);
-  }
+  const { handleOnConnect, handleOnDisconnect } = useMcpCardActions(
+    McpAzureDevOpsCard.Id,
+    configLocal,
+    onChange,
+  );
 
   return (
     <McpCard

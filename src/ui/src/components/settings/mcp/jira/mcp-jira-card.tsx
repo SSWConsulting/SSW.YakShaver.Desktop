@@ -2,7 +2,7 @@ import { Check, Copy, ExternalLink, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ipcClient } from "@/services/ipc-client";
+import { useMcpCardActions } from "@/hooks/useMcpCardActions";
 import type { HealthStatusInfo } from "@/types";
 import type { MCPServerConfig } from "../McpServerForm";
 import { McpCard } from "../mcp-card";
@@ -36,23 +36,11 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
   const [copied, setCopied] = useState(false);
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISS_KEY) === "true");
 
-  async function toggleSettings(status: boolean): Promise<void> {
-    const updatedConfig = { ...configLocal, enabled: status };
-    await ipcClient.mcp.updateServerAsync(McpJiraCard.Id, updatedConfig);
-
-    if (onChange) {
-      onChange(updatedConfig);
-    }
-  }
-
-  function handleOnConnect(): void {
-    toggleSettings(true);
-  }
-
-  async function handleOnDisconnect(): Promise<void> {
-    await ipcClient.mcp.clearTokensAsync(McpJiraCard.Id);
-    await toggleSettings(false);
-  }
+  const { handleOnConnect, handleOnDisconnect } = useMcpCardActions(
+    McpJiraCard.Id,
+    configLocal,
+    onChange,
+  );
 
   function handleCopyDomain(): void {
     navigator.clipboard.writeText(YAKSHAVER_DOMAIN);
