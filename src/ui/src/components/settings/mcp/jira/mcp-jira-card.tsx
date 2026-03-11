@@ -56,8 +56,7 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
 
   const prerequisiteSection =
     !configLocal.enabled && !dismissed ? (
-      // biome-ignore lint: stop propagation prevents parent card click
-      <div className="mt-4" onClick={(e) => e.stopPropagation()}>
+      <div className="mt-4">
         <div className="flex flex-col gap-3 rounded-md border border-white/10 bg-white/5 p-3">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-semibold text-white/90">One-time setup before connecting</p>
