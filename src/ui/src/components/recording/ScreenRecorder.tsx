@@ -253,8 +253,18 @@ export function ScreenRecorder() {
                 : "Start Recording"}
           </Button>
           {!isRecording && !isTranscribing && recordHotkey && (
-            <p className="text-xs text-muted-foreground">
-              Press <Kbd>{recordHotkey}</Kbd> to record
+            <p
+              className="text-xs text-muted-foreground flex items-center gap-1"
+              aria-label={`Keyboard shortcut: ${recordHotkey.split("+").join(" plus ")}`}
+            >
+              Keyboard:{" "}
+              {recordHotkey.split("+").map((key, index, parts) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: order of keys in a shortcut is stable
+                <span key={index} className="flex items-center gap-1">
+                  <Kbd>{key}</Kbd>
+                  {index < parts.length - 1 && <span aria-hidden="true">+</span>}
+                </span>
+              ))}
             </p>
           )}
         </div>
