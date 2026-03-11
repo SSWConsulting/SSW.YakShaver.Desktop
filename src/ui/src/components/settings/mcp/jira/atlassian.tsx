@@ -1,13 +1,13 @@
 import type { SVGProps } from "react";
 
 // Icon from https://svgl.app/
-const Atlassian = (props: SVGProps<SVGSVGElement>) => (
+export const AtlassianIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg {...props} preserveAspectRatio="xMidYMid" viewBox="0 0 256 256">
     <title>Atlassian logo</title>
     <defs>
       <linearGradient x1="99.7%" y1="15.8%" x2="39.8%" y2="97.4%" id="atlassian__a">
-        <stop stop-color="#0052CC" offset="0%" />
-        <stop stop-color="#2684FF" offset="92.3%" />
+        <stop stopColor="#0052CC" offset="0%" />
+        <stop stopColor="#2684FF" offset="92.3%" />
       </linearGradient>
     </defs>
     <path
@@ -20,5 +20,3 @@ const Atlassian = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 );
-
-export { Atlassian };

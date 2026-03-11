@@ -247,9 +247,7 @@ export function McpSettingsPanel({
   const azureDevOps: MCPServerConfig | undefined = sortedServers.find(
     (s) => s.id === McpAzureDevOpsCard.Id,
   );
-  const jira: MCPServerConfig | undefined = sortedServers.find(
-    (s) => s.id === McpJiraCard.Id,
-  );
+  const jira: MCPServerConfig | undefined = sortedServers.find((s) => s.id === McpJiraCard.Id);
 
   const restServers: MCPServerConfig[] = sortedServers.filter(
     (server) =>
@@ -318,7 +316,7 @@ export function McpSettingsPanel({
               setShowAddCustomMcpForm(true);
             }}
           >
-            + Add custom MCP
+            + Add custom MCP server
           </div>
         </div>
       )}
