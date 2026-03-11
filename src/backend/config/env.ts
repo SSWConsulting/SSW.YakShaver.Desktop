@@ -25,7 +25,7 @@ const getPortalApiUrl = () => {
 
 const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;
 
-const getIsDev = () => env.NODE_ENV === "development";
+const getIsDev = () => env.NODE_ENV === "development" || process.argv.includes("--dev-protocol");
 
 const getAppInsightsConnectionString = () => {
   return env.APPLICATIONINSIGHTS_CONNECTION_STRING || null;

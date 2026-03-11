@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { getBuiltinServerIds } from "@shared/utils/mcp-utils";
+import { getBuiltinServerIds, getConnectedOrBuiltinIds } from "@shared/utils/mcp-utils";
 import { ChevronLeft, ChevronRight, Copy, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -106,41 +106,59 @@ export function PromptForm({
   }, [mcpServers.length]);
 
   // Auto-select servers once after they are loaded:
+  // - Default prompts: all servers selected regardless of connection status (read-only)
   // - New prompts: pre-select built-in servers only (they are always on and cannot be deselected)
-  // - Existing prompts with no saved selection: select all servers (backward compatibility)
-  // - Existing prompts with a saved selection: merge in any missing built-in server ids
+  // - Existing prompts with no saved selection: select all connected servers (backward compatibility)
+  // - Existing prompts with a saved selection: strip disconnected non-builtin servers, merge in missing builtins
   // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally omitting form methods to prevent re-runs
   useEffect(() => {
     if (serversLoaded && !hasAutoSelectedServers.current && mcpServers.length > 0) {
       const builtinIds = getBuiltinServerIds(mcpServers);
-      if (isNewPrompt) {
+
+      if (isDefault) {
+        // Default prompt always shows all servers selected regardless of connection status
+        const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
+        form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
+      } else if (isNewPrompt) {
         form.setValue("selectedMcpServerIds", builtinIds, { shouldDirty: false });
       } else {
+        const connectedOrBuiltinIds = getConnectedOrBuiltinIds(mcpServers);
+        const connectedNonBuiltinIds = [...connectedOrBuiltinIds].filter(
+          (id) => !builtinIds.includes(id),
+        );
         const currentSelection = form.getValues("selectedMcpServerIds");
         if (!currentSelection || currentSelection.length === 0) {
-          const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
-          form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
-        } else if (builtinIds.length > 0) {
-          const currentSet = new Set(currentSelection);
-          const missingBuiltins = builtinIds.filter((id) => !currentSet.has(id));
-          if (missingBuiltins.length > 0) {
-            form.setValue(
-              "selectedMcpServerIds",
-              [...currentSelection, ...missingBuiltins],
-              { shouldDirty: false },
-            );
-          }
+          // Backward compatibility: select all currently connected servers
+          form.setValue("selectedMcpServerIds", [...builtinIds, ...connectedNonBuiltinIds], {
+            shouldDirty: false,
+          });
+        } else {
+          // Keep only connected non-builtins from the saved selection, always include all builtins
+          const cleaned = currentSelection.filter((id) => connectedOrBuiltinIds.has(id));
+          const missingBuiltins = builtinIds.filter((id) => !cleaned.includes(id));
+          form.setValue("selectedMcpServerIds", [...cleaned, ...missingBuiltins], {
+            shouldDirty: false,
+          });
         }
       }
       hasAutoSelectedServers.current = true;
     }
-  }, [serversLoaded, isNewPrompt, mcpServers]);
+  }, [serversLoaded, isDefault, isNewPrompt, mcpServers]);
 
   const handleSubmit = async (andActivate: boolean) => {
     const isValid = await form.trigger();
     if (!isValid) return;
 
     const data = form.getValues();
+
+    // Strip disconnected non-builtin servers from the selection before saving.
+    // Default prompts are read-only so no stripping needed.
+    if (!isDefault) {
+      const connectedOrBuiltinIds = getConnectedOrBuiltinIds(mcpServers);
+      data.selectedMcpServerIds = (data.selectedMcpServerIds ?? []).filter((id) =>
+        connectedOrBuiltinIds.has(id),
+      );
+    }
 
     // Validate that at least one enabled non-built-in MCP server is selected (if any are available)
     // Skip validation for default prompts since their server selection cannot be changed
@@ -218,7 +236,7 @@ export function PromptForm({
           render={({ field }) => (
             <FormItem className="flex flex-col flex-1 min-h-0 overflow-hidden shrink-0 max-w-full">
               <div className="flex items-center justify-between">
-                <FormLabel className="text-white/90 text-sm">Prompt Instructions</FormLabel>
+                <FormLabel className="text-white/90 text-sm">Prompt Instructions *</FormLabel>
                 <Button
                   type="button"
                   variant="ghost"
@@ -280,9 +298,14 @@ export function PromptForm({
                   >
                     {paginatedServers.map((server) => {
                       const isBuiltin = server.builtin ?? false;
-                      // Built-in servers are always checked and cannot be deselected
-                      const isChecked = isBuiltin || (field.value?.includes(server.id) ?? false);
                       const isServerDisabled = server.enabled === false;
+                      // Default prompt: all servers shown as checked regardless of connection status
+                      // Built-ins always checked; disconnected non-builtins forced unchecked for regular prompts
+                      const isChecked =
+                        isDefault ||
+                        isBuiltin ||
+                        (!isServerDisabled && (field.value?.includes(server.id) ?? false));
+                      // All checkboxes locked for default prompts; built-ins and disconnected locked otherwise
                       const isCheckboxDisabled = isDefault || isBuiltin || isServerDisabled;
                       const handleToggle = () => {
                         const newValue = isChecked
