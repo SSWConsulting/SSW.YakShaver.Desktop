@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { getBuiltinServerIds } from "@shared/utils/mcp-utils";
 import { ChevronLeft, ChevronRight, Copy, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -104,19 +105,35 @@ export function PromptForm({
     });
   }, [mcpServers.length]);
 
-  // Auto-select all servers for existing prompts without selectedMcpServerIds
-  // This runs once after servers are loaded
+  // Auto-select servers once after they are loaded:
+  // - New prompts: pre-select built-in servers only (they are always on and cannot be deselected)
+  // - Existing prompts with no saved selection: select all servers (backward compatibility)
+  // - Existing prompts with a saved selection: merge in any missing built-in server ids
   // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally omitting form methods to prevent re-runs
   useEffect(() => {
-    if (serversLoaded && !isNewPrompt && !hasAutoSelectedServers.current && mcpServers.length > 0) {
-      const currentSelection = form.getValues("selectedMcpServerIds");
-      if (!currentSelection || currentSelection.length === 0) {
-        const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
-        form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
+    if (serversLoaded && !hasAutoSelectedServers.current && mcpServers.length > 0) {
+      const builtinIds = getBuiltinServerIds(mcpServers);
+      if (isNewPrompt) {
+        form.setValue("selectedMcpServerIds", builtinIds, { shouldDirty: false });
+      } else {
+        const currentSelection = form.getValues("selectedMcpServerIds");
+        if (!currentSelection || currentSelection.length === 0) {
+          const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
+          form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
+        } else if (builtinIds.length > 0) {
+          const currentSet = new Set(currentSelection);
+          const missingBuiltins = builtinIds.filter((id) => !currentSet.has(id));
+          if (missingBuiltins.length > 0) {
+            form.setValue(
+              "selectedMcpServerIds",
+              [...currentSelection, ...missingBuiltins],
+              { shouldDirty: false },
+            );
+          }
+        }
       }
       hasAutoSelectedServers.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serversLoaded, isNewPrompt, mcpServers]);
 
   const handleSubmit = async (andActivate: boolean) => {
@@ -262,8 +279,11 @@ export function PromptForm({
                     aria-live="polite"
                   >
                     {paginatedServers.map((server) => {
-                      const isChecked = field.value?.includes(server.id) ?? false;
-                      const isDisabled = isDefault || server.enabled === false;
+                      const isBuiltin = server.builtin ?? false;
+                      // Built-in servers are always checked and cannot be deselected
+                      const isChecked = isBuiltin || (field.value?.includes(server.id) ?? false);
+                      const isServerDisabled = server.enabled === false;
+                      const isCheckboxDisabled = isDefault || isBuiltin || isServerDisabled;
                       const handleToggle = () => {
                         const newValue = isChecked
                           ? (field.value || []).filter((id) => id !== server.id)
@@ -274,26 +294,26 @@ export function PromptForm({
                         <div
                           key={server.id}
                           className={`flex items-center gap-3 p-1 rounded ${
-                            isDisabled ? "opacity-50" : ""
+                            isServerDisabled ? "opacity-50" : ""
                           }`}
                         >
                           <Checkbox
                             id={`server-${server.id}`}
                             checked={isChecked}
                             onCheckedChange={handleToggle}
-                            disabled={isDisabled}
+                            disabled={isCheckboxDisabled}
                           />
                           <label
                             htmlFor={`server-${server.id}`}
                             className={`text-sm flex-1 select-none ${
-                              isDisabled ? "cursor-not-allowed" : "cursor-pointer"
+                              isCheckboxDisabled ? "cursor-not-allowed" : "cursor-pointer"
                             }`}
                           >
                             {server.name}
-                            {server.builtin && (
+                            {isBuiltin && (
                               <span className="ml-2 text-xs text-white/50">(Built-in)</span>
                             )}
-                            {isDisabled && (
+                            {isServerDisabled && (
                               <span className="ml-2 text-xs text-yellow-500/70">(Disabled)</span>
                             )}
                           </label>
