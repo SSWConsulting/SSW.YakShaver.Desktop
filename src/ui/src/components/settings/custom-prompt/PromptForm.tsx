@@ -105,18 +105,14 @@ export function PromptForm({
     });
   }, [mcpServers.length]);
 
-  // Auto-select servers once after they are loaded:
-  // - Default prompts: all servers selected regardless of connection status (read-only)
-  // - New prompts: pre-select built-in servers only (they are always on and cannot be deselected)
-  // - Existing prompts with no saved selection: select all connected servers (backward compatibility)
-  // - Existing prompts with a saved selection: strip disconnected non-builtin servers, merge in missing builtins
+  // Auto-select all servers for existing prompts without selectedMcpServerIds
+  // This runs once after servers are loaded
   // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally omitting form methods to prevent re-runs
   useEffect(() => {
     if (serversLoaded && !hasAutoSelectedServers.current && mcpServers.length > 0) {
       const builtinIds = getBuiltinServerIds(mcpServers);
 
       if (isDefault) {
-        // Default prompt always shows all servers selected regardless of connection status
         const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
         form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
       } else if (isNewPrompt) {
@@ -128,12 +124,10 @@ export function PromptForm({
         );
         const currentSelection = form.getValues("selectedMcpServerIds");
         if (!currentSelection || currentSelection.length === 0) {
-          // Backward compatibility: select all currently connected servers
           form.setValue("selectedMcpServerIds", [...builtinIds, ...connectedNonBuiltinIds], {
             shouldDirty: false,
           });
         } else {
-          // Keep only connected non-builtins from the saved selection, always include all builtins
           const cleaned = currentSelection.filter((id) => connectedOrBuiltinIds.has(id));
           const missingBuiltins = builtinIds.filter((id) => !cleaned.includes(id));
           form.setValue("selectedMcpServerIds", [...cleaned, ...missingBuiltins], {
@@ -143,6 +137,7 @@ export function PromptForm({
       }
       hasAutoSelectedServers.current = true;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serversLoaded, isDefault, isNewPrompt, mcpServers]);
 
   const handleSubmit = async (andActivate: boolean) => {
@@ -152,7 +147,6 @@ export function PromptForm({
     const data = form.getValues();
 
     // Strip disconnected non-builtin servers from the selection before saving.
-    // Default prompts are read-only so no stripping needed.
     if (!isDefault) {
       const connectedOrBuiltinIds = getConnectedOrBuiltinIds(mcpServers);
       data.selectedMcpServerIds = (data.selectedMcpServerIds ?? []).filter((id) =>
@@ -160,8 +154,7 @@ export function PromptForm({
       );
     }
 
-    // Validate that at least one enabled non-built-in MCP server is selected (if any are available)
-    // Skip validation for default prompts since their server selection cannot be changed
+    // Validate that at least one connected non-built-in MCP server is selected (if any are available).
     if (!isDefault) {
       const availableEnabledNonBuiltinServers = mcpServers.filter(
         (server) => !server.builtin && server.enabled !== false,

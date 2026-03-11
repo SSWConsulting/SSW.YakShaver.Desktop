@@ -223,11 +223,6 @@ export class MCPServerManager {
       }
     }
     for (const s of externalServers) {
-      // Skip any stored copy of a built-in server. These can appear when
-      // addToolToServerWhitelistAsync saves an internal config to storage, or
-      // when an older app version persisted an internal server before it had a
-      // stable id (it would receive a random UUID on reload). Deduplication by id
-      // alone won't catch those stale entries, so we rely on the builtin flag.
       if (s.builtin) continue;
       if (!seen.has(s.id)) {
         seen.add(s.id);
