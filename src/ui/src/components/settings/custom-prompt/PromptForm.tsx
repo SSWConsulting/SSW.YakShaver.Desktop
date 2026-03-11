@@ -175,7 +175,7 @@ export function PromptForm({
       if (selectedNonBuiltinIds.length === 0) {
         form.setError("selectedMcpServerIds", {
           type: "manual",
-          message: "Please select at least one MCP server  (excluding built-in servers).",
+          message: "Please select at least one MCP server (excluding built-in servers).",
         });
         return;
       }
