@@ -1,9 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ensureBuiltinServerIds,
-  getBuiltinServerIds,
-  getConnectedOrBuiltinIds,
-} from "@shared/utils/mcp-utils";
+import { ensureBuiltinServerIds, getBuiltinServerIds } from "@shared/utils/mcp-utils";
 import { ChevronLeft, ChevronRight, Copy, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -109,8 +105,11 @@ export function PromptForm({
     });
   }, [mcpServers.length]);
 
-  // Auto-select all servers for existing prompts without selectedMcpServerIds
-  // This runs once after servers are loaded
+  // Initialise MCP server selection once after servers are loaded. Three cases:
+  //   default prompt  → select all servers (locked, not editable)
+  //   new prompt      → pre-select built-in server IDs only
+  //   existing prompt → keep saved selection and ensure built-ins are always included;
+  //                     if no prior selection exists, default to all non-builtin servers
   // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally omitting form methods to prevent re-runs
   useEffect(() => {
     if (serversLoaded && !hasAutoSelectedServers.current && mcpServers.length > 0) {
@@ -122,26 +121,24 @@ export function PromptForm({
       } else if (isNewPrompt) {
         form.setValue("selectedMcpServerIds", builtinIds, { shouldDirty: false });
       } else {
-        const connectedOrBuiltinIds = getConnectedOrBuiltinIds(mcpServers);
-        const connectedNonBuiltinIds = [...connectedOrBuiltinIds].filter(
-          (id) => !builtinIds.includes(id),
-        );
         const currentSelection = form.getValues("selectedMcpServerIds");
         if (!currentSelection || currentSelection.length === 0) {
+          // No prior selection: default to all non-builtin servers (regardless of connection status)
+          const allNonBuiltinIds = mcpServers
+            .filter((s) => !s.builtin)
+            .map((s) => s.id)
+            .filter((id): id is string => !!id);
           form.setValue(
             "selectedMcpServerIds",
-            ensureBuiltinServerIds(connectedNonBuiltinIds, mcpServers),
-            {
-              shouldDirty: false,
-            },
+            ensureBuiltinServerIds(allNonBuiltinIds, mcpServers),
+            { shouldDirty: false },
           );
         } else {
+          // Existing selection: preserve it and silently add any missing built-ins
           form.setValue(
             "selectedMcpServerIds",
             ensureBuiltinServerIds(currentSelection, mcpServers),
-            {
-              shouldDirty: false,
-            },
+            { shouldDirty: false },
           );
         }
       }
@@ -392,7 +389,8 @@ export function PromptForm({
 
         {serversLoaded && mcpServers.every((s) => s.builtin) && (
           <div className="text-sm text-yellow-500/80 p-3 rounded-md border border-yellow-500/30 bg-yellow-500/10">
-            No MCP servers configured. Please add MCP servers in the MCP settings tab.
+            No external MCP servers configured. You can add additional MCP servers in the MCP
+            settings tab.
           </div>
         )}
 
