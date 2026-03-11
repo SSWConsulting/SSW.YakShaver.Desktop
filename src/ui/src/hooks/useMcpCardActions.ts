@@ -1,5 +1,7 @@
+import { toast } from "sonner";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import { ipcClient } from "@/services/ipc-client";
+import { formatErrorMessage } from "@/utils";
 
 export function useMcpCardActions(
   serverId: string,
@@ -14,8 +16,12 @@ export function useMcpCardActions(
     }
   }
 
-  function handleOnConnect(): void {
-    toggleSettings(true);
+  async function handleOnConnect(): Promise<void> {
+    try {
+      await toggleSettings(true);
+    } catch (error) {
+      toast.error(`Failed to connect: ${formatErrorMessage(error)}`);
+    }
   }
 
   async function handleOnDisconnect(): Promise<void> {

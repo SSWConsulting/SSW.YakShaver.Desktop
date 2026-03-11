@@ -1,7 +1,7 @@
 import { Check, Copy, ExternalLink, X } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useClipboard } from "@/hooks/useClipboard";
 import { useMcpCardActions } from "@/hooks/useMcpCardActions";
 import type { HealthStatusInfo } from "@/types";
 import type { MCPServerConfig } from "../McpServerForm";
@@ -33,8 +33,8 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
     enabled: false,
   };
 
-  const [copied, setCopied] = useState(false);
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISS_KEY) === "true");
+  const { copyToClipboard, copied } = useClipboard();
 
   const { handleOnConnect, handleOnDisconnect } = useMcpCardActions(
     McpJiraCard.Id,
@@ -42,11 +42,8 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
     onChange,
   );
 
-  function handleCopyDomain(): void {
-    navigator.clipboard.writeText(YAKSHAVER_DOMAIN);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast.success("Domain copied to clipboard");
+  async function handleCopyDomain(): Promise<void> {
+    await copyToClipboard(YAKSHAVER_DOMAIN, "Domain copied to clipboard");
   }
 
   function handleDismiss(): void {
@@ -75,7 +72,7 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
             <a
               href="https://admin.atlassian.com"
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-0.5 text-blue-400 hover:text-blue-300"
             >
               Atlassian admin <ExternalLink className="size-3" />
