@@ -253,10 +253,7 @@ export function ScreenRecorder() {
                 : "Start Recording"}
           </Button>
           {!isRecording && !isTranscribing && recordHotkey && (
-            <p
-              className="text-xs text-muted-foreground flex items-center gap-1"
-              aria-label={`Keyboard shortcut: ${recordHotkey.split("+").join(" plus ")}`}
-            >
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
               Keyboard:{" "}
               {recordHotkey.split("+").map((key, index, parts) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: order of keys in a shortcut is stable
