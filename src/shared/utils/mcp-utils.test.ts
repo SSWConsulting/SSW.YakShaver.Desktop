@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MCPServerConfig } from "../types/mcp";
-import { getBuiltinServerIds, getConnectedOrBuiltinIds } from "./mcp-utils";
+import { ensureBuiltinServerIds, getBuiltinServerIds, getConnectedOrBuiltinIds } from "./mcp-utils";
 
 describe("getBuiltinServerIds", () => {
   it("returns only ids of built-in servers", () => {
@@ -100,5 +100,37 @@ describe("getConnectedOrBuiltinIds", () => {
 
   it("returns an empty set when given an empty list", () => {
     expect(getConnectedOrBuiltinIds([])).toEqual(new Set());
+  });
+});
+
+describe("ensureBuiltinServerIds", () => {
+  it("preserves selected disabled servers while adding missing built-ins", () => {
+    const servers: MCPServerConfig[] = [
+      { id: "builtin-1", name: "Built-in", transport: "inMemory", builtin: true },
+      {
+        id: "disabled-1",
+        name: "Disabled External",
+        transport: "streamableHttp",
+        url: "http://example.com",
+        enabled: false,
+      },
+      {
+        id: "enabled-1",
+        name: "Enabled External",
+        transport: "streamableHttp",
+        url: "http://example.com",
+        enabled: true,
+      },
+    ];
+
+    expect(ensureBuiltinServerIds(["disabled-1"], servers)).toEqual(["disabled-1", "builtin-1"]);
+  });
+
+  it("avoids duplicating built-in ids that are already selected", () => {
+    const servers: MCPServerConfig[] = [
+      { id: "builtin-1", name: "Built-in", transport: "inMemory", builtin: true },
+    ];
+
+    expect(ensureBuiltinServerIds(["builtin-1"], servers)).toEqual(["builtin-1"]);
   });
 });

@@ -1,5 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { getBuiltinServerIds, getConnectedOrBuiltinIds } from "@shared/utils/mcp-utils";
+import {
+  ensureBuiltinServerIds,
+  getBuiltinServerIds,
+  getConnectedOrBuiltinIds,
+} from "@shared/utils/mcp-utils";
 import { ChevronLeft, ChevronRight, Copy, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -124,15 +128,21 @@ export function PromptForm({
         );
         const currentSelection = form.getValues("selectedMcpServerIds");
         if (!currentSelection || currentSelection.length === 0) {
-          form.setValue("selectedMcpServerIds", [...builtinIds, ...connectedNonBuiltinIds], {
-            shouldDirty: false,
-          });
+          form.setValue(
+            "selectedMcpServerIds",
+            ensureBuiltinServerIds(connectedNonBuiltinIds, mcpServers),
+            {
+              shouldDirty: false,
+            },
+          );
         } else {
-          const cleaned = currentSelection.filter((id) => connectedOrBuiltinIds.has(id));
-          const missingBuiltins = builtinIds.filter((id) => !cleaned.includes(id));
-          form.setValue("selectedMcpServerIds", [...cleaned, ...missingBuiltins], {
-            shouldDirty: false,
-          });
+          form.setValue(
+            "selectedMcpServerIds",
+            ensureBuiltinServerIds(currentSelection, mcpServers),
+            {
+              shouldDirty: false,
+            },
+          );
         }
       }
       hasAutoSelectedServers.current = true;
@@ -145,14 +155,6 @@ export function PromptForm({
     if (!isValid) return;
 
     const data = form.getValues();
-
-    // Strip disconnected non-builtin servers from the selection before saving.
-    if (!isDefault) {
-      const connectedOrBuiltinIds = getConnectedOrBuiltinIds(mcpServers);
-      data.selectedMcpServerIds = (data.selectedMcpServerIds ?? []).filter((id) =>
-        connectedOrBuiltinIds.has(id),
-      );
-    }
 
     // Validate that at least one connected non-built-in MCP server is selected (if any are available).
     if (!isDefault) {
@@ -292,13 +294,8 @@ export function PromptForm({
                     {paginatedServers.map((server) => {
                       const isBuiltin = server.builtin ?? false;
                       const isServerDisabled = server.enabled === false;
-                      // Default prompt: all servers shown as checked regardless of connection status
-                      // Built-ins always checked; disconnected non-builtins forced unchecked for regular prompts
                       const isChecked =
-                        isDefault ||
-                        isBuiltin ||
-                        (!isServerDisabled && (field.value?.includes(server.id) ?? false));
-                      // All checkboxes locked for default prompts; built-ins and disconnected locked otherwise
+                        isDefault || isBuiltin || (field.value?.includes(server.id) ?? false);
                       const isCheckboxDisabled = isDefault || isBuiltin || isServerDisabled;
                       const handleToggle = () => {
                         const newValue = isChecked
