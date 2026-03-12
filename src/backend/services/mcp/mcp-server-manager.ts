@@ -223,6 +223,7 @@ export class MCPServerManager {
       }
     }
     for (const s of externalServers) {
+      if (s.builtin) continue;
       if (!seen.has(s.id)) {
         seen.add(s.id);
         result.push(s);

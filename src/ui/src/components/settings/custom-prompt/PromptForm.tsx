@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ensureBuiltinServerIds, getBuiltinServerIds } from "@shared/utils/mcp-utils";
 import { ChevronLeft, ChevronRight, Copy, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -104,20 +105,47 @@ export function PromptForm({
     });
   }, [mcpServers.length]);
 
-  // Auto-select all servers for existing prompts without selectedMcpServerIds
-  // This runs once after servers are loaded
+  // Initialise MCP server selection once after servers are loaded. Three cases:
+  //   default prompt  → select all servers (locked, not editable)
+  //   new prompt      → pre-select built-in server IDs only
+  //   existing prompt → keep saved selection and ensure built-ins are always included;
+  //                     if no prior selection exists, default to all non-builtin servers
   // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally omitting form methods to prevent re-runs
   useEffect(() => {
-    if (serversLoaded && !isNewPrompt && !hasAutoSelectedServers.current && mcpServers.length > 0) {
-      const currentSelection = form.getValues("selectedMcpServerIds");
-      if (!currentSelection || currentSelection.length === 0) {
+    if (serversLoaded && !hasAutoSelectedServers.current && mcpServers.length > 0) {
+      const builtinIds = getBuiltinServerIds(mcpServers);
+
+      if (isDefault) {
         const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
         form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
+      } else if (isNewPrompt) {
+        form.setValue("selectedMcpServerIds", builtinIds, { shouldDirty: false });
+      } else {
+        const currentSelection = form.getValues("selectedMcpServerIds");
+        if (!currentSelection || currentSelection.length === 0) {
+          // No prior selection: default to all non-builtin servers (regardless of connection status)
+          const allNonBuiltinIds = mcpServers
+            .filter((s) => !s.builtin)
+            .map((s) => s.id)
+            .filter((id): id is string => !!id);
+          form.setValue(
+            "selectedMcpServerIds",
+            ensureBuiltinServerIds(allNonBuiltinIds, mcpServers),
+            { shouldDirty: false },
+          );
+        } else {
+          // Existing selection: preserve it and silently add any missing built-ins
+          form.setValue(
+            "selectedMcpServerIds",
+            ensureBuiltinServerIds(currentSelection, mcpServers),
+            { shouldDirty: false },
+          );
+        }
       }
       hasAutoSelectedServers.current = true;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serversLoaded, isNewPrompt, mcpServers]);
+  }, [serversLoaded, isDefault, isNewPrompt, mcpServers]);
 
   const handleSubmit = async (andActivate: boolean) => {
     const isValid = await form.trigger();
@@ -125,24 +153,31 @@ export function PromptForm({
 
     const data = form.getValues();
 
-    // Validate that at least one enabled non-built-in MCP server is selected (if any are available)
-    // Skip validation for default prompts since their server selection cannot be changed
     if (!isDefault) {
-      const availableEnabledNonBuiltinServers = mcpServers.filter(
-        (server) => !server.builtin && server.enabled !== false,
-      );
-      if (availableEnabledNonBuiltinServers.length > 0) {
-        const selectedEnabledNonBuiltinServers = availableEnabledNonBuiltinServers.filter(
-          (server) => server.id && data.selectedMcpServerIds?.includes(server.id),
-        );
-        if (selectedEnabledNonBuiltinServers.length === 0) {
-          form.setError("selectedMcpServerIds", {
-            type: "manual",
-            message: "Please select at least one enabled MCP server (excluding built-in servers)",
-          });
-          return;
-        }
+      const nonBuiltinServers = mcpServers.filter((s) => !s.builtin);
+
+      // Case 1: no non-builtin servers exist at all → hard block
+      if (nonBuiltinServers.length === 0) {
+        form.setError("selectedMcpServerIds", {
+          type: "manual",
+          message: "No MCP servers configured. Please add a server in the MCP settings tab.",
+        });
+        return;
       }
+
+      // Case 2: non-builtin servers exist but none are selected → hard block
+      const selectedNonBuiltinIds = (data.selectedMcpServerIds ?? []).filter((id) =>
+        nonBuiltinServers.some((s) => s.id === id),
+      );
+      if (selectedNonBuiltinIds.length === 0) {
+        form.setError("selectedMcpServerIds", {
+          type: "manual",
+          message: "Please select at least one MCP server (excluding built-in servers).",
+        });
+        return;
+      }
+
+      // Case 3: all selected non-builtins are disconnected → soft warning, allow save (handled in UI)
     }
 
     await onSubmit(data, andActivate);
@@ -201,7 +236,7 @@ export function PromptForm({
           render={({ field }) => (
             <FormItem className="flex flex-col flex-1 min-h-0 overflow-hidden shrink-0 max-w-full">
               <div className="flex items-center justify-between">
-                <FormLabel className="text-white/90 text-sm">Prompt Instructions</FormLabel>
+                <FormLabel className="text-white/90 text-sm">Prompt Instructions *</FormLabel>
                 <Button
                   type="button"
                   variant="ghost"
@@ -240,6 +275,12 @@ export function PromptForm({
                 .filter((s) => field.value?.includes(s.id))
                 .map((s) => s.name);
 
+              const hasDisconnectedSelection =
+                !isDefault &&
+                serversWithIds.some(
+                  (s) => !s.builtin && s.enabled === false && field.value?.includes(s.id),
+                );
+
               return (
                 <FormItem className="shrink-0">
                   <FormLabel>MCP Servers *</FormLabel>
@@ -262,8 +303,12 @@ export function PromptForm({
                     aria-live="polite"
                   >
                     {paginatedServers.map((server) => {
-                      const isChecked = field.value?.includes(server.id) ?? false;
-                      const isDisabled = isDefault || server.enabled === false;
+                      const isBuiltin = server.builtin ?? false;
+                      const isServerDisabled = server.enabled === false;
+                      const isChecked =
+                        isDefault || isBuiltin || (field.value?.includes(server.id) ?? false);
+                      // Only lock for default prompts and built-ins; disabled servers remain toggleable
+                      const isCheckboxDisabled = isDefault || isBuiltin;
                       const handleToggle = () => {
                         const newValue = isChecked
                           ? (field.value || []).filter((id) => id !== server.id)
@@ -271,30 +316,27 @@ export function PromptForm({
                         field.onChange(newValue);
                       };
                       return (
-                        <div
-                          key={server.id}
-                          className={`flex items-center gap-3 p-1 rounded ${
-                            isDisabled ? "opacity-50" : ""
-                          }`}
-                        >
+                        <div key={server.id} className="flex items-center gap-3 p-1 rounded">
                           <Checkbox
                             id={`server-${server.id}`}
                             checked={isChecked}
                             onCheckedChange={handleToggle}
-                            disabled={isDisabled}
+                            disabled={isCheckboxDisabled}
                           />
                           <label
                             htmlFor={`server-${server.id}`}
                             className={`text-sm flex-1 select-none ${
-                              isDisabled ? "cursor-not-allowed" : "cursor-pointer"
+                              isCheckboxDisabled ? "cursor-not-allowed" : "cursor-pointer"
                             }`}
                           >
                             {server.name}
-                            {server.builtin && (
+                            {isBuiltin && (
                               <span className="ml-2 text-xs text-white/50">(Built-in)</span>
                             )}
-                            {isDisabled && (
-                              <span className="ml-2 text-xs text-yellow-500/70">(Disabled)</span>
+                            {isServerDisabled && (
+                              <span className="ml-2 text-xs text-yellow-500/70">
+                                (Disconnected)
+                              </span>
                             )}
                           </label>
                         </div>
@@ -332,6 +374,12 @@ export function PromptForm({
                       </div>
                     )}
                   </div>
+                  {hasDisconnectedSelection && (
+                    <p className="text-xs text-yellow-500/80 mt-1">
+                      Some selected servers are disconnected. Connect them in MCP settings tab to
+                      make their tools available.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               );
@@ -339,9 +387,10 @@ export function PromptForm({
           />
         )}
 
-        {serversLoaded && mcpServers.length === 0 && (
+        {serversLoaded && mcpServers.every((s) => s.builtin) && (
           <div className="text-sm text-yellow-500/80 p-3 rounded-md border border-yellow-500/30 bg-yellow-500/10">
-            No MCP servers configured. Please add MCP servers in the MCP settings tab.
+            No external MCP servers configured. You can add additional MCP servers in the MCP
+            settings tab.
           </div>
         )}
 
