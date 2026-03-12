@@ -135,7 +135,7 @@ export function PromptSelectionDialog({
               <AlertDialogTitle>Confirm Prompt Selection</AlertDialogTitle>
               <AlertDialogDescription>
                 YakShaver analysed your video and selected the most relevant prompt template below.
-                Prompts control how your GitHub issue is written — confirm to proceed, or switch to
+                Prompts control how your issue is written — confirm to proceed, or switch to
                 a different one.
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -198,10 +198,10 @@ export function PromptSelectionDialog({
             <AlertDialogHeader>
               <AlertDialogTitle>Select a Prompt</AlertDialogTitle>
               <AlertDialogDescription>
-                Prompts are templates that control how YakShaver writes your GitHub issue. Select
+                Prompts are templates that control how YakShaver writes your issue. Select
                 the one that best fits your project.{" "}
                 <span className="text-foreground/60">
-                  Local prompts are saved on your device; portal prompts are synced from SSW Portal.
+                  Local prompts are saved on your device; portal prompts are synced from YakShaver Portal.
                 </span>
               </AlertDialogDescription>
             </AlertDialogHeader>

@@ -232,7 +232,7 @@ export function CustomPromptSettingsPanel({
           <h2 className="text-xl font-semibold">Custom Prompt Manager</h2>
           <p className="text-muted-foreground text-sm">
             Manage your prompt templates. The active prompt is the default template YakShaver uses
-            when writing GitHub issues from your recordings — you can always override it at runtime.
+            when writing issues from your recordings.
           </p>
         </header>
         <ScrollArea className="flex-1">
