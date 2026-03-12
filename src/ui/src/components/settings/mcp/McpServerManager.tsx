@@ -16,6 +16,7 @@ import {
 } from "../../ui/alert-dialog";
 import { McpAzureDevOpsCard } from "./devops/mcp-devops-card";
 import { McpGitHubCard } from "./github/mcp-github-card";
+import { McpJiraCard } from "./jira/mcp-jira-card";
 import type { MCPServerConfig } from "./McpServerForm";
 import { McpWhitelistDialog } from "./McpWhitelistDialog";
 import { McpCard } from "./mcp-card";
@@ -246,9 +247,13 @@ export function McpSettingsPanel({
   const azureDevOps: MCPServerConfig | undefined = sortedServers.find(
     (s) => s.id === McpAzureDevOpsCard.Id,
   );
+  const jira: MCPServerConfig | undefined = sortedServers.find((s) => s.id === McpJiraCard.Id);
 
   const restServers: MCPServerConfig[] = sortedServers.filter(
-    (server) => server.id !== McpGitHubCard.Id && server.id !== McpAzureDevOpsCard.Id,
+    (server) =>
+      server.id !== McpGitHubCard.Id &&
+      server.id !== McpAzureDevOpsCard.Id &&
+      server.id !== McpJiraCard.Id,
   );
 
   function getHealthStatus(serverId?: string | null): HealthStatusInfo | null {
@@ -272,6 +277,13 @@ export function McpSettingsPanel({
           onChange={() => loadServers({ serverIdToRefresh: McpAzureDevOpsCard.Id })}
           healthInfo={getHealthStatus(McpAzureDevOpsCard.Id)}
           onTools={() => azureDevOps && openWhitelistDialog(azureDevOps)}
+          viewMode={viewMode}
+        />
+        <McpJiraCard
+          config={jira}
+          onChange={() => loadServers({ serverIdToRefresh: McpJiraCard.Id })}
+          healthInfo={getHealthStatus(McpJiraCard.Id)}
+          onTools={() => jira && openWhitelistDialog(jira)}
           viewMode={viewMode}
         />
         {restServers.map((server) => (
@@ -304,7 +316,7 @@ export function McpSettingsPanel({
               setShowAddCustomMcpForm(true);
             }}
           >
-            + Add custom MCP
+            + Add custom MCP server
           </div>
         </div>
       )}

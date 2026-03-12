@@ -17,6 +17,7 @@ interface McpCardProps {
   onUpdate?: (data: MCPServerConfig) => Promise<void>;
   onTools?: () => void;
   viewMode: "compact" | "detailed";
+  extraContent?: React.ReactNode;
 }
 
 export function McpCard({
@@ -31,6 +32,7 @@ export function McpCard({
   onTools,
   healthInfo = null,
   viewMode = "compact",
+  extraContent,
 }: McpCardProps) {
   const [showSettings, setShowSettings] = useState(false);
   return (
@@ -124,6 +126,7 @@ export function McpCard({
             </div>
           </>
         )}
+        {extraContent}
       </div>
     </>
   );
