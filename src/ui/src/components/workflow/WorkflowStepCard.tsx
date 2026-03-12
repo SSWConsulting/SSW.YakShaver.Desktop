@@ -45,7 +45,7 @@ function StatusIcon({ status, className }: { status: WorkflowStep["status"]; cla
 }
 
 export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: string }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(step.status === "failed");
 
   const { hasPayload, parsedPayload } = useMemo(() => {
     if (!step.payload) return { hasPayload: false, parsedPayload: null };
