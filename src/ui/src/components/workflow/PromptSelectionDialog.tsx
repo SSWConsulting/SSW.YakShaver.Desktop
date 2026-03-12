@@ -12,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { ScrollArea } from "../ui/scroll-area";
@@ -131,20 +132,21 @@ export function PromptSelectionDialog({
         {view === "confirm" ? (
           <>
             <AlertDialogHeader>
-              <AlertDialogTitle>Confirm Project Prompt Selection</AlertDialogTitle>
+              <AlertDialogTitle>Confirm Prompt Selection</AlertDialogTitle>
               <AlertDialogDescription>
-                YakShaver has selected a Project prompt for this video. Do you want to proceed with
-                this prompt?
+                YakShaver analysed your video and selected the most relevant prompt template below.
+                Prompts control how your issue is written — confirm to proceed, or switch to a
+                different one.
               </AlertDialogDescription>
             </AlertDialogHeader>
 
             <div className="bg-secondary/20 p-4 rounded-md space-y-2 mt-2">
-              <h3 className="font-medium text-lg text-primary">
-                {initialProject.name}{" "}
-                <span className="text-secondary-foreground/60 text-sm font-normal">
-                  ({initialProject.source === "local" ? "local prompt" : "portal prompt"})
-                </span>
-              </h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-medium text-lg text-primary">{initialProject.name}</h3>
+                <Badge variant="outline">
+                  {initialProject.source === "local" ? "local" : "portal"}
+                </Badge>
+              </div>
               {initialProject.description && (
                 <p className="text-sm text-muted-foreground">{initialProject.description}</p>
               )}
@@ -194,9 +196,14 @@ export function PromptSelectionDialog({
         ) : (
           <>
             <AlertDialogHeader>
-              <AlertDialogTitle>Select a Prompt for your project</AlertDialogTitle>
+              <AlertDialogTitle>Select a Prompt</AlertDialogTitle>
               <AlertDialogDescription>
-                Search and select the correct prompt for this video.
+                Prompts are templates that control how YakShaver writes your issue. Select the one
+                that best fits your project.{" "}
+                <span className="text-foreground/60">
+                  Local prompts are saved on your device; portal prompts are synced from YakShaver
+                  Portal.
+                </span>
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -230,17 +237,18 @@ export function PromptSelectionDialog({
                         }`}
                         onClick={() => setTempSelectedProjectId(project.id)}
                       >
-                        <div className="font-medium">
-                          {project.name}{" "}
-                          <span
-                            className={`text-xs font-normal ${
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{project.name}</span>
+                          <Badge
+                            variant="outline"
+                            className={
                               tempSelectedProjectId === project.id
-                                ? "text-primary-foreground/80"
-                                : "text-muted-foreground"
-                            }`}
+                                ? "border-primary-foreground/40 text-primary-foreground/80"
+                                : undefined
+                            }
                           >
-                            ({project.source === "local" ? "local prompt" : "portal prompt"})
-                          </span>
+                            {project.source === "local" ? "local" : "portal"}
+                          </Badge>
                         </div>
                         {project.description && (
                           <div
