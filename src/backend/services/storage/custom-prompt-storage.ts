@@ -25,7 +25,7 @@ const TEMPLATE_PROMPT: CustomPrompt = {
   id: "default",
   name: "Create Issues from Video Recordings",
   description: "Template for creating issues from video recordings",
-  content: `Project Name: <REPLACE WITH PROJECT NAME>\nProject URL: <REPLACE WITH PROJECT URL>\n${defaultCustomPrompt}`,
+  content: `Project Name: <REPLACE WITH PROJECT NAME>\nProject URL: <REPLACE WITH YOUR REPO OR BOARD URL>\n${defaultCustomPrompt}`,
   isDefault: true,
   isTemplate: true,
   createdAt: Date.now(),
@@ -98,7 +98,7 @@ export class CustomPromptStorage extends BaseSecureStorage {
 
   async getAllPrompts(): Promise<CustomPrompt[]> {
     const settings = await this.loadSettings();
-    return settings.prompts.filter((p) => !p.isTemplate);
+    return settings.prompts.filter((p) => !p.isTemplate && !p.isDefault);
   }
 
   async getTemplates(): Promise<CustomPrompt[]> {
