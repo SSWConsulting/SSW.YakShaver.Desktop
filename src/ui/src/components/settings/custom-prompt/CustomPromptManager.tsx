@@ -5,7 +5,6 @@ import { SearchBar } from "../../common/SearchBar";
 import { DeleteConfirmDialog } from "../../dialogs/DeleteConfirmDialog";
 import { UnsavedChangesDialog } from "../../dialogs/UnsavedChangesDialog";
 import { Button } from "../../ui/button";
-import { ScrollArea } from "../../ui/scroll-area";
 import { Separator } from "../../ui/separator";
 import { PromptForm } from "./PromptForm";
 import { PromptListView } from "./PromptListView";
@@ -374,9 +373,9 @@ export function CustomPromptSettingsPanel({
             </p>
           </header>
         )}
-        <ScrollArea className="flex-1">
+        <div className="flex-1">
           <div className="w-full overflow-x-hidden">{renderContent()}</div>
-        </ScrollArea>
+        </div>
       </div>
 
       <UnsavedChangesDialog
