@@ -91,6 +91,7 @@ export const HighlightedTextarea = forwardRef<HTMLTextAreaElement, HighlightedTe
             "disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
+          spellCheck={false}
           {...props}
         />
       </div>

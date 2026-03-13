@@ -140,12 +140,12 @@ export function CustomPromptSettingsPanel({
   );
 
   const handleFormSubmit = useCallback(
-    async (data: PromptFormValues, andActivate: boolean) => {
+    async (data: PromptFormValues) => {
       const success =
         viewMode === "create"
-          ? await promptManager.createPrompt(data, andActivate)
+          ? await promptManager.createPrompt(data)
           : editingPrompt
-            ? await promptManager.updatePrompt(editingPrompt.id, data, andActivate)
+            ? await promptManager.updatePrompt(editingPrompt.id, data)
             : false;
 
       if (success) {
@@ -288,9 +288,7 @@ export function CustomPromptSettingsPanel({
             </h3>
             <PromptListView
               prompts={filteredPrompts}
-              activePromptId={promptManager.activePromptId}
               onEdit={handleEdit}
-              onSetActive={promptManager.setActivePrompt}
               emptyMessage={
                 searchQuery.trim()
                   ? "No prompts found matching your search"
@@ -305,8 +303,10 @@ export function CustomPromptSettingsPanel({
     if (viewMode === "view-template" && viewingTemplate) {
       return (
         <PromptForm
+          key="view-template"
           defaultValues={defaultValues}
           onCancel={handleBackToList}
+          onUseTemplate={() => handleUseTemplate(viewingTemplate)}
           loading={false}
           isTemplate={true}
           onDirtyChange={handleDirtyChange}
@@ -316,6 +316,7 @@ export function CustomPromptSettingsPanel({
 
     return (
       <PromptForm
+        key={viewMode === "create" ? "create" : `edit-${editingPrompt?.id}`}
         defaultValues={defaultValues}
         onSubmit={handleFormSubmit}
         onCancel={handleBackToList}
@@ -365,13 +366,15 @@ export function CustomPromptSettingsPanel({
   return (
     <>
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-        <header className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold">Custom Prompt Manager</h2>
-          <p className="text-muted-foreground text-sm">
-            Manage your custom prompts. Use a template to get started quickly, or create your own
-            prompt with custom MCP server selections.
-          </p>
-        </header>
+        {viewMode === "list" && (
+          <header className="flex flex-col gap-1">
+            <h2 className="text-xl font-semibold">Custom Prompt Manager</h2>
+            <p className="text-muted-foreground text-sm">
+              Manage your custom prompts. Use a template to get started quickly, or create your own
+              prompt with custom MCP server selections.
+            </p>
+          </header>
+        )}
         <ScrollArea className="flex-1">
           <div className="h-full min-h-0 pr-3">{renderContent()}</div>
         </ScrollArea>

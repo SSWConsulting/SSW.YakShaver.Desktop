@@ -23,9 +23,10 @@ import { type PromptFormValues, promptFormSchema } from "./schema";
 
 interface PromptFormProps {
   defaultValues?: PromptFormValues;
-  onSubmit?: (data: PromptFormValues, andActivate: boolean) => Promise<void>;
+  onSubmit?: (data: PromptFormValues) => Promise<void>;
   onCancel: () => void;
   onDelete?: () => void;
+  onUseTemplate?: () => void;
   loading: boolean;
   isDefault?: boolean;
   isTemplate?: boolean;
@@ -44,6 +45,7 @@ export function PromptForm({
   onSubmit,
   onCancel,
   onDelete,
+  onUseTemplate,
   loading,
   isDefault = false,
   isTemplate = false,
@@ -155,7 +157,7 @@ export function PromptForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serversLoaded, isDefault, isTemplate, isNewPrompt, selectAllServersForNewPrompt, mcpServers]);
 
-  const handleSubmit = async (andActivate: boolean) => {
+  const handleSubmit = async () => {
     const isValid = await form.trigger();
     if (!isValid) return;
 
@@ -188,7 +190,7 @@ export function PromptForm({
       // Case 3: all selected non-builtins are disconnected → soft warning, allow save (handled in UI)
     }
 
-    await onSubmit?.(data, andActivate);
+    await onSubmit?.(data);
   };
 
   return (
@@ -233,7 +235,7 @@ export function PromptForm({
           control={form.control}
           name="content"
           render={({ field }) => {
-            const hasPlaceholders = /<REPLACE_[A-Z0-9_]+>/.test(field.value ?? "");
+            const hasPlaceholders = /<REPLACE[A-Z0-9_ ]+>/.test(field.value ?? "");
             return (
               <FormItem className="flex flex-col shrink-0 max-w-full">
                 <div className="flex items-center justify-between flex-wrap gap-1">
@@ -419,15 +421,22 @@ export function PromptForm({
 
         <div className="flex justify-between gap-2 shrink-0">
           {isTemplate ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onCancel}
-              className="cursor-pointer ml-auto"
-            >
-              Close
-            </Button>
+            <div className="flex gap-2 ml-auto">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onCancel}
+                className="cursor-pointer"
+              >
+                Close
+              </Button>
+              {onUseTemplate && (
+                <Button type="button" size="sm" onClick={onUseTemplate} className="cursor-pointer">
+                  Use Template
+                </Button>
+              )}
+            </div>
           ) : (
             <>
               {onDelete && (
@@ -455,21 +464,12 @@ export function PromptForm({
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => handleSubmit(false)}
+                  onClick={() => handleSubmit()}
                   disabled={loading || !form.formState.isValid}
                   size="sm"
                   className="cursor-pointer"
                 >
                   {loading ? "Saving..." : "Save"}
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => handleSubmit(true)}
-                  disabled={loading || !form.formState.isValid}
-                  size="sm"
-                  className="cursor-pointer"
-                >
-                  {loading ? "Saving..." : "Save & Use"}
                 </Button>
               </div>
             </>
