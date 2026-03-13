@@ -140,6 +140,7 @@ declare global {
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;
         getActivePrompt: () => Promise<CustomPrompt | null>;
+        getTemplates: () => Promise<Array<CustomPrompt>>;
         addPrompt: (prompt: {
           name: string;
           description?: string;

@@ -1,4 +1,4 @@
-export type ViewMode = "list" | "edit" | "create";
+export type ViewMode = "list" | "edit" | "create" | "view-template";
 
 export interface PromptFormData {
   name: string;

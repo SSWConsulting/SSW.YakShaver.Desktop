@@ -1,3 +1,4 @@
+import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
 import { Check, Copy, ExternalLink, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ interface McpJiraCardProps {
 }
 
 McpJiraCard.Name = "Jira";
-McpJiraCard.Id = "0f03a50c-219b-46e9-9ce3-54f925c44479";
+McpJiraCard.Id = PRESET_SERVER_IDS.JIRA;
 
 export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }: McpJiraCardProps) {
   const configLocal = config ?? {

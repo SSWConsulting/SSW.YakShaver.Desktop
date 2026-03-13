@@ -6,17 +6,20 @@ import { ipcClient } from "../services/ipc-client";
 
 export function usePromptManager() {
   const [prompts, setPrompts] = useState<CustomPrompt[]>([]);
+  const [templates, setTemplates] = useState<CustomPrompt[]>([]);
   const [activePromptId, setActivePromptId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const loadPrompts = useCallback(async () => {
     try {
-      const [allPrompts, activePrompt] = await Promise.all([
+      const [allPrompts, activePrompt, allTemplates] = await Promise.all([
         ipcClient.settings.getAllPrompts(),
         ipcClient.settings.getActivePrompt(),
+        ipcClient.settings.getTemplates(),
       ]);
       setPrompts(allPrompts);
       setActivePromptId(activePrompt?.id || null);
+      setTemplates(allTemplates);
     } catch (e) {
       toast.error(`Failed to load prompts: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -106,6 +109,7 @@ export function usePromptManager() {
 
   return {
     prompts,
+    templates,
     activePromptId,
     loading,
     loadPrompts,

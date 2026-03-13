@@ -150,6 +150,7 @@ export interface CustomPrompt {
   description?: string;
   content: string;
   isDefault?: boolean;
+  isTemplate?: boolean;
   selectedMcpServerIds?: string[];
   createdAt: number;
   updatedAt: number;

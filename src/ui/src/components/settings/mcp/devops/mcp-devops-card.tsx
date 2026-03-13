@@ -1,3 +1,4 @@
+import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
 import { useMcpCardActions } from "@/hooks/useMcpCardActions";
 import type { HealthStatusInfo } from "../../../../../../backend/types";
 import type { MCPServerConfig } from "../McpServerForm";
@@ -13,7 +14,7 @@ interface McpDevOpsCardProps {
 }
 
 McpAzureDevOpsCard.Name = "Azure_DevOps";
-McpAzureDevOpsCard.Id = "483d49a4-0902-415a-a987-832a21bd3d63";
+McpAzureDevOpsCard.Id = PRESET_SERVER_IDS.AZURE_DEVOPS;
 
 export function McpAzureDevOpsCard({
   config,

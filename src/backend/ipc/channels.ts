@@ -64,6 +64,7 @@ export const IPC_CHANNELS = {
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
   SETTINGS_GET_ACTIVE_PROMPT: "settings:get-active-prompt",
+  SETTINGS_GET_TEMPLATES: "settings:get-templates",
   SETTINGS_ADD_PROMPT: "settings:add-prompt",
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",

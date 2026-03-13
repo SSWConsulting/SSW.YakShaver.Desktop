@@ -82,6 +82,7 @@ const IPC_CHANNELS = {
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
   SETTINGS_GET_ACTIVE_PROMPT: "settings:get-active-prompt",
+  SETTINGS_GET_TEMPLATES: "settings:get-templates",
   SETTINGS_ADD_PROMPT: "settings:add-prompt",
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
@@ -270,6 +271,7 @@ const electronAPI = {
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
     getActivePrompt: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ACTIVE_PROMPT),
+    getTemplates: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_TEMPLATES),
     addPrompt: (prompt: { name: string; content: string }) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
     updatePrompt: (id: string, updates: { name?: string; content?: string }) =>

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ToolSet } from "ai";
 import type { HealthStatusInfo } from "../../types/index.js";
+import { PRESET_MCP_SERVERS } from "../../../shared/mcp/preset-servers";
 import { McpStorage } from "../storage/mcp-storage";
 import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
 import type { MCPServerConfig } from "./types";
@@ -227,6 +228,13 @@ export class MCPServerManager {
       if (!seen.has(s.id)) {
         seen.add(s.id);
         result.push(s);
+      }
+    }
+    // Add preset servers not yet stored by the user (they appear with enabled: false)
+    for (const preset of PRESET_MCP_SERVERS) {
+      if (preset.id && !seen.has(preset.id)) {
+        seen.add(preset.id);
+        result.push({ ...preset });
       }
     }
     return result;

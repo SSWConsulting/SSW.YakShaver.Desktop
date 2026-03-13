@@ -8,6 +8,7 @@ export class CustomPromptSettingsIPCHandlers {
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS, () => this.store.getAllPrompts());
+    ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_TEMPLATES, () => this.store.getTemplates());
     ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_ACTIVE_PROMPT, () => this.store.getActivePrompt());
     ipcMain.handle(
       IPC_CHANNELS.SETTINGS_ADD_PROMPT,

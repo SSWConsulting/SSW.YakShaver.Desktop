@@ -8,6 +8,7 @@ export interface CustomPrompt {
   description?: string;
   content: string;
   isDefault?: boolean;
+  isTemplate?: boolean;
   selectedMcpServerIds?: string[];
   createdAt: number;
   updatedAt: number;
@@ -20,19 +21,19 @@ interface CustomPromptData {
 
 const SETTINGS_FILE = "custom-settings.enc";
 
-const DEFAULT_PROMPT: CustomPrompt = {
+const TEMPLATE_PROMPT: CustomPrompt = {
   id: "default",
-  name: "Default Prompt",
-  description: "This is the default prompt for YakShaver",
-  content: defaultCustomPrompt,
-
+  name: "Create Issues from Video Recordings",
+  description: "Default template for creating issues from video recordings",
+  content: `Project Name: <REPLACE WITH PROJECT NAME>\nProject URL: <REPLACE WITH PROJECT URL>\n\n${defaultCustomPrompt}`,
   isDefault: true,
+  isTemplate: true,
   createdAt: Date.now(),
   updatedAt: Date.now(),
 };
 
 const DEFAULT_SETTINGS: CustomPromptData = {
-  prompts: [DEFAULT_PROMPT],
+  prompts: [TEMPLATE_PROMPT],
   activePromptId: "default",
 };
 
@@ -63,15 +64,23 @@ export class CustomPromptStorage extends BaseSecureStorage {
     const data = await this.decryptAndLoad<CustomPromptData>(this.getSettingsPath());
     this.cache = data || DEFAULT_SETTINGS;
 
-    // Migrate default prompt to new default if there are changes
+    // Migrate the built-in template prompt when content or metadata changes
     if (this.cache) {
-      const defaultPromptIndex = this.cache.prompts.findIndex((p) => p.id === "default");
-      if (defaultPromptIndex !== -1) {
-        const currentDefaultPrompt = this.cache.prompts[defaultPromptIndex];
-        if (currentDefaultPrompt.content !== DEFAULT_PROMPT.content) {
-          this.cache.prompts[defaultPromptIndex] = {
-            ...currentDefaultPrompt,
-            content: DEFAULT_PROMPT.content,
+      const templateIndex = this.cache.prompts.findIndex((p) => p.id === "default");
+      if (templateIndex !== -1) {
+        const current = this.cache.prompts[templateIndex];
+        const needsUpdate =
+          current.content !== TEMPLATE_PROMPT.content ||
+          current.name !== TEMPLATE_PROMPT.name ||
+          !current.isTemplate;
+        if (needsUpdate) {
+          this.cache.prompts[templateIndex] = {
+            ...current,
+            content: TEMPLATE_PROMPT.content,
+            name: TEMPLATE_PROMPT.name,
+            description: TEMPLATE_PROMPT.description,
+            isDefault: true,
+            isTemplate: true,
             updatedAt: Date.now(),
           };
           await this.saveSettings(this.cache);
@@ -89,7 +98,12 @@ export class CustomPromptStorage extends BaseSecureStorage {
 
   async getAllPrompts(): Promise<CustomPrompt[]> {
     const settings = await this.loadSettings();
-    return settings.prompts;
+    return settings.prompts.filter((p) => !p.isTemplate);
+  }
+
+  async getTemplates(): Promise<CustomPrompt[]> {
+    const settings = await this.loadSettings();
+    return settings.prompts.filter((p) => p.isTemplate);
   }
 
   async getActivePrompt(): Promise<CustomPrompt | null> {
@@ -144,8 +158,8 @@ export class CustomPromptStorage extends BaseSecureStorage {
     const settings = await this.loadSettings();
     const prompt = settings.prompts.find((p) => p.id === id);
 
-    // Prevent deleting default prompt
-    if (!prompt || prompt.isDefault) return false;
+    // Prevent deleting template or default prompts
+    if (!prompt || prompt.isDefault || prompt.isTemplate) return false;
 
     settings.prompts = settings.prompts.filter((p) => p.id !== id);
 
@@ -171,8 +185,8 @@ export class CustomPromptStorage extends BaseSecureStorage {
   async clearCustomPrompts(): Promise<void> {
     const settings = await this.loadSettings();
 
-    settings.prompts = [DEFAULT_PROMPT];
-    settings.activePromptId = DEFAULT_PROMPT.id;
+    settings.prompts = [TEMPLATE_PROMPT];
+    settings.activePromptId = TEMPLATE_PROMPT.id;
 
     await this.saveSettings(settings);
   }

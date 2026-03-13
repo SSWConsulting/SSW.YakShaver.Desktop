@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CustomPrompt } from "@/types";
 import { usePromptManager } from "../../../hooks/usePromptManager";
+import { SearchBar } from "../../common/SearchBar";
 import { DeleteConfirmDialog } from "../../dialogs/DeleteConfirmDialog";
 import { UnsavedChangesDialog } from "../../dialogs/UnsavedChangesDialog";
+import { Button } from "../../ui/button";
 import { ScrollArea } from "../../ui/scroll-area";
+import { Separator } from "../../ui/separator";
 import { PromptForm } from "./PromptForm";
 import { PromptListView } from "./PromptListView";
 import type { PromptFormValues } from "./schema";
+import { TemplateCard } from "./TemplateCard";
 import type { ViewMode } from "./types";
 
 interface CustomPromptSettingsPanelProps {
@@ -22,6 +26,8 @@ export function CustomPromptSettingsPanel({
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingPrompt, setEditingPrompt] = useState<CustomPrompt | null>(null);
+  const [viewingTemplate, setViewingTemplate] = useState<CustomPrompt | null>(null);
+  const [templatePrefillContent, setTemplatePrefillContent] = useState<string | undefined>();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [promptToDelete, setPromptToDelete] = useState<CustomPrompt | null>(null);
   const [unsavedChangesDialogOpen, setUnsavedChangesDialogOpen] = useState(false);
@@ -30,6 +36,15 @@ export function CustomPromptSettingsPanel({
     ((result: boolean) => void) | null
   >(null);
   const [isFormDirty, setIsFormDirty] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredPrompts = useMemo(() => {
+    if (!searchQuery.trim()) return promptManager.prompts;
+    const query = searchQuery.toLowerCase();
+    return promptManager.prompts.filter(
+      (p) => p.name.toLowerCase().includes(query) || p.description?.toLowerCase().includes(query),
+    );
+  }, [promptManager.prompts, searchQuery]);
 
   useEffect(() => {
     if (isActive) {
@@ -42,6 +57,8 @@ export function CustomPromptSettingsPanel({
     if (!isActive) {
       setViewMode("list");
       setEditingPrompt(null);
+      setViewingTemplate(null);
+      setTemplatePrefillContent(undefined);
       setIsFormDirty(false);
     }
   }, [isActive]);
@@ -58,14 +75,52 @@ export function CustomPromptSettingsPanel({
     if (hasUnsavedChanges()) {
       setPendingAction(() => () => {
         setEditingPrompt(null);
+        setTemplatePrefillContent(undefined);
         setViewMode("create");
       });
       setUnsavedChangesDialogOpen(true);
       return;
     }
     setEditingPrompt(null);
+    setTemplatePrefillContent(undefined);
     setViewMode("create");
   }, [hasUnsavedChanges]);
+
+  const handleViewTemplate = useCallback(
+    (template: CustomPrompt) => {
+      if (hasUnsavedChanges()) {
+        setPendingAction(() => () => {
+          setViewingTemplate(template);
+          setEditingPrompt(null);
+          setViewMode("view-template");
+        });
+        setUnsavedChangesDialogOpen(true);
+        return;
+      }
+      setViewingTemplate(template);
+      setEditingPrompt(null);
+      setViewMode("view-template");
+    },
+    [hasUnsavedChanges],
+  );
+
+  const handleUseTemplate = useCallback(
+    (template: CustomPrompt) => {
+      if (hasUnsavedChanges()) {
+        setPendingAction(() => () => {
+          setEditingPrompt(null);
+          setTemplatePrefillContent(template.content);
+          setViewMode("create");
+        });
+        setUnsavedChangesDialogOpen(true);
+        return;
+      }
+      setEditingPrompt(null);
+      setTemplatePrefillContent(template.content);
+      setViewMode("create");
+    },
+    [hasUnsavedChanges],
+  );
 
   const handleEdit = useCallback(
     (prompt: CustomPrompt) => {
@@ -126,12 +181,16 @@ export function CustomPromptSettingsPanel({
       setPendingAction(() => () => {
         setViewMode("list");
         setEditingPrompt(null);
+        setViewingTemplate(null);
+        setTemplatePrefillContent(undefined);
       });
       setUnsavedChangesDialogOpen(true);
       return;
     }
     setViewMode("list");
     setEditingPrompt(null);
+    setViewingTemplate(null);
+    setTemplatePrefillContent(undefined);
   }, [hasUnsavedChanges]);
 
   const handleConfirmUnsavedChanges = useCallback(() => {
@@ -155,28 +214,102 @@ export function CustomPromptSettingsPanel({
     }
   }, [pendingLeaveResolver]);
 
-  const defaultValues = useMemo(
-    () =>
-      editingPrompt
-        ? {
-            name: editingPrompt.name,
-            description: editingPrompt.description || "",
-            content: editingPrompt.content,
-            selectedMcpServerIds: editingPrompt.selectedMcpServerIds,
-          }
-        : undefined,
-    [editingPrompt],
-  );
+  const defaultValues = useMemo(() => {
+    if (viewMode === "view-template" && viewingTemplate) {
+      return {
+        name: viewingTemplate.name,
+        description: viewingTemplate.description || "",
+        content: viewingTemplate.content,
+        selectedMcpServerIds: viewingTemplate.selectedMcpServerIds,
+      };
+    }
+    if (editingPrompt) {
+      return {
+        name: editingPrompt.name,
+        description: editingPrompt.description || "",
+        content: editingPrompt.content,
+        selectedMcpServerIds: editingPrompt.selectedMcpServerIds,
+      };
+    }
+    if (templatePrefillContent !== undefined) {
+      return {
+        name: "",
+        description: "",
+        content: templatePrefillContent,
+        selectedMcpServerIds: [],
+      };
+    }
+    return undefined;
+  }, [viewMode, viewingTemplate, editingPrompt, templatePrefillContent]);
 
   const renderContent = () => {
     if (viewMode === "list") {
       return (
-        <PromptListView
-          prompts={promptManager.prompts}
-          activePromptId={promptManager.activePromptId}
-          onCreateNew={handleCreateNew}
-          onEdit={handleEdit}
-          onSetActive={promptManager.setActivePrompt}
+        <>
+          {/* Search + Add row always at the top */}
+          <div className="flex items-center gap-2 shrink-0">
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search prompts..."
+            />
+            <Button onClick={handleCreateNew} size="sm" className="shrink-0 cursor-pointer">
+              Add New Prompt
+            </Button>
+          </div>
+          <Separator />
+
+          {/* Templates section */}
+          {promptManager.templates.length > 0 && (
+            <>
+              <div className="flex flex-col gap-3 pt-2">
+                <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide">
+                  Template
+                </h3>
+                <div className="flex flex-col gap-3">
+                  {promptManager.templates.map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      template={template}
+                      onView={handleViewTemplate}
+                      onUseTemplate={handleUseTemplate}
+                    />
+                  ))}
+                </div>
+              </div>
+              <Separator className="my-4" />
+            </>
+          )}
+
+          {/* My Prompts section */}
+          <div className="flex flex-col gap-3">
+            <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide">
+              My Prompts
+            </h3>
+            <PromptListView
+              prompts={filteredPrompts}
+              activePromptId={promptManager.activePromptId}
+              onEdit={handleEdit}
+              onSetActive={promptManager.setActivePrompt}
+              emptyMessage={
+                searchQuery.trim()
+                  ? "No prompts found matching your search"
+                  : "No prompts yet. Create your first prompt above."
+              }
+            />
+          </div>
+        </>
+      );
+    }
+
+    if (viewMode === "view-template" && viewingTemplate) {
+      return (
+        <PromptForm
+          defaultValues={defaultValues}
+          onCancel={handleBackToList}
+          loading={false}
+          isTemplate={true}
+          onDirtyChange={handleDirtyChange}
         />
       );
     }
@@ -190,6 +323,8 @@ export function CustomPromptSettingsPanel({
         loading={promptManager.loading}
         isDefault={editingPrompt?.isDefault}
         isNewPrompt={viewMode === "create"}
+        selectAllServersForNewPrompt={viewMode === "create" && templatePrefillContent !== undefined}
+        templateContent={promptManager.templates[0]?.content}
         onDirtyChange={handleDirtyChange}
       />
     );
@@ -212,6 +347,8 @@ export function CustomPromptSettingsPanel({
         setPendingAction(() => () => {
           setViewMode("list");
           setEditingPrompt(null);
+          setViewingTemplate(null);
+          setTemplatePrefillContent(undefined);
         });
         setPendingLeaveResolver(() => resolve);
         setUnsavedChangesDialogOpen(true);
@@ -231,8 +368,8 @@ export function CustomPromptSettingsPanel({
         <header className="flex flex-col gap-1">
           <h2 className="text-xl font-semibold">Custom Prompt Manager</h2>
           <p className="text-muted-foreground text-sm">
-            Manage your prompt templates. The active prompt is the default template YakShaver uses
-            when writing issues from your recordings.
+            Manage your custom prompts. Use a template to get started quickly, or create your own
+            prompt with custom MCP server selections.
           </p>
         </header>
         <ScrollArea className="flex-1">
