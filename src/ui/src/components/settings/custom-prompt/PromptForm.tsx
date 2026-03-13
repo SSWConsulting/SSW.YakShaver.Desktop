@@ -3,6 +3,7 @@ import { ensureBuiltinServerIds, getBuiltinServerIds } from "@shared/utils/mcp-u
 import { AlertTriangle, ChevronLeft, ChevronRight, Copy, FilePlus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { useClipboard } from "../../../hooks/useClipboard";
 import { ipcClient } from "../../../services/ipc-client";
 import { Button } from "../../ui/button";
@@ -18,7 +19,7 @@ import {
 } from "../../ui/form";
 import { Input } from "../../ui/input";
 import type { MCPServerConfig } from "../mcp/McpServerForm";
-import { HighlightedTextarea } from "./HighlightedTextarea";
+import { HighlightedTextarea, hasPlaceholder } from "./HighlightedTextarea";
 import {
   PROMPT_DESCRIPTION_MAX,
   PROMPT_NAME_MAX,
@@ -252,7 +253,7 @@ export function PromptForm({
           control={form.control}
           name="content"
           render={({ field }) => {
-            const hasPlaceholders = /«[^»]+»/.test(field.value ?? "");
+            const hasPlaceholders = hasPlaceholder(field.value ?? "");
             return (
               <FormItem className="flex flex-col shrink-0 max-w-full">
                 <div className="flex items-center justify-between flex-wrap gap-1">
@@ -263,9 +264,14 @@ export function PromptForm({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() =>
-                          form.setValue("content", templateContent, { shouldDirty: true })
-                        }
+                        onClick={() => {
+                          const current = form.getValues("content");
+                          const appended = current
+                            ? `${current}\n\n---\n\n${templateContent}`
+                            : templateContent;
+                          form.setValue("content", appended, { shouldDirty: true });
+                          toast.success("Template appended");
+                        }}
                         className="cursor-pointer text-xs h-7 px-2"
                       >
                         <FilePlus className="w-3 h-3 mr-1" />
@@ -295,8 +301,7 @@ export function PromptForm({
                 {hasPlaceholders && !isTemplate && (
                   <p className="text-xs text-amber-500/80 flex items-center gap-1 mt-1">
                     <AlertTriangle className="w-3 h-3 shrink-0" />
-                    «…» marks are prompts to fill in — replace them with your own content, or leave
-                    as-is
+                    Replace the highlighted fields before using this prompt
                   </p>
                 )}
                 <FormMessage />

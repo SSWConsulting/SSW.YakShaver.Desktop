@@ -1,7 +1,13 @@
 import { forwardRef, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 
-const PLACEHOLDER_PATTERN = /«[^»]+»/g;
+// Matches <REPLACE WITH something> placeholders, case-insensitive
+const PLACEHOLDER_PATTERN = /<replace\s+with\s+[^>]+>/gi;
+
+/** Returns true if the text contains any <REPLACE WITH ...> placeholder. */
+export function hasPlaceholder(text: string): boolean {
+  return /<replace\s+with\s+[^>]+>/i.test(text);
+}
 
 function renderHighlighted(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
@@ -87,7 +93,9 @@ export const HighlightedTextarea = forwardRef<HTMLTextAreaElement, HighlightedTe
           disabled={disabled}
           className={cn(
             SHARED_TEXT_CLASSES,
-            "absolute inset-0 w-full h-full bg-transparent text-white/90 caret-white resize-none outline-none overflow-y-auto overflow-x-hidden",
+            // Hide the native scrollbar so backdrop and textarea always have the same effective
+            // text width — without this the scrollbar narrows the textarea and misaligns highlights
+            "absolute inset-0 w-full h-full bg-transparent text-white/90 caret-white resize-none outline-none overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
             "disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}

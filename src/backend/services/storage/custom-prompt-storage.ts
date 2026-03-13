@@ -25,7 +25,7 @@ const TEMPLATE_PROMPT: CustomPrompt = {
   id: "default",
   name: "Create Issues Template",
   description: "Template for creating issues from video recordings",
-  content: `Project Name: «your project name»\nProject URL: «repo or board URL»\n${defaultCustomPrompt}`,
+  content: `Project Name: <REPLACE WITH YOUR PROJECT NAME>\nProject URL: <REPLACE WITH REPO OR BOARD URL>\n${defaultCustomPrompt}`,
   isDefault: true,
   isTemplate: true,
   createdAt: Date.now(),
