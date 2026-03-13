@@ -149,11 +149,17 @@ export interface CustomPrompt {
   name: string;
   description?: string;
   content: string;
-  isDefault?: boolean;
   isTemplate?: boolean;
   selectedMcpServerIds?: string[];
   createdAt: number;
   updatedAt: number;
+}
+
+export interface PromptFormData {
+  name: string;
+  description?: string;
+  content: string;
+  selectedMcpServerIds?: string[];
 }
 
 export interface HealthStatusInfo {

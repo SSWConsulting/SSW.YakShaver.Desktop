@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import type { CustomPrompt } from "@/types";
-import type { PromptFormData } from "../components/settings/custom-prompt/types";
+import type { CustomPrompt, PromptFormData } from "@/types";
 import { ipcClient } from "../services/ipc-client";
 
 export function usePromptManager() {

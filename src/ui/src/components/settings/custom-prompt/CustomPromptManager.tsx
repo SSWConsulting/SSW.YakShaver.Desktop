@@ -320,9 +320,8 @@ export function CustomPromptSettingsPanel({
         defaultValues={defaultValues}
         onSubmit={handleFormSubmit}
         onCancel={handleBackToList}
-        onDelete={editingPrompt && !editingPrompt.isDefault ? handleDelete : undefined}
+        onDelete={editingPrompt && !editingPrompt.isTemplate ? handleDelete : undefined}
         loading={promptManager.loading}
-        isDefault={editingPrompt?.isDefault}
         isNewPrompt={viewMode === "create"}
         selectAllServersForNewPrompt={viewMode === "create" && templatePrefillContent !== undefined}
         templateContent={promptManager.templates[0]?.content}

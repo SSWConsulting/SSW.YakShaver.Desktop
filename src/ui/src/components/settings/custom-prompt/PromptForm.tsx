@@ -34,7 +34,6 @@ interface PromptFormProps {
   onDelete?: () => void;
   onUseTemplate?: () => void;
   loading: boolean;
-  isDefault?: boolean;
   isTemplate?: boolean;
   templateContent?: string;
   isNewPrompt?: boolean;
@@ -49,7 +48,6 @@ export function PromptForm({
   onDelete,
   onUseTemplate,
   loading,
-  isDefault = false,
   isTemplate = false,
   templateContent,
   isNewPrompt = false,
@@ -124,7 +122,7 @@ export function PromptForm({
   // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally omitting form methods to prevent re-runs
   useEffect(() => {
     if (serversLoaded && !hasAutoSelectedServers.current && mcpServers.length > 0) {
-      if (isDefault || isTemplate) {
+      if (isTemplate) {
         const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
         form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
       } else if (isNewPrompt) {
@@ -156,7 +154,7 @@ export function PromptForm({
       }
       hasAutoSelectedServers.current = true;
     }
-  }, [serversLoaded, isDefault, isTemplate, isNewPrompt, selectAllServersForNewPrompt, mcpServers]);
+  }, [serversLoaded, isTemplate, isNewPrompt, selectAllServersForNewPrompt, mcpServers]);
 
   const handleSubmit = async () => {
     const isValid = await form.trigger();
@@ -164,7 +162,7 @@ export function PromptForm({
 
     const data = form.getValues();
 
-    if (!isDefault && !isTemplate) {
+    if (!isTemplate) {
       const nonBuiltinServers = mcpServers.filter((s) => !s.builtin);
 
       // Case 1: no non-builtin servers exist at all → hard block
@@ -204,7 +202,7 @@ export function PromptForm({
             <FormItem className="shrink-0">
               <div className="flex items-center justify-between">
                 <FormLabel>Prompt Name *</FormLabel>
-                {!isDefault && !isTemplate && (
+                {!isTemplate && (
                   <span className="text-xs text-muted-foreground">
                     {(field.value ?? "").length}/{PROMPT_NAME_MAX}
                   </span>
@@ -214,7 +212,7 @@ export function PromptForm({
                 <Input
                   {...field}
                   placeholder="e.g., Documentation Writer, Code Reviewer"
-                  disabled={isDefault || isTemplate}
+                  disabled={isTemplate}
                   maxLength={PROMPT_NAME_MAX}
                 />
               </FormControl>
@@ -230,7 +228,7 @@ export function PromptForm({
             <FormItem className="shrink-0">
               <div className="flex items-center justify-between">
                 <FormLabel>Description</FormLabel>
-                {!isDefault && !isTemplate && (
+                {!isTemplate && (
                   <span className="text-xs text-muted-foreground">
                     {(field.value ?? "").length}/{PROMPT_DESCRIPTION_MAX}
                   </span>
@@ -240,7 +238,7 @@ export function PromptForm({
                 <Input
                   {...field}
                   placeholder="Brief description of what this prompt does"
-                  disabled={isDefault || isTemplate}
+                  disabled={isTemplate}
                   maxLength={PROMPT_DESCRIPTION_MAX}
                 />
               </FormControl>
@@ -294,7 +292,7 @@ export function PromptForm({
                   <HighlightedTextarea
                     {...field}
                     placeholder="Enter your custom instructions here..."
-                    disabled={isDefault || isTemplate}
+                    disabled={isTemplate}
                     containerClassName="h-64"
                   />
                 </FormControl>
@@ -320,7 +318,6 @@ export function PromptForm({
                 .map((s) => s.name);
 
               const hasDisconnectedSelection =
-                !isDefault &&
                 !isTemplate &&
                 serversWithIds.some(
                   (s) => !s.builtin && s.enabled === false && field.value?.includes(s.id),
@@ -351,12 +348,9 @@ export function PromptForm({
                       const isBuiltin = server.builtin ?? false;
                       const isServerDisabled = server.enabled === false;
                       const isChecked =
-                        isDefault ||
-                        isTemplate ||
-                        isBuiltin ||
-                        (field.value?.includes(server.id) ?? false);
-                      // Lock checkboxes for template/default prompts and built-ins
-                      const isCheckboxDisabled = isDefault || isTemplate || isBuiltin;
+                        isTemplate || isBuiltin || (field.value?.includes(server.id) ?? false);
+                      // Lock checkboxes for template prompts and built-ins
+                      const isCheckboxDisabled = isTemplate || isBuiltin;
                       const handleToggle = () => {
                         const newValue = isChecked
                           ? (field.value || []).filter((id) => id !== server.id)

@@ -7,7 +7,6 @@ export interface CustomPrompt {
   name: string;
   description?: string;
   content: string;
-  isDefault?: boolean;
   isTemplate?: boolean;
   selectedMcpServerIds?: string[];
   createdAt: number;
@@ -26,7 +25,6 @@ const TEMPLATE_PROMPT: CustomPrompt = {
   name: "Create Issues Template",
   description: "Template for creating issues from video recordings",
   content: `Project Name: <REPLACE WITH YOUR PROJECT NAME>\nProject URL: <REPLACE WITH REPO OR BOARD URL>\n${defaultCustomPrompt}`,
-  isDefault: true,
   isTemplate: true,
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -79,7 +77,6 @@ export class CustomPromptStorage extends BaseSecureStorage {
             content: TEMPLATE_PROMPT.content,
             name: TEMPLATE_PROMPT.name,
             description: TEMPLATE_PROMPT.description,
-            isDefault: true,
             isTemplate: true,
             updatedAt: Date.now(),
           };
@@ -98,7 +95,7 @@ export class CustomPromptStorage extends BaseSecureStorage {
 
   async getAllPrompts(): Promise<CustomPrompt[]> {
     const settings = await this.loadSettings();
-    return settings.prompts.filter((p) => !p.isTemplate && !p.isDefault);
+    return settings.prompts.filter((p) => !p.isTemplate);
   }
 
   async getTemplates(): Promise<CustomPrompt[]> {
@@ -159,7 +156,7 @@ export class CustomPromptStorage extends BaseSecureStorage {
     const prompt = settings.prompts.find((p) => p.id === id);
 
     // Prevent deleting template or default prompts
-    if (!prompt || prompt.isDefault || prompt.isTemplate) return false;
+    if (!prompt || prompt.isTemplate) return false;
 
     settings.prompts = settings.prompts.filter((p) => p.id !== id);
 
