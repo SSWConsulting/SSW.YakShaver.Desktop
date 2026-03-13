@@ -19,7 +19,12 @@ import {
 import { Input } from "../../ui/input";
 import type { MCPServerConfig } from "../mcp/McpServerForm";
 import { HighlightedTextarea } from "./HighlightedTextarea";
-import { type PromptFormValues, promptFormSchema } from "./schema";
+import {
+  PROMPT_DESCRIPTION_MAX,
+  PROMPT_NAME_MAX,
+  type PromptFormValues,
+  promptFormSchema,
+} from "./schema";
 
 interface PromptFormProps {
   defaultValues?: PromptFormValues;
@@ -32,10 +37,6 @@ interface PromptFormProps {
   isTemplate?: boolean;
   templateContent?: string;
   isNewPrompt?: boolean;
-  selectAllServersForNewPrompt?: boolean;
-}
-
-interface InternalPromptFormProps extends PromptFormProps {
   selectAllServersForNewPrompt?: boolean;
   onDirtyChange?: (isDirty: boolean) => void;
 }
@@ -53,7 +54,7 @@ export function PromptForm({
   isNewPrompt = false,
   selectAllServersForNewPrompt = false,
   onDirtyChange,
-}: InternalPromptFormProps) {
+}: PromptFormProps) {
   const { copyToClipboard } = useClipboard();
   const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
   const [serversLoaded, setServersLoaded] = useState(false);
@@ -154,7 +155,6 @@ export function PromptForm({
       }
       hasAutoSelectedServers.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serversLoaded, isDefault, isTemplate, isNewPrompt, selectAllServersForNewPrompt, mcpServers]);
 
   const handleSubmit = async () => {
@@ -201,12 +201,20 @@ export function PromptForm({
           name="name"
           render={({ field }) => (
             <FormItem className="shrink-0">
-              <FormLabel>Prompt Name *</FormLabel>
+              <div className="flex items-center justify-between">
+                <FormLabel>Prompt Name *</FormLabel>
+                {!isDefault && !isTemplate && (
+                  <span className="text-xs text-muted-foreground">
+                    {(field.value ?? "").length}/{PROMPT_NAME_MAX}
+                  </span>
+                )}
+              </div>
               <FormControl>
                 <Input
                   {...field}
                   placeholder="e.g., Documentation Writer, Code Reviewer"
                   disabled={isDefault || isTemplate}
+                  maxLength={PROMPT_NAME_MAX}
                 />
               </FormControl>
               <FormMessage />
@@ -219,14 +227,23 @@ export function PromptForm({
           name="description"
           render={({ field }) => (
             <FormItem className="shrink-0">
-              <FormLabel>Description</FormLabel>
+              <div className="flex items-center justify-between">
+                <FormLabel>Description</FormLabel>
+                {!isDefault && !isTemplate && (
+                  <span className="text-xs text-muted-foreground">
+                    {(field.value ?? "").length}/{PROMPT_DESCRIPTION_MAX}
+                  </span>
+                )}
+              </div>
               <FormControl>
                 <Input
                   {...field}
                   placeholder="Brief description of what this prompt does"
                   disabled={isDefault || isTemplate}
+                  maxLength={PROMPT_DESCRIPTION_MAX}
                 />
               </FormControl>
+              <FormMessage />
             </FormItem>
           )}
         />
@@ -235,7 +252,7 @@ export function PromptForm({
           control={form.control}
           name="content"
           render={({ field }) => {
-            const hasPlaceholders = /<REPLACE[A-Z0-9_ ]+>/.test(field.value ?? "");
+            const hasPlaceholders = /«[^»]+»/.test(field.value ?? "");
             return (
               <FormItem className="flex flex-col shrink-0 max-w-full">
                 <div className="flex items-center justify-between flex-wrap gap-1">
@@ -278,7 +295,8 @@ export function PromptForm({
                 {hasPlaceholders && !isTemplate && (
                   <p className="text-xs text-amber-500/80 flex items-center gap-1 mt-1">
                     <AlertTriangle className="w-3 h-3 shrink-0" />
-                    Replace all placeholders before saving
+                    «…» marks are prompts to fill in — replace them with your own content, or leave
+                    as-is
                   </p>
                 )}
                 <FormMessage />

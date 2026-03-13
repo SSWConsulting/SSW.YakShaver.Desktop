@@ -262,7 +262,7 @@ export function CustomPromptSettingsPanel({
           {/* Templates section */}
           {promptManager.templates.length > 0 && (
             <>
-              <div className="flex flex-col gap-3 pt-2">
+              <div className="flex flex-col gap-3 pt-6">
                 <h3 className="text-sm font-semibold text-white/70 uppercase tracking-wide">
                   Template
                 </h3>
@@ -371,12 +371,12 @@ export function CustomPromptSettingsPanel({
             <h2 className="text-xl font-semibold">Custom Prompt Manager</h2>
             <p className="text-muted-foreground text-sm">
               Manage your custom prompts. Use a template to get started quickly, or create your own
-              prompt with custom MCP server selections.
+              prompt.
             </p>
           </header>
         )}
         <ScrollArea className="flex-1">
-          <div className="h-full min-h-0 pr-3">{renderContent()}</div>
+          <div className="w-full overflow-x-hidden">{renderContent()}</div>
         </ScrollArea>
       </div>
 

@@ -1,4 +1,4 @@
-import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
+import { AZURE_DEVOPS_PRESET_CONFIG, PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
 import { useMcpCardActions } from "@/hooks/useMcpCardActions";
 import type { HealthStatusInfo } from "../../../../../../backend/types";
 import type { MCPServerConfig } from "../McpServerForm";
@@ -23,19 +23,7 @@ export function McpAzureDevOpsCard({
   onTools,
   viewMode,
 }: McpDevOpsCardProps) {
-  const configLocal = config ?? {
-    id: McpAzureDevOpsCard.Id,
-    name: "Azure_DevOps", // quick fix for MCP name can't have space.
-    transport: "stdio",
-    command: "npx",
-    //TODO: need to be able to customize this last parameter
-    // https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/547
-    args: ["-y", "@azure-devops/mcp", "ssw2"],
-
-    description: "Azure DevOps MCP Server",
-    toolWhitelist: [],
-    enabled: false,
-  };
+  const configLocal = config ?? AZURE_DEVOPS_PRESET_CONFIG;
 
   const { handleOnConnect, handleOnDisconnect } = useMcpCardActions(
     McpAzureDevOpsCard.Id,

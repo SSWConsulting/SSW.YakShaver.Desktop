@@ -23,9 +23,9 @@ const SETTINGS_FILE = "custom-settings.enc";
 
 const TEMPLATE_PROMPT: CustomPrompt = {
   id: "default",
-  name: "Create Issues from Video Recordings",
+  name: "Create Issues Template",
   description: "Template for creating issues from video recordings",
-  content: `Project Name: <REPLACE WITH PROJECT NAME>\nProject URL: <REPLACE WITH YOUR REPO OR BOARD URL>\n${defaultCustomPrompt}`,
+  content: `Project Name: «your project name»\nProject URL: «repo or board URL»\n${defaultCustomPrompt}`,
   isDefault: true,
   isTemplate: true,
   createdAt: Date.now(),

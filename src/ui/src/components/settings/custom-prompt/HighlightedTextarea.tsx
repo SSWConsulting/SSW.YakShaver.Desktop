@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 
-const PLACEHOLDER_PATTERN = /<REPLACE[A-Z0-9_ ]+>/g;
+const PLACEHOLDER_PATTERN = /«[^»]+»/g;
 
 function renderHighlighted(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];

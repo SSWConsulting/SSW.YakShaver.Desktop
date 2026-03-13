@@ -12,13 +12,14 @@ export function PromptListView({
   onEdit,
   emptyMessage = "No prompts available",
 }: PromptListViewProps) {
+  if (prompts.length === 0) {
+    return <p className="text-muted-foreground text-center py-8">{emptyMessage}</p>;
+  }
   return (
-    <div className="flex flex-col gap-4">
-      {prompts.length === 0 ? (
-        <p className="text-muted-foreground text-center py-8">{emptyMessage}</p>
-      ) : (
-        prompts.map((prompt) => <PromptCard key={prompt.id} prompt={prompt} onEdit={onEdit} />)
-      )}
+    <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
+      {prompts.map((prompt) => (
+        <PromptCard key={prompt.id} prompt={prompt} onEdit={onEdit} />
+      ))}
     </div>
   );
 }
