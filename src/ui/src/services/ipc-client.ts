@@ -139,7 +139,6 @@ declare global {
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;
-        getActivePrompt: () => Promise<CustomPrompt | null>;
         getTemplates: () => Promise<Array<CustomPrompt>>;
         addPrompt: (prompt: {
           name: string;
@@ -157,7 +156,6 @@ declare global {
           },
         ) => Promise<boolean>;
         deletePrompt: (id: string) => Promise<boolean>;
-        setActivePrompt: (id: string) => Promise<boolean>;
         clearCustomPrompts: () => Promise<void>;
       };
       userInteraction: {

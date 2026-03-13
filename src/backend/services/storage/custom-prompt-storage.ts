@@ -15,7 +15,6 @@ export interface CustomPrompt {
 
 interface CustomPromptData {
   prompts: CustomPrompt[];
-  activePromptId: string | null;
 }
 
 const SETTINGS_FILE = "custom-settings.enc";
@@ -32,7 +31,6 @@ const TEMPLATE_PROMPT: CustomPrompt = {
 
 const DEFAULT_SETTINGS: CustomPromptData = {
   prompts: [TEMPLATE_PROMPT],
-  activePromptId: "default",
 };
 
 export class CustomPromptStorage extends BaseSecureStorage {
@@ -103,12 +101,6 @@ export class CustomPromptStorage extends BaseSecureStorage {
     return settings.prompts.filter((p) => p.isTemplate);
   }
 
-  async getActivePrompt(): Promise<CustomPrompt | null> {
-    const settings = await this.loadSettings();
-    if (!settings.activePromptId) return null;
-    return settings.prompts.find((p) => p.id === settings.activePromptId) || null;
-  }
-
   async getPromptById(id: string): Promise<CustomPrompt | null> {
     const settings = await this.loadSettings();
     return settings.prompts.find((p) => p.id === id) || null;
@@ -160,21 +152,6 @@ export class CustomPromptStorage extends BaseSecureStorage {
 
     settings.prompts = settings.prompts.filter((p) => p.id !== id);
 
-    // If deleted prompt was active, switch to default
-    if (settings.activePromptId === id) {
-      settings.activePromptId = "default";
-    }
-
-    await this.saveSettings(settings);
-    return true;
-  }
-
-  async setActivePrompt(id: string): Promise<boolean> {
-    const settings = await this.loadSettings();
-    const prompt = settings.prompts.find((p) => p.id === id);
-    if (!prompt) return false;
-
-    settings.activePromptId = id;
     await this.saveSettings(settings);
     return true;
   }
@@ -183,7 +160,6 @@ export class CustomPromptStorage extends BaseSecureStorage {
     const settings = await this.loadSettings();
 
     settings.prompts = [TEMPLATE_PROMPT];
-    settings.activePromptId = TEMPLATE_PROMPT.id;
 
     await this.saveSettings(settings);
   }
