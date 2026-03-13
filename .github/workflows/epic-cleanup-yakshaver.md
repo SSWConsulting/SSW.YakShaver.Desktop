@@ -118,11 +118,11 @@ After reading all PBIs from all three epics, treat them as **one unified pool** 
 
 - `🔌 MCP & AI Pipeline` — MCP host/client, MCP service config, fallback/error handling, OpenAI integration, transcript pipeline (from Agent 2.0 and Desktop App)
 - `🎬 Video Recording & Processing` — screen capture, local video processing, FFmpeg, upload pipeline, recording confirmation, video hosting (from Agent 2.0 and Desktop App)
-- `✨ Features & UX` — stop button, project selection, transcript optimisation, fallback/system prompt, additional LLM providers, customisable prompt (from Desktop App)
+- `✨ Features` — stop button, project selection, transcript optimisation, fallback/system prompt, additional LLM providers, customisable prompt (from Desktop App)
+- `🎨 UX Improvements` — UI polish, onboarding experience, settings panels, visual consistency, accessibility improvements (from Desktop App)
 - `🐛 Bug Fixes & Quality` — all defects across Desktop App: camera/audio, auth errors, sign-in failures, UI glitches, download confusion, Azure DevOps MCP bugs
 - `🏗️ Platform & Infrastructure` — Tauri app init, database redesign, configurable settings, code signing, centralised logging, onboarding wizard refactor, Intel macOS installer, architecture/roadmap (from Agent 2.0 and Desktop App)
-- `♻️ Auth Scope 1 — Enterprise Auth` — Make Entra permission optional, Better-Auth spike, ADR revision, implementation (from Auth Migration)
-- `🌐 Auth Scope 2 — Extended Login Providers` — non-Entra tenant policy, invitation system (from Auth Migration)
+- `♻️ Auth Migration` — Make Entra permission optional, Better-Auth spike, ADR revision, non-Entra tenant policy, invitation system (from Auth Migration)
 
 ---
 
