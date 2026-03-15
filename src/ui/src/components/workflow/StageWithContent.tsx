@@ -51,7 +51,7 @@ function ToolResultSuccess({ result }: { result: unknown }) {
   );
 }
 
-function isErrorStep(step: MCPStep): boolean {
+export function isErrorStep(step: MCPStep): boolean {
   return (
     (step.type === MCPStepType.TOOL_RESULT && Boolean(step.error)) ||
     step.type === MCPStepType.TOOL_DENIED

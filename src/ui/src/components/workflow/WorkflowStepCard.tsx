@@ -1,10 +1,11 @@
 import type { WorkflowStep } from "@shared/types/workflow";
 import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import type { MCPStep } from "../../types";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
-import { StageWithContent } from "./StageWithContent";
+import { isErrorStep, StageWithContent } from "./StageWithContent";
 
 const STATUS_CONFIG = {
   in_progress: {
@@ -44,26 +45,50 @@ function StatusIcon({ status, className }: { status: WorkflowStep["status"]; cla
   return <Icon className={cn("size-5", config.iconClass, className)} />;
 }
 
-export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: string }) {
-  const [isExpanded, setIsExpanded] = useState(step.status === "failed");
+function hasExecutingTaskErrors(stage: string, parsed: unknown): boolean {
+  return (
+    stage === "executing_task" &&
+    typeof parsed === "object" &&
+    parsed !== null &&
+    Array.isArray((parsed as Record<string, unknown>).steps) &&
+    ((parsed as Record<string, unknown>).steps as MCPStep[]).some(isErrorStep)
+  );
+}
 
-  const { hasPayload, parsedPayload } = useMemo(() => {
-    if (!step.payload) return { hasPayload: false, parsedPayload: null };
+export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const { hasPayload, parsedPayload, hasStepErrors } = useMemo(() => {
+    if (!step.payload) return { hasPayload: false, parsedPayload: null, hasStepErrors: false };
 
     try {
       const parsed = JSON.parse(step.payload);
       const isValid =
         parsed !== null && (typeof parsed === "object" ? Object.keys(parsed).length > 0 : true);
-      return { hasPayload: isValid, parsedPayload: parsed };
+
+      return {
+        hasPayload: isValid,
+        parsedPayload: parsed,
+        hasStepErrors: isValid && hasExecutingTaskErrors(step.stage, parsed),
+      };
     } catch {
-      return { hasPayload: !!step.payload, parsedPayload: step.payload };
+      return { hasPayload: !!step.payload, parsedPayload: step.payload, hasStepErrors: false };
     }
-  }, [step.payload]);
+  }, [step.payload, step.stage]);
+
+  const effectiveStatus: WorkflowStep["status"] =
+    hasStepErrors && step.status === "completed" ? "failed" : step.status;
+
+  useEffect(() => {
+    if (effectiveStatus === "failed" && hasPayload) {
+      setIsExpanded(true);
+    }
+  }, [effectiveStatus, hasPayload]);
 
   if (step.status === "skipped") return null;
 
   const config =
-    STATUS_CONFIG[step.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
+    STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
 
   const toggleExpand = () => {
     if (hasPayload) setIsExpanded(!isExpanded);
@@ -71,7 +96,7 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
 
   const HeaderContent = () => (
     <div className="flex items-center gap-3">
-      <StatusIcon status={step.status} />
+      <StatusIcon status={effectiveStatus} />
       <span className={cn("font-medium", config.textClass)}>{label}</span>
     </div>
   );
