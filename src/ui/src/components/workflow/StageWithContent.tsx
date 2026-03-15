@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Play, Wrench, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import { type MCPStep, MCPStepType, type MetadataPreview, type VideoChapter } from "../../types";
 import { deepParseJson } from "../../utils";
@@ -48,6 +48,13 @@ function ToolResultSuccess({ result }: { result: unknown }) {
         </details>
       )}
     </div>
+  );
+}
+
+export function isErrorStep(step: MCPStep): boolean {
+  return (
+    (step.type === MCPStepType.TOOL_RESULT && Boolean(step.error)) ||
+    step.type === MCPStepType.TOOL_DENIED
   );
 }
 
@@ -178,52 +185,70 @@ export function StageWithContent({ stage, payload }: StageWithContentProps) {
   if (stage === "executing_task" && isRecord(payload) && Array.isArray(payload.steps)) {
     const mcpSteps = payload.steps as MCPStep[];
 
+    const errorSteps = mcpSteps.filter(isErrorStep);
+
     return (
       <div className="max-h-[400px] overflow-y-auto space-y-2">
-        {mcpSteps.map((step, idx) => (
-          <div
-            // timestamp might be undefined or duplicated, using index as fallback
-            key={`${step.timestamp}-${idx}`}
-            className="border-l-2 border-green-400/30 pl-3 py-1"
-          >
-            {step.type === MCPStepType.START && (
-              <div className="text-secondary font-medium flex items-center gap-2">
-                <Play className="w-4 h-4" />
-                {step.message || "Start task execution"}
-              </div>
-            )}
-            {step.type === MCPStepType.REASONING && step.reasoning && (
-              <ReasoningStep reasoning={step.reasoning} />
-            )}
-            {step.type === MCPStepType.TOOL_CALL && (
-              <ToolCallStep
-                toolName={step.toolName}
-                serverName={step.serverName}
-                args={step.args}
-              />
-            )}
-            {step.type === MCPStepType.TOOL_RESULT && (
-              <div className="ml-4 space-y-1">
-                {step.error ? (
-                  <ToolResultError error={step.error} />
-                ) : (
-                  <ToolResultSuccess result={step.result} />
-                )}
-              </div>
-            )}
-            {step.type === MCPStepType.TOOL_DENIED && (
-              <div className="ml-4">
-                <ToolDeniedNotice message={step.message} />
-              </div>
-            )}
-            {step.type === MCPStepType.FINAL_RESULT && (
-              <div className="font-medium flex items-center gap-2">
-                <Check className="w-4 h-4" />
-                {step.message || "Generated final result"}
-              </div>
-            )}
+        {errorSteps.length > 0 && (
+          <div className="flex items-start gap-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>
+              {errorSteps.length} error{errorSteps.length > 1 ? "s" : ""} occurred during task
+              execution
+            </span>
           </div>
-        ))}
+        )}
+        {mcpSteps.map((step, idx) => {
+          const isError = isErrorStep(step);
+          return (
+            <div
+              // timestamp might be undefined or duplicated, using index as fallback
+              key={`${step.timestamp}-${idx}`}
+              className={
+                isError
+                  ? "border-l-2 border-red-400/60 pl-3 py-1 bg-red-500/5 rounded-r"
+                  : "border-l-2 border-green-400/30 pl-3 py-1"
+              }
+            >
+              {step.type === MCPStepType.START && (
+                <div className="text-secondary font-medium flex items-center gap-2">
+                  <Play className="w-4 h-4" />
+                  {step.message || "Start task execution"}
+                </div>
+              )}
+              {step.type === MCPStepType.REASONING && step.reasoning && (
+                <ReasoningStep reasoning={step.reasoning} />
+              )}
+              {step.type === MCPStepType.TOOL_CALL && (
+                <ToolCallStep
+                  toolName={step.toolName}
+                  serverName={step.serverName}
+                  args={step.args}
+                />
+              )}
+              {step.type === MCPStepType.TOOL_RESULT && (
+                <div className="ml-4 space-y-1">
+                  {step.error ? (
+                    <ToolResultError error={step.error} />
+                  ) : (
+                    <ToolResultSuccess result={step.result} />
+                  )}
+                </div>
+              )}
+              {step.type === MCPStepType.TOOL_DENIED && (
+                <div className="ml-4">
+                  <ToolDeniedNotice message={step.message} />
+                </div>
+              )}
+              {step.type === MCPStepType.FINAL_RESULT && (
+                <div className="font-medium flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  {step.message || "Generated final result"}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
