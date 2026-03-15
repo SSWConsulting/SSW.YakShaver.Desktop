@@ -1,7 +1,7 @@
 import type { InteractionRequest, ToolApprovalPayload } from "@shared/types/user-interaction";
 import { useCallback, useEffect, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
-import { deepParseJson, formatErrorMessage } from "../../utils";
+import { formatErrorMessage } from "../../utils";
 import { LoadingState } from "../common/LoadingState";
 import {
   AlertDialog,
@@ -23,9 +23,19 @@ interface ApprovalDialogProps {
   error?: string | null;
 }
 
+function parseToolName(toolName: string): { server: string | null; tool: string } {
+  const separatorIndex = toolName.indexOf("__");
+  if (separatorIndex !== -1) {
+    const server = toolName.slice(0, separatorIndex).replace(/_/g, " ");
+    const tool = toolName.slice(separatorIndex + 2).replace(/_/g, " ");
+    return { server, tool };
+  }
+  return { server: null, tool: toolName.replace(/_/g, " ") };
+}
+
 export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDialogProps) {
   const payload = request.payload as ToolApprovalPayload;
-  const { toolName, args } = payload;
+  const { toolName } = payload;
   const autoApproveAt = request.autoApproveAt;
 
   const [approvalSubmitting, setApprovalSubmitting] = useState(false);
@@ -119,42 +129,25 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
   // Always open if we have a request
   const isOpen = true;
 
-  const approvalArgsText = args
-    ? (() => {
-        try {
-          return JSON.stringify(deepParseJson(args), null, 2);
-        } catch {
-          try {
-            return JSON.stringify(args, null, 2);
-          } catch {
-            return String(args);
-          }
-        }
-      })()
-    : null;
+  const readableToolInfo = toolName ? parseToolName(toolName) : null;
+  const dialogTitle = readableToolInfo
+    ? `Allow "${readableToolInfo.tool}" to run?`
+    : "Allow tool to run?";
+  const dialogDescription = readableToolInfo?.server
+    ? `The AI wants to run the "${readableToolInfo.tool}" tool from the ${readableToolInfo.server} server. Do you want to allow this?`
+    : `The AI wants to run a tool. Do you want to allow this?`;
 
   return (
     <AlertDialog open={isOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            {toolName ? `Allow ${toolName}?` : "Approve requested tool?"}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            The orchestrator needs your confirmation before executing this MCP tool.
-          </AlertDialogDescription>
+          <AlertDialogTitle>{dialogTitle}</AlertDialogTitle>
+          <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
         </AlertDialogHeader>
         {autoApprovalCountdown !== null && (
           <p className="text-xs text-yellow-300">
             Auto-approving in {autoApprovalCountdown}s if no action is taken.
           </p>
-        )}
-        {approvalArgsText && (
-          <div className="bg-black/30 border border-white/10 rounded-md max-h-48 overflow-y-auto">
-            <pre className="text-xs text-white/80 p-3 whitespace-pre-wrap break-words">
-              {approvalArgsText}
-            </pre>
-          </div>
         )}
         {displayError && <p className="text-red-400 text-sm">{displayError}</p>}
         {showCorrectionForm && (
@@ -188,7 +181,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                   setCorrectionText("");
                 }}
               >
-                Back
+                Cancel
               </Button>
               <Button
                 type="button"
@@ -208,7 +201,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                     Cancelling...
                   </span>
                 ) : (
-                  "Deny & stop"
+                  "Don't Allow"
                 )}
               </Button>
               <Button
@@ -242,7 +235,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                   setShowCorrectionForm(true);
                 }}
               >
-                Deny
+                Don't Allow
               </AlertDialogCancel>
               <Button
                 type="button"
@@ -259,7 +252,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                     Saving...
                   </span>
                 ) : (
-                  "Approve & whitelist"
+                  "Allow Always"
                 )}
               </Button>
               <AlertDialogAction
@@ -275,7 +268,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                     Processing...
                   </span>
                 ) : (
-                  "Approve once"
+                  "Allow"
                 )}
               </AlertDialogAction>
             </>
