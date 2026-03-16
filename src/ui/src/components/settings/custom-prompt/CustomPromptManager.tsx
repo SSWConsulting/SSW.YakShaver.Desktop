@@ -115,6 +115,7 @@ export function CustomPromptSettingsPanel({
       if (hasUnsavedChanges()) {
         setPendingAction(() => () => {
           setEditingPrompt(null);
+          setViewingTemplate(null);
           setTemplatePrefillContent(template.content);
           setViewMode("create");
         });
@@ -122,6 +123,7 @@ export function CustomPromptSettingsPanel({
         return;
       }
       setEditingPrompt(null);
+      setViewingTemplate(null);
       setTemplatePrefillContent(template.content);
       setViewMode("create");
     },
