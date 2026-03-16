@@ -181,14 +181,18 @@ Before adding new IPC channels, handlers, services, or utility functions, check 
 
 Prefer extending existing code over creating new files. Duplicated logic is harder to maintain than a slightly larger existing module.
 
-### Rule 8: Small and Maintainable Components
+### Rule 8: Focused and Maintainable Components
 
-React component files must not exceed ~200 lines. When a component grows beyond this limit, break it down:
+Keep components **focused**, not necessarily small. The trigger for splitting is **multiple distinct responsibilities**, not line count. A well-structured 400-line orchestrator is better than four poorly-named 100-line files.
+
+As a rough signal: when a component file grows beyond ~300–400 lines, ask whether it is doing more than one thing. If yes, break it down:
 
 1. **Extract sub-components** into the same feature directory (e.g., `OnboardingSidebar.tsx`, `LLMStep.tsx`, `StepFooter.tsx` inside `components/onboarding/`)
 2. **Extract business logic into custom hooks** in `src/ui/src/hooks/` (e.g., `useOnboardingLLM.ts`, `useOnboardingWizard.ts`)
 3. **Extract cross-layer feature types** (used by both hooks and components) to `src/ui/src/types/{feature}.ts` (e.g., `src/ui/src/types/onboarding.ts`)
 4. **Keep the main component as a thin orchestrator** that composes sub-components and hooks
+
+Split when a section is reusable, has its own independent state/side effects, or makes the file hard to follow. Do not split just to hit a line-count target.
 
 Reference implementation: `src/ui/src/components/onboarding/` demonstrates this pattern with `OnboardingWizard.tsx` composing `OnboardingSidebar`, `VideoHostingStep`, `LLMStep`, `MCPStep`, and `StepFooter`, with logic extracted into `useOnboardingLLM` and `useOnboardingWizard` hooks.
 
@@ -253,7 +257,7 @@ Never put frontend-only types in `src/shared/types/`. Never put types shared wit
 
 ### React
 
-- **Keep components small and focused**. If a component file exceeds ~200 lines, extract sub-components or move logic to custom hooks.
+- **Keep components focused, not necessarily small**. Line count alone is not a reason to split. Extract sub-components or move logic to custom hooks when a component takes on multiple distinct responsibilities or becomes hard to follow.
 - **Extract business logic into custom hooks**. Components should focus on rendering; hooks should handle state, side effects, and IPC calls.
 - **Use `useCallback` for callbacks passed to child components** to avoid unnecessary re-renders. Don't memoize inline handlers that aren't passed down.
 - **Always provide cleanup in `useEffect`**. Every subscription, timer, or listener must be cleaned up:

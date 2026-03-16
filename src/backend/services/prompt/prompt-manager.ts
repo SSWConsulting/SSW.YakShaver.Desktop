@@ -181,8 +181,10 @@ export class PromptManager {
         id: localPrompt.id,
         name: localPrompt.name,
         description: localPrompt.description,
+        // Map local prompt content to desktopAgentProjectPrompt
         desktopAgentProjectPrompt: localPrompt.content,
         selectedMcpServerIds: localPrompt.selectedMcpServerIds,
+        // Set defaults for other required fields
         videoHostType: "SharePoint", // Default
         recentWorkItemsCount: 0,
         allowWebhooks: false,

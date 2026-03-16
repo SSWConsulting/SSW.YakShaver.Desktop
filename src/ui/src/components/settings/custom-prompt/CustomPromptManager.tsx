@@ -17,6 +17,13 @@ interface CustomPromptSettingsPanelProps {
   registerLeaveHandler?: (handler: (() => Promise<boolean>) | null) => void;
 }
 
+const promptToFormValues = (p: CustomPrompt) => ({
+  name: p.name ?? "",
+  description: p.description ?? "",
+  content: p.content ?? "",
+  selectedMcpServerIds: p.selectedMcpServerIds,
+});
+
 export function CustomPromptSettingsPanel({
   isActive,
   registerLeaveHandler,
@@ -214,21 +221,11 @@ export function CustomPromptSettingsPanel({
   }, [pendingLeaveResolver]);
 
   const defaultValues = useMemo(() => {
-    if (viewMode === "view-template" && viewingTemplate) {
-      return {
-        name: viewingTemplate.name,
-        description: viewingTemplate.description || "",
-        content: viewingTemplate.content,
-        selectedMcpServerIds: viewingTemplate.selectedMcpServerIds,
-      };
+    if (viewingTemplate) {
+      return promptToFormValues(viewingTemplate);
     }
     if (editingPrompt) {
-      return {
-        name: editingPrompt.name,
-        description: editingPrompt.description || "",
-        content: editingPrompt.content,
-        selectedMcpServerIds: editingPrompt.selectedMcpServerIds,
-      };
+      return promptToFormValues(editingPrompt);
     }
     if (templatePrefillContent !== undefined) {
       return {
@@ -239,7 +236,7 @@ export function CustomPromptSettingsPanel({
       };
     }
     return undefined;
-  }, [viewMode, viewingTemplate, editingPrompt, templatePrefillContent]);
+  }, [viewingTemplate, editingPrompt, templatePrefillContent]);
 
   const renderContent = () => {
     if (viewMode === "list") {
@@ -291,7 +288,7 @@ export function CustomPromptSettingsPanel({
               emptyMessage={
                 searchQuery.trim()
                   ? "No prompts found matching your search"
-                  : "No prompts yet. Create your first prompt above."
+                  : "No prompts yet. Create your first prompt."
               }
             />
           </div>
