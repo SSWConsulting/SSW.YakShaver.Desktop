@@ -269,9 +269,22 @@ const electronAPI = {
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
     getTemplates: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_TEMPLATES),
-    addPrompt: (prompt: { name: string; content: string }) =>
+    addPrompt: (prompt: {
+      name: string;
+      content: string;
+      description?: string;
+      selectedMcpServerIds?: string[];
+    }) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
-    updatePrompt: (id: string, updates: { name?: string; content?: string }) =>
+    updatePrompt: (
+      id: string,
+      updates: {
+        name?: string;
+        content?: string;
+        description?: string;
+        selectedMcpServerIds?: string[];
+      },
+    ) =>
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_PROMPT, id, updates),
     deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
     clearCustomPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS),
