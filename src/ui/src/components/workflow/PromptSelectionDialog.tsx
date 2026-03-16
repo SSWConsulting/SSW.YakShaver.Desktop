@@ -149,7 +149,9 @@ export function PromptSelectionDialog({
                 <p className="text-sm text-muted-foreground">{initialProject.description}</p>
               )}
               <div className="pt-2 border-t border-border/50">
-                <p className="text-xs font-semibold text-muted-foreground mb-1">WHY THIS PROJECT:</p>
+                <p className="text-xs font-semibold text-muted-foreground mb-1">
+                  WHY THIS PROJECT:
+                </p>
                 <p className="text-sm italic text-foreground/80">{initialProject.reason}</p>
               </div>
             </div>
