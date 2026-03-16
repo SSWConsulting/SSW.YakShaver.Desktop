@@ -270,9 +270,9 @@ export function PromptForm({
                           form.setValue("content", appended, { shouldDirty: true });
                           toast.success("Template appended");
                         }}
-                        className="cursor-pointer text-xs h-7 px-2"
+                        className="cursor-pointer"
                       >
-                        <FilePlus className="w-3 h-3 mr-1" />
+                        <FilePlus className="w-4 h-4" />
                         Insert template
                       </Button>
                     )}
