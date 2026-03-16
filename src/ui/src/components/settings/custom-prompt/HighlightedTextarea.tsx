@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useRef } from "react";
+import type { ReactNode, TextareaHTMLAttributes, UIEvent } from "react";
 import { cn } from "@/lib/utils";
 
 // Matches <REPLACE WITH something> placeholders, case-insensitive
@@ -9,8 +10,8 @@ export function hasPlaceholder(text: string): boolean {
   return /<replace\s+with\s+[^>]+>/i.test(text);
 }
 
-function renderHighlighted(text: string): React.ReactNode[] {
-  const parts: React.ReactNode[] = [];
+function renderHighlighted(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
   let lastIndex = 0;
 
   for (const match of text.matchAll(PLACEHOLDER_PATTERN)) {
@@ -39,7 +40,7 @@ function renderHighlighted(text: string): React.ReactNode[] {
 const SHARED_TEXT_CLASSES =
   "font-mono text-sm leading-relaxed p-3 whitespace-pre-wrap [word-break:break-word] break-words";
 
-interface HighlightedTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+interface HighlightedTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   containerClassName?: string;
 }
 
@@ -51,7 +52,7 @@ export const HighlightedTextarea = forwardRef<HTMLTextAreaElement, HighlightedTe
     const backdropRef = useRef<HTMLDivElement>(null);
 
     const handleScroll = useCallback(
-      (e: React.UIEvent<HTMLTextAreaElement>) => {
+      (e: UIEvent<HTMLTextAreaElement>) => {
         if (backdropRef.current) {
           // Sync backdrop scroll so highlights stay aligned with visible text
           backdropRef.current.scrollTop = e.currentTarget.scrollTop;
