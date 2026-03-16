@@ -158,7 +158,7 @@ export function PromptSelectionDialog({
 
             {autoApprovalCountdown !== null && (
               <p className="text-xs text-yellow-500 font-medium">
-                Auto-confirming in {autoApprovalCountdown}s...
+                Auto-continuing in {autoApprovalCountdown}s...
               </p>
             )}
 
