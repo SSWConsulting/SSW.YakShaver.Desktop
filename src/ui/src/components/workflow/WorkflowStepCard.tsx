@@ -124,7 +124,11 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
       {isExpanded && hasPayload && (
         <CardContent className="p-0 pt-2">
           <div className="overflow-x-auto rounded bg-black/20 p-2 text-white/80">
-            <StageWithContent stage={step.stage} payload={parsedPayload} />
+            <StageWithContent
+              stage={step.stage}
+              payload={parsedPayload}
+              isError={effectiveStatus === "failed"}
+            />
           </div>
         </CardContent>
       )}
