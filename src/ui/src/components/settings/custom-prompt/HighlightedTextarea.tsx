@@ -1,5 +1,5 @@
-import { forwardRef, useCallback, useRef } from "react";
 import type { ReactNode, TextareaHTMLAttributes, UIEvent } from "react";
+import { forwardRef, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 // Matches <REPLACE WITH something> placeholders, case-insensitive

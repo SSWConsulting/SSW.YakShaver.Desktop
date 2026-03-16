@@ -274,8 +274,7 @@ const electronAPI = {
       content: string;
       description?: string;
       selectedMcpServerIds?: string[];
-    }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
+    }) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
     updatePrompt: (
       id: string,
       updates: {
@@ -284,8 +283,7 @@ const electronAPI = {
         description?: string;
         selectedMcpServerIds?: string[];
       },
-    ) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_PROMPT, id, updates),
+    ) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_PROMPT, id, updates),
     deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
     clearCustomPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS),
   },
