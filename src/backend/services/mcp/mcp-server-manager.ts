@@ -318,7 +318,7 @@ export class MCPServerManager {
   async removeServerAsync(serverId: string): Promise<void> {
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
     const index = storedConfigs.findIndex((s) => s.id === serverId);
-    if (index === -1) throw new Error(`Server '${serverId}' not found`);
+    if (index === -1) return; // Server was never persisted (e.g. an unconnected preset) — nothing to remove
     const existing = storedConfigs[index];
     storedConfigs.splice(index, 1);
 
