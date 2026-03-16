@@ -171,7 +171,7 @@ export function PromptSelectionDialog({
                   setView("select");
                 }}
               >
-                Change Prompt
+                Change
               </Button>
               <AlertDialogAction
                 disabled={submitting}
