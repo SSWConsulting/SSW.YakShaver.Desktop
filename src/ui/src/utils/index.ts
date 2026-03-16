@@ -49,6 +49,31 @@ export function formatErrorMessage(error: unknown): string {
 }
 
 /**
+ * Converts a camelCase or PascalCase key into a human-readable title with spaces.
+ * Acronyms (consecutive uppercase letters) are kept together.
+ *
+ * @param key - The camelCase or PascalCase key to format.
+ * @returns The formatted title string.
+ *
+ * @example
+ * formatKeyAsTitle("projectPromptSelection") // "Project Prompt Selection"
+ * formatKeyAsTitle("ProjectName")            // "Project Name"
+ * formatKeyAsTitle("URLField")               // "URL Field"
+ * formatKeyAsTitle("Title")                  // "Title"
+ */
+export function formatKeyAsTitle(key: string): string {
+  return (
+    key
+      // Insert space between an acronym run and the next capitalised word: "URLField" → "URL Field"
+      .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+      // Insert space between a lowercase letter and the next uppercase letter: "camelCase" → "camel Case"
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      // Capitalise the first character
+      .replace(/^./, (c) => c.toUpperCase())
+  );
+}
+
+/**
  * Generates initials from a name string.
  * Returns the first letter of the first two words in uppercase.
  * Returns "U" if the name is undefined or empty.
