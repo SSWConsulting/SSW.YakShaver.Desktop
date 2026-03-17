@@ -90,13 +90,25 @@ export function formatKeyAsTitle(key: string): string {
 export function parseToolName(rawToolName: string): { server: string | null; tool: string } {
   const formatTool = (s: string) => s.split("_").map(formatKeyAsTitle).join(" ");
   const formatServer = (s: string) => s.replace(/_/g, " ");
-  const separatorIndex = rawToolName.indexOf("__");
-  if (separatorIndex !== -1) {
+
+  // Handle "__" separator (MCP system format: "Jira__getAccessibleAtlassianResources")
+  const dunderIndex = rawToolName.indexOf("__");
+  if (dunderIndex !== -1) {
     return {
-      server: formatServer(rawToolName.slice(0, separatorIndex)),
-      tool: formatTool(rawToolName.slice(separatorIndex + 2)),
+      server: formatServer(rawToolName.slice(0, dunderIndex)),
+      tool: formatTool(rawToolName.slice(dunderIndex + 2)),
     };
   }
+
+  // Handle "." separator (AI output format: "Yak_Video_Tools.capture_video_frame")
+  const dotIndex = rawToolName.indexOf(".");
+  if (dotIndex !== -1) {
+    return {
+      server: formatServer(rawToolName.slice(0, dotIndex)),
+      tool: formatTool(rawToolName.slice(dotIndex + 1)),
+    };
+  }
+
   return { server: null, tool: formatTool(rawToolName) };
 }
 

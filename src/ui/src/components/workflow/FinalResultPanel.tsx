@@ -72,7 +72,7 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
   const processedData: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(data)) {
-    if (key === "Status" || key === "IssueNumber") continue;
+    if (key === "Status" || key === "IssueNumber" || key === "ToolsUsed") continue;
 
     // Special handling for Labels array
     if (key === "Labels" && Array.isArray(value)) {
@@ -94,6 +94,13 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
       if (regularLabels.length > 0) {
         processedData.Labels = regularLabels;
       }
+    } else if (
+      typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value)
+    ) {
+      // Flatten nested objects into individual fields under a group heading
+      processedData[key] = value;
     } else {
       processedData[key] = value;
     }
@@ -103,12 +110,39 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
 
   return (
     <div className="space-y-4">
-      {entries.map(([key, value]) => (
-        <div key={key}>
-          <SectionHeader title={key} />
-          <ValueRenderer value={value} onCopy={copyToClipboard} />
-        </div>
-      ))}
+      {entries.map(([key, value]) => {
+        // Render nested plain objects as a compact key-value card
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          !Array.isArray(value)
+        ) {
+          const nested = value as Record<string, unknown>;
+          return (
+            <div key={key}>
+              <SectionHeader title={key} />
+              <div className="rounded-md border border-white/10 bg-white/5 divide-y divide-white/10">
+                {Object.entries(nested).map(([nestedKey, nestedValue]) => (
+                  <div key={nestedKey} className="flex gap-4 px-3 py-2">
+                    <span className="text-xs text-white/50 min-w-[100px] shrink-0 pt-0.5">
+                      {formatKeyAsTitle(nestedKey)}
+                    </span>
+                    <div className="flex-1 text-sm text-white/90 min-w-0">
+                      <ValueRenderer value={nestedValue} onCopy={copyToClipboard} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div key={key}>
+            <SectionHeader title={key} />
+            <ValueRenderer value={value} onCopy={copyToClipboard} />
+          </div>
+        );
+      })}
     </div>
   );
 }
