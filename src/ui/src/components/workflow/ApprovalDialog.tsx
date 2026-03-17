@@ -28,15 +28,15 @@ interface ApprovalDialogProps {
 }
 
 function parseToolName(toolName: string): { server: string | null; tool: string } {
-  const formatSegment = (s: string) => s.split("_").map(formatKeyAsTitle).join(" ");
+  const formatTool = (s: string) => s.split("_").map(formatKeyAsTitle).join(" ");
   const separatorIndex = toolName.indexOf("__");
   if (separatorIndex !== -1) {
     return {
-      server: formatSegment(toolName.slice(0, separatorIndex)),
-      tool: formatSegment(toolName.slice(separatorIndex + 2)),
+      server: toolName.slice(0, separatorIndex).replace(/_/g, " "),
+      tool: formatTool(toolName.slice(separatorIndex + 2)),
     };
   }
-  return { server: null, tool: formatSegment(toolName) };
+  return { server: null, tool: formatTool(toolName) };
 }
 
 function getServiceIcon(serverName: string | null): ReactElement {
