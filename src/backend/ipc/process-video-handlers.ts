@@ -1065,6 +1065,10 @@ export class ProcessVideoIPCHandlers {
         throw new Error("Transcript not found in checkpoint. Cannot retry analysis.");
       }
 
+      if (!mp3FilePath) {
+        throw new Error("Audio file path not found in checkpoint. Cannot retry analysis.");
+      }
+
       if (!filePath || !youtubeResult) {
         throw new Error("Previous stage checkpoint data not found.");
       }
@@ -1090,8 +1094,8 @@ export class ProcessVideoIPCHandlers {
         filePath,
         youtubeResult,
         transcript,
-        transcriptText: transcriptText!,
-        mp3FilePath: mp3FilePath!,
+        transcriptText,
+        mp3FilePath,
         intermediateOutput,
       });
 
@@ -1101,8 +1105,8 @@ export class ProcessVideoIPCHandlers {
           filePath,
           youtubeResult,
           transcript,
-          transcriptText: transcriptText!,
-          mp3FilePath: mp3FilePath!,
+          transcriptText,
+          mp3FilePath,
           intermediateOutput,
         },
         shaveId,
@@ -1200,6 +1204,10 @@ export class ProcessVideoIPCHandlers {
         throw new Error("Transcript not found in checkpoint. Cannot retry project selection.");
       }
 
+      if (!mp3FilePath) {
+        throw new Error("Audio file path not found in checkpoint. Cannot retry project selection.");
+      }
+
       if (!intermediateOutput || !filePath || !youtubeResult) {
         throw new Error("Previous stage checkpoint data not found.");
       }
@@ -1222,9 +1230,9 @@ export class ProcessVideoIPCHandlers {
         filePath,
         youtubeResult,
         transcript,
-        transcriptText: transcriptText!,
-        mp3FilePath: mp3FilePath!,
-        intermediateOutput: intermediateOutput!,
+        transcriptText,
+        mp3FilePath,
+        intermediateOutput,
         projectDetails: projectDetails
           ? {
               name: projectDetails.name,
@@ -1244,9 +1252,9 @@ export class ProcessVideoIPCHandlers {
           filePath,
           youtubeResult,
           transcript,
-          transcriptText: transcriptText!,
-          mp3FilePath: mp3FilePath!,
-          intermediateOutput: intermediateOutput!,
+          transcriptText,
+          mp3FilePath,
+          intermediateOutput,
           projectDetails,
           projectMetaData,
           desktopAgentProjectPrompt,
@@ -1385,6 +1393,10 @@ export class ProcessVideoIPCHandlers {
         throw new Error("Required checkpoint data not found. Cannot retry task execution.");
       }
 
+      if (!filePath || !transcriptText || !mp3FilePath) {
+        throw new Error("Previous stage checkpoint data not found.");
+      }
+
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
@@ -1413,11 +1425,11 @@ export class ProcessVideoIPCHandlers {
 
       // Create checkpoint
       workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
-        filePath: filePath!,
+        filePath,
         youtubeResult,
         transcript,
-        transcriptText: transcriptText!,
-        mp3FilePath: mp3FilePath!,
+        transcriptText,
+        mp3FilePath,
         intermediateOutput,
         projectDetails: projectDetails || undefined,
         projectMetaData,
@@ -1450,11 +1462,11 @@ export class ProcessVideoIPCHandlers {
       return await this.retryUpdatingMetadataFromResult(
         workflowManager,
         {
-          filePath: filePath!,
+          filePath,
           youtubeResult,
           transcript,
-          transcriptText: transcriptText!,
-          mp3FilePath: mp3FilePath!,
+          transcriptText,
+          mp3FilePath,
           intermediateOutput,
           projectDetails,
           projectMetaData,
@@ -1522,6 +1534,10 @@ export class ProcessVideoIPCHandlers {
         throw new Error("Video ID not found. Cannot update metadata.");
       }
 
+      if (!context.transcript) {
+        throw new Error("Transcript not found in checkpoint. Cannot update metadata.");
+      }
+
       workflowManager.startStage(WorkflowProgressStage.UPDATING_METADATA);
       notify(ProgressStage.UPDATING_METADATA);
       workflowManager.updateStagePayload(
@@ -1531,7 +1547,7 @@ export class ProcessVideoIPCHandlers {
       );
 
       const metadata = await this.metadataBuilder.build({
-        transcript: context.transcript!,
+        transcript: context.transcript,
         intermediateOutput: "",
         executionHistory: JSON.stringify(context.transcript ?? [], null, 2),
         finalResult: context.mcpResult ?? undefined,
@@ -1616,6 +1632,10 @@ export class ProcessVideoIPCHandlers {
         throw new Error("Video ID not found. Cannot update metadata.");
       }
 
+      if (!transcript) {
+        throw new Error("Transcript not found in checkpoint. Cannot update metadata.");
+      }
+
       workflowManager.startStage(WorkflowProgressStage.UPDATING_METADATA);
       notify(ProgressStage.UPDATING_METADATA);
       workflowManager.updateStagePayload(
@@ -1625,7 +1645,7 @@ export class ProcessVideoIPCHandlers {
       );
 
       const metadata = await this.metadataBuilder.build({
-        transcript: transcript!,
+        transcript,
         intermediateOutput: "",
         executionHistory: JSON.stringify(transcript ?? [], null, 2),
         finalResult: mcpResult ?? undefined,
