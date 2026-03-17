@@ -162,6 +162,9 @@ declare global {
         sendResponse(data: unknown): Promise<boolean>;
         onRequest(callback: (request: unknown) => void): () => void;
       };
+      session: {
+        setAutoApprove: (value: boolean) => Promise<{ success: boolean }>;
+      };
       releaseChannel: {
         get: () => Promise<ReleaseChannel>;
         set: (channel: ReleaseChannel) => Promise<void>;

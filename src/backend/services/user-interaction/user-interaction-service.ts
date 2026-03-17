@@ -14,8 +14,19 @@ const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 export class UserInteractionService {
   private static instance: UserInteractionService;
   private pendingInteractions = new Map<string, (response: unknown) => void>();
+  private shaveAutoApprove = false;
 
   private constructor() {}
+
+  /**
+   * Set or clear the per-shave auto-approve flag.
+   * When true, all tool approval and project selection requests are silently approved
+   * for the current shave's processing lifecycle without modifying global Approval Mode settings.
+   * Must be explicitly reset to false when a new shave begins.
+   */
+  public setShaveAutoApprove(value: boolean): void {
+    this.shaveAutoApprove = value;
+  }
 
   public static getInstance(): UserInteractionService {
     if (!UserInteractionService.instance) {
@@ -36,6 +47,10 @@ export class UserInteractionService {
     const mode = settings?.toolApprovalMode || "ask";
 
     if (mode === "yolo") {
+      return { kind: "approve" };
+    }
+
+    if (this.shaveAutoApprove) {
       return { kind: "approve" };
     }
 
@@ -64,6 +79,12 @@ export class UserInteractionService {
     const mode = settings?.toolApprovalMode || "ask";
 
     if (mode === "yolo") {
+      return {
+        projectId: payload.selectedProject.id,
+      };
+    }
+
+    if (this.shaveAutoApprove) {
       return {
         projectId: payload.selectedProject.id,
       };
@@ -124,6 +145,7 @@ export class UserInteractionService {
    * Cancel all pending interactions (e.g. when session ends)
    */
   public cancelAllPending(reason = "Session cancelled"): void {
+    this.shaveAutoApprove = false;
     for (const [id, resolve] of this.pendingInteractions.entries()) {
       // For tool approvals, we can default to deny
       // For generic requests, we might need a specific error or cancellation type

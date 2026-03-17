@@ -114,6 +114,9 @@ export const IPC_CHANNELS = {
   USER_INTERACTION_REQUEST: "user-interaction:request",
   USER_INTERACTION_RESPONSE: "user-interaction:response",
 
+  // Session
+  SESSION_SET_AUTO_APPROVE: "session:set-auto-approve",
+
   // Telemetry
   TELEMETRY_GET_SETTINGS: "telemetry:get-settings",
   TELEMETRY_UPDATE_SETTINGS: "telemetry:update-settings",

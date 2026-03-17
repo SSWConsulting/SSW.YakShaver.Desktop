@@ -213,7 +213,9 @@ export class MCPOrchestrator {
           const toolWhiteList = new Set(
             (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
           );
-          const isWhitelisted = toolWhiteList.has(toolCall.toolName);
+          const isBuiltin =
+            MCPOrchestrator.mcpServerManager?.isBuiltinTool(toolCall.toolName) ?? false;
+          const isWhitelisted = isBuiltin || toolWhiteList.has(toolCall.toolName);
           const toolStartTime = Date.now();
 
           if (!isWhitelisted) {

@@ -132,6 +132,9 @@ const IPC_CHANNELS = {
   USER_INTERACTION_REQUEST: "user-interaction:request",
   USER_INTERACTION_RESPONSE: "user-interaction:response",
 
+  // Session
+  SESSION_SET_AUTO_APPROVE: "session:set-auto-approve",
+
   // Telemetry
   TELEMETRY_GET_SETTINGS: "telemetry:get-settings",
   TELEMETRY_UPDATE_SETTINGS: "telemetry:update-settings",
@@ -292,6 +295,10 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.USER_INTERACTION_RESPONSE, responseData),
     onRequest: (callback: (request: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.USER_INTERACTION_REQUEST, callback),
+  },
+  session: {
+    setAutoApprove: (value: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SESSION_SET_AUTO_APPROVE, value),
   },
   releaseChannel: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),

@@ -13,4 +13,9 @@ export function registerUserInteractionHandlers(): void {
       return service.resolveInteraction(requestId, data);
     },
   );
+
+  ipcMain.handle(IPC_CHANNELS.SESSION_SET_AUTO_APPROVE, async (_, value: boolean) => {
+    service.setShaveAutoApprove(value);
+    return { success: true };
+  });
 }

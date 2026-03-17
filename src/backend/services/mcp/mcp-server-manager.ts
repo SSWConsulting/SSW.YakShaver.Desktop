@@ -446,6 +446,17 @@ export class MCPServerManager {
     return MCPServerManager.internalServerConfigs.some((s) => s.name === name);
   }
 
+  /**
+   * Returns true if the tool (in "ServerName__toolName" format) belongs to a built-in
+   * YakShaver server. Built-in tools are always auto-approved regardless of Approval Mode.
+   */
+  public isBuiltinTool(toolName: string): boolean {
+    const separatorIndex = toolName.indexOf("__");
+    if (separatorIndex === -1) return false;
+    const serverName = toolName.slice(0, separatorIndex);
+    return MCPServerManager.isBuiltinName(serverName);
+  }
+
   public async getWhitelistWithServerPrefixAsync(): Promise<string[]> {
     const storage = McpStorage.getInstance();
     const serverConfigs = await storage.getMcpServerConfigsAsync();
