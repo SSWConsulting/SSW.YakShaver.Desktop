@@ -132,11 +132,9 @@ export function PromptSelectionDialog({
         {view === "confirm" ? (
           <>
             <AlertDialogHeader>
-              <AlertDialogTitle>Confirm Prompt Selection</AlertDialogTitle>
+              <AlertDialogTitle>Do you want to proceed with the project?</AlertDialogTitle>
               <AlertDialogDescription>
-                YakShaver analysed your video and selected the most relevant prompt template below.
-                Prompts control how your issue is written — confirm to proceed, or switch to a
-                different one.
+                YakShaver analysed your video and selected the most relevant project prompt below.
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -151,14 +149,16 @@ export function PromptSelectionDialog({
                 <p className="text-sm text-muted-foreground">{initialProject.description}</p>
               )}
               <div className="pt-2 border-t border-border/50">
-                <p className="text-xs font-semibold text-muted-foreground mb-1">REASONING:</p>
+                <p className="text-xs font-semibold text-muted-foreground mb-1">
+                  WHY THIS PROJECT:
+                </p>
                 <p className="text-sm italic text-foreground/80">{initialProject.reason}</p>
               </div>
             </div>
 
             {autoApprovalCountdown !== null && (
               <p className="text-xs text-yellow-500 font-medium">
-                Auto-confirming in {autoApprovalCountdown}s...
+                Auto-continuing in {autoApprovalCountdown}s...
               </p>
             )}
 
@@ -173,7 +173,7 @@ export function PromptSelectionDialog({
                   setView("select");
                 }}
               >
-                Change Prompt
+                Change
               </Button>
               <AlertDialogAction
                 disabled={submitting}
@@ -185,10 +185,10 @@ export function PromptSelectionDialog({
                 {submitting ? (
                   <>
                     <LoadingState />
-                    Confirming...
+                    Continuing...
                   </>
                 ) : (
-                  "Confirm Prompt"
+                  "Continue"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>
