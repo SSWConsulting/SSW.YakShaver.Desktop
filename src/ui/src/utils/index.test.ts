@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKeyAsTitle } from ".";
+import { formatKeyAsTitle } from "./";
 
 describe("formatKeyAsTitle", () => {
   it("converts camelCase to spaced title case", () => {
