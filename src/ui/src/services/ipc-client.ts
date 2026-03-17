@@ -104,6 +104,21 @@ declare global {
       workflow: {
         onProgress: (callback: (progress: unknown) => void) => () => void;
         onProgressNeo: (callback: (progress: unknown) => void) => () => void;
+        retryFromStage: (
+          stage: string,
+          shaveId?: string,
+        ) => Promise<{ success: boolean; error?: string }>;
+        getRetryStatus: (shaveId: string) => Promise<{
+          success: boolean;
+          stages?: Array<{
+            stage: string;
+            retryCount: number;
+            maxReached: boolean;
+            lastError?: string;
+          }>;
+          error?: string;
+        }>;
+        cancelRetry: (shaveId: string) => Promise<{ success: boolean; error?: string }>;
       };
       mcp: {
         processMessage: (

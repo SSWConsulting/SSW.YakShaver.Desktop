@@ -94,12 +94,25 @@ export function WorkflowStepCard({ step, label }: { step: WorkflowStep; label: s
     if (hasPayload) setIsExpanded(!isExpanded);
   };
 
-  const HeaderContent = () => (
-    <div className="flex items-center gap-3">
-      <StatusIcon status={effectiveStatus} />
-      <span className={cn("font-medium", config.textClass)}>{label}</span>
-    </div>
-  );
+  const HeaderContent = () => {
+    const isFailed = effectiveStatus === "failed";
+    const isMaxRetries = isFailed && (parsedPayload as { maxReached?: boolean })?.maxReached;
+    const retryCount = isFailed ? (parsedPayload as { retryCount?: number })?.retryCount || 0 : 0;
+
+    return (
+      <div className="flex items-center gap-3 flex-1">
+        <StatusIcon status={effectiveStatus} />
+        <div className="flex flex-col">
+          <span className={cn("font-medium", config.textClass)}>{label}</span>
+          {isFailed && (
+            <span className={cn("text-xs", isMaxRetries ? "text-red-400" : "text-yellow-400")}>
+              {isMaxRetries ? "Max retries reached (3/3)" : `Failed - ${retryCount}/3 retries used`}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <Card className={cn("rounded-lg p-3 gap-0 transition-all", config.containerClass)}>

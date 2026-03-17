@@ -1,6 +1,7 @@
 import type { WorkflowState } from "@shared/types/workflow";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { WorkflowRetryPanel } from "./WorkflowRetryPanel";
 import { WorkflowStepCard } from "./WorkflowStepCard";
 
 const STEP_LABELS: Record<keyof WorkflowState, string> = {
@@ -25,12 +26,50 @@ const STEP_ORDER: (keyof WorkflowState)[] = [
   "updating_metadata",
 ];
 
+interface FailedStage {
+  stage: keyof WorkflowState;
+  retryCount: number;
+  maxReached: boolean;
+  lastError?: string;
+}
+
 export function WorkflowProgressPanel() {
   const [state, setState] = useState<WorkflowState | null>(null);
+  const [shaveId, setShaveId] = useState<string | undefined>();
+  const [failedStages, setFailedStages] = useState<FailedStage[]>([]);
 
   useEffect(() => {
     const cleanup = window.electronAPI.workflow.onProgressNeo((payload: unknown) => {
-      setState(payload as WorkflowState);
+      const newState = payload as WorkflowState;
+      setState(newState);
+
+      // Extract failed stages with retry info
+      const failed: FailedStage[] = [];
+      for (const stepKey of STEP_ORDER) {
+        const step = newState[stepKey];
+        if (step.status === "failed") {
+          // Get retry info from payload if available
+          const payload = step.payload ? JSON.parse(step.payload) : {};
+          failed.push({
+            stage: stepKey,
+            retryCount: payload.retryCount || 0,
+            maxReached: payload.maxReached || false,
+            lastError: payload.error,
+          });
+        }
+      }
+      setFailedStages(failed);
+    });
+    return cleanup;
+  }, []);
+
+  // Get shaveId from progress events
+  useEffect(() => {
+    const cleanup = window.electronAPI.workflow.onProgress((payload: unknown) => {
+      const data = payload as { shaveId?: string };
+      if (data.shaveId) {
+        setShaveId(data.shaveId);
+      }
     });
     return cleanup;
   }, []);
@@ -48,7 +87,11 @@ export function WorkflowProgressPanel() {
             ))}
           </CardContent>
         </Card>
+
+        <WorkflowRetryPanel failedStages={failedStages} shaveId={shaveId} />
       </div>
     );
   }
+
+  return null;
 }
