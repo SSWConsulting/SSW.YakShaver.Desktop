@@ -94,11 +94,7 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
       if (regularLabels.length > 0) {
         processedData.Labels = regularLabels;
       }
-    } else if (
-      typeof value === "object" &&
-      value !== null &&
-      !Array.isArray(value)
-    ) {
+    } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
       // Flatten nested objects into individual fields under a group heading
       processedData[key] = value;
     } else {
@@ -112,11 +108,7 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
     <div className="space-y-4">
       {entries.map(([key, value]) => {
         // Render nested plain objects as a compact key-value card
-        if (
-          typeof value === "object" &&
-          value !== null &&
-          !Array.isArray(value)
-        ) {
+        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
           const nested = value as Record<string, unknown>;
           return (
             <div key={key}>
