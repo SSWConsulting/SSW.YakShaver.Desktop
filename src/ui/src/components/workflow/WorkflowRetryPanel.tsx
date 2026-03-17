@@ -1,9 +1,9 @@
+import type { WorkflowState } from "@shared/types/workflow";
 import { AlertTriangle, RefreshCw, XCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../services/ipc-client";
-import type { WorkflowStage } from "../../types";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
 import {
@@ -16,7 +16,7 @@ import {
 } from "../ui/dialog";
 
 interface RetryableStage {
-  stage: WorkflowStage;
+  stage: keyof WorkflowState;
   retryCount: number;
   maxReached: boolean;
   lastError?: string;
@@ -46,7 +46,7 @@ export function WorkflowRetryPanel({
 }: WorkflowRetryPanelProps) {
   const [isRetrying, setIsRetrying] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-  const [selectedStage, setSelectedStage] = useState<WorkflowStage | null>(null);
+  const [selectedStage, setSelectedStage] = useState<keyof WorkflowState | null>(null);
 
   // Only show if there are failed stages that haven't reached max retries
   const availableRetries = failedStages.filter((s) => !s.maxReached);
@@ -55,7 +55,7 @@ export function WorkflowRetryPanel({
     return null;
   }
 
-  const handleRetryClick = (stage: WorkflowStage) => {
+  const handleRetryClick = (stage: keyof WorkflowState) => {
     setSelectedStage(stage);
     setConfirmDialogOpen(true);
   };
