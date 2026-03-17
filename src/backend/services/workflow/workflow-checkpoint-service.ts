@@ -1,8 +1,9 @@
-import type { ProgressStage } from "../../../shared/types/workflow";
-import type { VideoUploadResult } from "../video/types";
+import type { TranscriptSegment } from "../../../shared/types/transcript";
+import type { WorkflowState } from "../../../shared/types/workflow";
+import type { VideoUploadResult } from "../../services/auth/types";
 
 export interface WorkflowCheckpoint {
-  stage: keyof typeof ProgressStage;
+  stage: keyof WorkflowState;
   data: CheckpointData;
   timestamp: number;
 }
@@ -20,7 +21,7 @@ export interface CheckpointData {
   hasAudio?: boolean;
 
   // TRANSCRIBING
-  transcript?: Array<{ text: string; start?: number; end?: number }>;
+  transcript?: TranscriptSegment[];
   transcriptText?: string;
 
   // ANALYZING_TRANSCRIPT
@@ -50,6 +51,7 @@ export interface CheckpointData {
     timestamp?: number;
   }>;
   mcpResult?: string;
+  finalOutput?: string;
 
   // UPDATING_METADATA
   videoId?: string;
@@ -62,7 +64,7 @@ export interface CheckpointData {
 }
 
 export interface RetryStatus {
-  stage: keyof typeof ProgressStage;
+  stage: keyof WorkflowState;
   count: number;
   maxReached: boolean;
   lastError?: string;
@@ -84,18 +86,14 @@ export class WorkflowCheckpointService {
     return WorkflowCheckpointService.instance;
   }
 
-  private getKey(shaveId: string, stage: keyof typeof ProgressStage): string {
+  private getKey(shaveId: string, stage: keyof WorkflowState): string {
     return `${shaveId}:${stage}`;
   }
 
   /**
    * Create or update a checkpoint for a specific stage
    */
-  public createCheckpoint(
-    shaveId: string,
-    stage: keyof typeof ProgressStage,
-    data: CheckpointData,
-  ): void {
+  public createCheckpoint(shaveId: string, stage: keyof WorkflowState, data: CheckpointData): void {
     const key = this.getKey(shaveId, stage);
     this.checkpoints.set(key, {
       stage,
@@ -107,10 +105,7 @@ export class WorkflowCheckpointService {
   /**
    * Get checkpoint data for a specific stage
    */
-  public getCheckpoint(
-    shaveId: string,
-    stage: keyof typeof ProgressStage,
-  ): CheckpointData | undefined {
+  public getCheckpoint(shaveId: string, stage: keyof WorkflowState): CheckpointData | undefined {
     const key = this.getKey(shaveId, stage);
     return this.checkpoints.get(key)?.data;
   }
@@ -118,8 +113,8 @@ export class WorkflowCheckpointService {
   /**
    * Get all checkpoints for a workflow
    */
-  public getAllCheckpoints(shaveId: string): Map<keyof typeof ProgressStage, CheckpointData> {
-    const result = new Map<keyof typeof ProgressStage, CheckpointData>();
+  public getAllCheckpoints(shaveId: string): Map<keyof WorkflowState, CheckpointData> {
+    const result = new Map<keyof WorkflowState, CheckpointData>();
     const prefix = `${shaveId}:`;
 
     for (const [key, checkpoint] of this.checkpoints.entries()) {
@@ -134,7 +129,7 @@ export class WorkflowCheckpointService {
   /**
    * Increment retry count for a stage
    */
-  public incrementRetryCount(shaveId: string, stage: keyof typeof ProgressStage): number {
+  public incrementRetryCount(shaveId: string, stage: keyof WorkflowState): number {
     const key = this.getKey(shaveId, stage);
     const currentCount = this.retryCounts.get(key) || 0;
     const newCount = currentCount + 1;
@@ -145,7 +140,7 @@ export class WorkflowCheckpointService {
   /**
    * Get current retry count for a stage
    */
-  public getRetryCount(shaveId: string, stage: keyof typeof ProgressStage): number {
+  public getRetryCount(shaveId: string, stage: keyof WorkflowState): number {
     const key = this.getKey(shaveId, stage);
     return this.retryCounts.get(key) || 0;
   }
@@ -155,7 +150,7 @@ export class WorkflowCheckpointService {
    */
   public getRetryStatus(
     shaveId: string,
-    stage: keyof typeof ProgressStage,
+    stage: keyof WorkflowState,
     lastError?: string,
   ): RetryStatus {
     const count = this.getRetryCount(shaveId, stage);
@@ -173,7 +168,7 @@ export class WorkflowCheckpointService {
   /**
    * Check if retry is allowed for a stage
    */
-  public canRetry(shaveId: string, stage: keyof typeof ProgressStage): boolean {
+  public canRetry(shaveId: string, stage: keyof WorkflowState): boolean {
     const count = this.getRetryCount(shaveId, stage);
     return count < this.MAX_RETRY_ATTEMPTS;
   }
@@ -187,7 +182,7 @@ export class WorkflowCheckpointService {
 
     for (const key of this.retryCounts.keys()) {
       if (key.startsWith(prefix)) {
-        const stage = key.split(":")[1] as keyof typeof ProgressStage;
+        const stage = key.split(":")[1] as keyof WorkflowState;
         statuses.push(this.getRetryStatus(shaveId, stage));
       }
     }
@@ -219,7 +214,7 @@ export class WorkflowCheckpointService {
   /**
    * Clear a specific stage checkpoint
    */
-  public clearCheckpoint(shaveId: string, stage: keyof typeof ProgressStage): void {
+  public clearCheckpoint(shaveId: string, stage: keyof WorkflowState): void {
     const key = this.getKey(shaveId, stage);
     this.checkpoints.delete(key);
     this.retryCounts.delete(key);
@@ -228,7 +223,7 @@ export class WorkflowCheckpointService {
   /**
    * Reset retry count for a stage
    */
-  public resetRetryCount(shaveId: string, stage: keyof typeof ProgressStage): void {
+  public resetRetryCount(shaveId: string, stage: keyof WorkflowState): void {
     const key = this.getKey(shaveId, stage);
     this.retryCounts.delete(key);
   }

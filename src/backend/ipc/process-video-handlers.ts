@@ -2,7 +2,11 @@ import fs from "node:fs";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
-import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workflow";
+import type { TranscriptSegment } from "../../shared/types/transcript";
+import {
+  ProgressStage as WorkflowProgressStage,
+  type WorkflowState,
+} from "../../shared/types/workflow";
 import { INITIAL_SUMMARY_PROMPT, TASK_EXECUTION_PROMPT } from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
@@ -28,6 +32,13 @@ type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
   shaveId?: string;
+};
+
+type RetryResult = {
+  success: boolean;
+  youtubeResult?: VideoUploadResult;
+  mcpResult?: string | undefined;
+  error?: string;
 };
 
 export const TranscriptSummarySchema = z.object({
@@ -135,30 +146,6 @@ export class ProcessVideoIPCHandlers {
           const finalOutput = await this.formatFinalResult(mcpResult);
           mcpAdapter.complete(mcpResult);
 
-          // Create checkpoint after EXECUTING_TASK completes
-          workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
-            filePath,
-            transcript,
-            transcriptText,
-            mp3FilePath,
-            youtubeResult,
-            intermediateOutput,
-            projectDetails: projectDetails
-              ? {
-                  name: projectDetails.name,
-                  description: projectDetails.description,
-                  desktopAgentProjectPrompt: projectDetails.desktopAgentProjectPrompt,
-                  selectionReason: projectDetails.selectionReason,
-                  selectedMcpServerIds: projectDetails.selectedMcpServerIds,
-                }
-              : undefined,
-            projectMetaData,
-            desktopAgentProjectPrompt,
-            mcpSteps: [], // Would need to capture from adapter if available
-            mcpResult,
-            finalOutput,
-          });
-
           notify(ProgressStage.COMPLETED, {
             mcpResult,
             finalOutput,
@@ -175,11 +162,7 @@ export class ProcessVideoIPCHandlers {
     // Retry from a specific failed stage
     ipcMain.handle(
       IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE,
-      async (
-        _event: IpcMainInvokeEvent,
-        stage: keyof typeof WorkflowProgressStage,
-        shaveId?: string,
-      ) => {
+      async (_event: IpcMainInvokeEvent, stage: keyof WorkflowState, shaveId?: string) => {
         try {
           return await this.retryFromStage(stage, shaveId);
         } catch (error) {
@@ -575,7 +558,7 @@ export class ProcessVideoIPCHandlers {
       // Clean up temp files on successful completion
       this.cleanupTempFiles();
 
-      return { youtubeResult, mcpResult };
+      return { success: true, youtubeResult, mcpResult };
     } catch (error) {
       const errorMessage = formatAndReportError(error, "video_processing");
       notify(ProgressStage.ERROR, { error: errorMessage });
@@ -683,10 +666,7 @@ export class ProcessVideoIPCHandlers {
     this.tempFilesToCleanup = [];
   }
 
-  private async retryFromStage(
-    stage: keyof typeof WorkflowProgressStage,
-    shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  private async retryFromStage(stage: keyof WorkflowState, shaveId?: string): Promise<RetryResult> {
     if (!shaveId) {
       return { success: false, error: "Shave ID is required for retry" };
     }
@@ -716,21 +696,21 @@ export class ProcessVideoIPCHandlers {
 
     // Route to appropriate retry handler
     switch (stage) {
-      case WorkflowProgressStage.UPLOADING_VIDEO:
+      case "uploading_video":
         return await this.retryUploadingVideo(workflowManager, checkpoint, shaveId);
-      case WorkflowProgressStage.DOWNLOADING_VIDEO:
+      case "downloading_video":
         return await this.retryDownloadingVideo(workflowManager, checkpoint, shaveId);
-      case WorkflowProgressStage.CONVERTING_AUDIO:
+      case "converting_audio":
         return await this.retryConvertingAudio(workflowManager, checkpoint, shaveId);
-      case WorkflowProgressStage.TRANSCRIBING:
+      case "transcribing":
         return await this.retryTranscribing(workflowManager, checkpoint, shaveId);
-      case WorkflowProgressStage.ANALYZING_TRANSCRIPT:
+      case "analyzing_transcript":
         return await this.retryAnalyzingTranscript(workflowManager, checkpoint, shaveId);
-      case WorkflowProgressStage.SELECTING_PROMPT:
+      case "selecting_prompt":
         return await this.retrySelectingPrompt(workflowManager, checkpoint, shaveId);
-      case WorkflowProgressStage.EXECUTING_TASK:
+      case "executing_task":
         return await this.retryExecutingTask(workflowManager, checkpoint, shaveId);
-      case WorkflowProgressStage.UPDATING_METADATA:
+      case "updating_metadata":
         return await this.retryUpdatingMetadata(workflowManager, checkpoint, shaveId);
       default:
         return { success: false, error: `Unknown stage: ${stage}` };
@@ -741,7 +721,7 @@ export class ProcessVideoIPCHandlers {
     workflowManager: WorkflowStateManager,
     checkpoint: CheckpointData | undefined,
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -797,7 +777,7 @@ export class ProcessVideoIPCHandlers {
     workflowManager: WorkflowStateManager,
     checkpoint: CheckpointData | undefined,
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -841,7 +821,7 @@ export class ProcessVideoIPCHandlers {
     workflowManager: WorkflowStateManager,
     checkpoint: CheckpointData | undefined,
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -901,7 +881,7 @@ export class ProcessVideoIPCHandlers {
     workflowManager: WorkflowStateManager,
     context: { filePath: string; mp3FilePath: string; youtubeResult: VideoUploadResult },
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -952,7 +932,7 @@ export class ProcessVideoIPCHandlers {
     workflowManager: WorkflowStateManager,
     checkpoint: CheckpointData | undefined,
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -1015,12 +995,12 @@ export class ProcessVideoIPCHandlers {
     context: {
       filePath: string;
       youtubeResult: VideoUploadResult;
-      transcript: Array<{ text: string }>;
+      transcript: TranscriptSegment[];
       transcriptText: string;
       mp3FilePath: string;
     },
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -1069,7 +1049,7 @@ export class ProcessVideoIPCHandlers {
     workflowManager: WorkflowStateManager,
     checkpoint: CheckpointData | undefined,
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -1110,14 +1090,21 @@ export class ProcessVideoIPCHandlers {
         filePath,
         youtubeResult,
         transcript,
-        transcriptText,
-        mp3FilePath,
+        transcriptText: transcriptText!,
+        mp3FilePath: mp3FilePath!,
         intermediateOutput,
       });
 
       return await this.retrySelectingPromptFromIntermediate(
         workflowManager,
-        { filePath, youtubeResult, transcript, transcriptText, mp3FilePath, intermediateOutput },
+        {
+          filePath,
+          youtubeResult,
+          transcript,
+          transcriptText: transcriptText!,
+          mp3FilePath: mp3FilePath!,
+          intermediateOutput,
+        },
         shaveId,
       );
     } catch (error) {
@@ -1133,13 +1120,13 @@ export class ProcessVideoIPCHandlers {
     context: {
       filePath: string;
       youtubeResult: VideoUploadResult;
-      transcript?: Array<{ text: string }>;
+      transcript?: TranscriptSegment[];
       transcriptText: string;
       mp3FilePath: string;
       intermediateOutput: string;
     },
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -1196,7 +1183,7 @@ export class ProcessVideoIPCHandlers {
     workflowManager: WorkflowStateManager,
     checkpoint: CheckpointData | undefined,
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -1235,9 +1222,9 @@ export class ProcessVideoIPCHandlers {
         filePath,
         youtubeResult,
         transcript,
-        transcriptText,
-        mp3FilePath,
-        intermediateOutput,
+        transcriptText: transcriptText!,
+        mp3FilePath: mp3FilePath!,
+        intermediateOutput: intermediateOutput!,
         projectDetails: projectDetails
           ? {
               name: projectDetails.name,
@@ -1257,9 +1244,9 @@ export class ProcessVideoIPCHandlers {
           filePath,
           youtubeResult,
           transcript,
-          transcriptText,
-          mp3FilePath,
-          intermediateOutput,
+          transcriptText: transcriptText!,
+          mp3FilePath: mp3FilePath!,
+          intermediateOutput: intermediateOutput!,
           projectDetails,
           projectMetaData,
           desktopAgentProjectPrompt,
@@ -1279,7 +1266,7 @@ export class ProcessVideoIPCHandlers {
     context: {
       filePath: string;
       youtubeResult: VideoUploadResult;
-      transcript?: Array<{ text: string }>;
+      transcript?: TranscriptSegment[];
       transcriptText: string;
       mp3FilePath: string;
       intermediateOutput: string;
@@ -1288,7 +1275,7 @@ export class ProcessVideoIPCHandlers {
       desktopAgentProjectPrompt?: string;
     },
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -1331,11 +1318,12 @@ export class ProcessVideoIPCHandlers {
         transcriptText: context.transcriptText,
         mp3FilePath: context.mp3FilePath,
         intermediateOutput: context.intermediateOutput,
-        projectDetails: context.projectDetails,
+        projectDetails: context.projectDetails || undefined,
         projectMetaData: context.projectMetaData,
         desktopAgentProjectPrompt: context.desktopAgentProjectPrompt,
         mcpSteps: [], // Would need to capture from adapter
         mcpResult,
+        finalOutput,
       });
 
       // Send to portal if authenticated
@@ -1362,7 +1350,7 @@ export class ProcessVideoIPCHandlers {
       // Continue to metadata update
       return await this.retryUpdatingMetadataFromResult(
         workflowManager,
-        { ...context, mcpResult, finalOutput },
+        { ...context, mcpResult, finalOutput, projectDetails: context.projectDetails || undefined },
         shaveId,
       );
     } catch (error) {
@@ -1377,7 +1365,7 @@ export class ProcessVideoIPCHandlers {
     workflowManager: WorkflowStateManager,
     checkpoint: CheckpointData | undefined,
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -1425,13 +1413,13 @@ export class ProcessVideoIPCHandlers {
 
       // Create checkpoint
       workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
-        filePath,
+        filePath: filePath!,
         youtubeResult,
         transcript,
-        transcriptText,
-        mp3FilePath,
+        transcriptText: transcriptText!,
+        mp3FilePath: mp3FilePath!,
         intermediateOutput,
-        projectDetails,
+        projectDetails: projectDetails || undefined,
         projectMetaData,
         desktopAgentProjectPrompt,
         mcpSteps: [],
@@ -1462,11 +1450,11 @@ export class ProcessVideoIPCHandlers {
       return await this.retryUpdatingMetadataFromResult(
         workflowManager,
         {
-          filePath,
+          filePath: filePath!,
           youtubeResult,
           transcript,
-          transcriptText,
-          mp3FilePath,
+          transcriptText: transcriptText!,
+          mp3FilePath: mp3FilePath!,
           intermediateOutput,
           projectDetails,
           projectMetaData,
@@ -1489,12 +1477,25 @@ export class ProcessVideoIPCHandlers {
     context: {
       filePath: string;
       youtubeResult: VideoUploadResult;
-      transcript?: Array<{ text: string }>;
+      transcript?: TranscriptSegment[];
+      transcriptText?: string;
+      mp3FilePath?: string;
+      intermediateOutput?: string;
+      projectDetails?: {
+        name?: string;
+        description?: string;
+        desktopAgentProjectPrompt?: string;
+        selectionReason?: string;
+        selectedMcpServerIds?: string[];
+      };
+      projectMetaData?: string;
+      desktopAgentProjectPrompt?: string;
       mcpResult?: string;
       finalOutput?: string;
+      metadataUpdateError?: string;
     },
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -1509,7 +1510,11 @@ export class ProcessVideoIPCHandlers {
           uploadResult: context.youtubeResult,
         });
         this.cleanupTempFiles();
-        return { youtubeResult: context.youtubeResult, mcpResult: context.mcpResult };
+        return {
+          success: true,
+          youtubeResult: context.youtubeResult,
+          mcpResult: context.mcpResult,
+        };
       }
 
       const videoId = context.youtubeResult.data?.videoId;
@@ -1526,8 +1531,8 @@ export class ProcessVideoIPCHandlers {
       );
 
       const metadata = await this.metadataBuilder.build({
-        transcript: context.transcript,
-        intermediateOutput: undefined,
+        transcript: context.transcript!,
+        intermediateOutput: "",
         executionHistory: JSON.stringify(context.transcript ?? [], null, 2),
         finalResult: context.mcpResult ?? undefined,
       });
@@ -1558,7 +1563,7 @@ export class ProcessVideoIPCHandlers {
       });
 
       this.cleanupTempFiles();
-      return { youtubeResult: context.youtubeResult, mcpResult: context.mcpResult };
+      return { success: true, youtubeResult: context.youtubeResult, mcpResult: context.mcpResult };
     } catch (error) {
       console.warn("Metadata update failed", error);
       const metadataErrorMsg = formatAndReportError(error, "retry_metadata_update");
@@ -1575,9 +1580,9 @@ export class ProcessVideoIPCHandlers {
 
       // Don't cleanup temp files if metadata failed - user might want to retry
       return {
+        success: true,
         youtubeResult: context.youtubeResult,
         mcpResult: context.mcpResult,
-        metadataUpdateError: metadataErrorMsg,
       };
     }
   }
@@ -1586,7 +1591,7 @@ export class ProcessVideoIPCHandlers {
     workflowManager: WorkflowStateManager,
     checkpoint: CheckpointData | undefined,
     shaveId?: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<RetryResult> {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -1620,8 +1625,8 @@ export class ProcessVideoIPCHandlers {
       );
 
       const metadata = await this.metadataBuilder.build({
-        transcript,
-        intermediateOutput: undefined,
+        transcript: transcript!,
+        intermediateOutput: "",
         executionHistory: JSON.stringify(transcript ?? [], null, 2),
         finalResult: mcpResult ?? undefined,
       });
