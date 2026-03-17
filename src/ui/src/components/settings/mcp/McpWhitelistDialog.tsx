@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { formatToolName } from "../../../utils";
 import { ipcClient } from "../../../services/ipc-client";
 import { Button } from "../../ui/button";
 import { Checkbox } from "../../ui/checkbox";
@@ -101,7 +102,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
                       onCheckedChange={() => toggleTool(tool.name)}
                     />
                     <div className="flex-1">
-                      <p className="text-sm">{tool.name}</p>
+                      <p className="text-sm">{formatToolName(tool.name)}</p>
                       {tool.description && (
                         <p className="text-xs text-muted-foreground">{tool.description}</p>
                       )}

@@ -2,7 +2,7 @@ import type { InteractionRequest, ToolApprovalPayload } from "@shared/types/user
 import { Terminal } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
-import { formatErrorMessage, formatKeyAsTitle } from "../../utils";
+import { formatErrorMessage, parseToolName } from "../../utils";
 import { LoadingState } from "../common/LoadingState";
 import { AzureDevOpsIcon } from "../settings/mcp/devops/devops-icon";
 import { GitHubIcon } from "../settings/mcp/github/github-icon";
@@ -26,19 +26,6 @@ interface ApprovalDialogProps {
   onSubmit: (data: unknown) => Promise<void>;
   error?: string | null;
 }
-
-function parseToolName(toolName: string): { server: string | null; tool: string } {
-  const formatTool = (s: string) => s.split("_").map(formatKeyAsTitle).join(" ");
-  const separatorIndex = toolName.indexOf("__");
-  if (separatorIndex !== -1) {
-    return {
-      server: toolName.slice(0, separatorIndex).replace(/_/g, " "),
-      tool: formatTool(toolName.slice(separatorIndex + 2)),
-    };
-  }
-  return { server: null, tool: formatTool(toolName) };
-}
-
 function getServiceIcon(serverName: string | null): ReactElement {
   const lower = serverName?.toLowerCase() ?? "";
   if (lower.includes("github")) {
