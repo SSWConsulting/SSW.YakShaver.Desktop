@@ -140,7 +140,7 @@ export function WorkflowRetryPanel({
                 variant={failedStage.maxReached ? "ghost" : "secondary"}
                 size="sm"
                 disabled={failedStage.maxReached || isRetrying}
-                onClick={() => handleRetryClick(failedStage.stage as WorkflowStage)}
+                onClick={() => handleRetryClick(failedStage.stage)}
               >
                 {failedStage.maxReached ? "Max Retries" : "Retry"}
               </Button>
