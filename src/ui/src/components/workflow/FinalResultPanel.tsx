@@ -1,7 +1,7 @@
 import { Copy, ExternalLink, RotateCcw, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { formatErrorMessage } from "@/utils";
+import { formatErrorMessage, formatKeyAsTitle } from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import {
@@ -211,7 +211,7 @@ function SectionHeader({ title }: SectionHeaderProps) {
   return (
     <div className="flex items-baseline gap-3 mb-2">
       <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wide min-w-fit">
-        {title}
+        {formatKeyAsTitle(title)}
       </h3>
       <div className="h-px flex-1 bg-white/10 self-center" />
     </div>
