@@ -81,11 +81,10 @@ const IPC_CHANNELS = {
 
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
-  SETTINGS_GET_ACTIVE_PROMPT: "settings:get-active-prompt",
+  SETTINGS_GET_TEMPLATES: "settings:get-templates",
   SETTINGS_ADD_PROMPT: "settings:add-prompt",
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
-  SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
   SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
 
   // General User Settings
@@ -269,14 +268,23 @@ const electronAPI = {
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
-    getActivePrompt: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ACTIVE_PROMPT),
-    addPrompt: (prompt: { name: string; content: string }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
-    updatePrompt: (id: string, updates: { name?: string; content?: string }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_PROMPT, id, updates),
+    getTemplates: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_TEMPLATES),
+    addPrompt: (prompt: {
+      name: string;
+      content: string;
+      description?: string;
+      selectedMcpServerIds?: string[];
+    }) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
+    updatePrompt: (
+      id: string,
+      updates: {
+        name?: string;
+        content?: string;
+        description?: string;
+        selectedMcpServerIds?: string[];
+      },
+    ) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_PROMPT, id, updates),
     deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
-    setActivePrompt: (id: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
     clearCustomPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS),
   },
   userInteraction: {

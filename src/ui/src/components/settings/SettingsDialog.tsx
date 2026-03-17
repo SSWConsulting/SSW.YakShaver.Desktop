@@ -182,7 +182,7 @@ export function SettingsDialog() {
 
           <section className="flex-1 h-full overflow-hidden">
             <ScrollArea className="h-full pr-1">
-              <div className="pb-4 pr-2">
+              <div className="pb-4 pr-4">
                 {activeTab?.id === "general" && (
                   <GeneralSettingsPanel isActive={open && activeTabId === "general"} />
                 )}

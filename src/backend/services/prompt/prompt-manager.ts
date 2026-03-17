@@ -9,7 +9,6 @@ export interface PromptSummary {
   id: string;
   name: string;
   description?: string;
-  isActive: boolean;
   source: "local" | "remote";
 }
 
@@ -36,6 +35,7 @@ export interface ProjectDto {
   gitHubProjectId?: string;
   placeItemOnTopOfProductBacklog: boolean;
   desktopAgentProjectPrompt?: string;
+  selectedMcpServerIds?: string[];
 }
 
 export class PromptManager {
@@ -79,8 +79,7 @@ export class PromptManager {
         id: p.id,
         name: p.name,
         description: p.description,
-        isActive: true,
-        source: "local",
+        source: "local" as const,
       }));
     } catch (error) {
       console.error("Failed to fetch local prompts:", error);
@@ -160,8 +159,7 @@ export class PromptManager {
         id: item.id,
         name: item.title,
         description: item.description,
-        isActive: true,
-        source: "remote",
+        source: "remote" as const,
       }));
     } catch (error) {
       console.error("Failed to fetch remote prompts:", error);
@@ -185,6 +183,7 @@ export class PromptManager {
         description: localPrompt.description,
         // Map local prompt content to desktopAgentProjectPrompt
         desktopAgentProjectPrompt: localPrompt.content,
+        selectedMcpServerIds: localPrompt.selectedMcpServerIds,
         // Set defaults for other required fields
         videoHostType: "SharePoint", // Default
         recentWorkItemsCount: 0,

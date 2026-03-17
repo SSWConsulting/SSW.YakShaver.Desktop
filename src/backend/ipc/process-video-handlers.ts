@@ -14,7 +14,6 @@ import { TranscriptionModelProvider } from "../services/mcp/transcription-model-
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
-import { CustomPromptStorage } from "../services/storage/custom-prompt-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
@@ -44,7 +43,6 @@ export const TranscriptSummarySchema = z.object({
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeClient.getInstance();
   private ffmpegService = FFmpegService.getInstance();
-  private readonly customPromptStorage = CustomPromptStorage.getInstance();
   private readonly metadataBuilder: VideoMetadataBuilder;
   private readonly youtubeDownloadService = YouTubeDownloadService.getInstance();
   private lastVideoFilePath: string | undefined;
@@ -109,8 +107,7 @@ export class ProcessVideoIPCHandlers {
           workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
           notify(ProgressStage.EXECUTING_TASK);
 
-          const customPrompt = await this.customPromptStorage.getActivePrompt();
-          const serverFilter = customPrompt?.selectedMcpServerIds;
+          const serverFilter = projectDetails?.selectedMcpServerIds;
 
           const filePath =
             this.lastVideoFilePath && fs.existsSync(this.lastVideoFilePath)
@@ -323,8 +320,7 @@ export class ProcessVideoIPCHandlers {
 
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
-      const customPrompt = await this.customPromptStorage.getActivePrompt();
-      const serverFilter = customPrompt?.selectedMcpServerIds;
+      const serverFilter = projectDetails?.selectedMcpServerIds;
 
       const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
         transcriptText,

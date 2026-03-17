@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ToolSet } from "ai";
+import { PRESET_MCP_SERVERS } from "../../../shared/mcp/preset-servers";
 import type { HealthStatusInfo } from "../../types/index.js";
 import { McpStorage } from "../storage/mcp-storage";
 import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
@@ -229,6 +230,13 @@ export class MCPServerManager {
         result.push(s);
       }
     }
+    // Add preset servers not yet stored by the user (they appear with enabled: false)
+    for (const preset of PRESET_MCP_SERVERS) {
+      if (preset.id && !seen.has(preset.id)) {
+        seen.add(preset.id);
+        result.push({ ...preset });
+      }
+    }
     return result;
   }
 
@@ -310,7 +318,7 @@ export class MCPServerManager {
   async removeServerAsync(serverId: string): Promise<void> {
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
     const index = storedConfigs.findIndex((s) => s.id === serverId);
-    if (index === -1) throw new Error(`Server '${serverId}' not found`);
+    if (index === -1) return; // Server was never persisted (e.g. an unconnected preset) — nothing to remove
     const existing = storedConfigs[index];
     storedConfigs.splice(index, 1);
 

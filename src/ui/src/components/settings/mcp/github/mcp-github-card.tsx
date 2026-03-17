@@ -1,3 +1,4 @@
+import { GITHUB_PRESET_CONFIG, PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
 import { useMcpCardActions } from "@/hooks/useMcpCardActions";
 import type { HealthStatusInfo } from "../../../../../../backend/types";
 import type { MCPServerConfig } from "../McpServerForm";
@@ -13,7 +14,7 @@ interface McpGitHubCardProps {
 }
 
 McpGitHubCard.Name = "GitHub";
-McpGitHubCard.Id = "f12980ac-f80c-47e0-b4ac-181a54122d61";
+McpGitHubCard.Id = PRESET_SERVER_IDS.GITHUB;
 
 export function McpGitHubCard({
   config,
@@ -22,15 +23,7 @@ export function McpGitHubCard({
   onTools,
   viewMode,
 }: McpGitHubCardProps) {
-  const configLocal = config ?? {
-    id: McpGitHubCard.Id,
-    name: McpGitHubCard.Name,
-    transport: "streamableHttp",
-    url: "https://api.githubcopilot.com/mcp/",
-    description: "GitHub MCP Server",
-    toolWhitelist: [],
-    enabled: false,
-  };
+  const configLocal = config ?? GITHUB_PRESET_CONFIG;
 
   const { handleOnConnect, handleOnDisconnect } = useMcpCardActions(
     McpGitHubCard.Id,
