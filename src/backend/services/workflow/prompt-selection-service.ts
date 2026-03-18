@@ -39,7 +39,7 @@ export class PromptSelectionService {
       transcriptText,
     );
 
-    // Confirm project prompt selection with user if not in YOLO mode
+    // Confirm project prompt selection with the user unless YOLO mode or per-shave auto-approve skips confirmation
     selectedProject = await this.confirmSelectionWithUser(selectedProject, projectPrompts, shaveId);
 
     const projectDetails = await promptManager.getProjectDetails(
