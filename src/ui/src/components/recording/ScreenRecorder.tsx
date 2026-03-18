@@ -176,6 +176,9 @@ export function ScreenRecorder() {
         },
       );
       const newShave = result?.data;
+      if (!newShave?.id && shaveAutoApprove) {
+        toast.warning("Auto-approve is unavailable — shave record could not be created. You will be prompted for confirmations.");
+      }
       //Process video even if Shave creation failed, do not block user
       await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id, shaveAutoApprove);
     } catch (error) {

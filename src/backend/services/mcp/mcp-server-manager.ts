@@ -455,11 +455,12 @@ export class MCPServerManager {
       return (config.toolWhitelist ?? []).map((toolName) => `${sanitizedServerName}__${toolName}`);
     });
 
-    // Built-in server tools are always whitelisted regardless of Approval Mode
+    // Built-in server tools are always whitelisted regardless of Approval Mode.
+    // Uses cached tool names to avoid repeated RPC calls during the orchestrator loop.
     for (const client of MCPServerManager.mcpClients.values()) {
       if (client.builtin) {
-        const tools = await client.listToolsWithServerPrefixAsync();
-        whitelist.push(...Object.keys(tools));
+        const toolNames = await client.getPrefixedToolNamesAsync();
+        whitelist.push(...toolNames);
       }
     }
 

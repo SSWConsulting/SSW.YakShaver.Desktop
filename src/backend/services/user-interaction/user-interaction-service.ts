@@ -10,6 +10,7 @@ import type {
 import { UserSettingsStorage } from "../storage/user-settings-storage";
 
 const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
+const MAX_SHAVE_AUTO_APPROVE_ENTRIES = 1_000;
 
 export class UserInteractionService {
   private static instance: UserInteractionService;
@@ -23,10 +24,17 @@ export class UserInteractionService {
    * Enable auto-approve for a specific shave.
    * Called at the start of initial processing (processVideoSource).
    * Persists across retries for the same shave ID.
-   * Each entry is a UUID + boolean — negligible memory; cleaned up on app restart.
+   * Evicts the oldest entry when the map exceeds MAX_SHAVE_AUTO_APPROVE_ENTRIES.
    */
   public setShaveAutoApprove(shaveId: string): void {
     this.shaveAutoApproveMap.set(shaveId, true);
+    if (this.shaveAutoApproveMap.size > MAX_SHAVE_AUTO_APPROVE_ENTRIES) {
+      // Map iterates in insertion order — delete the oldest entry
+      const oldest = this.shaveAutoApproveMap.keys().next().value;
+      if (oldest !== undefined) {
+        this.shaveAutoApproveMap.delete(oldest);
+      }
+    }
   }
 
   private isAutoApproveActive(shaveId?: string): boolean {
