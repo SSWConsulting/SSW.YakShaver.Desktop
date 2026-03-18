@@ -114,8 +114,8 @@ export const IPC_CHANNELS = {
   USER_INTERACTION_REQUEST: "user-interaction:request",
   USER_INTERACTION_RESPONSE: "user-interaction:response",
 
-  // Session
-  SESSION_SET_AUTO_APPROVE: "session:set-auto-approve",
+  // Shave
+  SHAVE_SET_AUTO_APPROVE: "shave:set-auto-approve",
 
   // Telemetry
   TELEMETRY_GET_SETTINGS: "telemetry:get-settings",

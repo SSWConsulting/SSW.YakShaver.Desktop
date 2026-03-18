@@ -132,8 +132,8 @@ const IPC_CHANNELS = {
   USER_INTERACTION_REQUEST: "user-interaction:request",
   USER_INTERACTION_RESPONSE: "user-interaction:response",
 
-  // Session
-  SESSION_SET_AUTO_APPROVE: "session:set-auto-approve",
+  // Shave
+  SHAVE_SET_AUTO_APPROVE: "shave:set-auto-approve",
 
   // Telemetry
   TELEMETRY_GET_SETTINGS: "telemetry:get-settings",
@@ -296,10 +296,6 @@ const electronAPI = {
     onRequest: (callback: (request: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.USER_INTERACTION_REQUEST, callback),
   },
-  session: {
-    setAutoApprove: (value: boolean) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SESSION_SET_AUTO_APPROVE, value),
-  },
   releaseChannel: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),
     set: (channel: ReleaseChannel) => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_SET, channel),
@@ -359,6 +355,8 @@ const electronAPI = {
     updateStatus: (id: string, status: ShaveStatus) =>
       ipcRenderer.invoke(IPC_CHANNELS.SHAVE_UPDATE_STATUS, id, status),
     delete: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_DELETE, id),
+    setAutoApprove: (value: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SHAVE_SET_AUTO_APPROVE, value),
   },
   telemetry: {
     getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.TELEMETRY_GET_SETTINGS),

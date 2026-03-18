@@ -162,9 +162,6 @@ declare global {
         sendResponse(data: unknown): Promise<boolean>;
         onRequest(callback: (request: unknown) => void): () => void;
       };
-      session: {
-        setAutoApprove: (value: boolean) => Promise<{ success: boolean }>;
-      };
       releaseChannel: {
         get: () => Promise<ReleaseChannel>;
         set: (channel: ReleaseChannel) => Promise<void>;
@@ -242,6 +239,7 @@ declare global {
           status: ShaveStatus,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         delete: (id: string) => Promise<{ success: boolean; data?: boolean; error?: string }>;
+        setAutoApprove: (value: boolean) => Promise<{ success: boolean }>;
       };
       telemetry: {
         getSettings: () => Promise<{ success: boolean; data?: TelemetrySettings; error?: string }>;

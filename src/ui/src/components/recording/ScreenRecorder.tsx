@@ -137,7 +137,7 @@ export function ScreenRecorder() {
     setPickerOpen(true);
   };
 
-  const handleContinue = async (sessionAutoApprove: boolean) => {
+  const handleContinue = async (shaveAutoApprove: boolean) => {
     if (!recordedVideo) return;
 
     // Validate that duration was loaded
@@ -160,7 +160,7 @@ export function ScreenRecorder() {
     try {
       // Always sync the shave-level auto-approve flag to the backend before processing starts.
       // This resets the flag for the new shave even if a previous shave had it set to true.
-      await ipcClient.session.setAutoApprove(sessionAutoApprove);
+      await ipcClient.shave.setAutoApprove(shaveAutoApprove);
 
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);

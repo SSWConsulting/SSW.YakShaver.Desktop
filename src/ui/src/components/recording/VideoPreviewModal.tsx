@@ -30,7 +30,7 @@ interface VideoPreviewModalProps {
   approvalMode: ToolApprovalMode;
   onClose: () => void;
   onRetry: () => void;
-  onContinue: (sessionAutoApprove: boolean) => void;
+  onContinue: (shaveAutoApprove: boolean) => void;
   onDurationLoad?: (duration: number) => void;
 }
 
