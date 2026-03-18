@@ -223,7 +223,10 @@ export class MCPOrchestrator {
             const decision = await UserInteractionService.getInstance().requestToolApproval(
               toolCall.toolName,
               toolCall.input,
-              { message: `Approval required to run ${toolCall.toolName}`, shaveId: options.shaveId },
+              {
+                message: `Approval required to run ${toolCall.toolName}`,
+                shaveId: options.shaveId,
+              },
             );
 
             if (decision.kind === "deny_stop") {

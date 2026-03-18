@@ -150,7 +150,12 @@ export class MCPServerClient {
           cwd,
         }),
       });
-      return new MCPServerClient(mcpConfig.id, mcpConfig.name, mcpClient, mcpConfig.builtin === true);
+      return new MCPServerClient(
+        mcpConfig.id,
+        mcpConfig.name,
+        mcpClient,
+        mcpConfig.builtin === true,
+      );
     }
 
     // create inMemory transport MCP client
