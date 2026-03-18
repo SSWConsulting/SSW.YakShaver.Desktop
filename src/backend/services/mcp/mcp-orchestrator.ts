@@ -141,7 +141,8 @@ export class MCPOrchestrator {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
 
-    console.log("[MCPOrchestrator] Starting manual loop with prompt strings");
+    try {
+      console.log("[MCPOrchestrator] Starting manual loop with prompt strings");
 
     // Ensure MCP server manager is initialized
     const serverManager = MCPOrchestrator.mcpServerManager;
@@ -209,13 +210,11 @@ export class MCPOrchestrator {
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
         const telemetryService = TelemetryService.getInstance();
+        const toolWhiteList = new Set(
+          (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
+        );
         for (const toolCall of llmResponse.toolCalls) {
-          const toolWhiteList = new Set(
-            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
-          );
-          const isBuiltin =
-            MCPOrchestrator.mcpServerManager?.isBuiltinTool(toolCall.toolName) ?? false;
-          const isWhitelisted = isBuiltin || toolWhiteList.has(toolCall.toolName);
+          const isWhitelisted = toolWhiteList.has(toolCall.toolName);
           const toolStartTime = Date.now();
 
           if (!isWhitelisted) {
@@ -472,6 +471,10 @@ export class MCPOrchestrator {
         ToolOutputBuffer.getInstance().clear();
         break;
       }
+    }
+    } finally {
+      // Reset per-shave auto-approve so it cannot leak to the next shave
+      UserInteractionService.getInstance().setShaveAutoApprove(false);
     }
   }
 

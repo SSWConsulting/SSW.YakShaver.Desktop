@@ -14,7 +14,7 @@ export function registerUserInteractionHandlers(): void {
     },
   );
 
-  ipcMain.handle(IPC_CHANNELS.SHAVE_SET_AUTO_APPROVE, async (_, value: boolean) => {
+  ipcMain.handle(IPC_CHANNELS.USER_INTERACTION_SET_SHAVE_AUTO_APPROVE, async (_, value: boolean) => {
     service.setShaveAutoApprove(value);
     return { success: true };
   });

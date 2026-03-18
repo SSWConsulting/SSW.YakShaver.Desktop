@@ -160,7 +160,7 @@ export function ScreenRecorder() {
     try {
       // Always sync the shave-level auto-approve flag to the backend before processing starts.
       // This resets the flag for the new shave even if a previous shave had it set to true.
-      await ipcClient.shave.setAutoApprove(shaveAutoApprove);
+      await ipcClient.userInteraction.setAutoApprove(shaveAutoApprove);
 
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);

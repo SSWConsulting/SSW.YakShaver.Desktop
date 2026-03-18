@@ -46,11 +46,7 @@ export class UserInteractionService {
     const settings = await UserSettingsStorage.getInstance().getSettingsAsync();
     const mode = settings?.toolApprovalMode || "ask";
 
-    if (mode === "yolo") {
-      return { kind: "approve" };
-    }
-
-    if (this.shaveAutoApprove) {
+    if (mode === "yolo" || this.shaveAutoApprove) {
       return { kind: "approve" };
     }
 
@@ -78,13 +74,7 @@ export class UserInteractionService {
     const settings = await UserSettingsStorage.getInstance().getSettingsAsync();
     const mode = settings?.toolApprovalMode || "ask";
 
-    if (mode === "yolo") {
-      return {
-        projectId: payload.selectedProject.id,
-      };
-    }
-
-    if (this.shaveAutoApprove) {
+    if (mode === "yolo" || this.shaveAutoApprove) {
       return {
         projectId: payload.selectedProject.id,
       };
