@@ -74,6 +74,63 @@ export function formatKeyAsTitle(key: string): string {
 }
 
 /**
+ * Parses a raw MCP tool name (e.g. "Jira__getAccessibleAtlassianResources") into its
+ * human-readable server and tool components.
+ *
+ * @param rawToolName - The raw prefixed tool name from the MCP layer.
+ * @returns An object with `server` (null if no prefix) and `tool` as formatted strings.
+ *
+ * @example
+ * parseToolName("Jira__getAccessibleAtlassianResources")
+ * // { server: "Jira", tool: "Get Accessible Atlassian Resources" }
+ *
+ * parseToolName("GitHub__issue_write")
+ * // { server: "GitHub", tool: "Issue Write" }
+ */
+export function parseToolName(rawToolName: string): { server: string | null; tool: string } {
+  const formatTool = (s: string) => s.split("_").map(formatKeyAsTitle).join(" ");
+  const formatServer = (s: string) => s.replace(/_/g, " ");
+
+  // Handle "__" separator (MCP system format: "Jira__getAccessibleAtlassianResources")
+  const dunderIndex = rawToolName.indexOf("__");
+  if (dunderIndex !== -1) {
+    return {
+      server: formatServer(rawToolName.slice(0, dunderIndex)),
+      tool: formatTool(rawToolName.slice(dunderIndex + 2)),
+    };
+  }
+
+  // Handle "." separator (AI output format: "Yak_Video_Tools.capture_video_frame")
+  const dotIndex = rawToolName.indexOf(".");
+  if (dotIndex !== -1) {
+    return {
+      server: formatServer(rawToolName.slice(0, dotIndex)),
+      tool: formatTool(rawToolName.slice(dotIndex + 1)),
+    };
+  }
+
+  return { server: null, tool: formatTool(rawToolName) };
+}
+
+/**
+ * Formats a raw MCP tool name into a user-friendly display string.
+ *
+ * @param rawToolName - The raw prefixed tool name from the MCP layer.
+ * @returns A formatted string like "Jira: Get Accessible Atlassian Resources".
+ *
+ * @example
+ * formatToolName("Jira__getAccessibleAtlassianResources")
+ * // "Jira: Get Accessible Atlassian Resources"
+ *
+ * formatToolName("issue_write")
+ * // "Issue Write"
+ */
+export function formatToolName(rawToolName: string): string {
+  const { server, tool } = parseToolName(rawToolName);
+  return server ? `${server}: ${tool}` : tool;
+}
+
+/**
  * Generates initials from a name string.
  * Returns the first letter of the first two words in uppercase.
  * Returns "U" if the name is undefined or empty.
