@@ -113,7 +113,6 @@ export const IPC_CHANNELS = {
   // User Interaction (Generic)
   USER_INTERACTION_REQUEST: "user-interaction:request",
   USER_INTERACTION_RESPONSE: "user-interaction:response",
-  USER_INTERACTION_SET_SHAVE_AUTO_APPROVE: "user-interaction:set-shave-auto-approve",
 
   // Telemetry
   TELEMETRY_GET_SETTINGS: "telemetry:get-settings",

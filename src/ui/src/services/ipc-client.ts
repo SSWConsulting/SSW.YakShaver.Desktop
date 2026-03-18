@@ -35,7 +35,7 @@ declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideoFile: (filePath: string, shaveId?: string) => Promise<void>;
+        processVideoFile: (filePath: string, shaveId?: string, shaveAutoApprove?: boolean) => Promise<void>;
         processVideoUrl: (url: string, shaveId?: string) => Promise<void>;
         retryVideo: (
           intermediateOutput: string,
@@ -161,7 +161,6 @@ declare global {
       userInteraction: {
         sendResponse(data: unknown): Promise<boolean>;
         onRequest(callback: (request: unknown) => void): () => void;
-        setAutoApprove: (value: boolean) => Promise<{ success: boolean }>;
       };
       releaseChannel: {
         get: () => Promise<ReleaseChannel>;

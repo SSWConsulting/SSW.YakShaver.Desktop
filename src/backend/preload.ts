@@ -131,7 +131,6 @@ const IPC_CHANNELS = {
   // User Interaction (Generic)
   USER_INTERACTION_REQUEST: "user-interaction:request",
   USER_INTERACTION_RESPONSE: "user-interaction:response",
-  USER_INTERACTION_SET_SHAVE_AUTO_APPROVE: "user-interaction:set-shave-auto-approve",
 
   // Telemetry
   TELEMETRY_GET_SETTINGS: "telemetry:get-settings",
@@ -148,8 +147,8 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideoFile: (filePath: string, shaveId?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId),
+    processVideoFile: (filePath: string, shaveId?: string, shaveAutoApprove?: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId, shaveAutoApprove),
     processVideoUrl: (url: string, shaveId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url, shaveId),
     retryVideo: (
@@ -293,8 +292,6 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.USER_INTERACTION_RESPONSE, responseData),
     onRequest: (callback: (request: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.USER_INTERACTION_REQUEST, callback),
-    setAutoApprove: (value: boolean) =>
-      ipcRenderer.invoke(IPC_CHANNELS.USER_INTERACTION_SET_SHAVE_AUTO_APPROVE, value),
   },
   releaseChannel: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),

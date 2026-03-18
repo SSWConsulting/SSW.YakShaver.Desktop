@@ -27,6 +27,7 @@ export class PromptSelectionService {
   public async getConfirmedProjectDetails(
     languageModelProvider: LanguageModelProvider,
     transcriptText: string,
+    shaveId?: string,
   ) {
     const promptManager = PromptManager.getInstance();
     const projectPrompts = await promptManager.getAllPrompts();
@@ -39,7 +40,7 @@ export class PromptSelectionService {
     );
 
     // Confirm project prompt selection with user if not in YOLO mode
-    selectedProject = await this.confirmSelectionWithUser(selectedProject, projectPrompts);
+    selectedProject = await this.confirmSelectionWithUser(selectedProject, projectPrompts, shaveId);
 
     const projectDetails = await promptManager.getProjectDetails(
       selectedProject.id,
@@ -61,25 +62,29 @@ export class PromptSelectionService {
   private async confirmSelectionWithUser(
     selectedProject: PromptSelectionResult,
     allProjects: PromptSummary[],
+    shaveId?: string,
   ): Promise<PromptSelectionResult> {
     try {
       // Send project selection to user for confirmation, allowing them to change the selection if they want
       // The UserInteractionService handles logic for yolo/wait/ask modes internally
-      const userResponse = await UserInteractionService.getInstance().requestProjectSelection({
-        selectedProject: {
-          id: selectedProject.id,
-          name: selectedProject.name,
-          description: selectedProject.description,
-          reason: selectedProject.reason,
-          source: selectedProject.source,
+      const userResponse = await UserInteractionService.getInstance().requestProjectSelection(
+        {
+          selectedProject: {
+            id: selectedProject.id,
+            name: selectedProject.name,
+            description: selectedProject.description,
+            reason: selectedProject.reason,
+            source: selectedProject.source,
+          },
+          allProjects: allProjects.map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            source: p.source,
+          })),
         },
-        allProjects: allProjects.map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          source: p.source,
-        })),
-      });
+        { shaveId },
+      );
 
       // Update selected project if user changed it
       if (userResponse.projectId !== selectedProject.id) {

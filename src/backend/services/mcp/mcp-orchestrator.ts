@@ -133,6 +133,7 @@ export class MCPOrchestrator {
       maxToolIterations?: number; // safety cap to avoid infinite loops
       videoFilePath?: string; // local video file path for screenshot capture
       serverFilter?: string[]; // if provided, only include tools from these server IDs
+      shaveId?: string; // identifies the current shave for per-shave auto-approve
       onStep?: (step: MCPStep) => void;
     } = {},
   ): Promise<string | undefined> {
@@ -141,8 +142,7 @@ export class MCPOrchestrator {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
 
-    try {
-      console.log("[MCPOrchestrator] Starting manual loop with prompt strings");
+    console.log("[MCPOrchestrator] Starting manual loop with prompt strings");
 
     // Ensure MCP server manager is initialized
     const serverManager = MCPOrchestrator.mcpServerManager;
@@ -223,7 +223,7 @@ export class MCPOrchestrator {
             const decision = await UserInteractionService.getInstance().requestToolApproval(
               toolCall.toolName,
               toolCall.input,
-              { message: `Approval required to run ${toolCall.toolName}` },
+              { message: `Approval required to run ${toolCall.toolName}`, shaveId: options.shaveId },
             );
 
             if (decision.kind === "deny_stop") {
@@ -471,10 +471,6 @@ export class MCPOrchestrator {
         ToolOutputBuffer.getInstance().clear();
         break;
       }
-    }
-    } finally {
-      // Reset per-shave auto-approve so it cannot leak to the next shave
-      UserInteractionService.getInstance().setShaveAutoApprove(false);
     }
   }
 

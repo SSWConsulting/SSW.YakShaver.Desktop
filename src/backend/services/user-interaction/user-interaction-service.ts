@@ -14,18 +14,23 @@ const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
 export class UserInteractionService {
   private static instance: UserInteractionService;
   private pendingInteractions = new Map<string, (response: unknown) => void>();
-  private shaveAutoApprove = false;
+  /** Per-shave auto-approve flags, keyed by shave ID. Persists across retries for the same shave. */
+  private shaveAutoApproveMap = new Map<string, boolean>();
 
   private constructor() {}
 
   /**
-   * Set or clear the per-shave auto-approve flag.
-   * When true, all tool approval and project selection requests are silently approved
-   * for the current shave's processing lifecycle without modifying global Approval Mode settings.
-   * Must be explicitly reset to false when a new shave begins.
+   * Enable auto-approve for a specific shave.
+   * Called at the start of initial processing (processVideoSource).
+   * Persists across retries for the same shave ID.
+   * Each entry is a UUID + boolean — negligible memory; cleaned up on app restart.
    */
-  public setShaveAutoApprove(value: boolean): void {
-    this.shaveAutoApprove = value;
+  public setShaveAutoApprove(shaveId: string): void {
+    this.shaveAutoApproveMap.set(shaveId, true);
+  }
+
+  private isAutoApproveActive(shaveId?: string): boolean {
+    return shaveId !== undefined && (this.shaveAutoApproveMap.get(shaveId) ?? false);
   }
 
   public static getInstance(): UserInteractionService {
@@ -41,12 +46,12 @@ export class UserInteractionService {
   public async requestToolApproval(
     toolName: string,
     args: unknown,
-    options?: { message?: string },
+    options?: { message?: string; shaveId?: string },
   ): Promise<ToolApprovalDecision> {
     const settings = await UserSettingsStorage.getInstance().getSettingsAsync();
     const mode = settings?.toolApprovalMode || "ask";
 
-    if (mode === "yolo" || this.shaveAutoApprove) {
+    if (mode === "yolo" || this.isAutoApproveActive(options?.shaveId)) {
       return { kind: "approve" };
     }
 
@@ -69,12 +74,12 @@ export class UserInteractionService {
    */
   public async requestProjectSelection(
     payload: ProjectSelectionPayload,
-    options?: { message?: string },
+    options?: { message?: string; shaveId?: string },
   ): Promise<ProjectSelectionResponse> {
     const settings = await UserSettingsStorage.getInstance().getSettingsAsync();
     const mode = settings?.toolApprovalMode || "ask";
 
-    if (mode === "yolo" || this.shaveAutoApprove) {
+    if (mode === "yolo" || this.isAutoApproveActive(options?.shaveId)) {
       return {
         projectId: payload.selectedProject.id,
       };
@@ -135,7 +140,6 @@ export class UserInteractionService {
    * Cancel all pending interactions (e.g. when session ends)
    */
   public cancelAllPending(reason = "Session cancelled"): void {
-    this.shaveAutoApprove = false;
     for (const [id, resolve] of this.pendingInteractions.entries()) {
       // For tool approvals, we can default to deny
       // For generic requests, we might need a specific error or cancellation type

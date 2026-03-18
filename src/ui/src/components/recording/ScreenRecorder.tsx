@@ -158,10 +158,6 @@ export function ScreenRecorder() {
     resetPreview();
 
     try {
-      // Always sync the shave-level auto-approve flag to the backend before processing starts.
-      // This resets the flag for the new shave even if a previous shave had it set to true.
-      await ipcClient.userInteraction.setAutoApprove(shaveAutoApprove);
-
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
       const result = await saveRecording(
@@ -181,7 +177,7 @@ export function ScreenRecorder() {
       );
       const newShave = result?.data;
       //Process video even if Shave creation failed, do not block user
-      await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id);
+      await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id, shaveAutoApprove);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = formatErrorMessage(error);
