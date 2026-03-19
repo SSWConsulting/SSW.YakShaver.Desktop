@@ -1,8 +1,12 @@
 import type { InteractionRequest, ToolApprovalPayload } from "@shared/types/user-interaction";
-import { useCallback, useEffect, useState } from "react";
+import { Terminal } from "lucide-react";
+import { type ReactElement, useCallback, useEffect, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
-import { formatErrorMessage } from "../../utils";
+import { formatErrorMessage, parseToolName } from "../../utils";
 import { LoadingState } from "../common/LoadingState";
+import { AzureDevOpsIcon } from "../settings/mcp/devops/devops-icon";
+import { GitHubIcon } from "../settings/mcp/github/github-icon";
+import { AtlassianIcon } from "../settings/mcp/jira/atlassian";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,15 +26,18 @@ interface ApprovalDialogProps {
   onSubmit: (data: unknown) => Promise<void>;
   error?: string | null;
 }
-
-function parseToolName(toolName: string): { server: string | null; tool: string } {
-  const separatorIndex = toolName.indexOf("__");
-  if (separatorIndex !== -1) {
-    const server = toolName.slice(0, separatorIndex).replace(/_/g, " ");
-    const tool = toolName.slice(separatorIndex + 2).replace(/_/g, " ");
-    return { server, tool };
+function getServiceIcon(serverName: string | null): ReactElement {
+  const lower = serverName?.toLowerCase() ?? "";
+  if (lower.includes("github")) {
+    return <GitHubIcon className="w-5 h-5" />;
   }
-  return { server: null, tool: toolName.replace(/_/g, " ") };
+  if (lower.includes("azure") || lower.includes("devops")) {
+    return <AzureDevOpsIcon className="w-5 h-5" />;
+  }
+  if (lower.includes("jira") || lower.includes("atlassian")) {
+    return <AtlassianIcon className="w-5 h-5" />;
+  }
+  return <Terminal className="w-5 h-5 text-white/70" />;
 }
 
 export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDialogProps) {
@@ -141,7 +148,12 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
     <AlertDialog open={isOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{dialogTitle}</AlertDialogTitle>
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0 w-5 h-5">
+              {getServiceIcon(readableToolInfo?.server ?? null)}
+            </div>
+            <AlertDialogTitle>{dialogTitle}</AlertDialogTitle>
+          </div>
           <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
         </AlertDialogHeader>
         {autoApprovalCountdown !== null && (

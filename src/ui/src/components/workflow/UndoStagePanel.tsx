@@ -1,7 +1,7 @@
 import { Check, ChevronRight, Loader2, Undo2, Wrench, X } from "lucide-react";
 import type React from "react";
 import { type MCPStep, MCPStepType } from "../../types";
-import { deepParseJson } from "../../utils";
+import { deepParseJson, formatToolName } from "../../utils";
 import { ReasoningStep } from "./ReasoningStep";
 
 const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
@@ -42,23 +42,14 @@ function ToolResultSuccess({ result }: { result: unknown }) {
   );
 }
 
-function ToolCallStep({
-  toolName,
-  serverName,
-  args,
-}: {
-  toolName?: string;
-  serverName?: string;
-  args?: unknown;
-}) {
+function ToolCallStep({ toolName, args }: { toolName?: string; args?: unknown }) {
   const hasArgs = typeof args === "object" && args !== null && Object.keys(args).length > 0;
 
   return (
     <div className="space-y-1">
       <div className="text-purple-200 font-medium flex items-center gap-2">
         <Wrench className="w-4 h-4" />
-        Calling tool: {toolName}
-        <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>
+        {toolName ? formatToolName(toolName) : "Unknown tool"}
       </div>
       {hasArgs && (
         <details className="ml-4 text-xs group" onToggle={handleDetailsToggle(args)}>
@@ -125,11 +116,7 @@ export function UndoStagePanel({ steps, status, stepsRef }: UndoStagePanelProps)
                 <ReasoningStep reasoning={step.reasoning} />
               )}
               {step.type === MCPStepType.TOOL_CALL && (
-                <ToolCallStep
-                  toolName={step.toolName}
-                  serverName={step.serverName}
-                  args={step.args}
-                />
+                <ToolCallStep toolName={step.toolName} args={step.args} />
               )}
               {step.type === MCPStepType.TOOL_RESULT && (
                 <div className="ml-4 space-y-1">
