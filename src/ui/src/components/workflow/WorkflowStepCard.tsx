@@ -170,38 +170,34 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             <span className={cn("font-medium", config.textClass)}>{label}</span>
           </div>
         )}
+        {isFailed && shaveId && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={isRetrying}
+            onClick={handleRetry}
+            className="bg-white/[0.08] border border-white/[0.15] hover:bg-white/[0.12] text-white/80 shrink-0"
+          >
+            {isRetrying ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <>
+                <RefreshCw className="size-3.5 mr-1.5" />
+                Retry
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
-      {/* Error message + retry area below */}
-      {isFailed && (errorMessage || shaveId) && (
+      {/* Error message area below */}
+      {isFailed && errorMessage && (
         <CardContent className="p-0 pt-2">
           <div className="rounded bg-black/20 p-3 text-sm">
             <p className="text-red-400">An error occurred. Please check the details below.</p>
-            {errorMessage && (
-              <p className="mt-1 text-xs text-white/50 whitespace-pre-wrap break-all">
-                {errorMessage}
-              </p>
-            )}
-            {shaveId && (
-              <div className="mt-3">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={isRetrying}
-                  onClick={handleRetry}
-                  className="bg-white/[0.08] border border-white/[0.15] hover:bg-white/[0.12] text-white/80"
-                >
-                  {isRetrying ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <>
-                      <RefreshCw className="size-3.5 mr-1.5" />
-                      Retry
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
+            <p className="mt-1 text-xs text-white/50 whitespace-pre-wrap break-all">
+              {errorMessage}
+            </p>
           </div>
         </CardContent>
       )}

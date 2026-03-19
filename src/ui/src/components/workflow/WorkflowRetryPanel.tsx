@@ -129,11 +129,6 @@ export function WorkflowRetryPanel({
                   <p className="text-sm font-medium text-white">
                     {STAGE_DISPLAY_NAMES[failedStage.stage] || failedStage.stage}
                   </p>
-                  <p className="text-xs text-white/50">
-                    {failedStage.maxReached
-                      ? "Max retries reached (3/3)"
-                      : `Retry ${failedStage.retryCount + 1} of 3`}
-                  </p>
                 </div>
               </div>
               <Button
@@ -175,12 +170,6 @@ export function WorkflowRetryPanel({
               This will attempt to restart the workflow from this stage. Previous successful stages
               will be preserved.
             </p>
-            {selectedStage && (
-              <p className="mt-2">
-                Attempt {failedStages.find((s) => s.stage === selectedStage)?.retryCount || 0 + 1}{" "}
-                of 3.
-              </p>
-            )}
           </div>
           <DialogFooter>
             <Button
