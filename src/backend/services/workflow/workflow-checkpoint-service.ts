@@ -75,7 +75,6 @@ export class WorkflowCheckpointService {
   private static instance: WorkflowCheckpointService;
   private checkpoints: Map<string, WorkflowCheckpoint> = new Map();
   private retryCounts: Map<string, number> = new Map();
-  private readonly MAX_RETRY_ATTEMPTS = 3;
 
   private constructor() {}
 
@@ -159,7 +158,7 @@ export class WorkflowCheckpointService {
     return {
       stage,
       count,
-      maxReached: count >= this.MAX_RETRY_ATTEMPTS,
+      maxReached: false,
       lastError,
       lastAttemptAt: checkpoint?.timestamp,
     };
@@ -168,9 +167,8 @@ export class WorkflowCheckpointService {
   /**
    * Check if retry is allowed for a stage
    */
-  public canRetry(shaveId: string, stage: keyof WorkflowState): boolean {
-    const count = this.getRetryCount(shaveId, stage);
-    return count < this.MAX_RETRY_ATTEMPTS;
+  public canRetry(_shaveId: string, _stage: keyof WorkflowState): boolean {
+    return true;
   }
 
   /**

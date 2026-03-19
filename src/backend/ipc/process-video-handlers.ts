@@ -20,6 +20,7 @@ import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
+import { FaultInjection } from "../services/workflow/fault-injection";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
@@ -210,6 +211,27 @@ export class ProcessVideoIPCHandlers {
         return { success: false, error: errorMessage };
       }
     });
+
+    // Dev/Testing: Fault injection controls
+    ipcMain.handle(
+      IPC_CHANNELS.DEV_FAULT_INJECTION_SET,
+      (_event, stage: string, failOnRetry?: boolean) => {
+        FaultInjection.setFailAtStage(stage as keyof WorkflowState);
+        if (failOnRetry !== undefined) {
+          FaultInjection.setFailOnRetry(failOnRetry);
+        }
+        return FaultInjection.getStatus();
+      },
+    );
+
+    ipcMain.handle(IPC_CHANNELS.DEV_FAULT_INJECTION_CLEAR, () => {
+      FaultInjection.clear();
+      return FaultInjection.getStatus();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.DEV_FAULT_INJECTION_STATUS, () => {
+      return FaultInjection.getStatus();
+    });
   }
 
   private async processFileVideo(filePath: string, shaveId?: string) {
@@ -225,8 +247,16 @@ export class ProcessVideoIPCHandlers {
     const workflowManager = this.getOrCreateWorkflowManager(shaveId || crypto.randomUUID());
     this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
 
+    this.lastVideoFilePath = filePath;
+    this.trackTempFile(filePath);
+
     workflowManager.startStage(WorkflowProgressStage.UPLOADING_VIDEO);
     workflowManager.skipStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+
+    // Save checkpoint before upload so retry can find the file path
+    workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
+      filePath,
+    });
 
     // Get video source info for duration if shaveId exists
     let duration: number | undefined;
@@ -242,8 +272,7 @@ export class ProcessVideoIPCHandlers {
     });
 
     try {
-      this.lastVideoFilePath = filePath;
-      this.trackTempFile(filePath);
+      FaultInjection.checkAndThrow("uploading_video", workflowManager);
 
       const youtubeResult = await this.youtube.uploadVideo(filePath);
 
@@ -253,7 +282,7 @@ export class ProcessVideoIPCHandlers {
 
       workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, youtubeResult.data?.url);
 
-      // Create checkpoint after successful upload
+      // Update checkpoint with upload result
       workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
         filePath,
         youtubeResult,
@@ -291,7 +320,13 @@ export class ProcessVideoIPCHandlers {
     workflowManager.startStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
     workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
 
+    // Save checkpoint before download so retry can find the URL
+    workflowManager.createCheckpoint(WorkflowProgressStage.DOWNLOADING_VIDEO, {
+      downloadUrl: url,
+    });
+
     try {
+      FaultInjection.checkAndThrow("downloading_video", workflowManager);
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
       notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
@@ -341,12 +376,23 @@ export class ProcessVideoIPCHandlers {
       this.emitProgress(stage, data, shaveId);
     };
 
+    let currentStage: keyof WorkflowState | null = null;
+
     try {
       this.lastVideoFilePath = filePath;
+
+      // -- CONVERTING_AUDIO --
+      currentStage = WorkflowProgressStage.CONVERTING_AUDIO;
+      workflowManager.createCheckpoint(WorkflowProgressStage.CONVERTING_AUDIO, {
+        filePath,
+        youtubeResult,
+      });
       workflowManager.startStage(WorkflowProgressStage.CONVERTING_AUDIO);
       notify(ProgressStage.CONVERTING_AUDIO);
+      FaultInjection.checkAndThrow("converting_audio", workflowManager);
 
       const hasAudio = await this.ffmpegService.hasAudibleAudio(filePath);
+
       if (!hasAudio) {
         const errorMessage =
           "No audio detected in this video. Please re-record and make sure the correct microphone is selected and unmuted.";
@@ -356,11 +402,12 @@ export class ProcessVideoIPCHandlers {
       }
 
       const mp3FilePath = await this.convertVideoToMp3(filePath);
+
       this.trackTempFile(mp3FilePath);
 
       workflowManager.completeStage(WorkflowProgressStage.CONVERTING_AUDIO);
 
-      // Create checkpoint for potential retry
+      // Update checkpoint with output
       workflowManager.createCheckpoint(WorkflowProgressStage.CONVERTING_AUDIO, {
         filePath,
         mp3FilePath,
@@ -370,9 +417,18 @@ export class ProcessVideoIPCHandlers {
 
       const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
 
+      // -- TRANSCRIBING --
+      currentStage = WorkflowProgressStage.TRANSCRIBING;
+      workflowManager.createCheckpoint(WorkflowProgressStage.TRANSCRIBING, {
+        filePath,
+        mp3FilePath,
+        youtubeResult,
+      });
       workflowManager.startStage(WorkflowProgressStage.TRANSCRIBING);
       notify(ProgressStage.TRANSCRIBING);
+      FaultInjection.checkAndThrow("transcribing", workflowManager);
       const transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
+
       const transcriptText = transcript.map((seg) => seg.text).join("");
 
       if (!transcriptText.trim()) {
@@ -387,7 +443,7 @@ export class ProcessVideoIPCHandlers {
 
       workflowManager.completeStage(WorkflowProgressStage.TRANSCRIBING, transcriptText);
 
-      // Create checkpoint for potential retry
+      // Update checkpoint with output
       workflowManager.createCheckpoint(WorkflowProgressStage.TRANSCRIBING, {
         filePath,
         transcript,
@@ -396,8 +452,18 @@ export class ProcessVideoIPCHandlers {
         youtubeResult,
       });
 
+      // -- ANALYZING_TRANSCRIPT --
+      currentStage = WorkflowProgressStage.ANALYZING_TRANSCRIPT;
+      workflowManager.createCheckpoint(WorkflowProgressStage.ANALYZING_TRANSCRIPT, {
+        filePath,
+        transcript,
+        transcriptText,
+        mp3FilePath,
+        youtubeResult,
+      });
       workflowManager.startStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
       notify(ProgressStage.GENERATING_TASK);
+      FaultInjection.checkAndThrow("analyzing_transcript", workflowManager);
 
       const languageModelProvider = await LanguageModelProvider.getInstance();
 
@@ -412,7 +478,7 @@ export class ProcessVideoIPCHandlers {
 
       workflowManager.completeStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT, intermediateOutput);
 
-      // Create checkpoint for potential retry
+      // Update checkpoint with output
       workflowManager.createCheckpoint(WorkflowProgressStage.ANALYZING_TRANSCRIPT, {
         filePath,
         transcript,
@@ -422,7 +488,18 @@ export class ProcessVideoIPCHandlers {
         intermediateOutput,
       });
 
+      // -- SELECTING_PROMPT --
+      currentStage = WorkflowProgressStage.SELECTING_PROMPT;
+      workflowManager.createCheckpoint(WorkflowProgressStage.SELECTING_PROMPT, {
+        filePath,
+        transcript,
+        transcriptText,
+        mp3FilePath,
+        youtubeResult,
+        intermediateOutput,
+      });
       workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
+      FaultInjection.checkAndThrow("selecting_prompt", workflowManager);
 
       // Select project prompt based on transcript
       const projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
@@ -435,7 +512,7 @@ export class ProcessVideoIPCHandlers {
 
       workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
 
-      // Create checkpoint for potential retry
+      // Update checkpoint with output
       workflowManager.createCheckpoint(WorkflowProgressStage.SELECTING_PROMPT, {
         filePath,
         transcript,
@@ -456,7 +533,10 @@ export class ProcessVideoIPCHandlers {
         desktopAgentProjectPrompt,
       });
 
+      // -- EXECUTING_TASK --
+      currentStage = WorkflowProgressStage.EXECUTING_TASK;
       workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
+      FaultInjection.checkAndThrow("executing_task", workflowManager);
 
       notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
@@ -468,6 +548,7 @@ export class ProcessVideoIPCHandlers {
       });
 
       const orchestrator = await MCPOrchestrator.getInstanceAsync();
+
       const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
         projectMetaData,
         desktopAgentProjectPrompt,
@@ -477,6 +558,7 @@ export class ProcessVideoIPCHandlers {
       });
 
       const finalOutput = await this.formatFinalResult(mcpResult);
+
       mcpAdapter.complete(mcpResult);
 
       // if user logged in, send work item details to the portal
@@ -512,6 +594,7 @@ export class ProcessVideoIPCHandlers {
               null,
               "in_progress",
             );
+            FaultInjection.checkAndThrow("updating_metadata", workflowManager);
             const metadata = await this.metadataBuilder.build({
               transcript,
               intermediateOutput,
@@ -561,6 +644,13 @@ export class ProcessVideoIPCHandlers {
       return { success: true, youtubeResult, mcpResult };
     } catch (error) {
       const errorMessage = formatAndReportError(error, "video_processing");
+      // Mark the current stage as failed (if not already failed by fault injection)
+      if (currentStage) {
+        const stepState = workflowManager.getStepState(currentStage);
+        if (stepState.status !== "failed") {
+          workflowManager.failStage(currentStage, errorMessage);
+        }
+      }
       notify(ProgressStage.ERROR, { error: errorMessage });
       return { success: false, error: errorMessage };
     } finally {
@@ -638,6 +728,53 @@ export class ProcessVideoIPCHandlers {
 
   // ==================== WORKFLOW RETRY METHODS ====================
 
+  /**
+   * Resolve checkpoint data for a stage by merging data from the stage's own
+   * checkpoint with data from all prior stage checkpoints. This ensures retry
+   * handlers always have access to outputs from earlier stages (e.g. youtubeResult,
+   * mp3FilePath) even if the current stage's checkpoint doesn't explicitly store them.
+   */
+  private resolveCheckpointData(
+    workflowManager: WorkflowStateManager,
+    stage: keyof WorkflowState,
+  ): CheckpointData {
+    const allCheckpoints = workflowManager.getAllCheckpoints();
+    const merged: CheckpointData = {};
+
+    // Merge all prior checkpoints in order, then the current stage's checkpoint last (highest priority)
+    const stageOrder: (keyof WorkflowState)[] = [
+      WorkflowProgressStage.UPLOADING_VIDEO,
+      WorkflowProgressStage.DOWNLOADING_VIDEO,
+      WorkflowProgressStage.CONVERTING_AUDIO,
+      WorkflowProgressStage.TRANSCRIBING,
+      WorkflowProgressStage.ANALYZING_TRANSCRIPT,
+      WorkflowProgressStage.SELECTING_PROMPT,
+      WorkflowProgressStage.EXECUTING_TASK,
+      WorkflowProgressStage.UPDATING_METADATA,
+    ];
+
+    for (const s of stageOrder) {
+      const cp = allCheckpoints.get(s);
+      if (cp) {
+        Object.assign(merged, cp);
+      }
+      if (s === stage) break;
+    }
+
+    const fields = Object.entries(merged)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => {
+        if (typeof v === "string") return `${k}=${v.length > 50 ? `${v.substring(0, 50)}...` : v}`;
+        if (Array.isArray(v)) return `${k}=[${v.length}]`;
+        if (typeof v === "object" && v !== null) return `${k}={...}`;
+        return `${k}=${v}`;
+      })
+      .join(", ");
+    console.log(`[Workflow] resolveCheckpoint(${stage as string}): ${fields || "(empty)"}`);
+
+    return merged;
+  }
+
   private getOrCreateWorkflowManager(shaveId: string): WorkflowStateManager {
     let manager = this.workflowManagers.get(shaveId);
     if (!manager) {
@@ -673,26 +810,17 @@ export class ProcessVideoIPCHandlers {
 
     const workflowManager = this.getOrCreateWorkflowManager(shaveId);
 
-    // Check if retry is allowed
-    if (!workflowManager.canRetry(stage)) {
-      const retryCount = workflowManager.getRetryCount(stage);
-      return {
-        success: false,
-        error: `Maximum retry attempts (${retryCount}/3) reached for stage ${stage}. Please start a new recording.`,
-      };
-    }
-
     // Prepare stage for retry (reset status and subsequent stages)
     const canProceed = workflowManager.prepareStageForRetry(stage);
     if (!canProceed) {
       return {
         success: false,
-        error: `Cannot retry stage ${stage}. It may not be in a failed state or max retries reached.`,
+        error: `Cannot retry stage ${stage}. It may not be in a failed state.`,
       };
     }
 
-    // Get checkpoint data for the stage
-    const checkpoint = workflowManager.getCheckpoint(stage);
+    // Resolve checkpoint data by merging all prior stage checkpoints
+    const checkpoint = this.resolveCheckpointData(workflowManager, stage);
 
     // Route to appropriate retry handler
     switch (stage) {
@@ -850,14 +978,14 @@ export class ProcessVideoIPCHandlers {
 
       workflowManager.completeStage(WorkflowProgressStage.CONVERTING_AUDIO);
 
-      // Create checkpoint and continue
+      // Create checkpoint with complete data
       workflowManager.createCheckpoint(WorkflowProgressStage.CONVERTING_AUDIO, {
         filePath,
         mp3FilePath,
         hasAudio,
+        youtubeResult: checkpoint?.youtubeResult,
       });
 
-      // Get the existing checkpoint data from previous stages
       const existingYoutubeResult = checkpoint?.youtubeResult;
       if (!existingYoutubeResult) {
         throw new Error("Previous stage checkpoint data not found.");
@@ -939,7 +1067,7 @@ export class ProcessVideoIPCHandlers {
 
     try {
       const mp3FilePath = checkpoint?.mp3FilePath;
-      const filePath = checkpoint?.filePath;
+      const filePath = checkpoint?.filePath || this.lastVideoFilePath;
       const youtubeResult = checkpoint?.youtubeResult;
 
       if (!mp3FilePath || !fs.existsSync(mp3FilePath)) {

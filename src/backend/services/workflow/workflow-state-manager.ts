@@ -62,16 +62,13 @@ export class WorkflowStateManager {
 
   /**
    * Prepare a stage for retry by resetting it and all subsequent stages.
-   * Returns true if retry is allowed (under max attempts).
    */
   public prepareStageForRetry(stageKey: keyof WorkflowState): boolean {
-    // Check if retry is allowed
-    if (!this.checkpointService.canRetry(this.shaveId, stageKey)) {
-      return false;
-    }
-
-    // Increment retry count
+    // Increment retry count (for telemetry/logging)
     this.checkpointService.incrementRetryCount(this.shaveId, stageKey);
+    console.log(
+      `[Workflow:${this.shaveId}] RETRY PREPARE ${stageKey as string} attempt=${this.getRetryCount(stageKey)}`,
+    );
 
     // Get the ordered list of stages
     const stageKeys: (keyof WorkflowState)[] = [
@@ -141,13 +138,23 @@ export class WorkflowStateManager {
    */
   public canRetry(stageKey: keyof WorkflowState): boolean {
     const stepState = this.getStepState(stageKey);
-    return stepState.status === "failed" && this.checkpointService.canRetry(this.shaveId, stageKey);
+    return stepState.status === "failed";
   }
 
   /**
    * Create a checkpoint for a stage with its data.
    */
   public createCheckpoint(stageKey: keyof WorkflowState, data: CheckpointData): void {
+    const fields = Object.entries(data)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => {
+        if (typeof v === "string") return `${k}=${v.length > 60 ? `${v.substring(0, 60)}...` : v}`;
+        if (Array.isArray(v)) return `${k}=[${v.length} items]`;
+        if (typeof v === "object" && v !== null) return `${k}={...}`;
+        return `${k}=${v}`;
+      })
+      .join(", ");
+    console.log(`[Workflow:${this.shaveId}] CHECKPOINT ${stageKey as string}: ${fields}`);
     this.checkpointService.createCheckpoint(this.shaveId, stageKey, data);
   }
 
@@ -223,6 +230,8 @@ export class WorkflowStateManager {
     const startTime = Date.now();
     this.stageStartTimes.set(stageKey as string, startTime);
 
+    console.log(`[Workflow:${this.shaveId}] START ${stageKey as string}`);
+
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "in_progress",
@@ -246,6 +255,18 @@ export class WorkflowStateManager {
     const startTime = this.stageStartTimes.get(stageKey as string);
     const duration = startTime ? Date.now() - startTime : undefined;
 
+    const payloadSummary =
+      typeof payload === "string"
+        ? payload.length > 100
+          ? `${payload.substring(0, 100)}...`
+          : payload
+        : payload
+          ? JSON.stringify(payload).substring(0, 200)
+          : "(none)";
+    console.log(
+      `[Workflow:${this.shaveId}] COMPLETE ${stageKey as string} (${duration ?? "?"}ms) payload=${payloadSummary}`,
+    );
+
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "completed",
@@ -265,6 +286,8 @@ export class WorkflowStateManager {
   public skipStage(stageKey: keyof WorkflowState) {
     const startTime = this.stageStartTimes.get(stageKey as string);
     const duration = startTime ? Date.now() - startTime : undefined;
+
+    console.log(`[Workflow:${this.shaveId}] SKIP ${stageKey as string}`);
 
     this.state[stageKey] = {
       ...this.state[stageKey],
@@ -289,10 +312,17 @@ export class WorkflowStateManager {
     const startTime = this.stageStartTimes.get(stageKey as string);
     const duration = startTime ? Date.now() - startTime : undefined;
 
+    console.error(
+      `[Workflow:${this.shaveId}] FAILED ${stageKey as string} (${duration ?? "?"}ms) retryCount=${this.getRetryCount(stageKey)} error=${errorMessage}`,
+    );
+
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "failed",
-      payload: JSON.stringify({ error: errorMessage }),
+      payload: JSON.stringify({
+        error: errorMessage,
+        retryCount: this.getRetryCount(stageKey),
+      }),
     };
 
     this.telemetryService.trackWorkflowStage({

@@ -154,19 +154,26 @@ export class YouTubeClient {
       }
 
       const youtube = google.youtube({ version: "v3", auth: client });
-      const response = await youtube.videos.insert({
-        part: ["snippet", "status"],
-        requestBody: {
-          snippet: {
-            title: "Uploaded Video",
-            description: "Video uploaded via Desktop Electron App",
-            tags: ["electron", "upload"],
-            categoryId: "28",
+      const fileStream = createReadStream(videoPath);
+      // biome-ignore lint/suspicious/noExplicitAny: Google API return type is complex
+      let response: any;
+      try {
+        response = await youtube.videos.insert({
+          part: ["snippet", "status"],
+          requestBody: {
+            snippet: {
+              title: "Uploaded Video",
+              description: "Video uploaded via Desktop Electron App",
+              tags: ["electron", "upload"],
+              categoryId: "28",
+            },
+            status: { privacyStatus: "unlisted" },
           },
-          status: { privacyStatus: "unlisted" },
-        },
-        media: { body: createReadStream(videoPath) },
-      });
+          media: { body: fileStream },
+        });
+      } finally {
+        fileStream.destroy();
+      }
 
       const { id: videoId, snippet } = response.data;
 
