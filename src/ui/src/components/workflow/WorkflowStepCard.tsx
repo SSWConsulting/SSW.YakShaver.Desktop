@@ -70,7 +70,7 @@ function extractErrorMessage(payload: unknown): string | null {
     if (typeof payload.message === "string") return payload.message;
     if (payload.error) return JSON.stringify(payload.error, null, 2);
   }
-  return String(payload);
+  return JSON.stringify(payload, null, 2);
 }
 
 interface WorkflowStepCardProps {
@@ -83,21 +83,35 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
   const [isExpanded, setIsExpanded] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
-  const { hasPayload, parsedPayload, hasStepErrors } = useMemo(() => {
-    if (!step.payload) return { hasPayload: false, parsedPayload: null, hasStepErrors: false };
+  const { hasPayload, parsedPayload, hasStepErrors, hasStructuredSteps } = useMemo(() => {
+    if (!step.payload)
+      return { hasPayload: false, parsedPayload: null, hasStepErrors: false, hasStructuredSteps: false };
 
     try {
       const parsed = JSON.parse(step.payload);
       const isValid =
         parsed !== null && (typeof parsed === "object" ? Object.keys(parsed).length > 0 : true);
 
+      const structuredSteps =
+        isValid &&
+        step.stage === "executing_task" &&
+        typeof parsed === "object" &&
+        parsed !== null &&
+        Array.isArray((parsed as Record<string, unknown>).steps);
+
       return {
         hasPayload: isValid,
         parsedPayload: parsed,
         hasStepErrors: isValid && hasExecutingTaskErrors(step.stage, parsed),
+        hasStructuredSteps: structuredSteps,
       };
     } catch {
-      return { hasPayload: !!step.payload, parsedPayload: step.payload, hasStepErrors: false };
+      return {
+        hasPayload: !!step.payload,
+        parsedPayload: step.payload,
+        hasStepErrors: false,
+        hasStructuredSteps: false,
+      };
     }
   }, [step.payload, step.stage]);
 
@@ -170,7 +184,7 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             <span className={cn("font-medium", config.textClass)}>{label}</span>
           </div>
         )}
-        {isFailed && shaveId && (
+        {step.status === "failed" && shaveId && (
           <Button
             size="sm"
             variant="ghost"
@@ -190,8 +204,15 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
         )}
       </div>
 
-      {/* Error message area below */}
-      {isFailed && errorMessage && (
+      {/* Error content area — always visible for failed cards */}
+      {isFailed && hasStructuredSteps && hasPayload && (
+        <CardContent className="p-0 pt-2">
+          <div className="overflow-x-auto rounded bg-black/20 p-2 text-white/80">
+            <StageWithContent stage={step.stage} payload={parsedPayload} />
+          </div>
+        </CardContent>
+      )}
+      {isFailed && !hasStructuredSteps && errorMessage && (
         <CardContent className="p-0 pt-2">
           <div className="rounded bg-black/20 p-3 text-sm">
             <p className="text-red-400">An error occurred. Please check the details below.</p>
@@ -206,7 +227,7 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
       {isExpanded && isExpandable && hasPayload && (
         <CardContent className="p-0 pt-2">
           <div className="overflow-x-auto rounded bg-black/20 p-2 text-white/80">
-            <StageWithContent stage={step.stage} payload={parsedPayload} isError={false} />
+            <StageWithContent stage={step.stage} payload={parsedPayload} />
           </div>
         </CardContent>
       )}

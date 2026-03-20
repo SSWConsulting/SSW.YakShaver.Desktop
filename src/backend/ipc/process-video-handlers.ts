@@ -657,7 +657,7 @@ export class ProcessVideoIPCHandlers {
       });
 
       // Clean up temp files and mark DB records on successful completion
-      this.cleanupTempFiles(shaveId);
+      await this.cleanupTempFiles(shaveId);
 
       const workflowId = workflowManager.getWorkflowId();
       return { success: true, youtubeResult, mcpResult, workflowId };

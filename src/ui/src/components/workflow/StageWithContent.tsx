@@ -7,7 +7,6 @@ import { ReasoningStep } from "./ReasoningStep";
 interface StageWithContentProps {
   stage: string;
   payload: unknown;
-  isError?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -178,26 +177,9 @@ function ToolCallStep({
   );
 }
 
-export function StageWithContent({ stage, payload, isError }: StageWithContentProps) {
+export function StageWithContent({ stage, payload }: StageWithContentProps) {
   // If no payload or empty object, nothing to render
   if (!payload) return null;
-
-  if (isError) {
-    return (
-      <div className="p-3 bg-red-500/10 rounded text-red-400 text-sm">
-        An error occurred during this stage. Please check the details below.
-        <div className="mt-2 p-2 bg-black/20 rounded">
-          <pre className="text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
-            {typeof payload === "string"
-              ? payload
-              : isRecord(payload) && payload.error
-                ? JSON.stringify(payload.error, null, 2)
-                : String(payload)}
-          </pre>
-        </div>
-      </div>
-    );
-  }
 
   // Handing executing_task (MCP Steps)
   if (stage === "executing_task" && isRecord(payload) && Array.isArray(payload.steps)) {
@@ -229,7 +211,7 @@ export function StageWithContent({ stage, payload, isError }: StageWithContentPr
               }
             >
               {step.type === MCPStepType.START && (
-                <div className="text-secondary font-medium flex items-center gap-2">
+                <div className="font-medium flex items-center gap-2">
                   <Play className="w-4 h-4" />
                   {step.message || "Start task execution"}
                 </div>

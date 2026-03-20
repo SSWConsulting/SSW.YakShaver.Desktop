@@ -1,6 +1,7 @@
 import type { LLMConfigV2 } from "@shared/types/llm";
 import type { TelemetrySettings } from "@shared/types/telemetry";
 import type { UserSettings } from "@shared/types/user-settings";
+import type { WorkflowState } from "@shared/types/workflow";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
@@ -106,13 +107,19 @@ declare global {
         onProgress: (callback: (progress: unknown) => void) => () => void;
         onProgressNeo: (callback: (progress: unknown) => void) => () => void;
         retryFromStage: (
-          stage: string,
+          stage: keyof WorkflowState,
           shaveId?: string,
-        ) => Promise<{ success: boolean; error?: string }>;
+        ) => Promise<{
+          success: boolean;
+          error?: string;
+          workflowId?: string;
+          youtubeResult?: unknown;
+          mcpResult?: string;
+        }>;
         getRetryStatus: (shaveId: string) => Promise<{
           success: boolean;
           stages?: Array<{
-            stage: string;
+            stage: keyof WorkflowState;
             lastError?: string;
           }>;
           error?: string;
