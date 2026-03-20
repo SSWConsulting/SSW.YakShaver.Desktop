@@ -185,7 +185,10 @@ export class ProcessVideoIPCHandlers {
           return { success: false, error: `Invalid stage: ${stage}` };
         }
         if (shaveId && this.activeWorkflows.has(shaveId)) {
-          return { success: false, error: "The workflow is still running. Please wait for it to finish." };
+          return {
+            success: false,
+            error: "The workflow is still running. Please wait for it to finish.",
+          };
         }
         if (shaveId && this.activeRetries.has(shaveId)) {
           return { success: false, error: "A retry is already in progress for this workflow." };
@@ -261,67 +264,70 @@ export class ProcessVideoIPCHandlers {
 
     this.activeWorkflows.add(effectiveShaveId);
     try {
-    const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
-    this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
+      const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
+      this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
 
-    this.lastVideoFilePath = filePath;
-    this.trackTempFile(filePath, effectiveShaveId);
+      this.lastVideoFilePath = filePath;
+      this.trackTempFile(filePath, effectiveShaveId);
 
-    workflowManager.startStage(WorkflowProgressStage.UPLOADING_VIDEO);
-    workflowManager.skipStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+      workflowManager.startStage(WorkflowProgressStage.UPLOADING_VIDEO);
+      workflowManager.skipStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
 
-    // Save checkpoint before upload so retry can find the file path
-    workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
-      filePath,
-    });
-
-    // Get video source info for duration if shaveId exists
-    let duration: number | undefined;
-    if (shaveId) {
-      const shaveService = ShaveService.getInstance();
-      const videoSource = shaveService.getShaveVideoSourceInfo(shaveId);
-      duration = videoSource?.durationSeconds ?? undefined;
-    }
-
-    // upload to YouTube
-    notify(ProgressStage.UPLOADING_SOURCE, {
-      sourceOrigin: "upload",
-    });
-
-    try {
-      const youtubeResult = await this.youtube.uploadVideo(filePath);
-
-      if (youtubeResult.success && youtubeResult.data && duration) {
-        youtubeResult.data.duration = duration;
-      }
-
-      workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, youtubeResult.data?.url);
-
-      // Update checkpoint with upload result
+      // Save checkpoint before upload so retry can find the file path
       workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
         filePath,
-        youtubeResult,
       });
 
-      notify(ProgressStage.UPLOAD_COMPLETED, {
-        uploadResult: youtubeResult,
-        sourceOrigin: youtubeResult.origin,
+      // Get video source info for duration if shaveId exists
+      let duration: number | undefined;
+      if (shaveId) {
+        const shaveService = ShaveService.getInstance();
+        const videoSource = shaveService.getShaveVideoSourceInfo(shaveId);
+        duration = videoSource?.durationSeconds ?? undefined;
+      }
+
+      // upload to YouTube
+      notify(ProgressStage.UPLOADING_SOURCE, {
+        sourceOrigin: "upload",
       });
 
-      return await this.processVideoSource(
-        {
+      try {
+        const youtubeResult = await this.youtube.uploadVideo(filePath);
+
+        if (youtubeResult.success && youtubeResult.data && duration) {
+          youtubeResult.data.duration = duration;
+        }
+
+        workflowManager.completeStage(
+          WorkflowProgressStage.UPLOADING_VIDEO,
+          youtubeResult.data?.url,
+        );
+
+        // Update checkpoint with upload result
+        workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
           filePath,
           youtubeResult,
-          shaveId: effectiveShaveId,
-          shaveAutoApprove,
-        },
-        workflowManager,
-      );
-    } catch (uploadError) {
-      const errorMessage = formatAndReportError(uploadError, "video_upload");
-      workflowManager.failStage(WorkflowProgressStage.UPLOADING_VIDEO, errorMessage);
-      return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
-    }
+        });
+
+        notify(ProgressStage.UPLOAD_COMPLETED, {
+          uploadResult: youtubeResult,
+          sourceOrigin: youtubeResult.origin,
+        });
+
+        return await this.processVideoSource(
+          {
+            filePath,
+            youtubeResult,
+            shaveId: effectiveShaveId,
+            shaveAutoApprove,
+          },
+          workflowManager,
+        );
+      } catch (uploadError) {
+        const errorMessage = formatAndReportError(uploadError, "video_upload");
+        workflowManager.failStage(WorkflowProgressStage.UPLOADING_VIDEO, errorMessage);
+        return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
+      }
     } finally {
       this.activeWorkflows.delete(effectiveShaveId);
     }
