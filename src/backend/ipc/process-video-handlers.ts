@@ -95,9 +95,10 @@ export class ProcessVideoIPCHandlers {
       },
     );
 
-    // Retry video pipeline
+    // Re-execute: user-initiated re-run from SELECTING_PROMPT with modified input after a successful workflow.
+    // Different from WORKFLOW_RETRY_FROM_STAGE which resumes from a failed checkpoint.
     ipcMain.handle(
-      IPC_CHANNELS.RETRY_VIDEO,
+      IPC_CHANNELS.RERUN_TASK,
       async (
         _event: IpcMainInvokeEvent,
         intermediateOutput: string,
@@ -158,14 +159,15 @@ export class ProcessVideoIPCHandlers {
           });
           return { success: true, finalOutput };
         } catch (error) {
-          const errorMessage = formatAndReportError(error, "retry_video_processing");
+          const errorMessage = formatAndReportError(error, "rerun_task");
           notify(ProgressStage.ERROR, { error: errorMessage });
           return { success: false, error: errorMessage };
         }
       },
     );
 
-    // Retry from a specific failed stage
+    // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
+    // Different from RERUN_TASK which is a user-initiated re-execution after success.
     ipcMain.handle(
       IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE,
       async (_event: IpcMainInvokeEvent, stage: keyof WorkflowState, shaveId?: string) => {

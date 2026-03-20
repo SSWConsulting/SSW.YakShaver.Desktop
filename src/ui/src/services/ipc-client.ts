@@ -37,7 +37,7 @@ declare global {
       pipelines: {
         processVideoFile: (filePath: string, shaveId?: string) => Promise<void>;
         processVideoUrl: (url: string, shaveId?: string) => Promise<void>;
-        retryVideo: (
+        rerunTask: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
           shaveId?: string,
