@@ -63,18 +63,9 @@ export interface CheckpointData {
   };
 }
 
-export interface RetryStatus {
-  stage: keyof WorkflowState;
-  count: number;
-  maxReached: boolean;
-  lastError?: string;
-  lastAttemptAt?: number;
-}
-
 export class WorkflowCheckpointService {
   private static instance: WorkflowCheckpointService;
   private checkpoints: Map<string, WorkflowCheckpoint> = new Map();
-  private retryCounts: Map<string, number> = new Map();
 
   private constructor() {}
 
@@ -126,85 +117,14 @@ export class WorkflowCheckpointService {
   }
 
   /**
-   * Increment retry count for a stage
-   */
-  public incrementRetryCount(shaveId: string, stage: keyof WorkflowState): number {
-    const key = this.getKey(shaveId, stage);
-    const currentCount = this.retryCounts.get(key) || 0;
-    const newCount = currentCount + 1;
-    this.retryCounts.set(key, newCount);
-    return newCount;
-  }
-
-  /**
-   * Get current retry count for a stage
-   */
-  public getRetryCount(shaveId: string, stage: keyof WorkflowState): number {
-    const key = this.getKey(shaveId, stage);
-    return this.retryCounts.get(key) || 0;
-  }
-
-  /**
-   * Get retry status for a stage
-   */
-  public getRetryStatus(
-    shaveId: string,
-    stage: keyof WorkflowState,
-    lastError?: string,
-  ): RetryStatus {
-    const count = this.getRetryCount(shaveId, stage);
-    const checkpoint = this.checkpoints.get(this.getKey(shaveId, stage));
-
-    return {
-      stage,
-      count,
-      maxReached: false,
-      lastError,
-      lastAttemptAt: checkpoint?.timestamp,
-    };
-  }
-
-  /**
-   * Check if retry is allowed for a stage
-   */
-  public canRetry(_shaveId: string, _stage: keyof WorkflowState): boolean {
-    return true;
-  }
-
-  /**
-   * Get all retry statuses for a workflow
-   */
-  public getAllRetryStatuses(shaveId: string): RetryStatus[] {
-    const statuses: RetryStatus[] = [];
-    const prefix = `${shaveId}:`;
-
-    for (const key of this.retryCounts.keys()) {
-      if (key.startsWith(prefix)) {
-        const stage = key.split(":")[1] as keyof WorkflowState;
-        statuses.push(this.getRetryStatus(shaveId, stage));
-      }
-    }
-
-    return statuses;
-  }
-
-  /**
-   * Clear all checkpoints and retry counts for a workflow
+   * Clear all checkpoints for a workflow
    */
   public clearAll(shaveId: string): void {
     const prefix = `${shaveId}:`;
 
-    // Remove checkpoints
     for (const key of this.checkpoints.keys()) {
       if (key.startsWith(prefix)) {
         this.checkpoints.delete(key);
-      }
-    }
-
-    // Remove retry counts
-    for (const key of this.retryCounts.keys()) {
-      if (key.startsWith(prefix)) {
-        this.retryCounts.delete(key);
       }
     }
   }
@@ -215,14 +135,5 @@ export class WorkflowCheckpointService {
   public clearCheckpoint(shaveId: string, stage: keyof WorkflowState): void {
     const key = this.getKey(shaveId, stage);
     this.checkpoints.delete(key);
-    this.retryCounts.delete(key);
-  }
-
-  /**
-   * Reset retry count for a stage
-   */
-  public resetRetryCount(shaveId: string, stage: keyof WorkflowState): void {
-    const key = this.getKey(shaveId, stage);
-    this.retryCounts.delete(key);
   }
 }

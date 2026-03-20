@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import {
   ProgressStage as WorkflowProgressStage,
+  WORKFLOW_STAGE_ORDER,
   type WorkflowState,
 } from "../../../shared/types/workflow";
 import { ProgressStage } from "../../types";
@@ -35,7 +36,7 @@ export interface WorkflowRetryDeps {
     startFromStage?: keyof WorkflowState,
   ) => Promise<RetryResult>;
   emitProgress: (stage: string, data?: Record<string, unknown>, shaveId?: string) => void;
-  trackTempFile: (path: string) => void;
+  trackTempFile: (path: string, shaveId?: string) => void;
   getLastVideoFilePath: () => string | undefined;
   getOrCreateWorkflowManager: (shaveId: string) => WorkflowStateManager;
 }
@@ -53,18 +54,7 @@ export function resolveCheckpointData(
   const allCheckpoints = workflowManager.getAllCheckpoints();
   const merged: CheckpointData = {};
 
-  const stageOrder: (keyof WorkflowState)[] = [
-    WorkflowProgressStage.UPLOADING_VIDEO,
-    WorkflowProgressStage.DOWNLOADING_VIDEO,
-    WorkflowProgressStage.CONVERTING_AUDIO,
-    WorkflowProgressStage.TRANSCRIBING,
-    WorkflowProgressStage.ANALYZING_TRANSCRIPT,
-    WorkflowProgressStage.SELECTING_PROMPT,
-    WorkflowProgressStage.EXECUTING_TASK,
-    WorkflowProgressStage.UPDATING_METADATA,
-  ];
-
-  for (const s of stageOrder) {
+  for (const s of WORKFLOW_STAGE_ORDER) {
     const cp = allCheckpoints.get(s);
     if (cp) {
       Object.assign(merged, cp);
@@ -119,27 +109,18 @@ export function validateCheckpointData(
   }
 
   // Find the earliest stage that produces a missing field
-  const STAGE_ORDER: (keyof WorkflowState)[] = [
-    WorkflowProgressStage.CONVERTING_AUDIO,
-    WorkflowProgressStage.TRANSCRIBING,
-    WorkflowProgressStage.ANALYZING_TRANSCRIPT,
-    WorkflowProgressStage.SELECTING_PROMPT,
-    WorkflowProgressStage.EXECUTING_TASK,
-    WorkflowProgressStage.UPDATING_METADATA,
-  ];
-
-  let earliestIdx = STAGE_ORDER.length;
+  let earliestIdx = WORKFLOW_STAGE_ORDER.length;
   for (const field of missing) {
     const producer = FIELD_PRODUCED_BY[field as keyof CheckpointData];
     if (producer) {
-      const idx = STAGE_ORDER.indexOf(producer);
+      const idx = WORKFLOW_STAGE_ORDER.indexOf(producer);
       if (idx < earliestIdx) {
         earliestIdx = idx;
       }
     }
   }
 
-  const suggestedStage = earliestIdx < STAGE_ORDER.length ? STAGE_ORDER[earliestIdx] : undefined;
+  const suggestedStage = earliestIdx < WORKFLOW_STAGE_ORDER.length ? WORKFLOW_STAGE_ORDER[earliestIdx] : undefined;
 
   return { valid: false, missing, suggestedStage };
 }
@@ -216,7 +197,7 @@ export class WorkflowRetryService {
         youtubeResult,
       });
 
-      this.deps.trackTempFile(filePath);
+      this.deps.trackTempFile(filePath, shaveId);
 
       return this.deps.processVideoSource({ filePath, youtubeResult, shaveId }, workflowManager);
     } catch (error) {
@@ -252,7 +233,7 @@ export class WorkflowRetryService {
       );
 
       const filePath = await this.deps.youtubeDownloadService.downloadVideoToFile(downloadUrl);
-      this.deps.trackTempFile(filePath);
+      this.deps.trackTempFile(filePath, shaveId);
 
       workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
 

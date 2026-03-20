@@ -21,6 +21,21 @@ export interface WorkflowStep {
   status: WorkflowStatus;
 }
 
+/**
+ * Canonical ordering of all workflow stages.
+ * Import this instead of duplicating the list in each file.
+ */
+export const WORKFLOW_STAGE_ORDER: (keyof WorkflowState)[] = [
+  ProgressStage.UPLOADING_VIDEO,
+  ProgressStage.DOWNLOADING_VIDEO,
+  ProgressStage.CONVERTING_AUDIO,
+  ProgressStage.TRANSCRIBING,
+  ProgressStage.ANALYZING_TRANSCRIPT,
+  ProgressStage.SELECTING_PROMPT,
+  ProgressStage.EXECUTING_TASK,
+  ProgressStage.UPDATING_METADATA,
+];
+
 // DTO to hold all the workflow states
 export interface WorkflowState {
   uploading_video: WorkflowStep;

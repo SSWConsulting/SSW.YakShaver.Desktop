@@ -113,8 +113,6 @@ declare global {
           success: boolean;
           stages?: Array<{
             stage: string;
-            retryCount: number;
-            maxReached: boolean;
             lastError?: string;
           }>;
           error?: string;

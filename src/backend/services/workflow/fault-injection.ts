@@ -30,27 +30,16 @@
  *   5. To clear: FaultInjection.clear() or unset the env var.
  */
 
-import type { WorkflowState } from "../../../shared/types/workflow";
+import { WORKFLOW_STAGE_ORDER, type WorkflowState } from "../../../shared/types/workflow";
 import type { WorkflowStateManager } from "./workflow-state-manager";
-
-const VALID_STAGES: (keyof WorkflowState)[] = [
-  "uploading_video",
-  "downloading_video",
-  "converting_audio",
-  "transcribing",
-  "analyzing_transcript",
-  "selecting_prompt",
-  "executing_task",
-  "updating_metadata",
-];
 
 let _failAtStage: keyof WorkflowState | null = null;
 let _failOnRetry = false;
 
 function setFailAtStage(stage: keyof WorkflowState | null): void {
-  if (stage && !VALID_STAGES.includes(stage)) {
+  if (stage && !WORKFLOW_STAGE_ORDER.includes(stage)) {
     console.warn(
-      `[FaultInjection] Invalid stage "${stage}". Valid stages: ${VALID_STAGES.join(", ")}`,
+      `[FaultInjection] Invalid stage "${stage}". Valid stages: ${WORKFLOW_STAGE_ORDER.join(", ")}`,
     );
     return;
   }
@@ -77,7 +66,7 @@ function getFailAtStage(): keyof WorkflowState | null {
   }
 
   const envStage = process.env.WORKFLOW_FAIL_AT_STAGE;
-  if (envStage && VALID_STAGES.includes(envStage as keyof WorkflowState)) {
+  if (envStage && WORKFLOW_STAGE_ORDER.includes(envStage as keyof WorkflowState)) {
     return envStage as keyof WorkflowState;
   }
 

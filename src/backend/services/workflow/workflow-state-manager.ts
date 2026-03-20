@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import {
   ProgressStage,
+  WORKFLOW_STAGE_ORDER,
   type WorkflowState,
   type WorkflowStatus,
   type WorkflowStep,
@@ -64,28 +65,16 @@ export class WorkflowStateManager {
    * Prepare a stage for retry by resetting it and all subsequent stages.
    */
   public prepareStageForRetry(stageKey: keyof WorkflowState): boolean {
-    this.checkpointService.incrementRetryCount(this.shaveId, stageKey);
+    if (this.state[stageKey].status !== "failed") return false;
 
-    // Get the ordered list of stages
-    const stageKeys: (keyof WorkflowState)[] = [
-      ProgressStage.UPLOADING_VIDEO,
-      ProgressStage.DOWNLOADING_VIDEO,
-      ProgressStage.CONVERTING_AUDIO,
-      ProgressStage.TRANSCRIBING,
-      ProgressStage.ANALYZING_TRANSCRIPT,
-      ProgressStage.SELECTING_PROMPT,
-      ProgressStage.EXECUTING_TASK,
-      ProgressStage.UPDATING_METADATA,
-    ];
-
-    const stageIndex = stageKeys.indexOf(stageKey);
+    const stageIndex = WORKFLOW_STAGE_ORDER.indexOf(stageKey);
     if (stageIndex === -1) {
       return false;
     }
 
     // Reset current and all subsequent stages to "not_started"
-    for (let i = stageIndex; i < stageKeys.length; i++) {
-      const key = stageKeys[i];
+    for (let i = stageIndex; i < WORKFLOW_STAGE_ORDER.length; i++) {
+      const key = WORKFLOW_STAGE_ORDER[i];
       // Keep prior stages as completed, reset current and later ones
       if (this.state[key].status !== "skipped") {
         this.state[key] = {
@@ -101,40 +90,11 @@ export class WorkflowStateManager {
       properties: {
         workflowId: this.shaveId,
         stage: stageKey as string,
-        attemptNumber: this.getRetryCount(stageKey),
       },
     });
 
     this.broadcast();
     return true;
-  }
-
-  /**
-   * Get the number of retry attempts for a stage.
-   */
-  public getRetryCount(stageKey: keyof WorkflowState): number {
-    return this.checkpointService.getRetryCount(this.shaveId, stageKey);
-  }
-
-  /**
-   * Get retry status including count and whether max is reached.
-   */
-  public getRetryStatus(stageKey: keyof WorkflowState) {
-    const stepState = this.getStepState(stageKey);
-    const lastError =
-      stepState.status === "failed" && stepState.payload
-        ? (JSON.parse(stepState.payload).error as string)
-        : undefined;
-
-    return this.checkpointService.getRetryStatus(this.shaveId, stageKey, lastError);
-  }
-
-  /**
-   * Check if a stage can be retried.
-   */
-  public canRetry(stageKey: keyof WorkflowState): boolean {
-    const stepState = this.getStepState(stageKey);
-    return stepState.status === "failed";
   }
 
   /**
@@ -170,37 +130,23 @@ export class WorkflowStateManager {
    */
   public getRetryableFailedStages(): Array<{
     stage: keyof WorkflowState;
-    retryCount: number;
-    maxReached: boolean;
     lastError?: string;
   }> {
     const failed: Array<{
       stage: keyof WorkflowState;
-      retryCount: number;
-      maxReached: boolean;
       lastError?: string;
     }> = [];
 
-    const stageKeys: (keyof WorkflowState)[] = [
-      ProgressStage.UPLOADING_VIDEO,
-      ProgressStage.DOWNLOADING_VIDEO,
-      ProgressStage.CONVERTING_AUDIO,
-      ProgressStage.TRANSCRIBING,
-      ProgressStage.ANALYZING_TRANSCRIPT,
-      ProgressStage.SELECTING_PROMPT,
-      ProgressStage.EXECUTING_TASK,
-      ProgressStage.UPDATING_METADATA,
-    ];
-
-    for (const stage of stageKeys) {
+    for (const stage of WORKFLOW_STAGE_ORDER) {
       const stepState = this.getStepState(stage);
       if (stepState.status === "failed") {
-        const status = this.getRetryStatus(stage);
+        const lastError =
+          stepState.payload
+            ? (JSON.parse(stepState.payload).error as string)
+            : undefined;
         failed.push({
           stage,
-          retryCount: status.count,
-          maxReached: status.maxReached,
-          lastError: status.lastError,
+          lastError,
         });
       }
     }
@@ -287,7 +233,6 @@ export class WorkflowStateManager {
       status: "failed",
       payload: JSON.stringify({
         error: errorMessage,
-        retryCount: this.getRetryCount(stageKey),
       }),
     };
 
@@ -306,7 +251,6 @@ export class WorkflowStateManager {
       additionalProperties: {
         stage: stageKey as string,
         duration: duration?.toString() ?? "unknown",
-        retryCount: this.getRetryCount(stageKey).toString(),
       },
     });
 

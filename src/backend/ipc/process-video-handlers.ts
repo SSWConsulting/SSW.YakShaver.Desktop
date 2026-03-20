@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { TranscriptSegment } from "../../shared/types/transcript";
 import {
   ProgressStage as WorkflowProgressStage,
+  WORKFLOW_STAGE_ORDER,
   type WorkflowState,
 } from "../../shared/types/workflow";
 import { INITIAL_SUMMARY_PROMPT, TASK_EXECUTION_PROMPT } from "../constants/prompts";
@@ -55,9 +56,10 @@ export class ProcessVideoIPCHandlers {
   private readonly metadataBuilder: VideoMetadataBuilder;
   private readonly youtubeDownloadService = YouTubeDownloadService.getInstance();
   private lastVideoFilePath: string | undefined;
-  private tempFilesToCleanup: string[] = [];
+  private tempFilesToCleanup: Map<string, string[]> = new Map();
   private workflowManagers: Map<string, WorkflowStateManager> = new Map();
   private readonly retryService: WorkflowRetryService;
+  private activeRetries: Set<string> = new Set();
 
   constructor() {
     this.metadataBuilder = new VideoMetadataBuilder();
@@ -176,11 +178,18 @@ export class ProcessVideoIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE,
       async (_event: IpcMainInvokeEvent, stage: keyof WorkflowState, shaveId?: string) => {
+        if (shaveId && this.activeRetries.has(shaveId)) {
+          return { success: false, error: "A retry is already in progress for this workflow." };
+        }
+
+        if (shaveId) this.activeRetries.add(shaveId);
         try {
           return await this.retryService.retryFromStage(stage, shaveId);
         } catch (error) {
           const errorMessage = formatAndReportError(error, "retry_from_stage");
           return { success: false, error: errorMessage };
+        } finally {
+          if (shaveId) this.activeRetries.delete(shaveId);
         }
       },
     );
@@ -216,7 +225,7 @@ export class ProcessVideoIPCHandlers {
         if (workflowManager) {
           workflowManager.clearAllCheckpoints();
         }
-        this.cleanupTempFiles(shaveId);
+        await this.cleanupTempFiles(shaveId);
         return { success: true };
       } catch (error) {
         const errorMessage = formatAndReportError(error, "cancel_retry");
@@ -256,11 +265,12 @@ export class ProcessVideoIPCHandlers {
       throw new Error("video-process-handler: Video file does not exist");
     }
 
-    const workflowManager = this.getOrCreateWorkflowManager(shaveId || crypto.randomUUID());
+    const effectiveShaveId = shaveId || crypto.randomUUID();
+    const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
     this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
 
     this.lastVideoFilePath = filePath;
-    this.trackTempFile(filePath);
+    this.trackTempFile(filePath, effectiveShaveId);
 
     workflowManager.startStage(WorkflowProgressStage.UPLOADING_VIDEO);
     workflowManager.skipStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
@@ -325,7 +335,8 @@ export class ProcessVideoIPCHandlers {
       this.emitProgress(stage, data, shaveId);
     };
 
-    const workflowManager = this.getOrCreateWorkflowManager(shaveId || crypto.randomUUID());
+    const effectiveShaveId = shaveId || crypto.randomUUID();
+    const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
     this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
 
     workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);
@@ -348,7 +359,7 @@ export class ProcessVideoIPCHandlers {
         sourceOrigin: "external",
       });
       const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
-      this.trackTempFile(filePath);
+      this.trackTempFile(filePath, effectiveShaveId);
       this.lastVideoFilePath = filePath;
 
       workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
@@ -389,20 +400,12 @@ export class ProcessVideoIPCHandlers {
       this.emitProgress(stage, data, shaveId);
     };
 
-    // Stage ordering within this method (upload/download handled by callers)
-    const STAGES_IN_ORDER: (keyof WorkflowState)[] = [
-      WorkflowProgressStage.CONVERTING_AUDIO,
-      WorkflowProgressStage.TRANSCRIBING,
-      WorkflowProgressStage.ANALYZING_TRANSCRIPT,
-      WorkflowProgressStage.SELECTING_PROMPT,
-      WorkflowProgressStage.EXECUTING_TASK,
-      WorkflowProgressStage.UPDATING_METADATA,
-    ];
-
-    const startIdx = startFromStage ? Math.max(0, STAGES_IN_ORDER.indexOf(startFromStage)) : 0;
+    const startIdx = startFromStage
+      ? Math.max(0, WORKFLOW_STAGE_ORDER.indexOf(startFromStage))
+      : 0;
 
     const shouldRunStage = (stage: keyof WorkflowState) =>
-      STAGES_IN_ORDER.indexOf(stage) >= startIdx;
+      WORKFLOW_STAGE_ORDER.indexOf(stage) >= startIdx;
 
     const isRetry = startFromStage !== undefined;
 
@@ -465,7 +468,7 @@ export class ProcessVideoIPCHandlers {
         }
 
         mp3FilePath = await this.convertVideoToMp3(filePath);
-        this.trackTempFile(mp3FilePath);
+        this.trackTempFile(mp3FilePath, shaveId);
 
         workflowManager.completeStage(WorkflowProgressStage.CONVERTING_AUDIO);
         workflowManager.createCheckpoint(WorkflowProgressStage.CONVERTING_AUDIO, {
@@ -763,32 +766,76 @@ export class ProcessVideoIPCHandlers {
       });
   }
 
+  private static readonly MAX_FAILED_WORKFLOW_MANAGERS = 100;
+
   private getOrCreateWorkflowManager(shaveId: string): WorkflowStateManager {
     let manager = this.workflowManagers.get(shaveId);
     if (!manager) {
+      this.evictStaleWorkflowManagers();
       manager = new WorkflowStateManager(shaveId);
       this.workflowManagers.set(shaveId, manager);
     }
     return manager;
   }
 
-  private trackTempFile(filePath: string): void {
-    if (!this.tempFilesToCleanup.includes(filePath)) {
-      this.tempFilesToCleanup.push(filePath);
+  /**
+   * Evict completed workflows immediately (they don't need retry).
+   * If failed workflows exceed the limit, evict the oldest ones.
+   */
+  private evictStaleWorkflowManagers(): void {
+    const failedKeys: string[] = [];
+
+    for (const [key, mgr] of this.workflowManagers.entries()) {
+      const state = mgr.getState();
+      const hasFailed = WORKFLOW_STAGE_ORDER.some((s) => state[s].status === "failed");
+
+      if (hasFailed) {
+        failedKeys.push(key);
+      } else {
+        // Completed or in-progress-but-stale — safe to evict
+        const hasInProgress = WORKFLOW_STAGE_ORDER.some((s) => state[s].status === "in_progress");
+        if (!hasInProgress) {
+          mgr.clearAllCheckpoints();
+          this.workflowManagers.delete(key);
+          this.tempFilesToCleanup.delete(key);
+        }
+      }
+    }
+
+    // If too many failed workflows, evict oldest
+    while (failedKeys.length > ProcessVideoIPCHandlers.MAX_FAILED_WORKFLOW_MANAGERS) {
+      const oldestKey = failedKeys.shift();
+      if (oldestKey) {
+        const oldManager = this.workflowManagers.get(oldestKey);
+        oldManager?.clearAllCheckpoints();
+        this.workflowManagers.delete(oldestKey);
+        this.tempFilesToCleanup.delete(oldestKey);
+      }
     }
   }
 
-  private cleanupTempFiles(shaveId?: string): void {
-    for (const filePath of this.tempFilesToCleanup) {
+  private trackTempFile(filePath: string, shaveId?: string): void {
+    const key = shaveId ?? "_global";
+    const files = this.tempFilesToCleanup.get(key) ?? [];
+    if (!files.includes(filePath)) {
+      files.push(filePath);
+      this.tempFilesToCleanup.set(key, files);
+    }
+  }
+
+  private async cleanupTempFiles(shaveId?: string): Promise<void> {
+    const key = shaveId ?? "_global";
+    const files = this.tempFilesToCleanup.get(key) ?? [];
+
+    for (const filePath of files) {
       try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
+        await fs.promises.access(filePath);
+        await fs.promises.unlink(filePath);
       } catch (error) {
         console.warn(`[ProcessVideo] Failed to cleanup temp file: ${filePath}`, error);
       }
     }
-    this.tempFilesToCleanup = [];
+    this.tempFilesToCleanup.delete(key);
 
     if (shaveId) {
       // Mark video files as deleted in database only when files are actually cleaned up
@@ -799,7 +846,11 @@ export class ProcessVideoIPCHandlers {
         console.warn("[ProcessVideo] Failed to mark video files as deleted", dbError);
       }
 
-      // Remove workflow manager — no longer needed after cleanup
+      // Remove workflow manager and its checkpoints — no longer needed after cleanup
+      const manager = this.workflowManagers.get(shaveId);
+      if (manager) {
+        manager.clearAllCheckpoints();
+      }
       this.workflowManagers.delete(shaveId);
     }
   }
