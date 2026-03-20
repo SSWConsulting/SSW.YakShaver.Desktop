@@ -76,11 +76,6 @@ const IPC_CHANNELS = {
   WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
   WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 
-  // Dev/Testing - Fault injection
-  DEV_FAULT_INJECTION_SET: "dev:fault-injection-set",
-  DEV_FAULT_INJECTION_CLEAR: "dev:fault-injection-clear",
-  DEV_FAULT_INJECTION_STATUS: "dev:fault-injection-status",
-
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
@@ -238,12 +233,6 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
     cancelRetry: (shaveId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_CANCEL_RETRY, shaveId),
-  },
-  devFaultInjection: {
-    set: (stage: string, failOnRetry?: boolean) =>
-      ipcRenderer.invoke(IPC_CHANNELS.DEV_FAULT_INJECTION_SET, stage, failOnRetry),
-    clear: () => ipcRenderer.invoke(IPC_CHANNELS.DEV_FAULT_INJECTION_CLEAR),
-    status: () => ipcRenderer.invoke(IPC_CHANNELS.DEV_FAULT_INJECTION_STATUS),
   },
   llm: {
     setConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),

@@ -21,7 +21,6 @@ import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
-import { FaultInjection } from "../services/workflow/fault-injection";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
@@ -232,27 +231,6 @@ export class ProcessVideoIPCHandlers {
         return { success: false, error: errorMessage };
       }
     });
-
-    // Dev/Testing: Fault injection controls
-    ipcMain.handle(
-      IPC_CHANNELS.DEV_FAULT_INJECTION_SET,
-      (_event, stage: string, failOnRetry?: boolean) => {
-        FaultInjection.setFailAtStage(stage as keyof WorkflowState);
-        if (failOnRetry !== undefined) {
-          FaultInjection.setFailOnRetry(failOnRetry);
-        }
-        return FaultInjection.getStatus();
-      },
-    );
-
-    ipcMain.handle(IPC_CHANNELS.DEV_FAULT_INJECTION_CLEAR, () => {
-      FaultInjection.clear();
-      return FaultInjection.getStatus();
-    });
-
-    ipcMain.handle(IPC_CHANNELS.DEV_FAULT_INJECTION_STATUS, () => {
-      return FaultInjection.getStatus();
-    });
   }
 
   private async processFileVideo(filePath: string, shaveId?: string) {
@@ -294,7 +272,6 @@ export class ProcessVideoIPCHandlers {
     });
 
     try {
-      FaultInjection.checkAndThrow("uploading_video", workflowManager);
 
       const youtubeResult = await this.youtube.uploadVideo(filePath);
 
@@ -349,7 +326,7 @@ export class ProcessVideoIPCHandlers {
     });
 
     try {
-      FaultInjection.checkAndThrow("downloading_video", workflowManager);
+
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
       notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
@@ -407,8 +384,6 @@ export class ProcessVideoIPCHandlers {
     const shouldRunStage = (stage: keyof WorkflowState) =>
       WORKFLOW_STAGE_ORDER.indexOf(stage) >= startIdx;
 
-    const isRetry = startFromStage !== undefined;
-
     // Resolve merged checkpoint data for skipped stages' outputs
     const checkpoint: CheckpointData =
       startIdx > 0 && startFromStage ? resolveCheckpointData(workflowManager, startFromStage) : {};
@@ -451,7 +426,6 @@ export class ProcessVideoIPCHandlers {
         currentStage = WorkflowProgressStage.CONVERTING_AUDIO;
         workflowManager.startStage(WorkflowProgressStage.CONVERTING_AUDIO);
         notify(ProgressStage.CONVERTING_AUDIO);
-        FaultInjection.checkAndThrow("converting_audio", workflowManager, isRetry);
 
         const hasAudio = await this.ffmpegService.hasAudibleAudio(filePath);
 
@@ -481,7 +455,6 @@ export class ProcessVideoIPCHandlers {
         currentStage = WorkflowProgressStage.TRANSCRIBING;
         workflowManager.startStage(WorkflowProgressStage.TRANSCRIBING);
         notify(ProgressStage.TRANSCRIBING);
-        FaultInjection.checkAndThrow("transcribing", workflowManager, isRetry);
 
         const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
         // mp3FilePath guaranteed by: normal flow sets it in CONVERTING_AUDIO; retry validated at entry
@@ -513,7 +486,6 @@ export class ProcessVideoIPCHandlers {
         currentStage = WorkflowProgressStage.ANALYZING_TRANSCRIPT;
         workflowManager.startStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
         notify(ProgressStage.GENERATING_TASK);
-        FaultInjection.checkAndThrow("analyzing_transcript", workflowManager, isRetry);
 
         const languageModelProvider = await LanguageModelProvider.getInstance();
 
@@ -540,7 +512,6 @@ export class ProcessVideoIPCHandlers {
       if (shouldRunStage(WorkflowProgressStage.SELECTING_PROMPT)) {
         currentStage = WorkflowProgressStage.SELECTING_PROMPT;
         workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
-        FaultInjection.checkAndThrow("selecting_prompt", workflowManager, isRetry);
 
         const languageModelProvider = await LanguageModelProvider.getInstance();
 
@@ -573,7 +544,6 @@ export class ProcessVideoIPCHandlers {
       if (shouldRunStage(WorkflowProgressStage.EXECUTING_TASK)) {
         currentStage = WorkflowProgressStage.EXECUTING_TASK;
         workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
-        FaultInjection.checkAndThrow("executing_task", workflowManager, isRetry);
 
         notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
 
@@ -645,7 +615,7 @@ export class ProcessVideoIPCHandlers {
               null,
               "in_progress",
             );
-            FaultInjection.checkAndThrow("updating_metadata", workflowManager, isRetry);
+
             const metadata = await this.metadataBuilder.build({
               transcript: transcript ?? [],
               intermediateOutput: intermediateOutput ?? "",

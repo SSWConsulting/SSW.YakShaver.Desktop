@@ -58,11 +58,6 @@ export const IPC_CHANNELS = {
   WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
   WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 
-  // Dev/Testing - Fault injection
-  DEV_FAULT_INJECTION_SET: "dev:fault-injection-set",
-  DEV_FAULT_INJECTION_CLEAR: "dev:fault-injection-clear",
-  DEV_FAULT_INJECTION_STATUS: "dev:fault-injection-status",
-
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
 
