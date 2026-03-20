@@ -57,10 +57,14 @@ post-steps:
       GH_TOKEN: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
 
 safe-outputs:
+  staged: true
   github-token: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
   create-issue:
     max: 12
     title-prefix: "[YakShaver 2.0] "
+    target-repo: SSWConsulting/SSW.YakShaver.Desktop
+  link-sub-issue:
+    max: 80
     target-repo: SSWConsulting/SSW.YakShaver.Desktop
   add-comment:
     max: 3
@@ -139,6 +143,7 @@ The tool automatically prefixes every title with `[YakShaver 2.0]` and creates t
 | `title` | `[Emoji] [Cluster Name]` — e.g. `🔌 MCP & AI Pipeline` |
 | `labels` | `Type: Feature` / `Type: Bug` / `Type: Refactor` as appropriate |
 | `body` | Use the template below |
+| `temporary_id` | A unique ID like `aw_mcp`, `aw_video`, `aw_auth`, etc. — used in Step 4 to reference this epic before it has a real issue number |
 
 Do NOT include `issue_type` or any field not listed above.
 
@@ -154,7 +159,6 @@ Consolidates PBIs from:
 
 ### PBIs
 
-<!-- Link these as sub-issues once this epic is created -->
 - SSWConsulting/[SourceRepo]#[number] — [title]
 - SSWConsulting/[SourceRepo]#[number] — [title]
 [... one line per PBI in this cluster, all states (open and closed) ...]
@@ -167,11 +171,29 @@ Use plain `SSWConsulting/RepoName#number` references (not Markdown links) — Gi
 
 ---
 
-## Step 4 — Post Summary Comments on All Three Original Epics
+## Step 4 — Link PBIs as Sub-Issues of New Epics
+
+After all new epics are created in Step 3, link every PBI as a sub-issue of its corresponding new epic using the `link_sub_issue` tool.
+
+For each PBI in each cluster, call `link_sub_issue` once:
+
+| Field | Value |
+|-------|-------|
+| `parent_issue_number` | The `temporary_id` of the new epic created in Step 3 (e.g. `aw_mcp`) |
+| `sub_issue_number` | The PBI's issue number (e.g. `123`) |
+
+**Notes:**
+- The `parent_issue_number` field accepts `temporary_id` values — use the same IDs assigned in Step 3
+- Link **all** PBIs — both open and closed — so the new epic's progress bar reflects real status
+- PBIs from `SSWConsulting/SSW.YakShaver` and `SSWConsulting/SSW.YakShaver.Desktop` should both be linked
+
+---
+
+## Step 5 — Post Summary Comments on All Three Original Epics
 
 After all new epics are created, post a reorganisation summary on each of the three original epics.
 
-### 4a — Write per-epic comment files (for SSW.YakShaver epics)
+### 5a — Write per-epic comment files (for SSW.YakShaver epics)
 
 The `add_comment` tool can only post to `SSWConsulting/SSW.YakShaver.Desktop`. For the two epics in `SSWConsulting/SSW.YakShaver` (#2811 and #3494), use the `bash` tool to write their comment bodies to files — a `post-steps:` job will pick them up and post via `gh issue comment`.
 
@@ -187,7 +209,7 @@ cat > /tmp/gh-aw/comments/comment-yakshaver-3494.md << 'EOF'
 EOF
 ```
 
-### 4b — Post comment on Desktop App epic #677
+### 5b — Post comment on Desktop App epic #677
 
 Call `add_comment` with `item_number: 677` for the Desktop App epic (same repo, no cross-repo needed).
 
@@ -222,26 +244,11 @@ the same theme have been grouped together.
 | SSWConsulting/[SourceRepo]#[number] [title] | open/closed | SSWConsulting/SSW.YakShaver.Desktop#[number] |
 [... all PBIs that belong to THIS original epic, open and closed ...]
 
-### 📌 Action Required
+### ✅ Automated Linking
 
-1. **Link each new epic above as a sub-issue of this epic** so the GitHub progress bar updates
-2. **Re-assign each PBI as a sub-issue of its new smaller epic** (remove from this epic → add to the new one)
+All PBIs listed above have been automatically linked as sub-issues of their new smaller epics.
 
-GitHub CLI commands:
-
-```bash
-# Add a new epic as a sub-issue of this epic
-gh api repos/SSWConsulting/[SOURCE_REPO]/issues/[THIS_EPIC]/sub_issues \
-  --method POST -f sub_issue_id=[NEW_EPIC_NUMBER]
-
-# Move a PBI: remove from this epic, add to new epic
-gh api repos/SSWConsulting/[SOURCE_REPO]/issues/[THIS_EPIC]/sub_issues/[PBI_NUMBER] \
-  --method DELETE
-gh api repos/SSWConsulting/SSW.YakShaver.Desktop/issues/[NEW_EPIC_NUMBER]/sub_issues \
-  --method POST -f sub_issue_id=[PBI_NUMBER]
-```
-
-> ℹ️ PBIs stay in their original repos. Only the tracking epics move to SSW.YakShaver.Desktop.
+> ℹ️ PBIs stay in their original repos. Only the tracking epics are in SSW.YakShaver.Desktop.
 ```
 
 ---
