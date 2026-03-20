@@ -36,7 +36,11 @@ declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideoFile: (filePath: string, shaveId?: string) => Promise<void>;
+        processVideoFile: (
+          filePath: string,
+          shaveId?: string,
+          shaveAutoApprove?: boolean,
+        ) => Promise<void>;
         processVideoUrl: (url: string, shaveId?: string) => Promise<void>;
         rerunTask: (
           intermediateOutput: string,

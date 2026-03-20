@@ -17,6 +17,7 @@ export type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
   shaveId?: string;
+  shaveAutoApprove?: boolean;
 };
 
 export type RetryResult = {

@@ -155,8 +155,8 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideoFile: (filePath: string, shaveId?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId),
+    processVideoFile: (filePath: string, shaveId?: string, shaveAutoApprove?: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId, shaveAutoApprove),
     processVideoUrl: (url: string, shaveId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url, shaveId),
     rerunTask: (

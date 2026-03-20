@@ -450,10 +450,21 @@ export class MCPServerManager {
     const storage = McpStorage.getInstance();
     const serverConfigs = await storage.getMcpServerConfigsAsync();
 
-    return serverConfigs.flatMap((config) => {
+    const whitelist = serverConfigs.flatMap((config) => {
       const sanitizedServerName = config.name.replace(/\s+/g, "_");
       return (config.toolWhitelist ?? []).map((toolName) => `${sanitizedServerName}__${toolName}`);
     });
+
+    // Built-in server tools are always whitelisted regardless of Approval Mode.
+    // Uses cached tool names to avoid repeated RPC calls during the orchestrator loop.
+    for (const client of MCPServerManager.mcpClients.values()) {
+      if (client.builtin) {
+        const toolNames = await client.getPrefixedToolNamesAsync();
+        whitelist.push(...toolNames);
+      }
+    }
+
+    return whitelist;
   }
 
   public async addToolToServerWhitelistAsync(serverName: string, toolName: string): Promise<void> {

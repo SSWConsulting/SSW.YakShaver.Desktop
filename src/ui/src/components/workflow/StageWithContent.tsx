@@ -1,7 +1,7 @@
 import { AlertTriangle, Check, ChevronRight, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import { type MCPStep, MCPStepType, type MetadataPreview, type VideoChapter } from "../../types";
-import { deepParseJson } from "../../utils";
+import { deepParseJson, formatToolName } from "../../utils";
 import { ReasoningStep } from "./ReasoningStep";
 
 interface StageWithContentProps {
@@ -140,15 +140,7 @@ function ChapterRow({ chapter }: { chapter: VideoChapter }) {
   );
 }
 
-function ToolCallStep({
-  toolName,
-  serverName,
-  args,
-}: {
-  toolName?: string;
-  serverName?: string;
-  args?: unknown;
-}) {
+function ToolCallStep({ toolName, args }: { toolName?: string; args?: unknown }) {
   const hasArgs =
     typeof args === "object" &&
     args !== null &&
@@ -159,8 +151,7 @@ function ToolCallStep({
     <div className="space-y-1">
       <div className="font-medium flex items-center gap-2">
         <Wrench className="w-4 h-4" />
-        Calling tool: {toolName}
-        {serverName && <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>}
+        {toolName ? formatToolName(toolName) : "Unknown tool"}
       </div>
       {hasArgs && (
         <details className="ml-4 text-xs group" onToggle={handleDetailsToggle(args)}>
@@ -220,11 +211,7 @@ export function StageWithContent({ stage, payload }: StageWithContentProps) {
                 <ReasoningStep reasoning={step.reasoning} />
               )}
               {step.type === MCPStepType.TOOL_CALL && (
-                <ToolCallStep
-                  toolName={step.toolName}
-                  serverName={step.serverName}
-                  args={step.args}
-                />
+                <ToolCallStep toolName={step.toolName} args={step.args} />
               )}
               {step.type === MCPStepType.TOOL_RESULT && (
                 <div className="ml-4 space-y-1">
