@@ -4,8 +4,8 @@ import tmp from "tmp";
 import { z } from "zod";
 import type { TranscriptSegment } from "../../shared/types/transcript";
 import {
-  ProgressStage as WorkflowProgressStage,
   WORKFLOW_STAGE_ORDER,
+  ProgressStage as WorkflowProgressStage,
   type WorkflowState,
 } from "../../shared/types/workflow";
 import { INITIAL_SUMMARY_PROMPT, TASK_EXECUTION_PROMPT } from "../constants/prompts";
@@ -272,7 +272,6 @@ export class ProcessVideoIPCHandlers {
     });
 
     try {
-
       const youtubeResult = await this.youtube.uploadVideo(filePath);
 
       if (youtubeResult.success && youtubeResult.data && duration) {
@@ -326,7 +325,6 @@ export class ProcessVideoIPCHandlers {
     });
 
     try {
-
       const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
       notify(ProgressStage.UPLOAD_COMPLETED, {
         uploadResult: youtubeResult,
@@ -377,9 +375,7 @@ export class ProcessVideoIPCHandlers {
       this.emitProgress(stage, data, shaveId);
     };
 
-    const startIdx = startFromStage
-      ? Math.max(0, WORKFLOW_STAGE_ORDER.indexOf(startFromStage))
-      : 0;
+    const startIdx = startFromStage ? Math.max(0, WORKFLOW_STAGE_ORDER.indexOf(startFromStage)) : 0;
 
     const shouldRunStage = (stage: keyof WorkflowState) =>
       WORKFLOW_STAGE_ORDER.indexOf(stage) >= startIdx;
