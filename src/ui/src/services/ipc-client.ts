@@ -43,7 +43,8 @@ declare global {
           shaveId?: string,
         ) => Promise<{
           success: boolean;
-          finalOutput?: string | null;
+          youtubeResult?: VideoUploadResult;
+          mcpResult?: string;
           error?: string;
         }>;
       };

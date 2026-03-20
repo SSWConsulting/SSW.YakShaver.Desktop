@@ -28,6 +28,7 @@ import {
   type RetryResult,
   resolveCheckpointData,
   type VideoProcessingContext,
+  validateCheckpointData,
   WorkflowRetryService,
 } from "../services/workflow/workflow-retry-service";
 import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
@@ -157,11 +158,15 @@ export class ProcessVideoIPCHandlers {
             mcpResult,
             finalOutput,
           });
-          return { success: true, finalOutput };
+          return {
+            success: true,
+            youtubeResult: videoUploadResult,
+            mcpResult,
+          } satisfies RetryResult;
         } catch (error) {
           const errorMessage = formatAndReportError(error, "rerun_task");
           notify(ProgressStage.ERROR, { error: errorMessage });
-          return { success: false, error: errorMessage };
+          return { success: false, error: errorMessage } satisfies RetryResult;
         }
       },
     );
@@ -405,6 +410,21 @@ export class ProcessVideoIPCHandlers {
     const checkpoint: CheckpointData =
       startIdx > 0 && startFromStage ? resolveCheckpointData(workflowManager, startFromStage) : {};
 
+    // Validate checkpoint completeness before resuming from a failed stage
+    if (startFromStage && startIdx > 0) {
+      const { valid, missing, suggestedStage } = validateCheckpointData(startFromStage, checkpoint);
+      if (!valid) {
+        const suggestion = suggestedStage ? ` Try retrying from "${suggestedStage}" instead.` : "";
+        const errorMessage = `Cannot resume from "${startFromStage}": missing data from prior stages (${missing.join(", ")}).${suggestion}`;
+        notify(ProgressStage.ERROR, { error: errorMessage });
+        return {
+          success: false,
+          error: errorMessage,
+          workflowId: workflowManager.getWorkflowId(),
+        };
+      }
+    }
+
     // Local variables — populated from stage execution or merged checkpoint
     let mp3FilePath: string | undefined = checkpoint.mp3FilePath;
     let transcript: TranscriptSegment[] | undefined = checkpoint.transcript;
@@ -460,12 +480,9 @@ export class ProcessVideoIPCHandlers {
         notify(ProgressStage.TRANSCRIBING);
         FaultInjection.checkAndThrow("transcribing", workflowManager, isRetry);
 
-        if (!mp3FilePath) {
-          throw new Error("Audio file path not available. Cannot transcribe.");
-        }
-
         const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
-        transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
+        // mp3FilePath guaranteed by: normal flow sets it in CONVERTING_AUDIO; retry validated at entry
+        transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath as string);
         transcriptText = transcript.map((seg) => seg.text).join("");
 
         if (!transcriptText.trim()) {
@@ -495,15 +512,12 @@ export class ProcessVideoIPCHandlers {
         notify(ProgressStage.GENERATING_TASK);
         FaultInjection.checkAndThrow("analyzing_transcript", workflowManager, isRetry);
 
-        if (!transcriptText) {
-          throw new Error("Transcript not available. Cannot analyze.");
-        }
-
         const languageModelProvider = await LanguageModelProvider.getInstance();
 
+        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
         const userPrompt = `Process the following transcript into a structured JSON object:
 
-      ${transcriptText}`;
+      ${transcriptText as string}`;
 
         intermediateOutput = await languageModelProvider.generateJson(
           userPrompt,
@@ -525,15 +539,12 @@ export class ProcessVideoIPCHandlers {
         workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
         FaultInjection.checkAndThrow("selecting_prompt", workflowManager, isRetry);
 
-        if (!transcriptText) {
-          throw new Error("Transcript not available. Cannot select prompt.");
-        }
-
         const languageModelProvider = await LanguageModelProvider.getInstance();
 
+        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
         projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
           languageModelProvider,
-          transcriptText,
+          transcriptText as string,
         );
 
         ({ desktopAgentProjectPrompt, projectMetaData } =
@@ -572,11 +583,8 @@ export class ProcessVideoIPCHandlers {
 
         const orchestrator = await MCPOrchestrator.getInstanceAsync();
 
-        if (!transcriptText) {
-          throw new Error("Transcript not available. Cannot execute task.");
-        }
-
-        mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
+        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+        mcpResult = await orchestrator.manualLoopAsync(transcriptText as string, youtubeResult, {
           projectMetaData,
           desktopAgentProjectPrompt,
           videoFilePath: filePath,
@@ -782,14 +790,17 @@ export class ProcessVideoIPCHandlers {
     }
     this.tempFilesToCleanup = [];
 
-    // Mark video files as deleted in database only when files are actually cleaned up
     if (shaveId) {
+      // Mark video files as deleted in database only when files are actually cleaned up
       try {
         const shaveService = ShaveService.getInstance();
         shaveService.markShaveVideoFilesAsDeleted(shaveId);
       } catch (dbError) {
         console.warn("[ProcessVideo] Failed to mark video files as deleted", dbError);
       }
+
+      // Remove workflow manager — no longer needed after cleanup
+      this.workflowManagers.delete(shaveId);
     }
   }
 }

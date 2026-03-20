@@ -75,6 +75,75 @@ export function resolveCheckpointData(
   return merged;
 }
 
+/**
+ * Defines which checkpoint fields each stage requires from prior stages.
+ * Used to validate checkpoint completeness before resuming from a failed stage.
+ */
+const STAGE_REQUIRED_INPUTS: Partial<Record<keyof WorkflowState, (keyof CheckpointData)[]>> = {
+  [WorkflowProgressStage.TRANSCRIBING]: ["mp3FilePath"],
+  [WorkflowProgressStage.ANALYZING_TRANSCRIPT]: ["transcript", "transcriptText"],
+  [WorkflowProgressStage.SELECTING_PROMPT]: ["transcriptText", "intermediateOutput"],
+  [WorkflowProgressStage.EXECUTING_TASK]: ["transcriptText", "projectDetails"],
+  [WorkflowProgressStage.UPDATING_METADATA]: ["mcpResult"],
+};
+
+/**
+ * Maps each checkpoint field to the stage that produces it.
+ * Used to suggest which earlier stage to retry from when data is missing.
+ */
+const FIELD_PRODUCED_BY: Partial<Record<keyof CheckpointData, keyof WorkflowState>> = {
+  mp3FilePath: WorkflowProgressStage.CONVERTING_AUDIO,
+  transcript: WorkflowProgressStage.TRANSCRIBING,
+  transcriptText: WorkflowProgressStage.TRANSCRIBING,
+  intermediateOutput: WorkflowProgressStage.ANALYZING_TRANSCRIPT,
+  projectDetails: WorkflowProgressStage.SELECTING_PROMPT,
+  projectMetaData: WorkflowProgressStage.SELECTING_PROMPT,
+  desktopAgentProjectPrompt: WorkflowProgressStage.SELECTING_PROMPT,
+  mcpResult: WorkflowProgressStage.EXECUTING_TASK,
+  finalOutput: WorkflowProgressStage.EXECUTING_TASK,
+};
+
+/**
+ * Validate that merged checkpoint data contains all required inputs for a stage.
+ * Returns the list of missing fields and a suggested earlier stage to retry from.
+ */
+export function validateCheckpointData(
+  stage: keyof WorkflowState,
+  data: CheckpointData,
+): { valid: boolean; missing: string[]; suggestedStage?: keyof WorkflowState } {
+  const required = STAGE_REQUIRED_INPUTS[stage] ?? [];
+  const missing = required.filter((key) => data[key] == null);
+
+  if (missing.length === 0) {
+    return { valid: true, missing: [] };
+  }
+
+  // Find the earliest stage that produces a missing field
+  const STAGE_ORDER: (keyof WorkflowState)[] = [
+    WorkflowProgressStage.CONVERTING_AUDIO,
+    WorkflowProgressStage.TRANSCRIBING,
+    WorkflowProgressStage.ANALYZING_TRANSCRIPT,
+    WorkflowProgressStage.SELECTING_PROMPT,
+    WorkflowProgressStage.EXECUTING_TASK,
+    WorkflowProgressStage.UPDATING_METADATA,
+  ];
+
+  let earliestIdx = STAGE_ORDER.length;
+  for (const field of missing) {
+    const producer = FIELD_PRODUCED_BY[field as keyof CheckpointData];
+    if (producer) {
+      const idx = STAGE_ORDER.indexOf(producer);
+      if (idx < earliestIdx) {
+        earliestIdx = idx;
+      }
+    }
+  }
+
+  const suggestedStage = earliestIdx < STAGE_ORDER.length ? STAGE_ORDER[earliestIdx] : undefined;
+
+  return { valid: false, missing, suggestedStage };
+}
+
 export class WorkflowRetryService {
   constructor(private deps: WorkflowRetryDeps) {}
 
