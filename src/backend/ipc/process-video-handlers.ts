@@ -60,6 +60,7 @@ export class ProcessVideoIPCHandlers {
   private workflowManagers: Map<string, WorkflowStateManager> = new Map();
   private readonly retryService: WorkflowRetryService;
   private activeRetries: Set<string> = new Set();
+  private activeWorkflows: Set<string> = new Set();
 
   constructor() {
     this.metadataBuilder = new VideoMetadataBuilder();
@@ -180,6 +181,12 @@ export class ProcessVideoIPCHandlers {
     ipcMain.handle(
       IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE,
       async (_event: IpcMainInvokeEvent, stage: keyof WorkflowState, shaveId?: string) => {
+        if (!WORKFLOW_STAGE_ORDER.includes(stage)) {
+          return { success: false, error: `Invalid stage: ${stage}` };
+        }
+        if (shaveId && this.activeWorkflows.has(shaveId)) {
+          return { success: false, error: "The workflow is still running. Please wait for it to finish." };
+        }
         if (shaveId && this.activeRetries.has(shaveId)) {
           return { success: false, error: "A retry is already in progress for this workflow." };
         }
@@ -247,6 +254,13 @@ export class ProcessVideoIPCHandlers {
     }
 
     const effectiveShaveId = shaveId || crypto.randomUUID();
+
+    if (this.activeWorkflows.has(effectiveShaveId)) {
+      return { success: false, error: "A workflow is already in progress for this shave." };
+    }
+
+    this.activeWorkflows.add(effectiveShaveId);
+    try {
     const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
     this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
 
@@ -298,7 +312,7 @@ export class ProcessVideoIPCHandlers {
         {
           filePath,
           youtubeResult,
-          shaveId,
+          shaveId: effectiveShaveId,
           shaveAutoApprove,
         },
         workflowManager,
@@ -308,6 +322,9 @@ export class ProcessVideoIPCHandlers {
       workflowManager.failStage(WorkflowProgressStage.UPLOADING_VIDEO, errorMessage);
       return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
     }
+    } finally {
+      this.activeWorkflows.delete(effectiveShaveId);
+    }
   }
 
   private async processUrlVideo(url: string, shaveId?: string) {
@@ -316,52 +333,62 @@ export class ProcessVideoIPCHandlers {
     };
 
     const effectiveShaveId = shaveId || crypto.randomUUID();
-    const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
-    this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
 
-    workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);
-    workflowManager.startStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
-    workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
+    if (this.activeWorkflows.has(effectiveShaveId)) {
+      return { success: false, error: "A workflow is already in progress for this shave." };
+    }
 
-    // Save checkpoint before download so retry can find the URL
-    workflowManager.createCheckpoint(WorkflowProgressStage.DOWNLOADING_VIDEO, {
-      downloadUrl: url,
-    });
-
+    this.activeWorkflows.add(effectiveShaveId);
     try {
-      const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
-      notify(ProgressStage.UPLOAD_COMPLETED, {
-        uploadResult: youtubeResult,
-        sourceOrigin: "external",
-      });
-      notify(ProgressStage.DOWNLOADING_SOURCE, {
-        sourceOrigin: "external",
-      });
-      const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
-      this.trackTempFile(filePath, effectiveShaveId);
-      this.lastVideoFilePath = filePath;
+      const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
+      this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
 
-      workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+      workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);
+      workflowManager.startStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+      workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
 
-      // Create checkpoint after successful download
+      // Save checkpoint before download so retry can find the URL
       workflowManager.createCheckpoint(WorkflowProgressStage.DOWNLOADING_VIDEO, {
-        filePath,
-        youtubeResult,
         downloadUrl: url,
       });
-      return await this.processVideoSource(
-        {
+
+      try {
+        const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
+        notify(ProgressStage.UPLOAD_COMPLETED, {
+          uploadResult: youtubeResult,
+          sourceOrigin: "external",
+        });
+        notify(ProgressStage.DOWNLOADING_SOURCE, {
+          sourceOrigin: "external",
+        });
+        const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
+        this.trackTempFile(filePath, effectiveShaveId);
+        this.lastVideoFilePath = filePath;
+
+        workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+
+        // Create checkpoint after successful download
+        workflowManager.createCheckpoint(WorkflowProgressStage.DOWNLOADING_VIDEO, {
           filePath,
           youtubeResult,
-          shaveId,
-        },
-        workflowManager,
-      );
-    } catch (error) {
-      const errorMessage = formatAndReportError(error, "video_download");
-      workflowManager.failStage(WorkflowProgressStage.DOWNLOADING_VIDEO, errorMessage);
-      notify(ProgressStage.ERROR, { error: errorMessage });
-      return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
+          downloadUrl: url,
+        });
+        return await this.processVideoSource(
+          {
+            filePath,
+            youtubeResult,
+            shaveId: effectiveShaveId,
+          },
+          workflowManager,
+        );
+      } catch (error) {
+        const errorMessage = formatAndReportError(error, "video_download");
+        workflowManager.failStage(WorkflowProgressStage.DOWNLOADING_VIDEO, errorMessage);
+        notify(ProgressStage.ERROR, { error: errorMessage });
+        return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
+      }
+    } finally {
+      this.activeWorkflows.delete(effectiveShaveId);
     }
   }
 

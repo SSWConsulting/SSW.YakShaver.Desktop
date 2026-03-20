@@ -140,9 +140,14 @@ export class WorkflowStateManager {
     for (const stage of WORKFLOW_STAGE_ORDER) {
       const stepState = this.getStepState(stage);
       if (stepState.status === "failed") {
-        const lastError = stepState.payload
-          ? (JSON.parse(stepState.payload).error as string)
-          : undefined;
+        let lastError: string | undefined;
+        if (stepState.payload) {
+          try {
+            lastError = (JSON.parse(stepState.payload) as { error?: string }).error;
+          } catch {
+            lastError = stepState.payload;
+          }
+        }
         failed.push({
           stage,
           lastError,
