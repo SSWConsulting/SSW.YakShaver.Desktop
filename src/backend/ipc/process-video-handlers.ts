@@ -211,7 +211,7 @@ export class ProcessVideoIPCHandlers {
         if (workflowManager) {
           workflowManager.clearAllCheckpoints();
         }
-        this.cleanupTempFiles();
+        this.cleanupTempFiles(shaveId);
         return { success: true };
       } catch (error) {
         const errorMessage = formatAndReportError(error, "cancel_retry");
@@ -311,7 +311,7 @@ export class ProcessVideoIPCHandlers {
     } catch (uploadError) {
       const errorMessage = formatAndReportError(uploadError, "video_upload");
       workflowManager.failStage(WorkflowProgressStage.UPLOADING_VIDEO, errorMessage);
-      return { success: false, error: errorMessage };
+      return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
     }
   }
 
@@ -366,7 +366,7 @@ export class ProcessVideoIPCHandlers {
       const errorMessage = formatAndReportError(error, "video_download");
       workflowManager.failStage(WorkflowProgressStage.DOWNLOADING_VIDEO, errorMessage);
       notify(ProgressStage.ERROR, { error: errorMessage });
-      return { success: false, error: errorMessage };
+      return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
     }
   }
 
@@ -417,6 +417,7 @@ export class ProcessVideoIPCHandlers {
     let mcpResult: string | undefined = checkpoint.mcpResult;
     let finalOutput: string | undefined = checkpoint.finalOutput;
 
+    let portalSubmissionError: string | undefined;
     let currentStage: keyof WorkflowState | null = null;
 
     try {
@@ -436,7 +437,11 @@ export class ProcessVideoIPCHandlers {
             "No audio detected in this video. Please re-record and make sure the correct microphone is selected and unmuted.";
           workflowManager.failStage(WorkflowProgressStage.CONVERTING_AUDIO, errorMessage);
           notify(ProgressStage.ERROR, { error: errorMessage });
-          return { success: false, error: errorMessage };
+          return {
+            success: false,
+            error: errorMessage,
+            workflowId: workflowManager.getWorkflowId(),
+          };
         }
 
         mp3FilePath = await this.convertVideoToMp3(filePath);
@@ -468,7 +473,11 @@ export class ProcessVideoIPCHandlers {
             "No speech detected in this recording. Please re-record and check your microphone and audio levels.";
           workflowManager.failStage(WorkflowProgressStage.TRANSCRIBING, errorMessage);
           notify(ProgressStage.ERROR, { error: errorMessage });
-          return { success: false, error: errorMessage };
+          return {
+            success: false,
+            error: errorMessage,
+            workflowId: workflowManager.getWorkflowId(),
+          };
         }
 
         notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
@@ -583,30 +592,27 @@ export class ProcessVideoIPCHandlers {
           finalOutput,
         });
 
-        // Send to portal if authenticated
+        // Send to portal if authenticated — non-fatal, does not affect workflow stage status
         if (mcpResult && (await MicrosoftAuthService.getInstance().isAuthenticated())) {
-          const objectResult = await orchestrator.convertToObjectAsync(
-            mcpResult,
-            WorkItemDtoSchema,
-          );
-          const portalResult = await SendWorkItemDetailsToPortal(
-            WorkItemDtoSchema.parse(objectResult),
-          );
-          if (!portalResult.success) {
-            console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
-            const errorMessage = formatAndReportError(portalResult.error, "portal_submission");
-            notify(ProgressStage.ERROR, { error: errorMessage });
-            workflowManager.failStage(WorkflowProgressStage.UPDATING_METADATA, errorMessage);
-          } else if (shaveId) {
-            try {
+          try {
+            const objectResult = await orchestrator.convertToObjectAsync(
+              mcpResult,
+              WorkItemDtoSchema,
+            );
+            const portalResult = await SendWorkItemDetailsToPortal(
+              WorkItemDtoSchema.parse(objectResult),
+            );
+            if (!portalResult.success) {
+              console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
+              portalSubmissionError = formatAndReportError(portalResult.error, "portal_submission");
+              notify(ProgressStage.ERROR, { error: portalSubmissionError });
+            } else if (shaveId) {
               const shaveService = ShaveService.getInstance();
               shaveService.updateShave(shaveId, { portalWorkItemId: portalResult.workItemId });
-            } catch (savePortalIdError) {
-              console.warn(
-                "[ProcessVideo] Failed to persist portal work item id",
-                savePortalIdError,
-              );
             }
+          } catch (portalError) {
+            console.warn("[ProcessVideo] Portal submission error:", portalError);
+            portalSubmissionError = formatAndReportError(portalError, "portal_submission");
           }
         }
       }
@@ -670,12 +676,14 @@ export class ProcessVideoIPCHandlers {
         finalOutput,
         uploadResult: youtubeResult,
         metadataUpdateError,
+        portalSubmissionError,
       });
 
-      // Clean up temp files on successful completion
-      this.cleanupTempFiles();
+      // Clean up temp files and mark DB records on successful completion
+      this.cleanupTempFiles(shaveId);
 
-      return { success: true, youtubeResult, mcpResult };
+      const workflowId = workflowManager.getWorkflowId();
+      return { success: true, youtubeResult, mcpResult, workflowId };
     } catch (error) {
       const errorMessage = formatAndReportError(error, "video_processing");
       // Mark the current stage as failed (if not already failed by fault injection)
@@ -686,24 +694,11 @@ export class ProcessVideoIPCHandlers {
         }
       }
       notify(ProgressStage.ERROR, { error: errorMessage });
-      return { success: false, error: errorMessage };
+      return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
     } finally {
-      // Note: Temp files are NOT cleaned up here on failure
+      // Note: Temp files and DB records are NOT cleaned up here on failure.
       // They are preserved for potential retry and cleaned up only on success
-      // via cleanupTempFiles() or when user cancels the workflow
-      try {
-        // Mark video files as deleted in database if shave exists
-        if (shaveId) {
-          try {
-            const shaveService = ShaveService.getInstance();
-            shaveService.markShaveVideoFilesAsDeleted(shaveId);
-          } catch (dbError) {
-            console.warn("[ProcessVideo] Failed to mark video files as deleted", dbError);
-          }
-        }
-      } catch (cleanupError) {
-        console.warn("[ProcessVideo] Failed to update database", cleanupError);
-      }
+      // via cleanupTempFiles() or when user cancels the workflow.
     }
   }
 
@@ -775,7 +770,7 @@ export class ProcessVideoIPCHandlers {
     }
   }
 
-  private cleanupTempFiles(): void {
+  private cleanupTempFiles(shaveId?: string): void {
     for (const filePath of this.tempFilesToCleanup) {
       try {
         if (fs.existsSync(filePath)) {
@@ -786,5 +781,15 @@ export class ProcessVideoIPCHandlers {
       }
     }
     this.tempFilesToCleanup = [];
+
+    // Mark video files as deleted in database only when files are actually cleaned up
+    if (shaveId) {
+      try {
+        const shaveService = ShaveService.getInstance();
+        shaveService.markShaveVideoFilesAsDeleted(shaveId);
+      } catch (dbError) {
+        console.warn("[ProcessVideo] Failed to mark video files as deleted", dbError);
+      }
+    }
   }
 }

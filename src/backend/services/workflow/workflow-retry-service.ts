@@ -23,6 +23,7 @@ export type RetryResult = {
   youtubeResult?: VideoUploadResult;
   mcpResult?: string | undefined;
   error?: string;
+  workflowId?: string;
 };
 
 export interface WorkflowRetryDeps {
