@@ -78,52 +78,17 @@ const STAGE_REQUIRED_INPUTS: Partial<Record<keyof WorkflowState, (keyof Checkpoi
 };
 
 /**
- * Maps each checkpoint field to the stage that produces it.
- * Used to suggest which earlier stage to retry from when data is missing.
- */
-const FIELD_PRODUCED_BY: Partial<Record<keyof CheckpointData, keyof WorkflowState>> = {
-  mp3FilePath: WorkflowProgressStage.CONVERTING_AUDIO,
-  transcript: WorkflowProgressStage.TRANSCRIBING,
-  transcriptText: WorkflowProgressStage.TRANSCRIBING,
-  intermediateOutput: WorkflowProgressStage.ANALYZING_TRANSCRIPT,
-  projectDetails: WorkflowProgressStage.SELECTING_PROMPT,
-  projectMetaData: WorkflowProgressStage.SELECTING_PROMPT,
-  desktopAgentProjectPrompt: WorkflowProgressStage.SELECTING_PROMPT,
-  mcpResult: WorkflowProgressStage.EXECUTING_TASK,
-  finalOutput: WorkflowProgressStage.EXECUTING_TASK,
-};
-
-/**
  * Validate that merged checkpoint data contains all required inputs for a stage.
- * Returns the list of missing fields and a suggested earlier stage to retry from.
+ * Returns the list of missing fields.
  */
 export function validateCheckpointData(
   stage: keyof WorkflowState,
   data: CheckpointData,
-): { valid: boolean; missing: string[]; suggestedStage?: keyof WorkflowState } {
+): { valid: boolean; missing: string[] } {
   const required = STAGE_REQUIRED_INPUTS[stage] ?? [];
   const missing = required.filter((key) => data[key] == null);
 
-  if (missing.length === 0) {
-    return { valid: true, missing: [] };
-  }
-
-  // Find the earliest stage that produces a missing field
-  let earliestIdx = WORKFLOW_STAGE_ORDER.length;
-  for (const field of missing) {
-    const producer = FIELD_PRODUCED_BY[field as keyof CheckpointData];
-    if (producer) {
-      const idx = WORKFLOW_STAGE_ORDER.indexOf(producer);
-      if (idx < earliestIdx) {
-        earliestIdx = idx;
-      }
-    }
-  }
-
-  const suggestedStage =
-    earliestIdx < WORKFLOW_STAGE_ORDER.length ? WORKFLOW_STAGE_ORDER[earliestIdx] : undefined;
-
-  return { valid: false, missing, suggestedStage };
+  return { valid: missing.length === 0, missing };
 }
 
 export class WorkflowRetryService {

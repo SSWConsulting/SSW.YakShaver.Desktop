@@ -191,10 +191,10 @@ describe("validateCheckpointData", () => {
     expect(result.missing).toContain("mp3FilePath");
   });
 
-  it("suggests the earliest stage that produces missing data", () => {
+  it("reports missing fields for stages with unmet requirements", () => {
     const result = validateCheckpointData(ProgressStage.ANALYZING_TRANSCRIPT, {});
     expect(result.valid).toBe(false);
-    expect(result.suggestedStage).toBe(ProgressStage.TRANSCRIBING);
+    expect(result.missing).toContain("transcriptText");
   });
 
   it("returns valid for stages with no required inputs (uploading_video)", () => {

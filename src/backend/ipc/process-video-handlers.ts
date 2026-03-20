@@ -386,10 +386,9 @@ export class ProcessVideoIPCHandlers {
 
     // Validate checkpoint completeness before resuming from a failed stage
     if (startFromStage && startIdx > 0) {
-      const { valid, missing, suggestedStage } = validateCheckpointData(startFromStage, checkpoint);
+      const { valid, missing } = validateCheckpointData(startFromStage, checkpoint);
       if (!valid) {
-        const suggestion = suggestedStage ? ` Try retrying from "${suggestedStage}" instead.` : "";
-        const errorMessage = `Cannot resume from "${startFromStage}": missing data from prior stages (${missing.join(", ")}).${suggestion}`;
+        const errorMessage = `Cannot resume from "${startFromStage}": missing data from prior stages (${missing.join(", ")}).`;
         notify(ProgressStage.ERROR, { error: errorMessage });
         return {
           success: false,
