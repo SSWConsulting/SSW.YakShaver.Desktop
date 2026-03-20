@@ -85,7 +85,12 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
 
   const { hasPayload, parsedPayload, hasStepErrors, hasStructuredSteps } = useMemo(() => {
     if (!step.payload)
-      return { hasPayload: false, parsedPayload: null, hasStepErrors: false, hasStructuredSteps: false };
+      return {
+        hasPayload: false,
+        parsedPayload: null,
+        hasStepErrors: false,
+        hasStructuredSteps: false,
+      };
 
     try {
       const parsed = JSON.parse(step.payload);
