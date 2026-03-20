@@ -17,13 +17,16 @@ export interface CreateClientOptions {
 export class MCPServerClient {
   public mcpClientName: string;
   public mcpClientId: string;
+  public readonly builtin: boolean;
 
   private mcpClient: experimental_MCPClient;
+  private cachedPrefixedToolNames: string[] | null = null;
 
-  private constructor(id: string, name: string, client: experimental_MCPClient) {
+  private constructor(id: string, name: string, client: experimental_MCPClient, builtin: boolean) {
     this.mcpClientId = id;
     this.mcpClientName = name;
     this.mcpClient = client;
+    this.builtin = builtin;
   }
 
   public static async createClientAsync(
@@ -43,7 +46,7 @@ export class MCPServerClient {
             headers: mcpConfig.headers,
           },
         });
-        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, true);
       }
 
       const serverId = mcpConfig.id;
@@ -124,7 +127,7 @@ export class MCPServerClient {
           headers,
         },
       });
-      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, false);
     }
 
     // create stdio transport MCP client
@@ -148,7 +151,12 @@ export class MCPServerClient {
           cwd,
         }),
       });
-      return new MCPServerClient(mcpConfig.id, mcpConfig.name, mcpClient);
+      return new MCPServerClient(
+        mcpConfig.id,
+        mcpConfig.name,
+        mcpClient,
+        mcpConfig.builtin === true,
+      );
     }
 
     // create inMemory transport MCP client
@@ -162,7 +170,7 @@ export class MCPServerClient {
       const client = await experimental_createMCPClient({
         transport: clientTransport,
       });
-      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, mcpConfig.builtin === true);
     }
 
     throw new Error(`Unsupported transport type: ${mcpConfig}`);
@@ -184,6 +192,18 @@ export class MCPServerClient {
       prefixedTools[prefixedName] = data;
     }
     return prefixedTools;
+  }
+
+  /**
+   * Returns cached prefixed tool names. Fetches once, then reuses.
+   * Used by getWhitelistWithServerPrefixAsync to avoid repeated RPC calls for built-in clients.
+   */
+  public async getPrefixedToolNamesAsync(): Promise<string[]> {
+    if (!this.cachedPrefixedToolNames) {
+      const tools = await this.listToolsWithServerPrefixAsync();
+      this.cachedPrefixedToolNames = Object.keys(tools);
+    }
+    return this.cachedPrefixedToolNames;
   }
 
   public async toolCountAsync(): Promise<number> {

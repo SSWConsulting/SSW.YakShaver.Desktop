@@ -1,4 +1,4 @@
-import type { UserSettings } from "@shared/types/user-settings";
+import type { ToolApprovalMode, UserSettings } from "@shared/types/user-settings";
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
@@ -37,6 +37,7 @@ export function ScreenRecorder() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
   const [duration, setDuration] = useState<number>(0);
+  const [approvalMode, setApprovalMode] = useState<ToolApprovalMode>("ask");
   const { saveRecording, checkExistingShave } = useShaveManager();
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
@@ -61,6 +62,7 @@ export function ScreenRecorder() {
         if (settings.hotkeys.startRecording) {
           setRecordHotkey(settings.hotkeys.startRecording);
         }
+        setApprovalMode(settings.toolApprovalMode ?? "ask");
       } catch (error) {
         console.error("Failed to load hotkey settings:", error);
       }
@@ -78,6 +80,14 @@ export function ScreenRecorder() {
 
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    ipcClient.userSettings
+      .get()
+      .then((settings) => setApprovalMode(settings.toolApprovalMode ?? "ask"))
+      .catch((error) => console.error("Failed to refresh approval mode:", error));
+  }, [previewOpen]);
 
   const toggleRecording = () => {
     isRecording ? handleStopRecording() : setPickerOpen(true);
@@ -127,7 +137,7 @@ export function ScreenRecorder() {
     setPickerOpen(true);
   };
 
-  const handleContinue = async () => {
+  const handleContinue = async (shaveAutoApprove: boolean) => {
     if (!recordedVideo) return;
 
     // Validate that duration was loaded
@@ -166,8 +176,13 @@ export function ScreenRecorder() {
         },
       );
       const newShave = result?.data;
+      if (!newShave?.id && shaveAutoApprove) {
+        toast.warning(
+          "Auto-approve is unavailable — shave record could not be created. You will be prompted for confirmations.",
+        );
+      }
       //Process video even if Shave creation failed, do not block user
-      await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id);
+      await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id, shaveAutoApprove);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = formatErrorMessage(error);
@@ -312,6 +327,7 @@ export function ScreenRecorder() {
           open={previewOpen}
           videoBlob={recordedVideo.blob}
           videoFilePath={recordedVideo.filePath}
+          approvalMode={approvalMode}
           onClose={resetPreview}
           onRetry={handleRetry}
           onContinue={handleContinue}

@@ -14,6 +14,7 @@ import { TranscriptionModelProvider } from "../services/mcp/transcription-model-
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
+import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
@@ -27,6 +28,7 @@ type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
   shaveId?: string;
+  shaveAutoApprove?: boolean;
 };
 
 export const TranscriptSummarySchema = z.object({
@@ -55,12 +57,12 @@ export class ProcessVideoIPCHandlers {
   private registerHandlers(): void {
     ipcMain.handle(
       IPC_CHANNELS.PROCESS_VIDEO_FILE,
-      async (_event, filePath?: string, shaveId?: string) => {
+      async (_event, filePath?: string, shaveId?: string, shaveAutoApprove?: boolean) => {
         if (!filePath) {
           throw new Error("video-process-handler: Video file path is required");
         }
 
-        return await this.processFileVideo(filePath, shaveId);
+        return await this.processFileVideo(filePath, shaveId, shaveAutoApprove);
       },
     );
 
@@ -98,6 +100,7 @@ export class ProcessVideoIPCHandlers {
             await PromptSelectionService.getInstance().getConfirmedProjectDetails(
               languageModelProvider,
               intermediateOutput,
+              shaveId,
             );
 
           const { desktopAgentProjectPrompt, projectMetaData } =
@@ -125,6 +128,7 @@ export class ProcessVideoIPCHandlers {
               desktopAgentProjectPrompt,
               videoFilePath: filePath,
               serverFilter,
+              shaveId,
               onStep: mcpAdapter.onStep,
             },
           );
@@ -146,7 +150,7 @@ export class ProcessVideoIPCHandlers {
     );
   }
 
-  private async processFileVideo(filePath: string, shaveId?: string) {
+  private async processFileVideo(filePath: string, shaveId?: string, shaveAutoApprove?: boolean) {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
@@ -191,6 +195,7 @@ export class ProcessVideoIPCHandlers {
           filePath,
           youtubeResult,
           shaveId,
+          shaveAutoApprove,
         },
         workflowManager,
       );
@@ -239,7 +244,7 @@ export class ProcessVideoIPCHandlers {
   }
 
   private async processVideoSource(
-    { filePath, youtubeResult, shaveId }: VideoProcessingContext,
+    { filePath, youtubeResult, shaveId, shaveAutoApprove }: VideoProcessingContext,
     workflowManager: WorkflowStateManager,
   ) {
     // check file exists
@@ -250,6 +255,12 @@ export class ProcessVideoIPCHandlers {
     const notify = (stage: string, data?: Record<string, unknown>) => {
       this.emitProgress(stage, data, shaveId);
     };
+
+    // Intentionally not cleared shaveAutoApprove after processing — the RETRY_VIDEO handler relies on the
+    // persisted map entry to inherit auto-approve for the same shaveId without re-setting it.
+    if (shaveId && shaveAutoApprove) {
+      UserInteractionService.getInstance().setShaveAutoApprove(shaveId);
+    }
 
     try {
       this.lastVideoFilePath = filePath;
@@ -310,6 +321,7 @@ export class ProcessVideoIPCHandlers {
       const projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
         languageModelProvider,
         transcriptText,
+        shaveId,
       );
 
       const { desktopAgentProjectPrompt, projectMetaData } =
@@ -333,6 +345,7 @@ export class ProcessVideoIPCHandlers {
         desktopAgentProjectPrompt,
         videoFilePath: filePath,
         serverFilter,
+        shaveId,
         onStep: mcpAdapter.onStep,
       });
 

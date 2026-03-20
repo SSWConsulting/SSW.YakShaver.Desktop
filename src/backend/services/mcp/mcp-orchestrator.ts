@@ -133,6 +133,7 @@ export class MCPOrchestrator {
       maxToolIterations?: number; // safety cap to avoid infinite loops
       videoFilePath?: string; // local video file path for screenshot capture
       serverFilter?: string[]; // if provided, only include tools from these server IDs
+      shaveId?: string; // identifies the current shave for per-shave auto-approve
       onStep?: (step: MCPStep) => void;
     } = {},
   ): Promise<string | undefined> {
@@ -209,10 +210,10 @@ export class MCPOrchestrator {
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
         const telemetryService = TelemetryService.getInstance();
+        const toolWhiteList = new Set(
+          (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
+        );
         for (const toolCall of llmResponse.toolCalls) {
-          const toolWhiteList = new Set(
-            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
-          );
           const isWhitelisted = toolWhiteList.has(toolCall.toolName);
           const toolStartTime = Date.now();
 
@@ -222,7 +223,10 @@ export class MCPOrchestrator {
             const decision = await UserInteractionService.getInstance().requestToolApproval(
               toolCall.toolName,
               toolCall.input,
-              { message: `Approval required to run ${toolCall.toolName}` },
+              {
+                message: `Approval required to run ${toolCall.toolName}`,
+                shaveId: options.shaveId,
+              },
             );
 
             if (decision.kind === "deny_stop") {
