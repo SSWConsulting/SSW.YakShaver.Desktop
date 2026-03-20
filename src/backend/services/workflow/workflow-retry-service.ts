@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import {
-  ProgressStage as WorkflowProgressStage,
   WORKFLOW_STAGE_ORDER,
+  ProgressStage as WorkflowProgressStage,
   type WorkflowState,
 } from "../../../shared/types/workflow";
 import { ProgressStage } from "../../types";
@@ -120,7 +120,8 @@ export function validateCheckpointData(
     }
   }
 
-  const suggestedStage = earliestIdx < WORKFLOW_STAGE_ORDER.length ? WORKFLOW_STAGE_ORDER[earliestIdx] : undefined;
+  const suggestedStage =
+    earliestIdx < WORKFLOW_STAGE_ORDER.length ? WORKFLOW_STAGE_ORDER[earliestIdx] : undefined;
 
   return { valid: false, missing, suggestedStage };
 }
