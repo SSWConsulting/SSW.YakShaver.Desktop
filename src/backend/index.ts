@@ -64,6 +64,7 @@ loadEnv();
 let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
 let isQuitting: boolean = false;
+let isCreatingMainWindow: boolean = false;
 
 const trayManager = new TrayManager(() => {
   isQuitting = true;
@@ -161,10 +162,20 @@ const createApplicationMenu = (): void => {
   Menu.setApplicationMenu(menu);
 };
 
-const createWindow = (): void => {
+const createWindow = (): BrowserWindow | null => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow;
+  }
+
+  if (isCreatingMainWindow) {
+    return null;
+  }
+
+  isCreatingMainWindow = true;
+
   const title = `YakShaver`;
 
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1200,
     height: 800,
     title,
@@ -177,8 +188,10 @@ const createWindow = (): void => {
     },
   });
 
+  mainWindow = window;
+
   // URLs - by default, open in default browser
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
       shell.openExternal(url);
       return { action: "deny" };
@@ -186,14 +199,17 @@ const createWindow = (): void => {
     return { action: "allow" };
   });
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow?.show();
+  window.once("ready-to-show", () => {
+    isCreatingMainWindow = false;
+    if (!window.isDestroyed()) {
+      window.show();
+    }
   });
 
-  mainWindow.on("close", (event) => {
+  window.on("close", (event) => {
     if (!isQuitting) {
       event.preventDefault();
-      mainWindow?.hide();
+      window.hide();
 
       // Ensure screen frame overlay is closed
       try {
@@ -206,8 +222,11 @@ const createWindow = (): void => {
     }
   });
 
-  mainWindow.on("closed", () => {
-    mainWindow = null;
+  window.on("closed", () => {
+    isCreatingMainWindow = false;
+    if (mainWindow === window) {
+      mainWindow = null;
+    }
     // Cleanup any pending MCP tool approvals to prevent hanging promises
     MCPOrchestrator.getInstanceAsync().then((orchestrator) => {
       orchestrator.cancelAllPendingApprovals("Window closed");
@@ -215,14 +234,17 @@ const createWindow = (): void => {
   });
 
   if (isDev) {
-    mainWindow.loadURL("http://localhost:3000");
-    mainWindow.webContents.openDevTools();
+    window.loadURL("http://localhost:3000");
+    window.webContents.openDevTools();
   } else {
     const indexPath = join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/index.html");
-    mainWindow.loadFile(indexPath).catch((err) => {
+    window.loadFile(indexPath).catch((err) => {
+      isCreatingMainWindow = false;
       console.error("Failed to load index.html:", err);
     });
   }
+
+  return window;
 };
 
 const getProtocolUrlFromArgs = (args: string[]): string | null => {
@@ -468,9 +490,9 @@ app.on("before-quit", async (event) => {
 });
 
 app.on("activate", () => {
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show();
-  } else if (BrowserWindow.getAllWindows().length === 0) {
+  } else if (!isCreatingMainWindow) {
     createWindow();
   }
 });
