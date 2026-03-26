@@ -234,13 +234,25 @@ const createWindow = (): BrowserWindow | null => {
   });
 
   if (isDev) {
-    window.loadURL("http://localhost:3000");
+    window.loadURL("http://localhost:3000").catch((err) => {
+      isCreatingMainWindow = false;
+      console.error("Failed to load dev server URL (is the dev server running?):", err);
+      if (!window.isDestroyed()) {
+        window.destroy();
+      }
+    });
     window.webContents.openDevTools();
   } else {
     const indexPath = join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/index.html");
     window.loadFile(indexPath).catch((err) => {
       isCreatingMainWindow = false;
       console.error("Failed to load index.html:", err);
+      if (mainWindow === window) {
+        mainWindow = null;
+      }
+      if (!window.isDestroyed()) {
+        window.destroy();
+      }
     });
   }
 
