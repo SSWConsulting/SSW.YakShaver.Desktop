@@ -2,7 +2,12 @@ import fs from "node:fs";
 import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
-import { ProgressStage as WorkflowProgressStage } from "../../shared/types/workflow";
+import type { TranscriptSegment } from "../../shared/types/transcript";
+import {
+  WORKFLOW_STAGE_ORDER,
+  ProgressStage as WorkflowProgressStage,
+  type WorkflowState,
+} from "../../shared/types/workflow";
 import { INITIAL_SUMMARY_PROMPT, TASK_EXECUTION_PROMPT } from "../constants/prompts";
 import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
 import type { VideoUploadResult } from "../services/auth/types";
@@ -19,17 +24,20 @@ import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
+import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
+import {
+  type RetryResult,
+  resolveCheckpointData,
+  type VideoProcessingContext,
+  validateCheckpointData,
+  WorkflowRetryService,
+} from "../services/workflow/workflow-retry-service";
 import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
 import { ProgressStage } from "../types";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
-type VideoProcessingContext = {
-  filePath: string;
-  youtubeResult: VideoUploadResult;
-  shaveId?: string;
-  shaveAutoApprove?: boolean;
-};
+export type { VideoProcessingContext, RetryResult };
 
 export const TranscriptSummarySchema = z.object({
   taskType: z.string(),
@@ -48,9 +56,23 @@ export class ProcessVideoIPCHandlers {
   private readonly metadataBuilder: VideoMetadataBuilder;
   private readonly youtubeDownloadService = YouTubeDownloadService.getInstance();
   private lastVideoFilePath: string | undefined;
+  private tempFilesToCleanup: Map<string, string[]> = new Map();
+  private workflowManagers: Map<string, WorkflowStateManager> = new Map();
+  private readonly retryService: WorkflowRetryService;
+  private activeRetries: Set<string> = new Set();
+  private activeWorkflows: Set<string> = new Set();
 
   constructor() {
     this.metadataBuilder = new VideoMetadataBuilder();
+    this.retryService = new WorkflowRetryService({
+      youtube: this.youtube,
+      youtubeDownloadService: this.youtubeDownloadService,
+      processVideoSource: this.processVideoSource.bind(this),
+      emitProgress: this.emitProgress.bind(this),
+      trackTempFile: this.trackTempFile.bind(this),
+      getLastVideoFilePath: () => this.lastVideoFilePath,
+      getOrCreateWorkflowManager: this.getOrCreateWorkflowManager.bind(this),
+    });
     this.registerHandlers();
   }
 
@@ -77,9 +99,10 @@ export class ProcessVideoIPCHandlers {
       },
     );
 
-    // Retry video pipeline
+    // Re-execute: user-initiated re-run from SELECTING_PROMPT with modified input after a successful workflow.
+    // Different from WORKFLOW_RETRY_FROM_STAGE which resumes from a failed checkpoint.
     ipcMain.handle(
-      IPC_CHANNELS.RETRY_VIDEO,
+      IPC_CHANNELS.RERUN_TASK,
       async (
         _event: IpcMainInvokeEvent,
         intermediateOutput: string,
@@ -140,14 +163,87 @@ export class ProcessVideoIPCHandlers {
             mcpResult,
             finalOutput,
           });
-          return { success: true, finalOutput };
+          return {
+            success: true,
+            youtubeResult: videoUploadResult,
+            mcpResult,
+          } satisfies RetryResult;
         } catch (error) {
-          const errorMessage = formatAndReportError(error, "retry_video_processing");
+          const errorMessage = formatAndReportError(error, "rerun_task");
           notify(ProgressStage.ERROR, { error: errorMessage });
-          return { success: false, error: errorMessage };
+          return { success: false, error: errorMessage } satisfies RetryResult;
         }
       },
     );
+
+    // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
+    // Different from RERUN_TASK which is a user-initiated re-execution after success.
+    ipcMain.handle(
+      IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE,
+      async (_event: IpcMainInvokeEvent, stage: keyof WorkflowState, shaveId?: string) => {
+        if (!WORKFLOW_STAGE_ORDER.includes(stage)) {
+          return { success: false, error: `Invalid stage: ${stage}` };
+        }
+        if (shaveId && this.activeWorkflows.has(shaveId)) {
+          return {
+            success: false,
+            error: "The workflow is still running. Please wait for it to finish.",
+          };
+        }
+        if (shaveId && this.activeRetries.has(shaveId)) {
+          return { success: false, error: "A retry is already in progress for this workflow." };
+        }
+
+        if (shaveId) this.activeRetries.add(shaveId);
+        try {
+          return await this.retryService.retryFromStage(stage, shaveId);
+        } catch (error) {
+          const errorMessage = formatAndReportError(error, "retry_from_stage");
+          return { success: false, error: errorMessage };
+        } finally {
+          if (shaveId) this.activeRetries.delete(shaveId);
+        }
+      },
+    );
+
+    // Get retry status for all failed stages
+    ipcMain.handle(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, async (_event, shaveId?: string) => {
+      if (!shaveId) {
+        return { success: false, error: "Shave ID is required" };
+      }
+
+      try {
+        const workflowManager = this.getOrCreateWorkflowManager(shaveId);
+        const retryableStages = workflowManager.getRetryableFailedStages();
+
+        return {
+          success: true,
+          stages: retryableStages,
+        };
+      } catch (error) {
+        const errorMessage = formatAndReportError(error, "get_retry_status");
+        return { success: false, error: errorMessage };
+      }
+    });
+
+    // Cancel/clear retry state for a workflow
+    ipcMain.handle(IPC_CHANNELS.WORKFLOW_CANCEL_RETRY, async (_event, shaveId?: string) => {
+      if (!shaveId) {
+        return { success: false, error: "Shave ID is required" };
+      }
+
+      try {
+        const workflowManager = this.workflowManagers.get(shaveId);
+        if (workflowManager) {
+          workflowManager.clearAllCheckpoints();
+        }
+        await this.cleanupTempFiles(shaveId);
+        return { success: true };
+      } catch (error) {
+        const errorMessage = formatAndReportError(error, "cancel_retry");
+        return { success: false, error: errorMessage };
+      }
+    });
   }
 
   private async processFileVideo(filePath: string, shaveId?: string, shaveAutoApprove?: boolean) {
@@ -160,49 +256,80 @@ export class ProcessVideoIPCHandlers {
       throw new Error("video-process-handler: Video file does not exist");
     }
 
-    const workflowManager = new WorkflowStateManager(shaveId);
-    workflowManager.startStage(WorkflowProgressStage.UPLOADING_VIDEO);
-    workflowManager.skipStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+    const effectiveShaveId = shaveId || crypto.randomUUID();
 
-    // Get video source info for duration if shaveId exists
-    let duration: number | undefined;
-    if (shaveId) {
-      const shaveService = ShaveService.getInstance();
-      const videoSource = shaveService.getShaveVideoSourceInfo(shaveId);
-      duration = videoSource?.durationSeconds ?? undefined;
+    if (this.activeWorkflows.has(effectiveShaveId)) {
+      return { success: false, error: "A workflow is already in progress for this shave." };
     }
 
-    // upload to YouTube
-    notify(ProgressStage.UPLOADING_SOURCE, {
-      sourceOrigin: "upload",
-    });
-
+    this.activeWorkflows.add(effectiveShaveId);
     try {
-      const youtubeResult = await this.youtube.uploadVideo(filePath);
+      const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
+      this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
 
-      if (youtubeResult.success && youtubeResult.data && duration) {
-        youtubeResult.data.duration = duration;
-      }
+      this.lastVideoFilePath = filePath;
+      this.trackTempFile(filePath, effectiveShaveId);
 
-      workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, youtubeResult.data?.url);
-      notify(ProgressStage.UPLOAD_COMPLETED, {
-        uploadResult: youtubeResult,
-        sourceOrigin: youtubeResult.origin,
+      workflowManager.startStage(WorkflowProgressStage.UPLOADING_VIDEO);
+      workflowManager.skipStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+
+      // Save checkpoint before upload so retry can find the file path
+      workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
+        filePath,
       });
 
-      return await this.processVideoSource(
-        {
+      // Get video source info for duration if shaveId exists
+      let duration: number | undefined;
+      if (shaveId) {
+        const shaveService = ShaveService.getInstance();
+        const videoSource = shaveService.getShaveVideoSourceInfo(shaveId);
+        duration = videoSource?.durationSeconds ?? undefined;
+      }
+
+      // upload to YouTube
+      notify(ProgressStage.UPLOADING_SOURCE, {
+        sourceOrigin: "upload",
+      });
+
+      try {
+        const youtubeResult = await this.youtube.uploadVideo(filePath);
+
+        if (youtubeResult.success && youtubeResult.data && duration) {
+          youtubeResult.data.duration = duration;
+        }
+
+        workflowManager.completeStage(
+          WorkflowProgressStage.UPLOADING_VIDEO,
+          youtubeResult.data?.url,
+        );
+
+        // Update checkpoint with upload result
+        workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
           filePath,
           youtubeResult,
-          shaveId,
-          shaveAutoApprove,
-        },
-        workflowManager,
-      );
-    } catch (uploadError) {
-      const errorMessage = formatAndReportError(uploadError, "video_upload");
-      workflowManager.failStage(WorkflowProgressStage.UPLOADING_VIDEO, errorMessage);
-      return { success: false, error: errorMessage };
+        });
+
+        notify(ProgressStage.UPLOAD_COMPLETED, {
+          uploadResult: youtubeResult,
+          sourceOrigin: youtubeResult.origin,
+        });
+
+        return await this.processVideoSource(
+          {
+            filePath,
+            youtubeResult,
+            shaveId: effectiveShaveId,
+            shaveAutoApprove,
+          },
+          workflowManager,
+        );
+      } catch (uploadError) {
+        const errorMessage = formatAndReportError(uploadError, "video_upload");
+        workflowManager.failStage(WorkflowProgressStage.UPLOADING_VIDEO, errorMessage);
+        return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
+      }
+    } finally {
+      this.activeWorkflows.delete(effectiveShaveId);
     }
   }
 
@@ -211,42 +338,71 @@ export class ProcessVideoIPCHandlers {
       this.emitProgress(stage, data, shaveId);
     };
 
-    const workflowManager = new WorkflowStateManager(shaveId);
-    workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);
-    workflowManager.startStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
-    workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
+    const effectiveShaveId = shaveId || crypto.randomUUID();
 
+    if (this.activeWorkflows.has(effectiveShaveId)) {
+      return { success: false, error: "A workflow is already in progress for this shave." };
+    }
+
+    this.activeWorkflows.add(effectiveShaveId);
     try {
-      const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
-      notify(ProgressStage.UPLOAD_COMPLETED, {
-        uploadResult: youtubeResult,
-        sourceOrigin: "external",
+      const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
+      this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
+
+      workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);
+      workflowManager.startStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+      workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
+
+      // Save checkpoint before download so retry can find the URL
+      workflowManager.createCheckpoint(WorkflowProgressStage.DOWNLOADING_VIDEO, {
+        downloadUrl: url,
       });
-      notify(ProgressStage.DOWNLOADING_SOURCE, {
-        sourceOrigin: "external",
-      });
-      const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
-      workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
-      return await this.processVideoSource(
-        {
+
+      try {
+        const youtubeResult = await this.youtubeDownloadService.getVideoMetadata(url);
+        notify(ProgressStage.UPLOAD_COMPLETED, {
+          uploadResult: youtubeResult,
+          sourceOrigin: "external",
+        });
+        notify(ProgressStage.DOWNLOADING_SOURCE, {
+          sourceOrigin: "external",
+        });
+        const filePath = await this.youtubeDownloadService.downloadVideoToFile(url);
+        this.trackTempFile(filePath, effectiveShaveId);
+        this.lastVideoFilePath = filePath;
+
+        workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+
+        // Create checkpoint after successful download
+        workflowManager.createCheckpoint(WorkflowProgressStage.DOWNLOADING_VIDEO, {
           filePath,
           youtubeResult,
-          shaveId,
-        },
-        workflowManager,
-      );
-    } catch (error) {
-      const errorMessage = formatAndReportError(error, "video_download");
-      workflowManager.failStage(WorkflowProgressStage.DOWNLOADING_VIDEO, errorMessage);
-      notify(ProgressStage.ERROR, { error: errorMessage });
-      return { success: false, error: errorMessage };
+          downloadUrl: url,
+        });
+        return await this.processVideoSource(
+          {
+            filePath,
+            youtubeResult,
+            shaveId: effectiveShaveId,
+          },
+          workflowManager,
+        );
+      } catch (error) {
+        const errorMessage = formatAndReportError(error, "video_download");
+        workflowManager.failStage(WorkflowProgressStage.DOWNLOADING_VIDEO, errorMessage);
+        notify(ProgressStage.ERROR, { error: errorMessage });
+        return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
+      }
+    } finally {
+      this.activeWorkflows.delete(effectiveShaveId);
     }
   }
 
   private async processVideoSource(
     { filePath, youtubeResult, shaveId, shaveAutoApprove }: VideoProcessingContext,
     workflowManager: WorkflowStateManager,
-  ) {
+    startFromStage?: keyof WorkflowState,
+  ): Promise<RetryResult> {
     // check file exists
     if (!fs.existsSync(filePath)) {
       throw new Error("video-process-handler: Video file does not exist");
@@ -256,126 +412,241 @@ export class ProcessVideoIPCHandlers {
       this.emitProgress(stage, data, shaveId);
     };
 
+    const startIdx = startFromStage ? Math.max(0, WORKFLOW_STAGE_ORDER.indexOf(startFromStage)) : 0;
+
+    const shouldRunStage = (stage: keyof WorkflowState) =>
+      WORKFLOW_STAGE_ORDER.indexOf(stage) >= startIdx;
+
+    // Resolve merged checkpoint data for skipped stages' outputs
+    const checkpoint: CheckpointData =
+      startIdx > 0 && startFromStage ? resolveCheckpointData(workflowManager, startFromStage) : {};
+
+    // Validate checkpoint completeness before resuming from a failed stage
+    if (startFromStage && startIdx > 0) {
+      const { valid, missing } = validateCheckpointData(startFromStage, checkpoint);
+      if (!valid) {
+        const errorMessage = `Cannot resume from "${startFromStage}": missing data from prior stages (${missing.join(", ")}).`;
+        notify(ProgressStage.ERROR, { error: errorMessage });
+        return {
+          success: false,
+          error: errorMessage,
+          workflowId: workflowManager.getWorkflowId(),
+        };
+      }
+    }
+
     // Intentionally not cleared shaveAutoApprove after processing — the RETRY_VIDEO handler relies on the
     // persisted map entry to inherit auto-approve for the same shaveId without re-setting it.
     if (shaveId && shaveAutoApprove) {
       UserInteractionService.getInstance().setShaveAutoApprove(shaveId);
     }
 
+    // Local variables — populated from stage execution or merged checkpoint
+    let mp3FilePath: string | undefined = checkpoint.mp3FilePath;
+    let transcript: TranscriptSegment[] | undefined = checkpoint.transcript;
+    let transcriptText: string | undefined = checkpoint.transcriptText;
+    let intermediateOutput: string | undefined = checkpoint.intermediateOutput;
+    let projectDetails: (ProjectDto & { selectionReason: string }) | undefined | null =
+      checkpoint.projectDetails as (ProjectDto & { selectionReason: string }) | undefined;
+    let projectMetaData: string | undefined = checkpoint.projectMetaData;
+    let desktopAgentProjectPrompt: string | undefined = checkpoint.desktopAgentProjectPrompt;
+    let mcpResult: string | undefined = checkpoint.mcpResult;
+    let finalOutput: string | undefined = checkpoint.finalOutput;
+
+    let portalSubmissionError: string | undefined;
+    let currentStage: keyof WorkflowState | null = null;
+
     try {
       this.lastVideoFilePath = filePath;
-      workflowManager.startStage(WorkflowProgressStage.CONVERTING_AUDIO);
-      notify(ProgressStage.CONVERTING_AUDIO);
 
-      const hasAudio = await this.ffmpegService.hasAudibleAudio(filePath);
-      if (!hasAudio) {
-        const errorMessage =
-          "No audio detected in this video. Please re-record and make sure the correct microphone is selected and unmuted.";
-        workflowManager.failStage(WorkflowProgressStage.CONVERTING_AUDIO, errorMessage);
-        notify(ProgressStage.ERROR, { error: errorMessage });
-        return { success: false, error: errorMessage };
-      }
+      // -- CONVERTING_AUDIO --
+      if (shouldRunStage(WorkflowProgressStage.CONVERTING_AUDIO)) {
+        currentStage = WorkflowProgressStage.CONVERTING_AUDIO;
+        workflowManager.startStage(WorkflowProgressStage.CONVERTING_AUDIO);
+        notify(ProgressStage.CONVERTING_AUDIO);
 
-      const mp3FilePath = await this.convertVideoToMp3(filePath);
+        const hasAudio = await this.ffmpegService.hasAudibleAudio(filePath);
 
-      workflowManager.completeStage(WorkflowProgressStage.CONVERTING_AUDIO);
-
-      const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
-
-      workflowManager.startStage(WorkflowProgressStage.TRANSCRIBING);
-      notify(ProgressStage.TRANSCRIBING);
-      const transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath);
-      const transcriptText = transcript.map((seg) => seg.text).join("");
-
-      if (!transcriptText.trim()) {
-        const errorMessage =
-          "No speech detected in this recording. Please re-record and check your microphone and audio levels.";
-        workflowManager.failStage(WorkflowProgressStage.TRANSCRIBING, errorMessage);
-        notify(ProgressStage.ERROR, { error: errorMessage });
-        return { success: false, error: errorMessage };
-      }
-
-      notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
-
-      workflowManager.completeStage(WorkflowProgressStage.TRANSCRIBING, transcriptText);
-
-      workflowManager.startStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
-      notify(ProgressStage.GENERATING_TASK);
-
-      const languageModelProvider = await LanguageModelProvider.getInstance();
-
-      const userPrompt = `Process the following transcript into a structured JSON object:
-
-      ${transcriptText}`;
-
-      const intermediateOutput = await languageModelProvider.generateJson(
-        userPrompt,
-        INITIAL_SUMMARY_PROMPT,
-      );
-
-      workflowManager.completeStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT, intermediateOutput);
-
-      workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
-
-      // Select project prompt based on transcript
-      const projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
-        languageModelProvider,
-        transcriptText,
-        shaveId,
-      );
-
-      const { desktopAgentProjectPrompt, projectMetaData } =
-        this.formatProjectDetails(projectDetails);
-
-      workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
-      workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
-
-      notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
-
-      const serverFilter = projectDetails?.selectedMcpServerIds;
-
-      const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
-        transcriptText,
-        intermediateOutput,
-      });
-
-      const orchestrator = await MCPOrchestrator.getInstanceAsync();
-      const mcpResult = await orchestrator.manualLoopAsync(transcriptText, youtubeResult, {
-        projectMetaData,
-        desktopAgentProjectPrompt,
-        videoFilePath: filePath,
-        serverFilter,
-        shaveId,
-        onStep: mcpAdapter.onStep,
-      });
-
-      const finalOutput = await this.formatFinalResult(mcpResult);
-      mcpAdapter.complete(mcpResult);
-
-      // if user logged in, send work item details to the portal
-      if (mcpResult && (await MicrosoftAuthService.getInstance().isAuthenticated())) {
-        const objectResult = await orchestrator.convertToObjectAsync(mcpResult, WorkItemDtoSchema);
-        const portalResult = await SendWorkItemDetailsToPortal(
-          WorkItemDtoSchema.parse(objectResult),
-        );
-        if (!portalResult.success) {
-          console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
-          const errorMessage = formatAndReportError(portalResult.error, "portal_submission");
+        if (!hasAudio) {
+          const errorMessage =
+            "No audio detected in this video. Please re-record and make sure the correct microphone is selected and unmuted.";
+          workflowManager.failStage(WorkflowProgressStage.CONVERTING_AUDIO, errorMessage);
           notify(ProgressStage.ERROR, { error: errorMessage });
-          workflowManager.failStage(WorkflowProgressStage.UPDATING_METADATA, errorMessage);
-        } else if (shaveId) {
+          return {
+            success: false,
+            error: errorMessage,
+            workflowId: workflowManager.getWorkflowId(),
+          };
+        }
+
+        mp3FilePath = await this.convertVideoToMp3(filePath);
+        this.trackTempFile(mp3FilePath, shaveId);
+
+        workflowManager.completeStage(WorkflowProgressStage.CONVERTING_AUDIO);
+        workflowManager.createCheckpoint(WorkflowProgressStage.CONVERTING_AUDIO, {
+          mp3FilePath,
+        });
+      }
+
+      // -- TRANSCRIBING --
+      if (shouldRunStage(WorkflowProgressStage.TRANSCRIBING)) {
+        currentStage = WorkflowProgressStage.TRANSCRIBING;
+        workflowManager.startStage(WorkflowProgressStage.TRANSCRIBING);
+        notify(ProgressStage.TRANSCRIBING);
+
+        const transcriptionModelProvider = await TranscriptionModelProvider.getInstance();
+        // mp3FilePath guaranteed by: normal flow sets it in CONVERTING_AUDIO; retry validated at entry
+        transcript = await transcriptionModelProvider.transcribeAudio(mp3FilePath as string);
+        transcriptText = transcript.map((seg) => seg.text).join("");
+
+        if (!transcriptText.trim()) {
+          const errorMessage =
+            "No speech detected in this recording. Please re-record and check your microphone and audio levels.";
+          workflowManager.failStage(WorkflowProgressStage.TRANSCRIBING, errorMessage);
+          notify(ProgressStage.ERROR, { error: errorMessage });
+          return {
+            success: false,
+            error: errorMessage,
+            workflowId: workflowManager.getWorkflowId(),
+          };
+        }
+
+        notify(ProgressStage.TRANSCRIPTION_COMPLETED, { transcript });
+        workflowManager.completeStage(WorkflowProgressStage.TRANSCRIBING, transcriptText);
+        workflowManager.createCheckpoint(WorkflowProgressStage.TRANSCRIBING, {
+          transcript,
+          transcriptText,
+        });
+      }
+
+      // -- ANALYZING_TRANSCRIPT --
+      if (shouldRunStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT)) {
+        currentStage = WorkflowProgressStage.ANALYZING_TRANSCRIPT;
+        workflowManager.startStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
+        notify(ProgressStage.GENERATING_TASK);
+
+        const languageModelProvider = await LanguageModelProvider.getInstance();
+
+        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+        const userPrompt = `Process the following transcript into a structured JSON object:
+
+      ${transcriptText as string}`;
+
+        intermediateOutput = await languageModelProvider.generateJson(
+          userPrompt,
+          INITIAL_SUMMARY_PROMPT,
+        );
+
+        workflowManager.completeStage(
+          WorkflowProgressStage.ANALYZING_TRANSCRIPT,
+          intermediateOutput,
+        );
+        workflowManager.createCheckpoint(WorkflowProgressStage.ANALYZING_TRANSCRIPT, {
+          intermediateOutput,
+        });
+      }
+
+      // -- SELECTING_PROMPT --
+      if (shouldRunStage(WorkflowProgressStage.SELECTING_PROMPT)) {
+        currentStage = WorkflowProgressStage.SELECTING_PROMPT;
+        workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
+
+        const languageModelProvider = await LanguageModelProvider.getInstance();
+
+        // Select project prompt based on transcript
+        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+        projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
+          languageModelProvider,
+          transcriptText as string,
+          shaveId,
+        );
+
+        ({ desktopAgentProjectPrompt, projectMetaData } =
+          this.formatProjectDetails(projectDetails));
+
+        workflowManager.completeStage(WorkflowProgressStage.SELECTING_PROMPT, projectDetails);
+        workflowManager.createCheckpoint(WorkflowProgressStage.SELECTING_PROMPT, {
+          projectDetails: projectDetails
+            ? {
+                name: projectDetails.name,
+                description: projectDetails.description,
+                desktopAgentProjectPrompt: projectDetails.desktopAgentProjectPrompt,
+                selectionReason: projectDetails.selectionReason,
+                selectedMcpServerIds: projectDetails.selectedMcpServerIds,
+              }
+            : undefined,
+          projectMetaData,
+          desktopAgentProjectPrompt,
+        });
+      }
+
+      // -- EXECUTING_TASK --
+      if (shouldRunStage(WorkflowProgressStage.EXECUTING_TASK)) {
+        currentStage = WorkflowProgressStage.EXECUTING_TASK;
+        workflowManager.startStage(WorkflowProgressStage.EXECUTING_TASK);
+
+        notify(ProgressStage.EXECUTING_TASK, { transcriptText, intermediateOutput });
+
+        const serverFilter = projectDetails?.selectedMcpServerIds;
+
+        const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
+          transcriptText,
+          intermediateOutput,
+        });
+
+        const orchestrator = await MCPOrchestrator.getInstanceAsync();
+
+        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+        mcpResult = await orchestrator.manualLoopAsync(transcriptText as string, youtubeResult, {
+          projectMetaData,
+          desktopAgentProjectPrompt,
+          videoFilePath: filePath,
+          serverFilter,
+          shaveId,
+          onStep: mcpAdapter.onStep,
+        });
+
+        finalOutput = await this.formatFinalResult(mcpResult);
+        mcpAdapter.complete(mcpResult);
+
+        workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
+          mcpResult,
+          finalOutput,
+        });
+
+        // Send to portal if authenticated — non-fatal, does not affect workflow stage status
+        if (mcpResult && (await MicrosoftAuthService.getInstance().isAuthenticated())) {
           try {
-            const shaveService = ShaveService.getInstance();
-            shaveService.updateShave(shaveId, { portalWorkItemId: portalResult.workItemId });
-          } catch (savePortalIdError) {
-            console.warn("[ProcessVideo] Failed to persist portal work item id", savePortalIdError);
+            const objectResult = await orchestrator.convertToObjectAsync(
+              mcpResult,
+              WorkItemDtoSchema,
+            );
+            const portalResult = await SendWorkItemDetailsToPortal(
+              WorkItemDtoSchema.parse(objectResult),
+            );
+            if (!portalResult.success) {
+              console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
+              portalSubmissionError = formatAndReportError(portalResult.error, "portal_submission");
+              notify(ProgressStage.ERROR, { error: portalSubmissionError });
+            } else if (shaveId) {
+              const shaveService = ShaveService.getInstance();
+              shaveService.updateShave(shaveId, { portalWorkItemId: portalResult.workItemId });
+            }
+          } catch (portalError) {
+            console.warn("[ProcessVideo] Portal submission error:", portalError);
+            portalSubmissionError = formatAndReportError(portalError, "portal_submission");
           }
         }
       }
 
+      // -- UPDATING_METADATA --
       let metadataUpdateError: string | undefined;
 
-      if (youtubeResult.origin !== "external" && youtubeResult.success) {
+      if (
+        shouldRunStage(WorkflowProgressStage.UPDATING_METADATA) &&
+        youtubeResult.origin !== "external" &&
+        youtubeResult.success
+      ) {
         const videoId = youtubeResult.data?.videoId;
         if (videoId) {
           try {
@@ -385,9 +656,10 @@ export class ProcessVideoIPCHandlers {
               null,
               "in_progress",
             );
+
             const metadata = await this.metadataBuilder.build({
-              transcript,
-              intermediateOutput,
+              transcript: transcript ?? [],
+              intermediateOutput: intermediateOutput ?? "",
               executionHistory: JSON.stringify(transcript ?? [], null, 2),
               finalResult: mcpResult ?? undefined,
             });
@@ -426,28 +698,29 @@ export class ProcessVideoIPCHandlers {
         finalOutput,
         uploadResult: youtubeResult,
         metadataUpdateError,
+        portalSubmissionError,
       });
 
-      return { youtubeResult, mcpResult };
+      // Clean up temp files and mark DB records on successful completion
+      await this.cleanupTempFiles(shaveId);
+
+      const workflowId = workflowManager.getWorkflowId();
+      return { success: true, youtubeResult, mcpResult, workflowId };
     } catch (error) {
       const errorMessage = formatAndReportError(error, "video_processing");
-      notify(ProgressStage.ERROR, { error: errorMessage });
-      return { success: false, error: errorMessage };
-    } finally {
-      try {
-        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        // Mark video files as deleted in database if shave exists
-        if (shaveId) {
-          try {
-            const shaveService = ShaveService.getInstance();
-            shaveService.markShaveVideoFilesAsDeleted(shaveId);
-          } catch (dbError) {
-            console.warn("[ProcessVideo] Failed to mark video files as deleted", dbError);
-          }
+      // Mark the current stage as failed (if not already failed by fault injection)
+      if (currentStage) {
+        const stepState = workflowManager.getStepState(currentStage);
+        if (stepState.status !== "failed") {
+          workflowManager.failStage(currentStage, errorMessage);
         }
-      } catch (cleanupError) {
-        console.warn("[ProcessVideo] Failed to clean up source file", cleanupError);
       }
+      notify(ProgressStage.ERROR, { error: errorMessage });
+      return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };
+    } finally {
+      // Note: Temp files and DB records are NOT cleaned up here on failure.
+      // They are preserved for potential retry and cleaned up only on success
+      // via cleanupTempFiles() or when user cancels the workflow.
     }
   }
 
@@ -502,5 +775,102 @@ export class ProcessVideoIPCHandlers {
           ...data,
         });
       });
+  }
+
+  private static readonly MAX_FAILED_WORKFLOW_MANAGERS = 100;
+
+  private getOrCreateWorkflowManager(shaveId: string): WorkflowStateManager {
+    let manager = this.workflowManagers.get(shaveId);
+    if (!manager) {
+      this.evictStaleWorkflowManagers();
+      manager = new WorkflowStateManager(shaveId);
+      this.workflowManagers.set(shaveId, manager);
+    }
+    return manager;
+  }
+
+  /**
+   * Evict completed workflows immediately (they don't need retry).
+   * If failed workflows exceed the limit, evict the oldest ones.
+   */
+  private evictStaleWorkflowManagers(): void {
+    const failedKeys: string[] = [];
+
+    for (const [key, mgr] of this.workflowManagers.entries()) {
+      const state = mgr.getState();
+      const hasFailed = WORKFLOW_STAGE_ORDER.some((s) => state[s].status === "failed");
+
+      if (hasFailed) {
+        failedKeys.push(key);
+      } else {
+        // Completed or in-progress-but-stale — safe to evict
+        const hasInProgress = WORKFLOW_STAGE_ORDER.some((s) => state[s].status === "in_progress");
+        if (!hasInProgress) {
+          mgr.clearAllCheckpoints();
+          this.workflowManagers.delete(key);
+          this.tempFilesToCleanup.delete(key);
+        }
+      }
+    }
+
+    // If too many failed workflows, evict oldest
+    while (failedKeys.length > ProcessVideoIPCHandlers.MAX_FAILED_WORKFLOW_MANAGERS) {
+      const oldestKey = failedKeys.shift();
+      if (oldestKey) {
+        const oldManager = this.workflowManagers.get(oldestKey);
+        oldManager?.clearAllCheckpoints();
+        this.workflowManagers.delete(oldestKey);
+        this.tempFilesToCleanup.delete(oldestKey);
+      }
+    }
+  }
+
+  private trackTempFile(filePath: string, shaveId?: string): void {
+    const key = shaveId ?? "_global";
+    const files = this.tempFilesToCleanup.get(key) ?? [];
+    if (!files.includes(filePath)) {
+      files.push(filePath);
+      this.tempFilesToCleanup.set(key, files);
+    }
+  }
+
+  async cleanupAllTempFiles(): Promise<void> {
+    const keys = [...this.tempFilesToCleanup.keys()];
+    for (const key of keys) {
+      const shaveId = key === "_global" ? undefined : key;
+      await this.cleanupTempFiles(shaveId);
+    }
+  }
+
+  private async cleanupTempFiles(shaveId?: string): Promise<void> {
+    const key = shaveId ?? "_global";
+    const files = this.tempFilesToCleanup.get(key) ?? [];
+
+    for (const filePath of files) {
+      try {
+        await fs.promises.access(filePath);
+        await fs.promises.unlink(filePath);
+      } catch (error) {
+        console.warn(`[ProcessVideo] Failed to cleanup temp file: ${filePath}`, error);
+      }
+    }
+    this.tempFilesToCleanup.delete(key);
+
+    if (shaveId) {
+      // Mark video files as deleted in database only when files are actually cleaned up
+      try {
+        const shaveService = ShaveService.getInstance();
+        shaveService.markShaveVideoFilesAsDeleted(shaveId);
+      } catch (dbError) {
+        console.warn("[ProcessVideo] Failed to mark video files as deleted", dbError);
+      }
+
+      // Remove workflow manager and its checkpoints — no longer needed after cleanup
+      const manager = this.workflowManagers.get(shaveId);
+      if (manager) {
+        manager.clearAllCheckpoints();
+      }
+      this.workflowManagers.delete(shaveId);
+    }
   }
 }

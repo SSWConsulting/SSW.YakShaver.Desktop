@@ -1,6 +1,7 @@
 import type { LLMConfigV2 } from "@shared/types/llm";
 import type { TelemetrySettings } from "@shared/types/telemetry";
 import type { UserSettings } from "@shared/types/user-settings";
+import type { WorkflowState } from "@shared/types/workflow";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
@@ -41,13 +42,14 @@ declare global {
           shaveAutoApprove?: boolean,
         ) => Promise<void>;
         processVideoUrl: (url: string, shaveId?: string) => Promise<void>;
-        retryVideo: (
+        rerunTask: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
           shaveId?: string,
         ) => Promise<{
           success: boolean;
-          finalOutput?: string | null;
+          youtubeResult?: VideoUploadResult;
+          mcpResult?: string;
           error?: string;
         }>;
       };
@@ -108,6 +110,25 @@ declare global {
       workflow: {
         onProgress: (callback: (progress: unknown) => void) => () => void;
         onProgressNeo: (callback: (progress: unknown) => void) => () => void;
+        retryFromStage: (
+          stage: keyof WorkflowState,
+          shaveId?: string,
+        ) => Promise<{
+          success: boolean;
+          error?: string;
+          workflowId?: string;
+          youtubeResult?: unknown;
+          mcpResult?: string;
+        }>;
+        getRetryStatus: (shaveId: string) => Promise<{
+          success: boolean;
+          stages?: Array<{
+            stage: keyof WorkflowState;
+            lastError?: string;
+          }>;
+          error?: string;
+        }>;
+        cancelRetry: (shaveId: string) => Promise<{ success: boolean; error?: string }>;
       };
       mcp: {
         processMessage: (

@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import {
   ProgressStage,
+  WORKFLOW_STAGE_ORDER,
   type WorkflowState,
   type WorkflowStatus,
   type WorkflowStep,
@@ -8,17 +9,20 @@ import {
 import { IPC_CHANNELS } from "../../ipc/channels";
 import { formatErrorMessage } from "../../utils/error-utils";
 import { TelemetryService } from "../telemetry/telemetry-service";
+import { type CheckpointData, WorkflowCheckpointService } from "./workflow-checkpoint-service";
 
 export class WorkflowStateManager {
   private shaveId: string;
   private state: WorkflowState;
   private telemetryService: TelemetryService;
+  private checkpointService: WorkflowCheckpointService;
   private stageStartTimes: Map<string, number> = new Map();
 
   public constructor(shaveId?: string) {
     this.shaveId = shaveId ?? crypto.randomUUID();
     this.state = this.initiateStates();
     this.telemetryService = TelemetryService.getInstance();
+    this.checkpointService = WorkflowCheckpointService.getInstance();
   }
 
   private initiateStates(): WorkflowState {
@@ -53,7 +57,105 @@ export class WorkflowStateManager {
 
   public reset() {
     this.state = this.initiateStates();
+    this.checkpointService.clearAll(this.shaveId);
     this.broadcast();
+  }
+
+  /**
+   * Prepare a stage for retry by resetting it and all subsequent stages.
+   */
+  public prepareStageForRetry(stageKey: keyof WorkflowState): boolean {
+    if (this.state[stageKey].status !== "failed") return false;
+
+    const stageIndex = WORKFLOW_STAGE_ORDER.indexOf(stageKey);
+    if (stageIndex === -1) {
+      return false;
+    }
+
+    // Reset current and all subsequent stages to "not_started"
+    for (let i = stageIndex; i < WORKFLOW_STAGE_ORDER.length; i++) {
+      const key = WORKFLOW_STAGE_ORDER[i];
+      // Keep prior stages as completed, reset current and later ones
+      if (this.state[key].status !== "skipped") {
+        this.state[key] = {
+          ...this.state[key],
+          status: "not_started",
+          payload: undefined,
+        };
+      }
+    }
+
+    this.telemetryService.trackEvent({
+      name: "WorkflowStageRetryInitiated",
+      properties: {
+        workflowId: this.shaveId,
+        stage: stageKey as string,
+      },
+    });
+
+    this.broadcast();
+    return true;
+  }
+
+  /**
+   * Create a checkpoint for a stage with its data.
+   */
+  public createCheckpoint(stageKey: keyof WorkflowState, data: CheckpointData): void {
+    this.checkpointService.createCheckpoint(this.shaveId, stageKey, data);
+  }
+
+  /**
+   * Get checkpoint data for a stage.
+   */
+  public getCheckpoint(stageKey: keyof WorkflowState): CheckpointData | undefined {
+    return this.checkpointService.getCheckpoint(this.shaveId, stageKey);
+  }
+
+  /**
+   * Get all checkpoints for this workflow.
+   */
+  public getAllCheckpoints(): Map<keyof WorkflowState, CheckpointData> {
+    return this.checkpointService.getAllCheckpoints(this.shaveId);
+  }
+
+  /**
+   * Clear all checkpoints and retry counts for this workflow.
+   */
+  public clearAllCheckpoints(): void {
+    this.checkpointService.clearAll(this.shaveId);
+  }
+
+  /**
+   * Get all failed stages that can be retried.
+   */
+  public getRetryableFailedStages(): Array<{
+    stage: keyof WorkflowState;
+    lastError?: string;
+  }> {
+    const failed: Array<{
+      stage: keyof WorkflowState;
+      lastError?: string;
+    }> = [];
+
+    for (const stage of WORKFLOW_STAGE_ORDER) {
+      const stepState = this.getStepState(stage);
+      if (stepState.status === "failed") {
+        let lastError: string | undefined;
+        if (stepState.payload) {
+          try {
+            lastError = (JSON.parse(stepState.payload) as { error?: string }).error;
+          } catch {
+            lastError = stepState.payload;
+          }
+        }
+        failed.push({
+          stage,
+          lastError,
+        });
+      }
+    }
+
+    return failed;
   }
 
   /**
@@ -133,7 +235,9 @@ export class WorkflowStateManager {
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "failed",
-      payload: JSON.stringify({ error: errorMessage }),
+      payload: JSON.stringify({
+        error: errorMessage,
+      }),
     };
 
     this.telemetryService.trackWorkflowStage({

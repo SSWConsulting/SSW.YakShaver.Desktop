@@ -7,7 +7,6 @@ import { ReasoningStep } from "./ReasoningStep";
 interface StageWithContentProps {
   stage: string;
   payload: unknown;
-  isError?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -169,26 +168,9 @@ function ToolCallStep({ toolName, args }: { toolName?: string; args?: unknown })
   );
 }
 
-export function StageWithContent({ stage, payload, isError }: StageWithContentProps) {
+export function StageWithContent({ stage, payload }: StageWithContentProps) {
   // If no payload or empty object, nothing to render
   if (!payload) return null;
-
-  if (isError) {
-    return (
-      <div className="p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">
-        An error occurred during this stage. Please check the details below.
-        <div className="mt-2 p-2 bg-black/20 rounded">
-          <pre className="text-xs font-mono whitespace-pre-wrap break-all overflow-hidden">
-            {typeof payload === "string"
-              ? payload
-              : isRecord(payload) && payload.error
-                ? JSON.stringify(payload.error, null, 2)
-                : String(payload)}
-          </pre>
-        </div>
-      </div>
-    );
-  }
 
   // Handing executing_task (MCP Steps)
   if (stage === "executing_task" && isRecord(payload) && Array.isArray(payload.steps)) {
@@ -199,7 +181,7 @@ export function StageWithContent({ stage, payload, isError }: StageWithContentPr
     return (
       <div className="max-h-[400px] overflow-y-auto space-y-2">
         {errorSteps.length > 0 && (
-          <div className="flex items-start gap-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">
+          <div className="flex items-start gap-2 p-2 bg-amber-500/5 border border-amber-500/20 rounded text-amber-400/80 text-sm">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
             <span>
               {errorSteps.length} error{errorSteps.length > 1 ? "s" : ""} occurred during task
@@ -215,12 +197,12 @@ export function StageWithContent({ stage, payload, isError }: StageWithContentPr
               key={`${step.timestamp}-${idx}`}
               className={
                 isError
-                  ? "border-l-2 border-red-400/60 pl-3 py-1 bg-red-500/5 rounded-r"
+                  ? "border-l-2 border-amber-400/40 pl-3 py-1 bg-amber-500/5 rounded-r"
                   : "border-l-2 border-green-400/30 pl-3 py-1"
               }
             >
               {step.type === MCPStepType.START && (
-                <div className="text-secondary font-medium flex items-center gap-2">
+                <div className="font-medium flex items-center gap-2">
                   <Play className="w-4 h-4" />
                   {step.message || "Start task execution"}
                 </div>
@@ -276,13 +258,17 @@ export function StageWithContent({ stage, payload, isError }: StageWithContentPr
   }
 
   if (stage === "transcribing" && typeof payload === "string") {
-    return <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">{payload}</div>;
+    return (
+      <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
+        {payload.trim()}
+      </div>
+    );
   }
 
   if (stage === "transcribing" && isRecord(payload) && typeof payload.transcriptText === "string") {
     return (
       <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
-        {payload.transcriptText}
+        {(payload.transcriptText as string).trim()}
       </div>
     );
   }

@@ -27,10 +27,22 @@ const STEP_ORDER: (keyof WorkflowState)[] = [
 
 export function WorkflowProgressPanel() {
   const [state, setState] = useState<WorkflowState | null>(null);
+  const [shaveId, setShaveId] = useState<string | undefined>();
 
   useEffect(() => {
     const cleanup = window.electronAPI.workflow.onProgressNeo((payload: unknown) => {
       setState(payload as WorkflowState);
+    });
+    return cleanup;
+  }, []);
+
+  // Get shaveId from progress events
+  useEffect(() => {
+    const cleanup = window.electronAPI.workflow.onProgress((payload: unknown) => {
+      const data = payload as { shaveId?: string };
+      if (data.shaveId) {
+        setShaveId(data.shaveId);
+      }
     });
     return cleanup;
   }, []);
@@ -44,11 +56,18 @@ export function WorkflowProgressPanel() {
           </CardHeader>
           <CardContent className="space-y-2">
             {STEP_ORDER.map((stepKey) => (
-              <WorkflowStepCard key={stepKey} step={state[stepKey]} label={STEP_LABELS[stepKey]} />
+              <WorkflowStepCard
+                key={stepKey}
+                step={state[stepKey]}
+                label={STEP_LABELS[stepKey]}
+                shaveId={shaveId}
+              />
             ))}
           </CardContent>
         </Card>
       </div>
     );
   }
+
+  return null;
 }

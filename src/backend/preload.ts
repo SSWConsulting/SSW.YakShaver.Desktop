@@ -1,4 +1,5 @@
 import type { Hotkeys, UserSettings } from "@shared/types/user-settings";
+import type { WorkflowState } from "@shared/types/workflow";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { TelemetrySettings } from "../shared/types/telemetry";
 import type {
@@ -70,6 +71,11 @@ const IPC_CHANNELS = {
   // Automated workflow
   WORKFLOW_PROGRESS: "workflow:progress",
   WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
+  // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
+  // Different from RERUN_TASK which is a user-initiated re-execution after success.
+  WORKFLOW_RETRY_FROM_STAGE: "workflow:retry-from-stage",
+  WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
+  WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
@@ -77,7 +83,9 @@ const IPC_CHANNELS = {
   // Video processing - the main process pipeline
   PROCESS_VIDEO_FILE: "process-video:file",
   PROCESS_VIDEO_URL: "process-video:url",
-  RETRY_VIDEO: "retry-video",
+  // Re-execute: user-initiated re-run from SELECTING_PROMPT with modified input after a successful workflow.
+  // Different from WORKFLOW_RETRY_FROM_STAGE which resumes from a failed checkpoint.
+  RERUN_TASK: "rerun-task",
 
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
@@ -151,12 +159,12 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId, shaveAutoApprove),
     processVideoUrl: (url: string, shaveId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url, shaveId),
-    retryVideo: (
+    rerunTask: (
       intermediateOutput: string,
       videoUploadResult: VideoUploadResult,
       shaveId?: string,
     ) =>
-      ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult, shaveId),
+      ipcRenderer.invoke(IPC_CHANNELS.RERUN_TASK, intermediateOutput, videoUploadResult, shaveId),
   },
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),
@@ -220,6 +228,12 @@ const electronAPI = {
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS, callback),
     onProgressNeo: (callback: (progress: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, callback),
+    retryFromStage: (stage: keyof WorkflowState, shaveId?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId),
+    getRetryStatus: (shaveId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
+    cancelRetry: (shaveId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_CANCEL_RETRY, shaveId),
   },
   llm: {
     setConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),
