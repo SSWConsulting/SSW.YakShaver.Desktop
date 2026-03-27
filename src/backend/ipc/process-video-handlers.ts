@@ -834,6 +834,14 @@ export class ProcessVideoIPCHandlers {
     }
   }
 
+  async cleanupAllTempFiles(): Promise<void> {
+    const keys = [...this.tempFilesToCleanup.keys()];
+    for (const key of keys) {
+      const shaveId = key === "_global" ? undefined : key;
+      await this.cleanupTempFiles(shaveId);
+    }
+  }
+
   private async cleanupTempFiles(shaveId?: string): Promise<void> {
     const key = shaveId ?? "_global";
     const files = this.tempFilesToCleanup.get(key) ?? [];

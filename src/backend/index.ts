@@ -452,6 +452,11 @@ const cleanup = async () => {
   } catch (err) {
     console.error("Cleanup error:", err);
   }
+  try {
+    await _processVideoHandlers?.cleanupAllTempFiles();
+  } catch (err) {
+    console.error("ProcessVideo cleanup error:", err);
+  }
 };
 
 app.on("window-all-closed", async () => {
