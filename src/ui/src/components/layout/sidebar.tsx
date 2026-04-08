@@ -1,4 +1,3 @@
-import { Folders } from "lucide-react";
 import YakOutline from "/logos/SQ-YakShaver-LogoIcon-Outline.svg?url";
 import logoImage from "/logos/YakShaver-Horizontal-Color-Darkmode.svg?url";
 import { MicrosoftAuthManager } from "../auth/MicrosoftAuthManager";
