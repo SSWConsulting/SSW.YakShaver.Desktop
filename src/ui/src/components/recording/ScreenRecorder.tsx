@@ -17,6 +17,7 @@ import { Label } from "../ui/label";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
 import { cn } from "@/lib/utils";
+import { CircleStopIcon } from "lucide-react";
 
 interface RecordedVideo {
   blob: Blob;
@@ -263,10 +264,12 @@ export function ScreenRecorder( { showButtonOnly = false, className = "" }: Scre
       <section className="flex flex-col gap-4 items-center w-full">
         <div className="flex flex-col items-center gap-1 w-full">
           <Button
-            className={cn("bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90", className)}
+            className={cn("bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center", className)}
             onClick={toggleRecording}
+            size="chunky"
             disabled={isProcessing || isTranscribing || !isAuthenticated}
           >
+            <CircleStopIcon/>
             {isRecording
               ? "Stop Recording"
               : isTranscribing

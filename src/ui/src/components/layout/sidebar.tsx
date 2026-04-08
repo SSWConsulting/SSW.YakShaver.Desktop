@@ -9,11 +9,15 @@ export default function Sidebar() {
       <h1>
         <img src={logoImage} alt="YakShaver" />
       </h1>
-      <ScreenRecorder showButtonOnly={true} className="w-full" />
-      <nav className="flex flex-col gap-1">
+      <ScreenRecorder showButtonOnly={true} className="w-full justify-start" />
+      <nav className="flex flex-col gap-6">
         <SidebarLink to="/">
           <Database className="h-4 w-4" />
           My Shaves
+        </SidebarLink>
+        <SidebarLink to="/test">
+          <Database className="h-4 w-4" />
+          Projects
         </SidebarLink>
       </nav>
     </div>

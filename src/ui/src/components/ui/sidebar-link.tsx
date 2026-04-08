@@ -9,11 +9,12 @@ export function SidebarLink({ to, children }: SidebarLinkProps) {
     return (
       <NavLink
         to={to}
+        end
         className={({ isActive }) =>
-          `flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+          `flex items-center gap-2 px-6 py-4 rounded-md text-sm transition-colors duration-300 ${
             isActive
-              ? "bg-white/15 text-white"
-              : "text-white/60 hover:text-white hover:bg-white/10"
+              ? "bg-white/8 text-white hover:bg-white/15"
+              : "text-white/60 bg-transparent hover:text-white hover:bg-white/10"
           }`
         }
       >
