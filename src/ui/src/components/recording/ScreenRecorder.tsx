@@ -16,6 +16,7 @@ import { Kbd } from "../ui/kbd";
 import { Label } from "../ui/label";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
+import { cn } from "@/lib/utils";
 
 interface RecordedVideo {
   blob: Blob;
@@ -23,7 +24,12 @@ interface RecordedVideo {
   fileName: string;
 }
 
-export function ScreenRecorder() {
+interface ScreenRecorderProps {
+  showButtonOnly?: boolean;
+  className?: string;
+}
+
+export function ScreenRecorder( { showButtonOnly = false, className = "" }: ScreenRecorderProps ) {
   const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
@@ -255,9 +261,9 @@ export function ScreenRecorder() {
   return (
     <>
       <section className="flex flex-col gap-4 items-center w-full">
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-1 w-full">
           <Button
-            className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90"
+            className={cn("bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90", className)}
             onClick={toggleRecording}
             disabled={isProcessing || isTranscribing || !isAuthenticated}
           >
@@ -267,7 +273,7 @@ export function ScreenRecorder() {
                 ? "Transcribing..."
                 : "Start Recording"}
           </Button>
-          {!isRecording && !isTranscribing && recordHotkey && (
+          {!isRecording && !isTranscribing && recordHotkey && !showButtonOnly && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               Keyboard:{" "}
               {recordHotkey.split("+").map((key, index, parts) => (
@@ -280,7 +286,7 @@ export function ScreenRecorder() {
             </p>
           )}
         </div>
-        {!isAuthenticated && (
+        {!isAuthenticated && !showButtonOnly && (
           <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
           </p>
