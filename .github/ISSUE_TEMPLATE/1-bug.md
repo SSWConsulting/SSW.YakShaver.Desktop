@@ -13,7 +13,7 @@ Cc:
 <!-- add intended user next to **Hi** -->
 Hi {{ USER }}
 
-<!-- duration in the format of xx min xx sec -->
+<!-- duration in the format of mm:ss (for example, 00:26) -->
 [🟥 Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
 
 ### Describe the Bug

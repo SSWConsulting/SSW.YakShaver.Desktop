@@ -14,7 +14,7 @@ Cc:
 <!-- add intended user next to **Hi** -->
 Hi 
 
-<!-- duration in the format of xx min xx sec -->
+<!-- duration in the format of mm:ss -->
 [🟥 Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
 
 ### Pain
