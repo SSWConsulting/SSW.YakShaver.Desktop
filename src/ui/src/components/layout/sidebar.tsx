@@ -1,4 +1,4 @@
-import { Database, Folders } from "lucide-react";
+import { Folders } from "lucide-react";
 import { ScreenRecorder } from "../recording/ScreenRecorder";
 import logoImage from "/logos/YakShaver-Horizontal-Color-Darkmode.svg?url";
 import { SidebarLink } from "../ui/sidebar-link";
