@@ -458,7 +458,7 @@ export function HomePage() {
 
   return (
     <div className="z-10 flex flex-col p-8 h-full gap-6 w-full min-w-0">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start md:items-center flex-col md:flex-row justify-between gap-4">
         <HeadingTag level={1}>My Shaves</HeadingTag>
         <ToggleGroup
           className="p-1 border border-white/20 rounded-md"
