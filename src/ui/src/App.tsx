@@ -11,6 +11,7 @@ import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
 import { useShaveManager } from "./hooks/useShaveManager";
 import { HomePage } from "./pages/HomePage";
+import { WorkflowPage } from "./pages/WorkflowPage";
 import { ipcClient } from "./services/ipc-client";
 
 export default function App() {
@@ -57,6 +58,7 @@ export default function App() {
                   <Routes>
                     <Route element={<Layout />}>
                       <Route path="/" element={<HomePage />} />
+                      <Route path="/workflow" element={<WorkflowPage />} />
                     </Route>
                   </Routes>
                 </HashRouter>

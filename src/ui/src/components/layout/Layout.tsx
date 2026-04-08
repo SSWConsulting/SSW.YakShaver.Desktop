@@ -1,7 +1,10 @@
 import { Outlet } from "react-router-dom";
+import { useWorkflowNavigation } from "../../hooks/useWorkflowNavigation";
 import Sidebar from "./sidebar";
 
 export function Layout() {
+  useWorkflowNavigation();
+
   return (
     <div className="flex h-screen">
       <Sidebar />
