@@ -2,6 +2,8 @@ import { Database } from "lucide-react";
 import { ScreenRecorder } from "../recording/ScreenRecorder";
 import logoImage from "/logos/YakShaver-Horizontal-Color-Darkmode.svg?url";
 import { SidebarLink } from "../ui/sidebar-link";
+import { MicrosoftAuthManager } from "../auth/MicrosoftAuthManager";
+import { SettingsDialog } from "../settings/SettingsDialog";
 
 export default function Sidebar() {
   return (
@@ -20,6 +22,10 @@ export default function Sidebar() {
           Projects
         </SidebarLink>
       </nav>
+      <div className='relative bottom-0 mt-auto flex flex-col gap-6 left-0'>
+        <SettingsDialog />
+        <MicrosoftAuthManager />
+      </div>
     </div>
   );
 }
