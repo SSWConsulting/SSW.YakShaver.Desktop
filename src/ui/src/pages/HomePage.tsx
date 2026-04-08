@@ -173,7 +173,7 @@ const NoShaves = () => {
 
 const ShaveCards = ({ shaves }: { shaves: ShaveItem[] }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
       {shaves.map((shave) => (
         <ShaveCard key={shave.id} shave={shave} />
       ))}
