@@ -1,10 +1,10 @@
 import { Folders } from "lucide-react";
-import { ScreenRecorder } from "../recording/ScreenRecorder";
-import logoImage from "/logos/YakShaver-Horizontal-Color-Darkmode.svg?url";
-import { SidebarLink } from "../ui/sidebar-link";
-import { MicrosoftAuthManager } from "../auth/MicrosoftAuthManager";
-import { SettingsDialog } from "../settings/SettingsDialog";
 import YakOutline from "/logos/SQ-YakShaver-LogoIcon-Outline.svg?url";
+import logoImage from "/logos/YakShaver-Horizontal-Color-Darkmode.svg?url";
+import { MicrosoftAuthManager } from "../auth/MicrosoftAuthManager";
+import { ScreenRecorder } from "../recording/ScreenRecorder";
+import { SettingsDialog } from "../settings/SettingsDialog";
+import { SidebarLink } from "../ui/sidebar-link";
 
 export default function Sidebar() {
   return (
@@ -15,7 +15,7 @@ export default function Sidebar() {
       <ScreenRecorder showButtonOnly={true} className="w-full justify-start" />
       <nav className="flex flex-col gap-6">
         <SidebarLink to="/">
-        <img src={YakOutline} alt="YakShaver" className="h-4 w-4" />
+          <img src={YakOutline} alt="YakShaver" className="h-4 w-4" />
           Shaves
         </SidebarLink>
         <SidebarLink to="/test">
@@ -23,7 +23,7 @@ export default function Sidebar() {
           Projects
         </SidebarLink>
       </nav>
-      <div className='relative bottom-0 mt-auto flex flex-col gap-3 left-0'>
+      <div className="relative bottom-0 mt-auto flex flex-col gap-3 left-0">
         <SettingsDialog />
         <MicrosoftAuthManager />
       </div>

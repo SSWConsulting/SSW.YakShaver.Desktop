@@ -1,7 +1,9 @@
 import type { ToolApprovalMode, UserSettings } from "@shared/types/user-settings";
+import { CircleStopIcon } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
+import { cn } from "@/lib/utils";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
 import { VideoSourceType } from "../../../../backend/types";
@@ -16,8 +18,6 @@ import { Kbd } from "../ui/kbd";
 import { Label } from "../ui/label";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
-import { cn } from "@/lib/utils";
-import { CircleStopIcon } from "lucide-react";
 
 interface RecordedVideo {
   blob: Blob;
@@ -30,7 +30,7 @@ interface ScreenRecorderProps {
   className?: string;
 }
 
-export function ScreenRecorder( { showButtonOnly = false, className = "" }: ScreenRecorderProps ) {
+export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
   const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
@@ -264,12 +264,15 @@ export function ScreenRecorder( { showButtonOnly = false, className = "" }: Scre
       <section className="flex flex-col gap-4 items-center w-full">
         <div className="flex flex-col items-center gap-1 w-full">
           <Button
-            className={cn("bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center", className)}
+            className={cn(
+              "bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
+              className,
+            )}
             onClick={toggleRecording}
             size="chunky"
             disabled={isProcessing || isTranscribing || !isAuthenticated}
           >
-            <CircleStopIcon/>
+            <CircleStopIcon />
             {isRecording
               ? "Stop Recording"
               : isTranscribing

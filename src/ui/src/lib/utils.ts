@@ -18,6 +18,8 @@ export function timeAgo(date: Date): string {
 }
 
 export function getYouTubeThumbnail(url: string): string | null {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+  const match = url.match(
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+  );
   return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null;
 }

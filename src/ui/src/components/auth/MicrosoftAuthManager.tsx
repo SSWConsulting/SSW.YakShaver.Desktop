@@ -88,9 +88,7 @@ export function MicrosoftAuthManager() {
               <AvatarFallback>{getInitials(status?.name)}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col items-start gap-1">
-              <p className="text-sm font-medium text-white truncate">
-                {status?.name}
-              </p>
+              <p className="text-sm font-medium text-white truncate">{status?.name}</p>
               <p className="text-xs text-white/60 truncate">{status?.email}</p>
             </div>
           </div>
@@ -98,9 +96,7 @@ export function MicrosoftAuthManager() {
         <DropdownMenuContent align="end">
           <div className="p-3">
             <div className="mb-3 pb-3 border-b border-white/10">
-              <p className="text-sm font-medium text-white truncate">
-                {status?.name}
-              </p>
+              <p className="text-sm font-medium text-white truncate">{status?.name}</p>
             </div>
             <DropdownMenuItem
               onClick={() => setShowMyShaves(true)}

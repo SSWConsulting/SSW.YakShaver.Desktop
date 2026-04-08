@@ -1,21 +1,7 @@
-import {
-  ExternalLink,
-  LayoutGrid,
-  List,
-  RefreshCw,
-  Square,
-  Video,
-} from "lucide-react";
+import { ExternalLink, LayoutGrid, List, RefreshCw, Square, Video } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { LoadingState } from "../components/common/LoadingState";
-import { Badge } from "../components/ui/badge";
-import { Button } from "../components/ui/button";
-import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
-import { ipcClient } from "../services/ipc-client";
-import type { BadgeVariant, ShaveItem } from "../types";
 import HeadingTag from "@/components/ui/heading-tag";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Table,
   TableBody,
@@ -24,7 +10,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { getYouTubeThumbnail, timeAgo } from "@/lib/utils";
+import { LoadingState } from "../components/common/LoadingState";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
+import { ipcClient } from "../services/ipc-client";
+import type { BadgeVariant, ShaveItem } from "../types";
 
 const NO_SHAVES_STEPS: string[] = [
   "Record screen and describe the issue",
@@ -52,9 +45,7 @@ const ShaveCardFooter = ({ shave }: { shave: ShaveItem }) => {
     return (
       <>
         <div className="flex items-center gap-2">
-          <Badge variant={getStatusVariant(shave.shaveStatus)}>
-            {shave.shaveStatus}
-          </Badge>
+          <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
           <span className="text-sm text-muted-foreground">
             {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
           </span>
@@ -69,9 +60,7 @@ const ShaveCardFooter = ({ shave }: { shave: ShaveItem }) => {
     return (
       <>
         <div className="flex items-center gap-2">
-          <Badge variant={getStatusVariant(shave.shaveStatus)}>
-            YakShave Failed
-          </Badge>
+          <Badge variant={getStatusVariant(shave.shaveStatus)}>YakShave Failed</Badge>
           <span className="text-sm text-muted-foreground">
             {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
           </span>
@@ -85,21 +74,14 @@ const ShaveCardFooter = ({ shave }: { shave: ShaveItem }) => {
   return (
     <>
       <div className="flex items-center gap-2">
-        {shave.projectName && (
-          <Badge variant="outline">{shave.projectName}</Badge>
-        )}
+        {shave.projectName && <Badge variant="outline">{shave.projectName}</Badge>}
         <span className="text-sm text-muted-foreground">
           {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
         </span>
       </div>
       {shave.workItemUrl && (
         <a href={shave.workItemUrl} target="_blank" rel="noopener noreferrer">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            title="View work item"
-          >
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="View work item">
             <ExternalLink className="h-4 w-4" />
           </Button>
         </a>
@@ -109,27 +91,16 @@ const ShaveCardFooter = ({ shave }: { shave: ShaveItem }) => {
 };
 
 const ShaveCard = ({ shave }: { shave: ShaveItem }) => {
-  const thumbnail = shave.videoEmbedUrl
-    ? getYouTubeThumbnail(shave.videoEmbedUrl)
-    : null;
+  const thumbnail = shave.videoEmbedUrl ? getYouTubeThumbnail(shave.videoEmbedUrl) : null;
   const videoUrl = shave.videoEmbedUrl?.replace("embed/", "watch?v=") || null;
 
   return (
     <div className="border border-white/20 rounded-lg overflow-hidden bg-black/30 backdrop-blur-sm">
       {videoUrl ? (
-        <a
-          href={videoUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block"
-        >
+        <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="block">
           <div className="w-full aspect-video bg-black/40 flex items-center justify-center">
             {thumbnail ? (
-              <img
-                src={thumbnail}
-                alt={shave.title}
-                className="w-full h-full object-cover"
-              />
+              <img src={thumbnail} alt={shave.title} className="w-full h-full object-cover" />
             ) : (
               <Video className="h-8 w-8 text-muted-foreground" />
             )}
@@ -142,12 +113,12 @@ const ShaveCard = ({ shave }: { shave: ShaveItem }) => {
       )}
 
       <div className="flex flex-col gap-2 px-4 pb-3 pt-4 h-full my-auto ">
-          <h3 className="font-medium text-sm line-clamp-2" title={shave.title}>
-            {shave.title}
-          </h3>
-          <div className="flex items-center justify-between">
+        <h3 className="font-medium text-sm line-clamp-2" title={shave.title}>
+          {shave.title}
+        </h3>
+        <div className="flex items-center justify-between">
           <ShaveCardFooter shave={shave} />
-          </div>
+        </div>
       </div>
     </div>
   );
@@ -159,7 +130,7 @@ const NoShaves = () => {
       <HeadingTag level={3}>You don't have any YakShaves yet!</HeadingTag>
       <div className="flex flex-col gap-6">
         {NO_SHAVES_STEPS.map((step, index) => (
-          <div key={index} className="flex items-center gap-3">
+          <div key={step} className="flex items-center gap-3">
             <span className="rounded-full border border-white/25 h-8 w-8 flex items-center justify-center text-sm font-medium">
               {index + 1}
             </span>
@@ -185,9 +156,7 @@ const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
   if (shave.shaveStatus === "Processing") {
     return (
       <div className="flex items-center gap-2">
-        <Badge variant={getStatusVariant(shave.shaveStatus)}>
-          {shave.shaveStatus}
-        </Badge>
+        <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
         <Button variant="outline" size="sm" className="gap-1">
           <Square className="h-3 w-3" /> Stop
         </Button>
@@ -197,9 +166,7 @@ const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
   if (shave.shaveStatus === "Failed") {
     return (
       <div className="flex items-center gap-2">
-        <Badge variant={getStatusVariant(shave.shaveStatus)}>
-          {shave.shaveStatus}
-        </Badge>
+        <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
         <Button variant="outline" size="sm" className="gap-1">
           <RefreshCw className="h-3 w-3" /> Retry
         </Button>
@@ -210,12 +177,7 @@ const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
     <div className="flex items-center gap-2">
       {shave.workItemUrl && (
         <a href={shave.workItemUrl} target="_blank" rel="noopener noreferrer">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            title="View work item"
-          >
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="View work item">
             <ExternalLink className="h-4 w-4" />
           </Button>
         </a>
@@ -245,8 +207,7 @@ const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
                 const thumbnail = shave.videoEmbedUrl
                   ? getYouTubeThumbnail(shave.videoEmbedUrl)
                   : null;
-                const videoUrl =
-                  shave.videoEmbedUrl?.replace("embed/", "watch?v=") || null;
+                const videoUrl = shave.videoEmbedUrl?.replace("embed/", "watch?v=") || null;
                 const Wrapper = videoUrl ? "a" : "div";
                 return (
                   <Wrapper
@@ -273,18 +234,13 @@ const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
                 );
               })()}
             </TableCell>
-            <TableCell
-              className="font-medium max-w-[400px] truncate"
-              title={shave.title}
-            >
+            <TableCell className="font-medium max-w-[400px] truncate" title={shave.title}>
               {shave.title}
             </TableCell>
             <TableCell className="text-muted-foreground whitespace-nowrap">
               {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
             </TableCell>
-            <TableCell className="text-muted-foreground">
-              {shave.projectName || "—"}
-            </TableCell>
+            <TableCell className="text-muted-foreground">{shave.projectName || "—"}</TableCell>
             <TableCell>
               <ShaveStatusAction shave={shave} />
             </TableCell>
@@ -295,139 +251,14 @@ const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
   );
 };
 
-// TODO: Remove mock data after UI testing
-const MOCK_SHAVES: ShaveItem[] = [
-  // Completed with YouTube video, project, and work item
-  {
-    id: "1",
-    title: "Filters Layout - Move dashboard filters from horizontal top bar to vertical side panel #13888",
-    videoFile: { fileName: "recording-1.mp4", createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), duration: "5:32", isChromeExtension: false },
-    updatedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-    shaveStatus: "Completed",
-    workItemType: "Bug",
-    projectName: "TinaCMS",
-    workItemUrl: "https://github.com/tinacms/tinacms/issues/13888",
-    feedback: null,
-    videoEmbedUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-  },
-  // Processing — no video yet, no project
-  {
-    id: "2",
-    title: "Fix authentication timeout on mobile devices when using SSO",
-    videoFile: { fileName: "recording-2.mp4", createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(), duration: "2:15", isChromeExtension: false },
-    updatedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
-    shaveStatus: "Processing",
-    workItemType: "Bug",
-    projectName: "",
-    workItemUrl: "",
-    feedback: null,
-    videoEmbedUrl: "",
-  },
-  // Failed — has video, has project, no work item URL
-  {
-    id: "3",
-    title: "API rate limiting not working correctly for batch endpoints",
-    videoFile: { fileName: "recording-3.mp4", createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), duration: "8:01", isChromeExtension: false },
-    updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    shaveStatus: "Failed",
-    workItemType: "Task",
-    projectName: "SSW.Website",
-    workItemUrl: "",
-    feedback: "Transcription failed due to audio quality",
-    videoEmbedUrl: "https://www.youtube.com/embed/jNQXAC9IVRw",
-  },
-  // Completed — no video URL, no project, has work item
-  {
-    id: "4",
-    title: "Update README with new deployment instructions",
-    videoFile: { fileName: "recording-4.mp4", createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), duration: "1:03", isChromeExtension: false },
-    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    shaveStatus: "Completed",
-    workItemType: "Task",
-    projectName: "",
-    workItemUrl: "https://dev.azure.com/ssw/project/_workitems/edit/12345",
-    feedback: null,
-    videoEmbedUrl: "",
-  },
-  // Cancelled — has everything
-  {
-    id: "5",
-    title: "Investigate memory leak in WebSocket connection handler causing server crashes under load",
-    videoFile: { fileName: "recording-5.mp4", createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), duration: "12:45", isChromeExtension: false },
-    updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    shaveStatus: "Cancelled",
-    workItemType: "Bug",
-    projectName: "SSW.Rules",
-    workItemUrl: "https://github.com/SSWConsulting/SSW.Rules/issues/999",
-    feedback: null,
-    videoEmbedUrl: "https://www.youtube.com/embed/9bZkp7q19f0",
-  },
-  // Pending — just created, nothing yet
-  {
-    id: "6",
-    title: "Add dark mode support to settings page",
-    videoFile: { fileName: "recording-6.mp4", createdAt: new Date(Date.now() - 30 * 1000).toISOString(), duration: "0:45", isChromeExtension: false },
-    updatedAt: new Date(Date.now() - 30 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 30 * 1000).toISOString(),
-    shaveStatus: "Pending",
-    workItemType: "",
-    projectName: "",
-    workItemUrl: "",
-    feedback: null,
-    videoEmbedUrl: "",
-  },
-  // Completed — very long title, Chrome extension source, old date
-  {
-    id: "7",
-    title: "🐛 Bug: When clicking the submit button multiple times rapidly on the contact form it creates duplicate entries in the database and sends multiple confirmation emails to the user which is very confusing",
-    videoFile: { fileName: "chrome-recording.webm", createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(), duration: "3:22", isChromeExtension: true },
-    updatedAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-    shaveStatus: "Completed",
-    workItemType: "Bug",
-    projectName: "Northwind",
-    workItemUrl: "https://github.com/northwind/app/issues/42",
-    feedback: "Great recording, very clear reproduction steps",
-    videoEmbedUrl: "https://www.youtube.com/embed/LXb3EKWsInQ",
-  },
-  // Unknown status — edge case
-  {
-    id: "8",
-    title: "Untitled shave",
-    videoFile: { fileName: "recording-8.mp4", createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), duration: "0:10", isChromeExtension: false },
-    updatedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    shaveStatus: "Unknown",
-    workItemType: "",
-    projectName: "",
-    workItemUrl: "",
-    feedback: null,
-    videoEmbedUrl: "",
-  },
-];
-
-const USE_MOCK_DATA = true; // Toggle to false to use real API data
-
 export function HomePage() {
   const [shaves, setShaves] = useState<ShaveItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">(
-    "table",
-  );
+  const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">("table");
 
   const loadShaves = useCallback(async () => {
     setLoading(true);
     try {
-      if (USE_MOCK_DATA) {
-        setShaves(MOCK_SHAVES);
-        setLoading(false);
-        return;
-      }
       const result = await ipcClient.portal.getMyShaves();
       const items = result.data?.items ?? [];
       const sortedData = items.sort((a, b) => {
