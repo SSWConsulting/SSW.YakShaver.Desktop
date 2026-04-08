@@ -1,7 +1,6 @@
 export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If the target repository has an issue template, you MUST follow it exactly. Use the available tools to verify if a template exists.
 
 4) **Issue Creation Guidelines**:
-- **Video Link**: If a video link is provided, embed it at the very top of the issue body using this format: \`[🟥 Watch the video (mm:ss)](videoLink)\`. Ensure the duration is formatted as \`mm:ss\`.
 - **Labels**: Always apply the "YakShaver" label IN ADDITION to any labels required by the template.
 - **Mentions**: Tag all members listed in the project details. Use their GitHub username for GitHub; otherwise, use their full name.
 
@@ -18,7 +17,13 @@ export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If th
 - Do NOT combine multiple actions in one task (avoid "and", ";", "/", or comma-separated actions).
 - Split implied multi-step tasks into separate \`- [ ]\` checklist items.
 
-7) **Screenshots (Recommended when video file path is available)**:
+7) **No Template Fallback**:
+If no template is found, create a well-structured issue body that includes:
+- **Critical**: If a video link is provided, embed it at the very top using this format: \`[🟥 Watch the video (xx min xx sec)](videoLink)\`. Ensure the duration is formatted as \`xx min xx sec\` if it's 0 min, omit the min part.
+- **Critical**: For bugs, include section ### Pain, ### Acceptance Criteria, ### Reproduce Steps in order, don't add other section.
+- **Critical**: For features, include section ### Pain, ### Suggested Solution, ### Acceptance Criteria, ### Tasks in order, don't add other section.
+
+8) **Screenshots (Recommended when video file path is available)**:
 - ALWAYS capture exactly one screenshot from the video using \`capture_video_frame\`.
 - Select a timestamp where key UI elements, errors, or context are clearly visible.
 - Upload the captured image using \`upload_screenshot\` to generate a public URL.
@@ -27,7 +32,7 @@ export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If th
 - **CRITICAL**: Preserve the complete \`screenshotUrl\`, including all query parameters.
 - **CRITICAL**: If \`upload_screenshot\` returns an empty URL, omit the screenshot entirely.
 
-8) **Privacy & Local Paths (CRITICAL)**:
+9) **Privacy & Local Paths (CRITICAL)**:
 - NEVER include local file paths (video or screenshot) in the issue description.
 `;
 
