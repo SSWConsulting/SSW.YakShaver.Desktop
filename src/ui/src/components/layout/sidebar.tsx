@@ -8,7 +8,7 @@ import YakOutline from "/logos/SQ-YakShaver-LogoIcon-Outline.svg?url";
 
 export default function Sidebar() {
   return (
-    <div className=" fixed top-0 left-0 h-full bg-black/60 border-r border-white/25 flex flex-col gap-6 p-8 z-40">
+    <div className=" fixed top-0 left-0 w-[18rem] h-full bg-black/60 border-r border-white/25 flex flex-col gap-6 p-8 z-40">
       <h1>
         <img src={logoImage} alt="YakShaver" />
       </h1>
