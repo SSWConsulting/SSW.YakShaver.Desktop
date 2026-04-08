@@ -6,7 +6,7 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { ipcClient } from "../services/ipc-client";
-import type { BadgeVariant, Shave } from "../types";
+import type { BadgeVariant, ShaveItem } from "../types";
 import HeadingTag from "@/components/ui/heading-tag";
 
 const NO_SHAVES_STEPS: string[] = ["Record screen and describe the issue", "AI transcribes and analyzes content", "Receive a structured work item ready to send"]
@@ -26,7 +26,7 @@ const getStatusVariant = (status: string): BadgeVariant => {
   }
 };
 
-const ShaveCard = ({ shave }: { shave: Shave }) => {
+const ShaveCard = ({ shave }: { shave: ShaveItem }) => {
   return (
     <div
       key={shave.id}
@@ -104,19 +104,19 @@ const NoShaves = () => {
 }
 
 export function HomePage() {
-  const [shaves, setShaves] = useState<Shave[]>([]);
+  const [shaves, setShaves] = useState<ShaveItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadShaves = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await ipcClient.shave.getAll();
-      const sortedData =
-        result.data?.sort((a, b) => {
-          const dateA = new Date(a.updatedAt || a.createdAt).getTime();
-          const dateB = new Date(b.updatedAt || b.createdAt).getTime();
-          return dateB - dateA;
-        }) ?? [];
+      const result = await ipcClient.portal.getMyShaves();
+      const items = result.data?.items ?? [];
+      const sortedData = items.sort((a, b) => {
+        const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+        const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+        return dateB - dateA;
+      });
       setShaves(sortedData);
     } catch (error) {
       toast.error("Failed to load shaves");
