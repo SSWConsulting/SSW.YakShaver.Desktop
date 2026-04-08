@@ -1,4 +1,4 @@
-import { LayoutGrid, List, Video } from "lucide-react";
+import { ExternalLink, LayoutGrid, List, RefreshCw, Square, Video } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { LoadingState } from "../components/common/LoadingState";
@@ -9,6 +9,7 @@ import { ipcClient } from "../services/ipc-client";
 import type { BadgeVariant, ShaveItem } from "../types";
 import HeadingTag from "@/components/ui/heading-tag";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const NO_SHAVES_STEPS: string[] = ["Record screen and describe the issue", "AI transcribes and analyzes content", "Receive a structured work item ready to send"]
 
@@ -104,6 +105,106 @@ const NoShaves = () => {
   )
 }
 
+const ShaveCards = ({ shaves }: { shaves: ShaveItem[] }) => {
+  return (
+    <div className='flex flex-col gap-4'>
+      {shaves.map((shave) => (
+        <ShaveCard key={shave.id} shave={shave} />
+      ))}
+    </div>
+  )
+}
+
+function timeAgo(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hrs ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} days ago`;
+  return date.toLocaleDateString();
+}
+
+const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
+  if (shave.shaveStatus === "Processing") {
+    return (
+      <div className="flex items-center gap-2">
+        <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
+        <Button variant="outline" size="sm" className="gap-1">
+          <Square className="h-3 w-3" /> Stop
+        </Button>
+      </div>
+    );
+  }
+  if (shave.shaveStatus === "Failed") {
+    return (
+      <div className="flex items-center gap-2">
+        <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
+        <Button variant="outline" size="sm" className="gap-1">
+          <RefreshCw className="h-3 w-3" /> Retry
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      {shave.workItemUrl && (
+        <a href={shave.workItemUrl} target="_blank" rel="noopener noreferrer">
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="View work item">
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        </a>
+      )}
+    </div>
+  );
+};
+
+const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-[120px]">Video</TableHead>
+          <TableHead>Title</TableHead>
+          <TableHead>Created</TableHead>
+          <TableHead>Location</TableHead>
+          <TableHead className="w-[160px]"></TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {shaves.map((shave) => (
+          <TableRow key={shave.id}>
+            <TableCell>
+              <div
+                className="w-[100px] h-[56px] rounded bg-black/40 border border-white/10 flex items-center justify-center cursor-pointer"
+                onClick={() => shave.videoEmbedUrl && window.open(shave.videoEmbedUrl, "_blank")}
+                title={shave.videoEmbedUrl ? "Open video" : "No video"}
+              >
+                <Video className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </TableCell>
+            <TableCell className="font-medium max-w-[400px] truncate" title={shave.title}>
+              {shave.title}
+            </TableCell>
+            <TableCell className="text-muted-foreground whitespace-nowrap">
+              {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
+            </TableCell>
+            <TableCell className="text-muted-foreground">
+              {shave.projectName || "—"}
+            </TableCell>
+            <TableCell>
+              <ShaveStatusAction shave={shave} />
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
+
 export function HomePage() {
   const [shaves, setShaves] = useState<ShaveItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,11 +261,7 @@ export function HomePage() {
           {shaves.length === 0 ? (
             <NoShaves />
           ) : (
-            shaves.map((shave) => (
-              <div key={shave.id}>
-                <ShaveCard shave={shave}/>
-              </div>
-            ))
+            shaveDisplayMode === "card" ? <ShaveCards shaves={shaves} /> : <ShaveTable shaves={shaves} />
           )}
         </div>
       </ScrollArea>
