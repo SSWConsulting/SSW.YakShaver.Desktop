@@ -22,7 +22,7 @@ export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If th
 - ALWAYS capture exactly one screenshot from the video using \`capture_video_frame\`.
 - Select a timestamp where key UI elements, errors, or context are clearly visible.
 - Upload the captured image using \`upload_screenshot\` to generate a public URL.
-- If \`upload_screenshot\` returns a valid URL, embed it in the issue body validation:
+- If \`upload_screenshot\` returns a valid URL, embed it in the issue body:
   \`![Screenshot description](screenshotUrl)\`
 - **CRITICAL**: Preserve the complete \`screenshotUrl\`, including all query parameters.
 - **CRITICAL**: If \`upload_screenshot\` returns an empty URL, omit the screenshot entirely.
