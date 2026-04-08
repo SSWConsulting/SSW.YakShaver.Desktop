@@ -22,7 +22,7 @@ export default function Sidebar() {
           Projects
         </SidebarLink>
       </nav>
-      <div className='relative bottom-0 mt-auto flex flex-col gap-6 left-0'>
+      <div className='relative bottom-0 mt-auto flex flex-col gap-3 left-0'>
         <SettingsDialog />
         <MicrosoftAuthManager />
       </div>
