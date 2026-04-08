@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { LoadingState } from "../components/common/LoadingState";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { ScrollArea } from "../components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
 import { ipcClient } from "../services/ipc-client";
 import type { BadgeVariant, ShaveItem } from "../types";
 import HeadingTag from "@/components/ui/heading-tag";
@@ -227,7 +227,7 @@ const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
 const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
   console.log(shaves);
   return (
-    <Table>
+    <Table className="min-w-[800px]">
       <TableHeader>
         <TableRow>
           <TableHead className="w-[120px]">Video</TableHead>
@@ -295,6 +295,124 @@ const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
   );
 };
 
+// TODO: Remove mock data after UI testing
+const MOCK_SHAVES: ShaveItem[] = [
+  // Completed with YouTube video, project, and work item
+  {
+    id: "1",
+    title: "Filters Layout - Move dashboard filters from horizontal top bar to vertical side panel #13888",
+    videoFile: { fileName: "recording-1.mp4", createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), duration: "5:32", isChromeExtension: false },
+    updatedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+    shaveStatus: "Completed",
+    workItemType: "Bug",
+    projectName: "TinaCMS",
+    workItemUrl: "https://github.com/tinacms/tinacms/issues/13888",
+    feedback: null,
+    videoEmbedUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+  },
+  // Processing — no video yet, no project
+  {
+    id: "2",
+    title: "Fix authentication timeout on mobile devices when using SSO",
+    videoFile: { fileName: "recording-2.mp4", createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(), duration: "2:15", isChromeExtension: false },
+    updatedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+    shaveStatus: "Processing",
+    workItemType: "Bug",
+    projectName: "",
+    workItemUrl: "",
+    feedback: null,
+    videoEmbedUrl: "",
+  },
+  // Failed — has video, has project, no work item URL
+  {
+    id: "3",
+    title: "API rate limiting not working correctly for batch endpoints",
+    videoFile: { fileName: "recording-3.mp4", createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), duration: "8:01", isChromeExtension: false },
+    updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    shaveStatus: "Failed",
+    workItemType: "Task",
+    projectName: "SSW.Website",
+    workItemUrl: "",
+    feedback: "Transcription failed due to audio quality",
+    videoEmbedUrl: "https://www.youtube.com/embed/jNQXAC9IVRw",
+  },
+  // Completed — no video URL, no project, has work item
+  {
+    id: "4",
+    title: "Update README with new deployment instructions",
+    videoFile: { fileName: "recording-4.mp4", createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), duration: "1:03", isChromeExtension: false },
+    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    shaveStatus: "Completed",
+    workItemType: "Task",
+    projectName: "",
+    workItemUrl: "https://dev.azure.com/ssw/project/_workitems/edit/12345",
+    feedback: null,
+    videoEmbedUrl: "",
+  },
+  // Cancelled — has everything
+  {
+    id: "5",
+    title: "Investigate memory leak in WebSocket connection handler causing server crashes under load",
+    videoFile: { fileName: "recording-5.mp4", createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), duration: "12:45", isChromeExtension: false },
+    updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    shaveStatus: "Cancelled",
+    workItemType: "Bug",
+    projectName: "SSW.Rules",
+    workItemUrl: "https://github.com/SSWConsulting/SSW.Rules/issues/999",
+    feedback: null,
+    videoEmbedUrl: "https://www.youtube.com/embed/9bZkp7q19f0",
+  },
+  // Pending — just created, nothing yet
+  {
+    id: "6",
+    title: "Add dark mode support to settings page",
+    videoFile: { fileName: "recording-6.mp4", createdAt: new Date(Date.now() - 30 * 1000).toISOString(), duration: "0:45", isChromeExtension: false },
+    updatedAt: new Date(Date.now() - 30 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 30 * 1000).toISOString(),
+    shaveStatus: "Pending",
+    workItemType: "",
+    projectName: "",
+    workItemUrl: "",
+    feedback: null,
+    videoEmbedUrl: "",
+  },
+  // Completed — very long title, Chrome extension source, old date
+  {
+    id: "7",
+    title: "🐛 Bug: When clicking the submit button multiple times rapidly on the contact form it creates duplicate entries in the database and sends multiple confirmation emails to the user which is very confusing",
+    videoFile: { fileName: "chrome-recording.webm", createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(), duration: "3:22", isChromeExtension: true },
+    updatedAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+    shaveStatus: "Completed",
+    workItemType: "Bug",
+    projectName: "Northwind",
+    workItemUrl: "https://github.com/northwind/app/issues/42",
+    feedback: "Great recording, very clear reproduction steps",
+    videoEmbedUrl: "https://www.youtube.com/embed/LXb3EKWsInQ",
+  },
+  // Unknown status — edge case
+  {
+    id: "8",
+    title: "Untitled shave",
+    videoFile: { fileName: "recording-8.mp4", createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), duration: "0:10", isChromeExtension: false },
+    updatedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    shaveStatus: "Unknown",
+    workItemType: "",
+    projectName: "",
+    workItemUrl: "",
+    feedback: null,
+    videoEmbedUrl: "",
+  },
+];
+
+const USE_MOCK_DATA = true; // Toggle to false to use real API data
+
 export function HomePage() {
   const [shaves, setShaves] = useState<ShaveItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -305,6 +423,11 @@ export function HomePage() {
   const loadShaves = useCallback(async () => {
     setLoading(true);
     try {
+      if (USE_MOCK_DATA) {
+        setShaves(MOCK_SHAVES);
+        setLoading(false);
+        return;
+      }
       const result = await ipcClient.portal.getMyShaves();
       const items = result.data?.items ?? [];
       const sortedData = items.sort((a, b) => {
@@ -334,7 +457,7 @@ export function HomePage() {
   }
 
   return (
-    <div className="z-10 flex flex-col p-8 h-full gap-6">
+    <div className="z-10 flex flex-col p-8 h-full gap-6 w-full min-w-0">
       <div className="flex items-center justify-between">
         <HeadingTag level={1}>My Shaves</HeadingTag>
         <ToggleGroup
@@ -354,15 +477,14 @@ export function HomePage() {
         </ToggleGroup>
       </div>
       <ScrollArea className="flex-1">
-        <div className="">
-          {shaves.length === 0 ? (
-            <NoShaves />
-          ) : shaveDisplayMode === "card" ? (
-            <ShaveCards shaves={shaves} />
-          ) : (
-            <ShaveTable shaves={shaves} />
-          )}
-        </div>
+        {shaves.length === 0 ? (
+          <NoShaves />
+        ) : shaveDisplayMode === "card" ? (
+          <ShaveCards shaves={shaves} />
+        ) : (
+          <ShaveTable shaves={shaves} />
+        )}
+        <ScrollBar orientation="horizontal" />
       </ScrollArea>
     </div>
   );

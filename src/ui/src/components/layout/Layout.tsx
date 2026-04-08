@@ -6,7 +6,7 @@ export function Layout() {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <div className="z-10 flex-1 ml-[18rem]">
+      <div className="z-10 flex-1 ml-[18rem] min-w-0 overflow-auto">
         <Outlet />
       </div>
     </div>
