@@ -1,9 +1,10 @@
-import { Database } from "lucide-react";
+import { Database, Folders } from "lucide-react";
 import { ScreenRecorder } from "../recording/ScreenRecorder";
 import logoImage from "/logos/YakShaver-Horizontal-Color-Darkmode.svg?url";
 import { SidebarLink } from "../ui/sidebar-link";
 import { MicrosoftAuthManager } from "../auth/MicrosoftAuthManager";
 import { SettingsDialog } from "../settings/SettingsDialog";
+import YakOutline from "/logos/SQ-YakShaver-LogoIcon-Outline.svg?url";
 
 export default function Sidebar() {
   return (
@@ -14,11 +15,11 @@ export default function Sidebar() {
       <ScreenRecorder showButtonOnly={true} className="w-full justify-start" />
       <nav className="flex flex-col gap-6">
         <SidebarLink to="/">
-          <Database className="h-4 w-4" />
-          My Shaves
+        <img src={YakOutline} alt="YakShaver" className="h-4 w-4" />
+          Shaves
         </SidebarLink>
         <SidebarLink to="/test">
-          <Database className="h-4 w-4" />
+          <Folders className="h-4 w-4" />
           Projects
         </SidebarLink>
       </nav>

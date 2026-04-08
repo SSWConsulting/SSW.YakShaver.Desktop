@@ -79,8 +79,6 @@ export function MicrosoftAuthManager() {
     );
   }
 
-  console.log(status);
-
   return (
     <div className="flex items-center">
       <DropdownMenu>
