@@ -18,10 +18,11 @@ export default function Sidebar() {
           <img src={YakOutline} alt="YakShaver" className="h-4 w-4" />
           Shaves
         </SidebarLink>
-        <SidebarLink to="/test">
+        {/* TODO: Add in for https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/816  */}
+        {/* <SidebarLink to="/projects">
           <Folders className="h-4 w-4" />
           Projects
-        </SidebarLink>
+        </SidebarLink> */}
       </nav>
       <div className="relative bottom-0 mt-auto flex flex-col gap-3 left-0">
         <SettingsDialog />

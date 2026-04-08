@@ -187,7 +187,6 @@ const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
 };
 
 const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
-  console.log(shaves);
   return (
     <Table className="min-w-[800px]">
       <TableHeader>

@@ -1,8 +1,9 @@
+import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 
 interface SidebarLinkProps {
     to: string;
-    children: React.ReactNode;
+    children: ReactNode;
 }
 
 export function SidebarLink({ to, children }: SidebarLinkProps) {
