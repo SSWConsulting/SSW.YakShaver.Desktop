@@ -1,4 +1,4 @@
-import { CheckCircle, Video } from "lucide-react";
+import { LayoutGrid, List, Video } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { LoadingState } from "../components/common/LoadingState";
@@ -8,6 +8,7 @@ import { ScrollArea } from "../components/ui/scroll-area";
 import { ipcClient } from "../services/ipc-client";
 import type { BadgeVariant, ShaveItem } from "../types";
 import HeadingTag from "@/components/ui/heading-tag";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const NO_SHAVES_STEPS: string[] = ["Record screen and describe the issue", "AI transcribes and analyzes content", "Receive a structured work item ready to send"]
 
@@ -106,6 +107,7 @@ const NoShaves = () => {
 export function HomePage() {
   const [shaves, setShaves] = useState<ShaveItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">("table");
 
   const loadShaves = useCallback(async () => {
     setLoading(true);
@@ -140,7 +142,19 @@ export function HomePage() {
 
   return (
     <div className="z-10 flex flex-col p-8 h-full gap-6">
-      <HeadingTag level={1}>My Shaves</HeadingTag>
+      <div className='flex items-center justify-between'>
+        <HeadingTag level={1}>My Shaves</HeadingTag>
+        <ToggleGroup className='p-1 border border-white/20 rounded-md' type="single" value={shaveDisplayMode} onValueChange={(v) => v && setShaveDisplayMode(v as "table" | "card")}>
+          <ToggleGroupItem value="table" aria-label="Table view">
+            <List className="h-4 w-4" />
+            {shaveDisplayMode === "table" ? "Table view" : ""}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="card" aria-label="Card view">
+            <LayoutGrid className="h-4 w-4" />
+            {shaveDisplayMode === "card" ? "Card view" : ""}
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
       <ScrollArea className="flex-1">
         <div className="">
           {shaves.length === 0 ? (
