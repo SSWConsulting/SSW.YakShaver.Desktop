@@ -1,4 +1,11 @@
-import { ExternalLink, LayoutGrid, List, RefreshCw, Square, Video } from "lucide-react";
+import {
+  ExternalLink,
+  LayoutGrid,
+  List,
+  RefreshCw,
+  Square,
+  Video,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { LoadingState } from "../components/common/LoadingState";
@@ -9,10 +16,21 @@ import { ipcClient } from "../services/ipc-client";
 import type { BadgeVariant, ShaveItem } from "../types";
 import HeadingTag from "@/components/ui/heading-tag";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { getYouTubeThumbnail, timeAgo } from "@/lib/utils";
 
-const NO_SHAVES_STEPS: string[] = ["Record screen and describe the issue", "AI transcribes and analyzes content", "Receive a structured work item ready to send"]
+const NO_SHAVES_STEPS: string[] = [
+  "Record screen and describe the issue",
+  "AI transcribes and analyzes content",
+  "Receive a structured work item ready to send",
+];
 
 const getStatusVariant = (status: string): BadgeVariant => {
   switch (status) {
@@ -29,62 +47,107 @@ const getStatusVariant = (status: string): BadgeVariant => {
   }
 };
 
-const ShaveCard = ({ shave }: { shave: ShaveItem }) => {
-  return (
-    <div
-      key={shave.id}
-      className="border border-white/20 rounded-lg p-4 max-w-full overflow-hidden bg-black/30 backdrop-blur-sm"
-    >
-      <div className="flex gap-3 items-start min-w-0">
-        <Button
-          variant="outline"
-          size="icon"
-          disabled={!shave.videoEmbedUrl}
-          onClick={() => {
-            if (shave.videoEmbedUrl) {
-              window.open(shave.videoEmbedUrl, "_blank");
-            }
-          }}
-          title={shave.videoEmbedUrl ? "Open video" : "No video available"}
-        >
-          <Video className="h-5 w-5" />
+const ShaveCardFooter = ({ shave }: { shave: ShaveItem }) => {
+  if (shave.shaveStatus === "Processing") {
+    return (
+      <>
+        <div className="flex items-center gap-2">
+          <Badge variant={getStatusVariant(shave.shaveStatus)}>
+            {shave.shaveStatus}
+          </Badge>
+          <span className="text-sm text-muted-foreground">
+            {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
+          </span>
+        </div>
+        <Button variant="outline" size="sm" className="gap-1">
+          <Square className="h-3 w-3" /> Stop
         </Button>
-        <div className="w-0 flex-1">
-          <h3
-            className="font-semibold text-base mb-1 overflow-hidden text-ellipsis whitespace-nowrap"
-            title={shave.title}
+      </>
+    );
+  }
+  if (shave.shaveStatus === "Failed") {
+    return (
+      <>
+        <div className="flex items-center gap-2">
+          <Badge variant={getStatusVariant(shave.shaveStatus)}>
+            YakShave Failed
+          </Badge>
+          <span className="text-sm text-muted-foreground">
+            {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
+          </span>
+        </div>
+        <Button variant="outline" size="sm" className="gap-1">
+          <RefreshCw className="h-3 w-3" /> Redo
+        </Button>
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        {shave.projectName && (
+          <Badge variant="outline">{shave.projectName}</Badge>
+        )}
+        <span className="text-sm text-muted-foreground">
+          {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
+        </span>
+      </div>
+      {shave.workItemUrl && (
+        <a href={shave.workItemUrl} target="_blank" rel="noopener noreferrer">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            title="View work item"
           >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        </a>
+      )}
+    </>
+  );
+};
+
+const ShaveCard = ({ shave }: { shave: ShaveItem }) => {
+  const thumbnail = shave.videoEmbedUrl
+    ? getYouTubeThumbnail(shave.videoEmbedUrl)
+    : null;
+  const videoUrl = shave.videoEmbedUrl?.replace("embed/", "watch?v=") || null;
+
+  return (
+    <div className="border border-white/20 rounded-lg overflow-hidden bg-black/30 backdrop-blur-sm">
+      {videoUrl ? (
+        <a
+          href={videoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+        >
+          <div className="w-full aspect-video bg-black/40 flex items-center justify-center">
+            {thumbnail ? (
+              <img
+                src={thumbnail}
+                alt={shave.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <Video className="h-8 w-8 text-muted-foreground" />
+            )}
+          </div>
+        </a>
+      ) : (
+        <div className="w-full aspect-video bg-black/40 flex items-center justify-center">
+          <Video className="h-8 w-8 text-muted-foreground" />
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2 px-4 pb-3 pt-4 h-full my-auto ">
+          <h3 className="font-medium text-sm line-clamp-2" title={shave.title}>
             {shave.title}
           </h3>
-          <div className="flex items-center flex-wrap gap-2 text-xs text-muted-foreground mb-2">
-            <Badge variant={getStatusVariant(shave.shaveStatus)}>
-              {shave.shaveStatus}
-            </Badge>
-            <span>•</span>
-            <span className="whitespace-nowrap">
-              {new Date(shave.updatedAt || shave.createdAt).toLocaleString()}
-            </span>
+          <div className="flex items-center justify-between">
+          <ShaveCardFooter shave={shave} />
           </div>
-          {shave.workItemUrl && (
-            <div className="text-xs mb-1 truncate">
-              <span className="text-muted-foreground">Backlog: </span>
-              <a
-                href={shave.workItemUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
-              >
-                View Backlog
-              </a>
-            </div>
-          )}
-          {shave.projectName && (
-            <div className="text-xs text-muted-foreground truncate">
-              Project:{" "}
-              <span className="text-foreground">{shave.projectName}</span>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -92,35 +155,39 @@ const ShaveCard = ({ shave }: { shave: ShaveItem }) => {
 
 const NoShaves = () => {
   return (
-    <div className='flex flex-col items-center justify-center gap-6'>
+    <div className="flex flex-col items-center justify-center gap-6">
       <HeadingTag level={3}>You don't have any YakShaves yet!</HeadingTag>
-      <div className='flex flex-col gap-6'>
-      {NO_SHAVES_STEPS.map((step, index) => (
-        <div key={index} className='flex items-center gap-3'>
-          <span className='rounded-full border border-white/25 h-8 w-8 flex items-center justify-center text-sm font-medium'>{index + 1}</span>
-          <span className='font-light text-muted-foreground'>{step}</span>
-        </div>
-      ))}
+      <div className="flex flex-col gap-6">
+        {NO_SHAVES_STEPS.map((step, index) => (
+          <div key={index} className="flex items-center gap-3">
+            <span className="rounded-full border border-white/25 h-8 w-8 flex items-center justify-center text-sm font-medium">
+              {index + 1}
+            </span>
+            <span className="font-light text-muted-foreground">{step}</span>
+          </div>
+        ))}
       </div>
     </div>
-  )
-}
+  );
+};
 
 const ShaveCards = ({ shaves }: { shaves: ShaveItem[] }) => {
   return (
-    <div className='flex flex-col gap-4'>
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       {shaves.map((shave) => (
         <ShaveCard key={shave.id} shave={shave} />
       ))}
     </div>
-  )
-}
+  );
+};
 
 const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
   if (shave.shaveStatus === "Processing") {
     return (
       <div className="flex items-center gap-2">
-        <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
+        <Badge variant={getStatusVariant(shave.shaveStatus)}>
+          {shave.shaveStatus}
+        </Badge>
         <Button variant="outline" size="sm" className="gap-1">
           <Square className="h-3 w-3" /> Stop
         </Button>
@@ -130,7 +197,9 @@ const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
   if (shave.shaveStatus === "Failed") {
     return (
       <div className="flex items-center gap-2">
-        <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
+        <Badge variant={getStatusVariant(shave.shaveStatus)}>
+          {shave.shaveStatus}
+        </Badge>
         <Button variant="outline" size="sm" className="gap-1">
           <RefreshCw className="h-3 w-3" /> Retry
         </Button>
@@ -141,7 +210,12 @@ const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
     <div className="flex items-center gap-2">
       {shave.workItemUrl && (
         <a href={shave.workItemUrl} target="_blank" rel="noopener noreferrer">
-          <Button variant="ghost" size="icon" className="h-8 w-8" title="View work item">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            title="View work item"
+          >
             <ExternalLink className="h-4 w-4" />
           </Button>
         </a>
@@ -151,7 +225,7 @@ const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
 };
 
 const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
-  console.log(shaves)
+  console.log(shaves);
   return (
     <Table>
       <TableHeader>
@@ -168,16 +242,30 @@ const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
           <TableRow key={shave.id}>
             <TableCell>
               {(() => {
-                const thumbnail = shave.videoEmbedUrl ? getYouTubeThumbnail(shave.videoEmbedUrl) : null;
-                const videoUrl = shave.videoEmbedUrl?.replace("embed/", "watch?v=") || null;
+                const thumbnail = shave.videoEmbedUrl
+                  ? getYouTubeThumbnail(shave.videoEmbedUrl)
+                  : null;
+                const videoUrl =
+                  shave.videoEmbedUrl?.replace("embed/", "watch?v=") || null;
                 const Wrapper = videoUrl ? "a" : "div";
                 return (
                   <Wrapper
                     className={`w-[100px] h-[56px] rounded bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden ${videoUrl ? "cursor-pointer" : "cursor-default opacity-50"}`}
-                    {...(videoUrl ? { href: videoUrl, target: "_blank", rel: "noopener noreferrer", title: "Open video" } : {})}
+                    {...(videoUrl
+                      ? {
+                          href: videoUrl,
+                          target: "_blank",
+                          rel: "noopener noreferrer",
+                          title: "Open video",
+                        }
+                      : {})}
                   >
                     {thumbnail ? (
-                      <img src={thumbnail} alt={shave.title} className="w-full h-full object-cover" />
+                      <img
+                        src={thumbnail}
+                        alt={shave.title}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <Video className="h-5 w-5 text-muted-foreground" />
                     )}
@@ -185,7 +273,10 @@ const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
                 );
               })()}
             </TableCell>
-            <TableCell className="font-medium max-w-[400px] truncate" title={shave.title}>
+            <TableCell
+              className="font-medium max-w-[400px] truncate"
+              title={shave.title}
+            >
               {shave.title}
             </TableCell>
             <TableCell className="text-muted-foreground whitespace-nowrap">
@@ -201,14 +292,15 @@ const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
         ))}
       </TableBody>
     </Table>
-  )
-}
-
+  );
+};
 
 export function HomePage() {
   const [shaves, setShaves] = useState<ShaveItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">("table");
+  const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">(
+    "table",
+  );
 
   const loadShaves = useCallback(async () => {
     setLoading(true);
@@ -243,9 +335,14 @@ export function HomePage() {
 
   return (
     <div className="z-10 flex flex-col p-8 h-full gap-6">
-      <div className='flex items-center justify-between'>
+      <div className="flex items-center justify-between">
         <HeadingTag level={1}>My Shaves</HeadingTag>
-        <ToggleGroup className='p-1 border border-white/20 rounded-md' type="single" value={shaveDisplayMode} onValueChange={(v) => v && setShaveDisplayMode(v as "table" | "card")}>
+        <ToggleGroup
+          className="p-1 border border-white/20 rounded-md"
+          type="single"
+          value={shaveDisplayMode}
+          onValueChange={(v) => v && setShaveDisplayMode(v as "table" | "card")}
+        >
           <ToggleGroupItem value="table" aria-label="Table view">
             <List className="h-4 w-4" />
             {shaveDisplayMode === "table" ? "Table view" : ""}
@@ -260,8 +357,10 @@ export function HomePage() {
         <div className="">
           {shaves.length === 0 ? (
             <NoShaves />
+          ) : shaveDisplayMode === "card" ? (
+            <ShaveCards shaves={shaves} />
           ) : (
-            shaveDisplayMode === "card" ? <ShaveCards shaves={shaves} /> : <ShaveTable shaves={shaves} />
+            <ShaveTable shaves={shaves} />
           )}
         </div>
       </ScrollArea>
