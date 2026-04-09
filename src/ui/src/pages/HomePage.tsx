@@ -1,7 +1,7 @@
 import { ExternalLink, LayoutGrid, List, RefreshCw, Square, Video } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import HeadingTag from "@/components/ui/heading-tag";
+import HeadingTag from "@/components/typography/heading-tag";
 import {
   Table,
   TableBody,

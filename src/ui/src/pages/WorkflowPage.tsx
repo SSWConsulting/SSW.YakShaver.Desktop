@@ -1,4 +1,4 @@
-import HeadingTag from "@/components/ui/heading-tag";
+import HeadingTag from "@/components/typography/heading-tag";
 import { FinalResultPanel } from "../components/workflow/FinalResultPanel";
 import { WorkflowProgressPanel } from "../components/workflow/WorkflowProgressPanel";
 
