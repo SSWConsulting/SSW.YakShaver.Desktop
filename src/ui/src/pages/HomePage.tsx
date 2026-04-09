@@ -200,7 +200,12 @@ const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
             <TableCell className="text-muted-foreground whitespace-nowrap">
               {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
             </TableCell>
-            <TableCell className="text-muted-foreground max-w-[150px] truncate" title={shave.projectName || ""}>{shave.projectName || "—"}</TableCell>
+            <TableCell
+              className="text-muted-foreground max-w-[150px] truncate"
+              title={shave.projectName || ""}
+            >
+              {shave.projectName || "—"}
+            </TableCell>
             <TableCell>
               <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
             </TableCell>
