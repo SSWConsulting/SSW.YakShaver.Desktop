@@ -15,7 +15,7 @@ Cc:
 Hi 
 
 <!-- duration in the format of xx min xx sec -->
-[▶️ Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
+[🟥 Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
 
 ### Pain
 <!-- Explain the pain you are experiencing -->
