@@ -1,14 +1,26 @@
 import {
   type ColumnDef,
-  type SortingState,
   type ColumnFiltersState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
+  type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, LayoutGrid, List, RefreshCw, Search, Square, Video, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ExternalLink,
+  LayoutGrid,
+  List,
+  RefreshCw,
+  Search,
+  Square,
+  Video,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import HeadingTag from "@/components/typography/heading-tag";
@@ -201,7 +213,13 @@ const columns: ColumnDef<ShaveItem>[] = [
       return (
         <Button variant="ghost" size="sm" className="-ml-3" onClick={() => column.toggleSorting()}>
           Title
-          {sorted === "asc" ? <ArrowUp className="ml-1 h-3 w-3" /> : sorted === "desc" ? <ArrowDown className="ml-1 h-3 w-3" /> : <ArrowUpDown className="ml-1 h-3 w-3" />}
+          {sorted === "asc" ? (
+            <ArrowUp className="ml-1 h-3 w-3" />
+          ) : sorted === "desc" ? (
+            <ArrowDown className="ml-1 h-3 w-3" />
+          ) : (
+            <ArrowUpDown className="ml-1 h-3 w-3" />
+          )}
         </Button>
       );
     },
@@ -219,7 +237,13 @@ const columns: ColumnDef<ShaveItem>[] = [
       return (
         <Button variant="ghost" size="sm" className="-ml-3" onClick={() => column.toggleSorting()}>
           Created
-          {sorted === "asc" ? <ArrowUp className="ml-1 h-3 w-3" /> : sorted === "desc" ? <ArrowDown className="ml-1 h-3 w-3" /> : <ArrowUpDown className="ml-1 h-3 w-3" />}
+          {sorted === "asc" ? (
+            <ArrowUp className="ml-1 h-3 w-3" />
+          ) : sorted === "desc" ? (
+            <ArrowDown className="ml-1 h-3 w-3" />
+          ) : (
+            <ArrowUpDown className="ml-1 h-3 w-3" />
+          )}
         </Button>
       );
     },
@@ -236,12 +260,21 @@ const columns: ColumnDef<ShaveItem>[] = [
       return (
         <Button variant="ghost" size="sm" className="-ml-3" onClick={() => column.toggleSorting()}>
           Location
-          {sorted === "asc" ? <ArrowUp className="ml-1 h-3 w-3" /> : sorted === "desc" ? <ArrowDown className="ml-1 h-3 w-3" /> : <ArrowUpDown className="ml-1 h-3 w-3" />}
+          {sorted === "asc" ? (
+            <ArrowUp className="ml-1 h-3 w-3" />
+          ) : sorted === "desc" ? (
+            <ArrowDown className="ml-1 h-3 w-3" />
+          ) : (
+            <ArrowUpDown className="ml-1 h-3 w-3" />
+          )}
         </Button>
       );
     },
     cell: ({ row }) => (
-      <span className="text-muted-foreground max-w-[150px] truncate block" title={row.original.projectName || ""}>
+      <span
+        className="text-muted-foreground max-w-[150px] truncate block"
+        title={row.original.projectName || ""}
+      >
         {row.original.projectName || "—"}
       </span>
     ),
@@ -273,8 +306,13 @@ const ShaveTableView = ({ table }: { table: ReturnType<typeof useReactTable<Shav
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id} className="hover:bg-transparent">
             {headerGroup.headers.map((header) => (
-              <TableHead key={header.id} style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}>
-                {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+              <TableHead
+                key={header.id}
+                style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
+              >
+                {header.isPlaceholder
+                  ? null
+                  : flexRender(header.column.columnDef.header, header.getContext())}
               </TableHead>
             ))}
           </TableRow>
@@ -335,8 +373,12 @@ export function HomePage() {
     return Array.from(names).sort();
   }, [shaves]);
 
-  const statusFilter = columnFilters.find((f) => f.id === "shaveStatus")?.value as string | undefined;
-  const projectFilter = columnFilters.find((f) => f.id === "projectName")?.value as string | undefined;
+  const statusFilter = columnFilters.find((f) => f.id === "shaveStatus")?.value as
+    | string
+    | undefined;
+  const projectFilter = columnFilters.find((f) => f.id === "projectName")?.value as
+    | string
+    | undefined;
 
   const hasActiveFilters = globalFilter || statusFilter || projectFilter;
 
@@ -358,8 +400,10 @@ export function HomePage() {
     getFilteredRowModel: getFilteredRowModel(),
     globalFilterFn: (row, _columnId, filterValue) => {
       const search = (filterValue as string).toLowerCase();
-      return row.original.title.toLowerCase().includes(search) ||
-        (row.original.projectName || "").toLowerCase().includes(search);
+      return (
+        row.original.title.toLowerCase().includes(search) ||
+        (row.original.projectName || "").toLowerCase().includes(search)
+      );
     },
   });
 
@@ -419,7 +463,9 @@ export function HomePage() {
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             {ALL_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>{status}</SelectItem>
+              <SelectItem key={status} value={status}>
+                {status}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -439,7 +485,9 @@ export function HomePage() {
             <SelectContent>
               <SelectItem value="all">All projects</SelectItem>
               {projectNames.map((name) => (
-                <SelectItem key={name} value={name}>{name}</SelectItem>
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
