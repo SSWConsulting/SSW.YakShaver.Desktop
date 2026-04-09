@@ -41,52 +41,19 @@ const getStatusVariant = (status: string): BadgeVariant => {
 };
 
 const ShaveCardFooter = ({ shave }: { shave: ShaveItem }) => {
-  if (shave.shaveStatus === "Processing") {
-    return (
-      <>
-        <div className="flex items-center gap-2">
-          <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
-          <span className="text-sm text-muted-foreground">
-            {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
-          </span>
-        </div>
-        <Button variant="outline" size="sm" className="gap-1">
-          <Square className="h-3 w-3" /> Stop
-        </Button>
-      </>
-    );
-  }
-  if (shave.shaveStatus === "Failed") {
-    return (
-      <>
-        <div className="flex items-center gap-2">
-          <Badge variant={getStatusVariant(shave.shaveStatus)}>YakShave Failed</Badge>
-          <span className="text-sm text-muted-foreground">
-            {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
-          </span>
-        </div>
-        <Button variant="outline" size="sm" className="gap-1">
-          <RefreshCw className="h-3 w-3" /> Redo
-        </Button>
-      </>
-    );
-  }
   return (
-    <>
-      <div className="flex items-center gap-2">
-        {shave.projectName && <Badge variant="outline">{shave.projectName}</Badge>}
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        {shave.projectName ? <Badge variant="outline">{shave.projectName}</Badge> : <span />}
         <span className="text-sm text-muted-foreground">
           {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
         </span>
       </div>
-      {shave.workItemUrl && (
-        <a href={shave.workItemUrl} target="_blank" rel="noopener noreferrer">
-          <Button variant="ghost" size="icon" className="h-8 w-8" title="View work item">
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-        </a>
-      )}
-    </>
+      <div className="flex items-center justify-between">
+        <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
+        <ShaveAction shave={shave} />
+      </div>
+    </div>
   );
 };
 
@@ -95,7 +62,7 @@ const ShaveCard = ({ shave }: { shave: ShaveItem }) => {
   const videoUrl = shave.videoEmbedUrl?.replace("embed/", "watch?v=") || null;
 
   return (
-    <div className="border border-white/20 rounded-lg overflow-hidden bg-black/30 backdrop-blur-sm">
+    <div className="border border-white/20 rounded-lg overflow-hidden bg-black/30 backdrop-blur-sm flex flex-col h-full">
       {videoUrl ? (
         <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="block">
           <div className="w-full aspect-video bg-black/40 flex items-center justify-center">
@@ -112,13 +79,13 @@ const ShaveCard = ({ shave }: { shave: ShaveItem }) => {
         </div>
       )}
 
-      <div className="flex flex-col gap-2 px-4 pb-3 pt-4 h-full my-auto ">
+      <div className="flex flex-col gap-2 px-4 pt-4 pb-3">
         <h3 className="font-medium text-sm line-clamp-2" title={shave.title}>
           {shave.title}
         </h3>
-        <div className="flex items-center justify-between">
-          <ShaveCardFooter shave={shave} />
-        </div>
+      </div>
+      <div className="px-4 pb-3 mt-auto">
+        <ShaveCardFooter shave={shave} />
       </div>
     </div>
   );
@@ -152,38 +119,31 @@ const ShaveCards = ({ shaves }: { shaves: ShaveItem[] }) => {
   );
 };
 
-const ShaveStatusAction = ({ shave }: { shave: ShaveItem }) => {
+const ShaveAction = ({ shave }: { shave: ShaveItem }) => {
   if (shave.shaveStatus === "Processing") {
     return (
-      <div className="flex items-center gap-2">
-        <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
-        <Button variant="outline" size="sm" className="gap-1">
-          <Square className="h-3 w-3" /> Stop
-        </Button>
-      </div>
+      <Button variant="outline" size="sm" className="gap-1">
+        <Square className="h-3 w-3" /> Stop
+      </Button>
     );
   }
   if (shave.shaveStatus === "Failed") {
     return (
-      <div className="flex items-center gap-2">
-        <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
-        <Button variant="outline" size="sm" className="gap-1">
-          <RefreshCw className="h-3 w-3" /> Retry
-        </Button>
-      </div>
+      <Button variant="outline" size="sm" className="gap-1">
+        <RefreshCw className="h-3 w-3" /> Retry
+      </Button>
     );
   }
-  return (
-    <div className="flex items-center gap-2">
-      {shave.workItemUrl && (
-        <a href={shave.workItemUrl} target="_blank" rel="noopener noreferrer">
-          <Button variant="ghost" size="icon" className="h-8 w-8" title="View work item">
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-        </a>
-      )}
-    </div>
-  );
+  if (shave.workItemUrl) {
+    return (
+      <a href={shave.workItemUrl} target="_blank" rel="noopener noreferrer">
+        <Button variant="ghost" size="icon" className="h-8 w-8" title="View work item">
+          <ExternalLink className="h-4 w-4" />
+        </Button>
+      </a>
+    );
+  }
+  return null;
 };
 
 const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
@@ -195,7 +155,8 @@ const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
           <TableHead>Title</TableHead>
           <TableHead>Created</TableHead>
           <TableHead>Location</TableHead>
-          <TableHead className="w-[160px]"></TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead className="w-[80px]"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -239,9 +200,12 @@ const ShaveTable = ({ shaves }: { shaves: ShaveItem[] }) => {
             <TableCell className="text-muted-foreground whitespace-nowrap">
               {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
             </TableCell>
-            <TableCell className="text-muted-foreground">{shave.projectName || "—"}</TableCell>
+            <TableCell className="text-muted-foreground max-w-[150px] truncate" title={shave.projectName || ""}>{shave.projectName || "—"}</TableCell>
             <TableCell>
-              <ShaveStatusAction shave={shave} />
+              <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
+            </TableCell>
+            <TableCell>
+              <ShaveAction shave={shave} />
             </TableCell>
           </TableRow>
         ))}
