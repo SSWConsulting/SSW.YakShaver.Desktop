@@ -86,7 +86,15 @@ export function SettingsDialog() {
 
   useEffect(() => {
     const handleOpenTab = (e: Event) => {
-      const { tabId } = (e as CustomEvent<{ tabId: string }>).detail;
+      if (!(e instanceof CustomEvent)) {
+        return;
+      }
+
+      const tabId = e.detail?.tabId;
+      if (typeof tabId !== "string" || !TABS.some((tab) => tab.id === tabId)) {
+        return;
+      }
+
       setOpen(true);
       setActiveTabId(tabId);
     };
