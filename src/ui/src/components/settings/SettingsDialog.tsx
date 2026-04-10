@@ -1,5 +1,5 @@
 import { Settings } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
@@ -83,6 +83,24 @@ export function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const [activeTabId, setActiveTabId] = useState<string>(TABS[0]?.id ?? "release");
   const leaveHandlerRef = useRef<LeaveHandler | null>(null);
+
+  useEffect(() => {
+    const handleOpenTab = (e: Event) => {
+      if (!(e instanceof CustomEvent)) {
+        return;
+      }
+
+      const tabId = e.detail?.tabId;
+      if (typeof tabId !== "string" || !TABS.some((tab) => tab.id === tabId)) {
+        return;
+      }
+
+      setOpen(true);
+      setActiveTabId(tabId);
+    };
+    window.addEventListener("open-settings-tab", handleOpenTab);
+    return () => window.removeEventListener("open-settings-tab", handleOpenTab);
+  }, []);
 
   const registerLeaveHandler = useCallback((handler: LeaveHandler | null) => {
     leaveHandlerRef.current = handler;

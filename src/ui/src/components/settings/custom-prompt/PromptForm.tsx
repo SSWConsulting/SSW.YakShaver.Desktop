@@ -75,10 +75,18 @@ export function PromptForm({
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
-  const serversWithIds = useMemo(
-    () => mcpServers.filter((server): server is MCPServerConfig & { id: string } => !!server.id),
-    [mcpServers],
-  );
+  const serversWithIds = useMemo(() => {
+    return mcpServers
+      .filter(
+        (server): server is MCPServerConfig & { id: string } => !!server.id && !server.builtin,
+      )
+      .sort((a, b) => {
+        const aEnabled = a.enabled !== false ? 0 : 1;
+        const bEnabled = b.enabled !== false ? 0 : 1;
+        if (aEnabled !== bEnabled) return aEnabled - bEnabled;
+        return a.name.localeCompare(b.name);
+      });
+  }, [mcpServers]);
   const totalPages = Math.ceil(serversWithIds.length / SERVERS_PER_PAGE);
   const paginatedServers = useMemo(
     () => serversWithIds.slice(serverPage * SERVERS_PER_PAGE, (serverPage + 1) * SERVERS_PER_PAGE),
@@ -308,7 +316,7 @@ export function PromptForm({
           }}
         />
 
-        {serversLoaded && mcpServers.length > 0 && (
+        {serversLoaded && serversWithIds.length > 0 && (
           <FormField
             control={form.control}
             name="selectedMcpServerIds"
@@ -429,7 +437,7 @@ export function PromptForm({
           />
         )}
 
-        {serversLoaded && mcpServers.every((s) => s.builtin) && (
+        {serversLoaded && serversWithIds.length === 0 && (
           <div className="text-sm text-yellow-500/80 p-3 rounded-md border border-yellow-500/30 bg-yellow-500/10">
             No external MCP servers configured. You can add additional MCP servers in the MCP
             settings tab.
