@@ -32,6 +32,12 @@ interface McpSettingsPanelProps {
   viewMode: "compact" | "detailed";
 }
 
+const PRESET_ORDER: Record<string, number> = {
+  [McpGitHubCard.Id]: 0,
+  [McpAzureDevOpsCard.Id]: 1,
+  [McpJiraCard.Id]: 2,
+};
+
 export function McpSettingsPanel({
   isActive = true,
   onHasEnabledServers,
@@ -257,23 +263,18 @@ export function McpSettingsPanel({
   }
 
   const sortedServers = useMemo(() => {
-    return [...servers].sort((a, b) => a.name.localeCompare(b.name));
+    return [...servers].sort((a, b) => {
+      const aEnabled = a.enabled !== false ? 0 : 1;
+      const bEnabled = b.enabled !== false ? 0 : 1;
+      if (aEnabled !== bEnabled) return aEnabled - bEnabled;
+
+      const aOrder = PRESET_ORDER[a.id ?? ""] ?? 3;
+      const bOrder = PRESET_ORDER[b.id ?? ""] ?? 3;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+
+      return a.name.localeCompare(b.name);
+    });
   }, [servers]);
-
-  const github: MCPServerConfig | undefined = sortedServers.find(
-    (server) => server.id === McpGitHubCard.Id,
-  );
-  const azureDevOps: MCPServerConfig | undefined = sortedServers.find(
-    (s) => s.id === McpAzureDevOpsCard.Id,
-  );
-  const jira: MCPServerConfig | undefined = sortedServers.find((s) => s.id === McpJiraCard.Id);
-
-  const restServers: MCPServerConfig[] = sortedServers.filter(
-    (server) =>
-      server.id !== McpGitHubCard.Id &&
-      server.id !== McpAzureDevOpsCard.Id &&
-      server.id !== McpJiraCard.Id,
-  );
 
   function getHealthStatus(serverId?: string | null): HealthStatusInfo | null {
     if (!serverId) return null;
@@ -284,38 +285,53 @@ export function McpSettingsPanel({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="grid grid-cols-1 gap-4 mb-4">
-        <McpGitHubCard
-          config={github}
-          onChange={(config) => {
-            if (config.enabled) connectingServerIds.current.add(McpGitHubCard.Id);
-            void loadServers({ serverIdToRefresh: McpGitHubCard.Id });
-          }}
-          healthInfo={getHealthStatus(github?.id)}
-          onTools={() => github && openWhitelistDialog(github)}
-          viewMode={viewMode}
-        />
-        <McpAzureDevOpsCard
-          config={azureDevOps}
-          onChange={(config) => {
-            if (config.enabled) connectingServerIds.current.add(McpAzureDevOpsCard.Id);
-            void loadServers({ serverIdToRefresh: McpAzureDevOpsCard.Id });
-          }}
-          healthInfo={getHealthStatus(McpAzureDevOpsCard.Id)}
-          onTools={() => azureDevOps && openWhitelistDialog(azureDevOps)}
-          viewMode={viewMode}
-        />
-        <McpJiraCard
-          config={jira}
-          onChange={(config) => {
-            if (config.enabled) connectingServerIds.current.add(McpJiraCard.Id);
-            void loadServers({ serverIdToRefresh: McpJiraCard.Id });
-          }}
-          healthInfo={getHealthStatus(McpJiraCard.Id)}
-          onTools={() => jira && openWhitelistDialog(jira)}
-          viewMode={viewMode}
-        />
-        {restServers.map((server) => (
-          <>
+        {sortedServers.map((server) => {
+          if (server.id === McpGitHubCard.Id) {
+            return (
+              <McpGitHubCard
+                key={server.id}
+                config={server}
+                onChange={(config) => {
+                  if (config.enabled) connectingServerIds.current.add(McpGitHubCard.Id);
+                  void loadServers({ serverIdToRefresh: McpGitHubCard.Id });
+                }}
+                healthInfo={getHealthStatus(server.id)}
+                onTools={() => openWhitelistDialog(server)}
+                viewMode={viewMode}
+              />
+            );
+          }
+          if (server.id === McpAzureDevOpsCard.Id) {
+            return (
+              <McpAzureDevOpsCard
+                key={server.id}
+                config={server}
+                onChange={(config) => {
+                  if (config.enabled) connectingServerIds.current.add(McpAzureDevOpsCard.Id);
+                  void loadServers({ serverIdToRefresh: McpAzureDevOpsCard.Id });
+                }}
+                healthInfo={getHealthStatus(server.id)}
+                onTools={() => openWhitelistDialog(server)}
+                viewMode={viewMode}
+              />
+            );
+          }
+          if (server.id === McpJiraCard.Id) {
+            return (
+              <McpJiraCard
+                key={server.id}
+                config={server}
+                onChange={(config) => {
+                  if (config.enabled) connectingServerIds.current.add(McpJiraCard.Id);
+                  void loadServers({ serverIdToRefresh: McpJiraCard.Id });
+                }}
+                healthInfo={getHealthStatus(server.id)}
+                onTools={() => openWhitelistDialog(server)}
+                viewMode={viewMode}
+              />
+            );
+          }
+          return (
             <McpCard
               key={server.id}
               onDelete={() => confirmDeleteServer(String(server.id), server.name)}
@@ -331,8 +347,8 @@ export function McpSettingsPanel({
               }}
               viewMode={viewMode}
             />
-          </>
-        ))}
+          );
+        })}
       </div>
       {!showAddCustomMcpForm && (
         <div className="flex flex-col items-center mb-4">

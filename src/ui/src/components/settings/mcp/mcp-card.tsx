@@ -74,7 +74,7 @@ export function McpCard({
               {!config.enabled && (
                 <Button
                   variant="outline"
-                  className="cursor-pointer"
+                  className="w-28 cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
                     onConnect?.();
@@ -86,7 +86,7 @@ export function McpCard({
               {config.enabled && (
                 <Button
                   variant="destructiveOutline"
-                  className="cursor-pointer"
+                  className="w-28 cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDisconnect?.();
