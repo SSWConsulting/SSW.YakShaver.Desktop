@@ -254,7 +254,12 @@ export function McpSettingsPanel({
 
   async function handleOnConnect(serverId: string, configLocal: MCPServerConfig): Promise<void> {
     connectingServerIds.current.add(serverId);
-    await toggleSettings(serverId, true, configLocal);
+    try {
+      await toggleSettings(serverId, true, configLocal);
+    } catch (e) {
+      connectingServerIds.current.delete(serverId);
+      throw e;
+    }
   }
 
   async function handleOnDisconnect(serverId: string, configLocal: MCPServerConfig): Promise<void> {
