@@ -1,9 +1,9 @@
-# Chinafy YakShaver Desktop — Specification
+# Chinafy YakShaver — Specification (Desktop + Portal)
 
 - Status: accepted
 - Deciders: @tino-liu @calumjs @ricksu978 @adamcogan @ZenoWang1999
 - Date: 2026-04-10
-- Tags: localization, china, i18n, llm, git-hosting, prompts
+- Tags: localization, china, i18n, llm, git-hosting, prompts, payments, portal
 
 Technical Story: [✨ Chinafy - Spec out required changes to fully support China usage](https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/810)
 
@@ -19,6 +19,12 @@ Technical Story: [✨ Chinafy - Spec out required changes to fully support China
 | **Git Hosting** | Option 1 — Gitee via MCP preset | Building the Gitee MCP wrapper is the largest time investment in this spec. |
 | **Auth (cross-cutting)** | IdentityServer (replaces Entra) | Switching to IdentityServer, which supports **WeChat login** out of the box — solves the China auth problem without needing Entra China cloud. |
 | **Build compliance** | Separate China build via Vite build-time substitution | Single codebase, two build outputs. All external URLs centralised in `endpoints.ts`, resolved at compile time. China binary contains **zero non-China infrastructure**. CI lint rule prevents accidental leakage. |
+| | | |
+| **Portal — Payments** | Add Alipay + WeChat Pay alongside Stripe | Stripe is USD-only and not usable in China. Need a China payment gateway for CNY (¥). See [Portal section](#yakshaver-portal-sswYakShaver). |
+| **Portal — Auth** | IdentityServer + WeChat/DingTalk social login | NextAuth + Azure AD is the current stack. China portal needs WeChat and/or DingTalk as login providers. |
+| **Portal — Hosting** | Azure China (21Vianet) or Aliyun | Current infra is Azure Global (Bicep IaC). China portal must be hosted within China + ICP filing required. |
+| **Portal — Git integrations** | Add Gitee service alongside GitHub | Backend `GitHubService.cs` and `AzureDevOpsService.cs` need a `GiteeService.cs` equivalent. |
+| **Portal — i18n** | `next-intl` for the Next.js portal | No i18n exists today. `next-intl` is the standard for Next.js 15 App Router (distinct from Desktop's `react-i18next`). |
 
 ### Existing Foundation
 
@@ -323,6 +329,184 @@ Fork the repo into `SSW.YakShaver.Desktop.CN` and maintain China-specific code i
 | **YouTube integration** | `youtube-oauth.ts`, `youtube-client.ts` — Google APIs blocked in China. | China build excludes YouTube entirely. Evaluate Bilibili API as a future replacement. |
 
 These should be tracked as separate issues linked from the Chinafy epic. -->
+
+---
+
+## YakShaver Portal (`SSW.YakShaver`)
+
+> The Desktop app is only half the product. The YakShaver Portal at `SSW.YakShaver/` is where users manage connected repos, subscriptions, team settings, and video hosting. If the portal isn't China-ready, the Desktop app has nowhere to point Chinese customers.
+
+**Portal tech stack:** Next.js 15 (React 19) frontend, ASP.NET Core (.NET 8) backend, SQL Server, Azure infra (Bicep IaC), NextAuth.js + Azure AD auth, Stripe payments.
+
+### Portal audit — non-China dependencies
+
+| Dependency | Files | Impact |
+|---|---|---|
+| **Stripe (USD-only payments)** | `backend/.../StripeSubscription/` — webhook + checkout endpoints; `frontend/src/app/(portal)/settings/plan/` — plan selection UI | No CNY (¥) payment. Cannot monetise in China. |
+| **NextAuth + Azure AD** | `frontend/src/app/api/auth/[...nextauth]/options.ts` — Azure AD client ID/secret/tenant | No Chinese social login (WeChat, DingTalk). Users can't sign in. |
+| **GitHub service** | `backend/.../Tasks/Infrastructure/GitHub/GitHubService.cs` — Octokit, JWT via GitHub App | GitHub API blocked. Repos can't be connected. |
+| **Azure DevOps service** | `backend/.../AzureDevOps/AzureDevOpsService.cs` — `dev.azure.com` hardcoded | Accessible but no Chinese user base. |
+| **YouTube/Google OAuth** | `backend/.../DesktopVideoHostings/Infrastructure/DesktopYouTubeOAuthService.cs` — `oauth2.googleapis.com` | Google blocked. Video hosting broken. |
+| **Azure hosting** | `backend/infra/main.bicep` — App Service, ACR, Key Vault, Service Bus | All on Azure Global. Not in China. |
+| **Domain** | `api.yakshaver.ai`, `portal.yakshaver.ai` in appsettings | No ICP filing. Domain may be slow or blocked from China. |
+| **Email (SendGrid)** | Email sending via SendGrid | SendGrid may have delivery issues to China email providers. |
+| **i18n** | None | All strings hardcoded English. |
+
+---
+
+### Area 5 — China Payment Gateway (CNY ¥)
+
+**The single biggest blocker to monetising in China.** Stripe does not support domestic Chinese payments. Chinese consumers expect to pay via Alipay or WeChat Pay — credit card penetration is very low.
+
+#### Option 1 — Alipay + WeChat Pay via an aggregator (e.g. Ping++) *(recommended)*
+
+Use a Chinese payment aggregator that wraps Alipay, WeChat Pay, and UnionPay behind a single API. Ping++ (now part of ReadyPay) is the "Stripe of China" — same developer experience, single SDK, handles CNY settlement.
+
+- ✅ **Single integration covers Alipay + WeChat Pay + UnionPay** — the three payment methods that cover ~95% of Chinese consumers.
+- ✅ **Stripe-like developer experience** — REST API with webhooks, similar to the existing `StripeSubscription` module pattern.
+- ✅ **Handles CNY settlement** — receives ¥, settles to a Chinese bank account. No FX complexity.
+- ✅ **Recurring billing support** — subscription/plan model maps to YakShaver's existing `SubscriptionPlanResponse` type.
+- ✅ **Keeps Stripe for global** — the two systems run side by side; region determines which gateway is used.
+- ❌ Requires a Chinese business entity or partnership to receive CNY settlement.
+- ❌ New payment module in the backend (`Features/ChinaPayment/` alongside `StripeSubscription/`).
+- ❌ Plan pricing must be defined in CNY — not just a currency conversion of USD plans.
+
+#### Option 2 — Direct Alipay + WeChat Pay integration (no aggregator)
+
+Integrate Alipay Open Platform and WeChat Pay APIs directly.
+
+- ✅ No aggregator middleman — lower per-transaction fees.
+- ✅ Direct relationship with the payment platforms.
+- ❌ **Two separate integrations** — Alipay and WeChat Pay have completely different APIs, SDKs, and certification processes.
+- ❌ Higher maintenance burden — two webhook handlers, two reconciliation flows.
+- ❌ UnionPay would be a third integration if needed.
+
+#### Option 3 — Stripe China (limited)
+
+Stripe has limited support for Chinese businesses via cross-border payments.
+
+- ✅ Same Stripe SDK — minimal code changes.
+- ✅ Familiar developer experience.
+- ❌ **Does not support Alipay/WeChat Pay as payment methods for domestic Chinese subscriptions** — only for cross-border one-time payments.
+- ❌ Cannot settle in CNY to a Chinese bank account without a Hong Kong or Singapore entity.
+- ❌ Chinese consumers will not enter credit card details for a subscription.
+
+---
+
+### Area 6 — Portal Auth for China
+
+#### Option 1 — IdentityServer + WeChat social login *(recommended)*
+
+Aligns with the Desktop decision. The portal replaces NextAuth + Azure AD with IdentityServer, adding WeChat as a social login provider. IdentityServer supports WeChat login out of the box.
+
+- ✅ **Consistent with the Desktop auth decision** — single identity provider for the whole product.
+- ✅ **WeChat login** — the most common social login in China. 1.3B+ users.
+- ✅ **IdentityServer is self-hosted** — can run in Azure China or Aliyun, fully within Chinese infra.
+- ✅ Can keep Azure AD / GitHub login for global users alongside WeChat for China.
+- ❌ Migration from NextAuth to IdentityServer is non-trivial — session handling, token refresh, callback URLs all change.
+- ❌ WeChat Open Platform requires a Chinese business entity for app registration.
+
+#### Option 2 — Authing.cn (Chinese IDaaS)
+
+Use a China-native identity-as-a-service platform that wraps WeChat, DingTalk, Alipay login.
+
+- ✅ Managed service — no self-hosting.
+- ✅ Pre-built connectors for all Chinese social providers.
+- ❌ Vendor lock-in to a China-specific IDaaS.
+- ❌ Doesn't align with the Desktop IdentityServer decision — two auth stacks.
+- ❌ Data residency concerns if global users also go through Authing.
+
+---
+
+### Area 7 — Portal Git Integration (Gitee)
+
+#### Option 1 — Add `GiteeService.cs` alongside `GitHubService.cs` *(recommended)*
+
+Mirror the existing service pattern. The backend already has `GitHubService.cs` and `AzureDevOpsService.cs` under `Features/Tasks/Infrastructure/`. Add a `Gitee/GiteeService.cs` that implements the same interface using Gitee's REST API.
+
+- ✅ **Follows the existing pattern** — same interface, different implementation.
+- ✅ **Gitee's API is similar to GitHub's** — issues, PRs, labels, webhooks map closely.
+- ✅ **Consistent with the Desktop Gitee MCP decision** — same platform end-to-end.
+- ❌ Gitee's API has quirks vs GitHub (different pagination, different webhook payloads). Needs testing.
+- ❌ Gitee App registration for OAuth is a separate process from GitHub Apps.
+
+#### Option 2 — GitLab (self-hosted in China)
+
+- ✅ Mature API with existing .NET clients.
+- ❌ Requires each customer to self-host — not a SaaS solution.
+- ❌ Doesn't match the Desktop decision.
+
+---
+
+### Area 8 — Portal Hosting & Infrastructure
+
+#### Option 1 — Azure China (operated by 21Vianet) *(recommended)*
+
+Deploy the same Bicep IaC to Azure China. Most Azure services (App Service, SQL Database, Key Vault, Service Bus, Container Registry) are available in the China regions.
+
+- ✅ **Minimal IaC changes** — same Bicep templates, different subscription/region parameters.
+- ✅ **Same operational model** — the team already knows Azure.
+- ✅ **Compliance-ready** — Azure China is operated by 21Vianet, a Chinese entity. Data stays in China.
+- ❌ **Separate Azure subscription** — Azure China is a completely separate cloud; different portal, different billing, different identity.
+- ❌ Some services have feature gaps vs Azure Global.
+- ❌ Requires ICP filing for the `.cn` or custom domain.
+
+#### Option 2 — Aliyun (Alibaba Cloud)
+
+- ✅ Largest China cloud provider — best domestic network performance.
+- ✅ Full service parity for what YakShaver needs (ECS, RDS, OSS, Message Queue).
+- ❌ **Complete IaC rewrite** — Bicep doesn't work with Aliyun; need Terraform or Pulumi.
+- ❌ Different operational model — team needs to learn Aliyun console and APIs.
+- ❌ Vendor diversification cost.
+
+#### Option 3 — Tencent Cloud
+
+- ✅ Strong in gaming/media — good CDN for video-heavy workloads.
+- ❌ Same IaC rewrite problem as Aliyun.
+- ❌ Smaller enterprise footprint than Aliyun for non-gaming.
+
+### Domain & ICP Filing
+
+Any website served to Chinese users from within China **must** have an ICP (Internet Content Provider) filing. This is not optional — hosting providers will block the domain without it.
+
+- Register a `.cn` domain (e.g. `yakshaver.cn`) or file ICP for the existing `.ai` domain.
+- ICP filing requires a Chinese business entity.
+- Processing time: 1–4 weeks depending on the province.
+- This is on the **critical path** — no domain, no portal.
+
+---
+
+### Area 9 — Portal Localization
+
+#### Option 1 — `next-intl` for the Next.js 15 App Router *(recommended)*
+
+The portal is Next.js 15 with App Router — `next-intl` is the standard choice here (different from the Desktop's `react-i18next` which is for Vite+Electron).
+
+- ✅ **Built for Next.js App Router** — first-class support for Server Components, `generateMetadata`, etc.
+- ✅ **ICU MessageFormat** — handles Chinese plurals, dates, numbers correctly.
+- ✅ **Middleware-based locale detection** — can route `yakshaver.cn` → `zh-CN` automatically.
+- ❌ Different library from the Desktop (`react-i18next`) — translation files are not directly shareable. However, the portal and desktop have very different UI surfaces so shared translations would be minimal anyway.
+
+#### Option 2 — `react-i18next` (same as Desktop)
+
+- ✅ Same library as Desktop — shared tooling.
+- ❌ `react-i18next` in Next.js App Router requires extra wiring for Server Components. `next-intl` handles this natively.
+- ❌ Going against the ecosystem recommendation for the sake of consistency isn't worth it.
+
+---
+
+### Portal — Summary of effort
+
+| Area | Effort | Critical path? |
+|---|---|---|
+| **ICP filing + `.cn` domain** | Bureaucratic, 1–4 weeks | **YES** — must start immediately |
+| **Payment gateway (Alipay/WeChat Pay)** | High — new backend module + plan pricing in CNY | **YES** — can't monetise without it |
+| **Auth (IdentityServer + WeChat login)** | High — migrate from NextAuth + add WeChat provider | **YES** — can't sign in without it |
+| **Azure China deployment** | Medium — same Bicep, new subscription | **YES** — no hosting = no portal |
+| **Gitee service** | Medium — new service following existing pattern | Yes — repo connection is core flow |
+| **Portal i18n** | High — extract all strings, `next-intl` setup | Yes — unusable without Chinese UI |
+| **YouTube removal / replacement** | Low — remove or feature-flag | No — video hosting is secondary |
+| **Email (SendGrid → China alternative)** | Low — swap provider config | No — not launch-blocking |
 
 ---
 
