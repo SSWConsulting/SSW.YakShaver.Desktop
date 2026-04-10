@@ -18,6 +18,7 @@ Technical Story: [✨ Chinafy - Spec out required changes to fully support China
 | **Prompt Engineering** | Option 1 — Bilingual prompt file, locale-driven | Add README guidance requiring devs to update both locale prompts. Add a CI mechanism (GitHub Action) that auto-translates English prompt changes into a draft `zh-CN` PR for review. |
 | **Git Hosting** | Option 1 — Gitee via MCP preset | Building the Gitee MCP wrapper is the largest time investment in this spec. |
 | **Auth (cross-cutting)** | IdentityServer (replaces Entra) | Switching to IdentityServer, which supports **WeChat login** out of the box — solves the China auth problem without needing Entra China cloud. |
+| **Build compliance** | Separate China build via Vite build-time substitution | Single codebase, two build outputs. All external URLs centralised in `endpoints.ts`, resolved at compile time. China binary contains **zero non-China infrastructure**. CI lint rule prevents accidental leakage. |
 
 ### Existing Foundation
 
@@ -228,20 +229,100 @@ Now part of Tencent Cloud's enterprise DevOps suite.
 
 ---
 
-## Cross-Cutting Concerns (not in the original ACs, but required to ship)
+## China Build Compliance — No Foreign Infrastructure in Binary
 
-These are blockers that surfaced during codebase review and must be resolved for the app to actually run from mainland China:
+> **Problem:** China's Cybersecurity Law and software distribution audits require that a China-distributed app binary contains **zero references to infrastructure outside of China**. Auditors inspect the compiled binary — not just runtime behaviour. If `api.github.com`, `login.microsoftonline.com`, or Azure Blob endpoints appear anywhere in the packaged app, it will fail.
+
+### Audit of non-China endpoints currently baked into the binary
+
+| Endpoint in binary | File | Purpose | China replacement |
+|---|---|---|---|
+| `https://api.github.com` | `release-channel-handlers.ts:33`, `github-token-handlers.ts:46` | Releases + token verification | Gitee API |
+| `https://api.githubcopilot.com/mcp/` | `preset-servers.ts:17` | GitHub MCP server | Gitee MCP |
+| `@azure-devops/mcp` (npx download) | `preset-servers.ts:31` | Azure DevOps MCP | Remove from China build |
+| `https://mcp.atlassian.com/v1/mcp` | `preset-servers.ts:42` | Jira MCP server | Remove from China build |
+| `https://login.microsoftonline.com/` | `microsoft-auth.ts:48` | Azure AD / Entra auth | IdentityServer (WeChat login) |
+| Application Insights SDK | `telemetry-service.ts:1,52` | Telemetry | Aliyun ARMS or self-hosted |
+| Google OAuth2 + YouTube v3 API | `youtube-oauth.ts:21`, `youtube-client.ts:74` | YouTube upload | Bilibili/Youku/Saved to AliCloud or remove |
+| OpenAI + Azure OpenAI SDK endpoints | `llm-providers.ts:1-3` | LLM providers | DashScope / DeepSeek only |
+| `https://www.youtube.com/watch?v=` | `youtube-url-utils.ts:59` | Video URL construction | China Video Host URL or remove |
+
+### Option 1 — Separate China build via Vite build-time substitution *(decided)*
+
+Create a **region-aware build pipeline** using Vite's `define` / `import.meta.env` to resolve all external endpoints at compile time. The China build literally does not contain non-China URLs in its output — they are replaced during compilation, not toggled at runtime.
+
+**How it works:**
+
+1. **Centralise all external endpoints** into a single `src/shared/config/endpoints.ts` module that reads from build-time constants:
+   ```ts
+   // src/shared/config/endpoints.ts
+   export const ENDPOINTS = {
+     auth:       __AUTH_URL__,        // Vite define'd at build time
+     telemetry:  __TELEMETRY_URL__,
+     releases:   __RELEASES_URL__,
+     videoHost:  __VIDEO_HOST_URL__,
+   } as const;
+   ```
+
+2. **Two `.env` files** consumed by Vite:
+   - `.env.global` — contains `api.github.com`, Azure, YouTube, etc.
+   - `.env.china` — contains Gitee, DashScope, IdentityServer, Aliyun, etc.
+
+3. **Two CI build targets** in the pipeline:
+   - `npm run build:global` → loads `.env.global` → global binary
+   - `npm run build:china` → loads `.env.china` → China binary
+
+4. **Conditional preset servers** — `PRESET_MCP_SERVERS` in `preset-servers.ts` is populated based on the build region (GitHub/Azure DevOps/Jira for global, Gitee for China).
+
+5. **Conditional LLM providers** — `LLM_PROVIDER_CONFIGS` in `llm-providers.ts` only includes China-accessible providers (DashScope, DeepSeek) in the China build, and all providers in the global build.
+
+- ✅ **Audit-proof** — the China binary physically cannot contain non-China URLs. String inspection passes.
+- ✅ **Single codebase** — no fork; same source, different build output.
+- ✅ **Vite-native** — Vite's `define` plugin handles this with zero runtime overhead; dead code from the other region is tree-shaken out.
+- ✅ **CI-friendly** — two parallel `electron-builder` jobs in the same pipeline.
+- ❌ Requires refactoring every hardcoded URL into the centralised `endpoints.ts` config (~10 files identified above).
+- ❌ Two builds to test, package, sign, and distribute. QA surface area doubles.
+- ❌ Risk of accidental leakage if a developer adds a new hardcoded URL without going through `endpoints.ts`. Needs a CI lint rule.
+
+### Option 2 — Maintain a separate China fork
+
+Fork the repo into `SSW.YakShaver.Desktop.CN` and maintain China-specific code independently.
+
+- ✅ Maximum control — no risk of accidental foreign-infra leakage.
+- ✅ China team can move independently.
+- ❌ **Codebase divergence** — features, bugfixes, and security patches must be manually cherry-picked between repos. This is a maintenance nightmare at scale.
+- ❌ Doubles the engineering cost for every shared feature.
+- ❌ Violates DRY at the repo level.
+
+### Decision — China Build Compliance
+
+**Option 1 (build-time substitution)** — single codebase, two build outputs. Add a CI lint rule (`no-hardcoded-urls`) that fails the build if any `https://` literal outside of `endpoints.ts` is detected in `src/`, preventing accidental leakage by future contributors.
+
+<!-- ### Implementation steps
+
+1. Create `src/shared/config/endpoints.ts` as the single source of truth for all external URLs.
+2. Refactor the ~10 files above to import from `endpoints.ts` instead of hardcoding URLs.
+3. Create `.env.global` and `.env.china` with the region-specific values.
+4. Update `vite.config.mts` to use `define` for build-time substitution based on `VITE_REGION`.
+5. Add a `build:china` script to `package.json`.
+6. Add a CI lint rule that greps for `https://` literals in `src/` outside of `endpoints.ts` and fails the build.
+7. Update `electron-builder` config for dual packaging (global + China signing/notarisation).
+
+--- -->
+
+<!-- ## Other Cross-Cutting Concerns
 
 | Concern | Issue | Action |
 |---|---|---|
-| **Auto-update endpoint** | `docs/release-settings.md` indicates updates come from GitHub Releases — blocked in China. | Add a mirror release channel (Aliyun OSS or Tencent COS). Make the update URL configurable. |
-| **npm registry** | Build pipeline uses public npm — slow/blocked in China. | Document the `npmmirror.com` registry for China developers. Not a runtime concern. |
-| **Auth — IdentityServer migration** | `src/backend/services/auth/microsoft-auth.ts` currently uses Azure AD / Entra, which is restricted in China. | **Decided:** Switching to IdentityServer, which supports **WeChat login** out of the box. This solves the China auth problem without needing Entra China cloud. |
-| **Telemetry endpoints** | Backend sends telemetry — confirm destinations are reachable from China. | Audit `src/backend/services/telemetry/`; add China-mirror or disable-by-default for `zh-CN` locale. |
-| **Screenshot upload** | `upload_screenshot` in `video-tools-server.ts` uploads to Azure Blob. | Verify Azure Blob endpoint reachability from China, or add an alternative (Aliyun OSS) for the `zh-CN` build. |
-| **FFmpeg binary download** | FFmpeg binaries may be fetched from a blocked CDN at install time. | Verify and mirror if needed. |
+| **Auto-update endpoint** | `release-channel-handlers.ts` points to GitHub Releases — blocked in China. | Resolved by build-time substitution: China build uses Aliyun OSS / Tencent COS mirror. |
+| **npm registry** | Build pipeline uses public npm — slow/blocked in China. | Document `npmmirror.com` for China CI runners. Not a runtime concern (not in binary). |
+| **Auth — IdentityServer** | `microsoft-auth.ts` uses Azure AD / Entra — restricted in China. | **Decided:** Switch to IdentityServer with WeChat login. China build points to the China IdentityServer instance. |
+| **Telemetry** | Application Insights SDK in `telemetry-service.ts` — Azure hosted. | China build replaces with Aliyun ARMS or disables telemetry. |
+| **Screenshot upload** | `upload_screenshot` in `video-tools-server.ts` uploads to Azure Blob. | China build targets Aliyun OSS endpoint. |
+| **FFmpeg binary** | May be fetched from a blocked CDN at install time. | Bundle FFmpeg in both builds, or mirror on Aliyun OSS for China. |
+| **YouTube integration** | `youtube-oauth.ts`, `youtube-client.ts` — Google APIs blocked in China. | China build excludes YouTube entirely. Evaluate Bilibili API as a future replacement. |
 
-These should be tracked as separate issues but linked from the Chinify epic.
+These should be tracked as separate issues linked from the Chinafy epic. -->
 
 ---
 
