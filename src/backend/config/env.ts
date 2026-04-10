@@ -32,8 +32,24 @@ const getAppInsightsConnectionString = () => {
 };
 
 const getIdentityServer = () => {
-  const url = env.IDENTITY_SERVER_URL || "https://app-ssw-ident-staging-api.azurewebsites.net";
-  return { url };
+  const {
+    IDENTITY_SERVER_URL: url,
+    IDENTITY_SERVER_CLIENT_ID: clientId,
+    IDENTITY_SERVER_SCOPE,
+    IDENTITY_SERVER_CUSTOM_PROTOCOL,
+  } = env;
+  const scopes = (IDENTITY_SERVER_SCOPE || "")
+    .split(/[\s,]+/)
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+  const customProtocol = IDENTITY_SERVER_CUSTOM_PROTOCOL || null;
+
+  return {
+    url,
+    clientId,
+    scopes,
+    customProtocol,
+  };
 };
 
 export const config = {

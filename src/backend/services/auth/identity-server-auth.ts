@@ -12,8 +12,6 @@ import {
   type UserInfo,
 } from "./types";
 
-const CLIENT_ID = "ssw-yakshaver-desktop-client";
-const SCOPES = "openid profile email ssw-yakshaver-api offline_access";
 const AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000; // refresh 60s before expiry
 
@@ -43,8 +41,19 @@ export class IdentityServerAuthService extends EventEmitter {
     return IdentityServerAuthService.instance;
   }
 
+  private getIdentityServerConfig() {
+    return config.identityServer();
+  }
+
+  private getScopes(): string {
+    return this.getIdentityServerConfig().scopes.join(" ");
+  }
+
   private getRedirectUri(): string {
-    const protocol = config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop";
+    const identityServerConfig = this.getIdentityServerConfig();
+    const protocol =
+      identityServerConfig.customProtocol ||
+      (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
     return `${protocol}://identity-server/callback`;
   }
 
@@ -53,11 +62,16 @@ export class IdentityServerAuthService extends EventEmitter {
       return this.client;
     }
 
-    const { url } = config.identityServer();
+    const { url, clientId } = this.getIdentityServerConfig();
+
+    if (!url || !clientId) {
+      throw new Error("IdentityServer URL or Client ID is not configured.");
+    }
+
     const issuer = await Issuer.discover(url);
 
     this.client = new issuer.Client({
-      client_id: CLIENT_ID,
+      client_id: clientId,
       redirect_uris: [this.getRedirectUri()],
       response_types: ["code"],
       token_endpoint_auth_method: "none", // PKCE - no client secret
@@ -134,7 +148,7 @@ export class IdentityServerAuthService extends EventEmitter {
       const state = generators.state();
 
       const authUrl = client.authorizationUrl({
-        scope: SCOPES,
+        scope: this.getScopes(),
         code_challenge: codeChallenge,
         code_challenge_method: "S256",
         state,
@@ -199,7 +213,7 @@ export class IdentityServerAuthService extends EventEmitter {
       accessToken: tokenSet.access_token ?? "",
       refreshToken: tokenSet.refresh_token ?? "",
       expiresAt: Date.now() + expiresIn * 1000,
-      scope: (tokenSet.scope ?? SCOPES).split(" "),
+      scope: (tokenSet.scope ?? this.getScopes()).split(" "),
     };
 
     this.currentTokens = tokenData;
