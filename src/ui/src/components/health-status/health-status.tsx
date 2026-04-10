@@ -31,6 +31,18 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
     },
     ref,
   ) => {
+    const [animating, setAnimating] = React.useState(false);
+    const prevIsHealthy = React.useRef(false);
+
+    React.useEffect(() => {
+      if (isHealthy && !prevIsHealthy.current) {
+        setAnimating(true);
+        const timer = setTimeout(() => setAnimating(false), 600);
+        return () => clearTimeout(timer);
+      }
+      prevIsHealthy.current = isHealthy;
+    }, [isHealthy]);
+
     if (isDisabled && !isChecking) {
       return (
         <div
@@ -68,7 +80,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
           className={cn("group relative flex items-center gap-2", className)}
           {...props}
         >
-          <CheckCircle2 className="h-5 w-5 text-green-400" />
+          <CheckCircle2 className={cn("h-5 w-5 text-green-400", animating && "animate-tick-pop")} />
           <div className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-2 text-xs shadow-lg break-words whitespace-normal">
             {successDetails ? (
               <div className="space-y-1">

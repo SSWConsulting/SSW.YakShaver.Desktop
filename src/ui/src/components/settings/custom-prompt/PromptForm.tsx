@@ -308,6 +308,24 @@ export function PromptForm({
           }}
         />
 
+        {serversLoaded &&
+          !isTemplate &&
+          (() => {
+            const connectedPlatforms = mcpServers.filter((s) => !s.builtin && s.enabled !== false);
+            if (connectedPlatforms.length === 0) return null;
+            return (
+              <div className="flex items-start gap-2 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-300">
+                <span className="mt-0.5 shrink-0">💡</span>
+                <span>
+                  <span className="font-medium">
+                    Connected: {connectedPlatforms.map((s) => s.name).join(", ")}
+                  </span>
+                  {" — add your project URL to the prompt content above."}
+                </span>
+              </div>
+            );
+          })()}
+
         {serversLoaded && mcpServers.length > 0 && (
           <FormField
             control={form.control}

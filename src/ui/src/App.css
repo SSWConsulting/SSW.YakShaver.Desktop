@@ -162,3 +162,19 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes tick-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-tick-pop {
+  animation: tick-pop 0.4s ease-out forwards;
+}

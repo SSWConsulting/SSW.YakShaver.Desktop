@@ -31,7 +31,7 @@ export function TemplateCard({ template, onView, onUseTemplate }: TemplateCardPr
             onClick={() => onView(template)}
             variant="outline"
             size="sm"
-            className="cursor-pointer"
+            className="flex-1 min-w-0 cursor-pointer"
           >
             View
           </Button>
@@ -39,9 +39,9 @@ export function TemplateCard({ template, onView, onUseTemplate }: TemplateCardPr
             onClick={() => onUseTemplate(template)}
             variant="default"
             size="sm"
-            className="cursor-pointer"
+            className="flex-1 min-w-0 cursor-pointer"
           >
-            Use Template
+            Use
           </Button>
         </div>
       </div>

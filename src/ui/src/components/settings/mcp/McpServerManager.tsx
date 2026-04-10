@@ -1,5 +1,5 @@
 import { Globe } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
@@ -49,6 +49,7 @@ export function McpSettingsPanel({
   } | null>(null);
   const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
   const [whitelistServer, setWhitelistServer] = useState<MCPServerConfig | null>(null);
+  const connectingServerIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const hasEnabled = servers.some(
@@ -77,12 +78,24 @@ export function McpSettingsPanel({
       [server.id as string]: { isHealthy: false, isChecking: true },
     }));
 
+    const isConnecting = connectingServerIds.current.has(server.id);
+
     try {
       const result = (await ipcClient.mcp.checkServerHealthAsync(server.id)) as HealthStatusInfo;
       setHealthStatus((prev) => ({
         ...prev,
         [server.id as string]: { ...result, isChecking: false },
       }));
+      if (isConnecting) {
+        if (result.isHealthy) {
+          toast.success(`${server.name} connected!`, {
+            description: `Next to configure your Custom Prompt to include ${server.name} projects.`,
+            duration: 8000,
+          });
+        } else {
+          toast.error(`Failed to connect ${server.name}`);
+        }
+      }
     } catch (e) {
       setHealthStatus((prev) => ({
         ...prev,
@@ -92,6 +105,11 @@ export function McpSettingsPanel({
           isChecking: false,
         },
       }));
+      if (isConnecting) {
+        toast.error(`Failed to connect ${server.name}`);
+      }
+    } finally {
+      connectingServerIds.current.delete(server.id);
     }
   }, []);
 
@@ -229,6 +247,7 @@ export function McpSettingsPanel({
   }
 
   async function handleOnConnect(serverId: string, configLocal: MCPServerConfig): Promise<void> {
+    connectingServerIds.current.add(serverId);
     await toggleSettings(serverId, true, configLocal);
   }
 
@@ -267,21 +286,30 @@ export function McpSettingsPanel({
       <div className="grid grid-cols-1 gap-4 mb-4">
         <McpGitHubCard
           config={github}
-          onChange={() => loadServers({ serverIdToRefresh: McpGitHubCard.Id })}
+          onChange={(config) => {
+            if (config.enabled) connectingServerIds.current.add(McpGitHubCard.Id);
+            void loadServers({ serverIdToRefresh: McpGitHubCard.Id });
+          }}
           healthInfo={getHealthStatus(github?.id)}
           onTools={() => github && openWhitelistDialog(github)}
           viewMode={viewMode}
         />
         <McpAzureDevOpsCard
           config={azureDevOps}
-          onChange={() => loadServers({ serverIdToRefresh: McpAzureDevOpsCard.Id })}
+          onChange={(config) => {
+            if (config.enabled) connectingServerIds.current.add(McpAzureDevOpsCard.Id);
+            void loadServers({ serverIdToRefresh: McpAzureDevOpsCard.Id });
+          }}
           healthInfo={getHealthStatus(McpAzureDevOpsCard.Id)}
           onTools={() => azureDevOps && openWhitelistDialog(azureDevOps)}
           viewMode={viewMode}
         />
         <McpJiraCard
           config={jira}
-          onChange={() => loadServers({ serverIdToRefresh: McpJiraCard.Id })}
+          onChange={(config) => {
+            if (config.enabled) connectingServerIds.current.add(McpJiraCard.Id);
+            void loadServers({ serverIdToRefresh: McpJiraCard.Id });
+          }}
           healthInfo={getHealthStatus(McpJiraCard.Id)}
           onTools={() => jira && openWhitelistDialog(jira)}
           viewMode={viewMode}
