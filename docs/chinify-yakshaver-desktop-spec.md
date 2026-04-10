@@ -1,40 +1,27 @@
 # Chinafy YakShaver Desktop — Specification
 
-- Status: draft
+- Status: accepted
 - Deciders: @tino-liu @calumjs @ricksu978 @adamcogan @ZenoWang1999
-- Date: 2026-04-09
+- Date: 2026-04-10
 - Tags: localization, china, i18n, llm, git-hosting, prompts
 
 Technical Story: [✨ Chinafy - Spec out required changes to fully support China usage](https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/810)
 
 ---
 
-## Final Decisions
+## Decision Outcome
 
-China Accessible Model:
+| Area | Decision | Key Notes |
+|---|---|---|
+| **AI Model** | Option 1 — Qwen3-VL via DashScope | Not hardcoded to one model. Users can swap between providers. Must stay Vercel AI SDK compatible. Evaluate TanStack AI as a future alternative. |
+| **Localization** | Option 1 — `react-i18next` + JSON namespaces | `en` + `zh-CN` in phase 1. |
+| **Prompt Engineering** | Option 1 — Bilingual prompt file, locale-driven | Add README guidance requiring devs to update both locale prompts. Add a CI mechanism (GitHub Action) that auto-translates English prompt changes into a draft `zh-CN` PR for review. |
+| **Git Hosting** | Option 1 — Gitee via MCP preset | Building the Gitee MCP wrapper is the largest time investment in this spec. |
+| **Auth (cross-cutting)** | IdentityServer (replaces Entra) | Switching to IdentityServer, which supports **WeChat login** out of the box — solves the China auth problem without needing Entra China cloud. |
 
-Option 1 - Not hard coded, can swap between models. Vercel AI SDK compatible? Tanstack AI?
+### Existing Foundation
 
-Localization Strategy
-
-Option 1
-
-Chinese Prompt Engineering
-
-Option 1 - Somewhere in the README file to tell devs to update both prompts... Some mechanism that ensures application can test whether the prompt changes
-
-github action that automatically translates the English propmpt changes... then auto do a new PR.
-
-China-Based Git Hosting
-
-Option 1 - Need to do MCP wrapper... this would take most of the time
-
-Microsoft Graph / Entra auth - We're switching over to IdentityServer, and it supports WeChat login out of the box.
-
-
-### Infra
-
-Zeno already has a working version of a "China" curated version of YakShaver, an official Chinafy YakShaver could be built off from this existing KB
+@ZenoWang1999 already has a working "China-curated" version of YakShaver with its own knowledge base. The official Chinafy implementation should build on top of this existing KB rather than starting from scratch.
 
 
 ## Context
@@ -58,7 +45,7 @@ YakShaver Desktop is not currently "China-ready". Users in mainland China cannot
 
 > **Hard constraint:** YakShaver's core workflow is video-based. Every option below must support **native video input** — not just static-image vision. Models that only accept individual frames (e.g. DeepSeek-VL2) are excluded.
 
-### Option 1 — Alibaba Qwen3-VL (通义千问) via DashScope *(recommended)*
+### Option 1 — Alibaba Qwen3-VL (通义千问) via DashScope *(decided)*
 
 Qwen3-VL is Alibaba Cloud's flagship vision-language model, served via DashScope (Model Studio). DashScope exposes an **OpenAI-compatible endpoint** at `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`, so integration reuses the existing `createOpenAI` factory with only a `baseURL` override. Video input is supported via an `fps` parameter that controls frame extraction.
 
@@ -98,9 +85,11 @@ Zhipu AI's GLM-4.5V (and the newer GLM-4.6V) is a multimodal reasoning model wit
 - ❌ **Less name-recognition** with enterprise procurement than Alibaba.
 - ❌ Reasoning/thinking-mode toggle behaviour differs from OpenAI conventions; may need extra parameter handling.
 
-### Recommendation — Area 1
+### Decision — AI Model
 
-**Ship Option 1 (Qwen3-VL) as the primary China provider. This is what Zeno did.** It's the only option that combines (a) production-grade native video, (b) a fully stable OpenAI-compatible API, (c) enterprise-ready Alibaba Cloud distribution, and (d) the best bilingual fluency for code-switched Chinese/English technical content.
+**Ship Option 1 (Qwen3-VL) as the primary China provider — this is what @ZenoWang1999 already uses in the working China-curated version.** It combines (a) production-grade native video, (b) a fully stable OpenAI-compatible API, (c) enterprise-ready Alibaba Cloud distribution, and (d) the best bilingual fluency for code-switched Chinese/English technical content.
+
+**Important:** The implementation must **not hardcode** Qwen as the only China model. The existing `LLM_PROVIDER_CONFIGS` factory pattern at `src/shared/llm/llm-providers.ts` already supports swapping providers — Qwen ships as the default for China users, but all three options above are Vercel AI SDK-compatible via `createOpenAI` with a `baseURL` override, so users can switch freely. Evaluate TanStack AI as a potential future alternative to Vercel AI SDK.
 
 ---
 
@@ -108,7 +97,7 @@ Zhipu AI's GLM-4.5V (and the newer GLM-4.6V) is a multimodal reasoning model wit
 
 **Requirement (AC2):** Document a localization plan including language selection UX and Simplified Chinese scope.
 
-### Option 1 — `react-i18next` + JSON namespace files *(recommended)*
+### Option 1 — `react-i18next` + JSON namespace files *(decided)*
 
 Industry-standard React i18n library. Pairs with `i18next` core. Works cleanly with Vite and Electron; supports lazy-loading namespaces, which keeps bundle size down.
 
@@ -155,7 +144,7 @@ Modern ICU-first library, originally for Next.js but works standalone with React
 
 **Requirement (AC3):** Document baseline system prompts and key prompt patterns for YakShaver workflows in Simplified Chinese.
 
-### Option 1 — Bilingual prompt file, locale-driven selection *(recommended)*
+### Option 1 — Bilingual prompt file, locale-driven selection *(decided)*
 
 Refactor `src/backend/services/workflow/prompts.ts` from a single `defaultProjectPrompt` export to a locale-keyed map (`{ en: ..., 'zh-CN': ... }`). The active locale from the i18n system selects the correct prompt at workflow execution time. Each locale has its own hand-crafted, native prompt — not a machine translation.
 
@@ -166,6 +155,10 @@ Refactor `src/backend/services/workflow/prompts.ts` from a single `defaultProjec
 - ❌ Doubles the prompt maintenance surface — every prompt tweak must be made in both locales.
 - ❌ Requires a bilingual reviewer in the PR loop.
 
+**Mitigations for the maintenance cost (decided):**
+1. **README / CONTRIBUTING guidance** — add a section explicitly instructing developers to update both `en` and `zh-CN` prompts when modifying `prompts.ts`.
+2. **GitHub Action for auto-translation** — when a PR modifies the English prompt, a CI workflow automatically generates a draft `zh-CN` translation (via LLM) and opens a follow-up PR for bilingual review. This catches forgotten updates and reduces friction.
+3. **Prompt regression tests** — add a test that asserts both locale prompts exist and contain required structural markers (e.g. issue template instructions, screenshot instructions). Fails CI if a new English prompt key is added without a `zh-CN` counterpart.
 
 ### Option 2 — Runtime prompt injection based on detected input language
 
@@ -194,7 +187,7 @@ Go beyond translating the system prompt: build a library of locale-specific task
 
 Current integrations live at `src/shared/mcp/preset-servers.ts:53`. Adding a new preset is mechanically simple — the hard parts are (a) whether an MCP server exists for the target platform and (b) generalising the GitHub-specific token storage at `src/backend/ipc/github-token-handlers.ts`.
 
-### Option 1 — Gitee (码云) via a new MCP preset *(recommended)*
+### Option 1 — Gitee (码云) via a new MCP preset *(decided)*
 
 Gitee is the de facto Chinese GitHub. It has a REST API similar in shape to GitHub's and is the most likely destination for SSW China customers' code.
 
@@ -243,7 +236,7 @@ These are blockers that surfaced during codebase review and must be resolved for
 |---|---|---|
 | **Auto-update endpoint** | `docs/release-settings.md` indicates updates come from GitHub Releases — blocked in China. | Add a mirror release channel (Aliyun OSS or Tencent COS). Make the update URL configurable. |
 | **npm registry** | Build pipeline uses public npm — slow/blocked in China. | Document the `npmmirror.com` registry for China developers. Not a runtime concern. |
-| **Microsoft Graph / Entra auth** | `src/backend/services/auth/microsoft-auth.ts` uses Azure AD — some tenants are restricted in China. | Flag as known limitation; Entra China cloud (`login.partner.microsoftonline.cn`) may be needed for enterprise. Scope: **out of phase 1**. |
+| **Auth — IdentityServer migration** | `src/backend/services/auth/microsoft-auth.ts` currently uses Azure AD / Entra, which is restricted in China. | **Decided:** Switching to IdentityServer, which supports **WeChat login** out of the box. This solves the China auth problem without needing Entra China cloud. |
 | **Telemetry endpoints** | Backend sends telemetry — confirm destinations are reachable from China. | Audit `src/backend/services/telemetry/`; add China-mirror or disable-by-default for `zh-CN` locale. |
 | **Screenshot upload** | `upload_screenshot` in `video-tools-server.ts` uploads to Azure Blob. | Verify Azure Blob endpoint reachability from China, or add an alternative (Aliyun OSS) for the `zh-CN` build. |
 | **FFmpeg binary download** | FFmpeg binaries may be fetched from a blocked CDN at install time. | Verify and mirror if needed. |
