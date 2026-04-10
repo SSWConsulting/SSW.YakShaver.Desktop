@@ -1,6 +1,12 @@
 import { EventEmitter } from "node:events";
 import { shell } from "electron";
-import { type Client, generators, Issuer, type TokenSet } from "openid-client";
+import type {
+  ClientMetadata,
+  Configuration,
+  TokenEndpointResponse,
+  TokenEndpointResponseHelpers,
+  UserInfoResponse,
+} from "openid-client";
 import { config } from "../../config/env";
 import { formatAndReportError } from "../../utils/error-utils";
 import { IdentityServerTokenStorage } from "../storage/identity-server-token-storage";
@@ -15,6 +21,9 @@ import {
 const AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000; // refresh 60s before expiry
 
+type OpenIdClientModule = typeof import("openid-client");
+type TokenResponse = TokenEndpointResponse & TokenEndpointResponseHelpers;
+
 interface PendingAuth {
   codeVerifier: string;
   state: string;
@@ -25,7 +34,8 @@ interface PendingAuth {
 
 export class IdentityServerAuthService extends EventEmitter {
   private static instance: IdentityServerAuthService | null = null;
-  private client: Client | null = null;
+  private openIdClientPromise: Promise<OpenIdClientModule> | null = null;
+  private clientConfiguration: Configuration | null = null;
   private pendingAuth: PendingAuth | null = null;
   private storage = IdentityServerTokenStorage.getInstance();
   private currentTokens: TokenData | null = null;
@@ -57,10 +67,25 @@ export class IdentityServerAuthService extends EventEmitter {
     return `${protocol}://identity-server/callback`;
   }
 
-  private async getClient(): Promise<Client> {
-    if (this.client) {
-      return this.client;
+  private async getOpenIdClient(): Promise<OpenIdClientModule> {
+    if (!this.openIdClientPromise) {
+      const importOpenIdClient = new Function(
+        "specifier",
+        'return import(specifier);',
+      ) as (specifier: string) => Promise<OpenIdClientModule>;
+
+      this.openIdClientPromise = importOpenIdClient("openid-client");
     }
+
+    return this.openIdClientPromise;
+  }
+
+  private async getClientConfiguration(): Promise<Configuration> {
+    if (this.clientConfiguration) {
+      return this.clientConfiguration;
+    }
+
+    const openIdClient = await this.getOpenIdClient();
 
     const { url, clientId } = this.getIdentityServerConfig();
 
@@ -68,16 +93,32 @@ export class IdentityServerAuthService extends EventEmitter {
       throw new Error("IdentityServer URL or Client ID is not configured.");
     }
 
-    const issuer = await Issuer.discover(url);
+    const issuerUrl = new URL(url);
 
-    this.client = new issuer.Client({
-      client_id: clientId,
+    if (issuerUrl.protocol !== "https:") {
+      throw new Error("IdentityServer URL must use HTTPS.");
+    }
+
+    const clientMetadata: Partial<ClientMetadata> = {
       redirect_uris: [this.getRedirectUri()],
       response_types: ["code"],
-      token_endpoint_auth_method: "none", // PKCE - no client secret
-    });
+      token_endpoint_auth_method: "none",
+    };
 
-    return this.client;
+    const configuration = await openIdClient.discovery(
+      issuerUrl,
+      clientId,
+      clientMetadata,
+      openIdClient.None(),
+    );
+
+    this.clientConfiguration = configuration;
+
+    return configuration;
+  }
+
+  private getScopeList(scope: string | undefined): string[] {
+    return (scope ?? this.getScopes()).split(" ").filter(Boolean);
   }
 
   async initialize(): Promise<void> {
@@ -120,11 +161,20 @@ export class IdentityServerAuthService extends EventEmitter {
 
   private async getUserInfo(): Promise<UserInfo | undefined> {
     try {
-      const client = await this.getClient();
+      const openIdClient = await this.getOpenIdClient();
+      const clientConfiguration = await this.getClientConfiguration();
       const accessToken = this.currentTokens?.accessToken;
-      if (!accessToken) return undefined;
 
-      const userinfo = await client.userinfo(accessToken);
+      if (!accessToken) {
+        return undefined;
+      }
+
+      const userinfo = (await openIdClient.fetchUserInfo(
+        clientConfiguration,
+        accessToken,
+        openIdClient.skipSubjectCheck,
+      )) as UserInfoResponse;
+
       return {
         id: String(userinfo.sub),
         name: String(userinfo.name ?? userinfo.preferred_username ?? userinfo.sub),
@@ -141,20 +191,27 @@ export class IdentityServerAuthService extends EventEmitter {
     this.cancelPendingAuth();
 
     try {
-      const client = await this.getClient();
+      const openIdClient = await this.getOpenIdClient();
+      const clientConfiguration = await this.getClientConfiguration();
 
-      const codeVerifier = generators.codeVerifier();
-      const codeChallenge = generators.codeChallenge(codeVerifier);
-      const state = generators.state();
+      const codeVerifier = openIdClient.randomPKCECodeVerifier();
+      const codeChallenge = await openIdClient.calculatePKCECodeChallenge(codeVerifier);
+      const state = openIdClient.randomState();
 
-      const authUrl = client.authorizationUrl({
+      const authorizationParameters = {
+        redirect_uri: this.getRedirectUri(),
         scope: this.getScopes(),
         code_challenge: codeChallenge,
         code_challenge_method: "S256",
         state,
-      });
+      };
 
-      await shell.openExternal(authUrl);
+      const authUrl = openIdClient.buildAuthorizationUrl(
+        clientConfiguration,
+        authorizationParameters,
+      );
+
+      await shell.openExternal(authUrl.href);
 
       return new Promise<AuthResult>((resolve, reject) => {
         const timer = setTimeout(() => {
@@ -183,17 +240,25 @@ export class IdentityServerAuthService extends EventEmitter {
     clearTimeout(timer);
 
     try {
-      const client = await this.getClient();
+      const openIdClient = await this.getOpenIdClient();
+      const clientConfiguration = await this.getClientConfiguration();
 
       const redirectUri = this.getRedirectUri();
       console.log("[IdentityServerAuth] Expected redirect URI:", redirectUri);
       console.log("[IdentityServerAuth] Expected callback URI:", callbackUrl);
 
-      const params = client.callbackParams(callbackUrl);
-      const tokenSet = await client.callback(redirectUri, params, {
-        code_verifier: codeVerifier,
-        state,
-      });
+      const tokenSet = await openIdClient.authorizationCodeGrant(
+        clientConfiguration,
+        new URL(callbackUrl),
+        {
+          idTokenExpected: true,
+          pkceCodeVerifier: codeVerifier,
+          expectedState: state,
+        },
+        {
+          redirect_uri: redirectUri,
+        },
+      );
 
       console.log("[IdentityServerAuth] Received token set:", tokenSet);
 
@@ -207,13 +272,14 @@ export class IdentityServerAuthService extends EventEmitter {
     }
   }
 
-  private async storeTokenSet(tokenSet: TokenSet): Promise<void> {
-    const expiresIn = tokenSet.expires_in ?? 3600;
+  private async storeTokenSet(tokenSet: TokenResponse): Promise<void> {
+    const expiresIn = tokenSet.expiresIn() ?? tokenSet.expires_in ?? 3600;
+
     const tokenData: TokenData = {
       accessToken: tokenSet.access_token ?? "",
       refreshToken: tokenSet.refresh_token ?? "",
       expiresAt: Date.now() + expiresIn * 1000,
-      scope: (tokenSet.scope ?? this.getScopes()).split(" "),
+      scope: this.getScopeList(tokenSet.scope),
     };
 
     this.currentTokens = tokenData;
@@ -224,8 +290,12 @@ export class IdentityServerAuthService extends EventEmitter {
     if (!this.currentTokens?.refreshToken) return false;
 
     try {
-      const client = await this.getClient();
-      const tokenSet = await client.refresh(this.currentTokens.refreshToken);
+      const openIdClient = await this.getOpenIdClient();
+      const clientConfiguration = await this.getClientConfiguration();
+      const tokenSet = await openIdClient.refreshTokenGrant(
+        clientConfiguration,
+        this.currentTokens.refreshToken,
+      );
       await this.storeTokenSet(tokenSet);
       return true;
     } catch (error) {
