@@ -12,6 +12,7 @@ import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { IPC_CHANNELS } from "./ipc/channels";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
+import { IdentityServerAuthIPCHandlers } from "./ipc/identity-server-auth-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
 import { MicrosoftAuthIPCHandlers } from "./ipc/microsoft-auth-handlers";
@@ -24,6 +25,7 @@ import { TelemetryIPCHandlers } from "./ipc/telemetry-handlers";
 import { registerUserInteractionHandlers } from "./ipc/user-interaction-handlers";
 import { UserSettingsIPCHandlers } from "./ipc/user-settings-handlers";
 import { handleProtocolUrl } from "./protocol/protocol-router";
+import { IdentityServerAuthService } from "./services/auth/identity-server-auth";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPOrchestrator } from "./services/mcp/mcp-orchestrator";
@@ -288,6 +290,7 @@ const handleProtocolUrlSafely = async (
 let _screenRecordingHandlers: ScreenRecordingIPCHandlers;
 let _authHandlers: AuthIPCHandlers;
 let _msAuthHandlers: MicrosoftAuthIPCHandlers;
+let _isAuthHandlers: IdentityServerAuthIPCHandlers;
 let _llmSettingsHandlers: LLMSettingsIPCHandlers;
 let _mcpHandlers: McpIPCHandlers;
 let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
@@ -408,6 +411,15 @@ app.whenReady().then(async () => {
     registerPortalHandlers(microsoftAuthService);
   } catch (error) {
     console.error("Failed to initialize Microsoft Auth:", error);
+    // Register fallback handlers so the renderer doesn't crash with "No handler registered"
+    MicrosoftAuthIPCHandlers.registerUnconfiguredHandlers();
+  }
+  try {
+    const identityServerAuthService = IdentityServerAuthService.getInstance();
+    await identityServerAuthService.initialize();
+    _isAuthHandlers = new IdentityServerAuthIPCHandlers(identityServerAuthService);
+  } catch (error) {
+    console.error("Failed to initialize IdentityServer Auth:", error);
   }
   _processVideoHandlers = new ProcessVideoIPCHandlers();
 

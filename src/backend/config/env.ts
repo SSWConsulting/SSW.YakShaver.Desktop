@@ -31,10 +31,16 @@ const getAppInsightsConnectionString = () => {
   return env.APPLICATIONINSIGHTS_CONNECTION_STRING || null;
 };
 
+const getIdentityServer = () => {
+  const url = env.IDENTITY_SERVER_URL || "https://app-ssw-ident-staging-api.azurewebsites.net";
+  return { url };
+};
+
 export const config = {
   azure: getAzure,
   portalApiUrl: getPortalApiUrl,
   commitHash: getCommitHash,
   isDev: getIsDev,
   appInsightsConnectionString: getAppInsightsConnectionString,
+  identityServer: getIdentityServer,
 };

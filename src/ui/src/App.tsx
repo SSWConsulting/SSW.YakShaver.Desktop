@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Toaster, toast } from "sonner";
 import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
+import { IdentityServerAuthManager } from "./components/auth/IdentityServerAuthManager";
 import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 import { DownloadProgressToast } from "./components/common/DownloadProgressToast";
 import { TelemetryConsentInitializer } from "./components/common/TelemetryConsentInitializer";
@@ -61,6 +62,7 @@ export default function App() {
                   <div className="absolute top-6 right-8 z-50 flex items-center gap-4">
                     <MyShavesDialog />
                     <SettingsDialog />
+                    <IdentityServerAuthManager />
                     <MicrosoftAuthManager />
                   </div>
                   <header className="z-10 relative">

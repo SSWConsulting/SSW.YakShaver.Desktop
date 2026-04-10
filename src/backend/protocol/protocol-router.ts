@@ -1,6 +1,7 @@
 import type { OAuthTokens } from "@ai-sdk/mcp";
 import type { BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../ipc/channels";
+import { IdentityServerAuthService } from "../services/auth/identity-server-auth";
 import type { TokenData } from "../services/auth/types";
 import { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import { McpOAuthTokenStorage } from "../services/storage/mcp-oauth-token-storage";
@@ -88,6 +89,12 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     console.log("[ProtocolRouter] Handling Main App Auth callback");
     // No action needed, just prevents "Unhandled protocol route" error
     // The window focus is handled by the main process event listener
+  },
+
+  // IdentityServer OAuth 2.0 PKCE callback handler
+  "/identity-server/callback": async (url) => {
+    console.log("[ProtocolRouter] Handling IdentityServer OAuth callback");
+    await IdentityServerAuthService.getInstance().handleCallback(url.toString());
   },
 
   // YouTube OAuth callback handler

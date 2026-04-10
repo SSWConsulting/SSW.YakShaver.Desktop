@@ -75,6 +75,12 @@ declare global {
           status: () => Promise<AuthState>;
           accountInfo: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
         };
+        identityServer: {
+          login: () => Promise<AuthResult>;
+          logout: () => Promise<boolean>;
+          status: () => Promise<AuthState>;
+          accountInfo: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
+        };
       };
       video: {
         selectVideoFile: () => Promise<string | null>;
