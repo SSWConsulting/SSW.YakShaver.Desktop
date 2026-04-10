@@ -38,6 +38,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
       if (isHealthy && !prevIsHealthy.current) {
         setAnimating(true);
         const timer = setTimeout(() => setAnimating(false), 600);
+        prevIsHealthy.current = true;
         return () => clearTimeout(timer);
       }
       prevIsHealthy.current = isHealthy;

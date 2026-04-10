@@ -112,7 +112,7 @@ export function McpSettingsPanel({
         },
       }));
       if (isConnecting) {
-        toast.error(`Failed to connect ${server.name}`);
+        toast.error(`Failed to connect ${server.name}: ${formatErrorMessage(e)}`);
       }
     } finally {
       connectingServerIds.current.delete(server.id);
@@ -262,6 +262,14 @@ export function McpSettingsPanel({
     await toggleSettings(serverId, false, configLocal);
   }
 
+  const handlePresetCardChange = useCallback(
+    (cardId: string, config: MCPServerConfig) => {
+      if (config.enabled) connectingServerIds.current.add(cardId);
+      void loadServers({ serverIdToRefresh: cardId });
+    },
+    [loadServers],
+  );
+
   const sortedServers = useMemo(() => {
     return [...servers].sort((a, b) => {
       const aEnabled = a.enabled !== false ? 0 : 1;
@@ -291,10 +299,7 @@ export function McpSettingsPanel({
               <McpGitHubCard
                 key={server.id}
                 config={server}
-                onChange={(config) => {
-                  if (config.enabled) connectingServerIds.current.add(McpGitHubCard.Id);
-                  void loadServers({ serverIdToRefresh: McpGitHubCard.Id });
-                }}
+                onChange={(config) => handlePresetCardChange(McpGitHubCard.Id, config)}
                 healthInfo={getHealthStatus(server.id)}
                 onTools={() => openWhitelistDialog(server)}
                 viewMode={viewMode}
@@ -306,10 +311,7 @@ export function McpSettingsPanel({
               <McpAzureDevOpsCard
                 key={server.id}
                 config={server}
-                onChange={(config) => {
-                  if (config.enabled) connectingServerIds.current.add(McpAzureDevOpsCard.Id);
-                  void loadServers({ serverIdToRefresh: McpAzureDevOpsCard.Id });
-                }}
+                onChange={(config) => handlePresetCardChange(McpAzureDevOpsCard.Id, config)}
                 healthInfo={getHealthStatus(server.id)}
                 onTools={() => openWhitelistDialog(server)}
                 viewMode={viewMode}
@@ -321,10 +323,7 @@ export function McpSettingsPanel({
               <McpJiraCard
                 key={server.id}
                 config={server}
-                onChange={(config) => {
-                  if (config.enabled) connectingServerIds.current.add(McpJiraCard.Id);
-                  void loadServers({ serverIdToRefresh: McpJiraCard.Id });
-                }}
+                onChange={(config) => handlePresetCardChange(McpJiraCard.Id, config)}
                 healthInfo={getHealthStatus(server.id)}
                 onTools={() => openWhitelistDialog(server)}
                 viewMode={viewMode}

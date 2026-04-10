@@ -14,7 +14,7 @@ Cc:
 <!-- add intended user next to **Hi** -->
 Hi 
 
-<!-- duration in the format of xx min xx sec -->
+<!-- duration in the format of xx min xx sec (if 0 min, use xx sec) -->
 [🟥 Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
 
 ### Pain
@@ -30,8 +30,7 @@ Hi
 
 ### Acceptance Criteria
 <!-- Acceptance Criteria helps to answer the question "How will I know when I'm done with this story?". It defines the requirements that must be met for the story to be completed. See https://www.ssw.com.au/rules/acceptance-criteria -->
-- [ ] Meets Definition of Done - {{ LINK }}
-- [ ] ...
+- 1. Meets Definition of Done - {{ LINK }}
 
 ### More Information
 <!-- Add any other context here. -->

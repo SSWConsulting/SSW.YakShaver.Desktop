@@ -251,14 +251,9 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                   <SelectValue placeholder="Select camera" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_CAMERA_VALUE}>
-                    No camera
-                  </SelectItem>
+                  <SelectItem value={NO_CAMERA_VALUE}>No camera</SelectItem>
                   {cameraDevices.map((d) => (
-                    <SelectItem
-                      key={d.deviceId}
-                      value={d.deviceId}
-                    >
+                    <SelectItem key={d.deviceId} value={d.deviceId}>
                       {d.label || d.deviceId}
                     </SelectItem>
                   ))}
@@ -281,10 +276,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                 </SelectTrigger>
                 <SelectContent>
                   {microphoneDevices.map((d) => (
-                    <SelectItem
-                      key={d.deviceId}
-                      value={d.deviceId}
-                    >
+                    <SelectItem key={d.deviceId} value={d.deviceId}>
                       {d.label || d.deviceId}
                     </SelectItem>
                   ))}
