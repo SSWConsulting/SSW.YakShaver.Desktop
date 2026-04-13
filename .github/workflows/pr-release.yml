@@ -510,7 +510,7 @@ jobs:
           path: artifacts/
 
       - name: Create single GitHub release with all artifacts
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.cleanup-release.outputs.release_tag }}
           name: "Pre-release PR #${{ needs.cleanup-release.outputs.pr_number }} (${{ needs.cleanup-release.outputs.pr_sha }})"
