@@ -129,8 +129,8 @@ export function HomePage() {
       </div>
 
       {/* Search, Filter, Sort controls */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col gap-3">
+        <div className="relative w-full lg:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search shaves..."
@@ -139,6 +139,7 @@ export function HomePage() {
             className="pl-9"
           />
         </div>
+        <div className="flex flex-row gap-3 items-center">
         <Select
           value={statusFilter || "all"}
           onValueChange={(value) => {
@@ -188,6 +189,7 @@ export function HomePage() {
             <X className="h-3 w-3" /> Clear
           </Button>
         )}
+        </div>
       </div>
 
       <ScrollArea className="flex-1">
