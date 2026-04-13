@@ -22,7 +22,7 @@ Technical Story: [✨ Chinafy - Spec out required changes to fully support China
 | | | |
 | **Portal — Payments** | Add Alipay + WeChat Pay alongside Stripe | Stripe is USD-only and not usable in China. Need a China payment gateway for CNY (¥). See [Portal section](#yakshaver-portal-sswYakShaver). |
 | **Portal — Auth** | IdentityServer + WeChat/DingTalk social login | NextAuth + Azure AD is the current stack. China portal needs WeChat and/or DingTalk as login providers. |
-| **Portal — Hosting** | Azure China (21Vianet) or Aliyun | Current infra is Azure Global (Bicep IaC). China portal must be hosted within China + ICP filing required. |
+| **Portal — Hosting** | Azure China or Aliyun | Current infra is Azure Global (Bicep IaC). China portal must be hosted within China + ICP filing required. |
 | **Portal — Git integrations** | Add Gitee service alongside GitHub | Backend `GitHubService.cs` and `AzureDevOpsService.cs` need a `GiteeService.cs` equivalent. |
 | **Portal — i18n** | `next-intl` for the Next.js portal | No i18n exists today. `next-intl` is the standard for Next.js 15 App Router (distinct from Desktop's `react-i18next`). |
 
