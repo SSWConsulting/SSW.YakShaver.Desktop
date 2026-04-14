@@ -76,6 +76,7 @@ SSW.YakShaver.Desktop/
 │   ├── backend/                       # Electron main process
 │   │   ├── index.ts                   # Main entry point (app.whenReady)
 │   │   ├── preload.ts                 # Security boundary (contextBridge)
+│   │   ├── assets/                    # Backend-owned static assets (e.g. auth HTML templates)
 │   │   ├── config/                    # Environment configuration
 │   │   ├── constants/                 # Error messages, AI prompt templates
 │   │   ├── db/                        # SQLite + Drizzle ORM layer
@@ -567,6 +568,7 @@ APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=.
 
 Encrypted tokens: `yakshaver-tokens/*.enc`
 Database: `database.sqlite` (dev: `./data/database.sqlite`)
+Auth browser templates: `src/backend/assets/auth/*.html` (packaged via `extraResources`)
 
 ### Development Commands
 

@@ -17,8 +17,7 @@ module.exports = {
   extraResources: [
     ".env",
     "src/ui/public/**",
-    "src/ui/successTemplate.html",
-    "src/ui/errorTemplate.html",
+    "src/backend/assets/auth/**",
     {
       from: "src/backend/db/migrations",
       to: "migrations",
