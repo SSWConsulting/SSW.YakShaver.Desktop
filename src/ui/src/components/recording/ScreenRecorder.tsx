@@ -64,7 +64,10 @@ function RecordButton({
   if (!showUpload) {
     return (
       <Button
-        className={cn("bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center", className)}
+        className={cn(
+          "bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
+          className,
+        )}
         onClick={onToggleRecording}
         size="chunky"
         disabled={isDisabled}

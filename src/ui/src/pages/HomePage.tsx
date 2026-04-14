@@ -140,55 +140,55 @@ export function HomePage() {
           />
         </div>
         <div className="flex flex-row gap-3 items-center">
-        <Select
-          value={statusFilter || "all"}
-          onValueChange={(value) => {
-            setColumnFilters((prev) => {
-              const without = prev.filter((f) => f.id !== "shaveStatus");
-              return value === "all" ? without : [...without, { id: "shaveStatus", value }];
-            });
-          }}
-        >
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {ALL_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {projectNames.length > 0 && (
           <Select
-            value={projectFilter || "all"}
+            value={statusFilter || "all"}
             onValueChange={(value) => {
               setColumnFilters((prev) => {
-                const without = prev.filter((f) => f.id !== "projectName");
-                return value === "all" ? without : [...without, { id: "projectName", value }];
+                const without = prev.filter((f) => f.id !== "shaveStatus");
+                return value === "all" ? without : [...without, { id: "shaveStatus", value }];
               });
             }}
           >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Project" />
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All projects</SelectItem>
-              {projectNames.map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
+              <SelectItem value="all">All statuses</SelectItem>
+              {ALL_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        )}
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
-            <X className="h-3 w-3" /> Clear
-          </Button>
-        )}
+          {projectNames.length > 0 && (
+            <Select
+              value={projectFilter || "all"}
+              onValueChange={(value) => {
+                setColumnFilters((prev) => {
+                  const without = prev.filter((f) => f.id !== "projectName");
+                  return value === "all" ? without : [...without, { id: "projectName", value }];
+                });
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Project" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All projects</SelectItem>
+                {projectNames.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+              <X className="h-3 w-3" /> Clear
+            </Button>
+          )}
         </div>
       </div>
 
