@@ -1,23 +1,9 @@
 import { Video } from "lucide-react";
+import { getStatusVariant } from "@/lib/shave-utils";
 import { getYouTubeThumbnail, timeAgo } from "@/lib/utils";
 import { Badge } from "../ui/badge";
-import type { BadgeVariant, ShaveItem } from "../../types";
+import type { ShaveItem } from "../../types";
 import { ShaveAction } from "./ShaveAction";
-
-const getStatusVariant = (status: string): BadgeVariant => {
-  switch (status) {
-    case "Completed":
-      return "success";
-    case "Cancelled":
-      return "secondary";
-    case "Processing":
-      return "secondary";
-    case "Failed":
-      return "destructive";
-    default:
-      return "default";
-  }
-};
 
 function ShaveCardFooter({ shave }: { shave: ShaveItem }) {
   return (

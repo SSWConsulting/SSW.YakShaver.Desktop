@@ -15,7 +15,7 @@ import { LoadingState } from "../components/common/LoadingState";
 import { NoShaves } from "../components/shaves/NoShaves";
 import { ShaveCards } from "../components/shaves/ShaveCards";
 import { shaveColumns } from "../components/shaves/shave-columns";
-import { DataTable } from "../components/ui/data-table";
+import { DataTable } from "../components/data-table";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
@@ -27,9 +27,9 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { ipcClient } from "../services/ipc-client";
-import type { ShaveItem } from "../types";
+import { ShaveStatus, type ShaveItem } from "../types";
 
-const ALL_STATUSES = ["Completed", "Processing", "Failed", "Cancelled", "Pending", "Unknown"];
+const ALL_STATUSES = Object.values(ShaveStatus);
 
 export function HomePage() {
   const [shaves, setShaves] = useState<ShaveItem[]>([]);

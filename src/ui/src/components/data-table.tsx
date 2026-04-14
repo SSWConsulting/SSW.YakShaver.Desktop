@@ -10,7 +10,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "./table";
+} from "./ui/table";
 
 interface DataTableProps<TData> {
   table: TanstackTable<TData>;
