@@ -408,16 +408,15 @@ app.whenReady().then(async () => {
   try {
     const microsoftAuthService = MicrosoftAuthService.getInstance();
     _msAuthHandlers = new MicrosoftAuthIPCHandlers(microsoftAuthService);
-    registerPortalHandlers(microsoftAuthService);
+    // registerPortalHandlers(microsoftAuthService);
   } catch (error) {
     console.error("Failed to initialize Microsoft Auth:", error);
-    // Register fallback handlers so the renderer doesn't crash with "No handler registered"
-    MicrosoftAuthIPCHandlers.registerUnconfiguredHandlers();
   }
   try {
     const identityServerAuthService = IdentityServerAuthService.getInstance();
     await identityServerAuthService.initialize();
     _isAuthHandlers = new IdentityServerAuthIPCHandlers(identityServerAuthService);
+    registerPortalHandlers(identityServerAuthService);
   } catch (error) {
     console.error("Failed to initialize IdentityServer Auth:", error);
   }

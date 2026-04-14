@@ -9,7 +9,7 @@ import {
   type WorkflowState,
 } from "../../shared/types/workflow";
 import { INITIAL_SUMMARY_PROMPT, TASK_EXECUTION_PROMPT } from "../constants/prompts";
-import { MicrosoftAuthService } from "../services/auth/microsoft-auth";
+import { IdentityServerAuthService } from "../services/auth/identity-server-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
@@ -615,7 +615,7 @@ export class ProcessVideoIPCHandlers {
         });
 
         // Send to portal if authenticated — non-fatal, does not affect workflow stage status
-        if (mcpResult && (await MicrosoftAuthService.getInstance().isAuthenticated())) {
+        if (mcpResult && (await IdentityServerAuthService.getInstance().isAuthenticated())) {
           try {
             const objectResult = await orchestrator.convertToObjectAsync(
               mcpResult,

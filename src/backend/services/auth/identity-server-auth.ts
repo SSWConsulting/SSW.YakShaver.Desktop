@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import https from "node:https";
 import { shell } from "electron";
 import type {
   ClientMetadata,
@@ -263,6 +264,13 @@ export class IdentityServerAuthService extends EventEmitter {
       console.log("[IdentityServerAuth] Received token set:", tokenSet);
 
       await this.storeTokenSet(tokenSet);
+
+      if (!tokenSet.access_token) {
+        throw new Error("IdentityServer did not return an access token.");
+      }
+
+      await this.registerTenantAfterLogin(tokenSet.access_token);
+
       const userInfo = await this.getUserInfo();
 
       resolve({ success: true, userInfo });
@@ -319,5 +327,52 @@ export class IdentityServerAuthService extends EventEmitter {
       this.pendingAuth.resolve({ success: false, error: "Authentication cancelled" });
       this.pendingAuth = null;
     }
+  }
+
+  // After successful login, call the tenants/auth/callback endpoint to register the tenant if needed
+  private async registerTenantAfterLogin(accessToken: string): Promise<void> {
+    const apiUrl = config.portalApiUrl();
+    const url = new URL(apiUrl);
+    const hostname = url.hostname;
+    const port = url.port ? Number.parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
+    const path = `${url.pathname.replace(/\/$/, "")}/tenants/auth/callback`;
+
+    await new Promise<void>((resolve, reject) => {
+      const req = https.request(
+        {
+          hostname,
+          port,
+          path,
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          rejectUnauthorized: !apiUrl.includes("localhost"),
+        },
+        (res) => {
+          res.resume();
+
+          res.on("end", () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              resolve();
+              return;
+            }
+
+            reject(
+              new Error(
+                `Tenant registration failed: ${res.statusCode ?? "N/A"} ${res.statusMessage ?? "Unknown error"}`,
+              ),
+            );
+          });
+        },
+      );
+
+      req.on("error", (error) => {
+        reject(error);
+      });
+
+      req.end();
+    });
   }
 }

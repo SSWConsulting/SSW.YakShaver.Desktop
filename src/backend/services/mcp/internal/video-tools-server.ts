@@ -5,12 +5,13 @@ import path, { extname, join } from "node:path";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
-import { MicrosoftAuthService } from "../../auth/microsoft-auth.js";
+import { IdentityServerAuthService } from "../../auth/identity-server-auth.js";
 import { FFmpegService } from "../../ffmpeg/ffmpeg-service.js";
 import { UploadScreenshotToPortal } from "../../portal/actions.js";
 import { LanguageModelProvider } from "../language-model-provider.js";
 import type { MCPServerConfig } from "../types.js";
 import type { InternalMcpServerRegistration } from "./internal-server-types.js";
+
 
 const captureInputShape = {
   videoPath: z.string().min(1).describe("Absolute path to the source video"),
@@ -107,8 +108,8 @@ export async function createInternalVideoToolsServer(): Promise<InternalMcpServe
       const { screenshotPath } = uploadScreenshotInputSchema.parse(input);
       await ensureFileExists(screenshotPath, "screenshot");
 
-      const msAuth = MicrosoftAuthService.getInstance();
-      if (!(await msAuth.isAuthenticated())) {
+      const ids = IdentityServerAuthService.getInstance();
+      if (!(await ids.isAuthenticated())) {
         console.log("[upload_screenshot] User not authenticated, returning empty URL");
         return {
           content: [
