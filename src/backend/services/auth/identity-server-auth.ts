@@ -25,6 +25,89 @@ const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000; // refresh 60s before expiry
 type OpenIdClientModule = typeof import("openid-client");
 type TokenResponse = TokenEndpointResponse & TokenEndpointResponseHelpers;
 
+interface IdentityServerAccessTokenClaims {
+  sub?: string;
+  email?: string;
+  given_name?: string;
+  family_name?: string;
+  name?: string;
+  preferred_username?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getStringClaim(
+  claims: Record<string, unknown>,
+  claimName: keyof IdentityServerAccessTokenClaims,
+): string | undefined {
+  const value = claims[claimName];
+
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function decodeBase64UrlValue(value: string): string {
+  const normalizedValue = value.replace(/-/g, "+").replace(/_/g, "/");
+  const paddedValue = normalizedValue.padEnd(Math.ceil(normalizedValue.length / 4) * 4, "=");
+
+  return Buffer.from(paddedValue, "base64").toString("utf8");
+}
+
+export function decodeIdentityServerAccessToken(
+  accessToken: string,
+): IdentityServerAccessTokenClaims | null {
+  const [, payload] = accessToken.split(".");
+
+  if (!payload) {
+    return null;
+  }
+
+  try {
+    const parsedPayload = JSON.parse(decodeBase64UrlValue(payload));
+
+    if (!isRecord(parsedPayload)) {
+      return null;
+    }
+
+    return {
+      sub: getStringClaim(parsedPayload, "sub"),
+      email: getStringClaim(parsedPayload, "email"),
+      given_name: getStringClaim(parsedPayload, "given_name"),
+      family_name: getStringClaim(parsedPayload, "family_name"),
+      name: getStringClaim(parsedPayload, "name"),
+      preferred_username: getStringClaim(parsedPayload, "preferred_username"),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function getUserInfoFromIdentityServerAccessToken(accessToken: string): UserInfo | undefined {
+  const claims = decodeIdentityServerAccessToken(accessToken);
+
+  if (!claims) {
+    return undefined;
+  }
+
+  const fullName = [claims.given_name, claims.family_name].filter(Boolean).join(" ").trim();
+  const email = claims.email ?? claims.preferred_username ?? "";
+  const fullNameOrUndefined = fullName || undefined;
+  const name =
+    claims.name ?? fullNameOrUndefined ?? claims.preferred_username ?? email ?? claims.sub;
+  const id = claims.sub ?? email ?? name;
+
+  if (!id || !name) {
+    return undefined;
+  }
+
+  return {
+    id,
+    name,
+    email,
+  };
+}
+
 interface PendingAuth {
   codeVerifier: string;
   state: string;
@@ -146,7 +229,7 @@ export class IdentityServerAuthService extends EventEmitter {
 
     return {
       status: AuthStatus.AUTHENTICATED,
-      userInfo: await this.getUserInfo(),
+      userInfo: await this.getAccountInfo(),
     };
   }
 
@@ -160,7 +243,17 @@ export class IdentityServerAuthService extends EventEmitter {
     return this.currentTokens?.accessToken ?? null;
   }
 
-  private async getUserInfo(): Promise<UserInfo | undefined> {
+  async getAccountInfo(): Promise<UserInfo | undefined> {
+    const accessToken = this.currentTokens?.accessToken;
+
+    if (!accessToken) {
+      return undefined;
+    }
+
+    return getUserInfoFromIdentityServerAccessToken(accessToken) ?? (await this.fetchUserInfo());
+  }
+
+  private async fetchUserInfo(): Promise<UserInfo | undefined> {
     try {
       const openIdClient = await this.getOpenIdClient();
       const clientConfiguration = await this.getClientConfiguration();
@@ -271,7 +364,7 @@ export class IdentityServerAuthService extends EventEmitter {
 
       await this.registerTenantAfterLogin(tokenSet.access_token);
 
-      const userInfo = await this.getUserInfo();
+      const userInfo = await this.getAccountInfo();
 
       resolve({ success: true, userInfo });
     } catch (error) {

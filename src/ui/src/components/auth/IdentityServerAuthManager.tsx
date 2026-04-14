@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { MyShavesDialog } from "@/components/portal/MyShavesDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,23 +10,34 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ipcClient } from "@/services/ipc-client";
-import type { UserInfo } from "@/types";
 import { getInitials } from "@/utils";
 
 export function IdentityServerAuthManager() {
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [status, setStatus] = useState<{
+    isAuthenticated: boolean;
+    name?: string;
+    email?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showMyShaves, setShowMyShaves] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const state = await ipcClient.auth.identityServer.status();
-      if (state.status === "authenticated") {
-        setUserInfo(state.userInfo ?? null);
+      const result = await ipcClient.auth.identityServer.status();
+      if (result.status === "authenticated") {
+        const accountInfo = await ipcClient.auth.identityServer.accountInfo();
+        const userInfo = accountInfo.data;
+
+        setStatus({
+          isAuthenticated: true,
+          name: userInfo?.name,
+          email: userInfo?.email,
+        });
       } else {
-        setUserInfo(null);
+        setStatus({ isAuthenticated: false });
       }
     } catch (e) {
       setError(String(e));
@@ -54,15 +66,15 @@ export function IdentityServerAuthManager() {
     setLoading(true);
     setError(null);
     await ipcClient.auth.identityServer.logout();
-    setUserInfo(null);
+    await refresh();
     setLoading(false);
   };
 
-  if (!userInfo) {
+  if (!status?.isAuthenticated) {
     return (
       <div className="flex items-center">
-        <Button onClick={login} disabled={loading} variant="outline">
-          {loading ? "Signing in…" : "SSW Sign In"}
+        <Button onClick={login} disabled={loading}>
+          {loading ? "Signing in..." : "Sign In"}
         </Button>
         {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
       </div>
@@ -73,16 +85,21 @@ export function IdentityServerAuthManager() {
     <div className="flex items-center">
       <DropdownMenu>
         <DropdownMenuTrigger className="cursor-pointer">
-          <Avatar className="w-8 h-8 ring-2 ring-ssw-red">
-            <AvatarFallback>{getInitials(userInfo.name)}</AvatarFallback>
+          <Avatar className="w-8 h-8">
+            <AvatarFallback>{getInitials(status?.name)}</AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <div className="p-3">
             <div className="mb-3 pb-3 border-b border-white/10">
-              <p className="text-sm font-medium text-white truncate">{userInfo.name}</p>
-              <p className="text-xs text-muted-foreground truncate">{userInfo.email}</p>
+              <p className="text-sm font-medium text-white truncate">{status?.name}</p>
             </div>
+            <DropdownMenuItem
+              onClick={() => setShowMyShaves(true)}
+              className="text-white hover:bg-white/10"
+            >
+              <span>My Shaves</span>
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={logout}
               disabled={loading}
@@ -95,6 +112,7 @@ export function IdentityServerAuthManager() {
         </DropdownMenuContent>
       </DropdownMenu>
       {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
+      <MyShavesDialog open={showMyShaves} onOpenChange={setShowMyShaves} />
     </div>
   );
 }

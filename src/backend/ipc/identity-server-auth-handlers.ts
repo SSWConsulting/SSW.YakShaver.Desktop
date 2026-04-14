@@ -36,8 +36,8 @@ export class IdentityServerAuthIPCHandlers {
       },
       [IPC_CHANNELS.IS_AUTH_ACCOUNT_INFO]: async () => {
         try {
-          const state = await this.authService.getAuthState();
-          return { success: true, data: state.userInfo };
+          const accountInfo = await this.authService.getAccountInfo();
+          return { success: true, data: accountInfo ?? null };
         } catch (error) {
           return { success: false, error: formatAndReportError(error, "identity_server_auth") };
         }

@@ -3,7 +3,6 @@ import { Toaster, toast } from "sonner";
 import "./App.css";
 import logoImage from "/logos/YakShaver-Vertical-Color-Darkmode.svg?url";
 import { IdentityServerAuthManager } from "./components/auth/IdentityServerAuthManager";
-import { MicrosoftAuthManager } from "./components/auth/MicrosoftAuthManager";
 import { DownloadProgressToast } from "./components/common/DownloadProgressToast";
 import { TelemetryConsentInitializer } from "./components/common/TelemetryConsentInitializer";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
@@ -63,7 +62,6 @@ export default function App() {
                     <MyShavesDialog />
                     <SettingsDialog />
                     <IdentityServerAuthManager />
-                    <MicrosoftAuthManager />
                   </div>
                   <header className="z-10 relative">
                     <div className="container mx-auto flex flex-col items-center gap-8">
