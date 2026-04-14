@@ -547,6 +547,7 @@ Button variants: `default`, `destructive`, `outline`, `secondary`, `ghost`, `lin
 
 ```
 PORTAL_API_URL=http://localhost:7009/api
+PORTAL_TENANTS_URL=http://localhost:7009/tenants
 MCP_CALLBACK_PORT=8090
 MCP_AUTH_TIMEOUT_MS=60000
 AZURE_ENTRA_APP_CLIENT_ID=...
