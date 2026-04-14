@@ -97,6 +97,12 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     await IdentityServerAuthService.getInstance().handleCallback(url.toString());
   },
 
+  // IdentityServer logout callback handler
+  "/identity-server/logout": async () => {
+    console.log("[ProtocolRouter] Handling IdentityServer logout callback");
+    // No action needed. Opening the custom protocol confirms logout and can refocus the app.
+  },
+
   // YouTube OAuth callback handler
   "/youtube/oauth/callback": async (url, window) => {
     const params = new URLSearchParams(url.search);

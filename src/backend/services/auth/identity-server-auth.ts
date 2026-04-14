@@ -151,6 +151,14 @@ export class IdentityServerAuthService extends EventEmitter {
     return `${protocol}://identity-server/callback`;
   }
 
+  private getLogoutRedirectUri(): string {
+    const identityServerConfig = this.getIdentityServerConfig();
+    const protocol =
+      identityServerConfig.customProtocol ||
+      (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
+    return `${protocol}://identity-server/logout`;
+  }
+
   private async getOpenIdClient(): Promise<OpenIdClientModule> {
     if (!this.openIdClientPromise) {
       const importOpenIdClient = new Function(
@@ -379,12 +387,67 @@ export class IdentityServerAuthService extends EventEmitter {
     const tokenData: TokenData = {
       accessToken: tokenSet.access_token ?? "",
       refreshToken: tokenSet.refresh_token ?? "",
+      idToken: tokenSet.id_token,
       expiresAt: Date.now() + expiresIn * 1000,
       scope: this.getScopeList(tokenSet.scope),
     };
 
     this.currentTokens = tokenData;
     await this.storage.storeTokens(tokenData);
+  }
+
+  private async revokeTokens(tokenData: TokenData): Promise<boolean> {
+    try {
+      const openIdClient = await this.getOpenIdClient();
+      const clientConfiguration = await this.getClientConfiguration();
+      const revocationResults = await Promise.allSettled([
+        tokenData.refreshToken
+          ? openIdClient.tokenRevocation(clientConfiguration, tokenData.refreshToken, {
+              token_type_hint: "refresh_token",
+            })
+          : Promise.resolve(),
+        tokenData.accessToken
+          ? openIdClient.tokenRevocation(clientConfiguration, tokenData.accessToken, {
+              token_type_hint: "access_token",
+            })
+          : Promise.resolve(),
+      ]);
+
+      const hasRevocationFailures = revocationResults.some((result) => result.status === "rejected");
+
+      if (hasRevocationFailures) {
+        console.warn("[IdentityServerAuth] One or more token revocation requests failed", {
+          results: revocationResults,
+        });
+      }
+
+      return !hasRevocationFailures;
+    } catch (error) {
+      console.warn("[IdentityServerAuth] Failed to revoke tokens:", error);
+      return false;
+    }
+  }
+
+  private async browserLogout(tokenData: TokenData): Promise<boolean> {
+    try {
+      const openIdClient = await this.getOpenIdClient();
+      const clientConfiguration = await this.getClientConfiguration();
+      const logoutParameters: Record<string, string> = {
+        post_logout_redirect_uri: this.getLogoutRedirectUri(),
+      };
+
+      if (tokenData.idToken) {
+        logoutParameters.id_token_hint = tokenData.idToken;
+      }
+
+      const logoutUrl = openIdClient.buildEndSessionUrl(clientConfiguration, logoutParameters);
+      await shell.openExternal(logoutUrl.href);
+
+      return true;
+    } catch (error) {
+      console.warn("[IdentityServerAuth] Failed to open browser logout:", error);
+      return false;
+    }
   }
 
   private async tryRefreshTokens(): Promise<boolean> {
@@ -409,9 +472,18 @@ export class IdentityServerAuthService extends EventEmitter {
 
   async logout(): Promise<boolean> {
     this.cancelPendingAuth();
+    const tokenData = this.currentTokens;
     this.currentTokens = null;
     await this.storage.clearTokens();
-    return true;
+
+    if (!tokenData) {
+      return true;
+    }
+
+    const revocationSucceeded = await this.revokeTokens(tokenData);
+    const browserLogoutSucceeded = await this.browserLogout(tokenData);
+
+    return revocationSucceeded && browserLogoutSucceeded;
   }
 
   private cancelPendingAuth(): void {
