@@ -331,11 +331,11 @@ export class IdentityServerAuthService extends EventEmitter {
 
   // After successful login, call the tenants/auth/callback endpoint to register the tenant if needed
   private async registerTenantAfterLogin(accessToken: string): Promise<void> {
-    const apiUrl = config.portalApiUrl();
+    const apiUrl = config.portalTenantsUrl();
     const url = new URL(apiUrl);
     const hostname = url.hostname;
     const port = url.port ? Number.parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
-    const path = `${url.pathname.replace(/\/$/, "")}/tenants/auth/callback`;
+    const path = `${url.pathname.replace(/\/$/, "")}/auth/callback`;
 
     await new Promise<void>((resolve, reject) => {
       const req = https.request(

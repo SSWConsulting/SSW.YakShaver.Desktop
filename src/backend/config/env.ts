@@ -23,6 +23,13 @@ const getPortalApiUrl = () => {
   return baseUrl.replace(/\/+$/, "");
 };
 
+const getPortalTenantsUrl = () => {
+  const { PORTAL_TENANTS_URL: url } = env;
+  const baseUrl = url || "https://localhost:7009/tenants";
+  // Remove trailing slashes for consistent URL building
+  return baseUrl.replace(/\/+$/, "");
+};
+
 const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;
 
 const getIsDev = () => env.NODE_ENV === "development";
@@ -55,8 +62,10 @@ const getIdentityServer = () => {
 export const config = {
   azure: getAzure,
   portalApiUrl: getPortalApiUrl,
+  portalTenantsUrl: getPortalTenantsUrl,
   commitHash: getCommitHash,
   isDev: getIsDev,
   appInsightsConnectionString: getAppInsightsConnectionString,
   identityServer: getIdentityServer,
+  
 };
