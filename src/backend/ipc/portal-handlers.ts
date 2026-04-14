@@ -84,7 +84,6 @@ export function registerPortalHandlers(identityServerAuthService: IdentityServer
         return { success: false, error: "Failed to obtain access token" };
       }
 
-
       const apiUrl = config.portalApiUrl();
       const portalApiUrl = new URL(apiUrl);
       const requestUrl = new URL(portalApiUrl.origin);

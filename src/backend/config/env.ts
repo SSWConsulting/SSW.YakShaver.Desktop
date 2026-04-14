@@ -67,5 +67,4 @@ export const config = {
   isDev: getIsDev,
   appInsightsConnectionString: getAppInsightsConnectionString,
   identityServer: getIdentityServer,
-  
 };

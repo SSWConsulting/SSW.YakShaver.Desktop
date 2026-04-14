@@ -12,7 +12,6 @@ import { LanguageModelProvider } from "../language-model-provider.js";
 import type { MCPServerConfig } from "../types.js";
 import type { InternalMcpServerRegistration } from "./internal-server-types.js";
 
-
 const captureInputShape = {
   videoPath: z.string().min(1).describe("Absolute path to the source video"),
   timestamp: z

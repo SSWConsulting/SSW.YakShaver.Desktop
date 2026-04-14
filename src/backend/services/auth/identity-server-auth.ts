@@ -83,7 +83,9 @@ export function decodeIdentityServerAccessToken(
   }
 }
 
-export function getUserInfoFromIdentityServerAccessToken(accessToken: string): UserInfo | undefined {
+export function getUserInfoFromIdentityServerAccessToken(
+  accessToken: string,
+): UserInfo | undefined {
   const claims = decodeIdentityServerAccessToken(accessToken);
 
   if (!claims) {
@@ -161,10 +163,9 @@ export class IdentityServerAuthService extends EventEmitter {
 
   private async getOpenIdClient(): Promise<OpenIdClientModule> {
     if (!this.openIdClientPromise) {
-      const importOpenIdClient = new Function(
-        "specifier",
-        'return import(specifier);',
-      ) as (specifier: string) => Promise<OpenIdClientModule>;
+      const importOpenIdClient = new Function("specifier", "return import(specifier);") as (
+        specifier: string,
+      ) => Promise<OpenIdClientModule>;
 
       this.openIdClientPromise = importOpenIdClient("openid-client");
     }
@@ -413,7 +414,9 @@ export class IdentityServerAuthService extends EventEmitter {
           : Promise.resolve(),
       ]);
 
-      const hasRevocationFailures = revocationResults.some((result) => result.status === "rejected");
+      const hasRevocationFailures = revocationResults.some(
+        (result) => result.status === "rejected",
+      );
 
       if (hasRevocationFailures) {
         console.warn("[IdentityServerAuth] One or more token revocation requests failed", {
