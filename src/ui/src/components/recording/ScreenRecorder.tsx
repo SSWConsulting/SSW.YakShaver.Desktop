@@ -38,6 +38,68 @@ interface ScreenRecorderProps {
   className?: string;
 }
 
+interface RecordButtonProps {
+  isRecording: boolean;
+  isTranscribing: boolean;
+  isDisabled: boolean;
+  showUpload: boolean;
+  onToggleRecording: () => void;
+  onUploadClick: () => void;
+  className?: string;
+}
+
+function RecordButton({
+  isRecording,
+  isTranscribing,
+  isDisabled,
+  showUpload,
+  onToggleRecording,
+  onUploadClick,
+  className = "",
+}: RecordButtonProps) {
+  let label = "Start Recording";
+  if (isRecording) label = "Stop Recording";
+  else if (isTranscribing) label = "Transcribing...";
+
+  if (!showUpload) {
+    return (
+      <Button
+        className={cn("bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center", className)}
+        onClick={onToggleRecording}
+        size="chunky"
+        disabled={isDisabled}
+      >
+        <CircleStopIcon />
+        {label}
+      </Button>
+    );
+  }
+
+  return (
+    <div className={cn("flex w-full rounded-md overflow-hidden", className)}>
+      <Button
+        className="flex-1 bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
+        onClick={onToggleRecording}
+        size="chunky"
+        disabled={isDisabled}
+      >
+        <CircleStopIcon />
+        {label}
+      </Button>
+      <div className="w-px bg-ssw-red-foreground/20" />
+      <Button
+        className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
+        size="chunky"
+        onClick={onUploadClick}
+        disabled={isDisabled}
+        title="Process YouTube URL"
+      >
+        <Upload className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
   const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
@@ -272,50 +334,15 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     <>
       <section className="flex flex-col gap-4 items-center w-full">
         <div className="flex flex-col items-center gap-1 w-full">
-          {isYoutubeUrlWorkflowEnabled ? (
-            <div className={cn("flex w-full rounded-md overflow-hidden", className)}>
-              <Button
-                className="flex-1 bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
-                onClick={toggleRecording}
-                size="chunky"
-                disabled={isProcessing || isTranscribing || !isAuthenticated}
-              >
-                <CircleStopIcon />
-                {isRecording
-                  ? "Stop Recording"
-                  : isTranscribing
-                    ? "Transcribing..."
-                    : "Start Recording"}
-              </Button>
-              <div className="w-px bg-ssw-red-foreground/20" />
-              <Button
-                className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
-                size="chunky"
-                onClick={() => setYoutubeDialogOpen(true)}
-                disabled={isProcessing || isTranscribing || !isAuthenticated}
-                title="Process YouTube URL"
-              >
-                <Upload className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            <Button
-              className={cn(
-                "bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
-                className,
-              )}
-              onClick={toggleRecording}
-              size="chunky"
-              disabled={isProcessing || isTranscribing || !isAuthenticated}
-            >
-              <CircleStopIcon />
-              {isRecording
-                ? "Stop Recording"
-                : isTranscribing
-                  ? "Transcribing..."
-                  : "Start Recording"}
-            </Button>
-          )}
+          <RecordButton
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            isDisabled={isProcessing || isTranscribing || !isAuthenticated}
+            showUpload={isYoutubeUrlWorkflowEnabled}
+            onToggleRecording={toggleRecording}
+            onUploadClick={() => setYoutubeDialogOpen(true)}
+            className={className}
+          />
           {!isRecording && !isTranscribing && recordHotkey && !showButtonOnly && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               Keyboard:{" "}
