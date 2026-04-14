@@ -1,4 +1,4 @@
-import HeadingTag from "@/components/typography/heading-tag";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 
 const NO_SHAVES_STEPS: string[] = [
   "Record screen and describe the issue",
@@ -8,8 +8,11 @@ const NO_SHAVES_STEPS: string[] = [
 
 export function NoShaves() {
   return (
-    <div className="flex flex-col items-center justify-center gap-6">
-      <HeadingTag level={3}>You don't have any YakShaves yet!</HeadingTag>
+    <Empty>
+      <EmptyHeader>
+        <EmptyTitle>You don't have any YakShaves yet!</EmptyTitle>
+        <EmptyDescription>Get started in 3 easy steps:</EmptyDescription>
+      </EmptyHeader>
       <div className="flex flex-col gap-6">
         {NO_SHAVES_STEPS.map((step, index) => (
           <div key={step} className="flex items-center gap-3">
@@ -20,6 +23,6 @@ export function NoShaves() {
           </div>
         ))}
       </div>
-    </div>
+    </Empty>
   );
 }
