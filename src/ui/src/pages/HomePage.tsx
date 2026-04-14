@@ -6,7 +6,7 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { LayoutGrid, List, Search, X } from "lucide-react";
+import { LayoutGrid, List, RefreshCw, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import HeadingTag from "@/components/typography/heading-tag";
@@ -34,6 +34,7 @@ const ALL_STATUSES = Object.values(ShaveStatus);
 export function HomePage() {
   const [shaves, setShaves] = useState<ShaveItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">("table");
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "created", desc: true }]);
@@ -42,13 +43,16 @@ export function HomePage() {
 
   const loadShaves = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await ipcClient.portal.getMyShaves();
       const items = result.data?.items ?? [];
       setShaves(items);
-    } catch (error) {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load shaves";
+      setError(message);
       toast.error("Failed to load shaves");
-      console.error(error);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -193,7 +197,15 @@ export function HomePage() {
       </div>
 
       <ScrollArea className="flex-1">
-        {shaves.length === 0 ? (
+        {error ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-12">
+            <p className="text-muted-foreground">Something went wrong loading your shaves.</p>
+            <Button variant="outline" onClick={loadShaves} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          </div>
+        ) : shaves.length === 0 ? (
           <NoShaves />
         ) : shaveDisplayMode === "card" ? (
           filteredRows.length === 0 ? (
