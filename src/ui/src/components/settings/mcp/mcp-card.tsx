@@ -18,6 +18,8 @@ interface McpCardProps {
   onTools?: () => void;
   viewMode: "compact" | "detailed";
   extraContent?: React.ReactNode;
+  /** Replaces the default Connect button when provided */
+  renderConnectButton?: () => React.ReactNode;
 }
 
 export function McpCard({
@@ -33,6 +35,7 @@ export function McpCard({
   healthInfo = null,
   viewMode = "compact",
   extraContent,
+  renderConnectButton,
 }: McpCardProps) {
   const [showSettings, setShowSettings] = useState(false);
   return (
@@ -71,18 +74,21 @@ export function McpCard({
                   Tools
                 </Button>
               )}
-              {!config.enabled && (
-                <Button
-                  variant="outline"
-                  className="w-28 cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onConnect?.();
-                  }}
-                >
-                  Connect
-                </Button>
-              )}
+              {!config.enabled &&
+                (renderConnectButton ? (
+                  renderConnectButton()
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-28 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onConnect?.();
+                    }}
+                  >
+                    Connect
+                  </Button>
+                ))}
               {config.enabled && (
                 <Button
                   variant="destructiveOutline"
