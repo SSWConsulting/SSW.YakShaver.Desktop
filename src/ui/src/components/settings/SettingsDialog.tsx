@@ -189,7 +189,9 @@ export function SettingsDialog() {
                   type="button"
                   onClick={() => attemptTabChange(tab.id)}
                   className={`text-left px-3 py-2.5 rounded-md transition-colors border border-transparent ${
-                    isActive ? "bg-white/10 border-white/20 text-white" : "text-white/80 hover:bg-white/5 hover:text-white"
+                    isActive
+                      ? "bg-white/10 border-white/20 text-white"
+                      : "text-white/80 hover:bg-white/5 hover:text-white"
                   }`}
                 >
                   <div className="text-sm font-medium">{tab.label}</div>
