@@ -154,9 +154,7 @@ export class IdentityServerAuthService extends EventEmitter {
     }
 
     if (!normalizedScopes.includes("openid")) {
-      throw new Error(
-        "Identity Server configuration error: missing required 'openid' scope.",
-      );
+      throw new Error("Identity Server configuration error: missing required 'openid' scope.");
     }
 
     if (!normalizedScopes.includes("offline_access")) {
