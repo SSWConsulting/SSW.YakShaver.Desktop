@@ -188,9 +188,10 @@ describe("IdentityServerAuthService", () => {
     // @ts-expect-error - Configure private state for focused unit tests
     service.pendingAuth = createPendingAuth(resolve);
 
-    vi
-      .spyOn(getServiceWithRegisterTenantMethod(service), "registerTenantAfterLogin")
-      .mockRejectedValue(new Error("tenant registration failed"));
+    vi.spyOn(
+      getServiceWithRegisterTenantMethod(service),
+      "registerTenantAfterLogin",
+    ).mockRejectedValue(new Error("tenant registration failed"));
 
     await service.handleCallback("yakshaver-desktop-dev://identity-server/callback?code=abc");
 
