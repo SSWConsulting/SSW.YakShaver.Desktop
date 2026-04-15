@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { HealthStatus } from "@/components/health-status/health-status";
 import { Button } from "@/components/ui/button";
 
@@ -38,13 +38,15 @@ export function McpCard({
   renderConnectButton,
 }: McpCardProps) {
   const [showSettings, setShowSettings] = useState(false);
+  const actionsRef = useRef<HTMLDivElement>(null);
   return (
     <>
       {/* biome-ignore lint : lint message can be ignored for now as we don't support fully keyboard navigation and waiting for new designs */}
       <div
         className={`flex flex-col rounded-lg border border-[rgba(255,255,255,0.24)] bg-[rgba(255,255,255,0.04)] pt-4 pr-6 pb-4 pl-6 opacity-100 transition-colors duration-150 hover:bg-[rgba(255,255,255,0.08)] hover:border-white/40 ${isReadOnly ? "cursor-default" : "cursor-pointer"}`}
-        onClick={() => {
-          if (!isReadOnly) setShowSettings(!showSettings);
+        onClick={(e) => {
+          if (!isReadOnly && !actionsRef.current?.contains(e.target as Node | null))
+            setShowSettings(!showSettings);
         }}
       >
         {!showSettings && (
@@ -68,27 +70,25 @@ export function McpCard({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div ref={actionsRef} className="flex items-center gap-2">
               {viewMode === "detailed" && onTools && (
                 <Button variant="outline" onClick={() => onTools()}>
                   Tools
                 </Button>
               )}
-              {!config.enabled &&
-                (renderConnectButton ? (
-                  renderConnectButton()
-                ) : (
-                  <Button
-                    variant="outline"
-                    className="w-28 cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onConnect?.();
-                    }}
-                  >
-                    Connect
-                  </Button>
-                ))}
+              {!config.enabled && renderConnectButton && renderConnectButton()}
+              {!config.enabled && !renderConnectButton && (
+                <Button
+                  variant="outline"
+                  className="w-28 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onConnect?.();
+                  }}
+                >
+                  Connect
+                </Button>
+              )}
               {config.enabled && (
                 <Button
                   variant="destructiveOutline"

@@ -76,9 +76,9 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
               {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
             </Button>
           </div>
-          <div className="flex justify-start">
+          <div className="flex justify-end">
             <Button
-              variant="outline"
+              variant="default"
               className="w-28 cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
