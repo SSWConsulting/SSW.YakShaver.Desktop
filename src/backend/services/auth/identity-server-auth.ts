@@ -370,13 +370,12 @@ export class IdentityServerAuthService extends EventEmitter {
         },
       );
 
-      await this.storeTokenSet(tokenSet);
-
       if (!tokenSet.access_token) {
         throw new Error("IdentityServer did not return an access token.");
       }
 
       await this.registerTenantAfterLogin(tokenSet.access_token);
+      await this.storeTokenSet(tokenSet);
 
       const userInfo = await this.getAccountInfo();
 
@@ -505,8 +504,7 @@ export class IdentityServerAuthService extends EventEmitter {
   async logout(): Promise<boolean> {
     this.cancelPendingAuth();
     const tokenData = this.currentTokens;
-    this.currentTokens = null;
-    await this.storage.clearTokens();
+    await this.clearTokens();
 
     if (!tokenData) {
       return true;
@@ -524,6 +522,11 @@ export class IdentityServerAuthService extends EventEmitter {
       this.pendingAuth.resolve({ success: false, error: "Authentication cancelled" });
       this.pendingAuth = null;
     }
+  }
+
+  private async clearTokens(): Promise<void> {
+    this.currentTokens = null;
+    await this.storage.clearTokens();
   }
 
   // After successful login, call the tenants/auth/callback endpoint to register the tenant if needed

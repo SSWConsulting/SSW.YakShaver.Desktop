@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
   };
 
   const mockOpenIdClient = {
+    authorizationCodeGrant: vi.fn(),
     refreshTokenGrant: vi.fn(),
   };
 
@@ -68,6 +69,24 @@ function createRefreshResponse(accessToken: string, refreshToken = "next-refresh
     expires_in: 3600,
     expiresIn: () => 3600,
     scope: "openid profile",
+  };
+}
+
+function createPendingAuth(resolve = vi.fn()) {
+  return {
+    codeVerifier: "test-code-verifier",
+    state: "test-state",
+    resolve,
+    reject: vi.fn(),
+    timer: setTimeout(() => {}, 1_000),
+  };
+}
+
+function getServiceWithRegisterTenantMethod(service: IdentityServerAuthService): {
+  registerTenantAfterLogin: (accessToken: string) => Promise<void>;
+} {
+  return service as unknown as {
+    registerTenantAfterLogin: (accessToken: string) => Promise<void>;
   };
 }
 
@@ -154,6 +173,62 @@ describe("IdentityServerAuthService", () => {
     await expect(service.getAccessToken()).resolves.toBeNull();
     await expect(service.isAuthenticated()).resolves.toBe(false);
     expect(mocks.mockStorage.clearTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not persist new tokens when tenant registration fails during callback", async () => {
+    const existingTokenData = createTokenData({ accessToken: "existing-access-token" });
+    const resolve = vi.fn();
+
+    mocks.mockOpenIdClient.authorizationCodeGrant.mockResolvedValue(
+      createRefreshResponse("new-access-token"),
+    );
+
+    // @ts-expect-error - Configure private state for focused unit tests
+    service.currentTokens = existingTokenData;
+    // @ts-expect-error - Configure private state for focused unit tests
+    service.pendingAuth = createPendingAuth(resolve);
+
+    vi
+      .spyOn(getServiceWithRegisterTenantMethod(service), "registerTenantAfterLogin")
+      .mockRejectedValue(new Error("tenant registration failed"));
+
+    await service.handleCallback("yakshaver-desktop-dev://identity-server/callback?code=abc");
+
+    expect(mocks.mockStorage.storeTokens).not.toHaveBeenCalled();
+    await expect(service.getAccessToken()).resolves.toBe("existing-access-token");
+    expect(resolve).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: expect.any(String) }),
+    );
+  });
+
+  it("persists new tokens after tenant registration succeeds during callback", async () => {
+    const resolve = vi.fn();
+    const accessToken = createJwt({
+      sub: "user-123",
+      preferred_username: "alex@example.com",
+    });
+
+    mocks.mockOpenIdClient.authorizationCodeGrant.mockResolvedValue(
+      createRefreshResponse(accessToken),
+    );
+
+    // @ts-expect-error - Configure private state for focused unit tests
+    service.pendingAuth = createPendingAuth(resolve);
+
+    const registerTenantSpy = vi
+      .spyOn(getServiceWithRegisterTenantMethod(service), "registerTenantAfterLogin")
+      .mockResolvedValue(undefined);
+
+    await service.handleCallback("yakshaver-desktop-dev://identity-server/callback?code=abc");
+
+    expect(registerTenantSpy).toHaveBeenCalledWith(accessToken);
+    expect(mocks.mockStorage.storeTokens).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken }),
+    );
+    await expect(service.getAccessToken()).resolves.toBe(accessToken);
+    expect(resolve).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, userInfo: expect.any(Object) }),
+    );
   });
 });
 
