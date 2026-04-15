@@ -392,8 +392,7 @@ export class IdentityServerAuthService extends EventEmitter {
 
   private async storeTokenSet(tokenSet: TokenResponse): Promise<void> {
     const expiresIn = tokenSet.expiresIn() ?? tokenSet.expires_in ?? 3600;
-    const refreshToken =
-      tokenSet.refresh_token ?? this.currentTokens?.refreshToken ?? "";
+    const refreshToken = tokenSet.refresh_token ?? this.currentTokens?.refreshToken ?? "";
 
     const tokenData: TokenData = {
       accessToken: tokenSet.access_token ?? "",
