@@ -142,8 +142,34 @@ export class IdentityServerAuthService extends EventEmitter {
     return config.identityServer();
   }
 
+  private validateScopes(scopes: string[]): string[] {
+    const normalizedScopes = scopes
+      .map((scope) => scope.trim())
+      .filter((scope) => scope.length > 0);
+
+    if (normalizedScopes.length === 0) {
+      throw new Error(
+        "Identity Server configuration error: at least one scope must be configured, including the required 'openid' and 'offline_access' scopes.",
+      );
+    }
+
+    if (!normalizedScopes.includes("openid")) {
+      throw new Error(
+        "Identity Server configuration error: missing required 'openid' scope.",
+      );
+    }
+
+    if (!normalizedScopes.includes("offline_access")) {
+      throw new Error(
+        "Identity Server configuration error: missing required 'offline_access' scope for refresh token support.",
+      );
+    }
+
+    return normalizedScopes;
+  }
+
   private getScopes(): string {
-    return this.getIdentityServerConfig().scopes.join(" ");
+    return this.validateScopes(this.getIdentityServerConfig().scopes).join(" ");
   }
 
   private getRedirectUri(): string {
