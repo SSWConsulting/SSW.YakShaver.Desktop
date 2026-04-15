@@ -354,12 +354,16 @@ export class IdentityServerAuthService extends EventEmitter {
       const clientConfiguration = await this.getClientConfiguration();
 
       const redirectUri = this.getRedirectUri();
+      const callbackUri = new URL(callbackUrl);
       console.log("[IdentityServerAuth] Expected redirect URI:", redirectUri);
-      console.log("[IdentityServerAuth] Expected callback URI:", callbackUrl);
+      console.log("[IdentityServerAuth] Received callback details:", {
+        pathname: callbackUri.pathname,
+        hasQuery: callbackUri.search.length > 0,
+      });
 
       const tokenSet = await openIdClient.authorizationCodeGrant(
         clientConfiguration,
-        new URL(callbackUrl),
+        callbackUri,
         {
           idTokenExpected: true,
           pkceCodeVerifier: codeVerifier,
