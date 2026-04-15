@@ -18,19 +18,11 @@ const styles: Record<HeadingElement, string> = {
   h6: "text-base leading-snug",
 };
 
-export function Heading({
-  as = "h1",
-  className,
-  children,
-  ...props
-}: HeadingProps) {
+export function Heading({ as = "h1", className, children, ...props }: HeadingProps) {
   const Tag = as;
 
   return (
-    <Tag
-      className={cn("font-semibold", styles[as], className)}
-      {...props}
-    >
+    <Tag className={cn("font-semibold", styles[as], className)} {...props}>
       {children}
     </Tag>
   );
