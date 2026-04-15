@@ -123,6 +123,7 @@ export class IdentityServerAuthService extends EventEmitter {
   private openIdClientPromise: Promise<OpenIdClientModule> | null = null;
   private clientConfiguration: Configuration | null = null;
   private pendingAuth: PendingAuth | null = null;
+  private refreshTokensPromise: Promise<boolean> | null = null;
   private storage = IdentityServerTokenStorage.getInstance();
   private currentTokens: TokenData | null = null;
 
@@ -224,16 +225,10 @@ export class IdentityServerAuthService extends EventEmitter {
   }
 
   async getAuthState(): Promise<AuthState> {
-    if (!this.currentTokens) {
-      return { status: AuthStatus.NOT_AUTHENTICATED };
-    }
+    const accessToken = await this.getAccessToken();
 
-    // Check token expiry
-    if (this.currentTokens.expiresAt <= Date.now() + TOKEN_EXPIRY_BUFFER_MS) {
-      const refreshed = await this.tryRefreshTokens();
-      if (!refreshed) {
-        return { status: AuthStatus.NOT_AUTHENTICATED };
-      }
+    if (!accessToken) {
+      return { status: AuthStatus.NOT_AUTHENTICATED };
     }
 
     return {
@@ -242,13 +237,25 @@ export class IdentityServerAuthService extends EventEmitter {
     };
   }
 
-  isAuthenticated(): boolean {
-    if (!this.currentTokens) return false;
-    return this.currentTokens.expiresAt > Date.now() + TOKEN_EXPIRY_BUFFER_MS;
+  async isAuthenticated(): Promise<boolean> {
+    return (await this.getAccessToken()) !== null;
   }
 
-  getAccessToken(): string | null {
-    if (!this.isAuthenticated()) return null;
+  async getAccessToken(): Promise<string | null> {
+    if (!this.currentTokens) {
+      return null;
+    }
+
+    if (!this.isAccessTokenWithinExpiryBuffer()) {
+      return this.currentTokens.accessToken;
+    }
+
+    const refreshed = await this.tryRefreshTokens();
+
+    if (!refreshed) {
+      return null;
+    }
+
     return this.currentTokens?.accessToken ?? null;
   }
 
@@ -363,8 +370,6 @@ export class IdentityServerAuthService extends EventEmitter {
         },
       );
 
-      console.log("[IdentityServerAuth] Received token set:", tokenSet);
-
       await this.storeTokenSet(tokenSet);
 
       if (!tokenSet.access_token) {
@@ -455,6 +460,30 @@ export class IdentityServerAuthService extends EventEmitter {
 
   private async tryRefreshTokens(): Promise<boolean> {
     if (!this.currentTokens?.refreshToken) return false;
+
+    if (this.refreshTokensPromise) {
+      return this.refreshTokensPromise;
+    }
+
+    this.refreshTokensPromise = this.refreshTokensInternal();
+
+    try {
+      return await this.refreshTokensPromise;
+    } finally {
+      this.refreshTokensPromise = null;
+    }
+  }
+
+  private isAccessTokenWithinExpiryBuffer(): boolean {
+    return this.currentTokens !== null
+      ? this.currentTokens.expiresAt <= Date.now() + TOKEN_EXPIRY_BUFFER_MS
+      : true;
+  }
+
+  private async refreshTokensInternal(): Promise<boolean> {
+    if (!this.currentTokens?.refreshToken) {
+      return false;
+    }
 
     try {
       const openIdClient = await this.getOpenIdClient();
