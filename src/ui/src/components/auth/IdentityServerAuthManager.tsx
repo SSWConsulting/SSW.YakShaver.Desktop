@@ -29,11 +29,21 @@ export function IdentityServerAuthManager() {
       const result = await ipcClient.auth.identityServer.status();
       if (result.status === "authenticated") {
         const accountInfo = await ipcClient.auth.identityServer.accountInfo();
+
+        if (!accountInfo.success) {
+          setError(accountInfo.error ?? "Failed to load account information");
+          setStatus({
+            isAuthenticated: true,
+            name: "Account",
+          });
+          return;
+        }
+
         const userInfo = accountInfo.data;
 
         setStatus({
           isAuthenticated: true,
-          name: userInfo?.name,
+          name: userInfo?.name ?? "Account",
           email: userInfo?.email,
         });
       } else {
