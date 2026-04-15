@@ -24,7 +24,8 @@ export class IdentityServerAuthIPCHandlers {
         try {
           return await this.authService.logout();
         } catch (error) {
-          return { success: false, error: formatAndReportError(error, "identity_server_auth") };
+          formatAndReportError(error, "identity_server_auth");
+          return false;
         }
       },
       [IPC_CHANNELS.IS_AUTH_STATUS]: async () => {
