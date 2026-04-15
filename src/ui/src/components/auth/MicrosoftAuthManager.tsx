@@ -31,7 +31,11 @@ export function MicrosoftAuthManager() {
       if (result.status === "authenticated") {
         const me = await ipcClient.auth.microsoft.accountInfo();
         const data = me.data as MicrosoftAccountInfo;
-        setStatus({ isAuthenticated: true, name: data?.name, email: data?.username });
+        setStatus({
+          isAuthenticated: true,
+          name: data?.name,
+          email: data?.username,
+        });
       } else {
         setStatus({ isAuthenticated: false });
       }
@@ -78,10 +82,16 @@ export function MicrosoftAuthManager() {
   return (
     <div className="flex items-center">
       <DropdownMenu>
-        <DropdownMenuTrigger className="cursor-pointer">
-          <Avatar className="w-8 h-8">
-            <AvatarFallback>{getInitials(status?.name)}</AvatarFallback>
-          </Avatar>
+        <DropdownMenuTrigger className="cursor-pointer w-full hover:bg-white/10 rounded-md p-2 bg-transparent transition-colors duration-300">
+          <div className="flex items-center gap-2">
+            <Avatar className="w-8 h-8">
+              <AvatarFallback>{getInitials(status?.name)}</AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col items-start gap-1">
+              <p className="text-sm font-medium text-white truncate">{status?.name}</p>
+              <p className="text-xs text-white/60 truncate">{status?.email}</p>
+            </div>
+          </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <div className="p-3">

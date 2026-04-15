@@ -162,7 +162,11 @@ export function SettingsDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" className="flex items-center gap-2" aria-label="Open settings">
+        <Button
+          size="chunky"
+          className="flex items-center justify-start gap-2 text-white/60 bg-transparent hover:text-white hover:bg-white/10 transition-colors duration-300"
+          aria-label="Open settings"
+        >
           <Settings className="h-4 w-4" />
           <span>Settings</span>
         </Button>

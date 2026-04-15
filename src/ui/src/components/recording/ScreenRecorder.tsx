@@ -1,7 +1,9 @@
 import type { ToolApprovalMode, UserSettings } from "@shared/types/user-settings";
+import { CircleStopIcon, Upload } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
+import { cn } from "@/lib/utils";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
 import { VideoSourceType } from "../../../../backend/types";
@@ -11,6 +13,14 @@ import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
 import { Button } from "../ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Kbd } from "../ui/kbd";
 import { Label } from "../ui/label";
@@ -23,7 +33,77 @@ interface RecordedVideo {
   fileName: string;
 }
 
-export function ScreenRecorder() {
+interface ScreenRecorderProps {
+  showButtonOnly?: boolean;
+  className?: string;
+}
+
+interface RecordButtonProps {
+  isRecording: boolean;
+  isTranscribing: boolean;
+  isDisabled: boolean;
+  showUpload: boolean;
+  onToggleRecording: () => void;
+  onUploadClick: () => void;
+  className?: string;
+}
+
+function RecordButton({
+  isRecording,
+  isTranscribing,
+  isDisabled,
+  showUpload,
+  onToggleRecording,
+  onUploadClick,
+  className = "",
+}: RecordButtonProps) {
+  let label = "Start Recording";
+  if (isRecording) label = "Stop Recording";
+  else if (isTranscribing) label = "Transcribing...";
+
+  if (!showUpload) {
+    return (
+      <Button
+        className={cn(
+          "bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
+          className,
+        )}
+        onClick={onToggleRecording}
+        size="chunky"
+        disabled={isDisabled}
+      >
+        <CircleStopIcon />
+        {label}
+      </Button>
+    );
+  }
+
+  return (
+    <div className={cn("flex w-full rounded-md overflow-hidden", className)}>
+      <Button
+        className="flex-1 bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
+        onClick={onToggleRecording}
+        size="chunky"
+        disabled={isDisabled}
+      >
+        <CircleStopIcon />
+        {label}
+      </Button>
+      <div className="w-px bg-ssw-red-foreground/20" />
+      <Button
+        className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
+        size="chunky"
+        onClick={onUploadClick}
+        disabled={isDisabled}
+        title="Process YouTube URL"
+      >
+        <Upload className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
   const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
@@ -33,6 +113,7 @@ export function ScreenRecorder() {
   const youtubeUrlInputId = useId();
   const [recordHotkey, setRecordHotkey] = useState("");
 
+  const [youtubeDialogOpen, setYoutubeDialogOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
@@ -255,19 +336,17 @@ export function ScreenRecorder() {
   return (
     <>
       <section className="flex flex-col gap-4 items-center w-full">
-        <div className="flex flex-col items-center gap-1">
-          <Button
-            className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90"
-            onClick={toggleRecording}
-            disabled={isProcessing || isTranscribing || !isAuthenticated}
-          >
-            {isRecording
-              ? "Stop Recording"
-              : isTranscribing
-                ? "Transcribing..."
-                : "Start Recording"}
-          </Button>
-          {!isRecording && !isTranscribing && recordHotkey && (
+        <div className="flex flex-col items-center gap-1 w-full">
+          <RecordButton
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            isDisabled={isProcessing || isTranscribing || !isAuthenticated}
+            showUpload={isYoutubeUrlWorkflowEnabled}
+            onToggleRecording={toggleRecording}
+            onUploadClick={() => setYoutubeDialogOpen(true)}
+            className={className}
+          />
+          {!isRecording && !isTranscribing && recordHotkey && !showButtonOnly && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               Keyboard:{" "}
               {recordHotkey.split("+").map((key, index, parts) => (
@@ -280,40 +359,10 @@ export function ScreenRecorder() {
             </p>
           )}
         </div>
-        {!isAuthenticated && (
+        {!isAuthenticated && !showButtonOnly && (
           <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
           </p>
-        )}
-        {isYoutubeUrlWorkflowEnabled && (
-          <div className="max-w-6xl p-4 flex flex-col gap-2">
-            <div className="flex items-center">
-              <Label htmlFor={youtubeUrlInputId} className="text-sm">
-                Process an existing YouTube link
-              </Label>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                id={youtubeUrlInputId}
-                type="url"
-                placeholder="https://www.youtube.com/watch?v=..."
-                value={youtubeUrl}
-                onChange={handleYoutubeUrlChange}
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleProcessYoutubeUrl}
-                disabled={!youtubeUrl.trim() || isProcessingUrl}
-              >
-                {isProcessingUrl ? "Processing..." : "Process Link"}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Paste any published YouTube URL to kick off workflow processing without recording.
-            </p>
-          </div>
         )}
         <SourcePickerDialog
           open={pickerOpen}
@@ -321,6 +370,45 @@ export function ScreenRecorder() {
           onSelect={handleStartRecording}
         />
       </section>
+
+      <Dialog open={youtubeDialogOpen} onOpenChange={setYoutubeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Process YouTube Link</DialogTitle>
+            <DialogDescription>
+              Paste a published YouTube URL to process without recording.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={youtubeUrlInputId}>YouTube URL</Label>
+            <Input
+              id={youtubeUrlInputId}
+              type="url"
+              placeholder="https://www.youtube.com/watch?v=..."
+              value={youtubeUrl}
+              onChange={handleYoutubeUrlChange}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setYoutubeDialogOpen(false)}
+              disabled={isProcessingUrl}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                handleProcessYoutubeUrl();
+                setYoutubeDialogOpen(false);
+              }}
+              disabled={!youtubeUrl.trim() || isProcessingUrl}
+            >
+              {isProcessingUrl ? "Processing..." : "Process Link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {recordedVideo && (
         <VideoPreviewModal
