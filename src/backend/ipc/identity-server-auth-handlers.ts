@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 import type { IdentityServerAuthService } from "../services/auth/identity-server-auth";
+import { AuthStatus } from "../services/auth/types";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
@@ -32,7 +33,10 @@ export class IdentityServerAuthIPCHandlers {
         try {
           return await this.authService.getAuthState();
         } catch (error) {
-          return { status: "error", error: formatAndReportError(error, "identity_server_auth") };
+          return {
+            status: AuthStatus.ERROR,
+            error: formatAndReportError(error, "identity_server_auth"),
+          };
         }
       },
       [IPC_CHANNELS.IS_AUTH_ACCOUNT_INFO]: async () => {
