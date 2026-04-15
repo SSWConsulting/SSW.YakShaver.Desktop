@@ -87,7 +87,7 @@ const PostTaskRecordResponseSchema = z.object({
 
 /**
  * Sends work item details to the portal API.
- * Requires the user to be authenticated with Microsoft.
+ * Requires the user to be authenticated with IdentityServer.
  */
 export async function SendWorkItemDetailsToPortal(
   payload: WorkItemDto,
@@ -127,7 +127,7 @@ export async function CancelWorkItemInPortal(
 ): Promise<{ success: true } | { success: false; error: string }> {
   const ids = IdentityServerAuthService.getInstance();
   if (!(await ids.isAuthenticated())) {
-    return { success: false, error: "User is not authenticated with Microsoft" };
+    return { success: false, error: "User is not authenticated with IdentityServer" };
   }
   const accessToken = await ids.getAccessToken();
 
@@ -159,14 +159,14 @@ export type ScreenshotUploadResponse = z.infer<typeof ScreenshotUploadResponseSc
 
 /**
  * Uploads a screenshot to the portal's Azure Blob Storage and returns the public URL.
- * Requires the user to be authenticated with Microsoft.
+ * Requires the user to be authenticated with IdentityServer.
  */
 export async function UploadScreenshotToPortal(
   screenshotPath: string,
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
   const ids = IdentityServerAuthService.getInstance();
   if (!(await ids.isAuthenticated())) {
-    return { success: false, error: "User is not authenticated with Microsoft" };
+    return { success: false, error: "User is not authenticated with IdentityServer" };
   }
   const accessToken = await ids.getAccessToken();
 
