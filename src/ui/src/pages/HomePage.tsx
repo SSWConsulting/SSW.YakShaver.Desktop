@@ -9,7 +9,7 @@ import {
 import { LayoutGrid, List, RefreshCw, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import HeadingTag from "@/components/typography/heading-tag";
+import { Heading } from "@/components/typography/heading-tag";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LoadingState } from "../components/common/LoadingState";
 import { NoShaves } from "../components/shaves/NoShaves";
@@ -114,7 +114,7 @@ export function HomePage() {
   return (
     <div className="z-10 flex flex-col p-8 h-full gap-6 w-full min-w-0">
       <div className="flex items-start md:items-center flex-col md:flex-row justify-between gap-4">
-        <HeadingTag level={1}>My Shaves</HeadingTag>
+        <Heading>My Shaves</Heading>
         <ToggleGroup
           className="p-1 border border-white/20 rounded-md"
           type="single"
