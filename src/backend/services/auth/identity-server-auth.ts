@@ -537,8 +537,13 @@ export class IdentityServerAuthService extends EventEmitter {
   private async registerTenantAfterLogin(accessToken: string): Promise<void> {
     const apiUrl = config.portalTenantsUrl();
     const url = new URL(apiUrl);
+
+    if (url.protocol !== "https:") {
+      throw new Error("Portal tenants URL must use HTTPS.");
+    }
+
     const hostname = url.hostname;
-    const port = url.port ? Number.parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
+    const port = url.port ? Number.parseInt(url.port, 10) : 443;
     const path = `${url.pathname.replace(/\/$/, "")}/auth/callback`;
 
     await new Promise<void>((resolve, reject) => {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 
 const mocks = vi.hoisted(() => {
   const mockStorage = {
@@ -12,11 +13,20 @@ const mocks = vi.hoisted(() => {
     refreshTokenGrant: vi.fn(),
   };
 
+  const httpsRequest = vi.fn();
+
   return {
+    httpsRequest,
     mockStorage,
     mockOpenIdClient,
   };
 });
+
+vi.mock("node:https", () => ({
+  default: {
+    request: mocks.httpsRequest,
+  },
+}));
 
 vi.mock("electron", () => ({
   shell: {
@@ -90,11 +100,44 @@ function getServiceWithRegisterTenantMethod(service: IdentityServerAuthService):
   };
 }
 
+function mockRequestSuccess(
+  requestMock: ReturnType<typeof vi.fn>,
+  statusCode = 200,
+  statusMessage = "OK",
+) {
+  requestMock.mockImplementation(
+    (
+      _options: unknown,
+      callback: (response: EventEmitter & { statusCode?: number; statusMessage?: string }) => void,
+    ) => {
+      const response = new EventEmitter() as EventEmitter & {
+        resume: () => void;
+        statusCode?: number;
+        statusMessage?: string;
+      };
+
+      response.resume = vi.fn();
+      response.statusCode = statusCode;
+      response.statusMessage = statusMessage;
+
+      callback(response);
+
+      return {
+        on: vi.fn(),
+        end: vi.fn(() => {
+          response.emit("end");
+        }),
+      };
+    },
+  );
+}
+
 describe("IdentityServerAuthService", () => {
   let service: IdentityServerAuthService;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.PORTAL_TENANTS_URL;
 
     // @ts-expect-error - Reset singleton for test isolation
     IdentityServerAuthService.instance = null;
@@ -229,6 +272,36 @@ describe("IdentityServerAuthService", () => {
     await expect(service.getAccessToken()).resolves.toBe(accessToken);
     expect(resolve).toHaveBeenCalledWith(
       expect.objectContaining({ success: true, userInfo: expect.any(Object) }),
+    );
+  });
+
+  it("rejects tenant registration when portal tenants URL uses http", async () => {
+    process.env.PORTAL_TENANTS_URL = "http://localhost:7009/tenants";
+
+    await expect(
+      getServiceWithRegisterTenantMethod(service).registerTenantAfterLogin("access-token"),
+    ).rejects.toThrow("Portal tenants URL must use HTTPS.");
+
+    expect(mocks.httpsRequest).not.toHaveBeenCalled();
+  });
+
+  it("uses the HTTPS request module when portal tenants URL uses https", async () => {
+    process.env.PORTAL_TENANTS_URL = "https://portal.example.test/tenants";
+    mockRequestSuccess(mocks.httpsRequest);
+
+    await expect(
+      getServiceWithRegisterTenantMethod(service).registerTenantAfterLogin("access-token"),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.httpsRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hostname: "portal.example.test",
+        port: 443,
+        path: "/tenants/auth/callback",
+        method: "GET",
+        rejectUnauthorized: true,
+      }),
+      expect.any(Function),
     );
   });
 });
