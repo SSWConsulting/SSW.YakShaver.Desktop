@@ -1,4 +1,4 @@
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 
 const NO_SHAVES_STEPS: string[] = [
   "Record screen and describe the issue",

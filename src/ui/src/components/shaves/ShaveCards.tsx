@@ -1,8 +1,8 @@
 import { Video } from "lucide-react";
 import { getStatusVariant } from "@/lib/shave-utils";
 import { getYouTubeThumbnail, timeAgo } from "@/lib/utils";
-import { Badge } from "../ui/badge";
 import type { ShaveItem } from "../../types";
+import { Badge } from "../ui/badge";
 import { ShaveAction } from "./ShaveAction";
 
 function ShaveCardFooter({ shave }: { shave: ShaveItem }) {

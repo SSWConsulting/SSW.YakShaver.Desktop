@@ -1,9 +1,9 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { getStatusVariant } from "@/lib/shave-utils";
 import { timeAgo } from "@/lib/utils";
-import { SortableHeader } from "../ui/sortable-header";
-import { Badge } from "../ui/badge";
 import type { ShaveItem } from "../../types";
+import { Badge } from "../ui/badge";
+import { SortableHeader } from "../ui/sortable-header";
 import { ShaveAction } from "./ShaveAction";
 import { VideoThumbnail } from "./VideoThumbnail";
 

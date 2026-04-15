@@ -1,6 +1,6 @@
 import { ExternalLink, RefreshCw, Square } from "lucide-react";
-import { Button } from "../ui/button";
 import type { ShaveItem } from "../../types";
+import { Button } from "../ui/button";
 
 export function ShaveAction({ shave }: { shave: ShaveItem }) {
   if (shave.shaveStatus === "Processing") {

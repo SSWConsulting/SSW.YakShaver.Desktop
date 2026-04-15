@@ -1,5 +1,5 @@
-import { ShaveStatus } from "../types";
 import type { BadgeVariant } from "../types";
+import { ShaveStatus } from "../types";
 
 const STATUS_BADGE_VARIANTS: Record<string, BadgeVariant> = {
   [ShaveStatus.Completed]: "success",

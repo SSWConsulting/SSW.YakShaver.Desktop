@@ -12,10 +12,10 @@ import { toast } from "sonner";
 import { Heading } from "@/components/typography/heading-tag";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LoadingState } from "../components/common/LoadingState";
+import { DataTable } from "../components/data-table";
 import { NoShaves } from "../components/shaves/NoShaves";
 import { ShaveCards } from "../components/shaves/ShaveCards";
 import { shaveColumns } from "../components/shaves/shave-columns";
-import { DataTable } from "../components/data-table";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { ipcClient } from "../services/ipc-client";
-import { ShaveStatus, type ShaveItem } from "../types";
+import { type ShaveItem, ShaveStatus } from "../types";
 
 const ALL_STATUSES = Object.values(ShaveStatus);
 
