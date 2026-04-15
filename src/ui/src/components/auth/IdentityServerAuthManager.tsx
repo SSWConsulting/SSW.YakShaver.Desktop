@@ -63,21 +63,31 @@ export function IdentityServerAuthManager() {
   const login = async () => {
     setLoading(true);
     setError(null);
-    const res = await ipcClient.auth.identityServer.login();
-    if (res.success) {
-      await refresh();
-    } else {
-      setError(res.error ?? "Authentication failed");
+    try {
+      const res = await ipcClient.auth.identityServer.login();
+      if (res.success) {
+        await refresh();
+      } else {
+        setError(res.error ?? "Authentication failed");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Authentication failed");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const logout = async () => {
     setLoading(true);
     setError(null);
-    await ipcClient.auth.identityServer.logout();
-    await refresh();
-    setLoading(false);
+    try {
+      await ipcClient.auth.identityServer.logout();
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sign out failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!status?.isAuthenticated) {
