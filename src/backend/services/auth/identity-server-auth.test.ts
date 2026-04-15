@@ -176,6 +176,30 @@ describe("IdentityServerAuthService", () => {
     );
   });
 
+  it("preserves the existing refresh token when a refresh grant omits refresh_token", async () => {
+    const tokenData = createTokenData({
+      expiresAt: Date.now() + 30 * 1000,
+      refreshToken: "existing-refresh-token",
+    });
+    mocks.mockOpenIdClient.refreshTokenGrant.mockResolvedValue({
+      access_token: "refreshed-access-token",
+      expires_in: 3600,
+      expiresIn: () => 3600,
+      scope: "openid profile",
+    });
+
+    // @ts-expect-error - Configure private state for focused unit tests
+    service.currentTokens = tokenData;
+
+    await expect(service.getAccessToken()).resolves.toBe("refreshed-access-token");
+    expect(mocks.mockStorage.storeTokens).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: "refreshed-access-token",
+        refreshToken: "existing-refresh-token",
+      }),
+    );
+  });
+
   it("shares a single in-flight refresh across concurrent callers", async () => {
     const tokenData = createTokenData({ expiresAt: Date.now() + 30 * 1000 });
     let resolveRefresh: ((value: ReturnType<typeof createRefreshResponse>) => void) | undefined;
