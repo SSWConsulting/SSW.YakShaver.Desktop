@@ -10,6 +10,7 @@ import type { ScreenSource } from "../../types";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Spinner } from "../ui/spinner";
 import { MacScreenRecordingPermissionDialog } from "./MacScreenRecordingPermissionDialog";
 
 type SourcePickerDialogProps = {
@@ -215,7 +216,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl p-4">
+      <DialogContent className="max-w-6xl p-4 flex flex-col min-h-[500px] max-h-[85vh]">
         <DialogHeader>
           <DialogTitle>Choose a source to record</DialogTitle>
           <DialogDescription>
@@ -228,7 +229,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
           onOpenChange={setShowPermissionDialog}
         />
 
-        <div className="max-h-[75vh] overflow-auto space-y-6 p-2">
+        <div className="flex-1 min-h-[350px] overflow-auto space-y-6 p-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
@@ -250,15 +251,9 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                   <SelectValue placeholder="Select camera" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_CAMERA_VALUE} textValue="No camera">
-                    No camera
-                  </SelectItem>
+                  <SelectItem value={NO_CAMERA_VALUE}>No camera</SelectItem>
                   {cameraDevices.map((d) => (
-                    <SelectItem
-                      key={d.deviceId}
-                      value={d.deviceId}
-                      textValue={d.label || d.deviceId}
-                    >
+                    <SelectItem key={d.deviceId} value={d.deviceId}>
                       {d.label || d.deviceId}
                     </SelectItem>
                   ))}
@@ -281,11 +276,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                 </SelectTrigger>
                 <SelectContent>
                   {microphoneDevices.map((d) => (
-                    <SelectItem
-                      key={d.deviceId}
-                      value={d.deviceId}
-                      textValue={d.label || d.deviceId}
-                    >
+                    <SelectItem key={d.deviceId} value={d.deviceId}>
                       {d.label || d.deviceId}
                     </SelectItem>
                   ))}
@@ -306,45 +297,50 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
               </div>
             </div>
           )}
-          {loading && (
-            <div className="text-sm text-muted-foreground text-center py-2">Loading sources…</div>
-          )}
 
-          {selectedCameraId && (
-            <section>
-              <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
-                Camera Only
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-5">
-                <CameraOnlyTile
-                  isSelected={selectedSourceId === CAMERA_ONLY_SOURCE_ID}
-                  onClick={() => setSelectedSourceId(CAMERA_ONLY_SOURCE_ID)}
-                />
-              </div>
-            </section>
-          )}
-
-          <SourceSection
-            label="Screens"
-            sources={screens}
-            selectedSourceId={selectedSourceId}
-            onSelect={setSelectedSourceId}
-          />
-
-          {/**
-           * As per conversation with Calum, we'll be hiding this feature temporarily
-           * See GitHub issue: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/287
-           * <SourceSection
-           *   label="Windows"
-           *   sources={windows}
-           *   onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
-           * />
-           */}
-
-          {!loading && screens.length === 0 && !selectedCameraId && (
-            <div className="text-sm text-muted-foreground text-center py-8">
-              No screens available
+          {loading ? (
+            <div className="flex items-center justify-center min-h-[300px]">
+              <Spinner className="size-8" />
             </div>
+          ) : (
+            <>
+              {selectedCameraId && (
+                <section>
+                  <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
+                    Camera Only
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-5">
+                    <CameraOnlyTile
+                      isSelected={selectedSourceId === CAMERA_ONLY_SOURCE_ID}
+                      onClick={() => setSelectedSourceId(CAMERA_ONLY_SOURCE_ID)}
+                    />
+                  </div>
+                </section>
+              )}
+
+              <SourceSection
+                label="Screens"
+                sources={screens}
+                selectedSourceId={selectedSourceId}
+                onSelect={setSelectedSourceId}
+              />
+
+              {/**
+               * As per conversation with Calum, we'll be hiding this feature temporarily
+               * See GitHub issue: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/287
+               * <SourceSection
+               *   label="Windows"
+               *   sources={windows}
+               *   onSelect={(id) => onSelect(id, { cameraId: selectedCameraId, microphoneId: selectedMicrophoneId })}
+               * />
+               */}
+
+              {screens.length === 0 && !selectedCameraId && (
+                <div className="flex items-center justify-center min-h-[250px] text-sm text-muted-foreground">
+                  No screens available
+                </div>
+              )}
+            </>
           )}
         </div>
         <div className="flex justify-end gap-2 border-t border-border pt-3">

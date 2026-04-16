@@ -1,5 +1,5 @@
 import { Globe } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
@@ -32,6 +32,12 @@ interface McpSettingsPanelProps {
   viewMode: "compact" | "detailed";
 }
 
+const PRESET_ORDER: Record<string, number> = {
+  [McpGitHubCard.Id]: 0,
+  [McpAzureDevOpsCard.Id]: 1,
+  [McpJiraCard.Id]: 2,
+};
+
 export function McpSettingsPanel({
   isActive = true,
   onHasEnabledServers,
@@ -49,6 +55,7 @@ export function McpSettingsPanel({
   } | null>(null);
   const [healthStatus, setHealthStatus] = useState<ServerHealthStatus<string>>({});
   const [whitelistServer, setWhitelistServer] = useState<MCPServerConfig | null>(null);
+  const connectingServerIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const hasEnabled = servers.some(
@@ -77,12 +84,24 @@ export function McpSettingsPanel({
       [server.id as string]: { isHealthy: false, isChecking: true },
     }));
 
+    const isConnecting = connectingServerIds.current.has(server.id);
+
     try {
       const result = (await ipcClient.mcp.checkServerHealthAsync(server.id)) as HealthStatusInfo;
       setHealthStatus((prev) => ({
         ...prev,
         [server.id as string]: { ...result, isChecking: false },
       }));
+      if (isConnecting) {
+        if (result.isHealthy) {
+          toast.success(`${server.name} connected!`, {
+            description: `Next to configure your Custom Prompt to include ${server.name} projects.`,
+            duration: 8000,
+          });
+        } else {
+          toast.error(`Failed to connect ${server.name}`);
+        }
+      }
     } catch (e) {
       setHealthStatus((prev) => ({
         ...prev,
@@ -92,6 +111,11 @@ export function McpSettingsPanel({
           isChecking: false,
         },
       }));
+      if (isConnecting) {
+        toast.error(`Failed to connect ${server.name}: ${formatErrorMessage(e)}`);
+      }
+    } finally {
+      connectingServerIds.current.delete(server.id);
     }
   }, []);
 
@@ -229,7 +253,13 @@ export function McpSettingsPanel({
   }
 
   async function handleOnConnect(serverId: string, configLocal: MCPServerConfig): Promise<void> {
-    await toggleSettings(serverId, true, configLocal);
+    connectingServerIds.current.add(serverId);
+    try {
+      await toggleSettings(serverId, true, configLocal);
+    } catch (e) {
+      connectingServerIds.current.delete(serverId);
+      throw e;
+    }
   }
 
   async function handleOnDisconnect(serverId: string, configLocal: MCPServerConfig): Promise<void> {
@@ -237,24 +267,27 @@ export function McpSettingsPanel({
     await toggleSettings(serverId, false, configLocal);
   }
 
+  const handlePresetCardChange = useCallback(
+    (cardId: string, config: MCPServerConfig) => {
+      if (config.enabled) connectingServerIds.current.add(cardId);
+      void loadServers({ serverIdToRefresh: cardId });
+    },
+    [loadServers],
+  );
+
   const sortedServers = useMemo(() => {
-    return [...servers].sort((a, b) => a.name.localeCompare(b.name));
+    return [...servers].sort((a, b) => {
+      const aEnabled = a.enabled !== false ? 0 : 1;
+      const bEnabled = b.enabled !== false ? 0 : 1;
+      if (aEnabled !== bEnabled) return aEnabled - bEnabled;
+
+      const aOrder = PRESET_ORDER[a.id ?? ""] ?? 3;
+      const bOrder = PRESET_ORDER[b.id ?? ""] ?? 3;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+
+      return a.name.localeCompare(b.name);
+    });
   }, [servers]);
-
-  const github: MCPServerConfig | undefined = sortedServers.find(
-    (server) => server.id === McpGitHubCard.Id,
-  );
-  const azureDevOps: MCPServerConfig | undefined = sortedServers.find(
-    (s) => s.id === McpAzureDevOpsCard.Id,
-  );
-  const jira: MCPServerConfig | undefined = sortedServers.find((s) => s.id === McpJiraCard.Id);
-
-  const restServers: MCPServerConfig[] = sortedServers.filter(
-    (server) =>
-      server.id !== McpGitHubCard.Id &&
-      server.id !== McpAzureDevOpsCard.Id &&
-      server.id !== McpJiraCard.Id,
-  );
 
   function getHealthStatus(serverId?: string | null): HealthStatusInfo | null {
     if (!serverId) return null;
@@ -265,29 +298,44 @@ export function McpSettingsPanel({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="grid grid-cols-1 gap-4 mb-4">
-        <McpGitHubCard
-          config={github}
-          onChange={() => loadServers({ serverIdToRefresh: McpGitHubCard.Id })}
-          healthInfo={getHealthStatus(github?.id)}
-          onTools={() => github && openWhitelistDialog(github)}
-          viewMode={viewMode}
-        />
-        <McpAzureDevOpsCard
-          config={azureDevOps}
-          onChange={() => loadServers({ serverIdToRefresh: McpAzureDevOpsCard.Id })}
-          healthInfo={getHealthStatus(McpAzureDevOpsCard.Id)}
-          onTools={() => azureDevOps && openWhitelistDialog(azureDevOps)}
-          viewMode={viewMode}
-        />
-        <McpJiraCard
-          config={jira}
-          onChange={() => loadServers({ serverIdToRefresh: McpJiraCard.Id })}
-          healthInfo={getHealthStatus(McpJiraCard.Id)}
-          onTools={() => jira && openWhitelistDialog(jira)}
-          viewMode={viewMode}
-        />
-        {restServers.map((server) => (
-          <>
+        {sortedServers.map((server) => {
+          if (server.id === McpGitHubCard.Id) {
+            return (
+              <McpGitHubCard
+                key={server.id}
+                config={server}
+                onChange={(config) => handlePresetCardChange(McpGitHubCard.Id, config)}
+                healthInfo={getHealthStatus(server.id)}
+                onTools={() => openWhitelistDialog(server)}
+                viewMode={viewMode}
+              />
+            );
+          }
+          if (server.id === McpAzureDevOpsCard.Id) {
+            return (
+              <McpAzureDevOpsCard
+                key={server.id}
+                config={server}
+                onChange={(config) => handlePresetCardChange(McpAzureDevOpsCard.Id, config)}
+                healthInfo={getHealthStatus(server.id)}
+                onTools={() => openWhitelistDialog(server)}
+                viewMode={viewMode}
+              />
+            );
+          }
+          if (server.id === McpJiraCard.Id) {
+            return (
+              <McpJiraCard
+                key={server.id}
+                config={server}
+                onChange={(config) => handlePresetCardChange(McpJiraCard.Id, config)}
+                healthInfo={getHealthStatus(server.id)}
+                onTools={() => openWhitelistDialog(server)}
+                viewMode={viewMode}
+              />
+            );
+          }
+          return (
             <McpCard
               key={server.id}
               onDelete={() => confirmDeleteServer(String(server.id), server.name)}
@@ -303,8 +351,8 @@ export function McpSettingsPanel({
               }}
               viewMode={viewMode}
             />
-          </>
-        ))}
+          );
+        })}
       </div>
       {!showAddCustomMcpForm && (
         <div className="flex flex-col items-center mb-4">

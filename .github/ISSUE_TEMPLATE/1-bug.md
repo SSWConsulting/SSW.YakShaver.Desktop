@@ -13,21 +13,24 @@ Cc:
 <!-- add intended user next to **Hi** -->
 Hi {{ USER }}
 
-<!-- duration in the format of xx min xx sec -->
+<!-- duration in the format of xx min xx sec (if 0 min, use xx sec) -->
 [🟥 Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
 
-### Describe the Bug
+### Pain
 <!-- A clear and concise description of what the bug is. -->
 
-### To Reproduce
-Steps to reproduce the behavior:
-1. ...
-2. ...
-3. ...
+### Reproduce Steps
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
 4. See error
 
 ### Expected Behavior
 <!-- A clear and concise description of what you expected to happen. -->
+
+### Acceptance Criteria
+<!-- Acceptance Criteria defines the requirements that must be met for the story to be completed. See https://www.ssw.com.au/rules/acceptance-criteria -->
+- [ ] ...
 
 ### Tasks
 <!-- Add below task to issue body, unless user specifies detailed tasks. -->

@@ -1,5 +1,5 @@
 import { JIRA_PRESET_CONFIG, PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
-import { Check, Copy, ExternalLink, X } from "lucide-react";
+import { Check, Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useClipboard } from "@/hooks/useClipboard";
@@ -10,7 +10,6 @@ import { McpCard } from "../mcp-card";
 import { AtlassianIcon } from "./atlassian";
 
 const YAKSHAVER_DOMAIN = "https://api.yakshaver.ai/**";
-const DISMISS_KEY = "jira-setup-dismissed";
 
 interface McpJiraCardProps {
   config?: MCPServerConfig;
@@ -26,7 +25,7 @@ McpJiraCard.Id = PRESET_SERVER_IDS.JIRA;
 export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }: McpJiraCardProps) {
   const configLocal = config ?? JIRA_PRESET_CONFIG;
 
-  const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISS_KEY) === "true");
+  const [setupExpanded, setSetupExpanded] = useState(false);
   const { copyToClipboard, copied } = useClipboard();
 
   const { handleOnConnect, handleOnDisconnect } = useMcpCardActions(
@@ -35,31 +34,20 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
     onChange,
   );
 
+  function handleDisconnect() {
+    setSetupExpanded(false);
+    handleOnDisconnect();
+  }
+
   async function handleCopyDomain(): Promise<void> {
     await copyToClipboard(YAKSHAVER_DOMAIN, "Domain copied to clipboard");
   }
 
-  function handleDismiss(): void {
-    localStorage.setItem(DISMISS_KEY, "true");
-    setDismissed(true);
-  }
-
-  const prerequisiteSection =
-    !configLocal.enabled && !dismissed ? (
+  const setupSection =
+    setupExpanded && !configLocal.enabled ? (
       <div className="mt-4">
         <div className="flex flex-col gap-3 rounded-md border border-white/10 bg-white/5 p-3">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-semibold text-white/90">One-time setup before connecting</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 w-5 p-0 shrink-0 text-white/40 hover:text-white/70"
-              onClick={handleDismiss}
-              title="Dismiss"
-            >
-              <X className="size-3.5" />
-            </Button>
-          </div>
+          <p className="text-sm font-semibold text-white/90">One-time setup before connecting</p>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Trust YakShaver in your{" "}
             <a
@@ -88,9 +76,36 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
               {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
             </Button>
           </div>
+          <div className="flex justify-end">
+            <Button
+              variant="default"
+              className="w-28 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOnConnect();
+              }}
+            >
+              Connect
+            </Button>
+          </div>
         </div>
       </div>
     ) : null;
+
+  function renderSetupButton() {
+    return (
+      <Button
+        variant="outline"
+        className="w-28 cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSetupExpanded((prev) => !prev);
+        }}
+      >
+        {setupExpanded ? "Cancel" : "Set up"}
+      </Button>
+    );
+  }
 
   return (
     <McpCard
@@ -98,11 +113,11 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
       icon={<AtlassianIcon className="size-8" />}
       config={configLocal}
       healthInfo={healthInfo}
-      onConnect={handleOnConnect}
-      onDisconnect={handleOnDisconnect}
+      onDisconnect={handleDisconnect}
       onTools={onTools}
       viewMode={viewMode}
-      extraContent={prerequisiteSection}
+      extraContent={setupSection}
+      renderConnectButton={renderSetupButton}
     />
   );
 }

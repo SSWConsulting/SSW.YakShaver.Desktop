@@ -1,5 +1,5 @@
 import { Settings } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
@@ -84,6 +84,24 @@ export function SettingsDialog() {
   const [activeTabId, setActiveTabId] = useState<string>(TABS[0]?.id ?? "release");
   const leaveHandlerRef = useRef<LeaveHandler | null>(null);
 
+  useEffect(() => {
+    const handleOpenTab = (e: Event) => {
+      if (!(e instanceof CustomEvent)) {
+        return;
+      }
+
+      const tabId = e.detail?.tabId;
+      if (typeof tabId !== "string" || !TABS.some((tab) => tab.id === tabId)) {
+        return;
+      }
+
+      setOpen(true);
+      setActiveTabId(tabId);
+    };
+    window.addEventListener("open-settings-tab", handleOpenTab);
+    return () => window.removeEventListener("open-settings-tab", handleOpenTab);
+  }, []);
+
   const registerLeaveHandler = useCallback((handler: LeaveHandler | null) => {
     leaveHandlerRef.current = handler;
   }, []);
@@ -144,7 +162,11 @@ export function SettingsDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" className="flex items-center gap-2" aria-label="Open settings">
+        <Button
+          size="chunky"
+          className="flex items-center justify-start gap-2 text-white/60 bg-transparent hover:text-white hover:bg-white/10 transition-colors duration-300"
+          aria-label="Open settings"
+        >
           <Settings className="h-4 w-4" />
           <span>Settings</span>
         </Button>
@@ -170,8 +192,10 @@ export function SettingsDialog() {
                   key={tab.id}
                   type="button"
                   onClick={() => attemptTabChange(tab.id)}
-                  className={`text-left px-3 py-2 rounded-md transition-colors border border-transparent ${
-                    isActive ? "bg-white/10 border-white/20" : "text-white/60 hover:bg-white/5"
+                  className={`text-left px-3 py-2.5 rounded-md transition-colors border border-transparent ${
+                    isActive
+                      ? "bg-white/10 border-white/20 text-white"
+                      : "text-white/80 hover:bg-white/5 hover:text-white"
                   }`}
                 >
                   <div className="text-sm font-medium">{tab.label}</div>

@@ -252,7 +252,7 @@ export function CustomPromptSettingsPanel({
               placeholder="Search prompts..."
             />
             <Button onClick={handleCreateNew} size="sm" className="shrink-0 cursor-pointer">
-              Add New Prompt
+              New
             </Button>
           </div>
           <Separator />
