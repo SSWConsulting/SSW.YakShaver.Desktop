@@ -21,10 +21,7 @@ export function createShaveColumns(): ColumnDef<Shave>[] {
       accessorKey: "title",
       header: ({ column }) => <SortableHeader column={column} label="Title" />,
       cell: ({ row }) => (
-        <span
-          className="font-medium max-w-[400px] truncate block"
-          title={row.original.title}
-        >
+        <span className="font-medium max-w-[400px] truncate block" title={row.original.title}>
           {row.original.title}
         </span>
       ),
@@ -32,9 +29,7 @@ export function createShaveColumns(): ColumnDef<Shave>[] {
     {
       id: "lastUpdated",
       accessorFn: (row) => new Date(row.updatedAt || row.createdAt).getTime(),
-      header: ({ column }) => (
-        <SortableHeader column={column} label="Last Updated" />
-      ),
+      header: ({ column }) => <SortableHeader column={column} label="Last Updated" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
           {timeAgo(new Date(row.original.updatedAt || row.original.createdAt))}
@@ -43,9 +38,7 @@ export function createShaveColumns(): ColumnDef<Shave>[] {
     },
     {
       accessorKey: "projectName",
-      header: ({ column }) => (
-        <SortableHeader column={column} label="Location" />
-      ),
+      header: ({ column }) => <SortableHeader column={column} label="Location" />,
       cell: ({ row }) => (
         <span
           className="text-muted-foreground max-w-[150px] truncate block"

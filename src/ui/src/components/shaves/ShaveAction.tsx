@@ -20,12 +20,7 @@ export function ShaveAction({ shave }: { shave: Shave }) {
   if (shave.workItemUrl) {
     return (
       <a href={shave.workItemUrl} target="_blank" rel="noopener noreferrer">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          title="View work item"
-        >
+        <Button variant="ghost" size="icon" className="h-8 w-8" title="View work item">
           <ExternalLink className="h-4 w-4" />
         </Button>
       </a>

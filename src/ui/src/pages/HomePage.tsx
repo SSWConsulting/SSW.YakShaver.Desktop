@@ -213,7 +213,7 @@ export function HomePage() {
           filteredRows.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No shaves match your filters.</p>
           ) : (
-            <ShaveCards shaves={filteredRows.map((r) => r.original)} onRefresh={loadShaves} />
+            <ShaveCards shaves={filteredRows.map((r) => r.original)} />
           )
         ) : (
           <DataTable

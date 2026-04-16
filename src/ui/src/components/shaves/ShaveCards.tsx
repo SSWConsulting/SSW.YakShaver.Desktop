@@ -9,19 +9,13 @@ function ShaveCardFooter({ shave }: { shave: Shave }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        {shave.projectName ? (
-          <Badge variant="outline">{shave.projectName}</Badge>
-        ) : (
-          <span className="text-sm text-muted-foreground">—</span>
-        )}
+        {shave.projectName ? <Badge variant="outline">{shave.projectName}</Badge> : <span>—</span>}
         <span className="text-sm text-muted-foreground">
-          {timeAgo(new Date(shave.createdAt))}
+          {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
         </span>
       </div>
       <div className="flex items-center justify-between">
-        <Badge variant={getStatusVariant(shave.shaveStatus)}>
-          {shave.shaveStatus}
-        </Badge>
+        <Badge variant={getStatusVariant(shave.shaveStatus)}>{shave.shaveStatus}</Badge>
         <ShaveAction shave={shave} />
       </div>
     </div>
@@ -29,27 +23,16 @@ function ShaveCardFooter({ shave }: { shave: Shave }) {
 }
 
 function ShaveCard({ shave }: { shave: Shave }) {
-  const thumbnail = shave.videoEmbedUrl
-    ? getYouTubeThumbnail(shave.videoEmbedUrl)
-    : null;
+  const thumbnail = shave.videoEmbedUrl ? getYouTubeThumbnail(shave.videoEmbedUrl) : null;
   const videoUrl = shave.videoEmbedUrl?.replace("embed/", "watch?v=") || null;
 
   return (
     <div className="border border-white/20 rounded-lg overflow-hidden bg-black/30 backdrop-blur-sm flex flex-col h-full">
       {videoUrl ? (
-        <a
-          href={videoUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block"
-        >
+        <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="block">
           <div className="w-full aspect-video bg-black/40 flex items-center justify-center">
             {thumbnail ? (
-              <img
-                src={thumbnail}
-                alt={shave.title}
-                className="w-full h-full object-cover"
-              />
+              <img src={thumbnail} alt={shave.title} className="w-full h-full object-cover" />
             ) : (
               <Video className="h-8 w-8 text-muted-foreground" />
             )}
