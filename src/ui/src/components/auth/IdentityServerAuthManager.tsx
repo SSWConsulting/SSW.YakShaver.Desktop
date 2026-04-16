@@ -29,21 +29,11 @@ export function IdentityServerAuthManager() {
       const result = await ipcClient.auth.identityServer.status();
       if (result.status === "authenticated") {
         const accountInfo = await ipcClient.auth.identityServer.accountInfo();
-
-        if (!accountInfo.success) {
-          setError(accountInfo.error ?? "Failed to load account information");
-          setStatus({
-            isAuthenticated: true,
-            name: "Account",
-          });
-          return;
-        }
-
         const userInfo = accountInfo.data;
 
         setStatus({
           isAuthenticated: true,
-          name: userInfo?.name ?? "Account",
+          name: userInfo?.name,
           email: userInfo?.email,
         });
       } else {
@@ -63,39 +53,27 @@ export function IdentityServerAuthManager() {
   const login = async () => {
     setLoading(true);
     setError(null);
-    try {
-      const res = await ipcClient.auth.identityServer.login();
-      if (res.success) {
-        await refresh();
-      } else {
-        setError(res.error ?? "Authentication failed");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Authentication failed");
-    } finally {
-      setLoading(false);
+    const res = await ipcClient.auth.identityServer.login();
+    if (res.success) {
+      await refresh();
+    } else {
+      setError(res.error || "Authentication failed");
     }
+    setLoading(false);
   };
 
   const logout = async () => {
     setLoading(true);
     setError(null);
-    try {
-      await ipcClient.auth.identityServer.logout();
-      await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Sign out failed");
-    } finally {
-      setLoading(false);
-    }
+    await ipcClient.auth.identityServer.logout();
+    await refresh();
+    setLoading(false);
   };
 
   if (!status?.isAuthenticated) {
     return (
       <div className="flex items-center">
-        <Button onClick={login} disabled={loading}>
-          {loading ? "Signing in..." : "Sign In"}
-        </Button>
+        <Button onClick={login}>Sign In</Button>
         {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
       </div>
     );
@@ -104,10 +82,16 @@ export function IdentityServerAuthManager() {
   return (
     <div className="flex items-center">
       <DropdownMenu>
-        <DropdownMenuTrigger className="cursor-pointer">
-          <Avatar className="w-8 h-8">
-            <AvatarFallback>{getInitials(status?.name)}</AvatarFallback>
-          </Avatar>
+        <DropdownMenuTrigger className="cursor-pointer w-full hover:bg-white/10 rounded-md p-2 bg-transparent transition-colors duration-300">
+          <div className="flex items-center gap-2">
+            <Avatar className="w-8 h-8">
+              <AvatarFallback>{getInitials(status?.name)}</AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col items-start gap-1">
+              <p className="text-sm font-medium text-white truncate">{status?.name}</p>
+              <p className="text-xs text-white/60 truncate">{status?.email}</p>
+            </div>
+          </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <div className="p-3">
