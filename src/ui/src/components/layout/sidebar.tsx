@@ -1,6 +1,6 @@
 import YakOutline from "/logos/SQ-YakShaver-LogoIcon-Outline.svg?url";
 import logoImage from "/logos/YakShaver-Horizontal-Color-Darkmode.svg?url";
-import {IdentityServerAuthManager} from "../auth/IdentityServerAuthManager";
+import { IdentityServerAuthManager } from "../auth/IdentityServerAuthManager";
 import { ScreenRecorder } from "../recording/ScreenRecorder";
 import { SettingsDialog } from "../settings/SettingsDialog";
 import { SidebarLink } from "../ui/sidebar-link";
