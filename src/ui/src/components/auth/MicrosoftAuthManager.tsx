@@ -1,6 +1,5 @@
 import { LogOut } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { MyShavesDialog } from "@/components/portal/MyShavesDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +20,6 @@ export function MicrosoftAuthManager() {
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showMyShaves, setShowMyShaves] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -88,7 +86,9 @@ export function MicrosoftAuthManager() {
               <AvatarFallback>{getInitials(status?.name)}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col items-start gap-1">
-              <p className="text-sm font-medium text-white truncate">{status?.name}</p>
+              <p className="text-sm font-medium text-white truncate">
+                {status?.name}
+              </p>
               <p className="text-xs text-white/60 truncate">{status?.email}</p>
             </div>
           </div>
@@ -96,14 +96,10 @@ export function MicrosoftAuthManager() {
         <DropdownMenuContent align="end">
           <div className="p-3">
             <div className="mb-3 pb-3 border-b border-white/10">
-              <p className="text-sm font-medium text-white truncate">{status?.name}</p>
+              <p className="text-sm font-medium text-white truncate">
+                {status?.name}
+              </p>
             </div>
-            <DropdownMenuItem
-              onClick={() => setShowMyShaves(true)}
-              className="text-white hover:bg-white/10"
-            >
-              <span>My Shaves</span>
-            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={logout}
               disabled={loading}
@@ -116,7 +112,6 @@ export function MicrosoftAuthManager() {
         </DropdownMenuContent>
       </DropdownMenu>
       {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
-      <MyShavesDialog open={showMyShaves} onOpenChange={setShowMyShaves} />
     </div>
   );
 }
