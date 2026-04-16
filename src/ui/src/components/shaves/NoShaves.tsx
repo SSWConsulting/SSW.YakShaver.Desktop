@@ -2,8 +2,8 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 
 const NO_SHAVES_STEPS: string[] = [
   "Record screen and describe the issue",
-  "AI transcribes and analyzes content",
-  "Receive a structured work item ready to send",
+  "See AI transcribe and analyze your video",
+  "Open the generated work item",
 ];
 
 export function NoShaves() {
