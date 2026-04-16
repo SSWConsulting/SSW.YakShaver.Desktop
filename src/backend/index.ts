@@ -340,13 +340,21 @@ if (!gotTheLock) {
       mainWindow.focus();
 
       // Check for protocol URL in command line (Windows)
-      const url = commandLine.find((arg) => arg.startsWith(`${customProtocol}://`));
+      // Match any yakshaver protocol URL (covers both dev and prod protocols,
+      // as well as custom protocols from Azure/IdentityServer config)
+      const url = commandLine.find(
+        (arg) =>
+          arg.startsWith(`${customProtocol}://`) || arg.startsWith("yakshaver-desktop-dev://") || arg.startsWith("yakshaver-desktop://"),
+      );
       if (url) {
         handleProtocolUrlSafely(mainWindow, url);
       }
     } else {
       // Store for later if window not ready yet
-      const url = commandLine.find((arg) => arg.startsWith(`${customProtocol}://`));
+      const url = commandLine.find(
+        (arg) =>
+          arg.startsWith(`${customProtocol}://`) || arg.startsWith("yakshaver-desktop-dev://") || arg.startsWith("yakshaver-desktop://"),
+      );
       if (url) {
         pendingProtocolUrl = url;
       }

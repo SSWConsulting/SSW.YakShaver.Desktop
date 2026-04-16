@@ -37,7 +37,7 @@ export function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">("table");
 
-  const [sorting, setSorting] = useState<SortingState>([{ id: "lastUpdated", desc: true }]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: "updated", desc: true }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
 
