@@ -46,8 +46,12 @@ export function HomePage() {
     setError(null);
     try {
       const result = await ipcClient.shave.getAll();
-      const items = result.data ?? [];
-      setShaves(items);
+      if (!result.success) {
+        setError(result.error || "Failed to load shaves");
+        toast.error(result.error || "Failed to load shaves");
+        return;
+      }
+      setShaves(result.data ?? []);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load shaves";
       setError(message);
