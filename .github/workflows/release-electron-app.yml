@@ -73,7 +73,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_AUTH_SCOPE: ${{ secrets.AZURE_AUTH_SCOPE }}
           AZURE_AUTH_CUSTOM_PROTOCOL: yakshaver-desktop
-          IDENTITY_SERVER_URL: https://app-ssw-ident-production-api.azurewebsites.net
+          IDENTITY_SERVER_URL: https://identity.ssw.com.au/
           IDENTITY_SERVER_CLIENT_ID: ${{ secrets.IDENTITY_SERVER_CLIENT_ID }}
           IDENTITY_SERVER_SCOPE: ${{ secrets.IDENTITY_SERVER_SCOPE }}
           IDENTITY_SERVER_CUSTOM_PROTOCOL: yakshaver-desktop
@@ -205,7 +205,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_AUTH_SCOPE: ${{ secrets.AZURE_AUTH_SCOPE }}
           AZURE_AUTH_CUSTOM_PROTOCOL: yakshaver-desktop
-          IDENTITY_SERVER_URL: https://app-ssw-ident-production-api.azurewebsites.net
+          IDENTITY_SERVER_URL: https://identity.ssw.com.au/
           IDENTITY_SERVER_CLIENT_ID: ${{ secrets.IDENTITY_SERVER_CLIENT_ID }}
           IDENTITY_SERVER_SCOPE: ${{ secrets.IDENTITY_SERVER_SCOPE }}
           IDENTITY_SERVER_CUSTOM_PROTOCOL: yakshaver-desktop
@@ -345,7 +345,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_AUTH_SCOPE: ${{ secrets.AZURE_AUTH_SCOPE }}
           AZURE_AUTH_CUSTOM_PROTOCOL: yakshaver-desktop
-          IDENTITY_SERVER_URL: https://app-ssw-ident-production-api.azurewebsites.net
+          IDENTITY_SERVER_URL: https://identity.ssw.com.au/
           IDENTITY_SERVER_CLIENT_ID: ${{ secrets.IDENTITY_SERVER_CLIENT_ID }}
           IDENTITY_SERVER_SCOPE: ${{ secrets.IDENTITY_SERVER_SCOPE }}
           IDENTITY_SERVER_CUSTOM_PROTOCOL: yakshaver-desktop
