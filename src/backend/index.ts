@@ -344,7 +344,9 @@ if (!gotTheLock) {
       // as well as custom protocols from Azure/IdentityServer config)
       const url = commandLine.find(
         (arg) =>
-          arg.startsWith(`${customProtocol}://`) || arg.startsWith("yakshaver-desktop-dev://") || arg.startsWith("yakshaver-desktop://"),
+          arg.startsWith(`${customProtocol}://`) ||
+          arg.startsWith("yakshaver-desktop-dev://") ||
+          arg.startsWith("yakshaver-desktop://"),
       );
       if (url) {
         handleProtocolUrlSafely(mainWindow, url);
@@ -353,7 +355,9 @@ if (!gotTheLock) {
       // Store for later if window not ready yet
       const url = commandLine.find(
         (arg) =>
-          arg.startsWith(`${customProtocol}://`) || arg.startsWith("yakshaver-desktop-dev://") || arg.startsWith("yakshaver-desktop://"),
+          arg.startsWith(`${customProtocol}://`) ||
+          arg.startsWith("yakshaver-desktop-dev://") ||
+          arg.startsWith("yakshaver-desktop://"),
       );
       if (url) {
         pendingProtocolUrl = url;
