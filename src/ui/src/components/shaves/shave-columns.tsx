@@ -27,9 +27,9 @@ export function createShaveColumns(): ColumnDef<Shave>[] {
       ),
     },
     {
-      id: "lastUpdated",
+      id: "updated",
       accessorFn: (row) => new Date(row.updatedAt || row.createdAt).getTime(),
-      header: ({ column }) => <SortableHeader column={column} label="Last Updated" />,
+      header: ({ column }) => <SortableHeader column={column} label="Updated" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground whitespace-nowrap">
           {timeAgo(new Date(row.original.updatedAt || row.original.createdAt))}
