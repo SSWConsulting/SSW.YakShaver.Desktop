@@ -31,6 +31,12 @@ const IPC_CHANNELS = {
   MS_AUTH_STATUS: "msauth:status",
   MS_AUTH_ACCOUNT_INFO: "msgraph:get-me",
 
+  // IdentityServer auth
+  IS_AUTH_LOGIN: "identityserver:login",
+  IS_AUTH_LOGOUT: "identityserver:logout",
+  IS_AUTH_STATUS: "identityserver:status",
+  IS_AUTH_ACCOUNT_INFO: "identityserver:account-info",
+
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
   START_RECORDING_TIMER: "start-recording-timer",
@@ -182,6 +188,12 @@ const electronAPI = {
       logout: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGOUT),
       status: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_STATUS),
       accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO),
+    },
+    identityServer: {
+      login: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_LOGIN),
+      logout: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_LOGOUT),
+      status: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_STATUS),
+      accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_ACCOUNT_INFO),
     },
   },
   screenRecording: {

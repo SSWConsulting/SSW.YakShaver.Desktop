@@ -1,14 +1,13 @@
 // Followed example from Microsoft's Electron sample app
 // https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/samples/msal-node-samples/ElectronSystemBrowserTestApp/README.md
-import { join } from "node:path";
 import { InteractionRequiredAuthError, LogLevel, PublicClientApplication } from "@azure/msal-node";
-import { app, shell } from "electron";
+import { shell } from "electron";
 import { formatAndReportError } from "../../utils/error-utils";
 import { MsalSecureCachePlugin } from "./msal-cache-plugin";
+import { loadAuthTemplate, loadSuccessAuthTemplate } from "./auth-templates";
 import type { AuthState } from "./types";
 import { AuthStatus } from "./types";
 import "isomorphic-fetch";
-import * as fs from "node:fs";
 import type {
   AccountInfo,
   AuthenticationResult,
@@ -192,40 +191,9 @@ export class MicrosoftAuthService {
 
   async getTokenInteractive(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
     try {
-      // Determine the correct path for template files based on environment
-      let uiDir: string;
-      if (app.isPackaged) {
-        // In production, templates are in extraResources in the Resources folder
-        uiDir = join(process.resourcesPath, "src/ui");
-      } else {
-        // In development, templates are in src/ui
-        uiDir = join(__dirname, "../../../../src/ui");
-      }
-
-      const successPath = join(uiDir, "successTemplate.html");
-      const errorPath = join(uiDir, "errorTemplate.html");
-
-      // Check if files exist
-      if (!fs.existsSync(successPath)) {
-        console.error(`[Auth Debug] Success template not found at: ${successPath}`);
-        throw new Error(`Success template not found: ${successPath}`);
-      }
-      if (!fs.existsSync(errorPath)) {
-        console.error(`[Auth Debug] Error template not found at: ${errorPath}`);
-        throw new Error(`Error template not found: ${errorPath}`);
-      }
-
-      // Determine protocol for deep linking back to the app
       const azureConfig = config.azure();
-      const protocol =
-        azureConfig?.customProtocol ||
-        (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
-      const redirectUrl = `${protocol}://auth`;
-
-      let successHtml = fs.readFileSync(successPath, "utf8");
-      successHtml = successHtml.replace("redirectUrl", redirectUrl);
-
-      const errorHtml = fs.readFileSync(errorPath, "utf8");
+      const successHtml = loadSuccessAuthTemplate(azureConfig?.customProtocol);
+      const errorHtml = loadAuthTemplate("errorTemplate.html");
       const openBrowser = async (url: string) => await shell.openExternal(url);
       const interactiveRequest: InteractiveRequest = {
         ...tokenRequest,

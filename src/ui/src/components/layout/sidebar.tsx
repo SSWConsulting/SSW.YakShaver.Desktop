@@ -1,6 +1,6 @@
 import YakOutline from "/logos/SQ-YakShaver-LogoIcon-Outline.svg?url";
 import logoImage from "/logos/YakShaver-Horizontal-Color-Darkmode.svg?url";
-import { MicrosoftAuthManager } from "../auth/MicrosoftAuthManager";
+import { IdentityServerAuthManager } from "../auth/IdentityServerAuthManager";
 import { ScreenRecorder } from "../recording/ScreenRecorder";
 import { SettingsDialog } from "../settings/SettingsDialog";
 import { SidebarLink } from "../ui/sidebar-link";
@@ -25,7 +25,7 @@ export default function Sidebar() {
       </nav>
       <div className="relative bottom-0 mt-auto flex flex-col gap-3 left-0">
         <SettingsDialog />
-        <MicrosoftAuthManager />
+        <IdentityServerAuthManager />
       </div>
     </div>
   );

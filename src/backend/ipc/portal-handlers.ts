@@ -1,15 +1,18 @@
 import https from "node:https";
 import { ipcMain } from "electron";
 import { config } from "../config/env";
-import type { MicrosoftAuthService } from "../services/auth/microsoft-auth";
+import type { IdentityServerAuthService } from "../services/auth/identity-server-auth";
 import type { GetMyShavesResponse } from "../types";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
-export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthService) {
+export function registerPortalHandlers(identityServerAuthService: IdentityServerAuthService) {
   ipcMain.handle(IPC_CHANNELS.PORTAL_GET_MY_SHAVES, async () => {
     try {
-      const result = await microsoftAuthService.getToken();
+      const accessToken = await identityServerAuthService.getAccessToken();
+      if (!accessToken) {
+        return { success: false, error: "Failed to obtain access token" };
+      }
 
       // Parse the portal API URL
       const apiUrl = config.portalApiUrl();
@@ -26,7 +29,7 @@ export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthServic
           path: path,
           method: "GET",
           headers: {
-            Authorization: `Bearer ${result.accessToken}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
         };
@@ -76,7 +79,10 @@ export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthServic
     }
 
     try {
-      const result = await microsoftAuthService.getToken();
+      const accessToken = await identityServerAuthService.getAccessToken();
+      if (!accessToken) {
+        return { success: false, error: "Failed to obtain access token" };
+      }
 
       const apiUrl = config.portalApiUrl();
       const portalApiUrl = new URL(apiUrl);
@@ -86,7 +92,7 @@ export function registerPortalHandlers(microsoftAuthService: MicrosoftAuthServic
       const response = await fetch(requestUrl.toString(), {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${result.accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",
         },
       });

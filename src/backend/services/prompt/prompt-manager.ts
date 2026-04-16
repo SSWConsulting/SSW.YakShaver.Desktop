@@ -1,7 +1,7 @@
 import https from "node:https";
 import { config } from "../../config/env";
 import { formatErrorMessage } from "../../utils/error-utils";
-import { MicrosoftAuthService } from "../auth/microsoft-auth";
+import { IdentityServerAuthService } from "../auth/identity-server-auth";
 import { CustomPromptStorage } from "../storage/custom-prompt-storage";
 
 // Define the Prompt interface that consolidates local and remote prompts
@@ -40,10 +40,10 @@ export interface ProjectDto {
 
 export class PromptManager {
   private static instance: PromptManager;
-  private microsoftAuthService: MicrosoftAuthService;
+  private identityServerAuthService: IdentityServerAuthService;
 
   private constructor() {
-    this.microsoftAuthService = MicrosoftAuthService.getInstance();
+    this.identityServerAuthService = IdentityServerAuthService.getInstance();
   }
 
   public static getInstance(): PromptManager {
@@ -94,12 +94,13 @@ export class PromptManager {
    */
   async getRemotePrompts(): Promise<PromptSummary[]> {
     try {
-      if (!(await this.microsoftAuthService.isAuthenticated())) {
+      if (!(await this.identityServerAuthService.isAuthenticated())) {
         return [];
       }
 
-      const tokenResult = await this.microsoftAuthService.getToken();
-      if (!tokenResult || !tokenResult.accessToken) {
+      const accessToken = await this.identityServerAuthService.getAccessToken();
+
+      if (!accessToken) {
         console.warn("No access token available for remote prompts.");
         return [];
       }
@@ -118,7 +119,7 @@ export class PromptManager {
           path: path,
           method: "GET",
           headers: {
-            Authorization: `Bearer ${tokenResult.accessToken}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
         };
@@ -195,8 +196,8 @@ export class PromptManager {
     }
 
     try {
-      const tokenResult = await this.microsoftAuthService.getToken();
-      if (!tokenResult || !tokenResult.accessToken) {
+      const accessToken = await this.identityServerAuthService.getAccessToken();
+      if (!accessToken) {
         throw new Error("No access token available for fetching project details.");
       }
 
@@ -214,7 +215,7 @@ export class PromptManager {
           path: path,
           method: "GET",
           headers: {
-            Authorization: `Bearer ${tokenResult.accessToken}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
         };
