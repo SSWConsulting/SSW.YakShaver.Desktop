@@ -15,25 +15,10 @@ import { WorkflowPage } from "./pages/WorkflowPage";
 import { ipcClient } from "./services/ipc-client";
 
 export default function App() {
-  const [appVersion, setAppVersion] = useState<string>("");
-  const [commitHash, setCommitHash] = useState<string>("");
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
 
   // Auto-save shaves when workflow completes
   useShaveManager();
-
-  useEffect(() => {
-    const fetchVersion = async () => {
-      try {
-        const info = await window.electronAPI.releaseChannel.getCurrentVersion();
-        setAppVersion(info.version);
-        setCommitHash(info.commitHash);
-      } catch (error) {
-        console.error("Failed to fetch app version information:", error);
-      }
-    };
-    fetchVersion();
-  }, []);
 
   useEffect(() => {
     const unsubscribe = ipcClient.app.onProtocolError((message) => {
@@ -63,11 +48,6 @@ export default function App() {
                   </Routes>
                 </HashRouter>
               )}
-
-              <div className="fixed bottom-2 left-2 text-[10px] text-white/30 z-50 pointer-events-none font-mono">
-                {appVersion && `v${appVersion} `}
-                {commitHash && `(${commitHash})`}
-              </div>
             </div>
           </InteractionProvider>
         </TelemetryConsentInitializer>
