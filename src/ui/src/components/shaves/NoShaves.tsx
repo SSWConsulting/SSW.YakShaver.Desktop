@@ -11,7 +11,7 @@ export function NoShaves() {
     <Empty>
       <EmptyHeader className='gap-6 items-start!'>
         <EmptyTitle>⛔️ - You don't have any YakShaves yet!</EmptyTitle>
-        <EmptyDescription className="">Get started in 3 easy steps:</EmptyDescription>
+        <EmptyDescription>Get started in 3 easy steps:</EmptyDescription>
       </EmptyHeader>
       <div className="flex flex-col gap-6">
         {NO_SHAVES_STEPS.map((step, index) => (
