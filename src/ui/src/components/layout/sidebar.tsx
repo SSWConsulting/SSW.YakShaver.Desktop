@@ -47,7 +47,6 @@ export default function Sidebar() {
           <div className="text-[10px] text-white/30 font-mono break-all leading-tight">
             {appVersion && `v${appVersion} `}
             {commitHash && `(${commitHash})`}
-            
           </div>
         )}
       </div>
