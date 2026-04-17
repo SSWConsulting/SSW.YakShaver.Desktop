@@ -168,7 +168,7 @@ export function SettingsDialog() {
           aria-label="Open settings"
         >
           <Settings className="h-5 w-5" />
-          <span className='text-xl'>Settings</span>
+          <span className="text-xl">Settings</span>
         </Button>
       </DialogTrigger>
 
