@@ -172,8 +172,8 @@ export function SettingsDialog() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none max-h-[85vh] overflow-hidden">
-        <DialogHeader className="mb-6">
+      <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none h-[85vh] max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader className="mb-2 flex-shrink-0">
           <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
             <Settings className="h-5 w-5" />
             Settings
@@ -183,8 +183,8 @@ export function SettingsDialog() {
           </p>
         </DialogHeader>
 
-        <div className="flex gap-6 h-[calc(85vh-120px)] overflow-hidden min-h-0">
-          <nav className="w-48 flex flex-col gap-1 flex-shrink-0">
+        <div className="flex gap-6 flex-1 min-h-0 overflow-hidden">
+          <nav className="w-48 flex flex-col gap-1 flex-shrink-0 overflow-y-auto pr-1">
             {TABS.map((tab) => {
               const isActive = tab.id === activeTabId;
               return (
