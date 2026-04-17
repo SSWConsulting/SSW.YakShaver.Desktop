@@ -1,9 +1,9 @@
 import { Video } from "lucide-react";
 import { getYouTubeThumbnail } from "@/lib/utils";
-import type { ShaveItem } from "../../types";
+import type { Shave } from "../../types";
 
 interface VideoThumbnailProps {
-  shave: ShaveItem;
+  shave: Shave;
 }
 
 export function VideoThumbnail({ shave }: VideoThumbnailProps) {

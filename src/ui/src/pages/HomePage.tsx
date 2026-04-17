@@ -15,7 +15,7 @@ import { LoadingState } from "../components/common/LoadingState";
 import { DataTable } from "../components/data-table";
 import { NoShaves } from "../components/shaves/NoShaves";
 import { ShaveCards } from "../components/shaves/ShaveCards";
-import { shaveColumns } from "../components/shaves/shave-columns";
+import { createShaveColumns } from "../components/shaves/shave-columns";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
@@ -27,17 +27,17 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { ipcClient } from "../services/ipc-client";
-import { type ShaveItem, ShaveStatus } from "../types";
+import { type Shave, ShaveStatus } from "../types";
 
 const ALL_STATUSES = Object.values(ShaveStatus);
 
 export function HomePage() {
-  const [shaves, setShaves] = useState<ShaveItem[]>([]);
+  const [shaves, setShaves] = useState<Shave[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">("table");
 
-  const [sorting, setSorting] = useState<SortingState>([{ id: "created", desc: true }]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: "updated", desc: true }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
 
@@ -45,9 +45,13 @@ export function HomePage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await ipcClient.portal.getMyShaves();
-      const items = result.data?.items ?? [];
-      setShaves(items);
+      const result = await ipcClient.shave.getAll();
+      if (!result.success) {
+        setError(result.error || "Failed to load shaves");
+        toast.error(result.error || "Failed to load shaves");
+        return;
+      }
+      setShaves(result.data ?? []);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load shaves";
       setError(message);
@@ -63,7 +67,7 @@ export function HomePage() {
   }, [loadShaves]);
 
   const projectNames = useMemo(() => {
-    const names = new Set(shaves.map((s) => s.projectName).filter(Boolean));
+    const names = new Set(shaves.map((s) => s.projectName).filter((n): n is string => n !== null));
     return Array.from(names).sort();
   }, [shaves]);
 
@@ -79,8 +83,10 @@ export function HomePage() {
   const clearFilters = () => {
     setGlobalFilter("");
     setColumnFilters([]);
-    setSorting([{ id: "created", desc: true }]);
+    setSorting([{ id: "lastUpdated", desc: true }]);
   };
+
+  const shaveColumns = useMemo(() => createShaveColumns(), []);
 
   const table = useReactTable({
     data: shaves,
@@ -119,7 +125,7 @@ export function HomePage() {
           className="p-1 border border-white/20 rounded-md"
           type="single"
           value={shaveDisplayMode}
-          onValueChange={(v) => v && setShaveDisplayMode(v as "table" | "card")}
+          onValueChange={(v: string) => v && setShaveDisplayMode(v as "table" | "card")}
         >
           <ToggleGroupItem value="table" aria-label="Table view">
             <List className="h-4 w-4" />

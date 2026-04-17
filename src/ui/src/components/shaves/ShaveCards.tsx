@@ -1,15 +1,15 @@
 import { Video } from "lucide-react";
 import { getStatusVariant } from "@/lib/shave-utils";
 import { getYouTubeThumbnail, timeAgo } from "@/lib/utils";
-import type { ShaveItem } from "../../types";
+import type { Shave } from "../../types";
 import { Badge } from "../ui/badge";
 import { ShaveAction } from "./ShaveAction";
 
-function ShaveCardFooter({ shave }: { shave: ShaveItem }) {
+function ShaveCardFooter({ shave }: { shave: Shave }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        {shave.projectName ? <Badge variant="outline">{shave.projectName}</Badge> : <span />}
+        {shave.projectName ? <Badge variant="outline">{shave.projectName}</Badge> : <span>—</span>}
         <span className="text-sm text-muted-foreground">
           {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
         </span>
@@ -22,7 +22,7 @@ function ShaveCardFooter({ shave }: { shave: ShaveItem }) {
   );
 }
 
-function ShaveCard({ shave }: { shave: ShaveItem }) {
+function ShaveCard({ shave }: { shave: Shave }) {
   const thumbnail = shave.videoEmbedUrl ? getYouTubeThumbnail(shave.videoEmbedUrl) : null;
   const videoUrl = shave.videoEmbedUrl?.replace("embed/", "watch?v=") || null;
 
@@ -56,7 +56,7 @@ function ShaveCard({ shave }: { shave: ShaveItem }) {
   );
 }
 
-export function ShaveCards({ shaves }: { shaves: ShaveItem[] }) {
+export function ShaveCards({ shaves }: { shaves: Shave[] }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
       {shaves.map((shave) => (

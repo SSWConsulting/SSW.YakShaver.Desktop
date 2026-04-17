@@ -1,6 +1,5 @@
 import { LogOut } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { MyShavesDialog } from "@/components/portal/MyShavesDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +19,6 @@ export function IdentityServerAuthManager() {
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showMyShaves, setShowMyShaves] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -99,12 +97,6 @@ export function IdentityServerAuthManager() {
               <p className="text-sm font-medium text-white truncate">{status?.name}</p>
             </div>
             <DropdownMenuItem
-              onClick={() => setShowMyShaves(true)}
-              className="text-white hover:bg-white/10"
-            >
-              <span>My Shaves</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
               onClick={logout}
               disabled={loading}
               className="text-red-400 hover:bg-red-500/10"
@@ -116,7 +108,6 @@ export function IdentityServerAuthManager() {
         </DropdownMenuContent>
       </DropdownMenu>
       {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
-      <MyShavesDialog open={showMyShaves} onOpenChange={setShowMyShaves} />
     </div>
   );
 }

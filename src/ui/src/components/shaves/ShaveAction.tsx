@@ -1,16 +1,16 @@
 import { ExternalLink, RefreshCw, Square } from "lucide-react";
-import type { ShaveItem } from "../../types";
+import { type Shave, ShaveStatus } from "../../types";
 import { Button } from "../ui/button";
 
-export function ShaveAction({ shave }: { shave: ShaveItem }) {
-  if (shave.shaveStatus === "Processing") {
+export function ShaveAction({ shave }: { shave: Shave }) {
+  if (shave.shaveStatus === ShaveStatus.Processing) {
     return (
       <Button variant="outline" size="sm" className="gap-1">
         <Square className="h-3 w-3" /> Stop
       </Button>
     );
   }
-  if (shave.shaveStatus === "Failed") {
+  if (shave.shaveStatus === ShaveStatus.Failed) {
     return (
       <Button variant="outline" size="sm" className="gap-1">
         <RefreshCw className="h-3 w-3" /> Retry
