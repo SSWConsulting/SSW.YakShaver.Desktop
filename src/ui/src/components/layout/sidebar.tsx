@@ -45,9 +45,9 @@ export default function Sidebar() {
         <IdentityServerAuthManager />
         {(appVersion || commitHash) && (
           <div className="text-[10px] text-white/30 font-mono break-all leading-tight">
-            {/* {appVersion && `v${appVersion} `}
-            {commitHash && `(${commitHash})`} */}
-            v2026.4.16-BUILD.186.ecfca55 (ecfa55adfb2dc871622ac3f03d78dd18bf0040)
+            {appVersion && `v${appVersion} `}
+            {commitHash && `(${commitHash})`}
+            
           </div>
         )}
       </div>
