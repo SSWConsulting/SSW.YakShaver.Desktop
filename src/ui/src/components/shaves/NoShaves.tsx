@@ -9,7 +9,7 @@ const NO_SHAVES_STEPS: string[] = [
 export function NoShaves() {
   return (
     <Empty>
-      <EmptyHeader className='gap-6'>
+      <EmptyHeader className='gap-6 items-start!'>
         <EmptyTitle>⛔️ - You don't have any YakShaves yet!</EmptyTitle>
         <EmptyDescription className="">Get started in 3 easy steps:</EmptyDescription>
       </EmptyHeader>
