@@ -65,14 +65,14 @@ function RecordButton({
     return (
       <Button
         className={cn(
-          "bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
+          "bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
           className,
         )}
         onClick={onToggleRecording}
         size="chunky"
         disabled={isDisabled}
       >
-        <CircleStopIcon />
+        <CircleStopIcon className="w-5 h-5" />
         {label}
       </Button>
     );
@@ -81,7 +81,7 @@ function RecordButton({
   return (
     <div className={cn("flex w-full rounded-md overflow-hidden", className)}>
       <Button
-        className="flex-1 bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
+        className="flex-1 text bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
         onClick={onToggleRecording}
         size="chunky"
         disabled={isDisabled}

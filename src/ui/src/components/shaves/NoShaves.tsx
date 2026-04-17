@@ -10,7 +10,7 @@ export function NoShaves() {
   return (
     <Empty>
       <EmptyHeader>
-        <EmptyTitle>You don't have any YakShaves yet!</EmptyTitle>
+        <EmptyTitle>⛔️ - You don't have any YakShaves yet!</EmptyTitle>
         <EmptyDescription>Get started in 3 easy steps:</EmptyDescription>
       </EmptyHeader>
       <div className="flex flex-col gap-6">
