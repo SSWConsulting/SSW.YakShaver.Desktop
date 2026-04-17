@@ -73,7 +73,9 @@ export function IdentityServerAuthManager() {
   if (!status?.isAuthenticated) {
     return (
       <div className="flex items-center">
-        <Button className="w-full" onClick={login}>Sign In</Button>
+        <Button className="w-full" onClick={login}>
+          Sign In
+        </Button>
         {error && <span className="text-ssw-red text-xs ml-2">{error}</span>}
       </div>
     );
