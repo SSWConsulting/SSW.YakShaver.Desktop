@@ -112,35 +112,34 @@ export function HomePage() {
     <div className="z-10 flex flex-col p-8 h-full gap-6 w-full min-w-0">
       <div className="flex items-start md:items-center flex-col md:flex-row justify-between gap-4">
         <Heading>My Shaves</Heading>
-        
+
         {shaves.length > 0 && (
-        <ToggleGroup
-          className="p-1 border border-white/20 rounded-md"
-          type="single"
-          value={shaveDisplayMode}
-          onValueChange={(v: string) => v && setShaveDisplayMode(v as "table" | "card")}
-        >
-          <ToggleGroupItem value="table" aria-label="Table view">
-            <List className="h-4 w-4" />
-            {shaveDisplayMode === "table" ? "Table view" : ""}
-          </ToggleGroupItem>
-          <ToggleGroupItem value="card" aria-label="Card view">
-            <LayoutGrid className="h-4 w-4" />
-            {shaveDisplayMode === "card" ? "Card view" : ""}
-          </ToggleGroupItem>
-        </ToggleGroup>
+          <ToggleGroup
+            className="p-1 border border-white/20 rounded-md"
+            type="single"
+            value={shaveDisplayMode}
+            onValueChange={(v: string) => v && setShaveDisplayMode(v as "table" | "card")}
+          >
+            <ToggleGroupItem value="table" aria-label="Table view">
+              <List className="h-4 w-4" />
+              {shaveDisplayMode === "table" ? "Table view" : ""}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="card" aria-label="Card view">
+              <LayoutGrid className="h-4 w-4" />
+              {shaveDisplayMode === "card" ? "Card view" : ""}
+            </ToggleGroupItem>
+          </ToggleGroup>
         )}
       </div>
 
-
       {shaves.length > 0 && (
-      <ShaveFilters
-        globalFilter={globalFilter}
-        setGlobalFilter={setGlobalFilter}
-        statusFilter={statusFilter}
-        projectFilter={projectFilter}
-        setColumnFilters={setColumnFilters}
-        projectNames={projectNames}
+        <ShaveFilters
+          globalFilter={globalFilter}
+          setGlobalFilter={setGlobalFilter}
+          statusFilter={statusFilter}
+          projectFilter={projectFilter}
+          setColumnFilters={setColumnFilters}
+          projectNames={projectNames}
           hasActiveFilters={Boolean(hasActiveFilters)}
           clearFilters={clearFilters}
         />
