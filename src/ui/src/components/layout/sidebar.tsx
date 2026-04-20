@@ -31,7 +31,7 @@ export default function Sidebar() {
       <ScreenRecorder showButtonOnly={true} className="w-full justify-start" />
       <nav className="flex flex-col gap-6">
         <SidebarLink to="/">
-          <img src={YakOutline} alt="YakShaver" className="h-4 w-4" />
+          <img src={YakOutline} alt="YakShaver" className="h-5 w-5" />
           Shaves
         </SidebarLink>
         {/* TODO: Add in for https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/816  */}

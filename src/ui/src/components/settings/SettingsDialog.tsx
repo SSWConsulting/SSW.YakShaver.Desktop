@@ -167,8 +167,8 @@ export function SettingsDialog() {
           className="flex items-center justify-start gap-2 text-white/60 bg-transparent hover:text-white hover:bg-white/10 transition-colors duration-300"
           aria-label="Open settings"
         >
-          <Settings className="h-4 w-4" />
-          <span>Settings</span>
+          <Settings className="h-5 w-5" />
+          <span className="text-xl">Settings</span>
         </Button>
       </DialogTrigger>
 

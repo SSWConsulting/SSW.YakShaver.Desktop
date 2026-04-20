@@ -12,7 +12,7 @@ export function SidebarLink({ to, children }: SidebarLinkProps) {
         to={to}
         end
         className={({ isActive }) =>
-          `flex items-center gap-2 px-6 py-4 rounded-md text-sm transition-colors duration-300 ${
+          `flex items-center gap-2 px-6 py-4 rounded-md text-xl transition-colors duration-300 ${
             isActive
               ? "bg-white/8 text-white hover:bg-white/15"
               : "text-white/60 bg-transparent hover:text-white hover:bg-white/10"

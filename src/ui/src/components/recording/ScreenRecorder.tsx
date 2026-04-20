@@ -65,14 +65,14 @@ function RecordButton({
     return (
       <Button
         className={cn(
-          "bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
+          "bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
           className,
         )}
         onClick={onToggleRecording}
         size="chunky"
         disabled={isDisabled}
       >
-        <CircleStopIcon />
+        <CircleStopIcon className="w-5 h-5" />
         {label}
       </Button>
     );
