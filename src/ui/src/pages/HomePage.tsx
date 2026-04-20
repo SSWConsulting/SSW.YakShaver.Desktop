@@ -6,7 +6,7 @@ import {
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { LayoutGrid, List, RefreshCw, Search, X } from "lucide-react";
+import { LayoutGrid, List, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Heading } from "@/components/typography/heading-tag";
@@ -15,21 +15,12 @@ import { LoadingState } from "../components/common/LoadingState";
 import { DataTable } from "../components/data-table";
 import { NoShaves } from "../components/shaves/NoShaves";
 import { ShaveCards } from "../components/shaves/ShaveCards";
+import { ShaveFilters } from "../components/shaves/ShaveFilters";
 import { createShaveColumns } from "../components/shaves/shave-columns";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
 import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select";
 import { ipcClient } from "../services/ipc-client";
-import { type Shave, ShaveStatus } from "../types";
-
-const ALL_STATUSES = Object.values(ShaveStatus);
+import type { Shave } from "../types";
 
 export function HomePage() {
   const [shaves, setShaves] = useState<Shave[]>([]);
@@ -121,86 +112,38 @@ export function HomePage() {
     <div className="z-10 flex flex-col p-8 h-full gap-6 w-full min-w-0">
       <div className="flex items-start md:items-center flex-col md:flex-row justify-between gap-4">
         <Heading>My Shaves</Heading>
-        <ToggleGroup
-          className="p-1 border border-white/20 rounded-md"
-          type="single"
-          value={shaveDisplayMode}
-          onValueChange={(v: string) => v && setShaveDisplayMode(v as "table" | "card")}
-        >
-          <ToggleGroupItem value="table" aria-label="Table view">
-            <List className="h-4 w-4" />
-            {shaveDisplayMode === "table" ? "Table view" : ""}
-          </ToggleGroupItem>
-          <ToggleGroupItem value="card" aria-label="Card view">
-            <LayoutGrid className="h-4 w-4" />
-            {shaveDisplayMode === "card" ? "Card view" : ""}
-          </ToggleGroupItem>
-        </ToggleGroup>
+
+        {shaves.length > 0 && (
+          <ToggleGroup
+            className="p-1 border border-white/20 rounded-md"
+            type="single"
+            value={shaveDisplayMode}
+            onValueChange={(v: string) => v && setShaveDisplayMode(v as "table" | "card")}
+          >
+            <ToggleGroupItem value="table" aria-label="Table view">
+              <List className="h-4 w-4" />
+              {shaveDisplayMode === "table" ? "Table view" : ""}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="card" aria-label="Card view">
+              <LayoutGrid className="h-4 w-4" />
+              {shaveDisplayMode === "card" ? "Card view" : ""}
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )}
       </div>
 
-      {/* Search, Filter, Sort controls */}
-      <div className="flex flex-col gap-3">
-        <div className="relative w-full lg:max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search shaves..."
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex flex-row gap-3 items-center">
-          <Select
-            value={statusFilter || "all"}
-            onValueChange={(value) => {
-              setColumnFilters((prev) => {
-                const without = prev.filter((f) => f.id !== "shaveStatus");
-                return value === "all" ? without : [...without, { id: "shaveStatus", value }];
-              });
-            }}
-          >
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {ALL_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {projectNames.length > 0 && (
-            <Select
-              value={projectFilter || "all"}
-              onValueChange={(value) => {
-                setColumnFilters((prev) => {
-                  const without = prev.filter((f) => f.id !== "projectName");
-                  return value === "all" ? without : [...without, { id: "projectName", value }];
-                });
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Project" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All projects</SelectItem>
-                {projectNames.map((name) => (
-                  <SelectItem key={name} value={name}>
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
-              <X className="h-3 w-3" /> Clear
-            </Button>
-          )}
-        </div>
-      </div>
+      {shaves.length > 0 && (
+        <ShaveFilters
+          globalFilter={globalFilter}
+          setGlobalFilter={setGlobalFilter}
+          statusFilter={statusFilter}
+          projectFilter={projectFilter}
+          setColumnFilters={setColumnFilters}
+          projectNames={projectNames}
+          hasActiveFilters={Boolean(hasActiveFilters)}
+          clearFilters={clearFilters}
+        />
+      )}
 
       <ScrollArea className="flex-1">
         {error ? (

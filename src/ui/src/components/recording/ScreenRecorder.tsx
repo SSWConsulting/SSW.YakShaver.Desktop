@@ -57,8 +57,8 @@ function RecordButton({
   onUploadClick,
   className = "",
 }: RecordButtonProps) {
-  let label = "Start Recording";
-  if (isRecording) label = "Stop Recording";
+  let label = showUpload ? "Record" : "Start Recording";
+  if (isRecording) label = showUpload ? "Stop" : "Stop Recording";
   else if (isTranscribing) label = "Transcribing...";
 
   if (!showUpload) {
@@ -81,7 +81,7 @@ function RecordButton({
   return (
     <div className={cn("flex w-full rounded-md overflow-hidden", className)}>
       <Button
-        className="flex-1 bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
+        className="flex-1 bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
         onClick={onToggleRecording}
         size="chunky"
         disabled={isDisabled}
