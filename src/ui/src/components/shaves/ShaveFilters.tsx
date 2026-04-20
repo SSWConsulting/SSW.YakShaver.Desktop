@@ -1,5 +1,6 @@
 import type { ColumnFiltersState } from "@tanstack/react-table";
 import { Search, X } from "lucide-react";
+import type { Dispatch, SetStateAction } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -12,7 +13,7 @@ interface ShaveFiltersProps {
   setGlobalFilter: (value: string) => void;
   statusFilter: string | undefined;
   projectFilter: string | undefined;
-  setColumnFilters: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
+  setColumnFilters: Dispatch<SetStateAction<ColumnFiltersState>>;
   projectNames: string[];
   hasActiveFilters: boolean;
   clearFilters: () => void;
