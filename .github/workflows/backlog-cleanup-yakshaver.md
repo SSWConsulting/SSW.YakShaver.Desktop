@@ -1,5 +1,5 @@
 ---
-name: Epic Cleanup — Dry-Run Analysis of YakShaver Backlog
+name: Backlog Cleanup — Dry-Run Analysis of YakShaver Backlog
 description: |
   Scans the YakShaver repos (Teams, Desktop, 360) for open epics whose sub-issue
   progress is below 100%, analyses their PBIs across states, and produces a single
@@ -57,7 +57,7 @@ safe-outputs:
     target-repo: ${{ inputs.target_repo }}
 ---
 
-# Epic Cleanup — Dry-Run Analysis
+# Backlog Cleanup — Dry-Run Analysis
 
 You are an expert product backlog manager. Your job is to **analyse** — not execute — a cleanup of the YakShaver product backlog across multiple repos and produce a single report issue that a human can review, tick off, and then separately execute.
 

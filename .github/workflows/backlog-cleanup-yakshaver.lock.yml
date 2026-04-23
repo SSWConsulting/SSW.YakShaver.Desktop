@@ -28,9 +28,9 @@
 # suggests source epics that could themselves be closed or archived. No epics are
 # created, linked, or modified — execution is deferred until a human confirms the plan.
 #
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"ca0161b5f619ba3f61af5ee208441c8bcef39e1924738a049885dbd8b954e7c6","compiler_version":"v0.62.3","strict":true,"agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"eeb0895223290cf0e244797f43fe84a62ef9eaeaac33c8b8d142d10a4c142294","compiler_version":"v0.62.3","strict":true,"agent_id":"copilot"}
 
-name: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
+name: "Backlog Cleanup — Dry-Run Analysis of YakShaver Backlog"
 "on":
   workflow_dispatch:
     inputs:
@@ -48,7 +48,7 @@ permissions: {}
 concurrency:
   group: "gh-aw-${{ github.workflow }}"
 
-run-name: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
+run-name: "Backlog Cleanup — Dry-Run Analysis of YakShaver Backlog"
 
 jobs:
   activation:
@@ -75,7 +75,7 @@ jobs:
           GH_AW_INFO_VERSION: ""
           GH_AW_INFO_AGENT_VERSION: "latest"
           GH_AW_INFO_CLI_VERSION: "v0.62.3"
-          GH_AW_INFO_WORKFLOW_NAME: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
+          GH_AW_INFO_WORKFLOW_NAME: "Backlog Cleanup — Dry-Run Analysis of YakShaver Backlog"
           GH_AW_INFO_EXPERIMENTAL: "false"
           GH_AW_INFO_SUPPORTS_TOOLS_ALLOWLIST: "true"
           GH_AW_INFO_STAGED: "true"
@@ -772,7 +772,7 @@ jobs:
         if: always() && steps.detection_guard.outputs.run_detection == 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          WORKFLOW_NAME: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
+          WORKFLOW_NAME: "Backlog Cleanup — Dry-Run Analysis of YakShaver Backlog"
           WORKFLOW_DESCRIPTION: "Scans the YakShaver repos (Teams, Desktop, 360) for open epics whose sub-issue\nprogress is below 100%, analyses their PBIs across states, and produces a single\n\"Dry-Run Plan\" report issue in SSWConsulting/SSW.YakShaver.Desktop. The report\nproposes smaller theme epics (tagged by product), flags open issues that look\nlike duplicates of other work (open or closed) across the whole backlog, and\nsuggests source epics that could themselves be closed or archived. No epics are\ncreated, linked, or modified — execution is deferred until a human confirms the plan."
           HAS_PATCH: ${{ steps.collect_output.outputs.has_patch }}
         with:
@@ -900,7 +900,7 @@ jobs:
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
           GH_AW_NOOP_MAX: "1"
-          GH_AW_WORKFLOW_NAME: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
+          GH_AW_WORKFLOW_NAME: "Backlog Cleanup — Dry-Run Analysis of YakShaver Backlog"
         with:
           github-token: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
           script: |
@@ -913,7 +913,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
+          GH_AW_WORKFLOW_NAME: "Backlog Cleanup — Dry-Run Analysis of YakShaver Backlog"
         with:
           github-token: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
           script: |
@@ -927,7 +927,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
+          GH_AW_WORKFLOW_NAME: "Backlog Cleanup — Dry-Run Analysis of YakShaver Backlog"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
           GH_AW_WORKFLOW_ID: "backlog-cleanup-yakshaver"
@@ -950,7 +950,7 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           GH_AW_AGENT_OUTPUT: ${{ env.GH_AW_AGENT_OUTPUT }}
-          GH_AW_WORKFLOW_NAME: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
+          GH_AW_WORKFLOW_NAME: "Backlog Cleanup — Dry-Run Analysis of YakShaver Backlog"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
           GH_AW_NOOP_MESSAGE: ${{ steps.noop.outputs.noop_message }}
@@ -974,7 +974,7 @@ jobs:
       GH_AW_ENGINE_ID: "copilot"
       GH_AW_SAFE_OUTPUTS_STAGED: "true"
       GH_AW_WORKFLOW_ID: "backlog-cleanup-yakshaver"
-      GH_AW_WORKFLOW_NAME: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
+      GH_AW_WORKFLOW_NAME: "Backlog Cleanup — Dry-Run Analysis of YakShaver Backlog"
     outputs:
       code_push_failure_count: ${{ steps.process_safe_outputs.outputs.code_push_failure_count }}
       code_push_failure_errors: ${{ steps.process_safe_outputs.outputs.code_push_failure_errors }}
