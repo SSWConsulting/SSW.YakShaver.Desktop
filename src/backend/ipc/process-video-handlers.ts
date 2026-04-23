@@ -446,8 +446,8 @@ export class ProcessVideoIPCHandlers {
     let transcript: TranscriptSegment[] | undefined = checkpoint.transcript;
     let transcriptText: string | undefined = checkpoint.transcriptText;
     let intermediateOutput: string | undefined = checkpoint.intermediateOutput;
-    let projectDetails: (ProjectDto & { selectionReason: string }) | undefined | null =
-      checkpoint.projectDetails as (ProjectDto & { selectionReason: string }) | undefined;
+    let projectDetails: (ProjectDto & { selectionReason: string, projectSource: "local" | "remote" }) | undefined | null =
+      checkpoint.projectDetails as (ProjectDto & { selectionReason: string, projectSource: "local" | "remote" }) | undefined;
     let projectMetaData: string | undefined = checkpoint.projectMetaData;
     let desktopAgentProjectPrompt: string | undefined = checkpoint.desktopAgentProjectPrompt;
     let mcpResult: string | undefined = checkpoint.mcpResult;
@@ -621,8 +621,13 @@ export class ProcessVideoIPCHandlers {
               mcpResult,
               WorkItemDtoSchema,
             );
+            const workItemDto = WorkItemDtoSchema.parse(objectResult);
+            if (projectDetails && projectDetails.projectSource === "remote") {
+              workItemDto.projectId = projectDetails.id;
+              workItemDto.projectName = projectDetails.name;
+            }
             const portalResult = await SendWorkItemDetailsToPortal(
-              WorkItemDtoSchema.parse(objectResult),
+              workItemDto,
             );
             if (!portalResult.success) {
               console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);

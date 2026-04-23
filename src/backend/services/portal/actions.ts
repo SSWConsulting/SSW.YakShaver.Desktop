@@ -70,6 +70,7 @@ async function makePortalRequest(
 
 export const WorkItemDtoSchema = z.object({
   projectName: z.string(),
+  projectId:z.guid(),
   title: z.string(),
   description: z.string(),
   workItemUrl: z.string().nullable(),
