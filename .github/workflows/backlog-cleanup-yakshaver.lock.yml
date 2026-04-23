@@ -109,7 +109,7 @@ jobs:
       - name: Check workflow file timestamps
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          GH_AW_WORKFLOW_FILE: "epic-cleanup-yakshaver.lock.yml"
+          GH_AW_WORKFLOW_FILE: "backlog-cleanup-yakshaver.lock.yml"
         with:
           script: |
             const { setupGlobals } = require('${{ runner.temp }}/gh-aw/actions/setup_globals.cjs');
@@ -177,7 +177,7 @@ jobs:
           </system>
           GH_AW_PROMPT_EOF
           cat << 'GH_AW_PROMPT_EOF'
-          {{#runtime-import .github/workflows/epic-cleanup-yakshaver.md}}
+          {{#runtime-import .github/workflows/backlog-cleanup-yakshaver.md}}
           GH_AW_PROMPT_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
@@ -257,7 +257,7 @@ jobs:
       GH_AW_ASSETS_BRANCH: ""
       GH_AW_ASSETS_MAX_SIZE_KB: 0
       GH_AW_MCP_LOG_DIR: /tmp/gh-aw/mcp-logs/safeoutputs
-      GH_AW_WORKFLOW_ID_SANITIZED: epiccleanupyakshaver
+      GH_AW_WORKFLOW_ID_SANITIZED: backlogcleanupyakshaver
     outputs:
       checkout_pr_success: ${{ steps.checkout-pr.outputs.checkout_pr_success || 'true' }}
       detection_conclusion: ${{ steps.detection_conclusion.outputs.conclusion }}
@@ -870,7 +870,7 @@ jobs:
     runs-on: ubuntu-slim
     permissions: {}
     concurrency:
-      group: "gh-aw-conclusion-epic-cleanup-yakshaver"
+      group: "gh-aw-conclusion-backlog-cleanup-yakshaver"
       cancel-in-progress: false
     outputs:
       noop_message: ${{ steps.noop.outputs.noop_message }}
@@ -930,7 +930,7 @@ jobs:
           GH_AW_WORKFLOW_NAME: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
           GH_AW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_AW_AGENT_CONCLUSION: ${{ needs.agent.result }}
-          GH_AW_WORKFLOW_ID: "epic-cleanup-yakshaver"
+          GH_AW_WORKFLOW_ID: "backlog-cleanup-yakshaver"
           GH_AW_SECRET_VERIFICATION_RESULT: ${{ needs.activation.outputs.secret_verification_result }}
           GH_AW_CHECKOUT_PR_SUCCESS: ${{ needs.agent.outputs.checkout_pr_success }}
           GH_AW_INFERENCE_ACCESS_ERROR: ${{ needs.agent.outputs.inference_access_error }}
@@ -970,10 +970,10 @@ jobs:
     permissions: {}
     timeout-minutes: 15
     env:
-      GH_AW_CALLER_WORKFLOW_ID: "${{ github.repository }}/epic-cleanup-yakshaver"
+      GH_AW_CALLER_WORKFLOW_ID: "${{ github.repository }}/backlog-cleanup-yakshaver"
       GH_AW_ENGINE_ID: "copilot"
       GH_AW_SAFE_OUTPUTS_STAGED: "true"
-      GH_AW_WORKFLOW_ID: "epic-cleanup-yakshaver"
+      GH_AW_WORKFLOW_ID: "backlog-cleanup-yakshaver"
       GH_AW_WORKFLOW_NAME: "Epic Cleanup — Dry-Run Analysis of YakShaver Backlog"
     outputs:
       code_push_failure_count: ${{ steps.process_safe_outputs.outputs.code_push_failure_count }}
