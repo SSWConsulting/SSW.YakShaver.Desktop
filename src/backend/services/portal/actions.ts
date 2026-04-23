@@ -70,7 +70,7 @@ async function makePortalRequest(
 
 export const WorkItemDtoSchema = z.object({
   projectName: z.string(),
-  projectId:z.guid(),
+  projectId: z.uuid(),
   title: z.string(),
   description: z.string(),
   workItemUrl: z.string().nullable(),
@@ -83,7 +83,7 @@ export const WorkItemDtoSchema = z.object({
 export type WorkItemDto = z.infer<typeof WorkItemDtoSchema>;
 
 const PostTaskRecordResponseSchema = z.object({
-  workItemId: z.string().uuid(),
+  workItemId: z.uuid(),
 });
 
 /**
