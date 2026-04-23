@@ -1,5 +1,11 @@
 # Desktop Electron App
 
+This is the YakShaver Desktop Electron app, designed to help you create the perfect PBI in 30 seconds, with built-in MCP support.
+
+For more information, visit our website at [yakshaver.ai](https://yakshaver.ai)
+
+We also offer a **web version** [YakShaver 360](https://360.yakshaver.ai)
+
 ## Prerequisites
 
 - [Node JS](https://nodejs.org/en/download)
