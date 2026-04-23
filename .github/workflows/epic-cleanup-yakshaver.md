@@ -1,12 +1,25 @@
 ---
-name: Epic Cleanup — Cluster PBIs into Smaller Epics
+name: Epic Cleanup — Dry-Run Analysis of YakShaver Backlog
 description: |
-  Analyses the three large YakShaver epics in the Product Backlog, clusters ALL their
-  PBIs (open and closed) thematically into focused smaller epics — all created in
-  SSWConsulting/SSW.YakShaver.Desktop — for better sprint planning and progress tracking.
+  Scans the YakShaver repos (Teams, Desktop, 360) for open epics whose sub-issue
+  progress is below 100%, analyses their PBIs across states, and produces a single
+  "Dry-Run Plan" report issue in SSWConsulting/SSW.YakShaver.Desktop. The report
+  proposes smaller theme epics (tagged by product), flags open issues that look
+  like duplicates of other work (open or closed) across the whole backlog, and
+  suggests source epics that could themselves be closed or archived. No epics are
+  created, linked, or modified — execution is deferred until a human confirms the plan.
 
 on:
   workflow_dispatch:
+    inputs:
+      source_repos:
+        description: "Comma-separated list of owner/repo to scan for open epics"
+        required: false
+        default: "SSWConsulting/SSW.YakShaver,SSWConsulting/SSW.YakShaver.Desktop,SSWConsulting/SSW.YakShaver360"
+      target_repo:
+        description: "Repo where the Dry-Run Plan report issue is created"
+        required: false
+        default: "SSWConsulting/SSW.YakShaver.Desktop"
 
 runs-on: ubuntu-latest
 
@@ -29,237 +42,216 @@ steps:
     run: |
       if [ -z "$GH_AW_PAT" ]; then
         echo "::error::GH_AW_CROSS_REPO_PAT secret is not configured."
-        BODY="## ⚠️ Epic Cleanup workflow failed to start\n\nThe \`GH_AW_CROSS_REPO_PAT\` secret is missing. This workflow needs a PAT to read issues from \`SSW.YakShaver\` and create epics in \`SSW.YakShaver.Desktop\`.\n\nGo to **Settings → Secrets → Actions → New repository secret**, add \`GH_AW_CROSS_REPO_PAT\` with a fine-grained token that has Issues Read+Write on both \`SSWConsulting/SSW.YakShaver\` and \`SSWConsulting/SSW.YakShaver.Desktop\`, then re-run this workflow."
-        printf '%b' "$BODY" | gh issue comment 677 --repo SSWConsulting/SSW.YakShaver.Desktop --body-file -
+        echo "The workflow needs a fine-grained PAT with Issues: Read on all source repos and Issues: Read+Write on the target repo."
         exit 1
       fi
     env:
       GH_AW_PAT: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
-      GH_TOKEN: ${{ github.token }}
-  - name: Prepare comment output directory
-    run: mkdir -p /tmp/gh-aw/comments
-
-post-steps:
-  - name: Post summary to SSW.YakShaver epics
-    run: |
-      for ISSUE in 2811 3494; do
-        FILE="/tmp/gh-aw/comments/comment-yakshaver-${ISSUE}.md"
-        if [ -f "$FILE" ]; then
-          echo "Posting comment to SSWConsulting/SSW.YakShaver#${ISSUE}..."
-          gh issue comment "$ISSUE" \
-            --repo SSWConsulting/SSW.YakShaver \
-            --body-file "$FILE"
-        else
-          echo "No comment file found for SSW.YakShaver#${ISSUE} — skipping."
-        fi
-      done
-    env:
-      GH_TOKEN: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
 
 safe-outputs:
   staged: true
   github-token: ${{ secrets.GH_AW_CROSS_REPO_PAT }}
   create-issue:
-    max: 12
-    title-prefix: "[YakShaver 2.0] "
-    target-repo: SSWConsulting/SSW.YakShaver.Desktop
-  link-sub-issue:
-    max: 80
-    target-repo: SSWConsulting/SSW.YakShaver.Desktop
-  add-comment:
-    max: 3
-    target: "*"
-    target-repo: SSWConsulting/SSW.YakShaver.Desktop
+    max: 1
+    title-prefix: ""
+    target-repo: ${{ inputs.target_repo }}
 ---
 
-# Epic Cleanup — Cluster PBIs into Smaller Epics
+# Epic Cleanup — Dry-Run Analysis
 
-You are an expert product backlog manager. Your task is to reorganise three large, unwieldy epics in the YakShaver Product Backlog. For each epic, you will read **all** of its PBIs (open and closed), cluster them into a small number of focused themes, and create one new, smaller epic per theme.
+You are an expert product backlog manager. Your job is to **analyse** — not execute — a cleanup of the YakShaver product backlog across multiple repos and produce a single report issue that a human can review, tick off, and then separately execute.
 
-**All new epic issues must be created in `SSWConsulting/SSW.YakShaver.Desktop`**, regardless of which repo the original epic lives in. This centralises the Desktop product's backlog.
+## Inputs
 
-## Epics to Reorganise
+- `source_repos` — comma-separated list of `owner/repo` to scan. Default: `SSWConsulting/SSW.YakShaver`, `SSWConsulting/SSW.YakShaver.Desktop`, `SSWConsulting/SSW.YakShaver360`.
+- `target_repo` — where the single Dry-Run Plan report issue is created. Default: `SSWConsulting/SSW.YakShaver.Desktop`.
 
-| Epic | Source Repo | Issue |
-|------|-------------|-------|
-| ✨ YakShaver Agent 2.0 | SSWConsulting/SSW.YakShaver | #2811 |
-| ✨ YakShaver Desktop App | SSWConsulting/SSW.YakShaver.Desktop | #677 |
-| ♻️ Auth Migration | SSWConsulting/SSW.YakShaver | #3494 |
+Parse `${{ inputs.source_repos }}` on commas and trim whitespace.
 
----
+## Product mapping
 
-## Step 1 — Read Every PBI in Each Epic
+Each source repo maps to a **product tag** used when labelling proposed new epics in the report:
 
-For each of the three epics:
+| Repo | Product tag |
+|------|-------------|
+| `SSWConsulting/SSW.YakShaver` | `teams` (also hosts shared backend / portal — tag as `shared` when a PBI is clearly backend/portal work rather than Teams UX) |
+| `SSWConsulting/SSW.YakShaver.Desktop` | `desktop` |
+| `SSWConsulting/SSW.YakShaver360` | `360` |
 
-1. Read the epic issue body and labels
-2. Fetch **all sub-issues** — including both open and closed ones
-3. For every sub-issue, record:
-   - Issue number and title
-   - State: `open` or `closed`
-   - Labels (e.g., Type: Bug, Type: Feature, Type: Refactor)
-   - A one-line summary of what it does (from title or first sentence of body)
-
-Do **not** skip closed PBIs — they are needed to show full progress context in the new epics.
+When a cluster spans multiple products, pick the dominant one as the primary tag and list the others in the epic body.
 
 ---
 
-## Step 2 — Cluster All PBIs Holistically Across the Three Epics
+## Step 1 — Discover in-scope epics
 
-After reading all PBIs from all three epics, treat them as **one unified pool** and cluster them by theme. PBIs from different source epics may end up in the same new smaller epic if they are closely related.
+For each repo in `source_repos`:
+
+1. Query issues where **issue type = "Epic"** (GitHub's native issue types, not a label) AND **state = OPEN**.
+2. For each epic, read its **sub-issue progress** (`completed` / `total`).
+3. **Skip epics where `completed == total`** — those are already done. Record them in the "Skipped epics" section of the report.
+4. For the remaining qualifying epics, read:
+   - Epic title, number, repo, labels, and body (first few paragraphs is enough)
+   - **All sub-issues (both open and closed)** — for each, read title, number, state, labels, last-updated date, **and the full issue body**. The full body is required so you have enough context to cluster accurately in Step 2 and to judge duplicate similarity in Step 3.
+
+**Closed sub-issues are in scope for clustering.** Treat them the same as open ones in Step 2 — a closed PBI still belongs in whichever new smaller epic matches its theme, so the future epic's progress bar reflects historical work. Do not drop closed sub-issues just because they are done.
+
+---
+
+## Step 2 — Cluster PBIs into proposed smaller epics
+
+Treat the PBIs from all in-scope epics as one unified pool and cluster them by theme.
 
 **Clustering rules:**
+- Each cluster should represent a coherent functional area (e.g. `🔌 MCP & AI Pipeline`, `🎬 Video Recording`, `♻️ Auth Migration`, `🐛 Desktop Bug Fixes`, `🏗️ Platform & Infrastructure`, `🎨 UX Improvements`).
+- **Cross-repo / cross-product clustering is encouraged** — a Teams PBI and a Desktop PBI on the same topic go in the same cluster.
+- Target **10–20 PBIs per cluster** when the pool allows; let the actual themes drive the count.
+- The total number of proposed new epics is **flexible** — do not force a fixed count.
+- A PBI spanning two themes goes in whichever is dominant.
+- All-closed clusters are acceptable — they show historical progress the future epic will inherit.
 
-- Each cluster should represent a coherent functional area or delivery theme
-- **Cross-epic clustering is encouraged** — Desktop App PBIs and Agent 2.0 PBIs that share the same theme (e.g., MCP integration, video pipeline) should be grouped together
-- Target **10–20 PBIs per cluster** — coarse-grained, not fine-grained
-- Aim for **5–8 clusters total** across all three epics combined — let the actual PBI themes drive the count, not the source epic structure
-- It is fine for a cluster to consist entirely of closed PBIs — group by theme, not by state
-- Auth Migration PBIs are self-contained (auth/identity scope) and should remain in their own cluster(s)
-- A PBI that spans two themes goes in whichever is more dominant
-
-**Suggested starting clusters — validate against actual PBI content and adjust:**
-
-- `🔌 MCP & AI Pipeline` — MCP host/client, MCP service config, fallback/error handling, OpenAI integration, transcript pipeline (from Agent 2.0 and Desktop App)
-- `🎬 Video Recording & Processing` — screen capture, local video processing, FFmpeg, upload pipeline, recording confirmation, video hosting (from Agent 2.0 and Desktop App)
-- `✨ Features` — stop button, project selection, transcript optimisation, fallback/system prompt, additional LLM providers, customisable prompt (from Desktop App)
-- `🎨 UX Improvements` — UI polish, onboarding experience, settings panels, visual consistency, accessibility improvements (from Desktop App)
-- `🐛 Bug Fixes & Quality` — all defects across Desktop App: camera/audio, auth errors, sign-in failures, UI glitches, download confusion, Azure DevOps MCP bugs
-- `🏗️ Platform & Infrastructure` — Tauri app init, database redesign, configurable settings, code signing, centralised logging, onboarding wizard refactor, Intel macOS installer, architecture/roadmap (from Agent 2.0 and Desktop App)
-- `♻️ Auth Migration` — Make Entra permission optional, Better-Auth spike, ADR revision, non-Entra tenant policy, invitation system (from Auth Migration)
+Assign each cluster a product tag based on the dominant source:
+- `teams` — mostly PBIs from `SSW.YakShaver` that are clearly Teams UX
+- `desktop` — mostly PBIs from `SSW.YakShaver.Desktop`
+- `360` — mostly PBIs from `SSW.YakShaver360`
+- `shared` — backend / portal / infrastructure work that serves multiple products
 
 ---
 
-## Step 3 — Create One New Epic per Cluster
+## Step 3 — Detect duplicate candidates (whole backlog)
 
-For each cluster identified in Step 2, call the `create_issue` tool once.
+Duplicate detection is **not** limited to PBIs under the in-scope epics. Scan the full backlog of each repo in `source_repos`.
 
-The tool automatically prefixes every title with `[YakShaver 2.0]` and creates the issue in `SSWConsulting/SSW.YakShaver.Desktop`. Do **not** include `issue_type`, `repo`, or `target-repo` — those fields are not supported and will cause validation errors.
+**Build two pools:**
+- **Left pool (candidates to flag):** every **open** issue in every `source_repos` repo — including issues that have no parent epic at all.
+- **Right pool (match targets):** every issue (open **or** closed) in every `source_repos` repo.
 
-**Fields to provide:**
+For each open issue in the left pool, check whether it appears to duplicate an issue in the right pool:
 
-| Field | Value |
-|-------|-------|
-| `title` | `[Emoji] [Cluster Name]` — e.g. `🔌 MCP & AI Pipeline` |
-| `labels` | `Type: Feature` / `Type: Bug` / `Type: Refactor` as appropriate |
-| `body` | Use the template below |
-| `temporary_id` | A unique ID like `aw_mcp`, `aw_video`, `aw_auth`, etc. — used in Step 4 to reference this epic before it has a real issue number |
+- Compare titles and first paragraphs of bodies for semantic similarity.
+- Look for explicit wording like "duplicate of", "supersedes", "same as" in either issue's body or comments.
+- Flag only where the signal is strong — precision matters more than recall here, because each flag costs a human triage step.
 
-Do NOT include `issue_type` or any field not listed above.
+**Do not flag** closed-vs-closed duplicates — they are historical noise and don't need action.
 
-**Body template for each new epic:**
+**Do flag:**
+- Open ↔ closed — the open one may already be done, close it.
+- Open ↔ open — the two open issues overlap, merge or close one.
+
+For each flagged pair, record:
+- The open issue reference and title (always on the left)
+- The matched issue reference, its state (open / closed-on-date), and title
+- A one-line reason (e.g. "title near-match", "explicit 'duplicate of' in #X's comment", "body describes the same acceptance criteria")
+
+---
+
+## Step 4 — Suggest source epics to close or archive
+
+Review each in-scope source epic (the ones with progress < 100%) against your clustering. Suggest it for close/archive when:
+
+- All of its remaining open PBIs are duplicates flagged in Step 3.
+- All of its remaining open PBIs have been absorbed into proposed new smaller epics and the source epic adds no extra scope of its own.
+- Its body describes work that has been superseded by a decision or another initiative.
+
+Also list the 100%-done epics from Step 1 here — they are straightforward close candidates.
+
+---
+
+## Step 5 — Produce the Dry-Run Plan report issue
+
+Call `create_issue` **exactly once** with:
+
+- `title`: `🧹 Dry-Run Plan — YakShaver Backlog Cleanup (YYYY-MM-DD)` (substitute today's date)
+- `labels`: `Type: Refactor`, `cleanup`
+- `body`: use the template below
+- `temporary_id`: `aw_cleanup_report`
+
+Do not include `issue_type`, `repo`, or `target-repo` — the safe-output config handles the target repo.
+
+### Body template
 
 ```markdown
-Consolidates PBIs from:
-- [source epic 1 title] — SSWConsulting/[SourceRepo]#[number]
-- [source epic 2 title] — SSWConsulting/[SourceRepo]#[number]  (omit if single source)
+# 🧹 Dry-Run Plan — YakShaver Backlog Cleanup
 
-### Scope
-[2–3 sentences describing what this epic covers and the value it delivers]
+**Run date:** YYYY-MM-DD
+**Scanned repos:** SSWConsulting/SSW.YakShaver, SSWConsulting/SSW.YakShaver.Desktop, SSWConsulting/SSW.YakShaver360
+**In-scope epics:** N (open, sub-issue progress < 100%)
+**Total PBIs reviewed:** M (X open, Y closed)
 
-### PBIs
+> This is an **analysis only** — no epics have been created, no sub-issues have been linked, and no existing issues have been modified. Tick the confirmation checklist at the bottom once you're satisfied with the plan, then trigger the execute workflow.
 
-- SSWConsulting/[SourceRepo]#[number] — [title]
-- SSWConsulting/[SourceRepo]#[number] — [title]
-[... one line per PBI in this cluster, all states (open and closed) ...]
+---
 
-### Acceptance Criteria
-This epic is complete when all open PBIs listed above are closed.
+## 1. Proposed smaller epics
+
+### 🔌 Example Cluster Name — `product: desktop`
+
+**Consolidates PBIs from:**
+- SSWConsulting/SSW.YakShaver.Desktop#677 — ✨ YakShaver Desktop App
+
+**Scope:** 2–3 sentences describing what this epic covers and the value it delivers.
+
+**PBIs:**
+- SSWConsulting/SSW.YakShaver.Desktop#123 — [title] (open)
+- SSWConsulting/SSW.YakShaver.Desktop#124 — [title] (closed)
+- SSWConsulting/SSW.YakShaver#456 — [title] (open)
+
+[... one block per cluster ...]
+
+---
+
+## 2. Duplicate candidates (whole backlog)
+
+Open issues anywhere in the scanned repos (not limited to epic sub-issues) that look like they duplicate other work. Both open↔closed and open↔open pairs are included. Closed↔closed duplicates are omitted — they don't need action.
+
+| Open issue | Matched issue (state) | Reason |
+|------------|------------------------|--------|
+| SSWConsulting/SSW.YakShaver.Desktop#200 — [title] | SSWConsulting/SSW.YakShaver.Desktop#120 — [title] (closed 2025-11-02) | near-identical title and scope |
+| SSWConsulting/SSW.YakShaver#305 — [title] | SSWConsulting/SSW.YakShaver.Desktop#210 — [title] (open) | same acceptance criteria, cross-repo overlap |
+
+---
+
+## 3. Source epics suggested for close or archive
+
+Existing epics that can likely be closed once this plan is executed.
+
+| Epic | Reason |
+|------|--------|
+| SSWConsulting/SSW.YakShaver#2811 — ✨ YakShaver Agent 2.0 | All remaining open PBIs absorbed into proposed epics 1, 3, and 5 |
+
+---
+
+## 4. Epics skipped (already 100% complete)
+
+These were excluded from clustering because their sub-issue progress was 100%.
+
+- SSWConsulting/SSW.YakShaver#NNN — [title]
+
+---
+
+## 5. ✅ Confirmation checklist
+
+Tick each box once you've reviewed and agree. Add comments on this issue for anything you want changed before execution.
+
+- [ ] Proposed smaller epics (Section 1) look right
+- [ ] Duplicate candidates (Section 2) are genuine duplicates
+- [ ] Source epics in Section 3 should be closed/archived after execution
+- [ ] Ready to trigger the execute workflow
+
+> After all boxes are ticked, run the execute workflow (future) — it will read this issue and perform the actual epic creation, sub-issue linking, and original-epic updates.
 ```
 
-Use plain `SSWConsulting/RepoName#number` references (not Markdown links) — GitHub auto-links these without counting toward the 50-link comment limit.
+Use plain `owner/repo#number` references everywhere (not Markdown links). GitHub auto-links them and this keeps the comment under GitHub's HTTP-link cap.
 
 ---
 
-## Step 4 — Link PBIs as Sub-Issues of New Epics
+## Important notes
 
-After all new epics are created in Step 3, link every PBI as a sub-issue of its corresponding new epic using the `link_sub_issue` tool.
-
-For each PBI in each cluster, call `link_sub_issue` once:
-
-| Field | Value |
-|-------|-------|
-| `parent_issue_number` | The `temporary_id` of the new epic created in Step 3 (e.g. `aw_mcp`) |
-| `sub_issue_number` | The PBI's issue number (e.g. `123`) |
-
-**Notes:**
-- The `parent_issue_number` field accepts `temporary_id` values — use the same IDs assigned in Step 3
-- Link **all** PBIs — both open and closed — so the new epic's progress bar reflects real status
-- PBIs from `SSWConsulting/SSW.YakShaver` and `SSWConsulting/SSW.YakShaver.Desktop` should both be linked
-
----
-
-## Step 5 — Post Summary Comments on All Three Original Epics
-
-After all new epics are created, post a reorganisation summary on each of the three original epics.
-
-### 5a — Write per-epic comment files (for SSW.YakShaver epics)
-
-The `add_comment` tool can only post to `SSWConsulting/SSW.YakShaver.Desktop`. For the two epics in `SSWConsulting/SSW.YakShaver` (#2811 and #3494), use the `bash` tool to write their comment bodies to files — a `post-steps:` job will pick them up and post via `gh issue comment`.
-
-Use `bash` to write each file:
-
-```bash
-cat > /tmp/gh-aw/comments/comment-yakshaver-2811.md << 'EOF'
-<comment body for Agent 2.0 — see template below>
-EOF
-
-cat > /tmp/gh-aw/comments/comment-yakshaver-3494.md << 'EOF'
-<comment body for Auth Migration — see template below>
-EOF
-```
-
-### 5b — Post comment on Desktop App epic #677
-
-Call `add_comment` with `item_number: 677` for the Desktop App epic (same repo, no cross-repo needed).
-
-**Always provide `item_number: 677` explicitly** — `workflow_dispatch` triggers do not support auto-targeting.
-
-Use plain `SSWConsulting/RepoName#number` references (not Markdown links) — the tool has a hard limit of 50 HTTP/HTTPS links per comment. With ~60 PBIs total, plain references avoid breaching this limit.
-
-If the comment body would exceed ~60 PBI rows, split into two `add_comment` calls (max 3 total comments allowed). Always include `item_number: 677` on every call.
-
----
-
-### Comment template (use for all three epics, tailoring PBI section to each epic's own PBIs)
-
-```markdown
-## 🗂️ Epic Reorganised — [N] Smaller Epics Created
-
-The three large YakShaver epics have been clustered thematically into smaller, focused epics
-in SSWConsulting/SSW.YakShaver.Desktop. PBIs from Desktop App and Agent 2.0 that share
-the same theme have been grouped together.
-
-### New Epics (containing PBIs from this epic)
-
-| Epic | Scope |
-|------|-------|
-| SSWConsulting/SSW.YakShaver.Desktop#[number] | [~10 word description] |
-[... only rows for new epics that contain at least one PBI from THIS epic; plain org/repo#number only ...]
-
-### PBI Assignment
-
-| PBI | State | New Epic |
-|-----|-------|---------|
-| SSWConsulting/[SourceRepo]#[number] [title] | open/closed | SSWConsulting/SSW.YakShaver.Desktop#[number] |
-[... all PBIs that belong to THIS original epic, open and closed ...]
-
-### ✅ Automated Linking
-
-All PBIs listed above have been automatically linked as sub-issues of their new smaller epics.
-
-> ℹ️ PBIs stay in their original repos. Only the tracking epics are in SSW.YakShaver.Desktop.
-```
-
----
-
-## Important Notes
-
-- Include **all** PBIs — open and closed — so new epics show real progress
-- Cluster **holistically across all three source epics** — PBIs from Desktop App and Agent 2.0 may share the same new smaller epic
-- All-closed clusters are acceptable — group by theme, not state
-- The three original epics must stay open and untouched — do not modify or close them
-- Use `bash` to write comment files for #2811 and #3494 before calling `add_comment` for #677 — the `post-steps:` job will post them automatically
+- **No `create-issue` beyond the single report.** Do not attempt to create theme epics or a cleanup-report-per-product — one report issue only.
+- **No `link-sub-issue` calls.** Linking is deferred to the execute workflow.
+- **No `add-comment` calls.** Source-epic comments are not produced in this workflow.
+- The three scanned repos stay untouched — do not modify, close, or relabel any existing issue.
+- Include **all** PBIs from qualifying epics in the clusters — open and closed — so the proposed-epic scope reflects full context.
+- If a source repo is unreachable (e.g. PAT lacks access), note it in the report's Scope section and continue with what you can read.
 - The `GH_AW_CROSS_REPO_PAT` secret must have:
-  - **Read** access to `SSWConsulting/SSW.YakShaver`
-  - **Read + Write (Issues)** access to `SSWConsulting/SSW.YakShaver.Desktop`
+  - **Read** access to every repo in `source_repos`
+  - **Read + Write (Issues)** access to `target_repo`
