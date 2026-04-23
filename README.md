@@ -1,6 +1,6 @@
 # Desktop Electron App
 
-This is the YakShaver MCP Agent, designed to help you create the perfect PBI in 30 seconds.
+This is the YakShaver Desktop Electron app, designed to help you create the perfect PBI in 30 seconds, with built-in MCP support.
 
 For more information, visit our website at [yakshaver.ai](https://yakshaver.ai)
 
