@@ -36,6 +36,7 @@ import { WorkflowStateManager } from "../services/workflow/workflow-state-manage
 import { ProgressStage } from "../types";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import { id } from "zod/v4/locales";
 
 export type { VideoProcessingContext, RetryResult };
 
@@ -614,18 +615,19 @@ export class ProcessVideoIPCHandlers {
           finalOutput,
         });
 
-        // Send to portal if authenticated — non-fatal, does not affect workflow stage status
-        if (mcpResult && (await IdentityServerAuthService.getInstance().isAuthenticated())) {
+        // Send to portal if authenticated and project is remote — non-fatal, does not affect workflow stage status
+        // local projects don't have portal project IDs so not sent to portal regardless of auth status
+        if (mcpResult && projectDetails?.projectSource === "remote" && projectDetails?.id
+          && (await IdentityServerAuthService.getInstance().isAuthenticated())) {
           try {
             const objectResult = await orchestrator.convertToObjectAsync(
               mcpResult,
               WorkItemDtoSchema,
             );
             const workItemDto = WorkItemDtoSchema.parse(objectResult);
-            if (projectDetails && projectDetails.projectSource === "remote") {
-              workItemDto.projectId = projectDetails.id;
-              workItemDto.projectName = projectDetails.name;
-            }
+            workItemDto.projectId = projectDetails.id;
+            workItemDto.projectName = projectDetails.name;
+            
             const portalResult = await SendWorkItemDetailsToPortal(
               workItemDto,
             );
