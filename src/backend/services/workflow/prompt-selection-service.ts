@@ -53,7 +53,7 @@ export class PromptSelectionService {
       return {
         ...projectDetails,
         selectionReason: selectedProject.reason,
-        projectSource: selectedProject.source
+        projectSource: selectedProject.source,
       };
     }
 
