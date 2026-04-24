@@ -36,7 +36,6 @@ import { WorkflowStateManager } from "../services/workflow/workflow-state-manage
 import { ProgressStage } from "../types";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-import { id } from "zod/v4/locales";
 
 export type { VideoProcessingContext, RetryResult };
 
