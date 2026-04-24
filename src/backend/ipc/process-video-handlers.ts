@@ -446,8 +446,12 @@ export class ProcessVideoIPCHandlers {
     let transcript: TranscriptSegment[] | undefined = checkpoint.transcript;
     let transcriptText: string | undefined = checkpoint.transcriptText;
     let intermediateOutput: string | undefined = checkpoint.intermediateOutput;
-    let projectDetails: (ProjectDto & { selectionReason: string }) | undefined | null =
-      checkpoint.projectDetails as (ProjectDto & { selectionReason: string }) | undefined;
+    let projectDetails:
+      | (ProjectDto & { selectionReason: string; projectSource: "local" | "remote" })
+      | undefined
+      | null = checkpoint.projectDetails as
+      | (ProjectDto & { selectionReason: string; projectSource: "local" | "remote" })
+      | undefined;
     let projectMetaData: string | undefined = checkpoint.projectMetaData;
     let desktopAgentProjectPrompt: string | undefined = checkpoint.desktopAgentProjectPrompt;
     let mcpResult: string | undefined = checkpoint.mcpResult;
@@ -614,16 +618,24 @@ export class ProcessVideoIPCHandlers {
           finalOutput,
         });
 
-        // Send to portal if authenticated — non-fatal, does not affect workflow stage status
-        if (mcpResult && (await IdentityServerAuthService.getInstance().isAuthenticated())) {
+        // Send to portal if authenticated and project is remote — non-fatal, does not affect workflow stage status
+        // local projects don't have portal project IDs so not sent to portal regardless of auth status
+        if (
+          mcpResult &&
+          projectDetails?.projectSource === "remote" &&
+          projectDetails?.id &&
+          (await IdentityServerAuthService.getInstance().isAuthenticated())
+        ) {
           try {
             const objectResult = await orchestrator.convertToObjectAsync(
               mcpResult,
               WorkItemDtoSchema,
             );
-            const portalResult = await SendWorkItemDetailsToPortal(
-              WorkItemDtoSchema.parse(objectResult),
-            );
+            const workItemDto = WorkItemDtoSchema.parse(objectResult);
+            workItemDto.projectId = projectDetails.id;
+            workItemDto.projectName = projectDetails.name;
+
+            const portalResult = await SendWorkItemDetailsToPortal(workItemDto);
             if (!portalResult.success) {
               console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
               portalSubmissionError = formatAndReportError(portalResult.error, "portal_submission");
