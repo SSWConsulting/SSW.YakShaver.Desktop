@@ -1,4 +1,5 @@
 import * as appInsights from "applicationinsights";
+import { IS_CHINA } from "../../../shared/config/region";
 import { app } from "electron";
 import type {
   ErrorEvent,
@@ -32,6 +33,12 @@ export class TelemetryService {
       return;
     }
 
+    if (IS_CHINA) {
+      console.log("[TelemetryService] Telemetry disabled in china build.");
+      this.isInitialized = true;
+      return;
+    }
+
     try {
       this.settings = await this.storage.getSettingsAsync();
 
@@ -49,6 +56,7 @@ export class TelemetryService {
   }
 
   private setupAppInsights(): void {
+    if (IS_CHINA) return;
     const connectionString = config.appInsightsConnectionString();
 
     if (!connectionString) {

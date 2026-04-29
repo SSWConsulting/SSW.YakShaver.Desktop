@@ -1,3 +1,5 @@
+import { ENDPOINTS } from "../../shared/config/endpoints";
+import { IS_CHINA, IS_GLOBAL } from "../../shared/config/region";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import { config } from "../config/env";
@@ -30,7 +32,6 @@ interface GitHubReleaseResponse {
   error?: string;
 }
 
-const GITHUB_API_BASE = "https://api.github.com";
 const REPO_OWNER = "SSWConsulting";
 const REPO_NAME = "SSW.YakShaver.Desktop";
 const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -59,8 +60,10 @@ export class ReleaseChannelIPCHandlers {
       commitHash: config.commitHash(),
     }));
 
-    // Setup autoUpdater event listeners
-    this.setupAutoUpdaterListeners();
+    // Setup autoUpdater event listeners (auto-update is disabled in china build).
+    if (IS_GLOBAL) {
+      this.setupAutoUpdaterListeners();
+    }
   }
 
   private setupAutoUpdaterListeners(): void {
@@ -127,6 +130,9 @@ export class ReleaseChannelIPCHandlers {
   }
 
   private async listReleases(forceRefresh = false): Promise<GitHubReleaseResponse> {
+    if (IS_CHINA) {
+      return { releases: [], error: "Release channel disabled in china build" };
+    }
     try {
       if (
         !forceRefresh &&
@@ -151,7 +157,7 @@ export class ReleaseChannelIPCHandlers {
       }
 
       const response = await fetch(
-        `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/releases?per_page=100`,
+        `${ENDPOINTS.githubApi}/repos/${REPO_OWNER}/${REPO_NAME}/releases?per_page=100`,
         {
           headers,
         },
@@ -267,6 +273,9 @@ export class ReleaseChannelIPCHandlers {
     error?: string;
     version?: string;
   }> {
+    if (IS_CHINA) {
+      return { available: false, error: "Update checks disabled in china build" };
+    }
     // Skip update checks in development/unpackaged mode
     if (!app.isPackaged) {
       return {
@@ -309,7 +318,7 @@ export class ReleaseChannelIPCHandlers {
           autoUpdater.channel = channel.channel;
           autoUpdater.setFeedURL({
             provider: "generic",
-            url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${targetVersion}`,
+            url: `${ENDPOINTS.githubReleasesDownloadBase}/${REPO_OWNER}/${REPO_NAME}/releases/download/${targetVersion}`,
             channel: channel.channel,
           });
           autoUpdater.allowPrerelease = true;
@@ -405,6 +414,8 @@ export class ReleaseChannelIPCHandlers {
     channel: ReleaseChannel,
     triggerImmediateCheck = false,
   ): Promise<void> {
+    // Auto-update is disabled in china build (no China release infrastructure yet).
+    if (IS_CHINA) return;
     // Skip configuration in development/unpackaged mode
     if (!app.isPackaged) {
       return;
@@ -457,7 +468,7 @@ export class ReleaseChannelIPCHandlers {
             autoUpdater.channel = channel.channel;
             autoUpdater.setFeedURL({
               provider: "generic",
-              url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag_name}`,
+              url: `${ENDPOINTS.githubReleasesDownloadBase}/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag_name}`,
               channel: channel.channel,
             });
             autoUpdater.allowPrerelease = true;

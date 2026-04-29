@@ -1,3 +1,5 @@
+import { ENDPOINTS } from "../../shared/config/endpoints";
+import { IS_CHINA } from "../../shared/config/region";
 import { ipcMain } from "electron";
 import { GitHubTokenStorage } from "../services/storage/github-token-storage";
 import { formatAndReportError } from "../utils/error-utils";
@@ -37,13 +39,16 @@ export class GitHubTokenIPCHandlers {
     rateLimitRemaining?: number;
     error?: string;
   }> {
+    if (IS_CHINA) {
+      return { isValid: false, error: "GitHub token verification disabled in china build" };
+    }
     try {
       const token = await this.store.getToken();
       if (!token) {
         return { isValid: false, error: "No token configured" };
       }
 
-      const response = await fetch("https://api.github.com/user", {
+      const response = await fetch(`${ENDPOINTS.githubApi}/user`, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/vnd.github+json",

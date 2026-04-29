@@ -1,3 +1,4 @@
+import { ENDPOINTS, featureFlags } from "../config/endpoints";
 import type { MCPServerConfig } from "../types/mcp";
 
 /**
@@ -9,12 +10,14 @@ export const PRESET_SERVER_IDS = {
   JIRA: "0f03a50c-219b-46e9-9ce3-54f925c44479",
 } as const;
 
-/** Default config for the GitHub preset MCP server. */
+/** Default config for the GitHub preset MCP server. URL is sourced from .env.<region>. */
 export const GITHUB_PRESET_CONFIG = {
   id: PRESET_SERVER_IDS.GITHUB,
   name: "GitHub",
   transport: "streamableHttp",
-  url: "https://api.githubcopilot.com/mcp/",
+  get url() {
+    return ENDPOINTS.mcpGithubCopilotUrl;
+  },
   description: "GitHub MCP Server",
   toolWhitelist: [],
   enabled: false,
@@ -34,24 +37,31 @@ export const AZURE_DEVOPS_PRESET_CONFIG = {
   enabled: false,
 } satisfies MCPServerConfig;
 
-/** Default config for the Jira preset MCP server. */
+/** Default config for the Jira preset MCP server. URL is sourced from .env.<region>. */
 export const JIRA_PRESET_CONFIG = {
   id: PRESET_SERVER_IDS.JIRA,
   name: "Jira",
   transport: "streamableHttp",
-  url: "https://mcp.atlassian.com/v1/mcp",
+  get url() {
+    return ENDPOINTS.mcpAtlassianUrl;
+  },
   description: "Atlassian MCP Server",
   toolWhitelist: [],
   enabled: false,
 } satisfies MCPServerConfig;
 
 /**
- * All preset MCP server configs.
+ * All preset MCP server configs, filtered by region featureFlags.
  * Included in listAvailableServers() even before the user connects.
  * Once a user saves a server with the same ID, the stored version takes precedence.
+ *
+ * China build excludes all three (no Western MCP infrastructure available);
+ * follow-up slices may add a Gitee preset.
  */
-export const PRESET_MCP_SERVERS: readonly MCPServerConfig[] = [
-  GITHUB_PRESET_CONFIG,
-  AZURE_DEVOPS_PRESET_CONFIG,
-  JIRA_PRESET_CONFIG,
-];
+export const PRESET_MCP_SERVERS: readonly MCPServerConfig[] = (() => {
+  const presets: MCPServerConfig[] = [];
+  if (featureFlags.mcpGithubCopilotPreset) presets.push(GITHUB_PRESET_CONFIG);
+  if (featureFlags.mcpAzureDevopsPreset) presets.push(AZURE_DEVOPS_PRESET_CONFIG);
+  if (featureFlags.mcpJiraPreset) presets.push(JIRA_PRESET_CONFIG);
+  return presets;
+})();

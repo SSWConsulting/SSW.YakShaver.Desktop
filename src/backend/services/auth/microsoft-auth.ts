@@ -1,6 +1,8 @@
 // Followed example from Microsoft's Electron sample app
-// https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/samples/msal-node-samples/ElectronSystemBrowserTestApp/README.md
+// (Azure AD / MSAL Electron system-browser sample)
 import { InteractionRequiredAuthError, LogLevel, PublicClientApplication } from "@azure/msal-node";
+import { ENDPOINTS } from "../../../shared/config/endpoints";
+import { IS_CHINA } from "../../../shared/config/region";
 import { shell } from "electron";
 import { formatAndReportError } from "../../utils/error-utils";
 import { MsalSecureCachePlugin } from "./msal-cache-plugin";
@@ -33,6 +35,9 @@ export class MicrosoftAuthService {
   // Note: the azure parameter is a workaround for testing purposes,
   // so in the testing environment a mock config can be passed in.
   public static getInstance(mockAzureConfig?: AzureConfig): MicrosoftAuthService {
+    if (IS_CHINA) {
+      throw new Error("Microsoft authentication is not available in the China build");
+    }
     if (!MicrosoftAuthService.instance) {
       const azureConfig = mockAzureConfig ?? config.azure();
       if (!azureConfig) {
@@ -44,7 +49,7 @@ export class MicrosoftAuthService {
       MicrosoftAuthService.pca = new PublicClientApplication({
         auth: {
           clientId: azureConfig.clientId,
-          authority: `https://login.microsoftonline.com/${azureConfig.tenantId}`,
+          authority: `${ENDPOINTS.azureLoginUrl}/${azureConfig.tenantId}`,
         },
         cache: { cachePlugin },
         system: {

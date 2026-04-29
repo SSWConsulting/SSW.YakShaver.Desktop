@@ -1,5 +1,7 @@
 import { createReadStream, existsSync } from "node:fs";
 import { join } from "node:path";
+import { ENDPOINTS } from "../../../shared/config/endpoints";
+import { IS_CHINA } from "../../../shared/config/region";
 import { app } from "electron";
 import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
@@ -17,6 +19,8 @@ import {
   convertToTokenData,
   refreshYouTubeTokenWithBackend,
 } from "./youtube-oauth";
+
+const DISABLED_ERROR = "YouTube is not available in the China build";
 
 export class YouTubeClient {
   private static instance: YouTubeClient;
@@ -47,6 +51,9 @@ export class YouTubeClient {
    * Opens the system browser for authentication and waits for tokens via protocol callback.
    */
   async authenticate(): Promise<AuthResult> {
+    if (IS_CHINA) {
+      return { success: false, error: DISABLED_ERROR };
+    }
     try {
       console.log("[YouTubeClient] Starting authentication via backend...");
 
@@ -93,6 +100,7 @@ export class YouTubeClient {
    * Refreshes the access token using the .NET backend.
    */
   async refreshTokens(): Promise<boolean> {
+    if (IS_CHINA) return false;
     try {
       const tokenData = await this.storage.getYouTubeTokens();
       if (!tokenData?.refreshToken) {
@@ -116,6 +124,7 @@ export class YouTubeClient {
   }
 
   async isAuthenticated(): Promise<boolean> {
+    if (IS_CHINA) return false;
     const tokens = await this.storage.getYouTubeTokens();
     if (!tokens) return false;
 
@@ -127,6 +136,7 @@ export class YouTubeClient {
   }
 
   async getCurrentUser(): Promise<UserInfo | null> {
+    if (IS_CHINA) return null;
     try {
       const client = await this.getAuthenticatedClient();
       return await this.getUserInfo(client);
@@ -140,6 +150,9 @@ export class YouTubeClient {
   }
 
   async uploadVideo(videoFilePath?: string): Promise<VideoUploadResult> {
+    if (IS_CHINA) {
+      return { success: false, error: DISABLED_ERROR };
+    }
     try {
       if (!(await this.isAuthenticated())) {
         return { success: false, error: "Not authenticated" };
@@ -187,7 +200,7 @@ export class YouTubeClient {
           videoId,
           title: snippet?.title || "Untitled",
           description: snippet?.description || "",
-          url: `https://www.youtube.com/watch?v=${videoId}`,
+          url: `${ENDPOINTS.youtubeWatchUrlBase}${videoId}`,
         },
         origin: "upload",
       };
@@ -204,6 +217,9 @@ export class YouTubeClient {
     snippet: YouTubeSnippetUpdate,
     origin: VideoUploadOrigin = "upload",
   ): Promise<VideoUploadResult> {
+    if (IS_CHINA) {
+      return { success: false, error: DISABLED_ERROR };
+    }
     try {
       if (!(await this.isAuthenticated())) {
         return { success: false, error: "Not authenticated" };
@@ -241,7 +257,7 @@ export class YouTubeClient {
           videoId,
           title: updatedSnippet.title || snippet.title,
           description: updatedSnippet.description || snippet.description,
-          url: `https://www.youtube.com/watch?v=${videoId}`,
+          url: `${ENDPOINTS.youtubeWatchUrlBase}${videoId}`,
         },
         origin,
       };

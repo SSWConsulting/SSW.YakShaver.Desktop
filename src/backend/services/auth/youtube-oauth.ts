@@ -1,7 +1,10 @@
+import { IS_CHINA } from "../../../shared/config/region";
 import { shell } from "electron";
 import { config } from "../../config/env";
 import { YoutubeStorage } from "../storage/youtube-storage";
 import type { TokenData } from "./types";
+
+const DISABLED_ERROR = "YouTube OAuth is not available in the China build";
 
 /**
  * Response from the backend OAuth token endpoint.
@@ -18,6 +21,7 @@ interface YouTubeTokenResponse {
  * Gets the authorization URL from the .NET backend for YouTube OAuth.
  */
 export async function getYouTubeAuthUrlFromBackend(): Promise<string> {
+  if (IS_CHINA) throw new Error(DISABLED_ERROR);
   const portalApiUrl = config.portalApiUrl();
   const protocol =
     config.azure()?.customProtocol ||
@@ -106,6 +110,7 @@ export async function authorizeYouTubeWithBackend(
   storage: YoutubeStorage,
   timeoutMs: number = 60000,
 ): Promise<TokenData> {
+  if (IS_CHINA) throw new Error(DISABLED_ERROR);
   const authUrl = await getYouTubeAuthUrlFromBackend();
   console.log("[YouTubeOAuth] Opening browser for authentication...");
   await shell.openExternal(authUrl);
@@ -118,6 +123,7 @@ export async function authorizeYouTubeWithBackend(
 export async function refreshYouTubeTokenWithBackend(
   refreshToken: string,
 ): Promise<YouTubeTokenResponse> {
+  if (IS_CHINA) throw new Error(DISABLED_ERROR);
   const portalApiUrl = config.portalApiUrl();
   const endpoint = "/desktop-video-hostings/youtube/auth/refresh";
   const url = `${portalApiUrl}${endpoint}`;

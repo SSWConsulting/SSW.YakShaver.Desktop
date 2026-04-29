@@ -1,5 +1,9 @@
+// MUST be the first import — populates process.env before other modules evaluate
+// region.ts / endpoints.ts / llm-providers.ts / preset-servers.ts.
+import "./load-env";
+
 import { join } from "node:path";
-import { config as dotenvConfig } from "dotenv";
+import { IS_GLOBAL } from "../shared/config/region";
 import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
 import { initMain as initAudioLoopback } from "electron-audio-loopback";
 import { autoUpdater } from "electron-updater";
@@ -38,30 +42,22 @@ import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
 import { TelemetryService } from "./services/telemetry/telemetry-service";
 import { TrayManager } from "./services/tray/tray-manager";
+import { devServerOrigin } from "./utils/dev-server";
 import { getIconPath } from "./utils/path-utils";
 
 const isDev = process.env.NODE_ENV === "development" || process.argv.includes("--dev-protocol");
 
-// Set a custom userData directory in development to avoid conflicts with production
+// Set a custom userData directory in development to avoid conflicts with production.
+// Suffix the region so `dev` and `dev:china` keep separate stores (auth tokens, settings,
+// release-channel pref, sqlite db) and so Electron's single-instance lock — which is
+// keyed on userData path — lets both regions run side-by-side.
 if (isDev) {
-  const devUserData = join(app.getPath("appData"), "YakShaverDev");
+  const devRegion = process.env.BUILD_REGION === "china" ? "china" : "global";
+  const devUserData = join(app.getPath("appData"), `YakShaverDev-${devRegion}`);
   app.setPath("userData", devUserData);
 }
 
-// Load .env early (before app.whenReady)
-const loadEnv = () => {
-  let envPath: string;
-  if (app.isPackaged) {
-    // Production: Load from bundled resources
-    envPath = join(process.resourcesPath, ".env");
-  } else {
-    // Development: Load from project root
-    envPath = join(process.cwd(), ".env");
-  }
-  dotenvConfig({ path: envPath });
-};
-
-loadEnv();
+// .env is loaded by the side-effect import "./load-env" at the top of this file.
 
 let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
@@ -236,7 +232,7 @@ const createWindow = (): BrowserWindow | null => {
   });
 
   if (isDev) {
-    window.loadURL("http://localhost:3000").catch((err) => {
+    window.loadURL(devServerOrigin()).catch((err) => {
       isCreatingMainWindow = false;
       console.error("Failed to load dev server URL (is the dev server running?):", err);
       if (!window.isDestroyed()) {
@@ -485,9 +481,10 @@ app.whenReady().then(async () => {
     pendingProtocolUrl = null;
   }
 
-  // Auto-updates: Check only in packaged mode (dev skips)
-  // Configure and check based on stored channel preference
-  if (app.isPackaged) {
+  // Auto-updates: Check only in packaged GLOBAL builds. China has no release channel yet.
+  // (release-channel-handlers' configureAutoUpdater also gates on IS_CHINA, but the
+  //  autoUpdater.checkForUpdatesAndNotify() call below would still phone home, so gate here.)
+  if (app.isPackaged && IS_GLOBAL) {
     const { ReleaseChannelStorage } = await import("./services/storage/release-channel-storage");
     const channelStore = ReleaseChannelStorage.getInstance();
     const channel = await channelStore.getChannel();

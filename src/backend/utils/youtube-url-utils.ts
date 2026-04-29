@@ -1,49 +1,51 @@
+import { ENDPOINTS } from "../../shared/config/endpoints";
+
 /**
- * Normalize YouTube URL to extract video ID and create a consistent format.
- * Handles:
- * - Standard: https://www.youtube.com/watch?v=VIDEO_ID
- * - Short: https://youtu.be/VIDEO_ID
- * - Embed: https://www.youtube.com/embed/VIDEO_ID
- * - Shorts: https://www.youtube.com/shorts/VIDEO_ID
- * - Live: https://www.youtube.com/live/VIDEO_ID
- * - Mobile: https://m.youtube.com
- * @param urlInput - The YouTube URL to normalize
- * @returns The normalized URL (https://www.youtube.com/watch?v=ID) or original if invalid
+ * Normalize a YouTube URL into the canonical watch form.
+ *
+ * Recognized hosts come from `YOUTUBE_VALID_DOMAINS` (per-region env var).
+ * The canonical output URL is built from `YOUTUBE_WATCH_URL_BASE`.
+ * In the china build both are empty, so this function returns the input unchanged.
+ *
+ * Supported input shapes (when valid domains are populated):
+ *   - host with `?v=VIDEO_ID` query param (standard watch URL)
+ *   - short host with `/VIDEO_ID` path
+ *   - host with `/embed/VIDEO_ID`, `/v/VIDEO_ID`, `/shorts/VIDEO_ID`, `/live/VIDEO_ID` path
+ *
+ * @param urlInput - the URL to normalize
+ * @returns the canonical watch URL with embedded video ID, or the original input if invalid.
  */
 export function normalizeYouTubeUrl(urlInput: string | null | undefined): string | null {
   if (!urlInput) return null;
 
+  const validDomains = ENDPOINTS.youtubeValidDomains;
+  const shortHostname = ENDPOINTS.youtubeShortHostname;
+  const watchUrlBase = ENDPOINTS.youtubeWatchUrlBase;
+
+  // Empty in builds without YouTube support (e.g. china) — pass through.
+  if (validDomains.length === 0 || !watchUrlBase) {
+    return urlInput;
+  }
+
   try {
     const url = new URL(urlInput);
 
-    // 1. Strict Domain Check
-    const validDomains = ["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"];
     if (!validDomains.includes(url.hostname)) {
       return urlInput;
     }
 
     let videoId: string | null = null;
 
-    // 2. Handle 'youtu.be' (Host-based extraction)
-    if (url.hostname === "youtu.be") {
+    if (shortHostname && url.hostname === shortHostname) {
       // pathname is usually "/VIDEO_ID"
       videoId = url.pathname.slice(1);
-    }
-    // 3. Handle 'youtube.com' variations (Path/Query-based extraction)
-    else {
-      // Case A: Query param (?v=VIDEO_ID)
+    } else {
       if (url.searchParams.has("v")) {
         videoId = url.searchParams.get("v");
-      }
-      // Case B: Path-based (/embed/, /v/, /shorts/, /live/)
-      else {
+      } else {
         const pathSegments = url.pathname.split("/").filter(Boolean);
 
-        // Expected patterns:
-        // /embed/ID
-        // /v/ID
-        // /shorts/ID
-        // /live/ID
+        // Expected patterns: /embed/ID, /v/ID, /shorts/ID, /live/ID
         if (pathSegments.length >= 2) {
           const [type, id] = pathSegments;
           if (["embed", "v", "shorts", "live"].includes(type)) {
@@ -53,16 +55,13 @@ export function normalizeYouTubeUrl(urlInput: string | null | undefined): string
       }
     }
 
-    // 4. Validate Video ID (Strict Regex)
-    // YouTube IDs are strictly 11 characters, containing A-Z, a-z, 0-9, - and _
+    // Validate Video ID — strictly 11 characters: A-Z, a-z, 0-9, - and _
     if (videoId && /^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
-      return `https://www.youtube.com/watch?v=${videoId}`;
+      return `${watchUrlBase}${videoId}`;
     }
   } catch (e) {
-    // If URL parsing fails, return original
     console.warn("[YouTubeUrlUtils] Failed to parse video URL:", urlInput, e);
   }
 
-  // Return original if it's not a recognizable video URL
   return urlInput;
 }
