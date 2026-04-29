@@ -1,0 +1,93 @@
+name: Build China App
+
+# Builds the china variant of the desktop app and runs the audit-no-global-urls
+# check against the produced bundle. China builds never publish — artifacts are
+# uploaded as workflow artifacts only until China hosting infrastructure exists.
+#
+# Triggered on:
+#   - workflow_dispatch (manual run)
+#   - pull_request when relevant files change
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/**"
+      - "scripts/audit-no-global-urls.sh"
+      - ".env.global"
+      - ".env.china"
+      - "electron-builder.config.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-china-app.yml"
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 20
+  BUILD_REGION: china
+
+jobs:
+  build-china:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # Mock secrets for the China build. No real China backend yet, so these
+      # are placeholders matching .env.example. PORTAL_API_URL et al. will be
+      # supplied from real secrets in a follow-up once China hosting exists.
+      - name: Create mock .env for china build
+        run: |
+          cat > .env <<'EOF'
+          PORTAL_API_URL=https://mock.china.local/api
+          PORTAL_TENANTS_URL=https://mock.china.local/tenants
+          AZURE_ENTRA_APP_CLIENT_ID=
+          AZURE_TENANT_ID=
+          AZURE_AUTH_SCOPE=
+          AZURE_AUTH_CUSTOM_PROTOCOL=yakshaver-desktop-cn
+          IDENTITY_SERVER_URL=https://mock.china.local/identity
+          IDENTITY_SERVER_CLIENT_ID=mock-china-client
+          IDENTITY_SERVER_SCOPE=openid,profile,email,ssw-yakshaver-api,offline_access
+          IDENTITY_SERVER_CUSTOM_PROTOCOL=yakshaver-desktop-cn
+          APPLICATIONINSIGHTS_CONNECTION_STRING=
+          MCP_CALLBACK_PORT=8090
+          MCP_AUTH_TIMEOUT_MS=60000
+          EOF
+          printf "COMMIT_HASH=%s\n" "$(git rev-parse HEAD)" >> .env
+
+      - name: Install backend dependencies
+        run: npm ci --prefer-offline
+        env:
+          # China build does not need the yt-dlp binary (YouTube features disabled).
+          YOUTUBE_DL_SKIP_DOWNLOAD: true
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
+      - name: Build china (backend + renderer + electron-builder --dir)
+        run: npm run build:china
+        env:
+          NODE_ENV: production
+          CI: true
+
+      - name: Audit china build for forbidden global URLs
+        run: bash scripts/audit-no-global-urls.sh build/china
+
+      - name: Audit china renderer dist for forbidden global URLs
+        run: bash scripts/audit-no-global-urls.sh src/ui/dist
+
+      - name: Upload china build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yakshaver-china-${{ github.sha }}
+          path: build/china/
+          retention-days: 7
+          if-no-files-found: error
