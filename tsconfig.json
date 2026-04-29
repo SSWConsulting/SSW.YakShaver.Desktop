@@ -13,5 +13,5 @@
     "resolveJsonModule": true
   },
   "include": ["src/backend/**/*", "src/shared/**/*"],
-  "exclude": ["node_modules", "dist", "src/ui"]
+  "exclude": ["node_modules", "dist", "src/ui", "**/*.test.ts", "**/*.spec.ts"]
 }
