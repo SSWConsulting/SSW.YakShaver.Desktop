@@ -319,14 +319,19 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   };
 
   const isValidYouTubeUrl = (url: string): boolean => {
+    // Vite substitutes process.env.YOUTUBE_VALID_DOMAINS at build time.
+    // Empty in china build — no domains valid → returns false.
+    const validDomains = (process.env.YOUTUBE_VALID_DOMAINS ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (validDomains.length === 0) {
+      toast.error("YouTube URL processing is not available in this build");
+      return false;
+    }
     try {
       const { hostname } = new URL(url);
-      return (
-        hostname === "youtu.be" ||
-        hostname === "youtube.com" ||
-        hostname === "www.youtube.com" ||
-        hostname === "m.youtube.com"
-      );
+      return validDomains.includes(hostname);
     } catch {
       toast.error("Please provide a valid YouTube URL");
       return false;
@@ -384,7 +389,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             <Input
               id={youtubeUrlInputId}
               type="url"
-              placeholder="https://www.youtube.com/watch?v=..."
+              placeholder={`${process.env.YOUTUBE_WATCH_URL_BASE ?? ""}VIDEO_ID`}
               value={youtubeUrl}
               onChange={handleYoutubeUrlChange}
             />

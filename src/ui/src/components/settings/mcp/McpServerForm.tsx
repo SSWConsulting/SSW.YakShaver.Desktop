@@ -164,7 +164,7 @@ export function McpServerForm({
                 <Input
                   {...field}
                   type="text"
-                  placeholder="e.g., https://api.githubcopilot.com/mcp/"
+                  placeholder={`e.g., ${process.env.MCP_GITHUB_COPILOT_URL ?? ""}`}
                 />
               </FormControl>
               <FormMessage />

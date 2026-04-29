@@ -1,3 +1,4 @@
+import { IS_CHINA } from "@shared/config/region";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { ipcClient } from "../services/ipc-client";
 import {
@@ -23,7 +24,31 @@ interface YouTubeAuthContextType {
 
 const YouTubeAuthContext = createContext<YouTubeAuthContextType | undefined>(undefined);
 
+// Disabled context value used by the China build's YouTubeAuthProvider stub.
+// Consumers like ScreenRecorder and VideoHostingStep read isAuthenticated from this;
+// keeping the value present (vs. throwing) means they take their existing
+// "not authenticated" code paths and the upload UI hides naturally.
+const DISABLED_CONTEXT_VALUE: YouTubeAuthContextType = {
+  authState: { status: AuthStatus.NOT_AUTHENTICATED },
+  isLoading: false,
+  uploadStatus: UploadStatus.IDLE,
+  uploadResult: null,
+  startAuth: async () => {},
+  disconnect: async () => {},
+  refreshToken: async () => false,
+  checkAuthStatus: async () => {},
+  setUploadResult: () => {},
+  setUploadStatus: () => {},
+};
+
 export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
+  if (IS_CHINA) {
+    return (
+      <YouTubeAuthContext.Provider value={DISABLED_CONTEXT_VALUE}>
+        {children}
+      </YouTubeAuthContext.Provider>
+    );
+  }
   const [authState, setAuthState] = useState<AuthState>({
     status: AuthStatus.NOT_AUTHENTICATED,
   });

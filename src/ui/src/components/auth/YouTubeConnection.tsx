@@ -1,3 +1,4 @@
+import { IS_GLOBAL } from "@shared/config/region";
 import { FaYoutube } from "react-icons/fa";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useCountdown } from "../../hooks/useCountdown";
@@ -10,6 +11,12 @@ export interface YouTubeConnectionProps {
 }
 
 export function YouTubeConnection({ buttonSize = "lg", onStatusChange }: YouTubeConnectionProps) {
+  // YouTube is unavailable in builds without YouTube infrastructure (e.g. china).
+  // Render nothing so the parent layout collapses naturally.
+  if (!IS_GLOBAL) {
+    return null;
+  }
+
   const { authState, startAuth, disconnect } = useYouTubeAuth();
   const {
     countdown,
