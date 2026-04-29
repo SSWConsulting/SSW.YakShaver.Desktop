@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { BrowserWindow, screen } from "electron";
+import { devServerOrigin } from "../../utils/dev-server";
 
 export class CountdownWindow {
   private static instance: CountdownWindow;
@@ -22,7 +23,7 @@ export class CountdownWindow {
 
     const { x, y, width, height } = this.getDisplayBounds(displayId);
     const url = this.isDev
-      ? "http://localhost:3000/countdown.html"
+      ? `${devServerOrigin()}/countdown.html`
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/countdown.html");
 
     this.window = new BrowserWindow({

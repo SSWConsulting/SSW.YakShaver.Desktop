@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { BrowserWindow, screen } from "electron";
+import { devServerOrigin } from "../../utils/dev-server";
 
 const WINDOW_SIZE = { width: 300, height: 80 };
 const MARGIN_BOTTOM = 20;
@@ -23,7 +24,7 @@ export class RecordingControlBarWindow {
 
     const { x, y } = this.getPosition(displayId);
     const url = this.isDev
-      ? "http://localhost:3000/control-bar.html"
+      ? `${devServerOrigin()}/control-bar.html`
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/control-bar.html");
 
     this.window = new BrowserWindow({

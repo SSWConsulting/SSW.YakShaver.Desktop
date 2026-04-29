@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { BrowserWindow, desktopCapturer, screen } from "electron";
+import { devServerOrigin } from "../../utils/dev-server";
 
 export class ScreenFrameWindow {
   private static instance: ScreenFrameWindow;
@@ -33,7 +34,7 @@ export class ScreenFrameWindow {
 
     const { x, y, width, height } = this.getDisplayBounds(selected.display_id);
     const url = this.isDev
-      ? "http://localhost:3000/frame-overlay.html"
+      ? `${devServerOrigin()}/frame-overlay.html`
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/frame-overlay.html");
 
     this.window = new BrowserWindow({

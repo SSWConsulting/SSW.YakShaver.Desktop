@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { BrowserWindow, screen } from "electron";
+import { devServerOrigin } from "../../utils/dev-server";
 
 const WINDOW_SIZE = { width: 400, height: 225 }; // 16:9 aspect ratio
 const MARGIN = 20;
@@ -28,7 +29,7 @@ export class CameraWindow {
     this.targetDisplayId = displayId;
     const { x, y } = this.getPosition(displayId);
     const url = this.isDev
-      ? `http://localhost:3000/camera.html?deviceId=${encodeURIComponent(cameraDeviceId)}`
+      ? `${devServerOrigin()}/camera.html?deviceId=${encodeURIComponent(cameraDeviceId)}`
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/camera.html");
 
     this.window = new BrowserWindow({
