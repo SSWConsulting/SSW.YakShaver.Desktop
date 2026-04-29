@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { BrowserWindow, screen } from "electron";
+import { BrowserWindow, ipcMain, screen } from "electron";
 
 const WINDOW_SIZE = { width: 400, height: 225 }; // 16:9 aspect ratio
 const MARGIN = 20;
@@ -55,7 +55,10 @@ export class CameraWindow {
       this.snapToScreenEdge();
     });
 
-    this.window.setAlwaysOnTop(true, "floating");
+    // "screen-saver" matches the screen-frame overlay and the control bar.
+    // On Windows the lower "floating" level renders this PiP behind the
+    // full-screen frame overlay, hiding the camera entirely.
+    this.window.setAlwaysOnTop(true, "screen-saver");
 
     await (this.isDev ? this.window.loadURL(url) : this.window.loadFile(url));
 
@@ -64,7 +67,6 @@ export class CameraWindow {
     }
 
     await new Promise<void>((resolve) => {
-      const { ipcMain } = require("electron");
       let resolved = false;
       let timeout: NodeJS.Timeout;
 
