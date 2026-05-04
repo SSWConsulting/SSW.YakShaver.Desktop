@@ -53,7 +53,6 @@ jobs:
           echo "channel=${CHANNEL_NAME}" >> $GITHUB_OUTPUT
           echo "version=${PRE_RELEASE_VERSION}" >> $GITHUB_OUTPUT
           echo "pr_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "PR: ${PR_NUMBER}, Tag: ${TAG_NAME}, Channel: ${CHANNEL_NAME}, Version: ${PRE_RELEASE_VERSION}"
 
       - name: Delete existing PR releases
         continue-on-error: true
@@ -61,32 +60,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ steps.pr_info.outputs.pr_number }}"
-
-          echo "Finding and deleting existing releases for PR #${PR_NUMBER}"
-
-          # Collect both release IDs and tag names BEFORE deleting anything
           RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | {id: .id, tag: .tag_name}")
-
           RELEASE_IDS=$(echo "$RELEASES_DATA" | jq -r '.id')
           TAG_NAMES=$(echo "$RELEASES_DATA" | jq -r '.tag')
 
-          # Now delete the releases
           for id in $RELEASE_IDS; do
             if [ -n "$id" ]; then
-              echo "Deleting release ID: $id"
               gh api -X DELETE /repos/${{ github.repository }}/releases/$id || true
             fi
           done
 
-          # Clean up associated tags (collected before deletion)
           for tag in $TAG_NAMES; do
             if [ -n "$tag" ]; then
-              echo "Deleting tag: $tag"
               gh api -X DELETE /repos/${{ github.repository }}/git/refs/tags/$tag || true
             fi
           done
-
-          echo "Cleanup completed"
 
   build-windows:
     needs: cleanup-release
@@ -105,7 +93,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
         shell: pwsh
         env:
@@ -142,10 +129,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline
         env:
-          # Prevent youtube-dl-exec from auto-downloading yt-dlp during npm install, which would hit the GitHub API unauthenticated rate limit
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
-      # Manual download is needed because the 'youtube-dl-exec' script hits the GitHub API unauthenticated rate limit (60/hr) when attempting to download the binary
       - name: Install yt-dlp binary manually
         shell: bash
         run: |
@@ -184,7 +169,6 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
-          # Disable minification for PR preview builds
           VITE_DEBUG_BUILD: "true"
 
       - name: Fix update manifest filenames
@@ -194,7 +178,6 @@ jobs:
             $content = Get-Content $_.FullName -Raw
             $content = $content -replace "YakShaver-Setup-", "YakShaver.Setup."
             $content | Out-File -FilePath $_.FullName -Encoding utf8 -NoNewline
-            Write-Host "Fixed $($_.Name)"
           }
 
       - name: Upload Windows artifacts
@@ -213,8 +196,6 @@ jobs:
       github.event_name != 'pull_request' ||
       github.event.action != 'closed'
     runs-on: macos-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -226,7 +207,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
         env:
           MCP_CALLBACK_PORT: 8090
@@ -262,11 +242,9 @@ jobs:
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
-      # Manual download is needed because the youtube-dl-exec script hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find the yt-dlp binary.
       - name: Install yt-dlp binary manually
         run: |
           mkdir -p node_modules/youtube-dl-exec/bin
-
           PATTERN="yt-dlp_macos"
           OUTPUT_FILE="node_modules/youtube-dl-exec/bin/yt-dlp"
           MAX_ATTEMPTS=3
@@ -277,19 +255,15 @@ jobs:
             --pattern "$PATTERN" \
             --clobber \
             --output "$OUTPUT_FILE"; do
-
             echo "Attempt $ATTEMPT to download yt-dlp binary failed." >&2
-
             if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
               echo "Failed to download yt-dlp binary after $MAX_ATTEMPTS attempts." >&2
               exit 1
             fi
-
             ATTEMPT=$((ATTEMPT+1))
             sleep 5
           done
 
-          # Make the binary executable
           chmod +x "$OUTPUT_FILE"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -307,41 +281,28 @@ jobs:
           fi
           npm version "$VERSION" --no-git-tag-version
 
-      - name: Publish macOS pre-release (arm64)
-        run: npm run publish -- --mac --arm64 -c.mac.target.arch=arm64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
+      - name: Build unpacked macOS arm64 app
+        run: npm run package -- --mac --arm64 --dir
         env:
           NODE_ENV: production
           CI: true
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
-          # Disable minification for PR preview builds
           VITE_DEBUG_BUILD: "true"
 
-      # Enable only when need code sign and notarization on Pre-release builds
-      # - name: Publish macOS pre-release
-      #   run: npm run publish -- --mac
-      #   env:
-      #     NODE_ENV: production
-      #     CI: true
-      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #     CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
-      #     # Disable minification for PR preview builds
-      #     VITE_DEBUG_BUILD: "true"
-      #     CSC_FOR_PULL_REQUEST: "true"
-      #     CSC_LINK: ${{ secrets.CSC_LINK }}
-      #     CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-      #     APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-      #     APPLE_ID: ${{ secrets.APPLE_ID }}
-      #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Archive macOS arm64 app bundle
+        run: |
+          set -e
+          APP_PATH=$(find build -name "YakShaver.app" -type d | head -n 1)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "Error: Could not find arm64 YakShaver.app bundle" >&2
+            exit 1
+          fi
+          tar -czf build/YakShaver-arm64-app.tar.gz -C "$(dirname "$APP_PATH")" "$(basename "$APP_PATH")"
 
-      - name: Upload macOS (arm64) artifacts
+      - name: Upload macOS arm64 app bundle
         uses: actions/upload-artifact@v7
         with:
-          name: macos-arm64-build
-          path: |
-            build/YakShaver-*-arm64-mac.zip
-            build/YakShaver-*-arm64-mac.zip.blockmap
-            build/*-mac.yml
+          name: macos-arm64-app
+          path: build/YakShaver-arm64-app.tar.gz
           retention-days: 1
 
   build-macos-x64:
@@ -350,8 +311,6 @@ jobs:
       github.event_name != 'pull_request' ||
       github.event.action != 'closed'
     runs-on: macos-15-intel
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -363,7 +322,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
         env:
           MCP_CALLBACK_PORT: 8090
@@ -398,18 +356,14 @@ jobs:
         run: npm ci --prefer-offline
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
-          # Explicitly set arch to x64 to ensure all optional dependencies install x64 binaries
           npm_config_arch: x64
 
-      # Explicitly rebuild better-sqlite3 for x64 Electron to guarantee correct native module architecture
       - name: Rebuild native modules for x64
         run: npx electron-rebuild -f -w better-sqlite3 --arch x64
 
-      # Manual download is needed because the youtube-dl-exec script hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find the yt-dlp binary.
       - name: Install yt-dlp binary manually
         run: |
           mkdir -p node_modules/youtube-dl-exec/bin
-
           PATTERN="yt-dlp_macos"
           OUTPUT_FILE="node_modules/youtube-dl-exec/bin/yt-dlp"
           MAX_ATTEMPTS=3
@@ -420,19 +374,15 @@ jobs:
             --pattern "$PATTERN" \
             --clobber \
             --output "$OUTPUT_FILE"; do
-
             echo "Attempt $ATTEMPT to download yt-dlp binary failed." >&2
-
             if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
               echo "Failed to download yt-dlp binary after $MAX_ATTEMPTS attempts." >&2
               exit 1
             fi
-
             ATTEMPT=$((ATTEMPT+1))
             sleep 5
           done
 
-          # Make the binary executable
           chmod +x "$OUTPUT_FILE"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -450,64 +400,151 @@ jobs:
           fi
           npm version "$VERSION" --no-git-tag-version
 
-      - name: Publish macOS pre-release (x64)
-        run: npm run publish -- --mac --x64 -c.mac.target.arch=x64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
+      - name: Build unpacked macOS x64 app
+        run: npm run package -- --mac --x64 --dir
         env:
           NODE_ENV: production
           CI: true
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
-          # Disable minification for PR preview builds
           VITE_DEBUG_BUILD: "true"
 
       - name: Verify x64 architecture of built app
         run: |
           set -e
-          echo "Verifying built app architecture..."
-
-          # Find the .app bundle
-          APP_PATH=$(find build/mac-x64 build/mac -name "YakShaver.app" -type d 2>/dev/null | head -n 1)
+          APP_PATH=$(find build -name "YakShaver.app" -type d | head -n 1)
           if [[ -z "$APP_PATH" ]]; then
-            echo "Warning: Could not find .app bundle to verify architecture"
-            echo "Build directory contents:"
-            ls -la build/ 2>/dev/null || echo "No build directory"
-          else
-            BINARY="$APP_PATH/Contents/MacOS/YakShaver"
-            if [[ -f "$BINARY" ]]; then
-              ARCH_INFO=$(file "$BINARY")
-              echo "Binary architecture: $ARCH_INFO"
-              if echo "$ARCH_INFO" | grep -q "x86_64"; then
-                echo "✅ Confirmed: Binary is x86_64 (Intel)"
-              else
-                echo "❌ ERROR: Binary is NOT x86_64!"
-                echo "$ARCH_INFO"
-                exit 1
-              fi
-            fi
+            echo "Error: Could not find x64 YakShaver.app bundle" >&2
+            exit 1
+          fi
+          BINARY="$APP_PATH/Contents/MacOS/YakShaver"
+          ARCH_INFO=$(file "$BINARY")
+          echo "Binary architecture: $ARCH_INFO"
+          if ! echo "$ARCH_INFO" | grep -q "x86_64"; then
+            echo "❌ ERROR: Binary is NOT x86_64!"
+            exit 1
           fi
 
-          # Also verify better-sqlite3 native module if accessible
-          SQLITE_NODE=$(find build -name "better_sqlite3.node" -type f 2>/dev/null | head -n 1)
-          if [[ -n "$SQLITE_NODE" ]]; then
-            SQLITE_ARCH=$(file "$SQLITE_NODE")
-            echo "better-sqlite3 native module: $SQLITE_ARCH"
-            if echo "$SQLITE_ARCH" | grep -q "x86_64"; then
-              echo "✅ Confirmed: better-sqlite3 native module is x86_64"
-            else
-              echo "❌ ERROR: better-sqlite3 native module is NOT x86_64!"
-              echo "$SQLITE_ARCH"
-              exit 1
-            fi
+      - name: Archive macOS x64 app bundle
+        run: |
+          set -e
+          APP_PATH=$(find build -name "YakShaver.app" -type d | head -n 1)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "Error: Could not find x64 YakShaver.app bundle" >&2
+            exit 1
           fi
+          tar -czf build/YakShaver-x64-app.tar.gz -C "$(dirname "$APP_PATH")" "$(basename "$APP_PATH")"
 
-      - name: Upload macOS (x64) artifacts
+      - name: Upload macOS x64 app bundle
         uses: actions/upload-artifact@v7
         with:
-          name: macos-x64-build
+          name: macos-x64-app
+          path: build/YakShaver-x64-app.tar.gz
+          retention-days: 1
+
+  package-macos-universal:
+    runs-on: macos-latest
+    needs:
+      - cleanup-release
+      - build-macos-arm64
+      - build-macos-x64
+    if: |
+      github.event.action != 'closed' &&
+      needs.cleanup-release.outputs.pr_number != ''
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: true
+
+      - name: Download macOS arm64 app bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-arm64-app
+          path: artifacts/macos-arm64/
+
+      - name: Download macOS x64 app bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-x64-app
+          path: artifacts/macos-x64/
+
+      - name: Extract macOS app bundles
+        run: |
+          set -e
+          mkdir -p artifacts/macos-arm64-app artifacts/macos-x64-app
+          tar -xzf artifacts/macos-arm64/YakShaver-arm64-app.tar.gz -C artifacts/macos-arm64-app
+          tar -xzf artifacts/macos-x64/YakShaver-x64-app.tar.gz -C artifacts/macos-x64-app
+
+      - name: Update version for pre-release
+        run: |
+          VERSION="${{ needs.cleanup-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Missing version output"
+            exit 1
+          fi
+          npm version "$VERSION" --no-git-tag-version
+
+      - name: Merge universal macOS app
+        run: |
+          set -e
+          ARM64_APP=$(find artifacts/macos-arm64-app -name "YakShaver.app" -type d | head -n 1)
+          X64_APP=$(find artifacts/macos-x64-app -name "YakShaver.app" -type d | head -n 1)
+
+          if [[ -z "$ARM64_APP" || -z "$X64_APP" ]]; then
+            echo "Error: Missing architecture-specific app bundles to merge" >&2
+            exit 1
+          fi
+
+          ARM64_APP=$(cd "$(dirname "$ARM64_APP")" && pwd)/"$(basename "$ARM64_APP")"
+          X64_APP=$(cd "$(dirname "$X64_APP")" && pwd)/"$(basename "$X64_APP")"
+          UNIVERSAL_APP="$PWD/build/macos-universal/YakShaver.app"
+
+          mkdir -p "$PWD/build/macos-universal"
+
+          ARM64_APP_PATH="$ARM64_APP" X64_APP_PATH="$X64_APP" UNIVERSAL_APP_PATH="$UNIVERSAL_APP" node --input-type=module <<'EOF'
+          import { makeUniversalApp } from "@electron/universal";
+
+          await makeUniversalApp({
+            x64AppPath: process.env.X64_APP_PATH,
+            arm64AppPath: process.env.ARM64_APP_PATH,
+            outAppPath: process.env.UNIVERSAL_APP_PATH,
+          });
+          EOF
+
+      - name: Package universal macOS pre-release
+        run: |
+          set -e
+          npm exec electron-builder -- \
+            --config electron-builder.config.js \
+            --mac \
+            --universal \
+            --prepackaged "$PWD/build/macos-universal/YakShaver.app" \
+            --publish never \
+            -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}'
+        env:
+          NODE_ENV: production
+          CI: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
+
+      - name: Upload universal macOS release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-universal-build
           path: |
-            build/YakShaver-*-x64-mac.zip
-            build/YakShaver-*-x64-mac.zip.blockmap
             build/*-mac.yml
+            build/YakShaver-*-universal-mac.dmg
+            build/YakShaver-*-universal-mac.zip
+            build/YakShaver-*-universal-mac.zip.blockmap
           retention-days: 1
 
   create-and-comment-release:
@@ -515,8 +552,7 @@ jobs:
     needs:
       - cleanup-release
       - build-windows
-      - build-macos-arm64
-      - build-macos-x64
+      - package-macos-universal
     if: |
       github.event.action != 'closed' &&
       needs.cleanup-release.outputs.pr_number != ''
@@ -527,17 +563,11 @@ jobs:
           name: windows-build
           path: artifacts/
 
-      - name: Download macOS (arm64) artifacts
+      - name: Download universal macOS artifacts
         uses: actions/download-artifact@v8
         with:
-          name: macos-arm64-build
-          path: artifacts/
-
-      - name: Download macOS (x64) artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: macos-x64-build
-          path: artifacts/
+          name: macos-universal-build
+          path: release-assets/macos-universal/
 
       - name: Create single GitHub release with all artifacts
         uses: softprops/action-gh-release@v2
@@ -552,7 +582,9 @@ jobs:
 
             This is an automated pre-release. It will be updated automatically when new commits are pushed to the PR.
           prerelease: true
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*
+            release-assets/**/*
           draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -576,29 +608,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
-
-          echo "Deleting all releases for closed PR #${PR_NUMBER}"
-
-          # Collect both release IDs and tag names BEFORE deleting anything
           RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | {id: .id, tag: .tag_name}")
-
           RELEASE_IDS=$(echo "$RELEASES_DATA" | jq -r '.id')
           TAG_NAMES=$(echo "$RELEASES_DATA" | jq -r '.tag')
 
-          # Delete the releases
           for id in $RELEASE_IDS; do
             if [ -n "$id" ]; then
-              echo "Deleting release ID: $id"
               gh api -X DELETE /repos/${{ github.repository }}/releases/$id || true
             fi
           done
 
-          # Clean up associated tags (collected before deletion)
           for tag in $TAG_NAMES; do
             if [ -n "$tag" ]; then
-              echo "Deleting tag: $tag"
               gh api -X DELETE /repos/${{ github.repository }}/git/refs/tags/$tag || true
             fi
           done
-
-          echo "Deletion completed for closed PR"

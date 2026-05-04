@@ -584,6 +584,10 @@ npm run format         # Biome formatter (auto-fix)
 npm run db:generate    # Generate Drizzle ORM migrations
 ```
 
+### Release Workflow Notes
+
+- macOS releases are produced as a single universal app for auto-update compatibility. Build arm64 and x64 `.app` bundles separately when native modules require per-arch compilation, merge them with `@electron/universal`, then package and publish one universal macOS artifact and its generated `latest-mac.yml` / `{channel}-mac.yml`.
+
 ## Guardrails & Constraints
 
 ### Forbidden Patterns
