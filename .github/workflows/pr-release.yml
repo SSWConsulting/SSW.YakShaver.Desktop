@@ -507,8 +507,21 @@ jobs:
           ARM64_APP=$(cd "$(dirname "$ARM64_APP")" && pwd)/"$(basename "$ARM64_APP")"
           X64_APP=$(cd "$(dirname "$X64_APP")" && pwd)/"$(basename "$X64_APP")"
           UNIVERSAL_APP="$PWD/build/macos-universal/YakShaver.app"
+          FFMPEG_ROOT="Contents/Resources/app.asar.unpacked/node_modules/@ffmpeg-installer"
 
           mkdir -p "$PWD/build/macos-universal"
+
+          for arch_dir in darwin-arm64 darwin-x64; do
+            if [[ -d "$ARM64_APP/$FFMPEG_ROOT/$arch_dir" && ! -d "$X64_APP/$FFMPEG_ROOT/$arch_dir" ]]; then
+              mkdir -p "$X64_APP/$FFMPEG_ROOT"
+              cp -R "$ARM64_APP/$FFMPEG_ROOT/$arch_dir" "$X64_APP/$FFMPEG_ROOT/$arch_dir"
+            fi
+
+            if [[ -d "$X64_APP/$FFMPEG_ROOT/$arch_dir" && ! -d "$ARM64_APP/$FFMPEG_ROOT/$arch_dir" ]]; then
+              mkdir -p "$ARM64_APP/$FFMPEG_ROOT"
+              cp -R "$X64_APP/$FFMPEG_ROOT/$arch_dir" "$ARM64_APP/$FFMPEG_ROOT/$arch_dir"
+            fi
+          done
 
           ARM64_APP_PATH="$ARM64_APP" X64_APP_PATH="$X64_APP" UNIVERSAL_APP_PATH="$UNIVERSAL_APP" node --input-type=module <<'EOF'
           import { makeUniversalApp } from "@electron/universal";
@@ -517,6 +530,8 @@ jobs:
             x64AppPath: process.env.X64_APP_PATH,
             arm64AppPath: process.env.ARM64_APP_PATH,
             outAppPath: process.env.UNIVERSAL_APP_PATH,
+            x64ArchFiles:
+              "Contents/Resources/app.asar.unpacked/node_modules/@ffmpeg-installer/darwin-*/ffmpeg",
           });
           EOF
 
