@@ -491,6 +491,9 @@ jobs:
             fi
           done
 
+          find "$ARM64_APP" -path '*/_CodeSignature' -type d -prune -exec rm -rf {} +
+          find "$X64_APP" -path '*/_CodeSignature' -type d -prune -exec rm -rf {} +
+
           ARM64_APP_PATH="$ARM64_APP" X64_APP_PATH="$X64_APP" UNIVERSAL_APP_PATH="$UNIVERSAL_APP" node --input-type=module <<'EOF'
           import { makeUniversalApp } from "@electron/universal";
 

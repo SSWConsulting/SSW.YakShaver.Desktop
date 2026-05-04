@@ -523,6 +523,9 @@ jobs:
             fi
           done
 
+          find "$ARM64_APP" -path '*/_CodeSignature' -type d -prune -exec rm -rf {} +
+          find "$X64_APP" -path '*/_CodeSignature' -type d -prune -exec rm -rf {} +
+
           ARM64_APP_PATH="$ARM64_APP" X64_APP_PATH="$X64_APP" UNIVERSAL_APP_PATH="$UNIVERSAL_APP" node --input-type=module <<'EOF'
           import { makeUniversalApp } from "@electron/universal";
 
@@ -549,6 +552,11 @@ jobs:
           NODE_ENV: production
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CHANNEL: ${{ needs.cleanup-release.outputs.channel }}
 
       - name: Upload universal macOS release artifacts
