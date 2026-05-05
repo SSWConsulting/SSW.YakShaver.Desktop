@@ -12,6 +12,25 @@ const { mockTray, mockAppQuit } = vi.hoisted(() => ({
   mockAppQuit: vi.fn(),
 }));
 
+function createMockWindow(options?: {
+  isDestroyed?: boolean;
+  isMinimized?: boolean;
+  webContentsDestroyed?: boolean;
+}) {
+  return {
+    once: vi.fn(),
+    show: vi.fn(),
+    isDestroyed: vi.fn().mockReturnValue(options?.isDestroyed ?? false),
+    isMinimized: vi.fn().mockReturnValue(options?.isMinimized ?? false),
+    restore: vi.fn(),
+    focus: vi.fn(),
+    webContents: {
+      isDestroyed: vi.fn().mockReturnValue(options?.webContentsDestroyed ?? false),
+      send: vi.fn(),
+    },
+  } as unknown as BrowserWindow;
+}
+
 vi.mock("electron", () => {
   return {
     app: {
@@ -70,7 +89,7 @@ describe("TrayManager", () => {
 
   describe("setMainWindow", () => {
     it("should set the main window reference", () => {
-      const mockWindow = {} as BrowserWindow;
+      const mockWindow = createMockWindow();
       expect(() => trayManager.setMainWindow(mockWindow)).not.toThrow();
     });
   });
@@ -117,13 +136,7 @@ describe("TrayManager", () => {
 
   describe("tray click event", () => {
     it("should show and focus window when tray is clicked", () => {
-      const mockWindow = {
-        show: vi.fn(),
-        isMinimized: vi.fn().mockReturnValue(false),
-        restore: vi.fn(),
-        focus: vi.fn(),
-        webContents: { send: vi.fn() },
-      } as unknown as BrowserWindow;
+      const mockWindow = createMockWindow();
 
       trayManager.setMainWindow(mockWindow);
       trayManager.createTray();
@@ -139,13 +152,7 @@ describe("TrayManager", () => {
     });
 
     it("should restore window if minimized when tray is clicked", () => {
-      const mockWindow = {
-        show: vi.fn(),
-        isMinimized: vi.fn().mockReturnValue(true),
-        restore: vi.fn(),
-        focus: vi.fn(),
-        webContents: { send: vi.fn() },
-      } as unknown as BrowserWindow;
+      const mockWindow = createMockWindow({ isMinimized: true });
 
       trayManager.setMainWindow(mockWindow);
       trayManager.createTray();
@@ -157,17 +164,26 @@ describe("TrayManager", () => {
 
       expect(mockWindow.restore).toHaveBeenCalled();
     });
+
+    it("should ignore tray clicks when the main window is destroyed", () => {
+      const mockWindow = createMockWindow({ isDestroyed: true });
+
+      trayManager.setMainWindow(mockWindow);
+      trayManager.createTray();
+
+      const clickHandler = mockTray.on.mock.calls.find(
+        (call) => call[0] === "click",
+      )?.[1] as () => void;
+
+      expect(() => clickHandler()).not.toThrow();
+      expect(mockWindow.show).not.toHaveBeenCalled();
+      expect(mockWindow.focus).not.toHaveBeenCalled();
+    });
   });
 
   describe("tray menu actions", () => {
     it("should show window when Open YakShaver menu item is clicked", () => {
-      const mockWindow = {
-        show: vi.fn(),
-        isMinimized: vi.fn().mockReturnValue(false),
-        restore: vi.fn(),
-        focus: vi.fn(),
-        webContents: { send: vi.fn() },
-      } as unknown as BrowserWindow;
+      const mockWindow = createMockWindow();
 
       trayManager.setMainWindow(mockWindow);
       trayManager.createTray();
@@ -199,13 +215,7 @@ describe("TrayManager", () => {
     });
 
     it("should open source picker when Record Shave menu item is clicked", () => {
-      const mockWindow = {
-        show: vi.fn(),
-        isMinimized: vi.fn().mockReturnValue(false),
-        restore: vi.fn(),
-        focus: vi.fn(),
-        webContents: { send: vi.fn() },
-      } as unknown as BrowserWindow;
+      const mockWindow = createMockWindow();
 
       trayManager.setMainWindow(mockWindow);
       trayManager.createTray();
@@ -219,6 +229,22 @@ describe("TrayManager", () => {
 
       expect(mockWindow.show).toHaveBeenCalled();
       expect(mockWindow.webContents.send).toHaveBeenCalledWith("open-source-picker");
+    });
+
+    it("should not send source picker event when webContents is destroyed", () => {
+      const mockWindow = createMockWindow({ webContentsDestroyed: true });
+
+      trayManager.setMainWindow(mockWindow);
+      trayManager.createTray();
+
+      const menuTemplate = mockTray.setContextMenu.mock.calls[0][0] as Array<{
+        label?: string;
+        click?: () => void;
+      }>;
+      const recordItem = menuTemplate.find((item) => item.label === "Record Shave");
+
+      expect(() => recordItem?.click?.()).not.toThrow();
+      expect(mockWindow.webContents.send).not.toHaveBeenCalled();
     });
 
     it("should not throw when Record Shave clicked without main window", () => {

@@ -16,6 +16,12 @@ export class TrayManager {
 
   setMainWindow(window: BrowserWindow): void {
     this.mainWindow = window;
+
+    window.once("closed", () => {
+      if (this.mainWindow === window) {
+        this.mainWindow = null;
+      }
+    });
   }
 
   setRecordHotkey(hotkey: string): void {
@@ -36,13 +42,17 @@ export class TrayManager {
   }
 
   private showWindow(): void {
-    if (this.mainWindow) {
-      this.mainWindow.show();
-      if (this.mainWindow.isMinimized()) {
-        this.mainWindow.restore();
-      }
-      this.mainWindow.focus();
+    const window = this.getActiveMainWindow();
+
+    if (!window) {
+      return;
     }
+
+    window.show();
+    if (window.isMinimized()) {
+      window.restore();
+    }
+    window.focus();
   }
 
   private buildTrayContextMenu(): Menu {
@@ -76,10 +86,23 @@ export class TrayManager {
   }
 
   private openSourcePicker(): void {
-    if (this.mainWindow) {
-      this.showWindow();
-      this.mainWindow.webContents.send(IPC_CHANNELS.OPEN_SOURCE_PICKER);
+    const window = this.getActiveMainWindow();
+
+    if (!window || window.webContents.isDestroyed()) {
+      return;
     }
+
+    this.showWindow();
+    window.webContents.send(IPC_CHANNELS.OPEN_SOURCE_PICKER);
+  }
+
+  private getActiveMainWindow(): BrowserWindow | null {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      this.mainWindow = null;
+      return null;
+    }
+
+    return this.mainWindow;
   }
 
   updateTrayMenu(): void {
