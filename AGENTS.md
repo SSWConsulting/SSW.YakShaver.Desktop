@@ -55,6 +55,7 @@ YakShaver is a desktop AI agent with the following capabilities:
 - **APIs**: `googleapis`, `@microsoft/microsoft-graph-client`, `google-auth-library`, `@azure/msal-node`
 - **Video/Media**: `@ffmpeg-installer/ffmpeg`, `youtube-dl-exec`
 - **Telemetry**: `applicationinsights`
+- **CI/Release tooling**: `js-yaml` for update manifest merge validation
 
 ## Project Structure
 
@@ -534,6 +535,14 @@ Button variants: `default`, `destructive`, `outline`, `secondary`, `ghost`, `lin
 
 - **External**: Configure via Settings UI (persisted to `mcp-servers.json`)
 - **Internal**: Add to `src/backend/services/mcp/internal/` and register in MCP orchestrator
+
+### Updating Release Workflows
+
+- macOS arm64 and x64 builds generate separate ZIPs but must publish a single update manifest
+  (`latest-mac.yml` for stable releases or `beta.{PR}-mac.yml` for PR releases). Use
+  `scripts/merge-mac-update-manifests.js` to merge and validate the two generated mac manifests.
+- Windows update manifests are separate (`latest.yml` or `beta.{PR}.yml`) and must not be merged with
+  macOS manifests.
 
 ## Configuration
 
