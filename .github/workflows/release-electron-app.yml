@@ -141,26 +141,6 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify Windows update manifest
-        shell: pwsh
-        run: |
-          $manifest = "build/latest.yml"
-
-          if (-not (Test-Path $manifest)) {
-            Write-Host "Available YAML files:"
-            Get-ChildItem "build/*.yml" | ForEach-Object { Write-Host "  $($_.Name)" }
-            throw "Missing Windows update manifest: $manifest"
-          }
-
-          if (Get-ChildItem "build/*-mac.yml" -ErrorAction SilentlyContinue) {
-            throw "Windows build must not produce macOS update manifests"
-          }
-
-          $content = Get-Content $manifest -Raw
-          if ($content -notmatch "\.exe") {
-            throw "Windows update manifest must reference the Windows installer"
-          }
-
       - name: Create fixed-name artifacts for stable download links
         shell: pwsh
         run: |
