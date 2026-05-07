@@ -1,7 +1,7 @@
 import { Power } from "lucide-react";
 import { useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ipcClient } from "@/services/ipc-client";
@@ -78,7 +78,7 @@ export function StartupSetting({ isActive }: StartupSettingProps) {
       </CardHeader>
       <CardContent className="flex items-center justify-between gap-4 px-4">
         <Label htmlFor={inputId} className="cursor-pointer text-sm font-medium">
-          Start YakShaver at login your computer
+          Start YakShaver when you sign in to your computer
         </Label>
         <Switch
           id={inputId}
