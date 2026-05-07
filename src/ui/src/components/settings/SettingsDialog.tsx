@@ -26,14 +26,6 @@ const TABS: SettingsTab[] = [
     label: "General",
   },
   {
-    id: "release",
-    label: "Releases",
-  },
-  {
-    id: "prompts",
-    label: "Custom Prompts",
-  },
-  {
     id: "llm",
     label: "Model Settings",
   },
@@ -46,12 +38,20 @@ const TABS: SettingsTab[] = [
     label: "Video Host",
   },
   {
-    id: "telemetry",
-    label: "Telemetry",
+    id: "prompts",
+    label: "Custom Prompts",
   },
   {
     id: "advanced",
     label: "Advanced",
+  },
+  {
+    id: "release",
+    label: "Releases",
+  },
+  {
+    id: "telemetry",
+    label: "Telemetry",
   },
   {
     id: "account",
