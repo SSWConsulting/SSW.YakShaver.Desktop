@@ -39,7 +39,7 @@ const TABS: SettingsTab[] = [
   },
   {
     id: "mcp",
-    label: "MCP Servers",
+    label: "MCP Settings",
   },
   {
     id: "videoHost",
