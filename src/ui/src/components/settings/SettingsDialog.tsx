@@ -7,11 +7,10 @@ import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
 import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
-import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
 import { LanguageModelKeyManager } from "./llm/LanguageModelKeyManager";
 import { TranscriptionModelKeyManager } from "./llm/TranscriptionModelKeyManager";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
-import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelManager";
+import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelSettingsPanel";
 import { TelemetrySettingsPanel } from "./telemetry/TelemetrySettingsPanel";
 import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
 
@@ -30,10 +29,6 @@ const TABS: SettingsTab[] = [
   {
     id: "release",
     label: "Releases",
-  },
-  {
-    id: "github",
-    label: "GitHub Token",
   },
   {
     id: "prompts",
@@ -70,6 +65,7 @@ const TABS: SettingsTab[] = [
 ];
 
 const TAB_ALIASES: Record<string, string> = {
+  github: "release",
   hotkeys: "general",
   toolApproval: "general",
 };
@@ -212,9 +208,6 @@ export function SettingsDialog() {
                 )}
                 {activeTab?.id === "release" && (
                   <ReleaseChannelSettingsPanel isActive={open && activeTabId === "release"} />
-                )}
-                {activeTab?.id === "github" && (
-                  <GitHubTokenSettingsPanel isActive={open && activeTabId === "github"} />
                 )}
                 {activeTab?.id === "prompts" && (
                   <CustomPromptSettingsPanel
