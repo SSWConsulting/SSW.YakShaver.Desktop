@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useTelemetryConsent } from "@/hooks/useTelemetryConsent";
-import { TelemetryConsentDialog } from "./TelemetryConsentDialog";
+import { TelemetryConsentDialog } from "../telemetry/TelemetryConsentDialog";
 
-export function TelemetrySettingsPanel() {
+export function TelemetryUsageDataSetting() {
   const {
     settings,
     isLoading,
@@ -66,8 +66,8 @@ export function TelemetrySettingsPanel() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className="w-full gap-4 border-white/10 py-4">
+        <CardHeader className="px-4">
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
             Telemetry & Usage Data
@@ -80,8 +80,8 @@ export function TelemetrySettingsPanel() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
+      <Card className="w-full gap-4 border-white/10 py-4">
+        <CardHeader className="px-4">
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
             Telemetry & Usage Data
@@ -92,8 +92,7 @@ export function TelemetrySettingsPanel() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-6">
-          {/* Consent Button */}
+        <CardContent className="space-y-6 px-4">
           {!hasMadeDecision || !isEnabled ? (
             <div className="bg-muted/50 p-4 rounded-lg">
               <p className="text-sm mb-3">
@@ -104,7 +103,6 @@ export function TelemetrySettingsPanel() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Individual toggles */}
               <div className="space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">

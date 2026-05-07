@@ -10,7 +10,6 @@ import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
 import { LLMSettingsPanel } from "./llm/LLMSettingsPanel";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelSettingsPanel";
-import { TelemetrySettingsPanel } from "./telemetry/TelemetrySettingsPanel";
 import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
 
 type LeaveHandler = () => Promise<boolean>;
@@ -26,6 +25,10 @@ const TABS: SettingsTab[] = [
     label: "General",
   },
   {
+    id: "videoHost",
+    label: "Video Host",
+  },
+  {
     id: "llm",
     label: "Model Settings",
   },
@@ -34,20 +37,12 @@ const TABS: SettingsTab[] = [
     label: "MCP Settings",
   },
   {
-    id: "videoHost",
-    label: "Video Host",
-  },
-  {
     id: "prompts",
     label: "Custom Prompts",
   },
   {
     id: "advanced",
     label: "Advanced",
-  },
-  {
-    id: "telemetry",
-    label: "Telemetry",
   },
   {
     id: "account",
@@ -63,6 +58,7 @@ const TAB_ALIASES: Record<string, string> = {
   github: "release",
   hotkeys: "general",
   language: "llm",
+  telemetry: "account",
   toolApproval: "general",
   transcription: "llm",
 };
@@ -221,7 +217,6 @@ export function SettingsDialog() {
                 {activeTab?.id === "videoHost" && (
                   <VideoHostSettingsPanel isActive={open && activeTabId === "videoHost"} />
                 )}
-                {activeTab?.id === "telemetry" && <TelemetrySettingsPanel />}
                 {activeTab?.id === "advanced" && <AdvancedSettingsPanel />}
                 {activeTab?.id === "account" && (
                   <AccountSettingsPanel isActive={open && activeTabId === "account"} />
