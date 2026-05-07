@@ -46,16 +46,16 @@ const TABS: SettingsTab[] = [
     label: "Advanced",
   },
   {
-    id: "release",
-    label: "Releases",
-  },
-  {
     id: "telemetry",
     label: "Telemetry",
   },
   {
     id: "account",
     label: "Account",
+  },
+  {
+    id: "release",
+    label: "Releases",
   },
 ];
 
