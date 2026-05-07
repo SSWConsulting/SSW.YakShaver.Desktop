@@ -7,14 +7,12 @@ import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
 import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
-import { HotkeySettingsPanel } from "./general/HotkeySettingsPanel";
 import { GitHubTokenSettingsPanel } from "./github-token/GitHubTokenManager";
 import { LanguageModelKeyManager } from "./llm/LanguageModelKeyManager";
 import { TranscriptionModelKeyManager } from "./llm/TranscriptionModelKeyManager";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelManager";
 import { TelemetrySettingsPanel } from "./telemetry/TelemetrySettingsPanel";
-import { ToolApprovalSettingsPanel } from "./tool-approval/ToolApprovalSettingsPanel";
 import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
 
 type LeaveHandler = () => Promise<boolean>;
@@ -28,14 +26,6 @@ const TABS: SettingsTab[] = [
   {
     id: "general",
     label: "General",
-  },
-  {
-    id: "hotkeys",
-    label: "Keyboard Shortcuts",
-  },
-  {
-    id: "toolApproval",
-    label: "Tool approval",
   },
   {
     id: "release",
@@ -79,6 +69,11 @@ const TABS: SettingsTab[] = [
   },
 ];
 
+const TAB_ALIASES: Record<string, string> = {
+  hotkeys: "general",
+  toolApproval: "general",
+};
+
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const [activeTabId, setActiveTabId] = useState<string>(TABS[0]?.id ?? "release");
@@ -90,8 +85,13 @@ export function SettingsDialog() {
         return;
       }
 
-      const tabId = e.detail?.tabId;
-      if (typeof tabId !== "string" || !TABS.some((tab) => tab.id === tabId)) {
+      const requestedTabId = e.detail?.tabId;
+      if (typeof requestedTabId !== "string") {
+        return;
+      }
+
+      const tabId = TAB_ALIASES[requestedTabId] ?? requestedTabId;
+      if (!TABS.some((tab) => tab.id === tabId)) {
         return;
       }
 
@@ -204,17 +204,11 @@ export function SettingsDialog() {
             })}
           </nav>
 
-          <section className="flex-1 h-full overflow-hidden">
-            <ScrollArea className="h-full pr-1">
-              <div className="pb-4 pr-4">
+          <section className="flex-1 min-w-0 h-full overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="pb-4 pr-1">
                 {activeTab?.id === "general" && (
                   <GeneralSettingsPanel isActive={open && activeTabId === "general"} />
-                )}
-                {activeTab?.id === "hotkeys" && (
-                  <HotkeySettingsPanel isActive={open && activeTabId === "hotkeys"} />
-                )}
-                {activeTab?.id === "toolApproval" && (
-                  <ToolApprovalSettingsPanel isActive={open && activeTabId === "toolApproval"} />
                 )}
                 {activeTab?.id === "release" && (
                   <ReleaseChannelSettingsPanel isActive={open && activeTabId === "release"} />
