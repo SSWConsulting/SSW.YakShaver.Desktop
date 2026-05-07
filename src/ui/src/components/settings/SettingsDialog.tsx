@@ -7,8 +7,7 @@ import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
 import { CustomPromptSettingsPanel } from "./custom-prompt/CustomPromptManager";
 import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
-import { LanguageModelKeyManager } from "./llm/LanguageModelKeyManager";
-import { TranscriptionModelKeyManager } from "./llm/TranscriptionModelKeyManager";
+import { LLMSettingsPanel } from "./llm/LLMSettingsPanel";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelSettingsPanel";
 import { TelemetrySettingsPanel } from "./telemetry/TelemetrySettingsPanel";
@@ -35,12 +34,8 @@ const TABS: SettingsTab[] = [
     label: "Custom Prompts",
   },
   {
-    id: "language",
-    label: "Language API (LLM)",
-  },
-  {
-    id: "transcription",
-    label: "Transcription API (LLM)",
+    id: "llm",
+    label: "Model Settings",
   },
   {
     id: "mcp",
@@ -67,7 +62,9 @@ const TABS: SettingsTab[] = [
 const TAB_ALIASES: Record<string, string> = {
   github: "release",
   hotkeys: "general",
+  language: "llm",
   toolApproval: "general",
+  transcription: "llm",
 };
 
 export function SettingsDialog() {
@@ -215,13 +212,8 @@ export function SettingsDialog() {
                     registerLeaveHandler={registerLeaveHandler}
                   />
                 )}
-                {activeTab?.id === "language" && (
-                  <LanguageModelKeyManager isActive={open && activeTabId === "language"} />
-                )}
-                {activeTab?.id === "transcription" && (
-                  <TranscriptionModelKeyManager
-                    isActive={open && activeTabId === "transcription"}
-                  />
+                {activeTab?.id === "llm" && (
+                  <LLMSettingsPanel isActive={open && activeTabId === "llm"} />
                 )}
                 {activeTab?.id === "mcp" && (
                   <McpSettingsPanel isActive={open && activeTabId === "mcp"} viewMode="detailed" />
