@@ -6,7 +6,7 @@ import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
   ReleaseChannel,
-} from "@/components/settings/release-channels/ReleaseChannelManager";
+} from "@/components/settings/release-channels/types";
 import type {
   CreateShaveData,
   CreateVideoData,
