@@ -6,7 +6,8 @@
   "main": "dist/backend/index.js",
   "build": {},
   "scripts": {
-    "setup": "concurrently \"npm install\"  \"cd src/ui && npm install\"",
+    "setup": "concurrently \"npm run setup:root\" \"cd src/ui && npm install\"",
+    "setup:root": "cross-env YOUTUBE_DL_SKIP_DOWNLOAD=true npm install && npm run install:yt-dlp",
     "build": "tsc",
     "start": "npm run build && electron .",
     "dev": "concurrently \"cd src/ui && npm run dev\" \"wait-on http://localhost:3000 && npm run build && cross-env NODE_ENV=development NODE_TLS_REJECT_UNAUTHORIZED=0 electron .\"",

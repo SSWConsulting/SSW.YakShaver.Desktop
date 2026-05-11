@@ -4,7 +4,7 @@ import tmp from "tmp";
 import youtubedl, { type Flags } from "youtube-dl-exec";
 import type { VideoUploadResult } from "../auth/types";
 
-const UNSUPPORTED_PYTHON_ERROR = "unsupported version of Python";
+const YT_DLP_EXECUTABLE = process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp";
 
 function getYtDlpPath(): string {
   if (app.isPackaged) {
@@ -15,20 +15,17 @@ function getYtDlpPath(): string {
       "node_modules",
       "youtube-dl-exec",
       "bin",
-      process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp",
+      YT_DLP_EXECUTABLE,
     );
   }
-  // In development, use the default path
-  return require("youtube-dl-exec").constants.YOUTUBE_DL_PATH;
+
+  return path.join(process.cwd(), "node_modules", "youtube-dl-exec", "bin", YT_DLP_EXECUTABLE);
 }
 
 function formatYtDlpError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
 
-  if (
-    (process.platform === "darwin" || process.platform === "win32") &&
-    message.includes(UNSUPPORTED_PYTHON_ERROR)
-  ) {
+  if (message.includes("ENOENT") || message.includes("no such file or directory")) {
     return `${message}. Run npm run install:yt-dlp to install the standalone yt-dlp binary.`;
   }
 
