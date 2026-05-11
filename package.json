@@ -16,7 +16,8 @@
     "lint": "biome check --write . --error-on-warnings",
     "format": "biome format --write .",
     "test": "vitest",
-    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "install:yt-dlp": "node scripts/install-yt-dlp.mjs",
+    "postinstall": "electron-rebuild -f -w better-sqlite3 && npm run install:yt-dlp",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

@@ -4,6 +4,8 @@ import tmp from "tmp";
 import youtubedl, { type Flags } from "youtube-dl-exec";
 import type { VideoUploadResult } from "../auth/types";
 
+const UNSUPPORTED_PYTHON_ERROR = "unsupported version of Python";
+
 function getYtDlpPath(): string {
   if (app.isPackaged) {
     // In production, the binary is unpacked to app.asar.unpacked
@@ -18,6 +20,16 @@ function getYtDlpPath(): string {
   }
   // In development, use the default path
   return require("youtube-dl-exec").constants.YOUTUBE_DL_PATH;
+}
+
+function formatYtDlpError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (process.platform === "darwin" && message.includes(UNSUPPORTED_PYTHON_ERROR)) {
+    return `${message}. Run npm run install:yt-dlp to install the standalone macOS yt-dlp binary.`;
+  }
+
+  return message;
 }
 
 export class YouTubeDownloadService {
@@ -72,9 +84,7 @@ export class YouTubeDownloadService {
     } catch (error) {
       return {
         success: false,
-        error: `Failed to fetch video metadata: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        error: `Failed to fetch video metadata: ${formatYtDlpError(error)}`,
       };
     }
   }
@@ -98,9 +108,7 @@ export class YouTubeDownloadService {
       await this.downloadClient(youtubeUrl, flags);
       return outputPath;
     } catch (error) {
-      throw new Error(
-        `Failed to download video: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new Error(`Failed to download video: ${formatYtDlpError(error)}`);
     }
   }
 }
