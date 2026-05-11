@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 const YT_DLP_RELEASE_BASE_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download";
 const YT_DLP_BIN_DIR = path.join("node_modules", "youtube-dl-exec", "bin");
 const MAX_REDIRECTS = 5;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
 const PLATFORM_CONFIGS = {
   darwin: {
     assetName: "yt-dlp_macos",
@@ -38,6 +39,20 @@ function getPlatformConfig() {
 
 function downloadFile(url, outputPath, redirectsRemaining = MAX_REDIRECTS) {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const resolveOnce = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+    const rejectOnce = (error) => {
+      if (!settled) {
+        settled = true;
+        reject(error);
+      }
+    };
+
     const request = https.get(
       url,
       {
@@ -46,6 +61,12 @@ function downloadFile(url, outputPath, redirectsRemaining = MAX_REDIRECTS) {
         },
       },
       async (response) => {
+        response.setTimeout(DOWNLOAD_TIMEOUT_MS, () => {
+          response.destroy(
+            new Error(`Timed out downloading yt-dlp after ${DOWNLOAD_TIMEOUT_MS}ms`),
+          );
+        });
+
         const statusCode = response.statusCode ?? 0;
         const location = response.headers.location;
 
@@ -60,29 +81,32 @@ function downloadFile(url, outputPath, redirectsRemaining = MAX_REDIRECTS) {
           const redirectUrl = new URL(location, url).toString();
           try {
             await downloadFile(redirectUrl, outputPath, redirectsRemaining - 1);
-            resolve();
+            resolveOnce();
           } catch (error) {
-            reject(error);
+            rejectOnce(error);
           }
           return;
         }
 
         if (statusCode !== 200) {
           response.resume();
-          reject(new Error(`Failed to download yt-dlp. HTTP status: ${statusCode}`));
+          rejectOnce(new Error(`Failed to download yt-dlp. HTTP status: ${statusCode}`));
           return;
         }
 
         try {
           await pipeline(response, createWriteStream(outputPath, { mode: 0o755 }));
-          resolve();
+          resolveOnce();
         } catch (error) {
-          reject(error);
+          rejectOnce(error);
         }
       },
     );
 
-    request.on("error", reject);
+    request.setTimeout(DOWNLOAD_TIMEOUT_MS, () => {
+      request.destroy(new Error(`Timed out connecting to ${url} after ${DOWNLOAD_TIMEOUT_MS}ms`));
+    });
+    request.on("error", rejectOnce);
   });
 }
 
