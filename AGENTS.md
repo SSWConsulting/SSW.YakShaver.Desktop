@@ -56,9 +56,9 @@ YakShaver is a desktop AI agent with the following capabilities:
 - **Video/Media**: `@ffmpeg-installer/ffmpeg`, `youtube-dl-exec`
 - **Telemetry**: `applicationinsights`
 - **CI/Release tooling**: `js-yaml` for update manifest merge validation
-- **macOS YouTube downloads**: `scripts/install-yt-dlp.mjs` installs the standalone
-  `yt-dlp_macos` binary into `node_modules/youtube-dl-exec/bin/yt-dlp` during setup so
-  local development does not depend on Apple's system Python.
+- **Windows/macOS YouTube downloads**: `scripts/install-yt-dlp.mjs` installs standalone
+  `yt-dlp` binaries into `node_modules/youtube-dl-exec/bin/` during setup so local
+  development does not depend on the operating system's Python.
 
 ## Project Structure
 

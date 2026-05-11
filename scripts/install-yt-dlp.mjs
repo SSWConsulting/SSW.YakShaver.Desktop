@@ -8,12 +8,32 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-const YT_DLP_MACOS_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos";
-const YT_DLP_PATH = path.join("node_modules", "youtube-dl-exec", "bin", "yt-dlp");
+const YT_DLP_RELEASE_BASE_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download";
+const YT_DLP_BIN_DIR = path.join("node_modules", "youtube-dl-exec", "bin");
 const MAX_REDIRECTS = 5;
+const PLATFORM_CONFIGS = {
+  darwin: {
+    assetName: "yt-dlp_macos",
+    fileName: "yt-dlp",
+    shouldChmod: true,
+  },
+  win32: {
+    assetName: "yt-dlp.exe",
+    fileName: "yt-dlp.exe",
+    shouldChmod: false,
+  },
+};
 
 function shouldSkipInstall() {
   return process.env.YOUTUBE_DL_SKIP_DOWNLOAD === "true";
+}
+
+function getPlatformConfig() {
+  if (process.platform === "darwin" || process.platform === "win32") {
+    return PLATFORM_CONFIGS[process.platform];
+  }
+
+  return null;
 }
 
 function downloadFile(url, outputPath, redirectsRemaining = MAX_REDIRECTS) {
@@ -74,7 +94,7 @@ async function verifyYtDlp(binaryPath) {
       throw new Error("yt-dlp did not print a version");
     }
 
-    console.log(`[yt-dlp] Installed standalone macOS binary version ${version}`);
+    console.log(`[yt-dlp] Installed standalone binary version ${version}`);
   } catch (error) {
     throw new Error(
       `Installed yt-dlp binary failed verification: ${
@@ -84,31 +104,35 @@ async function verifyYtDlp(binaryPath) {
   }
 }
 
-async function installYtDlpForMacOS() {
+async function installYtDlp() {
   if (shouldSkipInstall()) {
     console.log("[yt-dlp] Skipping install because YOUTUBE_DL_SKIP_DOWNLOAD=true");
     return;
   }
 
-  if (process.platform !== "darwin") {
-    console.log(`[yt-dlp] Skipping standalone macOS binary install on ${process.platform}`);
+  const config = getPlatformConfig();
+  if (!config) {
+    console.log(`[yt-dlp] Skipping standalone binary install on ${process.platform}`);
     return;
   }
 
-  const outputPath = path.resolve(YT_DLP_PATH);
+  const downloadUrl = `${YT_DLP_RELEASE_BASE_URL}/${config.assetName}`;
+  const outputPath = path.resolve(YT_DLP_BIN_DIR, config.fileName);
   const temporaryPath = `${outputPath}.download`;
 
   await mkdir(path.dirname(outputPath), { recursive: true });
   await rm(temporaryPath, { force: true });
 
-  console.log(`[yt-dlp] Downloading standalone macOS binary to ${outputPath}`);
-  await downloadFile(YT_DLP_MACOS_URL, temporaryPath);
-  await chmod(temporaryPath, 0o755);
+  console.log(`[yt-dlp] Downloading standalone ${process.platform} binary to ${outputPath}`);
+  await downloadFile(downloadUrl, temporaryPath);
+  if (config.shouldChmod) {
+    await chmod(temporaryPath, 0o755);
+  }
   await rename(temporaryPath, outputPath);
   await verifyYtDlp(outputPath);
 }
 
-installYtDlpForMacOS().catch((error) => {
+installYtDlp().catch((error) => {
   console.error(`[yt-dlp] ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
 });

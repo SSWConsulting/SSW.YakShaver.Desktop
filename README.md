@@ -21,8 +21,8 @@ In the root folder, run
 1. `npm run setup` – install dependencies
 2. `npm run dev` – start the app
 
-On macOS, `npm run setup` also installs the standalone `yt-dlp_macos` binary used for
-YouTube downloads. This avoids relying on Apple's system Python.
+On Windows and macOS, `npm run setup` also installs the standalone `yt-dlp` binary used
+for YouTube downloads. This avoids relying on the operating system's Python.
 
 ## Building
 

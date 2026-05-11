@@ -25,8 +25,11 @@ function getYtDlpPath(): string {
 function formatYtDlpError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
 
-  if (process.platform === "darwin" && message.includes(UNSUPPORTED_PYTHON_ERROR)) {
-    return `${message}. Run npm run install:yt-dlp to install the standalone macOS yt-dlp binary.`;
+  if (
+    (process.platform === "darwin" || process.platform === "win32") &&
+    message.includes(UNSUPPORTED_PYTHON_ERROR)
+  ) {
+    return `${message}. Run npm run install:yt-dlp to install the standalone yt-dlp binary.`;
   }
 
   return message;
