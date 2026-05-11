@@ -26,6 +26,10 @@ function formatYtDlpError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
 
   if (message.includes("ENOENT") || message.includes("no such file or directory")) {
+    if (app.isPackaged) {
+      return `${message}. The bundled yt-dlp binary appears to be missing. Please reinstall or repair the app, and contact support if the problem persists.`;
+    }
+
     return `${message}. Run npm run install:yt-dlp to install the standalone yt-dlp binary.`;
   }
 
