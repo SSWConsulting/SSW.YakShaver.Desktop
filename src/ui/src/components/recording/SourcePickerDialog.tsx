@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatErrorMessage } from "@/utils";
 import { CAMERA_ONLY_SOURCE_ID } from "../../constants/recording";
+import { useMicrophoneLevel } from "../../hooks/useMicrophoneLevel";
 import { ipcClient } from "../../services/ipc-client";
 import type { ScreenSource } from "../../types";
 import { Button } from "../ui/button";
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Spinner } from "../ui/spinner";
 import { MacScreenRecordingPermissionDialog } from "./MacScreenRecordingPermissionDialog";
+import { MicrophoneLevelMeter } from "./MicrophoneLevelMeter";
 
 type SourcePickerDialogProps = {
   open: boolean;
@@ -43,6 +45,7 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
     }
   }, []);
   const [devicesReady, setDevicesReady] = useState(false);
+  const micLevel = useMicrophoneLevel(open ? selectedMicrophoneId : undefined);
   const NO_CAMERA_VALUE = "__none__";
   const LAST_CAMERA_KEY = "yakshaver.lastCameraDeviceId";
   const LAST_MICROPHONE_KEY = "yakshaver.lastMicDeviceId";
@@ -295,6 +298,12 @@ export function SourcePickerDialog({ open, onOpenChange, onSelect }: SourcePicke
                   muted
                 />
               </div>
+              <MicrophoneLevelMeter level={micLevel} className="py-2 px-2" />
+            </div>
+          )}
+          {!selectedCameraId && selectedMicrophoneId && (
+            <div className="rounded-md bg-neutral-800 py-2 px-2">
+              <MicrophoneLevelMeter level={micLevel} />
             </div>
           )}
 
