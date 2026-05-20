@@ -21,9 +21,8 @@ export function MicrophoneLevelMeter({ level, className }: MicrophoneLevelMeterP
   return (
     <div className={cn("flex items-center gap-2 px-1", className)}>
       <Mic className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <div
+      <meter
         className="relative flex-1 h-2 rounded-full bg-white/10 overflow-hidden"
-        role="meter"
         aria-label="Microphone input level"
         aria-valuenow={Math.round(clampedLevel * 100)}
         aria-valuemin={0}
@@ -36,7 +35,7 @@ export function MicrophoneLevelMeter({ level, className }: MicrophoneLevelMeterP
           )}
           style={{ width: `${clampedLevel * 100}%` }}
         />
-      </div>
+      </meter>
     </div>
   );
 }

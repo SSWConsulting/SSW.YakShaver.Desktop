@@ -3,8 +3,8 @@
 import { InteractionRequiredAuthError, LogLevel, PublicClientApplication } from "@azure/msal-node";
 import { shell } from "electron";
 import { formatAndReportError } from "../../utils/error-utils";
-import { MsalSecureCachePlugin } from "./msal-cache-plugin";
 import { loadAuthTemplate, loadSuccessAuthTemplate } from "./auth-templates";
+import { MsalSecureCachePlugin } from "./msal-cache-plugin";
 import type { AuthState } from "./types";
 import { AuthStatus } from "./types";
 import "isomorphic-fetch";

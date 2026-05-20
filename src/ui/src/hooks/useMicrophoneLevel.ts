@@ -23,7 +23,9 @@ export function useMicrophoneLevel(microphoneId: string | undefined): number {
       intervalRef.current = null;
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
       streamRef.current = null;
     }
     if (audioContextRef.current) {
@@ -54,7 +56,9 @@ export function useMicrophoneLevel(microphoneId: string | undefined): number {
         });
 
         if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
+          stream.getTracks().forEach((track) => {
+            track.stop();
+          });
           return;
         }
 

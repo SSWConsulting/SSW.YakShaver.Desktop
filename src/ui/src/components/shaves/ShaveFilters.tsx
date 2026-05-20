@@ -1,10 +1,10 @@
 import type { ColumnFiltersState } from "@tanstack/react-table";
 import { Search, X } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
+import { ShaveStatus } from "../../types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { ShaveStatus } from "../../types";
 
 const ALL_STATUSES = Object.values(ShaveStatus);
 
