@@ -16,11 +16,7 @@ export function MicrophoneLevelMeter({ level, className }: MicrophoneLevelMeterP
 
   // Choose colour: green at low levels, amber in the middle, red when hot
   const barColor =
-    clampedLevel > 0.85
-      ? "bg-destructive"
-      : clampedLevel > 0.6
-        ? "bg-amber-400"
-        : "bg-emerald-500";
+    clampedLevel > 0.85 ? "bg-destructive" : clampedLevel > 0.6 ? "bg-amber-400" : "bg-emerald-500";
 
   return (
     <div className={cn("flex items-center gap-2 px-1", className)}>
@@ -34,7 +30,10 @@ export function MicrophoneLevelMeter({ level, className }: MicrophoneLevelMeterP
         aria-valuemax={100}
       >
         <div
-          className={cn("absolute inset-y-0 left-0 rounded-full transition-all duration-75", barColor)}
+          className={cn(
+            "absolute inset-y-0 left-0 rounded-full transition-all duration-75",
+            barColor,
+          )}
           style={{ width: `${clampedLevel * 100}%` }}
         />
       </div>
