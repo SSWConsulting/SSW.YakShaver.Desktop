@@ -157,7 +157,7 @@ export class ProcessVideoIPCHandlers {
           );
 
           const finalOutput = await this.formatFinalResult(mcpResult);
-          mcpAdapter.complete(mcpResult);
+          mcpAdapter.complete(mcpResult, finalOutput);
 
           notify(ProgressStage.COMPLETED, {
             mcpResult,
@@ -247,8 +247,8 @@ export class ProcessVideoIPCHandlers {
   }
 
   private async processFileVideo(filePath: string, shaveId?: string, shaveAutoApprove?: boolean) {
-    const notify = (stage: string, data?: Record<string, unknown>) => {
-      this.emitProgress(stage, data, shaveId);
+    const notify = (_stage: string, _data?: Record<string, unknown>) => {
+      // this.emitProgress(stage, data, shaveId);
     };
 
     // check file exists
@@ -298,10 +298,11 @@ export class ProcessVideoIPCHandlers {
           youtubeResult.data.duration = duration;
         }
 
-        workflowManager.completeStage(
-          WorkflowProgressStage.UPLOADING_VIDEO,
-          youtubeResult.data?.url,
-        );
+        workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, {
+          filePath,
+          sourceOrigin: youtubeResult.origin,
+          uploadResult: youtubeResult,
+        });
 
         // Update checkpoint with upload result
         workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
@@ -334,8 +335,8 @@ export class ProcessVideoIPCHandlers {
   }
 
   private async processUrlVideo(url: string, shaveId?: string) {
-    const notify = (stage: string, data?: Record<string, unknown>) => {
-      this.emitProgress(stage, data, shaveId);
+    const notify = (_stage: string, _data?: Record<string, unknown>) => {
+      // this.emitProgress(stage, data, shaveId);
     };
 
     const effectiveShaveId = shaveId || crypto.randomUUID();
@@ -371,7 +372,12 @@ export class ProcessVideoIPCHandlers {
         this.trackTempFile(filePath, effectiveShaveId);
         this.lastVideoFilePath = filePath;
 
-        workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+        workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO, {
+          downloadUrl: url,
+          filePath,
+          sourceOrigin: "external",
+          uploadResult: youtubeResult,
+        });
 
         // Create checkpoint after successful download
         workflowManager.createCheckpoint(WorkflowProgressStage.DOWNLOADING_VIDEO, {
@@ -408,8 +414,8 @@ export class ProcessVideoIPCHandlers {
       throw new Error("video-process-handler: Video file does not exist");
     }
 
-    const notify = (stage: string, data?: Record<string, unknown>) => {
-      this.emitProgress(stage, data, shaveId);
+    const notify = (_stage: string, _data?: Record<string, unknown>) => {
+      // this.emitProgress(stage, data, shaveId);
     };
 
     const startIdx = startFromStage ? Math.max(0, WORKFLOW_STAGE_ORDER.indexOf(startFromStage)) : 0;
@@ -611,7 +617,7 @@ export class ProcessVideoIPCHandlers {
         });
 
         finalOutput = await this.formatFinalResult(mcpResult);
-        mcpAdapter.complete(mcpResult);
+        mcpAdapter.complete(mcpResult, finalOutput);
 
         workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
           mcpResult,

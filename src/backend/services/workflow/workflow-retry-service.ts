@@ -152,7 +152,11 @@ export class WorkflowRetryService {
         youtubeResult.data.duration = duration;
       }
 
-      workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, youtubeResult.data?.url);
+      workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, {
+        filePath,
+        sourceOrigin: youtubeResult.origin,
+        uploadResult: youtubeResult,
+      });
       this.deps.emitProgress(
         ProgressStage.UPLOAD_COMPLETED,
         { uploadResult: youtubeResult, sourceOrigin: youtubeResult.origin },
@@ -202,7 +206,12 @@ export class WorkflowRetryService {
       const filePath = await this.deps.youtubeDownloadService.downloadVideoToFile(downloadUrl);
       this.deps.trackTempFile(filePath, shaveId);
 
-      workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+      workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO, {
+        downloadUrl,
+        filePath,
+        sourceOrigin: "external",
+        uploadResult: youtubeResult,
+      });
 
       workflowManager.createCheckpoint(WorkflowProgressStage.DOWNLOADING_VIDEO, {
         filePath,

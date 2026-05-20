@@ -1,16 +1,20 @@
+import {
+  ProgressStage as WorkflowProgressStage,
+  type WorkflowState,
+  type WorkflowStep,
+} from "@shared/types/workflow";
 import { Copy, ExternalLink, RotateCcw, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { formatErrorMessage, formatKeyAsTitle } from "@/utils";
+import { formatErrorMessage, formatKeyAsTitle, parseWorkflowProgressNeoPayload } from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import {
   type MCPStep,
   MCPStepType,
-  ProgressStage,
   ShaveStatus,
+  type VideoUploadResult,
   type WorkflowProgress,
-  type WorkflowStage,
 } from "../../types";
 import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
 import { LoadingState } from "../common/LoadingState";
@@ -537,6 +541,47 @@ const emitUndoEvent = (type: UndoEventDetail["type"]) => {
   window.dispatchEvent(new CustomEvent(UNDO_EVENT_CHANNEL, { detail: { type } }));
 };
 
+function parseStepPayload(step?: WorkflowStep): unknown {
+  if (!step?.payload) return undefined;
+
+  try {
+    return JSON.parse(step.payload);
+  } catch {
+    return step.payload;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getStringValue(payload: unknown, key: string): string | undefined {
+  return isRecord(payload) && typeof payload[key] === "string" ? payload[key] : undefined;
+}
+
+function isVideoUploadResult(value: unknown): value is VideoUploadResult {
+  return isRecord(value) && typeof value.success === "boolean";
+}
+
+function getUploadResult(payload: unknown): VideoUploadResult | undefined {
+  return isRecord(payload) && isVideoUploadResult(payload.uploadResult)
+    ? payload.uploadResult
+    : undefined;
+}
+
+function getMcpSteps(payload: unknown): MCPStep[] | undefined {
+  return isRecord(payload) && Array.isArray(payload.steps)
+    ? (payload.steps as MCPStep[])
+    : undefined;
+}
+
+function getActiveStage(state: WorkflowState): keyof WorkflowState | null {
+  const activeStage = Object.values(WorkflowProgressStage).find(
+    (stage) => state[stage].status === "in_progress",
+  );
+  return activeStage ?? null;
+}
+
 export function FinalResultPanel() {
   const [finalOutput, setFinalOutput] = useState<string | undefined>();
   const [intermediateOutput, setIntermediateOutput] = useState<string | undefined>();
@@ -553,7 +598,7 @@ export function FinalResultPanel() {
   const [hasUndoCompleted, setHasUndoCompleted] = useState(false);
   const [lastUndoPrompt, setLastUndoPrompt] = useState<string | null>(null);
 
-  const stageRef = useRef<WorkflowStage>(ProgressStage.IDLE);
+  const stageRef = useRef<keyof WorkflowState | null>(null);
 
   const markCancelled = useCallback(async () => {
     if (!shaveId) return;
@@ -591,41 +636,103 @@ export function FinalResultPanel() {
   }, []);
 
   useEffect(() => {
-    return ipcClient.workflow.onProgress((data: unknown) => {
-      const progressData = data as WorkflowProgress;
+    return ipcClient.workflow.onProgressNeo((data: unknown) => {
+      const neoProgress = parseWorkflowProgressNeoPayload(data);
+      if (neoProgress.shaveId) {
+        setShaveId(neoProgress.shaveId);
+      }
+
+      if (!neoProgress.state) {
+        return;
+      }
+
+      const { state } = neoProgress;
+      const currentStage = getActiveStage(state);
       const previousStage = stageRef.current;
 
       const isNewRecordingStage =
-        progressData.stage === ProgressStage.CONVERTING_AUDIO &&
-        previousStage !== ProgressStage.CONVERTING_AUDIO;
+        currentStage === WorkflowProgressStage.CONVERTING_AUDIO &&
+        previousStage !== WorkflowProgressStage.CONVERTING_AUDIO;
 
       const isRetryStage =
-        progressData.stage === ProgressStage.EXECUTING_TASK &&
-        previousStage !== ProgressStage.EXECUTING_TASK;
+        currentStage === WorkflowProgressStage.EXECUTING_TASK &&
+        previousStage !== WorkflowProgressStage.EXECUTING_TASK;
 
       if (isNewRecordingStage || isRetryStage) {
         resetForNewRun();
       }
 
-      if (progressData.shaveId) {
-        setShaveId(progressData.shaveId);
+      const uploadPayload = parseStepPayload(state.uploading_video);
+      const downloadPayload = parseStepPayload(state.downloading_video);
+      const nextUploadResult = getUploadResult(uploadPayload) ?? getUploadResult(downloadPayload);
+      if (nextUploadResult) {
+        setUploadResult(nextUploadResult);
       }
 
-      if (progressData.intermediateOutput) {
-        setIntermediateOutput(progressData.intermediateOutput);
+      const analyzingPayload = parseStepPayload(state.analyzing_transcript);
+      if (typeof analyzingPayload === "string") {
+        setIntermediateOutput(analyzingPayload);
       }
 
-      if (progressData.uploadResult) {
-        setUploadResult(progressData.uploadResult);
+      const executingPayload = parseStepPayload(state.executing_task);
+      const executingIntermediateOutput = getStringValue(executingPayload, "intermediateOutput");
+      if (executingIntermediateOutput) {
+        setIntermediateOutput(executingIntermediateOutput);
       }
 
-      if (typeof progressData.finalOutput !== "undefined") {
-        setFinalOutput(progressData.finalOutput ?? undefined);
+      const steps = getMcpSteps(executingPayload);
+      if (steps) {
+        setMcpSteps(steps);
       }
 
-      stageRef.current = progressData.stage;
+      if (state.executing_task.status === "completed") {
+        const nextFinalOutput = getStringValue(executingPayload, "finalOutput");
+        if (typeof nextFinalOutput !== "undefined") {
+          setFinalOutput(nextFinalOutput);
+        }
+      }
+
+      stageRef.current = currentStage;
     });
   }, [resetForNewRun]);
+
+  // TODO: Deprecated WORKFLOW_PROGRESS listener kept temporarily for review.
+  // useEffect(() => {
+  //   return ipcClient.workflow.onProgress((data: unknown) => {
+  //     const progressData = data as WorkflowProgress;
+  //     const previousStage = stageRef.current;
+  //
+  //     const isNewRecordingStage =
+  //       progressData.stage === ProgressStage.CONVERTING_AUDIO &&
+  //       previousStage !== ProgressStage.CONVERTING_AUDIO;
+  //
+  //     const isRetryStage =
+  //       progressData.stage === ProgressStage.EXECUTING_TASK &&
+  //       previousStage !== ProgressStage.EXECUTING_TASK;
+  //
+  //     if (isNewRecordingStage || isRetryStage) {
+  //       resetForNewRun();
+  //     }
+  //
+  //     if (progressData.shaveId) {
+  //       setShaveId(progressData.shaveId);
+  //     }
+  //
+  //     if (progressData.intermediateOutput) {
+  //       setIntermediateOutput(progressData.intermediateOutput);
+  //     }
+  //
+  //     if (progressData.uploadResult) {
+  //       setUploadResult(progressData.uploadResult);
+  //     }
+  //
+  //     if (typeof progressData.finalOutput !== "undefined") {
+  //       setFinalOutput(progressData.finalOutput ?? undefined);
+  //     }
+  //
+  //     stageRef.current = progressData.stage;
+  //   });
+  // }, [resetForNewRun]);
 
   useEffect(() => {
     return ipcClient.mcp.onStepUpdate((step) => {

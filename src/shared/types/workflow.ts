@@ -47,3 +47,8 @@ export interface WorkflowState {
   executing_task: WorkflowStep;
   updating_metadata: WorkflowStep;
 }
+
+export interface WorkflowProgressNeoPayload {
+  shaveId: string;
+  state: WorkflowState;
+}

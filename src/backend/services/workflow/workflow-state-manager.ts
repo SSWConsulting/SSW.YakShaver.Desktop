@@ -282,7 +282,10 @@ export class WorkflowStateManager {
     BrowserWindow.getAllWindows()
       .filter((win) => !win.isDestroyed())
       .forEach((win) => {
-        win.webContents.send(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, stateToSend);
+        win.webContents.send(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, {
+          shaveId: this.shaveId,
+          state: stateToSend,
+        });
       });
   }
 }
