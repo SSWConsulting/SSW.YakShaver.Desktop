@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   const mockStorage = {
@@ -42,8 +42,8 @@ vi.mock("../storage/identity-server-token-storage", () => ({
 
 import {
   decodeIdentityServerAccessToken,
-  IdentityServerAuthService,
   getUserInfoFromIdentityServerAccessToken,
+  IdentityServerAuthService,
 } from "./identity-server-auth";
 import type { TokenData } from "./types";
 
