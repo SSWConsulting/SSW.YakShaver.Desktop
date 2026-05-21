@@ -1,4 +1,8 @@
-import { WORKFLOW_STAGE_ORDER, type WorkflowState } from "@shared/types/workflow";
+import {
+  WORKFLOW_STAGE_ORDER,
+  type WorkflowState,
+  type WorkflowStep,
+} from "@shared/types/workflow";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -24,6 +28,23 @@ export function parseWorkflowProgressNeoPayload(payload: unknown): {
   }
 
   return {};
+}
+
+export function parseWorkflowStepPayload(step?: WorkflowStep): unknown {
+  if (!step?.payload) return undefined;
+
+  try {
+    return JSON.parse(step.payload);
+  } catch {
+    return step.payload;
+  }
+}
+
+export function isWorkflowReadyForFinalOutput(state: WorkflowState): boolean {
+  return (
+    state.executing_task.status === "completed" &&
+    ["completed", "failed", "skipped"].includes(state.updating_metadata.status)
+  );
 }
 
 /**

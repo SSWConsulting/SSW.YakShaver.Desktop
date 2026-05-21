@@ -1,12 +1,14 @@
-import {
-  ProgressStage as WorkflowProgressStage,
-  type WorkflowState,
-  type WorkflowStep,
-} from "@shared/types/workflow";
+import { ProgressStage as WorkflowProgressStage, type WorkflowState } from "@shared/types/workflow";
 import { Copy, ExternalLink, RotateCcw, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { formatErrorMessage, formatKeyAsTitle, parseWorkflowProgressNeoPayload } from "@/utils";
+import {
+  formatErrorMessage,
+  formatKeyAsTitle,
+  isWorkflowReadyForFinalOutput,
+  parseWorkflowProgressNeoPayload,
+  parseWorkflowStepPayload,
+} from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import {
@@ -541,16 +543,6 @@ const emitUndoEvent = (type: UndoEventDetail["type"]) => {
   window.dispatchEvent(new CustomEvent(UNDO_EVENT_CHANNEL, { detail: { type } }));
 };
 
-function parseStepPayload(step?: WorkflowStep): unknown {
-  if (!step?.payload) return undefined;
-
-  try {
-    return JSON.parse(step.payload);
-  } catch {
-    return step.payload;
-  }
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -662,19 +654,19 @@ export function FinalResultPanel() {
         resetForNewRun();
       }
 
-      const uploadPayload = parseStepPayload(state.uploading_video);
-      const downloadPayload = parseStepPayload(state.downloading_video);
+      const uploadPayload = parseWorkflowStepPayload(state.uploading_video);
+      const downloadPayload = parseWorkflowStepPayload(state.downloading_video);
       const nextUploadResult = getUploadResult(uploadPayload) ?? getUploadResult(downloadPayload);
       if (nextUploadResult) {
         setUploadResult(nextUploadResult);
       }
 
-      const analyzingPayload = parseStepPayload(state.analyzing_transcript);
+      const analyzingPayload = parseWorkflowStepPayload(state.analyzing_transcript);
       if (typeof analyzingPayload === "string") {
         setIntermediateOutput(analyzingPayload);
       }
 
-      const executingPayload = parseStepPayload(state.executing_task);
+      const executingPayload = parseWorkflowStepPayload(state.executing_task);
       const executingIntermediateOutput = getStringValue(executingPayload, "intermediateOutput");
       if (executingIntermediateOutput) {
         setIntermediateOutput(executingIntermediateOutput);
@@ -685,7 +677,7 @@ export function FinalResultPanel() {
         setMcpSteps(steps);
       }
 
-      if (state.executing_task.status === "completed") {
+      if (isWorkflowReadyForFinalOutput(state)) {
         const nextFinalOutput = getStringValue(executingPayload, "finalOutput");
         if (typeof nextFinalOutput !== "undefined") {
           setFinalOutput(nextFinalOutput);
