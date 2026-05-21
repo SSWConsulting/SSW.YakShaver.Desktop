@@ -6,7 +6,7 @@ export function useWorkflowNavigation() {
   const location = useLocation();
 
   useEffect(() => {
-    const cleanup = window.electronAPI.workflow.onProgress(() => {
+    const cleanup = window.electronAPI.workflow.onProgressNeo(() => {
       if (location.pathname !== "/workflow") {
         navigate("/workflow");
       }

@@ -1,4 +1,5 @@
-import { useCallback, useEffect } from "react";
+import type { WorkflowState } from "@shared/types/workflow";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type {
   CreateShaveData,
@@ -7,7 +8,12 @@ import type {
 } from "../../../backend/db/schema";
 import { normalizeYouTubeUrl } from "../../../backend/utils/youtube-url-utils";
 import { ipcClient } from "../services/ipc-client";
-import { ShaveStatus, type WorkflowProgress } from "../types";
+import { ShaveStatus, type VideoUploadOrigin, type VideoUploadResult } from "../types";
+import {
+  isWorkflowReadyForFinalOutput,
+  parseWorkflowProgressNeoPayload,
+  parseWorkflowStepPayload,
+} from "../utils";
 
 interface FinalOutput {
   Status?: string;
@@ -19,7 +25,7 @@ interface FinalOutput {
 }
 
 interface ParsedShaveOutput {
-  status: string;
+  status: ShaveStatus;
   title: string;
   workItemUrl: string;
 }
@@ -47,7 +53,37 @@ function parseFinalOutput(finalOutput: string): ParsedShaveOutput | null {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getStringValue(payload: unknown, key: string): string | undefined {
+  return isRecord(payload) && typeof payload[key] === "string" ? payload[key] : undefined;
+}
+
+function isVideoUploadResult(value: unknown): value is VideoUploadResult {
+  return isRecord(value) && typeof value.success === "boolean";
+}
+
+function getUploadResult(payload: unknown): VideoUploadResult | undefined {
+  return isRecord(payload) && isVideoUploadResult(payload.uploadResult)
+    ? payload.uploadResult
+    : undefined;
+}
+
+function getSourceOrigin(
+  payload: unknown,
+  uploadResult?: VideoUploadResult,
+): VideoUploadOrigin | undefined {
+  const sourceOrigin = getStringValue(payload, "sourceOrigin") ?? uploadResult?.origin;
+  return sourceOrigin === "upload" || sourceOrigin === "external" ? sourceOrigin : undefined;
+}
+
 export function useShaveManager() {
+  const processingShavesRef = useRef<Set<string>>(new Set());
+  const uploadCompletedKeysRef = useRef<Set<string>>(new Set());
+  const finalUpdatedKeysRef = useRef<Set<string>>(new Set());
+
   /**
    * Check if a video URL already has a shave in the database.
    */
@@ -101,95 +137,117 @@ export function useShaveManager() {
     [],
   );
 
+  const handleWorkflowProgressNeo = useCallback(async (shaveId: string, state: WorkflowState) => {
+    const hasProcessingStarted =
+      state.uploading_video.status === "in_progress" ||
+      state.downloading_video.status === "in_progress";
+
+    if (hasProcessingStarted && !processingShavesRef.current.has(shaveId)) {
+      processingShavesRef.current.add(shaveId);
+
+      try {
+        const shave = await ipcClient.shave.getById(shaveId);
+        if (shave?.success && shave.data && shave.data.shaveStatus === ShaveStatus.Pending) {
+          await ipcClient.shave.update(shaveId, {
+            shaveStatus: ShaveStatus.Processing,
+          });
+        }
+      } catch (err) {
+        console.error("[Shave] Error updating shave status to Processing (by id):", err);
+      }
+    }
+
+    const uploadPayload = parseWorkflowStepPayload(state.uploading_video);
+    const downloadPayload = parseWorkflowStepPayload(state.downloading_video);
+    const uploadResult = getUploadResult(uploadPayload) ?? getUploadResult(downloadPayload);
+    const sourceOrigin =
+      getSourceOrigin(uploadPayload, uploadResult) ??
+      getSourceOrigin(downloadPayload, uploadResult);
+    const uploadCompleted =
+      state.uploading_video.status === "completed" ||
+      state.downloading_video.status === "completed";
+
+    if (uploadCompleted && uploadResult?.data && sourceOrigin) {
+      const uploadCompletedKey = `${shaveId}:${sourceOrigin}:${uploadResult.data.url}`;
+
+      if (!uploadCompletedKeysRef.current.has(uploadCompletedKey)) {
+        uploadCompletedKeysRef.current.add(uploadCompletedKey);
+
+        if (sourceOrigin === "external") {
+          try {
+            await ipcClient.shave.attachVideoSource(shaveId, {
+              title: uploadResult.data.title,
+              sourceUrl: uploadResult.data.url,
+              // Use -1 to explicitly indicate unknown duration
+              durationSeconds: uploadResult.data.duration ?? -1,
+            });
+          } catch (err) {
+            console.error("[Shave] Error attaching external video file to shave:", err);
+          }
+        } else {
+          try {
+            await ipcClient.shave.update(shaveId, {
+              videoEmbedUrl: uploadResult.data.url,
+            });
+          } catch (err) {
+            console.error("[Shave] Error updating shave video URL (by id):", err);
+          }
+        }
+      }
+    }
+
+    if (!isWorkflowReadyForFinalOutput(state)) {
+      return;
+    }
+
+    const executingPayload = parseWorkflowStepPayload(state.executing_task);
+    const finalOutput = getStringValue(executingPayload, "finalOutput");
+    if (typeof finalOutput === "undefined") {
+      return;
+    }
+
+    const finalUpdatedKey = `${shaveId}:${finalOutput}`;
+    if (finalUpdatedKeysRef.current.has(finalUpdatedKey)) {
+      return;
+    }
+    finalUpdatedKeysRef.current.add(finalUpdatedKey);
+
+    try {
+      const parsedOutput = parseFinalOutput(finalOutput);
+
+      if (parsedOutput) {
+        const finalTitle = parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
+
+        await ipcClient.shave.update(shaveId, {
+          title: finalTitle,
+          shaveStatus: parsedOutput.status,
+          workItemUrl: parsedOutput.workItemUrl,
+        });
+      }
+    } catch (error) {
+      console.error("[Shave] Failed to save/update shave record::", error);
+      const updateErrorMsg = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Failed to update shave record", {
+        description: `There was an error updating the shave record with the final output from the workflow. ${updateErrorMsg}`,
+      });
+    }
+  }, []);
+
   /**
    * Listen for workflow completion and update shave
    * For Recordings: finish recording -> create shave with video file metadata -> update youtube url after upload completes -> update shave with final output
    * For YouTube URLs: input youtube url -> create shave with url, without video file metadata -> attach video file after upload completes -> update shave with final output
    */
   useEffect(() => {
-    return ipcClient.workflow.onProgress(async (data: unknown) => {
-      const progressData = data as WorkflowProgress;
-      const { shaveId } = progressData;
-
-      // Update shave status to Processing when upload/download starts
-      if (
-        (progressData.stage === "uploading_source" ||
-          progressData.stage === "downloading_source") &&
-        typeof shaveId === "string"
-      ) {
-        try {
-          const shave = await ipcClient.shave.getById(shaveId);
-          if (shave?.success && shave.data && shave.data.shaveStatus === ShaveStatus.Pending) {
-            await ipcClient.shave.update(shaveId, {
-              shaveStatus: ShaveStatus.Processing,
-            });
-          }
-        } catch (err) {
-          console.error("[Shave] Error updating shave status to Processing (by id):", err);
-        }
-      }
-
-      if (progressData.stage === "upload_completed" && typeof shaveId === "string") {
-        const { uploadResult, sourceOrigin } = progressData;
-
-        if (uploadResult?.data) {
-          // Attach video file if source is external (e.g., YouTube)
-          if (sourceOrigin === "external") {
-            try {
-              await ipcClient.shave.attachVideoSource(shaveId, {
-                title: uploadResult.data.title,
-                sourceUrl: uploadResult.data.url,
-                // Use -1 to explicitly indicate unknown duration
-                durationSeconds: uploadResult.data.duration ?? -1,
-              });
-            } catch (err) {
-              console.error("[Shave] Error attaching external video file to shave:", err);
-            }
-          }
-
-          // Only update the video embed URL for local recordings when finished uploading video
-          if (sourceOrigin !== "external") {
-            try {
-              await ipcClient.shave.update(shaveId, {
-                videoEmbedUrl: uploadResult.data.url,
-              });
-            } catch (err) {
-              console.error("[Shave] Error updating shave video URL (by id):", err);
-            }
-          }
-        }
+    return ipcClient.workflow.onProgressNeo((data: unknown) => {
+      const progress = parseWorkflowProgressNeoPayload(data);
+      if (!progress.shaveId || !progress.state) {
         return;
       }
 
-      // Update shave when there's final output
-      if (typeof progressData.finalOutput !== "undefined" && typeof shaveId === "string") {
-        const { uploadResult, finalOutput } = progressData;
-
-        try {
-          const parsedOutput = parseFinalOutput(finalOutput);
-
-          if (parsedOutput) {
-            const finalTitle =
-              parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
-            const shaveStatus = parsedOutput.status as ShaveStatus;
-
-            await ipcClient.shave.update(shaveId, {
-              title: finalTitle,
-              shaveStatus,
-              workItemUrl: parsedOutput.workItemUrl,
-            });
-          }
-        } catch (error) {
-          console.error("[Shave] Failed to save/update shave record::", error);
-          const updateErrorMsg = error instanceof Error ? error.message : "Unknown error";
-          toast.error("Failed to update shave record", {
-            description: `There was an error updating the shave record with the final output from the workflow. ${updateErrorMsg}`,
-          });
-          return;
-        }
-      }
+      void handleWorkflowProgressNeo(progress.shaveId, progress.state);
     });
-  }, []);
+  }, [handleWorkflowProgressNeo]);
 
   return {
     saveRecording,

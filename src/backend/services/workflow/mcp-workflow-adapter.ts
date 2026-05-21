@@ -51,10 +51,11 @@ export class McpWorkflowAdapter {
     );
   }
 
-  public complete(finalResult: unknown) {
+  public complete(finalResult: unknown, finalOutput?: string) {
     const payload = {
       ...this.getPayload(),
       mcpResult: typeof finalResult === "string" ? finalResult : JSON.stringify(finalResult),
+      finalOutput,
     };
     this.workflowManager.completeStage(WorkflowProgressStage.EXECUTING_TASK, payload);
   }

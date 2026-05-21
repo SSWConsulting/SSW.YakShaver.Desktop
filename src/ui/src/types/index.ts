@@ -1,5 +1,3 @@
-import type { TranscriptSegment } from "@shared/types/transcript";
-
 export interface UserInfo {
   id: string;
   name: string;
@@ -104,46 +102,6 @@ export interface MetadataPreview {
   chapters?: VideoChapter[];
 }
 
-export type WorkflowStage =
-  | "idle"
-  | "uploading_source"
-  | "downloading_source"
-  | "upload_completed"
-  | "converting_audio"
-  | "transcribing"
-  | "generating_task"
-  | "executing_task"
-  | "updating_metadata"
-  | "completed"
-  | "error";
-
-export const STAGE_CONFIG: Record<WorkflowStage, string> = {
-  idle: "Waiting for recording...",
-  uploading_source: "Uploading video",
-  downloading_source: "Downloading source video",
-  upload_completed: "Video upload completed",
-  converting_audio: "Converting audio",
-  transcribing: "Transcribing audio",
-  generating_task: "Analyzing transcript",
-  executing_task: "Executing task",
-  updating_metadata: "Updating YouTube metadata",
-  completed: "Completed",
-  error: "Error occurred",
-};
-
-export interface WorkflowProgress {
-  shaveId?: string;
-  stage: WorkflowStage;
-  transcript?: TranscriptSegment[];
-  intermediateOutput?: string;
-  finalOutput?: string;
-  uploadResult?: VideoUploadResult;
-  metadataPreview?: MetadataPreview;
-  metadataUpdateError?: string;
-  error?: string;
-  sourceOrigin?: VideoUploadOrigin;
-}
-
 export interface CustomPrompt {
   id: string;
   name: string;
@@ -167,21 +125,6 @@ export interface HealthStatusInfo {
   error?: string;
   successMessage?: string;
   isChecking: boolean;
-}
-
-export enum ProgressStage {
-  IDLE = "idle",
-  UPLOADING_SOURCE = "uploading_source",
-  DOWNLOADING_SOURCE = "downloading_source",
-  UPLOAD_COMPLETED = "upload_completed",
-  CONVERTING_AUDIO = "converting_audio",
-  TRANSCRIBING = "transcribing",
-  TRANSCRIPTION_COMPLETED = "transcription_completed",
-  GENERATING_TASK = "generating_task",
-  EXECUTING_TASK = "executing_task",
-  UPDATING_METADATA = "updating_metadata",
-  ERROR = "error",
-  COMPLETED = "completed",
 }
 
 export const UNDO_EVENT_CHANNEL = "yakshaver:undo-event";

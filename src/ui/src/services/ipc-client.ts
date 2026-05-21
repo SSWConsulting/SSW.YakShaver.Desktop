@@ -114,7 +114,6 @@ declare global {
         onTimeUpdate: (callback: (time: string) => void) => () => void;
       };
       workflow: {
-        onProgress: (callback: (progress: unknown) => void) => () => void;
         onProgressNeo: (callback: (progress: unknown) => void) => () => void;
         retryFromStage: (
           stage: keyof WorkflowState,

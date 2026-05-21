@@ -4,7 +4,6 @@ import {
   ProgressStage as WorkflowProgressStage,
   type WorkflowState,
 } from "../../../shared/types/workflow";
-import { ProgressStage } from "../../types";
 import { formatAndReportError } from "../../utils/error-utils";
 import type { VideoUploadResult } from "../auth/types";
 import type { YouTubeClient } from "../auth/youtube-client";
@@ -36,7 +35,6 @@ export interface WorkflowRetryDeps {
     wm: WorkflowStateManager,
     startFromStage?: keyof WorkflowState,
   ) => Promise<RetryResult>;
-  emitProgress: (stage: string, data?: Record<string, unknown>, shaveId?: string) => void;
   trackTempFile: (path: string, shaveId?: string) => void;
   getLastVideoFilePath: () => string | undefined;
   getOrCreateWorkflowManager: (shaveId: string) => WorkflowStateManager;
@@ -144,21 +142,17 @@ export class WorkflowRetryService {
         // Duration is optional, continue without it
       }
 
-      this.deps.emitProgress(ProgressStage.UPLOADING_SOURCE, { sourceOrigin: "upload" }, shaveId);
-
       const youtubeResult = await this.deps.youtube.uploadVideo(filePath);
 
       if (youtubeResult.success && youtubeResult.data && duration) {
         youtubeResult.data.duration = duration;
       }
 
-      workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, youtubeResult.data?.url);
-      this.deps.emitProgress(
-        ProgressStage.UPLOAD_COMPLETED,
-        { uploadResult: youtubeResult, sourceOrigin: youtubeResult.origin },
-        shaveId,
-      );
-
+      workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, {
+        filePath,
+        sourceOrigin: youtubeResult.origin,
+        uploadResult: youtubeResult,
+      });
       workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
         filePath,
         youtubeResult,
@@ -188,21 +182,16 @@ export class WorkflowRetryService {
       }
 
       const youtubeResult = await this.deps.youtubeDownloadService.getVideoMetadata(downloadUrl);
-      this.deps.emitProgress(
-        ProgressStage.UPLOAD_COMPLETED,
-        { uploadResult: youtubeResult, sourceOrigin: "external" },
-        shaveId,
-      );
-      this.deps.emitProgress(
-        ProgressStage.DOWNLOADING_SOURCE,
-        { sourceOrigin: "external" },
-        shaveId,
-      );
 
       const filePath = await this.deps.youtubeDownloadService.downloadVideoToFile(downloadUrl);
       this.deps.trackTempFile(filePath, shaveId);
 
-      workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
+      workflowManager.completeStage(WorkflowProgressStage.DOWNLOADING_VIDEO, {
+        downloadUrl,
+        filePath,
+        sourceOrigin: "external",
+        uploadResult: youtubeResult,
+      });
 
       workflowManager.createCheckpoint(WorkflowProgressStage.DOWNLOADING_VIDEO, {
         filePath,
@@ -214,7 +203,6 @@ export class WorkflowRetryService {
     } catch (error) {
       const errorMessage = formatAndReportError(error, "retry_download");
       workflowManager.failStage(WorkflowProgressStage.DOWNLOADING_VIDEO, errorMessage);
-      this.deps.emitProgress(ProgressStage.ERROR, { error: errorMessage }, shaveId);
       return { success: false, error: errorMessage };
     }
   }

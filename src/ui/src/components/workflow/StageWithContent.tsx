@@ -13,6 +13,46 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function getVideoUrl(payload: unknown): string | undefined {
+  if (typeof payload === "string") {
+    return payload;
+  }
+
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+
+  const uploadResult = isRecord(payload.uploadResult) ? payload.uploadResult : undefined;
+  const uploadData = uploadResult && isRecord(uploadResult.data) ? uploadResult.data : undefined;
+
+  if (typeof uploadData?.url === "string") {
+    return uploadData.url;
+  }
+
+  if (typeof payload.url === "string") {
+    return payload.url;
+  }
+
+  if (typeof payload.downloadUrl === "string") {
+    return payload.downloadUrl;
+  }
+
+  return undefined;
+}
+
+function VideoUrlContent({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="text-sm text-blue-300 hover:text-blue-200 break-all"
+    >
+      {url}
+    </a>
+  );
+}
+
 const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
   const details = e.currentTarget;
   if (details.open) {
@@ -171,6 +211,11 @@ function ToolCallStep({ toolName, args }: { toolName?: string; args?: unknown })
 export function StageWithContent({ stage, payload }: StageWithContentProps) {
   // If no payload or empty object, nothing to render
   if (!payload) return null;
+
+  if (stage === "uploading_video" || stage === "downloading_video") {
+    const url = getVideoUrl(payload);
+    return url ? <VideoUrlContent url={url} /> : null;
+  }
 
   // Handing executing_task (MCP Steps)
   if (stage === "executing_task" && isRecord(payload) && Array.isArray(payload.steps)) {

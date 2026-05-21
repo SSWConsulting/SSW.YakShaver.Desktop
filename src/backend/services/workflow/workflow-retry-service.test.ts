@@ -77,7 +77,6 @@ function createMockDeps(overrides?: Partial<WorkflowRetryDeps>): WorkflowRetryDe
       downloadVideoToFile: vi.fn().mockResolvedValue("/tmp/downloaded.mp4"),
     } as unknown as WorkflowRetryDeps["youtubeDownloadService"],
     processVideoSource: vi.fn().mockResolvedValue({ success: true } satisfies RetryResult),
-    emitProgress: vi.fn(),
     trackTempFile: vi.fn(),
     getLastVideoFilePath: vi.fn().mockReturnValue("/tmp/test-video.mp4"),
     getOrCreateWorkflowManager: vi.fn(),

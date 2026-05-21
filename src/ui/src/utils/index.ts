@@ -1,3 +1,52 @@
+import {
+  WORKFLOW_STAGE_ORDER,
+  type WorkflowState,
+  type WorkflowStep,
+} from "@shared/types/workflow";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isWorkflowState(value: unknown): value is WorkflowState {
+  return isRecord(value) && WORKFLOW_STAGE_ORDER.every((key) => isRecord(value[key]));
+}
+
+export function parseWorkflowProgressNeoPayload(payload: unknown): {
+  shaveId?: string;
+  state?: WorkflowState;
+} {
+  if (isRecord(payload) && typeof payload.shaveId === "string" && isWorkflowState(payload.state)) {
+    return {
+      shaveId: payload.shaveId,
+      state: payload.state,
+    };
+  }
+
+  if (isWorkflowState(payload)) {
+    return { state: payload };
+  }
+
+  return {};
+}
+
+export function parseWorkflowStepPayload(step?: WorkflowStep): unknown {
+  if (!step?.payload) return undefined;
+
+  try {
+    return JSON.parse(step.payload);
+  } catch {
+    return step.payload;
+  }
+}
+
+export function isWorkflowReadyForFinalOutput(state: WorkflowState): boolean {
+  return (
+    state.executing_task.status === "completed" &&
+    ["completed", "failed", "skipped"].includes(state.updating_metadata.status)
+  );
+}
+
 /**
  * Recursively parses JSON strings within nested objects and arrays.
  * If a string is valid JSON, it will be parsed and the function will continue parsing its contents.
