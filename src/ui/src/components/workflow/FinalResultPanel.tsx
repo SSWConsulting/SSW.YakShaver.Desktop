@@ -11,13 +11,7 @@ import {
 } from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
-import {
-  type MCPStep,
-  MCPStepType,
-  ShaveStatus,
-  type VideoUploadResult,
-  type WorkflowProgress,
-} from "../../types";
+import { type MCPStep, MCPStepType, ShaveStatus, type VideoUploadResult } from "../../types";
 import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
 import { LoadingState } from "../common/LoadingState";
 import { Button } from "../ui/button";
@@ -578,7 +572,7 @@ export function FinalResultPanel() {
   const [finalOutput, setFinalOutput] = useState<string | undefined>();
   const [intermediateOutput, setIntermediateOutput] = useState<string | undefined>();
   const [shaveId, setShaveId] = useState<string | undefined>(undefined);
-  const [uploadResult, setUploadResult] = useState<WorkflowProgress["uploadResult"]>();
+  const [uploadResult, setUploadResult] = useState<VideoUploadResult>();
   const [mcpSteps, setMcpSteps] = useState<MCPStep[]>([]);
   const [reprocessDialogOpen, setReprocessDialogOpen] = useState(false);
   const [reprocessMode, setReprocessMode] = useState<ReprocessMode>("original");
@@ -687,44 +681,6 @@ export function FinalResultPanel() {
       stageRef.current = currentStage;
     });
   }, [resetForNewRun]);
-
-  // TODO: Deprecated WORKFLOW_PROGRESS listener kept temporarily for review.
-  // useEffect(() => {
-  //   return ipcClient.workflow.onProgress((data: unknown) => {
-  //     const progressData = data as WorkflowProgress;
-  //     const previousStage = stageRef.current;
-  //
-  //     const isNewRecordingStage =
-  //       progressData.stage === ProgressStage.CONVERTING_AUDIO &&
-  //       previousStage !== ProgressStage.CONVERTING_AUDIO;
-  //
-  //     const isRetryStage =
-  //       progressData.stage === ProgressStage.EXECUTING_TASK &&
-  //       previousStage !== ProgressStage.EXECUTING_TASK;
-  //
-  //     if (isNewRecordingStage || isRetryStage) {
-  //       resetForNewRun();
-  //     }
-  //
-  //     if (progressData.shaveId) {
-  //       setShaveId(progressData.shaveId);
-  //     }
-  //
-  //     if (progressData.intermediateOutput) {
-  //       setIntermediateOutput(progressData.intermediateOutput);
-  //     }
-  //
-  //     if (progressData.uploadResult) {
-  //       setUploadResult(progressData.uploadResult);
-  //     }
-  //
-  //     if (typeof progressData.finalOutput !== "undefined") {
-  //       setFinalOutput(progressData.finalOutput ?? undefined);
-  //     }
-  //
-  //     stageRef.current = progressData.stage;
-  //   });
-  // }, [resetForNewRun]);
 
   useEffect(() => {
     return ipcClient.mcp.onStepUpdate((step) => {

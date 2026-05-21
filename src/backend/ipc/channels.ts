@@ -56,7 +56,6 @@ export const IPC_CHANNELS = {
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
 
   // Automated workflow
-  WORKFLOW_PROGRESS: "workflow:progress",
   WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
   // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
   // Different from RERUN_TASK which is a user-initiated re-execution after success.

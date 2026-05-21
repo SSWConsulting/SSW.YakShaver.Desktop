@@ -32,17 +32,6 @@ export function WorkflowProgressPanel() {
     return cleanup;
   }, []);
 
-  // TODO: Deprecated WORKFLOW_PROGRESS listener kept here temporarily for review.
-  // useEffect(() => {
-  //   const cleanup = window.electronAPI.workflow.onProgress((payload: unknown) => {
-  //     const data = payload as { shaveId?: string };
-  //     if (data.shaveId) {
-  //       setShaveId(data.shaveId);
-  //     }
-  //   });
-  //   return cleanup;
-  // }, []);
-
   if (state) {
     return (
       <div className="w-[500px] mx-auto my-4">
