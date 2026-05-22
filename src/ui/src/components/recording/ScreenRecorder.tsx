@@ -3,6 +3,7 @@ import { CircleStopIcon, Upload } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
+import { useWorkflowNavigation } from "@/hooks/useWorkflowNavigation";
 import { cn } from "@/lib/utils";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
@@ -104,6 +105,7 @@ function RecordButton({
 }
 
 export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
+  const navigateToWorkflow = useWorkflowNavigation({ listen: false });
   const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
@@ -399,6 +401,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             </Button>
             <Button
               onClick={() => {
+                navigateToWorkflow();
                 handleProcessYoutubeUrl();
                 setYoutubeDialogOpen(false);
               }}
