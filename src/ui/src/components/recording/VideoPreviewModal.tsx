@@ -1,6 +1,7 @@
 import type { ToolApprovalMode } from "@shared/types/user-settings";
 import { ArrowRight, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useWorkflowNavigation } from "@/hooks/useWorkflowNavigation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +45,7 @@ export function VideoPreviewModal({
   onContinue,
   onDurationLoad,
 }: VideoPreviewModalProps) {
+  const navigateToWorkflow = useWorkflowNavigation({ listen: false });
   const [videoUrl, setVideoUrl] = useState("");
   const [showConfirmExit, setShowConfirmExit] = useState(false);
   const [autoApproveChecked, setAutoApproveChecked] = useState(false);
@@ -148,7 +150,10 @@ export function VideoPreviewModal({
               </Button>
               <Button
                 variant="default"
-                onClick={() => onContinue(autoApproveChecked)}
+                onClick={() => {
+                  navigateToWorkflow();
+                  onContinue(autoApproveChecked);
+                }}
                 disabled={audioCheck.status === "checking" || audioCheck.status === "no_audio"}
               >
                 <ArrowRight className="w-4 h-4" />

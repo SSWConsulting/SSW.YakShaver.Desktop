@@ -1,16 +1,29 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-export function useWorkflowNavigation() {
+interface UseWorkflowNavigationOptions {
+  listen?: boolean;
+}
+
+export function useWorkflowNavigation(options?: UseWorkflowNavigationOptions) {
   const navigate = useNavigate();
   const location = useLocation();
+  const listen = options?.listen ?? true;
+
+  const navigateToWorkflow = useCallback(() => {
+    if (location.pathname !== "/workflow") {
+      navigate("/workflow");
+    }
+  }, [navigate, location.pathname]);
 
   useEffect(() => {
-    const cleanup = window.electronAPI.workflow.onProgressNeo(() => {
-      if (location.pathname !== "/workflow") {
-        navigate("/workflow");
-      }
-    });
+    if (!listen) {
+      return;
+    }
+
+    const cleanup = window.electronAPI.workflow.onProgressNeo(navigateToWorkflow);
     return cleanup;
-  }, [navigate, location.pathname]);
+  }, [listen, navigateToWorkflow]);
+
+  return navigateToWorkflow;
 }

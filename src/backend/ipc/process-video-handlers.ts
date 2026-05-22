@@ -251,6 +251,8 @@ export class ProcessVideoIPCHandlers {
     try {
       const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
       this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
+      // put a delay here to ensure the workflow panel is rendered before emitting any progress updates, so that the initial state is received and displayed correctly. This is a workaround
+      //await new Promise((resolve) => setTimeout(resolve, 500));
 
       this.lastVideoFilePath = filePath;
       this.trackTempFile(filePath, effectiveShaveId);
@@ -812,3 +814,4 @@ export class ProcessVideoIPCHandlers {
     }
   }
 }
+
