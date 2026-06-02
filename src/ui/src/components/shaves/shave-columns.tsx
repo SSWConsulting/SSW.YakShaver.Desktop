@@ -21,8 +21,11 @@ export function createShaveColumns(): ColumnDef<Shave>[] {
       accessorKey: "title",
       header: ({ column }) => <SortableHeader column={column} label="Title" />,
       cell: ({ row }) => (
-        <span className="font-medium max-w-[400px] truncate block" title={row.original.title}>
-          {row.original.title}
+        <span
+          className={`max-w-[400px] truncate block ${row.original.title ? "font-medium" : "font-medium text-muted-foreground italic"}`}
+          title={row.original.title || "Unnamed shave"}
+        >
+          {row.original.title || "Unnamed shave"}
         </span>
       ),
     },

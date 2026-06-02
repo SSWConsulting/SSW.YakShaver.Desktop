@@ -9,7 +9,11 @@ function ShaveCardFooter({ shave }: { shave: Shave }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        {shave.projectName ? <Badge variant="outline">{shave.projectName}</Badge> : <span>—</span>}
+        {shave.projectName ? (
+          <Badge variant="outline">{shave.projectName}</Badge>
+        ) : (
+          <span />
+        )}
         <span className="text-sm text-muted-foreground">
           {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
         </span>
@@ -45,8 +49,11 @@ function ShaveCard({ shave }: { shave: Shave }) {
       )}
 
       <div className="flex flex-col gap-2 px-4 pt-4 pb-3">
-        <h3 className="font-medium text-sm line-clamp-2" title={shave.title}>
-          {shave.title}
+        <h3
+          className={`font-medium text-sm line-clamp-2 ${!shave.title ? "text-muted-foreground italic" : ""}`}
+          title={shave.title || "Unnamed shave"}
+        >
+          {shave.title || "Unnamed shave"}
         </h3>
       </div>
       <div className="px-4 pb-3 mt-auto">
