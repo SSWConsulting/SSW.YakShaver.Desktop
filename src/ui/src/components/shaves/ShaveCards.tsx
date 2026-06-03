@@ -9,11 +9,7 @@ function ShaveCardFooter({ shave }: { shave: Shave }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        {shave.projectName ? (
-          <Badge variant="outline">{shave.projectName}</Badge>
-        ) : (
-          <span />
-        )}
+        {shave.projectName ? <Badge variant="outline">{shave.projectName}</Badge> : <span />}
         <span className="text-sm text-muted-foreground">
           {timeAgo(new Date(shave.updatedAt || shave.createdAt))}
         </span>
