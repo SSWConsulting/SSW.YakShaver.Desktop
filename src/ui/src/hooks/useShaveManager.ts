@@ -193,6 +193,19 @@ export function useShaveManager() {
             console.error("[Shave] Error updating shave video URL (by id):", err);
           }
         }
+
+        // Save the video title to local DB as soon as it's available so that
+        // if the workflow fails before the final output step, we already have
+        // a meaningful title rather than the "Untitled" placeholder.
+        if (uploadResult.data.title) {
+          try {
+            await ipcClient.shave.update(shaveId, {
+              title: uploadResult.data.title,
+            });
+          } catch (err) {
+            console.error("[Shave] Error updating shave title from upload result:", err);
+          }
+        }
       }
     }
 

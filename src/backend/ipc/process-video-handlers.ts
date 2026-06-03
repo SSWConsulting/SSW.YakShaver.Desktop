@@ -596,7 +596,14 @@ export class ProcessVideoIPCHandlers {
               formatAndReportError(portalResult.error, "portal_submission");
             } else if (shaveId) {
               const shaveService = ShaveService.getInstance();
-              shaveService.updateShave(shaveId, { portalWorkItemId: portalResult.workItemId });
+              // Sync the canonical portal data back to the local record so both
+              // stores stay in sync even if the workflow fails after this point.
+              shaveService.updateShave(shaveId, {
+                portalWorkItemId: portalResult.workItemId,
+                title: workItemDto.title,
+                projectName: workItemDto.projectName,
+                workItemUrl: workItemDto.workItemUrl,
+              });
             }
           } catch (portalError) {
             console.warn("[ProcessVideo] Portal submission error:", portalError);
