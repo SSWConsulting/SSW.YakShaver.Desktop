@@ -1,4 +1,7 @@
-import { ProgressStage as WorkflowProgressStage, type WorkflowState } from "../../../shared/types/workflow";
+import {
+  ProgressStage as WorkflowProgressStage,
+  type WorkflowState,
+} from "../../../shared/types/workflow";
 import type { VideoUploadResult } from "../auth/types";
 
 /**
