@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { BrowserWindow, screen } from "electron";
+import { formatRecordingTime } from "./format-recording-time";
 
 const WINDOW_SIZE = { width: 300, height: 80 };
 const MARGIN_BOTTOM = 20;
@@ -8,6 +9,9 @@ export class RecordingControlBarWindow {
   private static instance: RecordingControlBarWindow;
   private window: BrowserWindow | null = null;
   private isDev = false;
+  // Most recent recording time forwarded from the service, retained so a
+  // newly-loaded control bar renderer can be re-synced (#870).
+  private latestSeconds: number | null = null;
 
   static getInstance() {
     RecordingControlBarWindow.instance ??= new RecordingControlBarWindow();
@@ -46,6 +50,16 @@ export class RecordingControlBarWindow {
       this.window = null;
     });
 
+    // The renderer subscribes to time updates on mount, which can complete
+    // after the timer has already emitted ticks (more likely on slower/macOS
+    // timing). Re-push the latest known time once the page has loaded so the
+    // bar isn't stuck on its initial 00:00 (#870).
+    this.window.webContents.on("did-finish-load", () => {
+      if (this.latestSeconds !== null) {
+        this.sendTime(this.latestSeconds);
+      }
+    });
+
     this.window.setAlwaysOnTop(true, "screen-saver");
 
     // Don't include this window in the recording
@@ -59,6 +73,8 @@ export class RecordingControlBarWindow {
   hide() {
     this.window?.destroy();
     this.window = null;
+    // Clear so the next recording doesn't briefly re-push a stale time on load.
+    this.latestSeconds = null;
   }
 
   async showForRecording(displayId?: string) {
@@ -82,17 +98,14 @@ export class RecordingControlBarWindow {
   }
 
   updateTime(seconds: number): void {
-    if (this.window && !this.window.isDestroyed()) {
-      this.window.webContents.send("update-recording-time", this.formatTime(seconds));
-    }
+    this.latestSeconds = seconds;
+    this.sendTime(seconds);
   }
 
-  private formatTime(seconds: number): string {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    const pad = (n: number) => n.toString().padStart(2, "0");
-    return hrs > 0 ? `${pad(hrs)}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`;
+  private sendTime(seconds: number): void {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.webContents.send("update-recording-time", formatRecordingTime(seconds));
+    }
   }
 
   private getPosition(displayId?: string) {

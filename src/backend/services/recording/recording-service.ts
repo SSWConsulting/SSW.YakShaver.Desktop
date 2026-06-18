@@ -118,6 +118,12 @@ export class RecordingService extends EventEmitter {
 
   private startTimer() {
     this.startTime = Date.now();
+    // #870: emit an immediate 0 so the control bar shows a value right away
+    // instead of waiting a full second for the first setInterval tick. Combined
+    // with the control bar re-pushing the latest time once its window loads,
+    // this stops a late-subscribing renderer (observed on macOS) from being
+    // stuck on 00:00.
+    this.emit("recording-time-update", 0);
     this.timer = setInterval(() => {
       const time = Math.floor((Date.now() - this.startTime) / 1000);
       this.emit("recording-time-update", time);
