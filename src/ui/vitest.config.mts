@@ -12,8 +12,9 @@ import { defineConfig } from "vitest/config";
  * src/ui (not the repo root) so it resolves the same single `react` copy the app
  * uses, avoiding a dual-React "invalid hook call" bug.
  *
- * The root `vitest.config.ts` keeps running the node-environment `*.test.ts`
- * (backend + pure UI logic) — this config only owns `*.test.tsx`.
+ * This config owns ALL src/ui renderer tests — both `*.test.tsx` and `*.test.ts`
+ * — so they resolve the UI `@`/`@shared` aliases. The root `vitest.config.ts`
+ * runs the node-environment backend + shared `*.test.ts` and EXCLUDES src/ui.
  */
 export default defineConfig({
   plugins: [react()],
@@ -26,7 +27,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
-    include: ["src/**/*.test.tsx"],
+    include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/test/setup.ts"],
   },
 });
