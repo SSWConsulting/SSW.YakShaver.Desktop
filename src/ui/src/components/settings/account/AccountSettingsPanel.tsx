@@ -1,3 +1,5 @@
+import { CircleUserRound } from "lucide-react";
+import { SettingsPageHeader } from "../SettingsPageHeader";
 import { ResetAccountSetting } from "./ResetAccountSetting";
 import { SetupWizardSetting } from "./SetupWizardSetting";
 import { TelemetryUsageDataSetting } from "./TelemetryUsageDataSetting";
@@ -13,12 +15,11 @@ export function AccountSettingsPanel({ isActive }: AccountSettingsPanelProps) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h2 className="text-xl font-semibold">Account</h2>
-        <p className="text-sm text-muted-foreground">
-          Manage your YakShaver account settings and preferences.
-        </p>
-      </div>
+      <SettingsPageHeader
+        icon={CircleUserRound}
+        title="Account"
+        description="Manage your YakShaver account settings and preferences."
+      />
 
       <TelemetryUsageDataSetting />
       <SetupWizardSetting />

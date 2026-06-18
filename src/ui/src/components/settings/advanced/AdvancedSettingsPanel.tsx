@@ -1,7 +1,9 @@
+import { FlaskConical } from "lucide-react";
 import { useId } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useAdvancedSettings } from "@/contexts/AdvancedSettingsContext";
+import { SettingsPageHeader } from "../SettingsPageHeader";
 
 export function AdvancedSettingsPanel() {
   const { isYoutubeUrlWorkflowEnabled, setYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
@@ -9,13 +11,11 @@ export function AdvancedSettingsPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold">Advanced Settings</h2>
-        <p className="text-sm text-muted-foreground">
-          Toggle experimental workflows and power-user options. These settings affect how controls
-          appear in the main workspace.
-        </p>
-      </header>
+      <SettingsPageHeader
+        icon={FlaskConical}
+        title="Advanced Settings"
+        description="Toggle experimental workflows and power-user options. These settings affect how controls appear in the main workspace."
+      />
 
       <Card>
         <CardHeader className="space-y-1">

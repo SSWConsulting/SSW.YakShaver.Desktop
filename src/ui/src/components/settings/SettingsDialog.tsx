@@ -1,7 +1,14 @@
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
 import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
@@ -162,14 +169,13 @@ export function SettingsDialog() {
       </DialogTrigger>
 
       <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader className="mb-2 flex-shrink-0">
-          <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Settings
-          </DialogTitle>
-          <p className="text-muted-foreground text-sm">
-            Configure YakShaver preferences and integrations.
-          </p>
+        {/* #879: the global "Settings" header was redundant with each panel's own
+            title (SettingsPageHeader). It's now visually hidden — kept only for
+            Radix Dialog accessibility (aria-labelledby/aria-describedby + screen
+            readers). The active tab name makes the accessible title specific. */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{activeTab ? `Settings — ${activeTab.label}` : "Settings"}</DialogTitle>
+          <DialogDescription>Configure YakShaver preferences and integrations.</DialogDescription>
         </DialogHeader>
 
         <div className="flex gap-6 flex-1 min-h-0 overflow-hidden">
