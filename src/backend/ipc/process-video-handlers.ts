@@ -623,13 +623,9 @@ export class ProcessVideoIPCHandlers {
         }
       }
 
-      if (
-        shouldRunStage(WorkflowProgressStage.UPDATING_METADATA) &&
-        youtubeResult.origin !== "external" &&
-        youtubeResult.success
-      ) {
+      if (shouldRunStage(WorkflowProgressStage.UPDATING_METADATA)) {
         const videoId = youtubeResult.data?.videoId;
-        if (videoId) {
+        if (youtubeResult.origin !== "external" && youtubeResult.success && videoId) {
           try {
             workflowManager.updateStagePayload(
               WorkflowProgressStage.UPDATING_METADATA,
@@ -669,6 +665,11 @@ export class ProcessVideoIPCHandlers {
             const metadataErrorMsg = formatAndReportError(metadataError, "metadata_update");
             workflowManager.failStage(WorkflowProgressStage.UPDATING_METADATA, metadataErrorMsg);
           }
+        } else {
+          // #798: metadata only applies to a video we uploaded and own. For an external link
+          // (a YouTube URL the user may not own) or a failed/absent upload, skip the stage so
+          // the UI hides it rather than leaving a stuck or erroring "Updating Metadata" step.
+          workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
         }
       }
 
