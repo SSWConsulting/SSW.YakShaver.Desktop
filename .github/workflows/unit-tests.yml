@@ -25,10 +25,9 @@ jobs:
           node-version: "22"
           cache: npm
       - name: Install dependencies
-        # Node-environment unit tests don't need the Electron binary — skip the
-        # ~100MB download. Native modules (e.g. better-sqlite3) still build from source.
+        # Full install — the modules under test `require('electron')` at import time,
+        # which needs the Electron install to complete (it writes the binary path).
+        # Native modules (e.g. better-sqlite3) build from source.
         run: npm ci --prefer-offline --no-audit
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - name: Run root unit tests
         run: npx vitest run --reporter=verbose
