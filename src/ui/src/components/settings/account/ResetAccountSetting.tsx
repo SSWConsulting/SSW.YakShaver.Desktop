@@ -109,7 +109,7 @@ export function ResetAccountSetting() {
             <AlertDialogAction
               onClick={handleResetAccount}
               disabled={isResetting}
-              className="bg-destructive text-primary hover:bg-destructive/90"
+              className="bg-destructive text-white hover:bg-destructive/90"
             >
               {isResetting ? "Resetting..." : "Reset Account"}
             </AlertDialogAction>
