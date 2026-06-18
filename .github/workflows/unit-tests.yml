@@ -37,4 +37,7 @@ jobs:
         # ffmpeg-service.test spawns the ffmpeg binary, which isn't on the runner by default.
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Run root unit tests
-        run: npx vitest run --reporter=verbose
+        # Exclude src/ui — those are renderer tests with their own aliases (@/@shared)
+        # and run under src/ui's vitest config (the UI component-tests job), not the
+        # node-env root config.
+        run: npx vitest run --reporter=verbose --exclude 'src/ui/**'
