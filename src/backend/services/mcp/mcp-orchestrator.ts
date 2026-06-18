@@ -622,12 +622,17 @@ export class MCPOrchestrator {
         BacklogOutcomeSchema,
         judgeSystemPrompt,
       );
+      // Enforce the contract in CODE, not just the prompt: a verdict is only trusted as success
+      // if it cites concrete evidence. A model that answers achieved=true but populates no
+      // artifacts is treated as not-achieved (conservative — a false success is the costly error).
+      const achieved = verdict.achieved && verdict.artifacts.length > 0;
       console.log("[MCPOrchestrator] outcome judged:", {
-        achieved: verdict.achieved,
+        achieved,
+        modelClaimedAchieved: verdict.achieved,
         artifacts: verdict.artifacts,
         tools: toolActivity.map((t) => `${t.toolName}${t.ok ? "" : "(errored)"}`),
       });
-      return { achieved: verdict.achieved, artifacts: verdict.artifacts };
+      return { achieved, artifacts: verdict.artifacts };
     } catch (error) {
       // Fail CLOSED: if the judge itself errors we cannot confirm a filing, so report
       // not-achieved rather than risk a false success (the costly direction for #833).

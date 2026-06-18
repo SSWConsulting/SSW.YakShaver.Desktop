@@ -262,6 +262,18 @@ describe("#833 — outcome is judged from tool RESULTS, not tool-name heuristics
     expect(r.terminationReason).toBe("max-iterations");
     expect(r.backlogActionSucceeded).toBe(true);
   });
+
+  it("judge says achieved:true but cites NO artifact → treated as failure (evidence required in code)", async () => {
+    const createIssue = tool("the model forgot to copy the created id/url into artifacts");
+    const { orch } = makeOrchestrator(
+      [toolTurn("github__create_issue"), stop("Done!")],
+      { github__create_issue: createIssue },
+      ["github__create_issue"],
+      { achieved: true, artifacts: [] }, // claims success, cites nothing
+    );
+    const r = await orch.manualLoopAsync("a bug report transcript", undefined, {});
+    expect(r.backlogActionSucceeded).toBe(false);
+  });
 });
 
 describe("BacklogOutcomeSchema stays OpenAI strict-structured-output compatible", () => {
