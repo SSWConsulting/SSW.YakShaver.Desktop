@@ -22,7 +22,7 @@ vi.mock("../../utils/error-utils", () => ({
     error instanceof Error ? error.message : String(error),
 }));
 
-import { MCPOrchestrator } from "./mcp-orchestrator";
+import { BacklogOutcomeSchema, MCPOrchestrator } from "./mcp-orchestrator";
 
 type ToolCall = { toolName: string; toolCallId: string; input: Record<string, unknown> };
 type LlmResponse = {
@@ -261,5 +261,20 @@ describe("#833 — outcome is judged from tool RESULTS, not tool-name heuristics
     });
     expect(r.terminationReason).toBe("max-iterations");
     expect(r.backlogActionSucceeded).toBe(true);
+  });
+});
+
+describe("BacklogOutcomeSchema stays OpenAI strict-structured-output compatible", () => {
+  // A live run revealed that a `.default()`/`.optional()` field makes the real generateObject call
+  // throw ("Invalid schema for response_format … Missing 'artifacts'") because OpenAI strict mode
+  // requires every property in `required`. This guards against re-introducing an optional field.
+  it("requires every field — an artifact-less or reasoning-less object must NOT parse", () => {
+    expect(() => BacklogOutcomeSchema.parse({ achieved: true })).toThrow();
+    expect(() => BacklogOutcomeSchema.parse({ achieved: true, artifacts: [] })).toThrow();
+    expect(BacklogOutcomeSchema.parse({ achieved: true, artifacts: [], reasoning: "" })).toEqual({
+      achieved: true,
+      artifacts: [],
+      reasoning: "",
+    });
   });
 });

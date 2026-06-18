@@ -48,11 +48,17 @@ interface ToolActivity {
   resultText: string;
 }
 
-/** Structured verdict from the outcome judge. Decide on `achieved` + `artifacts`, never free text. */
-const BacklogOutcomeSchema = z.object({
+/**
+ * Structured verdict from the outcome judge. Every field is REQUIRED — no `.optional()` / `.default()`.
+ * OpenAI strict structured outputs reject a schema whose `required` omits any property, so a
+ * `.default()` here makes the field optional and breaks the real `generateObject` call at runtime
+ * ("Invalid schema for response_format … Missing 'artifacts'"). That only surfaces against a live
+ * model, never in tests that stub generateObject — so keep this schema strict-compatible.
+ */
+export const BacklogOutcomeSchema = z.object({
   achieved: z.boolean(),
-  artifacts: z.array(z.object({ type: z.string(), idOrUrl: z.string() })).default([]),
-  reasoning: z.string().default(""),
+  artifacts: z.array(z.object({ type: z.string(), idOrUrl: z.string() })),
+  reasoning: z.string(),
 });
 
 /**
