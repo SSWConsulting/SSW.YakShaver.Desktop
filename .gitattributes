@@ -3,3 +3,5 @@
 *.ps1 text eol=crlf
 *.bat text eol=crlf
 *.md text eol=lf
+
+.github/workflows/*.lock.yml linguist-generated=true merge=ours
