@@ -10,7 +10,10 @@ import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
 import { LLMSettingsPanel } from "./llm/LLMSettingsPanel";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelSettingsPanel";
+import { SettingsNav } from "./SettingsNav";
 import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
+
+const SETTINGS_PANEL_ID = "settings-tabpanel";
 
 type LeaveHandler = () => Promise<boolean>;
 
@@ -173,27 +176,18 @@ export function SettingsDialog() {
         </DialogHeader>
 
         <div className="flex gap-6 flex-1 min-h-0 overflow-hidden">
-          <nav className="w-48 flex flex-col gap-1 flex-shrink-0 overflow-y-auto pr-1">
-            {TABS.map((tab) => {
-              const isActive = tab.id === activeTabId;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => attemptTabChange(tab.id)}
-                  className={`text-left px-3 py-2.5 rounded-md transition-colors border border-transparent ${
-                    isActive
-                      ? "bg-white/10 border-white/20 text-white"
-                      : "text-white/80 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  <div className="text-sm font-medium">{tab.label}</div>
-                </button>
-              );
-            })}
-          </nav>
+          <SettingsNav
+            tabs={TABS}
+            activeTabId={activeTabId}
+            panelId={SETTINGS_PANEL_ID}
+            onSelect={attemptTabChange}
+          />
 
-          <section className="flex-1 min-w-0 h-full overflow-hidden">
+          <section
+            id={SETTINGS_PANEL_ID}
+            role="tabpanel"
+            className="flex-1 min-w-0 h-full overflow-hidden"
+          >
             <ScrollArea className="h-full">
               <div className="pb-4 pr-1">
                 {activeTab?.id === "general" && (
