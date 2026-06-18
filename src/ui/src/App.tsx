@@ -44,6 +44,8 @@ export default function App() {
                     <Route element={<Layout />}>
                       <Route path="/" element={<HomePage />} />
                       <Route path="/workflow" element={<WorkflowPage />} />
+                      {/* #821: re-open a past shave's Workflow Progress by id */}
+                      <Route path="/workflow/:shaveId" element={<WorkflowPage />} />
                     </Route>
                   </Routes>
                 </HashRouter>
