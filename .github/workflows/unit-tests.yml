@@ -27,7 +27,14 @@ jobs:
       - name: Install dependencies
         # Full install — the modules under test `require('electron')` at import time,
         # which needs the Electron install to complete (it writes the binary path).
-        # Native modules (e.g. better-sqlite3) build from source.
         run: npm ci --prefer-offline --no-audit
+      - name: Rebuild better-sqlite3 for Node
+        # The repo's postinstall runs `electron-rebuild -f -w better-sqlite3`, building it
+        # for Electron's ABI. vitest runs under Node, so rebuild it for the Node runtime —
+        # otherwise the DB-backed tests fail with "Module did not self-register".
+        run: npm rebuild better-sqlite3 --build-from-source
+      - name: Install ffmpeg
+        # ffmpeg-service.test spawns the ffmpeg binary, which isn't on the runner by default.
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Run root unit tests
         run: npx vitest run --reporter=verbose
