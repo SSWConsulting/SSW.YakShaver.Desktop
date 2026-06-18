@@ -48,16 +48,43 @@ export function isInvalidRefreshTokenError(error: unknown): boolean {
 }
 
 /**
- * OAuth error codes that mean the refresh token is no longer usable. Per RFC 6749 §5.2
- * a rejected grant comes back as `invalid_grant`; the others cover backends that surface
- * a revoked client/token differently.
+ * The single OAuth error code (RFC 6749 §5.2) that means a refresh grant was rejected — the
+ * refresh token is revoked/expired and re-authentication is required. Deliberately narrow:
+ * `invalid_client` / `unauthorized_client` indicate a *client/registration* fault (often a
+ * backend config blip, not the user's token) and `invalid_token` is an RFC 6750 resource-server
+ * code — none mean the user's refresh token is dead, so clearing on them would sign the user
+ * out over a non-token fault.
  */
-const INVALID_GRANT_ERROR_CODES = new Set([
-  "invalid_grant",
-  "invalid_token",
-  "unauthorized_client",
-  "invalid_client",
-]);
+const INVALID_GRANT_CODE = "invalid_grant";
+
+/**
+ * Extracts the upstream OAuth `error` code from a backend refresh error.
+ *
+ * The MCP refresh backend (`POST /mcp/auth/refresh`) does NOT forward the upstream OAuth error
+ * verbatim. On any failure it returns HTTP 400 with `{ error: ex.Message }`, where `ex.Message`
+ * is `"Token exchange failed with status <UpstreamStatus>: <raw upstream body>"` (see
+ * SSWConsulting/SSW.YakShaver: `McpOAuthService.RequestAccessTokenAsync` throws it,
+ * `McpEndpoints.RefreshMcpToken` wraps it as `{ error }`). So the genuine "refresh token is
+ * dead" signal is the upstream `invalid_grant` code embedded inside that wrapped string — this
+ * pulls it out (handling a cleanly-forwarded code, an embedded JSON body, or a form-encoded
+ * body). Anything unrecognised returns undefined and is treated as transient by the caller.
+ *
+ * NOTE: the robust long-term fix is a backend change to forward the structured upstream OAuth
+ * error (e.g. `{ error: "invalid_grant" }`) so the desktop need not parse a wrapped message.
+ */
+export function extractUpstreamOAuthErrorCode(rawError: string | undefined): string | undefined {
+  if (!rawError) return undefined;
+  // A backend that forwards the code cleanly: the whole value IS the code.
+  if (/^[a-zA-Z_]+$/.test(rawError)) return rawError;
+  // Embedded JSON upstream body: {"error":"invalid_grant", ...}
+  const jsonMatch = rawError.match(/"error"\s*:\s*"([^"]+)"/);
+  if (jsonMatch) return jsonMatch[1];
+  // Embedded form-encoded upstream body: error=invalid_grant&... (may be preceded by the
+  // backend's "...: " prefix, so allow whitespace as a boundary too).
+  const formMatch = rawError.match(/(?:^|[\s?&])error=([a-zA-Z_]+)/);
+  if (formMatch) return formMatch[1];
+  return undefined;
+}
 
 /**
  * Gets the authorization URL from the .NET backend for an MCP server.
@@ -210,13 +237,14 @@ export async function refreshTokenWithBackend(
       errorMessage = `${errorMessage} (Status: ${response.status})`;
     }
 
-    // The refresh token is only "dead" when the backend positively rejects the grant
-    // with a recognised invalid_grant-family error code (RFC 6749 §5.2). Status code alone
-    // is NOT trusted: a bare 400/401 carrying no such code — proxies/WAFs wrapping an
-    // upstream timeout or 5xx, request-validation errors, rate limits, or a code-less body —
-    // is transient, so we preserve the credential and retry rather than signing the user out
-    // (#836). Anything we don't positively recognise as invalid_grant defaults to transient.
-    const isInvalidGrant = errorCode !== undefined && INVALID_GRANT_ERROR_CODES.has(errorCode);
+    // The refresh token is only "dead" when the upstream provider rejected the grant with
+    // `invalid_grant` (RFC 6749 §5.2). The backend wraps that upstream error inside its own
+    // 400 `{ error }` message, so we extract the embedded upstream code rather than trusting
+    // the status (the backend returns 400 for EVERYTHING — dead grants, missing server config,
+    // upstream 5xx/timeouts wrapped as exceptions). Anything that isn't positively `invalid_grant`
+    // — config errors, wrapped 5xx, rate limits, unparseable bodies — is transient, so we
+    // preserve the credential and retry rather than signing the user out (#836).
+    const isInvalidGrant = extractUpstreamOAuthErrorCode(errorCode) === INVALID_GRANT_CODE;
 
     throw new McpTokenRefreshError(errorMessage, {
       status: response.status,

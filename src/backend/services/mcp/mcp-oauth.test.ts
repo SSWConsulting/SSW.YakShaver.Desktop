@@ -17,6 +17,7 @@ vi.mock("../storage/mcp-oauth-token-storage", () => ({
 }));
 
 import {
+  extractUpstreamOAuthErrorCode,
   isInvalidRefreshTokenError,
   McpTokenRefreshError,
   refreshTokenWithBackend,
@@ -34,6 +35,57 @@ function jsonResponse(status: number, body: unknown): Response {
   } as unknown as Response;
 }
 
+/**
+ * Reproduces the REAL `/mcp/auth/refresh` failure body. The backend never forwards the
+ * upstream OAuth error verbatim — it returns HTTP 400 with `{ error: ex.Message }` where the
+ * message is `"Token exchange failed with status <UpstreamStatus>: <raw upstream body>"`
+ * (SSWConsulting/SSW.YakShaver: McpOAuthService.RequestAccessTokenAsync + McpEndpoints.RefreshMcpToken).
+ */
+function backendRefreshError(upstreamStatus: string, upstreamBody: unknown): Response {
+  const body =
+    typeof upstreamBody === "string" ? upstreamBody : JSON.stringify(upstreamBody);
+  return jsonResponse(400, {
+    error: `Token exchange failed with status ${upstreamStatus}: ${body}`,
+  });
+}
+
+describe("extractUpstreamOAuthErrorCode — pulling the upstream code out of the backend wrapper", () => {
+  it("extracts invalid_grant from the real wrapped JSON body", () => {
+    expect(
+      extractUpstreamOAuthErrorCode(
+        'Token exchange failed with status BadRequest: {"error":"invalid_grant","error_description":"Token is not active"}',
+      ),
+    ).toBe("invalid_grant");
+  });
+
+  it("extracts the code regardless of field order (error after error_description)", () => {
+    expect(
+      extractUpstreamOAuthErrorCode(
+        'Token exchange failed with status BadRequest: {"error_description":"nope","error":"invalid_client"}',
+      ),
+    ).toBe("invalid_client");
+  });
+
+  it("extracts from a form-encoded upstream body", () => {
+    expect(
+      extractUpstreamOAuthErrorCode(
+        "Token exchange failed with status BadRequest: error=invalid_grant&error_description=expired",
+      ),
+    ).toBe("invalid_grant");
+  });
+
+  it("passes through a cleanly-forwarded bare code (forward-compatible)", () => {
+    expect(extractUpstreamOAuthErrorCode("invalid_grant")).toBe("invalid_grant");
+  });
+
+  it("returns undefined for a non-OAuth backend error (e.g. missing server config)", () => {
+    expect(
+      extractUpstreamOAuthErrorCode("No MCP server config found for host github.com"),
+    ).toBeUndefined();
+    expect(extractUpstreamOAuthErrorCode(undefined)).toBeUndefined();
+  });
+});
+
 describe("refreshTokenWithBackend — failure classification (#836)", () => {
   beforeEach(() => vi.restoreAllMocks());
   afterEach(() => vi.unstubAllGlobals());
@@ -44,13 +96,18 @@ describe("refreshTokenWithBackend — failure classification (#836)", () => {
     await expect(refreshTokenWithBackend("https://srv", "rt")).resolves.toEqual(TOKENS);
   });
 
-  it("flags a 400 invalid_grant as a genuinely invalid refresh token", async () => {
+  it("flags the REAL backend-wrapped invalid_grant as a genuinely invalid refresh token", async () => {
+    // The actual contract: backend returns 400 { error: "Token exchange failed with status
+    // BadRequest: {\"error\":\"invalid_grant\",...}" } — NOT a clean { error: "invalid_grant" }.
     vi.stubGlobal(
       "fetch",
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse(400, { error: "invalid_grant", error_description: "Token expired" }),
+          backendRefreshError("BadRequest", {
+            error: "invalid_grant",
+            error_description: "Token is not active",
+          }),
         ),
     );
 
@@ -61,11 +118,8 @@ describe("refreshTokenWithBackend — failure classification (#836)", () => {
     expect(isInvalidRefreshTokenError(error)).toBe(true);
   });
 
-  it("flags a 401 carrying a recognised invalid_grant-family code as a dead refresh token", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(jsonResponse(401, { error: "invalid_token" })),
-    );
+  it("flags a cleanly-forwarded invalid_grant too (forward-compatible if the backend is fixed)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(400, { error: "invalid_grant" })));
 
     const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
 
@@ -73,11 +127,15 @@ describe("refreshTokenWithBackend — failure classification (#836)", () => {
     expect(isInvalidRefreshTokenError(error)).toBe(true);
   });
 
-  // Regression guards for the review finding: a bare 400/401 status must NOT, on its own,
-  // classify the refresh token as dead — only a recognised invalid_grant-family code may (#836).
+  // Regression guards: only an upstream `invalid_grant` may clear the token. The backend wraps
+  // EVERYTHING as a 400, so status alone proves nothing — anything that isn't positively
+  // invalid_grant must be transient so we never sign the user out over a non-token fault (#836).
 
-  it("classifies a 401 WITHOUT a grant-death code (e.g. 'unauthorized') as transient — token preserved", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(401, { error: "unauthorized" })));
+  it("classifies a wrapped invalid_client (client/registration fault) as transient — token preserved", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(backendRefreshError("BadRequest", { error: "invalid_client" })),
+    );
 
     const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
 
@@ -85,34 +143,46 @@ describe("refreshTokenWithBackend — failure classification (#836)", () => {
     expect(isInvalidRefreshTokenError(error)).toBe(false);
   });
 
-  it("classifies a 401 with no parseable body as transient", async () => {
+  it("classifies a missing-server-config backend error as transient (not a dead token)", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401,
-        json: async () => {
-          throw new Error("no body");
-        },
-        text: async () => "",
-      } as unknown as Response),
-    );
-
-    const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
-
-    expect(error.isInvalidGrant).toBe(false);
-  });
-
-  it("classifies a 400 request-validation error ('invalid_request') as transient — not a dead grant", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(jsonResponse(400, { error: "invalid_request" })),
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(400, { error: "No MCP server config found for host github.com" }),
+        ),
     );
 
     const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
 
     expect(error.isInvalidGrant).toBe(false);
     expect(isInvalidRefreshTokenError(error)).toBe(false);
+  });
+
+  it("classifies a wrapped upstream 5xx as transient (refresh token must be preserved)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(backendRefreshError("InternalServerError", "upstream temporarily down")),
+    );
+
+    const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
+
+    expect(error).toBeInstanceOf(McpTokenRefreshError);
+    expect(error.isInvalidGrant).toBe(false);
+    expect(error.isTransient).toBe(true);
+  });
+
+  it("classifies a wrapped invalid_request as transient — not a dead grant", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(backendRefreshError("BadRequest", { error: "invalid_request" })),
+    );
+
+    const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
+
+    expect(error.isInvalidGrant).toBe(false);
   });
 
   it("classifies a 400 with no error code (gateway/WAF wrapping) as transient", async () => {
@@ -123,26 +193,22 @@ describe("refreshTokenWithBackend — failure classification (#836)", () => {
     expect(error.isInvalidGrant).toBe(false);
   });
 
-  it("classifies a 5xx as TRANSIENT (refresh token must be preserved)", async () => {
+  it("classifies a 400 with no parseable body as transient", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(jsonResponse(503, { error: "backend_unavailable" })),
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => {
+          throw new Error("no body");
+        },
+        text: async () => "",
+      } as unknown as Response),
     );
 
     const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
 
-    expect(error).toBeInstanceOf(McpTokenRefreshError);
     expect(error.isInvalidGrant).toBe(false);
-    expect(error.isTransient).toBe(true);
-    expect(isInvalidRefreshTokenError(error)).toBe(false);
-  });
-
-  it("classifies a 429 (rate limit) as transient", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(429, { error: "rate_limited" })));
-
-    const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
-
-    expect(isInvalidRefreshTokenError(error)).toBe(false);
   });
 
   it("classifies a network/SSL failure as transient", async () => {
@@ -190,7 +256,9 @@ describe("refreshTokenWithBackendWithRetry — bounded retry on transient failur
   });
 
   it("does NOT retry a genuine invalid_grant — fails fast so the caller can clear the dead token", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(400, { error: "invalid_grant" }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(backendRefreshError("BadRequest", { error: "invalid_grant" }));
     vi.stubGlobal("fetch", fetchMock);
     const sleep = vi.fn().mockResolvedValue(undefined);
 
