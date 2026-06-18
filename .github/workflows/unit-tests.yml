@@ -1,0 +1,34 @@
+name: Unit Tests
+
+# Runs the root (backend + pure-logic) vitest suite — `src/**/*.test.ts` under the
+# node environment defined by the root vitest.config.ts.
+#
+# WHY THIS EXISTS: before this (and PR #890's UI component-test job), CI ran NO vitest
+# at all — every unit test was only type-checked by the build's `tsc`, never executed.
+# This job actually runs them, so a test that compiles but fails at runtime is caught.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  root-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        # Node-environment unit tests don't need the Electron binary — skip the
+        # ~100MB download. Native modules (e.g. better-sqlite3) still build from source.
+        run: npm ci --prefer-offline --no-audit
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - name: Run root unit tests
+        run: npx vitest run --reporter=verbose
