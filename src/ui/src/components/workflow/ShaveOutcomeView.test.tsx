@@ -117,4 +117,20 @@ describe("parseFinalOutput (#888 review — brittle fence-stripping heuristic)",
     expect(parseFinalOutput(undefined)).toBeNull();
     expect(parseFinalOutput("")).toBeNull();
   });
+
+  it("parses an uppercase/variant fence (case-insensitive)", () => {
+    expect(parseFinalOutput('```JSON\n{"URL":"https://x"}\n```')).toEqual({ URL: "https://x" });
+  });
+
+  it("parses a fenced block preceded by prose", () => {
+    expect(parseFinalOutput('Here is the result:\n```json\n{"URL":"https://x"}\n```')).toEqual({
+      URL: "https://x",
+    });
+  });
+
+  it("preserves backticks inside a JSON value (no payload corruption)", () => {
+    const desc = "run ```npm test``` first";
+    const input = `\`\`\`json\n${JSON.stringify({ Description: desc })}\n\`\`\``;
+    expect(parseFinalOutput(input)?.Description).toBe(desc);
+  });
 });
