@@ -14,10 +14,13 @@ describe("reconstructWorkflowState (#821)", () => {
 
   it("returns null where per-stage progress can't be honestly asserted", () => {
     // The per-stage state isn't persisted, so for non-Completed shaves we don't fake a stage
-    // picture — the caller shows the status + error instead.
+    // picture — the caller (ShaveOutcomeView) shows the status + error/in-progress message.
+    // Processing is intentionally null here: ShaveOutcomeView renders an "is still running"
+    // placeholder for it (rather than a fabricated stage view) — see #888 review.
     expect(reconstructWorkflowState("Failed")).toBeNull();
     expect(reconstructWorkflowState("Cancelled")).toBeNull();
     expect(reconstructWorkflowState("Pending")).toBeNull();
+    expect(reconstructWorkflowState("Processing")).toBeNull();
     expect(reconstructWorkflowState("Unknown")).toBeNull();
   });
 });

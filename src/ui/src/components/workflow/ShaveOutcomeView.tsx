@@ -1,4 +1,4 @@
-import { AlertTriangle, ExternalLink } from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getStatusVariant } from "@/lib/shave-utils";
 import { ipcClient } from "../../services/ipc-client";
@@ -80,6 +80,10 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
   const workItemUrl = parsed?.URL || shave.workItemUrl || undefined;
   const reconstructed = reconstructWorkflowState(shave.shaveStatus);
   const isFailed = shave.shaveStatus === ShaveStatus.Failed;
+  // #888 review: a still-running shave opened from history has no persisted per-stage
+  // progress and no result/error yet — show a clear in-progress message instead of an
+  // empty dead-end card.
+  const isProcessing = shave.shaveStatus === ShaveStatus.Processing;
 
   return (
     <div className="w-[500px] mx-auto my-4 space-y-4">
@@ -103,6 +107,19 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
               {shave.errorCode && (
                 <p className="text-xs text-red-200/60 mt-1">Code: {shave.errorCode}</p>
               )}
+            </div>
+          )}
+
+          {isProcessing && (
+            <div className="rounded-md border border-white/15 bg-white/5 p-3">
+              <div className="flex items-center gap-2 text-white/80 font-medium">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                This shave is still running
+              </div>
+              <p className="text-sm text-white/60 mt-1">
+                Per-stage progress isn't shown for a shave opened from history. Check back once it
+                finishes, or watch it live from the active run.
+              </p>
             </div>
           )}
 
