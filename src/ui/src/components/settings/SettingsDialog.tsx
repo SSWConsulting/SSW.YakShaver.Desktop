@@ -161,7 +161,7 @@ export function SettingsDialog() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="settings-44 w-[min(800px,72vw)] max-w-none sm:max-w-none h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader className="mb-2 flex-shrink-0">
           <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
             <Settings className="h-5 w-5" />
