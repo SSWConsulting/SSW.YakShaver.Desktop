@@ -583,6 +583,10 @@ export function FinalResultPanel() {
   const [undoError, setUndoError] = useState<string | null>(null);
   const [hasUndoCompleted, setHasUndoCompleted] = useState(false);
   const [lastUndoPrompt, setLastUndoPrompt] = useState<string | null>(null);
+  // #861: a post-creation stage (e.g. Updating Metadata) can fail after the work item was
+  // created. The AI's Status still reads "success", so surface the failure as a warning
+  // instead of letting the panel claim everything is "all good".
+  const [stageWarning, setStageWarning] = useState<string | null>(null);
 
   const stageRef = useRef<keyof WorkflowState | null>(null);
 
@@ -618,6 +622,7 @@ export function FinalResultPanel() {
     setUndoError(null);
     setHasUndoCompleted(false);
     setLastUndoPrompt(null);
+    setStageWarning(null);
     emitUndoEvent("reset");
   }, []);
 
@@ -676,6 +681,17 @@ export function FinalResultPanel() {
         if (typeof nextFinalOutput !== "undefined") {
           setFinalOutput(nextFinalOutput);
         }
+      }
+
+      // #861: a failed post-creation stage (Updating Metadata) must not be hidden behind a
+      // "success" badge. Surface its error as a warning the user can see.
+      const metadataStep = state[WorkflowProgressStage.UPDATING_METADATA];
+      if (metadataStep?.status === "failed") {
+        const metadataPayload = parseWorkflowStepPayload(metadataStep);
+        setStageWarning(
+          getStringValue(metadataPayload, "error") ||
+            "The work item was created, but updating the YouTube video metadata failed.",
+        );
       }
 
       stageRef.current = currentStage;
@@ -803,6 +819,14 @@ export function FinalResultPanel() {
           </div>
         </CardHeader>
         <CardContent className="pt-2 space-y-6">
+          {stageWarning && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+              <p className="font-medium text-amber-300">⚠ Completed with a warning</p>
+              <p className="mt-1 text-xs whitespace-pre-wrap break-words text-white/70">
+                {stageWarning}
+              </p>
+            </div>
+          )}
           {isJson && parsed ? (
             <JsonResultDisplay data={parsed} />
           ) : (
