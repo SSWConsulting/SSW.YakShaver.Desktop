@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
-import type { ZodType } from "zod";
+import { type ZodType, z } from "zod";
 import type { MCPStep } from "../../../shared/types/mcp";
 import { getDurationParts } from "../../utils/duration-utils";
 import { formatAndReportError } from "../../utils/error-utils";
@@ -10,6 +10,56 @@ import { UserInteractionService } from "../user-interaction/user-interaction-ser
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 import { orchestratorSystemPrompt } from "./prompts";
+
+export type MCPTerminationReason =
+  | "stop"
+  | "length"
+  | "content-filter"
+  | "cancelled"
+  | "max-iterations"
+  | "unknown";
+
+export interface BacklogArtifact {
+  /** e.g. "issue", "work_item", "ticket", "comment", "pull_request". */
+  type: string;
+  /** The concrete identifier or URL evidencing the created/updated item. */
+  idOrUrl: string;
+}
+
+export interface MCPLoopResult {
+  /** The model's final text output — the drafted work item, or a message explaining why it stopped. */
+  text: string;
+  /**
+   * True only when a backlog item was actually created/updated, decided from the TOOL RESULTS
+   * (not the model's narration). A graceful `stop` with only internal tools, no tools, or an
+   * errored mutation means nothing was filed.
+   */
+  backlogActionSucceeded: boolean;
+  /** The concrete created/updated artifacts the judge found (issue ids/URLs), if any. */
+  artifacts: BacklogArtifact[];
+  /** Why the loop ended — distinguishes a clean finish from hitting a safety cap. */
+  terminationReason: MCPTerminationReason;
+}
+
+/** One executed tool call and (a truncated view of) its result — the ground truth the judge reasons over. */
+interface ToolActivity {
+  toolName: string;
+  ok: boolean;
+  resultText: string;
+}
+
+/**
+ * Structured verdict from the outcome judge. Every field is REQUIRED — no `.optional()` / `.default()`.
+ * OpenAI strict structured outputs reject a schema whose `required` omits any property, so a
+ * `.default()` here makes the field optional and breaks the real `generateObject` call at runtime
+ * ("Invalid schema for response_format … Missing 'artifacts'"). That only surfaces against a live
+ * model, never in tests that stub generateObject — so keep this schema strict-compatible.
+ */
+export const BacklogOutcomeSchema = z.object({
+  achieved: z.boolean(),
+  artifacts: z.array(z.object({ type: z.string(), idOrUrl: z.string() })),
+  reasoning: z.string(),
+});
 
 /**
  * Tool Output Buffer for host-level tool chaining.
@@ -136,7 +186,7 @@ export class MCPOrchestrator {
       shaveId?: string; // identifies the current shave for per-shave auto-approve
       onStep?: (step: MCPStep) => void;
     } = {},
-  ): Promise<string | undefined> {
+  ): Promise<MCPLoopResult> {
     // Ensure LLM has been initialized
     if (!MCPOrchestrator.languageModelProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
@@ -181,6 +231,31 @@ export class MCPOrchestrator {
       },
       { role: "user", content: `video transcription: ${videoTranscription}` },
     ];
+
+    // Records every executed tool call + its result. At the end we judge — from these
+    // RESULTS, not the model's narration — whether a backlog item was actually filed (#833).
+    const toolActivity: ToolActivity[] = [];
+
+    // Every loop exit funnels through here so the outcome is judged from the tool RESULTS
+    // regardless of WHY the loop ended — an item filed before a cap/limit is still honoured.
+    const finalize = async (
+      text: string,
+      terminationReason: MCPTerminationReason,
+      judgeFinalText: string,
+    ): Promise<MCPLoopResult> => {
+      const outcome = await this.judgeBacklogOutcome(
+        options.desktopAgentProjectPrompt,
+        videoTranscription,
+        toolActivity,
+        judgeFinalText,
+      );
+      return {
+        text,
+        backlogActionSucceeded: outcome.achieved,
+        artifacts: outcome.artifacts,
+        terminationReason,
+      };
+    };
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
@@ -256,7 +331,7 @@ export class MCPOrchestrator {
                 type: "final_result",
                 message: "Tool execution cancelled by user",
               });
-              return "Tool execution cancelled by user";
+              return finalize("Tool execution cancelled by user", "cancelled", "");
             }
 
             if (decision.kind === "request_changes") {
@@ -365,6 +440,17 @@ export class MCPOrchestrator {
                   .filter(Boolean)
                   .join("\n\n") || "(no text output)";
 
+              // Record the call + its result for the end-of-loop outcome judge. `ok` reflects
+              // whether the tool itself errored (MCP sets isError on a failed/auth-denied call).
+              const toolErrored = (toolOutput as { isError?: boolean }).isError === true;
+              toolActivity.push({
+                toolName: toolCall.toolName,
+                ok: !toolErrored,
+                // Keep enough of the result that a created-item id/URL near the end is still
+                // visible to the outcome judge (a verbose tool body shouldn't hide the artifact).
+                resultText: rawOutputText.slice(0, 8000),
+              });
+
               // Store complete raw output in buffer for tool chaining
               const contentToStore = JSON.stringify(toolOutput.content);
               const outputBuffer = ToolOutputBuffer.getInstance();
@@ -459,21 +545,102 @@ export class MCPOrchestrator {
           type: "final_result",
           message: llmResponse.finishReason,
         });
-        return llmResponse.text;
+        // Clean finish: judge from the tool RESULTS whether a backlog item was actually filed.
+        return finalize(llmResponse.text, "stop", llmResponse.text);
       } else if (llmResponse.finishReason === "content-filter") {
         console.log("[MCPOrchestrator] Session ended: Content filter triggered");
         ToolOutputBuffer.getInstance().clear();
-        return "Conversation ended due to content filter.";
+        return finalize(
+          "Conversation ended due to content filter.",
+          "content-filter",
+          llmResponse.text,
+        );
       } else if (llmResponse.finishReason === "length") {
         console.log("[MCPOrchestrator] Session ended: Maximum length reached");
         ToolOutputBuffer.getInstance().clear();
-        return "Conversation ended due to length limit.";
+        return finalize("Conversation ended due to length limit.", "length", llmResponse.text);
       } else {
         console.log("[MCPOrchestrator] Session ended with unknown reason:");
         console.log(llmResponse.finishReason);
         ToolOutputBuffer.getInstance().clear();
-        break;
+        return finalize("", "unknown", llmResponse.text);
       }
+    }
+
+    // The loop exhausted its iteration cap. An item may already have been filed before the cap,
+    // so judge from the tool results rather than assuming failure.
+    ToolOutputBuffer.getInstance().clear();
+    return finalize("", "max-iterations", "");
+  }
+
+  /**
+   * Decides whether the run ACTUALLY created/updated a backlog item, judging from the tool
+   * RESULTS (ground truth) rather than a tool-name heuristic or the model's own claims (#833).
+   *
+   * Short-circuits to "not achieved" when no tool call succeeded (the common signed-out case),
+   * so the extra LLM call only happens when something plausibly did get filed. Fails CLOSED
+   * (not achieved) if the judge is unavailable or errors — a false success is the costly mistake.
+   */
+  private async judgeBacklogOutcome(
+    goal: string | undefined,
+    transcript: string,
+    toolActivity: ToolActivity[],
+    finalText: string,
+  ): Promise<{ achieved: boolean; artifacts: BacklogArtifact[] }> {
+    const succeeded = toolActivity.filter((t) => t.ok);
+    if (succeeded.length === 0) {
+      console.log("[MCPOrchestrator] outcome: no successful tool calls -> not achieved");
+      return { achieved: false, artifacts: [] };
+    }
+
+    const provider = MCPOrchestrator.languageModelProvider;
+    if (!provider) {
+      console.warn("[MCPOrchestrator] outcome judge unavailable (no LLM) -> not achieved");
+      return { achieved: false, artifacts: [] };
+    }
+
+    const judgeSystemPrompt =
+      "You are a strict verifier deciding whether an automated agent ACTUALLY created or updated " +
+      "a backlog work item (e.g. a GitHub issue, an Azure DevOps work item, or a Jira ticket) as " +
+      "instructed. Judge ONLY from the tool results below (ground truth) — NEVER trust the agent's " +
+      "own final message, which may claim success it did not achieve. Set achieved=true only when a " +
+      "non-errored tool result contains concrete evidence of a created or updated item: an id, a " +
+      "number, or a URL. Put that evidence in artifacts. If no mutating tool produced such evidence — " +
+      "nothing ran, the call errored, or only read/internal tools ran — set achieved=false. When " +
+      "uncertain, set achieved=false.";
+
+    const judgePrompt = [
+      `TASK INSTRUCTIONS GIVEN TO THE AGENT:\n${goal?.slice(0, 4000) || "(create a backlog work item describing the user's request)"}`,
+      `USER REQUEST (video transcript):\n${transcript.slice(0, 2000)}`,
+      `TOOL CALLS AND THEIR RESULTS (ground truth — decide from these):\n${JSON.stringify(toolActivity)}`,
+      `AGENT FINAL MESSAGE (do NOT trust this for success):\n${finalText.slice(0, 2000)}`,
+    ].join("\n\n---\n\n");
+
+    try {
+      const verdict = await provider.generateObject(
+        judgePrompt,
+        BacklogOutcomeSchema,
+        judgeSystemPrompt,
+      );
+      // Enforce the contract in CODE, not just the prompt: a verdict is only trusted as success
+      // if it cites concrete evidence. A model that answers achieved=true but populates no
+      // artifacts is treated as not-achieved (conservative — a false success is the costly error).
+      const achieved = verdict.achieved && verdict.artifacts.length > 0;
+      console.log("[MCPOrchestrator] outcome judged:", {
+        achieved,
+        modelClaimedAchieved: verdict.achieved,
+        artifacts: verdict.artifacts,
+        tools: toolActivity.map((t) => `${t.toolName}${t.ok ? "" : "(errored)"}`),
+      });
+      return { achieved, artifacts: verdict.artifacts };
+    } catch (error) {
+      // Fail CLOSED: if the judge itself errors we cannot confirm a filing, so report
+      // not-achieved rather than risk a false success (the costly direction for #833).
+      console.warn(
+        "[MCPOrchestrator] outcome judge failed -> not achieved (failing closed)",
+        error,
+      );
+      return { achieved: false, artifacts: [] };
     }
   }
 

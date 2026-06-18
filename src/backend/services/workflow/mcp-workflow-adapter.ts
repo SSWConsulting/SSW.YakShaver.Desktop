@@ -59,4 +59,26 @@ export class McpWorkflowAdapter {
     };
     this.workflowManager.completeStage(WorkflowProgressStage.EXECUTING_TASK, payload);
   }
+
+  /**
+   * Marks the Executing Task stage as failed while preserving the drafted result so the user
+   * can still see what the model produced. Used when the loop finished but never actually
+   * created a backlog item (#833).
+   */
+  public fail(finalResult: unknown, finalOutput: string | undefined, errorMessage: string) {
+    // failStage records the error + telemetry but REPLACES the stage payload with just { error }.
+    this.workflowManager.failStage(WorkflowProgressStage.EXECUTING_TASK, errorMessage);
+    // Re-attach the drafted result afterwards (keeping the failed status and the error) so the
+    // user can still see what the model produced.
+    const payload = {
+      ...this.getPayload(),
+      mcpResult: typeof finalResult === "string" ? finalResult : JSON.stringify(finalResult),
+      finalOutput,
+    };
+    this.workflowManager.updateStagePayload(
+      WorkflowProgressStage.EXECUTING_TASK,
+      payload,
+      "failed",
+    );
+  }
 }
