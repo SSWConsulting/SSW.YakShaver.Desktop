@@ -66,6 +66,10 @@ export class McpWorkflowAdapter {
    * created a backlog item (#833).
    */
   public fail(finalResult: unknown, finalOutput: string | undefined, errorMessage: string) {
+    // failStage records the error + telemetry but REPLACES the stage payload with just { error }.
+    this.workflowManager.failStage(WorkflowProgressStage.EXECUTING_TASK, errorMessage);
+    // Re-attach the drafted result afterwards (keeping the failed status and the error) so the
+    // user can still see what the model produced.
     const payload = {
       ...this.getPayload(),
       mcpResult: typeof finalResult === "string" ? finalResult : JSON.stringify(finalResult),
@@ -74,8 +78,7 @@ export class McpWorkflowAdapter {
     this.workflowManager.updateStagePayload(
       WorkflowProgressStage.EXECUTING_TASK,
       payload,
-      "in_progress",
+      "failed",
     );
-    this.workflowManager.failStage(WorkflowProgressStage.EXECUTING_TASK, errorMessage);
   }
 }

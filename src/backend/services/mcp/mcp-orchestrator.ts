@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
-import type { ZodType } from "zod";
+import { type ZodType, z } from "zod";
 import type { MCPStep } from "../../../shared/types/mcp";
 import { getDurationParts } from "../../utils/duration-utils";
 import { formatAndReportError } from "../../utils/error-utils";
@@ -19,25 +19,41 @@ export type MCPTerminationReason =
   | "max-iterations"
   | "unknown";
 
+export interface BacklogArtifact {
+  /** e.g. "issue", "work_item", "ticket", "comment", "pull_request". */
+  type: string;
+  /** The concrete identifier or URL evidencing the created/updated item. */
+  idOrUrl: string;
+}
+
 export interface MCPLoopResult {
   /** The model's final text output — the drafted work item, or a message explaining why it stopped. */
   text: string;
   /**
-   * True only when a tool call actually created or updated a backlog item (issue / work item /
-   * comment). A graceful `stop` with only internal tools or no tools means nothing was filed.
+   * True only when a backlog item was actually created/updated, decided from the TOOL RESULTS
+   * (not the model's narration). A graceful `stop` with only internal tools, no tools, or an
+   * errored mutation means nothing was filed.
    */
   backlogActionSucceeded: boolean;
+  /** The concrete created/updated artifacts the judge found (issue ids/URLs), if any. */
+  artifacts: BacklogArtifact[];
   /** Why the loop ended — distinguishes a clean finish from hitting a safety cap. */
   terminationReason: MCPTerminationReason;
 }
 
-/**
- * Matches tool names that represent a real, persisted backlog mutation (issue / work item /
- * comment created or updated) across providers (GitHub, Azure DevOps, Jira, …). Internal
- * Yak tools such as `capture_video_frame` or `fill_template` intentionally do NOT match.
- */
-const BACKLOG_MUTATION_TOOL =
-  /(create|add|update|edit|close|comment)[_-]?\w*(issue|work[_-]?item|pbi|task|ticket|card|bug|story|pull[_-]?request|comment)/i;
+/** One executed tool call and (a truncated view of) its result — the ground truth the judge reasons over. */
+interface ToolActivity {
+  toolName: string;
+  ok: boolean;
+  resultText: string;
+}
+
+/** Structured verdict from the outcome judge. Decide on `achieved` + `artifacts`, never free text. */
+const BacklogOutcomeSchema = z.object({
+  achieved: z.boolean(),
+  artifacts: z.array(z.object({ type: z.string(), idOrUrl: z.string() })).default([]),
+  reasoning: z.string().default(""),
+});
 
 /**
  * Tool Output Buffer for host-level tool chaining.
@@ -210,9 +226,9 @@ export class MCPOrchestrator {
       { role: "user", content: `video transcription: ${videoTranscription}` },
     ];
 
-    // Tracks whether any tool call actually created/updated a backlog item. Used to
-    // distinguish a genuine success from a graceful "I couldn't file it" completion (#833).
-    let backlogActionSucceeded = false;
+    // Records every executed tool call + its result. At the end we judge — from these
+    // RESULTS, not the model's narration — whether a backlog item was actually filed (#833).
+    const toolActivity: ToolActivity[] = [];
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
@@ -290,7 +306,8 @@ export class MCPOrchestrator {
               });
               return {
                 text: "Tool execution cancelled by user",
-                backlogActionSucceeded,
+                backlogActionSucceeded: false,
+                artifacts: [],
                 terminationReason: "cancelled",
               };
             }
@@ -401,12 +418,14 @@ export class MCPOrchestrator {
                   .filter(Boolean)
                   .join("\n\n") || "(no text output)";
 
-              // A non-errored call to a backlog-mutation tool means a work item was actually
-              // created/updated — the only thing that makes this run a genuine success.
+              // Record the call + its result for the end-of-loop outcome judge. `ok` reflects
+              // whether the tool itself errored (MCP sets isError on a failed/auth-denied call).
               const toolErrored = (toolOutput as { isError?: boolean }).isError === true;
-              if (!toolErrored && BACKLOG_MUTATION_TOOL.test(toolCall.toolName)) {
-                backlogActionSucceeded = true;
-              }
+              toolActivity.push({
+                toolName: toolCall.toolName,
+                ok: !toolErrored,
+                resultText: rawOutputText.slice(0, 2000),
+              });
 
               // Store complete raw output in buffer for tool chaining
               const contentToStore = JSON.stringify(toolOutput.content);
@@ -502,13 +521,26 @@ export class MCPOrchestrator {
           type: "final_result",
           message: llmResponse.finishReason,
         });
-        return { text: llmResponse.text, backlogActionSucceeded, terminationReason: "stop" };
+        // Clean finish: judge from the tool RESULTS whether a backlog item was actually filed.
+        const outcome = await this.judgeBacklogOutcome(
+          options.desktopAgentProjectPrompt,
+          videoTranscription,
+          toolActivity,
+          llmResponse.text,
+        );
+        return {
+          text: llmResponse.text,
+          backlogActionSucceeded: outcome.achieved,
+          artifacts: outcome.artifacts,
+          terminationReason: "stop",
+        };
       } else if (llmResponse.finishReason === "content-filter") {
         console.log("[MCPOrchestrator] Session ended: Content filter triggered");
         ToolOutputBuffer.getInstance().clear();
         return {
           text: "Conversation ended due to content filter.",
-          backlogActionSucceeded,
+          backlogActionSucceeded: false,
+          artifacts: [],
           terminationReason: "content-filter",
         };
       } else if (llmResponse.finishReason === "length") {
@@ -516,21 +548,116 @@ export class MCPOrchestrator {
         ToolOutputBuffer.getInstance().clear();
         return {
           text: "Conversation ended due to length limit.",
-          backlogActionSucceeded,
+          backlogActionSucceeded: false,
+          artifacts: [],
           terminationReason: "length",
         };
       } else {
         console.log("[MCPOrchestrator] Session ended with unknown reason:");
         console.log(llmResponse.finishReason);
         ToolOutputBuffer.getInstance().clear();
-        return { text: "", backlogActionSucceeded, terminationReason: "unknown" };
+        return {
+          text: "",
+          backlogActionSucceeded: false,
+          artifacts: [],
+          terminationReason: "unknown",
+        };
       }
     }
 
     // The loop exhausted its iteration cap without the model ever finishing (`stop`).
     // Nothing was filed — surface it as an unsuccessful run rather than a silent success.
     ToolOutputBuffer.getInstance().clear();
-    return { text: "", backlogActionSucceeded, terminationReason: "max-iterations" };
+    return {
+      text: "",
+      backlogActionSucceeded: false,
+      artifacts: [],
+      terminationReason: "max-iterations",
+    };
+  }
+
+  /**
+   * Decides whether the run ACTUALLY created/updated a backlog item, judging from the tool
+   * RESULTS (ground truth) rather than a tool-name heuristic or the model's own claims (#833).
+   *
+   * Short-circuits to "not achieved" when no tool call succeeded (the common signed-out case),
+   * so the extra LLM call only happens when something plausibly did get filed. On judge error
+   * it falls back to a conservative artifact scan of successful results and logs the degrade.
+   */
+  private async judgeBacklogOutcome(
+    goal: string | undefined,
+    transcript: string,
+    toolActivity: ToolActivity[],
+    finalText: string,
+  ): Promise<{ achieved: boolean; artifacts: BacklogArtifact[] }> {
+    const succeeded = toolActivity.filter((t) => t.ok);
+    if (succeeded.length === 0) {
+      console.log("[MCPOrchestrator] outcome: no successful tool calls -> not achieved");
+      return { achieved: false, artifacts: [] };
+    }
+
+    const provider = MCPOrchestrator.languageModelProvider;
+    if (!provider) {
+      return {
+        achieved: this.scanForArtifacts(succeeded).length > 0,
+        artifacts: this.scanForArtifacts(succeeded),
+      };
+    }
+
+    const judgeSystemPrompt =
+      "You are a strict verifier deciding whether an automated agent ACTUALLY created or updated " +
+      "a backlog work item (e.g. a GitHub issue, an Azure DevOps work item, or a Jira ticket) as " +
+      "instructed. Judge ONLY from the tool results below (ground truth) — NEVER trust the agent's " +
+      "own final message, which may claim success it did not achieve. Set achieved=true only when a " +
+      "non-errored tool result contains concrete evidence of a created or updated item: an id, a " +
+      "number, or a URL. Put that evidence in artifacts. If no mutating tool produced such evidence — " +
+      "nothing ran, the call errored, or only read/internal tools ran — set achieved=false. When " +
+      "uncertain, set achieved=false.";
+
+    const judgePrompt = [
+      `TASK INSTRUCTIONS GIVEN TO THE AGENT:\n${goal?.slice(0, 4000) || "(create a backlog work item describing the user's request)"}`,
+      `USER REQUEST (video transcript):\n${transcript.slice(0, 2000)}`,
+      `TOOL CALLS AND THEIR RESULTS (ground truth — decide from these):\n${JSON.stringify(toolActivity)}`,
+      `AGENT FINAL MESSAGE (do NOT trust this for success):\n${finalText.slice(0, 2000)}`,
+    ].join("\n\n---\n\n");
+
+    try {
+      const verdict = await provider.generateObject(
+        judgePrompt,
+        BacklogOutcomeSchema,
+        judgeSystemPrompt,
+      );
+      console.log("[MCPOrchestrator] outcome judged:", {
+        achieved: verdict.achieved,
+        artifacts: verdict.artifacts,
+        tools: toolActivity.map((t) => `${t.toolName}${t.ok ? "" : "(errored)"}`),
+      });
+      return { achieved: verdict.achieved, artifacts: verdict.artifacts };
+    } catch (error) {
+      // Degraded fallback ONLY when the judge call itself fails — scan successful results for
+      // a concrete artifact rather than hard-failing a possibly-genuine success.
+      const artifacts = this.scanForArtifacts(succeeded);
+      console.warn(
+        "[MCPOrchestrator] outcome judge failed; falling back to artifact scan:",
+        artifacts.length > 0 ? "found artifact(s)" : "none found",
+        error,
+      );
+      return { achieved: artifacts.length > 0, artifacts };
+    }
+  }
+
+  /** Conservative degraded-mode scan: a URL or `#<number>` in a successful tool result. */
+  private scanForArtifacts(succeeded: ToolActivity[]): BacklogArtifact[] {
+    const artifacts: BacklogArtifact[] = [];
+    for (const t of succeeded) {
+      const url = t.resultText.match(/https?:\/\/\S+/);
+      if (url) artifacts.push({ type: "url", idOrUrl: url[0] });
+      else {
+        const num = t.resultText.match(/#\d+/);
+        if (num) artifacts.push({ type: "id", idOrUrl: num[0] });
+      }
+    }
+    return artifacts;
   }
 
   public async convertToObjectAsync(prompt: string, schema: ZodType): Promise<unknown> {
