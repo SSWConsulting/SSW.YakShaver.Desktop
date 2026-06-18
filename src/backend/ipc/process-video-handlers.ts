@@ -14,7 +14,7 @@ import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
 import { LanguageModelProvider } from "../services/mcp/language-model-provider";
-import { MCPOrchestrator, type MCPTerminationReason } from "../services/mcp/mcp-orchestrator";
+import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import type { ProjectDto } from "../services/prompt/prompt-manager";
@@ -23,6 +23,7 @@ import { UserInteractionService } from "../services/user-interaction/user-intera
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
+import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
 import {
@@ -154,7 +155,7 @@ export class ProcessVideoIPCHandlers {
 
           // #833: only report success if a backlog item was actually created/updated.
           if (!loopResult.backlogActionSucceeded) {
-            const failureMessage = this.formatNoWorkItemError(loopResult.terminationReason);
+            const failureMessage = formatNoWorkItemError(loopResult.terminationReason);
             mcpAdapter.fail(mcpResult, finalOutput, failureMessage);
             workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
             return { success: false, error: failureMessage } satisfies RetryResult;
@@ -586,7 +587,7 @@ export class ProcessVideoIPCHandlers {
         // created/updated a backlog item, the run did nothing — fail the stage so the user
         // isn't told an issue exists when none does. Temp files are kept for retry.
         if (!loopResult.backlogActionSucceeded) {
-          const failureMessage = this.formatNoWorkItemError(loopResult.terminationReason);
+          const failureMessage = formatNoWorkItemError(loopResult.terminationReason);
           mcpAdapter.fail(mcpResult, finalOutput, failureMessage);
           workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
             mcpResult,
@@ -720,24 +721,6 @@ export class ProcessVideoIPCHandlers {
     const outputFilePath = tmp.tmpNameSync({ postfix: ".mp3" });
     const result = await this.ffmpegService.ConvertVideoToMp3(inputPath, outputFilePath);
     return result;
-  }
-
-  /**
-   * Builds the user-facing error shown when the Executing Task stage finished but never
-   * actually created a backlog item (#833), tailored to why the loop ended.
-   */
-  private formatNoWorkItemError(reason: MCPTerminationReason): string {
-    switch (reason) {
-      case "length":
-      case "max-iterations":
-        return "The AI workflow ran out of room before it could finish creating a work item. No issue was created — please try again.";
-      case "cancelled":
-        return "Task execution was cancelled before a work item was created.";
-      case "content-filter":
-        return "The AI workflow was stopped by a content filter before a work item was created.";
-      default:
-        return "No work item was created. Your backlog connection (e.g. GitHub or Azure DevOps) may be signed out or unavailable — please reconnect and try again.";
-    }
   }
 
   private async formatFinalResult(mcpResult: string | undefined): Promise<string | undefined> {
