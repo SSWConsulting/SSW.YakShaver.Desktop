@@ -1,3 +1,4 @@
+import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
 import type { MCPServerConfig } from "@shared/types/mcp";
 import type { HealthStatusInfo } from "@/types";
 
@@ -6,18 +7,27 @@ import type { HealthStatusInfo } from "@/types";
  * updates Home — #869 AC4). */
 export const MCP_HEALTH_REFRESH_EVENT = "yakshaver:mcp-health-refresh";
 
+/**
+ * The known backlog-provider MCP server ids (GitHub / Azure DevOps / Jira).
+ * Only these surface the backlog-specific Home warning. A custom MCP server has
+ * no backlog/category marker on its config, so treating every non-builtin server
+ * as a backlog provider would falsely claim "backlog items can't be created" when
+ * an unrelated custom server (e.g. a docs/search MCP) goes unhealthy (#869 review).
+ */
+const BACKLOG_PROVIDER_IDS = new Set<string>(Object.values(PRESET_SERVER_IDS));
+
 export interface DisconnectedProvider {
   id: string;
   name: string;
 }
 
 /**
- * The "backlog provider" MCP servers a user has set up: the non-builtin servers
- * (GitHub / Azure DevOps / Jira / custom) that are enabled — i.e. expected to be
- * connected. The builtin Yak_* tool servers are not backlog providers.
+ * Whether a configured MCP server is a backlog provider we expect to be connected
+ * (one of the known presets), and is enabled. Builtin Yak_* tools and unrelated
+ * custom servers are not backlog providers.
  */
-export function isBacklogProvider(server: Pick<MCPServerConfig, "id" | "builtin" | "enabled">) {
-  return !server.builtin && server.enabled !== false && Boolean(server.id);
+export function isBacklogProvider(server: Pick<MCPServerConfig, "id" | "enabled">) {
+  return server.enabled !== false && BACKLOG_PROVIDER_IDS.has(server.id);
 }
 
 /**
