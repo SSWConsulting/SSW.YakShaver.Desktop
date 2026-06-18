@@ -42,8 +42,7 @@ function jsonResponse(status: number, body: unknown): Response {
  * (SSWConsulting/SSW.YakShaver: McpOAuthService.RequestAccessTokenAsync + McpEndpoints.RefreshMcpToken).
  */
 function backendRefreshError(upstreamStatus: string, upstreamBody: unknown): Response {
-  const body =
-    typeof upstreamBody === "string" ? upstreamBody : JSON.stringify(upstreamBody);
+  const body = typeof upstreamBody === "string" ? upstreamBody : JSON.stringify(upstreamBody);
   return jsonResponse(400, {
     error: `Token exchange failed with status ${upstreamStatus}: ${body}`,
   });
@@ -101,14 +100,12 @@ describe("refreshTokenWithBackend — failure classification (#836)", () => {
     // BadRequest: {\"error\":\"invalid_grant\",...}" } — NOT a clean { error: "invalid_grant" }.
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          backendRefreshError("BadRequest", {
-            error: "invalid_grant",
-            error_description: "Token is not active",
-          }),
-        ),
+      vi.fn().mockResolvedValue(
+        backendRefreshError("BadRequest", {
+          error: "invalid_grant",
+          error_description: "Token is not active",
+        }),
+      ),
     );
 
     const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
@@ -119,7 +116,10 @@ describe("refreshTokenWithBackend — failure classification (#836)", () => {
   });
 
   it("flags a cleanly-forwarded invalid_grant too (forward-compatible if the backend is fixed)", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(400, { error: "invalid_grant" })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(400, { error: "invalid_grant" })),
+    );
 
     const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
 
