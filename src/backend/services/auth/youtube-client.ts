@@ -17,6 +17,7 @@ import {
   convertToTokenData,
   refreshYouTubeTokenWithBackend,
 } from "./youtube-oauth";
+import { describeYouTubeUploadError } from "./youtube-upload-error";
 
 export class YouTubeClient {
   private static instance: YouTubeClient;
@@ -192,9 +193,11 @@ export class YouTubeClient {
         origin: "upload",
       };
     } catch (error) {
+      // Report for telemetry, but surface user-facing copy — notably the no-channel case (#672).
+      formatAndReportError(error, "youtube_upload");
       return {
         success: false,
-        error: formatAndReportError(error, "youtube_upload"),
+        error: describeYouTubeUploadError(error),
       };
     }
   }

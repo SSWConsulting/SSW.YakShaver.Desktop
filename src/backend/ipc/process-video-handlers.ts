@@ -278,11 +278,22 @@ export class ProcessVideoIPCHandlers {
           youtubeResult.data.duration = duration;
         }
 
-        workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, {
-          filePath,
-          sourceOrigin: youtubeResult.origin,
-          uploadResult: youtubeResult,
-        });
+        // #672: only show a green tick when the upload actually succeeded. uploadVideo returns
+        // { success:false } (without throwing) when e.g. the Google account has no YouTube
+        // channel — previously that still completed the stage, leaving a green tick and no link.
+        // Mark it failed (so the user sees why) but keep going: the work item is still worth creating.
+        if (youtubeResult.success) {
+          workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, {
+            filePath,
+            sourceOrigin: youtubeResult.origin,
+            uploadResult: youtubeResult,
+          });
+        } else {
+          workflowManager.failStage(
+            WorkflowProgressStage.UPLOADING_VIDEO,
+            youtubeResult.error || "Video upload failed",
+          );
+        }
 
         // Update checkpoint with upload result
         workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
