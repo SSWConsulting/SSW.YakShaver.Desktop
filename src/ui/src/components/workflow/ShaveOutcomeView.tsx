@@ -21,7 +21,7 @@ interface ParsedFinalOutput {
   Labels?: string[];
 }
 
-function parseFinalOutput(finalOutput: string | null | undefined): ParsedFinalOutput | null {
+export function parseFinalOutput(finalOutput: string | null | undefined): ParsedFinalOutput | null {
   if (!finalOutput) return null;
   try {
     const clean = finalOutput.replace(/```json\n?|\n?```/g, "").trim();

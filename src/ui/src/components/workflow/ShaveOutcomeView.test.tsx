@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ShaveStatus } from "../../types";
-import { ShaveOutcomeView } from "./ShaveOutcomeView";
+import { parseFinalOutput, ShaveOutcomeView } from "./ShaveOutcomeView";
 
 const { getById } = vi.hoisted(() => ({ getById: vi.fn() }));
 vi.mock("../../services/ipc-client", () => ({
@@ -54,5 +54,67 @@ describe("ShaveOutcomeView (#821 / #888 review)", () => {
 
     expect(await screen.findByText("This shave failed")).toBeInTheDocument();
     expect(screen.getByText("boom")).toBeInTheDocument();
+  });
+
+  it("renders the success outcome for a Completed shave (no in-progress/failed, shows the result)", async () => {
+    getById.mockResolvedValue({
+      success: true,
+      data: shave({
+        shaveStatus: ShaveStatus.Completed,
+        finalOutput:
+          '```json\n{"URL":"https://github.com/o/r/issues/7","Description":"Created the issue"}\n```',
+        videoEmbedUrl: "https://youtu.be/abc",
+      }),
+    });
+
+    render(<ShaveOutcomeView shaveId="s1" />);
+
+    // the parsed work-item link + description confirm the success path rendered
+    const link = await screen.findByRole("link", { name: /open work item/i });
+    expect(link).toHaveAttribute("href", "https://github.com/o/r/issues/7");
+    expect(screen.getByText("Created the issue")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /view recording/i })).toBeInTheDocument();
+    // the full stage view renders for a completed shave (reconstructed)
+    expect(screen.getByText("workflow-progress")).toBeInTheDocument();
+    // and neither non-success branch shows
+    expect(screen.queryByText("This shave is still running")).not.toBeInTheDocument();
+    expect(screen.queryByText("This shave failed")).not.toBeInTheDocument();
+  });
+
+  it("renders without crashing when finalOutput is non-JSON model text", async () => {
+    getById.mockResolvedValue({
+      success: true,
+      data: shave({
+        shaveStatus: ShaveStatus.Completed,
+        finalOutput: "sorry, I could not do that",
+      }),
+    });
+
+    render(<ShaveOutcomeView shaveId="s1" />);
+
+    // unparseable output -> no work item / description, but the view still renders
+    expect(await screen.findByText("My shave")).toBeInTheDocument();
+    expect(screen.getByText("workflow-progress")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /open work item/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("parseFinalOutput (#888 review — brittle fence-stripping heuristic)", () => {
+  it("parses a fenced ```json block", () => {
+    expect(parseFinalOutput('```json\n{"URL":"https://x"}\n```')).toEqual({ URL: "https://x" });
+  });
+
+  it("parses bare JSON with no code fence", () => {
+    expect(parseFinalOutput('{"Title":"T"}')).toEqual({ Title: "T" });
+  });
+
+  it("returns null for non-JSON model output (graceful, no throw)", () => {
+    expect(parseFinalOutput("sorry, I could not do that")).toBeNull();
+  });
+
+  it("returns null for empty/missing output", () => {
+    expect(parseFinalOutput(null)).toBeNull();
+    expect(parseFinalOutput(undefined)).toBeNull();
+    expect(parseFinalOutput("")).toBeNull();
   });
 });
