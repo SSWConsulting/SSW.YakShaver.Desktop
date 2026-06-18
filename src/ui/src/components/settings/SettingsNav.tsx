@@ -25,6 +25,11 @@ interface SettingsNavProps {
  *    had no arrow-key handling). Activation stays on Enter/Space (native button
  *    behaviour) so arrowing through tabs never triggers the unsaved-changes
  *    leave handler — only an explicit selection does.
+ *  - The roving target tracks *actual* focus via `onFocus`, so it stays correct
+ *    however focus moved — keyboard, a pointer click, or a click whose tab change
+ *    was vetoed by the unsaved-changes guard (where `activeIndex` doesn't change
+ *    and the resync effect below wouldn't fire). A later Arrow press then steps
+ *    from where the user visibly is, not a stale keyboard position.
  */
 export function SettingsNav({ tabs, activeTabId, panelId, onSelect }: SettingsNavProps) {
   const activeIndex = Math.max(
@@ -71,6 +76,7 @@ export function SettingsNav({ tabs, activeTabId, panelId, onSelect }: SettingsNa
             aria-selected={isActive}
             aria-controls={panelId}
             tabIndex={index === focusIndex ? 0 : -1}
+            onFocus={() => setFocusIndex(index)}
             onClick={() => onSelect(tab.id)}
             className={`text-left px-3 py-2.5 rounded-md transition-colors border border-transparent ${
               isActive
