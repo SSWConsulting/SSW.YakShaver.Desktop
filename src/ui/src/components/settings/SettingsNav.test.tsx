@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsNav } from "./SettingsNav";
 
@@ -58,12 +59,62 @@ describe("SettingsNav (#803) keyboard navigation", () => {
     expect(onSelect).toHaveBeenCalledWith("account");
   });
 
-  it("ignores non-navigation keys (Enter/Space do not move roving focus)", () => {
-    const { onSelect, buttons } = setup();
+  it("Enter/Space keyDown does not move roving focus", () => {
+    // This only proves Enter/Space keyDown don't MOVE the roving focus. It does
+    // NOT prove the activation contract — that Enter/Space SELECT is covered by
+    // the user-event activation test below (fireEvent.keyDown can't synthesize the
+    // native button click that activation relies on, so a not-selected assertion
+    // here would pass for the wrong reason).
+    const { buttons } = setup();
     buttons[0].focus();
     fireEvent.keyDown(buttons[0], { key: "Enter" });
     fireEvent.keyDown(buttons[0], { key: " " });
     expect(document.activeElement).toBe(buttons[0]); // focus unchanged
-    expect(onSelect).not.toHaveBeenCalled(); // keyDown alone doesn't select
+  });
+
+  it("selects the focused tab on Enter and on Space (native button activation)", async () => {
+    const user = userEvent.setup();
+    const { onSelect, buttons } = setup();
+
+    buttons[1].focus();
+    await user.keyboard("{Enter}");
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenLastCalledWith("videoHost");
+
+    buttons[2].focus();
+    await user.keyboard(" "); // Space activates a button on keyup
+    expect(onSelect).toHaveBeenCalledTimes(2);
+    expect(onSelect).toHaveBeenLastCalledWith("account");
+  });
+
+  it("roving target follows actual focus after a vetoed change, not the stale active tab", () => {
+    // activeTabId stays "general" (index 0) — as if a tab change was vetoed by the
+    // unsaved-changes guard so the activeIndex resync effect never fires — but focus
+    // has landed on a non-active tab. A later Arrow must step from where focus is.
+    const { buttons } = setup("general");
+    act(() => buttons[2].focus()); // focus lands on "account" (a non-active tab)
+    expect(document.activeElement).toBe(buttons[2]);
+    // onFocus moved the roving target to the focused tab (confirms the resync flushed).
+    expect(buttons[2]).toHaveAttribute("tabindex", "0");
+
+    fireEvent.keyDown(buttons[2], { key: "ArrowDown" });
+    // steps from the visibly-focused tab (account -> release), NOT from activeIndex
+    // (which would have gone general -> videoHost).
+    expect(document.activeElement).toBe(buttons[3]);
+  });
+
+  it("moves the roving tabindex to the active tab when activeTabId changes", () => {
+    const onSelect = vi.fn();
+    const { rerender } = render(
+      <SettingsNav tabs={tabs} activeTabId="general" onSelect={onSelect} />,
+    );
+    let buttons = screen.getAllByRole("tab");
+    expect(buttons[0]).toHaveAttribute("tabindex", "0"); // general is the roving target
+    expect(buttons[2]).toHaveAttribute("tabindex", "-1");
+
+    rerender(<SettingsNav tabs={tabs} activeTabId="account" onSelect={onSelect} />);
+    buttons = screen.getAllByRole("tab");
+    expect(buttons[2]).toHaveAttribute("tabindex", "0"); // resynced to the new active tab
+    expect(buttons[0]).toHaveAttribute("tabindex", "-1");
   });
 });
