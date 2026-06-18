@@ -11,6 +11,34 @@ import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 import { orchestratorSystemPrompt } from "./prompts";
 
+export type MCPTerminationReason =
+  | "stop"
+  | "length"
+  | "content-filter"
+  | "cancelled"
+  | "max-iterations"
+  | "unknown";
+
+export interface MCPLoopResult {
+  /** The model's final text output — the drafted work item, or a message explaining why it stopped. */
+  text: string;
+  /**
+   * True only when a tool call actually created or updated a backlog item (issue / work item /
+   * comment). A graceful `stop` with only internal tools or no tools means nothing was filed.
+   */
+  backlogActionSucceeded: boolean;
+  /** Why the loop ended — distinguishes a clean finish from hitting a safety cap. */
+  terminationReason: MCPTerminationReason;
+}
+
+/**
+ * Matches tool names that represent a real, persisted backlog mutation (issue / work item /
+ * comment created or updated) across providers (GitHub, Azure DevOps, Jira, …). Internal
+ * Yak tools such as `capture_video_frame` or `fill_template` intentionally do NOT match.
+ */
+const BACKLOG_MUTATION_TOOL =
+  /(create|add|update|edit|close|comment)[_-]?\w*(issue|work[_-]?item|pbi|task|ticket|card|bug|story|pull[_-]?request|comment)/i;
+
 /**
  * Tool Output Buffer for host-level tool chaining.
  * Stores raw tool outputs so subsequent tools can reference them by ID, avoiding content modification by the LLM during chaining.
@@ -136,7 +164,7 @@ export class MCPOrchestrator {
       shaveId?: string; // identifies the current shave for per-shave auto-approve
       onStep?: (step: MCPStep) => void;
     } = {},
-  ): Promise<string | undefined> {
+  ): Promise<MCPLoopResult> {
     // Ensure LLM has been initialized
     if (!MCPOrchestrator.languageModelProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
@@ -181,6 +209,10 @@ export class MCPOrchestrator {
       },
       { role: "user", content: `video transcription: ${videoTranscription}` },
     ];
+
+    // Tracks whether any tool call actually created/updated a backlog item. Used to
+    // distinguish a genuine success from a graceful "I couldn't file it" completion (#833).
+    let backlogActionSucceeded = false;
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
@@ -256,7 +288,11 @@ export class MCPOrchestrator {
                 type: "final_result",
                 message: "Tool execution cancelled by user",
               });
-              return "Tool execution cancelled by user";
+              return {
+                text: "Tool execution cancelled by user",
+                backlogActionSucceeded,
+                terminationReason: "cancelled",
+              };
             }
 
             if (decision.kind === "request_changes") {
@@ -365,6 +401,13 @@ export class MCPOrchestrator {
                   .filter(Boolean)
                   .join("\n\n") || "(no text output)";
 
+              // A non-errored call to a backlog-mutation tool means a work item was actually
+              // created/updated — the only thing that makes this run a genuine success.
+              const toolErrored = (toolOutput as { isError?: boolean }).isError === true;
+              if (!toolErrored && BACKLOG_MUTATION_TOOL.test(toolCall.toolName)) {
+                backlogActionSucceeded = true;
+              }
+
               // Store complete raw output in buffer for tool chaining
               const contentToStore = JSON.stringify(toolOutput.content);
               const outputBuffer = ToolOutputBuffer.getInstance();
@@ -459,22 +502,35 @@ export class MCPOrchestrator {
           type: "final_result",
           message: llmResponse.finishReason,
         });
-        return llmResponse.text;
+        return { text: llmResponse.text, backlogActionSucceeded, terminationReason: "stop" };
       } else if (llmResponse.finishReason === "content-filter") {
         console.log("[MCPOrchestrator] Session ended: Content filter triggered");
         ToolOutputBuffer.getInstance().clear();
-        return "Conversation ended due to content filter.";
+        return {
+          text: "Conversation ended due to content filter.",
+          backlogActionSucceeded,
+          terminationReason: "content-filter",
+        };
       } else if (llmResponse.finishReason === "length") {
         console.log("[MCPOrchestrator] Session ended: Maximum length reached");
         ToolOutputBuffer.getInstance().clear();
-        return "Conversation ended due to length limit.";
+        return {
+          text: "Conversation ended due to length limit.",
+          backlogActionSucceeded,
+          terminationReason: "length",
+        };
       } else {
         console.log("[MCPOrchestrator] Session ended with unknown reason:");
         console.log(llmResponse.finishReason);
         ToolOutputBuffer.getInstance().clear();
-        break;
+        return { text: "", backlogActionSucceeded, terminationReason: "unknown" };
       }
     }
+
+    // The loop exhausted its iteration cap without the model ever finishing (`stop`).
+    // Nothing was filed — surface it as an unsuccessful run rather than a silent success.
+    ToolOutputBuffer.getInstance().clear();
+    return { text: "", backlogActionSucceeded, terminationReason: "max-iterations" };
   }
 
   public async convertToObjectAsync(prompt: string, schema: ZodType): Promise<unknown> {
