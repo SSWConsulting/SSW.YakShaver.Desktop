@@ -34,9 +34,8 @@ import {
 } from "../services/workflow/workflow-retry-service";
 import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
 import {
-  metadataVideoIdToUpdate,
-  resolveUploadFailureMessage,
-  uploadSucceeded,
+  applyUploadStageOutcome,
+  resolveMetadataStage,
 } from "../services/workflow/youtube-stage-decisions";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
@@ -287,18 +286,7 @@ export class ProcessVideoIPCHandlers {
         // { success:false } (without throwing) when e.g. the Google account has no YouTube
         // channel — previously that still completed the stage, leaving a green tick and no link.
         // Mark it failed (so the user sees why) but keep going: the work item is still worth creating.
-        if (uploadSucceeded(youtubeResult)) {
-          workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, {
-            filePath,
-            sourceOrigin: youtubeResult.origin,
-            uploadResult: youtubeResult,
-          });
-        } else {
-          workflowManager.failStage(
-            WorkflowProgressStage.UPLOADING_VIDEO,
-            resolveUploadFailureMessage(youtubeResult),
-          );
-        }
+        applyUploadStageOutcome(youtubeResult, filePath, workflowManager);
 
         // Update checkpoint with upload result
         workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
@@ -629,7 +617,7 @@ export class ProcessVideoIPCHandlers {
       }
 
       if (shouldRunStage(WorkflowProgressStage.UPDATING_METADATA)) {
-        const videoId = metadataVideoIdToUpdate(youtubeResult);
+        const videoId = resolveMetadataStage(youtubeResult, workflowManager);
         if (videoId) {
           try {
             workflowManager.updateStagePayload(
@@ -670,11 +658,6 @@ export class ProcessVideoIPCHandlers {
             const metadataErrorMsg = formatAndReportError(metadataError, "metadata_update");
             workflowManager.failStage(WorkflowProgressStage.UPDATING_METADATA, metadataErrorMsg);
           }
-        } else {
-          // #798: metadata only applies to a video we uploaded and own. For an external link
-          // (a YouTube URL the user may not own) or a failed/absent upload, skip the stage so
-          // the UI hides it rather than leaving a stuck or erroring "Updating Metadata" step.
-          workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
         }
       }
 

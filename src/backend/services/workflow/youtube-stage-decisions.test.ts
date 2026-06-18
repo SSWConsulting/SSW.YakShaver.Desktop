@@ -1,12 +1,22 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { ProgressStage } from "../../../shared/types/workflow";
 import type { VideoUploadResult } from "../auth/types";
 import {
+  applyUploadStageOutcome,
   metadataVideoIdToUpdate,
+  resolveMetadataStage,
   resolveUploadFailureMessage,
+  type StageSink,
   uploadSucceeded,
 } from "./youtube-stage-decisions";
 
 const data = { videoId: "abc123", title: "t", description: "d", url: "https://youtu.be/abc123" };
+
+const makeSink = (): StageSink => ({
+  completeStage: vi.fn(),
+  failStage: vi.fn(),
+  skipStage: vi.fn(),
+});
 
 describe("uploadSucceeded (#672 — green tick only on real upload)", () => {
   it("is true when the upload succeeded", () => {
@@ -80,4 +90,86 @@ describe("metadataVideoIdToUpdate (#798 — only for videos we uploaded and own)
       expect(metadataVideoIdToUpdate(input)).toBe(expected);
     });
   }
+});
+
+describe("applyUploadStageOutcome (#672 — routes the Uploading Video stage)", () => {
+  it("completes the stage with the upload payload on success", () => {
+    const sink = makeSink();
+    const result: VideoUploadResult = { success: true, data, origin: "upload" };
+
+    applyUploadStageOutcome(result, "/tmp/v.mp4", sink);
+
+    expect(sink.completeStage).toHaveBeenCalledWith(ProgressStage.UPLOADING_VIDEO, {
+      filePath: "/tmp/v.mp4",
+      sourceOrigin: "upload",
+      uploadResult: result,
+    });
+    expect(sink.failStage).not.toHaveBeenCalled();
+  });
+
+  it("fails the stage with the concrete client error when the upload failed (no channel)", () => {
+    const sink = makeSink();
+
+    applyUploadStageOutcome(
+      { success: false, error: "Your Google account has no YouTube channel" },
+      "/tmp/v.mp4",
+      sink,
+    );
+
+    expect(sink.failStage).toHaveBeenCalledWith(
+      ProgressStage.UPLOADING_VIDEO,
+      "Your Google account has no YouTube channel",
+    );
+    expect(sink.completeStage).not.toHaveBeenCalled();
+  });
+
+  it("fails with the generic message when a failed upload has no error", () => {
+    const sink = makeSink();
+
+    applyUploadStageOutcome({ success: false }, "/tmp/v.mp4", sink);
+
+    expect(sink.failStage).toHaveBeenCalledWith(
+      ProgressStage.UPLOADING_VIDEO,
+      "Video upload failed",
+    );
+    expect(sink.completeStage).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveMetadataStage (#798 — routes the Updating Metadata stage)", () => {
+  it("returns the videoId and does NOT skip for an owned upload", () => {
+    const sink = makeSink();
+
+    const videoId = resolveMetadataStage({ success: true, data, origin: "upload" }, sink);
+
+    expect(videoId).toBe("abc123");
+    expect(sink.skipStage).not.toHaveBeenCalled();
+  });
+
+  it("skips the stage and returns null for an external link", () => {
+    const sink = makeSink();
+
+    const videoId = resolveMetadataStage({ success: true, data, origin: "external" }, sink);
+
+    expect(videoId).toBeNull();
+    expect(sink.skipStage).toHaveBeenCalledWith(ProgressStage.UPDATING_METADATA);
+  });
+
+  it("skips the stage and returns null for a failed upload", () => {
+    const sink = makeSink();
+
+    const videoId = resolveMetadataStage({ success: false, data, origin: "upload" }, sink);
+
+    expect(videoId).toBeNull();
+    expect(sink.skipStage).toHaveBeenCalledWith(ProgressStage.UPDATING_METADATA);
+  });
+
+  it("skips the stage and returns null when the upload has no videoId", () => {
+    const sink = makeSink();
+
+    const videoId = resolveMetadataStage({ success: true, origin: "upload" }, sink);
+
+    expect(videoId).toBeNull();
+    expect(sink.skipStage).toHaveBeenCalledWith(ProgressStage.UPDATING_METADATA);
+  });
 });
