@@ -440,7 +440,9 @@ export class MCPOrchestrator {
               toolActivity.push({
                 toolName: toolCall.toolName,
                 ok: !toolErrored,
-                resultText: rawOutputText.slice(0, 2000),
+                // Keep enough of the result that a created-item id/URL near the end is still
+                // visible to the outcome judge (a verbose tool body shouldn't hide the artifact).
+                resultText: rawOutputText.slice(0, 8000),
               });
 
               // Store complete raw output in buffer for tool chaining
