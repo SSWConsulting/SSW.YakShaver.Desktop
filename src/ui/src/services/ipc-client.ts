@@ -18,6 +18,7 @@ import type {
   AuthState,
   ConvertVideoToMp3Result,
   CustomPrompt,
+  GetMyProjectsResponse,
   GetMyShavesResponse,
   HealthStatusInfo,
   MCPStep,
@@ -236,6 +237,11 @@ declare global {
         getMyShaves: () => Promise<{
           success: boolean;
           data?: GetMyShavesResponse;
+          error?: string;
+        }>;
+        getMyProjects: () => Promise<{
+          success: boolean;
+          data?: GetMyProjectsResponse;
           error?: string;
         }>;
         cancelWorkItem: (workItemId: string) => Promise<{

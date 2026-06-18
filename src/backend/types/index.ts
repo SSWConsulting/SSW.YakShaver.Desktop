@@ -100,3 +100,19 @@ export interface ShaveItem {
 export interface GetMyShavesResponse {
   items: ShaveItem[];
 }
+
+/**
+ * A project (tenant/organisation) the signed-in user is a member of (#816).
+ * NOTE: the backend "list my projects" contract is not yet confirmed — the field
+ * mapping in the portal handler is a best guess and may need adjusting once the
+ * real endpoint/shape is pinned (see PR notes for #816).
+ */
+export interface Project {
+  id: string;
+  name: string;
+  role?: string | null;
+}
+
+export interface GetMyProjectsResponse {
+  items: Project[];
+}
