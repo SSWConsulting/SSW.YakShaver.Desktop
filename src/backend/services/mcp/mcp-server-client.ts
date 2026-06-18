@@ -2,7 +2,11 @@ import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-s
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatAndReportError } from "../../utils/error-utils";
-import { authorizeWithBackend, refreshTokenWithBackend } from "./mcp-oauth";
+import {
+  authorizeWithBackend,
+  isInvalidRefreshTokenError,
+  refreshTokenWithBackendWithRetry,
+} from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
@@ -63,17 +67,31 @@ export class MCPServerClient {
       if (tokens?.refresh_token && tokenStorage.isTokenExpired(tokens)) {
         try {
           console.log(`[MCPServerClient] Token expired for ${mcpConfig.name}, refreshing...`);
-          const newTokens = await refreshTokenWithBackend(serverUrl, tokens.refresh_token);
+          const newTokens = await refreshTokenWithBackendWithRetry(serverUrl, tokens.refresh_token);
           await tokenStorage.saveTokensAsync(serverId, newTokens);
           tokens = await tokenStorage.getTokensAsync(serverId);
         } catch (refreshError) {
-          console.error(
-            `[MCPServerClient] Failed to refresh token for ${mcpConfig.name}:`,
-            refreshError,
-          );
-          // If refresh fails, we clear the tokens to trigger re-auth.
-          await tokenStorage.clearTokensAsync(serverId);
-          tokens = undefined;
+          if (isInvalidRefreshTokenError(refreshError)) {
+            // The backend positively rejected the refresh token (revoked / expired). The
+            // credential is genuinely dead, so clear it and let the user reconnect.
+            console.warn(
+              `[MCPServerClient] Refresh token for ${mcpConfig.name} (server ${serverId}) was rejected as invalid; clearing stored tokens so the user can re-authenticate.`,
+              refreshError,
+            );
+            await tokenStorage.clearTokensAsync(serverId);
+            tokens = undefined;
+          } else {
+            // Transient failure (network/SSL/5xx/timeout). Do NOT clear the refresh token —
+            // wiping it on a temporary blip is what intermittently signed users out (#836).
+            // Preserve it and surface the error; getMcpClientAsync turns this into a null
+            // client for this attempt, and the next attempt refreshes automatically with no
+            // manual "Connect" required.
+            console.warn(
+              `[MCPServerClient] Transient failure refreshing token for ${mcpConfig.name} (server ${serverId}); preserving stored tokens for automatic retry.`,
+              refreshError,
+            );
+            throw refreshError;
+          }
         }
       }
 
