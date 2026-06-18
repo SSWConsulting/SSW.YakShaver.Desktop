@@ -230,6 +230,27 @@ export class MCPOrchestrator {
     // RESULTS, not the model's narration — whether a backlog item was actually filed (#833).
     const toolActivity: ToolActivity[] = [];
 
+    // Every loop exit funnels through here so the outcome is judged from the tool RESULTS
+    // regardless of WHY the loop ended — an item filed before a cap/limit is still honoured.
+    const finalize = async (
+      text: string,
+      terminationReason: MCPTerminationReason,
+      judgeFinalText: string,
+    ): Promise<MCPLoopResult> => {
+      const outcome = await this.judgeBacklogOutcome(
+        options.desktopAgentProjectPrompt,
+        videoTranscription,
+        toolActivity,
+        judgeFinalText,
+      );
+      return {
+        text,
+        backlogActionSucceeded: outcome.achieved,
+        artifacts: outcome.artifacts,
+        terminationReason,
+      };
+    };
+
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
       const llmResponse = await MCPOrchestrator.languageModelProvider
@@ -304,12 +325,7 @@ export class MCPOrchestrator {
                 type: "final_result",
                 message: "Tool execution cancelled by user",
               });
-              return {
-                text: "Tool execution cancelled by user",
-                backlogActionSucceeded: false,
-                artifacts: [],
-                terminationReason: "cancelled",
-              };
+              return finalize("Tool execution cancelled by user", "cancelled", "");
             }
 
             if (decision.kind === "request_changes") {
@@ -522,58 +538,31 @@ export class MCPOrchestrator {
           message: llmResponse.finishReason,
         });
         // Clean finish: judge from the tool RESULTS whether a backlog item was actually filed.
-        const outcome = await this.judgeBacklogOutcome(
-          options.desktopAgentProjectPrompt,
-          videoTranscription,
-          toolActivity,
-          llmResponse.text,
-        );
-        return {
-          text: llmResponse.text,
-          backlogActionSucceeded: outcome.achieved,
-          artifacts: outcome.artifacts,
-          terminationReason: "stop",
-        };
+        return finalize(llmResponse.text, "stop", llmResponse.text);
       } else if (llmResponse.finishReason === "content-filter") {
         console.log("[MCPOrchestrator] Session ended: Content filter triggered");
         ToolOutputBuffer.getInstance().clear();
-        return {
-          text: "Conversation ended due to content filter.",
-          backlogActionSucceeded: false,
-          artifacts: [],
-          terminationReason: "content-filter",
-        };
+        return finalize(
+          "Conversation ended due to content filter.",
+          "content-filter",
+          llmResponse.text,
+        );
       } else if (llmResponse.finishReason === "length") {
         console.log("[MCPOrchestrator] Session ended: Maximum length reached");
         ToolOutputBuffer.getInstance().clear();
-        return {
-          text: "Conversation ended due to length limit.",
-          backlogActionSucceeded: false,
-          artifacts: [],
-          terminationReason: "length",
-        };
+        return finalize("Conversation ended due to length limit.", "length", llmResponse.text);
       } else {
         console.log("[MCPOrchestrator] Session ended with unknown reason:");
         console.log(llmResponse.finishReason);
         ToolOutputBuffer.getInstance().clear();
-        return {
-          text: "",
-          backlogActionSucceeded: false,
-          artifacts: [],
-          terminationReason: "unknown",
-        };
+        return finalize("", "unknown", llmResponse.text);
       }
     }
 
-    // The loop exhausted its iteration cap without the model ever finishing (`stop`).
-    // Nothing was filed — surface it as an unsuccessful run rather than a silent success.
+    // The loop exhausted its iteration cap. An item may already have been filed before the cap,
+    // so judge from the tool results rather than assuming failure.
     ToolOutputBuffer.getInstance().clear();
-    return {
-      text: "",
-      backlogActionSucceeded: false,
-      artifacts: [],
-      terminationReason: "max-iterations",
-    };
+    return finalize("", "max-iterations", "");
   }
 
   /**
@@ -581,8 +570,8 @@ export class MCPOrchestrator {
    * RESULTS (ground truth) rather than a tool-name heuristic or the model's own claims (#833).
    *
    * Short-circuits to "not achieved" when no tool call succeeded (the common signed-out case),
-   * so the extra LLM call only happens when something plausibly did get filed. On judge error
-   * it falls back to a conservative artifact scan of successful results and logs the degrade.
+   * so the extra LLM call only happens when something plausibly did get filed. Fails CLOSED
+   * (not achieved) if the judge is unavailable or errors — a false success is the costly mistake.
    */
   private async judgeBacklogOutcome(
     goal: string | undefined,
@@ -598,10 +587,8 @@ export class MCPOrchestrator {
 
     const provider = MCPOrchestrator.languageModelProvider;
     if (!provider) {
-      return {
-        achieved: this.scanForArtifacts(succeeded).length > 0,
-        artifacts: this.scanForArtifacts(succeeded),
-      };
+      console.warn("[MCPOrchestrator] outcome judge unavailable (no LLM) -> not achieved");
+      return { achieved: false, artifacts: [] };
     }
 
     const judgeSystemPrompt =
@@ -634,30 +621,14 @@ export class MCPOrchestrator {
       });
       return { achieved: verdict.achieved, artifacts: verdict.artifacts };
     } catch (error) {
-      // Degraded fallback ONLY when the judge call itself fails — scan successful results for
-      // a concrete artifact rather than hard-failing a possibly-genuine success.
-      const artifacts = this.scanForArtifacts(succeeded);
+      // Fail CLOSED: if the judge itself errors we cannot confirm a filing, so report
+      // not-achieved rather than risk a false success (the costly direction for #833).
       console.warn(
-        "[MCPOrchestrator] outcome judge failed; falling back to artifact scan:",
-        artifacts.length > 0 ? "found artifact(s)" : "none found",
+        "[MCPOrchestrator] outcome judge failed -> not achieved (failing closed)",
         error,
       );
-      return { achieved: artifacts.length > 0, artifacts };
+      return { achieved: false, artifacts: [] };
     }
-  }
-
-  /** Conservative degraded-mode scan: a URL or `#<number>` in a successful tool result. */
-  private scanForArtifacts(succeeded: ToolActivity[]): BacklogArtifact[] {
-    const artifacts: BacklogArtifact[] = [];
-    for (const t of succeeded) {
-      const url = t.resultText.match(/https?:\/\/\S+/);
-      if (url) artifacts.push({ type: "url", idOrUrl: url[0] });
-      else {
-        const num = t.resultText.match(/#\d+/);
-        if (num) artifacts.push({ type: "id", idOrUrl: num[0] });
-      }
-    }
-    return artifacts;
   }
 
   public async convertToObjectAsync(prompt: string, schema: ZodType): Promise<unknown> {

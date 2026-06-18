@@ -194,7 +194,7 @@ describe("#833 — outcome is judged from tool RESULTS, not tool-name heuristics
     expect(r.artifacts).toEqual([{ type: "ticket", idOrUrl: "PROJ-42" }]);
   });
 
-  it("degraded fallback: if the judge call throws, scan results for an artifact rather than hard-fail", async () => {
+  it("judge error → fails CLOSED (not achieved), never a regex scan of free text", async () => {
     const createIssue = tool("Created issue #7: https://github.com/o/r/issues/7");
     const { orch, generateObject } = makeOrchestrator(
       [toolTurn("github__create_issue"), stop("Done.")],
@@ -204,7 +204,62 @@ describe("#833 — outcome is judged from tool RESULTS, not tool-name heuristics
     generateObject.mockRejectedValueOnce(new Error("model unavailable"));
     const r = await orch.manualLoopAsync("a bug report transcript", undefined, {});
     expect(generateObject).toHaveBeenCalledTimes(1);
-    expect(r.backlogActionSucceeded).toBe(true); // artifact present in the successful result
-    expect(r.artifacts[0]?.idOrUrl).toContain("https://github.com/o/r/issues/7");
+    expect(r.backlogActionSucceeded).toBe(false);
+    expect(r.artifacts).toEqual([]);
+  });
+
+  it("a successful READ tool with URLs in its result does NOT phantom-succeed when the judge errors", async () => {
+    // The brittle degraded-scan would have matched the URL/`#1`; failing closed avoids that.
+    const listIssues = tool("Open issues: #1 #2 https://github.com/o/r/issues/1");
+    const { orch, generateObject } = makeOrchestrator(
+      [toolTurn("github__list_issues"), stop("Here are the open issues.")],
+      { github__list_issues: listIssues },
+      ["github__list_issues"],
+    );
+    generateObject.mockRejectedValueOnce(new Error("model unavailable"));
+    const r = await orch.manualLoopAsync("a bug report transcript", undefined, {});
+    expect(r.backlogActionSucceeded).toBe(false);
+  });
+
+  it("issue created earlier, then the loop hits the LENGTH limit → still achieved (no false failure)", async () => {
+    const createIssue = tool("Created issue #9: https://github.com/o/r/issues/9");
+    const lengthExit: LlmResponse = {
+      response: { messages: [] },
+      content: [],
+      finishReason: "length",
+      text: "",
+    };
+    const { orch, generateObject } = makeOrchestrator(
+      [toolTurn("github__create_issue"), lengthExit],
+      { github__create_issue: createIssue },
+      ["github__create_issue"],
+      {
+        achieved: true,
+        artifacts: [{ type: "issue", idOrUrl: "https://github.com/o/r/issues/9" }],
+      },
+    );
+    const r = await orch.manualLoopAsync("a bug report transcript", undefined, {});
+    expect(generateObject).toHaveBeenCalledTimes(1); // the judge runs on the length exit too
+    expect(r.terminationReason).toBe("length");
+    expect(r.backlogActionSucceeded).toBe(true);
+    expect(r.artifacts).toEqual([{ type: "issue", idOrUrl: "https://github.com/o/r/issues/9" }]);
+  });
+
+  it("item created earlier, then the loop exhausts the iteration cap → still achieved", async () => {
+    const createWorkItem = tool(
+      "Created work item AB#42: https://dev.azure.com/o/p/_workitems/edit/42",
+    );
+    // maxToolIterations:1 forces the cap right after the create turn — no `stop`.
+    const { orch } = makeOrchestrator(
+      [toolTurn("ado__create_work_item")],
+      { ado__create_work_item: createWorkItem },
+      ["ado__create_work_item"],
+      { achieved: true, artifacts: [{ type: "work_item", idOrUrl: "AB#42" }] },
+    );
+    const r = await orch.manualLoopAsync("a bug report transcript", undefined, {
+      maxToolIterations: 1,
+    });
+    expect(r.terminationReason).toBe("max-iterations");
+    expect(r.backlogActionSucceeded).toBe(true);
   });
 });
