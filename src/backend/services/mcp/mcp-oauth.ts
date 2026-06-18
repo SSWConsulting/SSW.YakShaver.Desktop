@@ -210,12 +210,13 @@ export async function refreshTokenWithBackend(
       errorMessage = `${errorMessage} (Status: ${response.status})`;
     }
 
-    // The refresh token is only "dead" when the backend positively rejects the grant.
-    // A 5xx / 429 / 408 (or any unrecognised error) is transient — keep the token.
-    const isInvalidGrant =
-      (errorCode !== undefined && INVALID_GRANT_ERROR_CODES.has(errorCode)) ||
-      response.status === 400 ||
-      response.status === 401;
+    // The refresh token is only "dead" when the backend positively rejects the grant
+    // with a recognised invalid_grant-family error code (RFC 6749 §5.2). Status code alone
+    // is NOT trusted: a bare 400/401 carrying no such code — proxies/WAFs wrapping an
+    // upstream timeout or 5xx, request-validation errors, rate limits, or a code-less body —
+    // is transient, so we preserve the credential and retry rather than signing the user out
+    // (#836). Anything we don't positively recognise as invalid_grant defaults to transient.
+    const isInvalidGrant = errorCode !== undefined && INVALID_GRANT_ERROR_CODES.has(errorCode);
 
     throw new McpTokenRefreshError(errorMessage, {
       status: response.status,

@@ -61,12 +61,66 @@ describe("refreshTokenWithBackend — failure classification (#836)", () => {
     expect(isInvalidRefreshTokenError(error)).toBe(true);
   });
 
-  it("flags a 401 as a genuinely invalid refresh token", async () => {
+  it("flags a 401 carrying a recognised invalid_grant-family code as a dead refresh token", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(401, { error: "invalid_token" })),
+    );
+
+    const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
+
+    expect(error.isInvalidGrant).toBe(true);
+    expect(isInvalidRefreshTokenError(error)).toBe(true);
+  });
+
+  // Regression guards for the review finding: a bare 400/401 status must NOT, on its own,
+  // classify the refresh token as dead — only a recognised invalid_grant-family code may (#836).
+
+  it("classifies a 401 WITHOUT a grant-death code (e.g. 'unauthorized') as transient — token preserved", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(401, { error: "unauthorized" })));
 
     const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
 
-    expect(isInvalidRefreshTokenError(error)).toBe(true);
+    expect(error.isInvalidGrant).toBe(false);
+    expect(isInvalidRefreshTokenError(error)).toBe(false);
+  });
+
+  it("classifies a 401 with no parseable body as transient", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => {
+          throw new Error("no body");
+        },
+        text: async () => "",
+      } as unknown as Response),
+    );
+
+    const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
+
+    expect(error.isInvalidGrant).toBe(false);
+  });
+
+  it("classifies a 400 request-validation error ('invalid_request') as transient — not a dead grant", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(400, { error: "invalid_request" })),
+    );
+
+    const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
+
+    expect(error.isInvalidGrant).toBe(false);
+    expect(isInvalidRefreshTokenError(error)).toBe(false);
+  });
+
+  it("classifies a 400 with no error code (gateway/WAF wrapping) as transient", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(400, {})));
+
+    const error = await refreshTokenWithBackend("https://srv", "rt").catch((e) => e);
+
+    expect(error.isInvalidGrant).toBe(false);
   });
 
   it("classifies a 5xx as TRANSIENT (refresh token must be preserved)", async () => {
