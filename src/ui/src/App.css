@@ -179,15 +179,33 @@
   animation: tick-pop 0.4s ease-out forwards;
 }
 
-/* #876: 44px minimum touch targets inside the Settings dialog (WCAG 2.5.5).
+/* #876: 44px minimum touch targets inside the Settings dialog (WCAG 2.5.5 AAA).
    Scoped to `.settings-44` so it does NOT enlarge buttons/inputs app-wide.
-   Buttons and text inputs share one min height so they align; compact
-   toggle switches keep their size. */
-.settings-44 button:not([role="switch"]),
+   Buttons and text inputs share one min height so they align.
+   Excludes the compact Radix primitives (toggle switches, and checkbox/radio
+   which render as <button role="checkbox|radio" data-slot="checkbox">) so they
+   keep their intended small size — see the switch hit-target rule below. */
+.settings-44
+button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([data-slot="checkbox"]),
 .settings-44 select,
 .settings-44 input:not([type="checkbox"]):not([type="radio"]) {
   min-height: 44px;
 }
-.settings-44 button:not([role="switch"]) {
+.settings-44
+  button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not(
+    [data-slot="checkbox"]
+  ) {
   min-width: 44px;
+}
+/* Compact toggle switches keep their pill size, but get a >=24px pointer
+   target (WCAG 2.5.8 AA) via an invisible vertical hit-area extension — the
+   pill is ~18px tall, this lifts the activation region to 24px without changing
+   the visuals or overlapping neighbours (only +/-3px). */
+.settings-44 [role="switch"] {
+  position: relative;
+}
+.settings-44 [role="switch"]::before {
+  content: "";
+  position: absolute;
+  inset: -3px 0;
 }
