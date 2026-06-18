@@ -683,10 +683,20 @@ export function FinalResultPanel() {
         }
       }
 
-      // #861: a failed post-creation stage (Updating Metadata) must not be hidden behind a
-      // "success" badge. Surface its error as a warning the user can see.
+      // #861/#672: a failed post-creation stage (video upload OR metadata update) must not be
+      // hidden behind a "success" badge. Surface its error as a warning the user can see.
+      // A failed upload SKIPS the metadata stage (it never runs), so it needs its own check —
+      // the metadata branch alone stays silent on an upload failure, re-introducing the exact
+      // silent-success bug #672 set out to kill, just on the final panel.
+      const uploadStep = state[WorkflowProgressStage.UPLOADING_VIDEO];
       const metadataStep = state[WorkflowProgressStage.UPDATING_METADATA];
-      if (metadataStep?.status === "failed") {
+      if (uploadStep?.status === "failed") {
+        const uploadPayload = parseWorkflowStepPayload(uploadStep);
+        setStageWarning(
+          getStringValue(uploadPayload, "error") ||
+            "The work item was created, but uploading the video to YouTube failed.",
+        );
+      } else if (metadataStep?.status === "failed") {
         const metadataPayload = parseWorkflowStepPayload(metadataStep);
         setStageWarning(
           getStringValue(metadataPayload, "error") ||
