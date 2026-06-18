@@ -23,6 +23,7 @@ import { UserInteractionService } from "../services/user-interaction/user-intera
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
+import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
 import {
@@ -136,7 +137,7 @@ export class ProcessVideoIPCHandlers {
           const mcpAdapter = new McpWorkflowAdapter(workflowManager);
 
           const orchestrator = await MCPOrchestrator.getInstanceAsync();
-          const mcpResult = await orchestrator.manualLoopAsync(
+          const loopResult = await orchestrator.manualLoopAsync(
             intermediateOutput,
             videoUploadResult,
             {
@@ -149,7 +150,17 @@ export class ProcessVideoIPCHandlers {
             },
           );
 
+          const mcpResult = loopResult.text;
           const finalOutput = await this.formatFinalResult(mcpResult);
+
+          // #833: only report success if a backlog item was actually created/updated.
+          if (!loopResult.backlogActionSucceeded) {
+            const failureMessage = formatNoWorkItemError(loopResult.terminationReason);
+            mcpAdapter.fail(mcpResult, finalOutput, failureMessage);
+            workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
+            return { success: false, error: failureMessage } satisfies RetryResult;
+          }
+
           mcpAdapter.complete(mcpResult, finalOutput);
           workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
 
@@ -556,16 +567,39 @@ export class ProcessVideoIPCHandlers {
         const orchestrator = await MCPOrchestrator.getInstanceAsync();
 
         // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
-        mcpResult = await orchestrator.manualLoopAsync(transcriptText as string, youtubeResult, {
-          projectMetaData,
-          desktopAgentProjectPrompt,
-          videoFilePath: filePath,
-          serverFilter,
-          shaveId,
-          onStep: mcpAdapter.onStep,
-        });
+        const loopResult = await orchestrator.manualLoopAsync(
+          transcriptText as string,
+          youtubeResult,
+          {
+            projectMetaData,
+            desktopAgentProjectPrompt,
+            videoFilePath: filePath,
+            serverFilter,
+            shaveId,
+            onStep: mcpAdapter.onStep,
+          },
+        );
 
+        mcpResult = loopResult.text;
         finalOutput = await this.formatFinalResult(mcpResult);
+
+        // #833: the model finishing politely is NOT success. Unless a tool call actually
+        // created/updated a backlog item, the run did nothing — fail the stage so the user
+        // isn't told an issue exists when none does. Temp files are kept for retry.
+        if (!loopResult.backlogActionSucceeded) {
+          const failureMessage = formatNoWorkItemError(loopResult.terminationReason);
+          mcpAdapter.fail(mcpResult, finalOutput, failureMessage);
+          workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
+            mcpResult,
+            finalOutput,
+          });
+          return {
+            success: false,
+            error: failureMessage,
+            workflowId: workflowManager.getWorkflowId(),
+          };
+        }
+
         mcpAdapter.complete(mcpResult, finalOutput);
 
         workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {

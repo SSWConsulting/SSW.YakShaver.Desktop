@@ -93,7 +93,8 @@ export class McpIPCHandlers {
         options?: ProcessMessageOptions,
       ) => {
         const orchestrator = await MCPOrchestrator.getInstanceAsync();
-        return await orchestrator.manualLoopAsync(prompt, videoUploadResult, options);
+        const result = await orchestrator.manualLoopAsync(prompt, videoUploadResult, options);
+        return result.text;
       },
     );
 
