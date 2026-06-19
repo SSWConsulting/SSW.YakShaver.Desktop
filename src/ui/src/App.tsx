@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import "./App.css";
+import { AppToaster } from "./components/common/AppToaster";
 import { DownloadProgressToast } from "./components/common/DownloadProgressToast";
 import { TelemetryConsentInitializer } from "./components/common/TelemetryConsentInitializer";
 import { Layout } from "./components/layout/Layout";
@@ -33,7 +34,7 @@ export default function App() {
         <TelemetryConsentInitializer>
           <InteractionProvider>
             <div className="relative min-h-screen text-white">
-              <Toaster />
+              <AppToaster />
               <DownloadProgressToast />
               <OnboardingWizard onVisibilityChange={setIsOnboardingVisible} />
               <div className="fixed inset-0 bg-[url('/background/YakShaver-Background.jpg')] bg-cover bg-center bg-no-repeat"></div>
