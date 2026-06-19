@@ -22,9 +22,10 @@ export function SettingsNavHealthIndicator({ health }: SettingsNavHealthIndicato
         role="img"
         aria-label={`Configuration issue: ${health.message}`}
       />
+      {/* Flat, semi-transparent amber tooltip (no shadow) per design review (#878). */}
       <span
         role="tooltip"
-        className="pointer-events-none invisible absolute right-0 top-6 z-50 w-max max-w-[220px] whitespace-normal rounded-md border border-amber-500/30 bg-neutral-900 px-2.5 py-1.5 text-left text-xs font-normal text-amber-100 shadow-lg group-hover:visible group-focus-within:visible"
+        className="pointer-events-none invisible absolute right-0 top-6 z-50 w-max max-w-[220px] whitespace-normal rounded-md border border-amber-500/40 bg-amber-950/90 px-2.5 py-1.5 text-left text-xs font-normal text-amber-100 group-hover:visible group-focus-within:visible"
       >
         {health.message}
       </span>
