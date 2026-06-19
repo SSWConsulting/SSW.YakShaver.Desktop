@@ -48,6 +48,15 @@ export function isWorkflowReadyForFinalOutput(state: WorkflowState): boolean {
 }
 
 /**
+ * A workflow run has failed when any of its stages reports a "failed" status.
+ * Used to surface a clear/recover action on the processing screen so a stuck or
+ * errored run can be dismissed instead of leaving the panel hung indefinitely.
+ */
+export function isWorkflowFailed(state: WorkflowState): boolean {
+  return WORKFLOW_STAGE_ORDER.some((stage) => state[stage].status === "failed");
+}
+
+/**
  * Recursively parses JSON strings within nested objects and arrays.
  * If a string is valid JSON, it will be parsed and the function will continue parsing its contents.
  * Useful for deeply parsing objects that may contain JSON-encoded strings at any level.

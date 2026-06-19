@@ -1,6 +1,8 @@
 import { WORKFLOW_STAGE_ORDER, type WorkflowState } from "@shared/types/workflow";
+import { AlertTriangle, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { parseWorkflowProgressNeoPayload } from "@/utils";
+import { isWorkflowFailed, parseWorkflowProgressNeoPayload } from "@/utils";
+import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { WorkflowStepCard } from "./WorkflowStepCard";
 
@@ -32,7 +34,16 @@ export function WorkflowProgressPanel() {
     return cleanup;
   }, []);
 
+  // Dismiss a finished/failed run and return the processing screen to its ready
+  // state so the user can start fresh without restarting the app (#733).
+  const handleClear = () => {
+    setState(null);
+    setShaveId(undefined);
+  };
+
   if (state) {
+    const hasFailed = isWorkflowFailed(state);
+
     return (
       <div className="w-[500px] mx-auto my-4">
         <Card className="bg-black/20 backdrop-blur-md border-white/10">
@@ -48,6 +59,27 @@ export function WorkflowProgressPanel() {
                 shaveId={shaveId}
               />
             ))}
+
+            {hasFailed && (
+              <div className="mt-4 flex flex-col gap-3 rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+                <div className="flex items-start gap-2 text-sm text-red-400/90">
+                  <AlertTriangle className="size-4 mt-0.5 shrink-0" />
+                  <span>
+                    Processing failed. Retry a step above, or clear this run to start fresh.
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClear}
+                  className="self-start"
+                  aria-label="Clear failed workflow"
+                >
+                  <X className="size-4" />
+                  Clear
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
