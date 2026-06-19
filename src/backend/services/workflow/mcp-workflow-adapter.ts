@@ -1,6 +1,9 @@
 import type { MCPStep } from "../../../shared/types/mcp";
 import { ProgressStage as WorkflowProgressStage } from "../../../shared/types/workflow";
-import type { ExecutingTaskPayload } from "../../../shared/types/workflow-payloads";
+import type {
+  ExecutingTaskPayload,
+  OrchestratorBackend,
+} from "../../../shared/types/workflow-payloads";
 import type { WorkflowStateManager } from "./workflow-state-manager";
 
 export class McpWorkflowAdapter {
@@ -9,7 +12,11 @@ export class McpWorkflowAdapter {
 
   constructor(
     workflowManager: WorkflowStateManager,
-    initialContext?: { transcriptText?: string; intermediateOutput?: unknown },
+    initialContext?: {
+      transcriptText?: string;
+      intermediateOutput?: unknown;
+      orchestrator?: OrchestratorBackend;
+    },
   ) {
     this.workflowManager = workflowManager;
 
