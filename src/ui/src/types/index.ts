@@ -191,6 +191,16 @@ export interface GetMyShavesResponse {
   items: ShaveItem[];
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  role?: string | null;
+}
+
+export interface GetMyProjectsResponse {
+  items: Project[];
+}
+
 export type VideoFileMetadata = {
   fileName: string;
   filePath?: string;
