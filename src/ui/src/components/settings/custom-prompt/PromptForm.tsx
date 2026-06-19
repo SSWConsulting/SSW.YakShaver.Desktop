@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ensureBuiltinServerIds, getBuiltinServerIds } from "@shared/utils/mcp-utils";
-import { AlertTriangle, ChevronLeft, ChevronRight, Copy, FilePlus, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Copy, FilePlus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -468,12 +468,11 @@ export function PromptForm({
                 <Button
                   type="button"
                   onClick={onDelete}
-                  variant="destructive"
+                  variant="destructiveOutline"
                   size="sm"
                   disabled={loading}
                   className="cursor-pointer"
                 >
-                  <Trash2 className="w-4 h-4 mr-2" />
                   Delete
                 </Button>
               )}

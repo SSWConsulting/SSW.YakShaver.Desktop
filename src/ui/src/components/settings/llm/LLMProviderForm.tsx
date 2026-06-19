@@ -73,7 +73,7 @@ export function LLMProviderForm({
           <div className="flex justify-start gap-2">
             <Button
               type="button"
-              variant="destructive"
+              variant="destructiveOutline"
               size="sm"
               onClick={() => setClearConfirmOpen(true)}
               disabled={isLoading || !hasConfig}

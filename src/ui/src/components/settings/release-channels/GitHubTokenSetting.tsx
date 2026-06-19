@@ -206,7 +206,7 @@ export function GitHubTokenSetting({ isActive }: GitHubTokenSettingProps) {
               <div className="flex gap-3 justify-end pt-2">
                 {hasToken && (
                   <Button
-                    variant="destructive"
+                    variant="destructiveOutline"
                     onClick={() => setClearConfirmOpen(true)}
                     disabled={isSaving}
                   >

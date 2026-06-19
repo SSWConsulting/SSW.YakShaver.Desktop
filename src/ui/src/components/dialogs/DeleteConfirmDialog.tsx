@@ -1,4 +1,3 @@
-import { Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,6 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
+import { buttonVariants } from "../ui/button";
 
 interface DeleteConfirmDialogProps {
   open: boolean;
@@ -39,9 +39,11 @@ export function DeleteConfirmDialog({
           <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            className="cursor-pointer bg-destructive text-white hover:bg-destructive/90"
+            className={buttonVariants({
+              variant: "destructiveOutline",
+              className: "cursor-pointer",
+            })}
           >
-            <Trash2 className="w-4 h-4" />
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
