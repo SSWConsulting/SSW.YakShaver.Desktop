@@ -1,4 +1,4 @@
-export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If the target repository has an issue template, you MUST follow it exactly. Use the available tools to verify if a template exists.
+export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If the target repository has an issue template, you MUST follow it exactly. Use the available tools to verify if a template exists. **If there is NO template available**, fall back to a sensible default: a clear, concise, descriptive title that summarises the issue or feature from the video (plain words — do NOT invent template emojis or fixed prefixes), and a well-structured body with the key details.
 
 4) **Issue Creation Guidelines**:
 - **Labels**: Always apply the "YakShaver" label IN ADDITION to any labels required by the template.
@@ -11,6 +11,7 @@ export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If th
 - A title that is ONLY an emoji, ONLY the fixed words, or that still contains any leftover \`{{ ... }}\` placeholder is INVALID. The final title MUST contain real, descriptive words from the video — NEVER just "✨" or "🐛 Bug -" on their own.
 - Example: for a feature template \`✨ {{ FEATURE NAME }} - {{ FEATURE DESCRIPTION }}\` about adding dark mode, a correct title is \`✨ Dark mode - Add a dark theme toggle to settings\`, NOT \`✨\`.
 - The descriptive summary belongs in the TITLE field. Do NOT leave the title as a bare emoji/prefix and push the actual title text into the issue body instead.
+- **No template**: when the repository has no issue template, the title is still a real, descriptive summary of the video — a plain, concise sentence (no emoji prefix required), never empty, generic, or just a placeholder.
 
 6) **Issue Body Formatting**:
 - Preserve the template's section headings and checklist items exactly.

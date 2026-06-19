@@ -24,4 +24,10 @@ describe("SHARED_ISSUE_CREATION_RULES — issue title rules (#719)", () => {
     expect(SHARED_ISSUE_CREATION_RULES).toMatch(/title field/i);
     expect(SHARED_ISSUE_CREATION_RULES).toMatch(/into the issue body/i);
   });
+
+  // Per @tomek-i on #719: when no template exists, fall back to a sensible basic title.
+  it("provides a sensible-default fallback when the repo has NO template", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/no template/i);
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/fall back to a sensible default/i);
+  });
 });
