@@ -1,3 +1,22 @@
+/**
+ * Duplicate-detection guidance shared by every issue-creation prompt.
+ *
+ * Bug #862: when YakShaver searched the backlog for an existing/duplicate item, a previously
+ * created work item that had since been DELETED (Azure DevOps `System.State = 'Removed'`, or a
+ * GitHub/Jira deleted/closed-as-not-planned item) was still being treated as a live duplicate.
+ * The agent then tried to UPDATE the deleted item — which the platform rejects — and fell back to
+ * creating a new, incomplete item carrying only a title plus a "duplicate" comment, dropping the
+ * steps-to-reproduce and acceptance criteria. Deleted items must NEVER count as a match: exclude
+ * them from the search, never update them, and never add a duplicate comment when the only match
+ * is deleted.
+ */
+export const DUPLICATE_DETECTION_RULES = `10) **Duplicate Detection (CRITICAL)**:
+- Before creating an item you may check the backlog for an existing duplicate, but you MUST IGNORE items that have been deleted or removed.
+- A deleted/removed item DOES NOT count as a duplicate. Treat the following as deleted and exclude them: Azure DevOps work items in the "Removed" state or returned as deleted/in the recycle bin (\`System.State\` = "Removed", or \`isDeleted\` true); GitHub issues that are deleted or closed as "not planned"; Jira issues that are deleted; and any item a tool reports as deleted, removed, archived, or not found.
+- When querying Azure DevOps with WIQL, exclude removed items, e.g. add \`AND [System.State] <> 'Removed'\` to the query.
+- NEVER attempt to update an item that is deleted or removed — the platform will reject the update.
+- If the ONLY matching item is deleted/removed, treat it as if no duplicate exists: create a brand-new, fully-populated item (title, steps to reproduce, acceptance criteria, etc.) and DO NOT add a "duplicate" comment.`;
+
 export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If the target repository has an issue template, you MUST follow it exactly. Use the available tools to verify if a template exists.
 
 4) **Issue Creation Guidelines**:
@@ -34,6 +53,8 @@ If no template is found, create a well-structured issue body that includes:
 
 9) **Privacy & Local Paths (CRITICAL)**:
 - NEVER include local file paths (video or screenshot) in the issue description.
+
+${DUPLICATE_DETECTION_RULES}
 `;
 
 export const INITIAL_SUMMARY_PROMPT = `You are a precise information structuring AI. Process the raw transcript into a structured JSON object without adding, inferring, or embellishing information.
