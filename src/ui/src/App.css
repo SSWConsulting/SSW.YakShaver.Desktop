@@ -178,16 +178,3 @@
 .animate-tick-pop {
   animation: tick-pop 0.4s ease-out forwards;
 }
-
-/* #876: 44px minimum touch targets inside the Settings dialog (WCAG 2.5.5).
-   Scoped to `.settings-44` so it does NOT enlarge buttons/inputs app-wide.
-   Buttons and text inputs share one min height so they align; compact
-   toggle switches keep their size. */
-.settings-44 button:not([role="switch"]),
-.settings-44 select,
-.settings-44 input:not([type="checkbox"]):not([type="radio"]) {
-  min-height: 44px;
-}
-.settings-44 button:not([role="switch"]) {
-  min-width: 44px;
-}
