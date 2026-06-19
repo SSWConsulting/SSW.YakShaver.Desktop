@@ -3,7 +3,13 @@ import { DEFAULT_ORCHESTRATION_BACKEND } from "@shared/types/llm";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
 
@@ -115,35 +121,26 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="px-4">
-        <div className="grid gap-2 md:grid-cols-2">
-          {BACKEND_OPTIONS.map((option) => {
-            const isSelected = option.id === currentBackend;
-            const isDisabled = isLoading || (!!pendingBackend && pendingBackend !== option.id);
-
-            return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => void handleSelect(option.id)}
-                disabled={isDisabled}
-                aria-pressed={isSelected}
-                className={cn(
-                  "flex h-full flex-col gap-1.5 rounded-md border px-3 py-2 text-left transition-colors",
-                  "disabled:cursor-not-allowed disabled:opacity-60",
-                  isSelected
-                    ? "border-white/50 bg-white/10"
-                    : "border-white/10 hover:border-white/30 hover:bg-white/5",
-                )}
-              >
-                <span className="text-sm font-medium">{option.title}</span>
-                <span className="text-xs leading-relaxed text-muted-foreground">
-                  {option.description}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      <CardContent className="flex flex-col gap-2 px-4">
+        <Select
+          value={currentBackend}
+          onValueChange={(value) => void handleSelect(value as OrchestrationBackend)}
+          disabled={isLoading || pendingBackend !== null}
+        >
+          <SelectTrigger className="w-full md:w-72" aria-label="Orchestrator backend">
+            <SelectValue placeholder="Select an orchestrator" />
+          </SelectTrigger>
+          <SelectContent>
+            {BACKEND_OPTIONS.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                {option.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {BACKEND_OPTIONS.find((o) => o.id === currentBackend)?.description}
+        </p>
       </CardContent>
     </Card>
   );
