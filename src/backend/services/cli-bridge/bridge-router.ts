@@ -1,15 +1,17 @@
-import type { LLMConfigV2 } from "@shared/types/llm";
 import {
   type BridgeResponse,
   LlmConfigInputSchema,
   McpEnabledInputSchema,
   McpServerInputSchema,
+  McpServerPatchSchema,
+  OrchestratorInputSchema,
 } from "../../../shared/cli-bridge/protocol";
 import {
   redactLlmConfig,
   redactMcpServer,
   redactMcpServers,
 } from "../../../shared/cli-bridge/redact";
+import { DEFAULT_ORCHESTRATION_BACKEND, type LLMConfigV2 } from "../../../shared/types/llm";
 import type { PartialUserSettings, UserSettings } from "../../../shared/types/user-settings";
 import { PartialUserSettingsSchema } from "../../../shared/types/user-settings";
 import type { MCPServerConfig } from "../mcp/types";
@@ -80,9 +82,14 @@ export async function routeRequest(
       return await routeMcp(services, req, segments.slice(2));
     }
 
-    // /llm/config
+    // /llm/config and /llm/config/orchestrator
     if (segments[0] === "llm" && segments[1] === "config") {
-      return await routeLlm(services, req);
+      if (segments.length === 2) {
+        return await routeLlm(services, req);
+      }
+      if (segments.length === 3 && segments[2] === "orchestrator") {
+        return await routeLlmOrchestrator(services, req);
+      }
     }
 
     // /settings
@@ -144,16 +151,21 @@ async function routeMcp(
   // /mcp/servers/:id
   if (rest.length === 1) {
     if (req.method === "PUT") {
-      const parsed = McpServerInputSchema.safeParse(req.body);
+      // Merge-update: validate ONLY the provided fields (every field optional)
+      // and overlay them on the existing server. The server must already exist.
+      const parsed = McpServerPatchSchema.safeParse(req.body);
       if (!parsed.success) {
         return fail(`Invalid server config: ${formatZodError(parsed.error)}`);
       }
       const existing = await services.mcp.getServerByIdAsync(serverId);
-      if (existing?.builtin) {
+      if (!existing) {
+        return fail(`MCP server '${serverId}' not found`, 404);
+      }
+      if (existing.builtin) {
         return fail(BUILTIN_IMMUTABLE_MESSAGE, 409);
       }
       const merged = {
-        ...(existing ?? {}),
+        ...existing,
         ...(parsed.data as object),
         id: serverId,
       } as MCPServerConfig;
@@ -177,7 +189,16 @@ async function routeMcp(
 async function routeLlm(services: BridgeServices, req: BridgeRequest): Promise<BridgeResult> {
   if (req.method === "GET") {
     const config = await services.llm.getLLMConfig();
-    return ok(redactLlmConfig(config));
+    const redacted = redactLlmConfig(config);
+    // Surface the effective orchestration backend so `config get` always shows a
+    // concrete value even when the field has never been set (defaults to openai).
+    if (redacted && typeof redacted === "object") {
+      const r = redacted as Record<string, unknown>;
+      if (r.orchestrationBackend === undefined) {
+        r.orchestrationBackend = DEFAULT_ORCHESTRATION_BACKEND;
+      }
+    }
+    return ok(redacted);
   }
   if (req.method === "POST") {
     const parsed = LlmConfigInputSchema.safeParse(req.body);
@@ -189,6 +210,40 @@ async function routeLlm(services: BridgeServices, req: BridgeRequest): Promise<B
     return ok(redactLlmConfig(stored));
   }
   return fail(`Method not allowed: ${req.method} ${req.path}`, 405);
+}
+
+/**
+ * Set only the orchestration backend on the current LLMConfigV2.
+ *
+ * Merges server-side so the existing models + api keys are preserved (the CLI
+ * never sends or echoes secrets). When no config exists yet a minimal V2 config
+ * is created with the chosen backend.
+ */
+async function routeLlmOrchestrator(
+  services: BridgeServices,
+  req: BridgeRequest,
+): Promise<BridgeResult> {
+  if (req.method !== "POST") {
+    return fail(`Method not allowed: ${req.method} ${req.path}`, 405);
+  }
+  const parsed = OrchestratorInputSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return fail(`Invalid orchestrator payload: ${formatZodError(parsed.error)}`);
+  }
+
+  const existing = await services.llm.getLLMConfig();
+  const merged: LLMConfigV2 = existing
+    ? { ...existing, orchestrationBackend: parsed.data.orchestrationBackend }
+    : {
+        version: 2,
+        languageModel: null,
+        transcriptionModel: null,
+        orchestrationBackend: parsed.data.orchestrationBackend,
+      };
+
+  await services.llm.storeLLMConfig(merged);
+  const stored = await services.llm.getLLMConfig();
+  return ok(redactLlmConfig(stored));
 }
 
 async function routeSettings(services: BridgeServices, req: BridgeRequest): Promise<BridgeResult> {

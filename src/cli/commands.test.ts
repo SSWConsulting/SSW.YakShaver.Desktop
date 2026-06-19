@@ -219,6 +219,67 @@ describe("buildRequest - mcp", () => {
   it("url-encodes ids with special chars", () => {
     expect(build(["mcp", "remove", "a/b c"]).path).toBe("/mcp/servers/a%2Fb%20c");
   });
+
+  it("mcp update with only --url PUTs only the provided field", () => {
+    const req = build(["mcp", "update", "srv-9", "--url", "https://new.example.com/mcp"]);
+    expect(req).toMatchObject({ method: "PUT", path: "/mcp/servers/srv-9" });
+    expect(req.body).toEqual({ url: "https://new.example.com/mcp" });
+  });
+
+  it("mcp update sends ONLY provided fields (no transport unless given)", () => {
+    const req = build(["mcp", "update", "srv-9", "--name", "Renamed", "--env", "K=V"]);
+    expect(req.body).toEqual({ name: "Renamed", env: { K: "V" } });
+  });
+
+  it("mcp update normalizes --transport http to streamableHttp", () => {
+    const req = build(["mcp", "update", "srv-9", "--transport", "http"]);
+    expect(req.body).toEqual({ transport: "streamableHttp" });
+  });
+
+  it("mcp update rejects an unknown transport", () => {
+    expect(() => build(["mcp", "update", "srv-9", "--transport", "carrier-pigeon"])).toThrow(
+      UsageError,
+    );
+  });
+
+  it("mcp update with no fields throws a usage error", () => {
+    expect(() => build(["mcp", "update", "srv-9"])).toThrow(/No fields to update/);
+  });
+
+  it("mcp update without id or --name throws a usage error", () => {
+    expect(() => build(["mcp", "update"])).toThrow(UsageError);
+  });
+});
+
+describe("buildRequest - mcp --name selector", () => {
+  it("mcp remove --name sets resolveName and an {id} placeholder path", () => {
+    const req = build(["mcp", "remove", "--name", "My Server"]);
+    expect(req.method).toBe("DELETE");
+    expect(req.path).toBe("/mcp/servers/{id}");
+    expect(req.resolveName).toBe("My Server");
+  });
+
+  it("mcp enable --name sets resolveName", () => {
+    const req = build(["mcp", "enable", "--name", "My Server"]);
+    expect(req.path).toBe("/mcp/servers/{id}/enabled");
+    expect(req.resolveName).toBe("My Server");
+    expect(req.body).toEqual({ enabled: true });
+  });
+
+  it("mcp update --name resolves the target and does NOT treat --name as a rename", () => {
+    const req = build(["mcp", "update", "--name", "My Server", "--url", "https://x.example/mcp"]);
+    expect(req.path).toBe("/mcp/servers/{id}");
+    expect(req.resolveName).toBe("My Server");
+    // --name was consumed as the selector, so it is NOT in the patch body.
+    expect(req.body).toEqual({ url: "https://x.example/mcp" });
+  });
+
+  it("mcp update <id> --name treats --name as a rename (id is the selector)", () => {
+    const req = build(["mcp", "update", "srv-9", "--name", "Renamed"]);
+    expect(req.path).toBe("/mcp/servers/srv-9");
+    expect(req.resolveName).toBeUndefined();
+    expect(req.body).toEqual({ name: "Renamed" });
+  });
 });
 
 describe("buildRequest - config", () => {
@@ -251,6 +312,34 @@ describe("buildRequest - config", () => {
 
   it("config set llm is unsupported", () => {
     expect(() => build(["config", "set", "llm"])).toThrow(/not supported/);
+  });
+
+  it("config get orchestrator -> GET /llm/config", () => {
+    expect(build(["config", "get", "orchestrator"])).toMatchObject({
+      method: "GET",
+      path: "/llm/config",
+    });
+  });
+
+  it("config set orchestrator --backend local-claude -> POST", () => {
+    const req = build(["config", "set", "orchestrator", "--backend", "local-claude"]);
+    expect(req).toMatchObject({ method: "POST", path: "/llm/config/orchestrator" });
+    expect(req.body).toEqual({ orchestrationBackend: "local-claude" });
+  });
+
+  it("config set orchestrator --backend openai -> POST", () => {
+    const req = build(["config", "set", "orchestrator", "--backend", "openai"]);
+    expect(req.body).toEqual({ orchestrationBackend: "openai" });
+  });
+
+  it("config set orchestrator rejects an unknown backend", () => {
+    expect(() => build(["config", "set", "orchestrator", "--backend", "gpt5"])).toThrow(
+      /--backend must be one of/,
+    );
+  });
+
+  it("config set orchestrator requires --backend", () => {
+    expect(() => build(["config", "set", "orchestrator"])).toThrow(/Missing required --backend/);
   });
 });
 
