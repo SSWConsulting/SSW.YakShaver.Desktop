@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { parseArgs } from "./args";
 import { BridgeClient, BridgeUnavailableError } from "./bridge-client";
-import { buildRequest, type CommandRequest, UsageError } from "./commands";
+import { buildRequest, type CommandRequest, ID_PLACEHOLDER, UsageError } from "./commands";
+import { resolveServerIdByName } from "./resolve-name";
 
 const HELP = `yakshaver — configure YakShaver Desktop from the terminal
 
@@ -15,13 +16,18 @@ MCP
   yakshaver mcp list
   yakshaver mcp add --name <name> --transport stdio --command <cmd> [--args "a b"] [--env "K=V,K2=V2"]
   yakshaver mcp add --name <name> --transport http  --url <url> [--header "K=V"]
+  yakshaver mcp update <id> [--name ... --url ... --command ... --args ... --env ... --header ... --transport ...]
   yakshaver mcp remove <id>
   yakshaver mcp enable <id> [--off]        # --off disables instead of enabling
 
+  remove/enable/update also accept --name <name> instead of a positional <id>
+  (resolved against the server list; errors if the name is missing or ambiguous).
+
 CONFIG
-  yakshaver config get [llm|settings]      # defaults to settings
+  yakshaver config get [llm|orchestrator|settings]   # defaults to settings
   yakshaver config set settings --tool-approval-mode <yolo|wait|ask>
   yakshaver config set settings --open-at-login <true|false>
+  yakshaver config set orchestrator --backend <openai|local-claude>
 
 GLOBAL
   --dev      Target the dev build (YakShaverDev) userData
@@ -53,10 +59,15 @@ async function main(argv: string[]): Promise<number> {
   const client = new BridgeClient({ dev: parsed.options.dev === true });
 
   try {
-    const data = await client.request(request.method, request.path, request.body);
+    const path = await resolvePath(client, request);
+    const data = await client.request(request.method, path, request.body);
     printResult(request.label, data, parsed.options.json === true);
     return 0;
   } catch (err) {
+    if (err instanceof UsageError) {
+      console.error(`Error: ${err.message}`);
+      return 2;
+    }
     if (err instanceof BridgeUnavailableError) {
       console.error(err.message);
       return 3;
@@ -64,6 +75,18 @@ async function main(argv: string[]): Promise<number> {
     console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
+}
+
+/**
+ * If the request targets an MCP server by name, resolve the name to a concrete
+ * id via `GET /mcp/servers` and substitute it into the path. Otherwise return
+ * the path unchanged. Throws a {@link UsageError} on 0 or >1 matches.
+ */
+async function resolvePath(client: BridgeClient, request: CommandRequest): Promise<string> {
+  if (!request.resolveName) return request.path;
+  const servers = await client.get<unknown[]>("/mcp/servers");
+  const id = resolveServerIdByName(servers, request.resolveName);
+  return request.path.replace(ID_PLACEHOLDER, encodeURIComponent(id));
 }
 
 function printResult(label: string, data: unknown, asJson: boolean): void {

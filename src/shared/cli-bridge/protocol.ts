@@ -87,9 +87,47 @@ export const McpServerInputSchema = z.discriminatedUnion("transport", [
 ]);
 export type McpServerInput = z.infer<typeof McpServerInputSchema>;
 
+/**
+ * Input accepted by PUT /mcp/servers/:id (merge-update).
+ *
+ * Unlike {@link McpServerInputSchema}, every field is optional so callers can
+ * send ONLY the fields they want to change. The router merges the provided
+ * fields onto the existing server config. `transport` is optional here; when
+ * omitted the existing transport is preserved.
+ */
+export const McpServerPatchSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    description: z.string().optional(),
+    enabled: z.boolean().optional(),
+    toolWhitelist: z.array(z.string()).optional(),
+    transport: z.enum(["stdio", "streamableHttp"]).optional(),
+    // http
+    url: z.string().url("url must be a valid URL").optional(),
+    headers: stringRecord.optional(),
+    timeoutMs: z.number().int().positive().optional(),
+    // stdio
+    command: z.string().min(1).optional(),
+    args: z.array(z.string()).optional(),
+    env: stringRecord.optional(),
+    cwd: z.string().optional(),
+    stderr: z.enum(["inherit", "ignore", "pipe"]).optional(),
+    version: z.string().optional(),
+  })
+  .strict();
+export type McpServerPatch = z.infer<typeof McpServerPatchSchema>;
+
 /** Input accepted by POST /mcp/servers/:id/enabled. */
 export const McpEnabledInputSchema = z.object({
   enabled: z.boolean(),
+});
+
+/** Orchestration backends the CLI may set. Mirrors `OrchestrationBackend`. */
+export const OrchestrationBackendSchema = z.enum(["openai", "local-claude"]);
+
+/** Input accepted by POST /llm/config/orchestrator. */
+export const OrchestratorInputSchema = z.object({
+  orchestrationBackend: OrchestrationBackendSchema,
 });
 
 /**
