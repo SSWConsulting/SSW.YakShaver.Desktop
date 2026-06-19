@@ -13,6 +13,7 @@ import { Heading } from "@/components/typography/heading-tag";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LoadingState } from "../components/common/LoadingState";
 import { DataTable } from "../components/data-table";
+import { HomeMcpStatusBanner } from "../components/home/HomeMcpStatusBanner";
 import { NoShaves } from "../components/shaves/NoShaves";
 import { ShaveCards } from "../components/shaves/ShaveCards";
 import { ShaveFilters } from "../components/shaves/ShaveFilters";
@@ -131,6 +132,8 @@ export function HomePage() {
           </ToggleGroup>
         )}
       </div>
+
+      <HomeMcpStatusBanner />
 
       {shaves.length > 0 && (
         <ShaveFilters

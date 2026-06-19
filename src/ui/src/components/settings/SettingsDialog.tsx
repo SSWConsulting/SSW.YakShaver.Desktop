@@ -1,5 +1,6 @@
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MCP_HEALTH_REFRESH_EVENT } from "../home/mcp-status";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
@@ -67,6 +68,16 @@ export function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const [activeTabId, setActiveTabId] = useState<string>(TABS[0]?.id ?? "release");
   const leaveHandlerRef = useRef<LeaveHandler | null>(null);
+  const wasOpenRef = useRef(false);
+
+  // #869 AC4: when the dialog closes (e.g. after reconnecting an MCP provider),
+  // tell the Home banner to re-check provider health so it stays accurate.
+  useEffect(() => {
+    if (wasOpenRef.current && !open) {
+      window.dispatchEvent(new CustomEvent(MCP_HEALTH_REFRESH_EVENT));
+    }
+    wasOpenRef.current = open;
+  }, [open]);
 
   useEffect(() => {
     const handleOpenTab = (e: Event) => {
