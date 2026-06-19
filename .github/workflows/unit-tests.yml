@@ -1,0 +1,43 @@
+name: Unit Tests
+
+# Runs the root (backend + pure-logic) vitest suite — `src/**/*.test.ts` under the
+# node environment defined by the root vitest.config.ts.
+#
+# WHY THIS EXISTS: before this (and PR #890's UI component-test job), CI ran NO vitest
+# at all — every unit test was only type-checked by the build's `tsc`, never executed.
+# This job actually runs them, so a test that compiles but fails at runtime is caught.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  root-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        # Full install — the modules under test `require('electron')` at import time,
+        # which needs the Electron install to complete (it writes the binary path).
+        run: npm ci --prefer-offline --no-audit
+      - name: Rebuild better-sqlite3 for Node
+        # The repo's postinstall runs `electron-rebuild -f -w better-sqlite3`, building it
+        # for Electron's ABI. vitest runs under Node, so rebuild it for the Node runtime —
+        # otherwise the DB-backed tests fail with "Module did not self-register".
+        run: npm rebuild better-sqlite3 --build-from-source
+      - name: Install ffmpeg
+        # ffmpeg-service.test spawns the ffmpeg binary, which isn't on the runner by default.
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Run root unit tests
+        # Exclude src/ui — those are renderer tests with their own aliases (@/@shared)
+        # and run under src/ui's vitest config (the UI component-tests job), not the
+        # node-env root config.
+        run: npx vitest run --reporter=verbose --exclude 'src/ui/**'
