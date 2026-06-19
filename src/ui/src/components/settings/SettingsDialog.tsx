@@ -10,6 +10,8 @@ import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
 import { LLMSettingsPanel } from "./llm/LLMSettingsPanel";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelSettingsPanel";
+import { SettingsNavHealthIndicator } from "./SettingsNavHealthIndicator";
+import { useSettingsTabHealth } from "./settings-health";
 import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
 
 type LeaveHandler = () => Promise<boolean>;
@@ -148,6 +150,9 @@ export function SettingsDialog() {
     [activeTabId],
   );
 
+  // #878 — per-tab critical configuration state for the side-nav indicators.
+  const tabHealth = useSettingsTabHealth(open);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -176,18 +181,20 @@ export function SettingsDialog() {
           <nav className="w-48 flex flex-col gap-1 flex-shrink-0 overflow-y-auto pr-1">
             {TABS.map((tab) => {
               const isActive = tab.id === activeTabId;
+              const health = tabHealth[tab.id];
               return (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => attemptTabChange(tab.id)}
-                  className={`text-left px-3 py-2.5 rounded-md transition-colors border border-transparent ${
+                  className={`group relative flex items-center justify-between gap-2 text-left px-3 py-2.5 rounded-md transition-colors border border-transparent ${
                     isActive
                       ? "bg-white/10 border-white/20 text-white"
                       : "text-white/80 hover:bg-white/5 hover:text-white"
                   }`}
                 >
                   <div className="text-sm font-medium">{tab.label}</div>
+                  {health ? <SettingsNavHealthIndicator health={health} /> : null}
                 </button>
               );
             })}
