@@ -7,6 +7,10 @@ export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If th
 5) **Issue Title Rules**:
 - The title MUST strictly follow the template's frontmatter pattern, INCLUDING ANY EMOJIS.
 - Do not omit fixed words (e.g., "🐛 Bug -") or substitute emojis.
+- **CRITICAL — Fill in the placeholders**: The template title contains placeholders such as \`{{ FEATURE NAME }}\`, \`{{ FEATURE DESCRIPTION }}\`, or \`{{ TITLE }}\`. You MUST replace EVERY placeholder with a concise, specific summary derived from the video transcription. Keep the template's fixed words and emojis, but the rest of the title MUST describe what the video is actually about.
+- A title that is ONLY an emoji, ONLY the fixed words, or that still contains any leftover \`{{ ... }}\` placeholder is INVALID. The final title MUST contain real, descriptive words from the video — NEVER just "✨" or "🐛 Bug -" on their own.
+- Example: for a feature template \`✨ {{ FEATURE NAME }} - {{ FEATURE DESCRIPTION }}\` about adding dark mode, a correct title is \`✨ Dark mode - Add a dark theme toggle to settings\`, NOT \`✨\`.
+- The descriptive summary belongs in the TITLE field. Do NOT leave the title as a bare emoji/prefix and push the actual title text into the issue body instead.
 
 6) **Issue Body Formatting**:
 - Preserve the template's section headings and checklist items exactly.
