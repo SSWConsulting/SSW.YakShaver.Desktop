@@ -106,7 +106,7 @@ function RecordButton({
 
 export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
   const navigateToWorkflow = useWorkflowNavigation({ listen: false });
-  const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
+  const { authState, uploadStatus, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
   const [isTranscribing, _] = useState(false);
@@ -124,6 +124,14 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const { saveRecording, checkExistingShave } = useShaveManager();
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
+
+  // The "Process YouTube link" affordance is only relevant before any recording
+  // exists. Once a recording has been made (or is in progress / processing) we
+  // hide it, because the app does not yet support processing multiple videos in
+  // parallel (#775). `uploadStatus` leaves IDLE the moment a recording is
+  // continued (handleContinue) and never returns to IDLE for the session.
+  const hasRecordingBeenMade = isRecording || uploadStatus !== UploadStatus.IDLE;
+  const showProcessYoutubeLink = isYoutubeUrlWorkflowEnabled && !hasRecordingBeenMade;
 
   const handleStopRecording = useCallback(async () => {
     const result = await stop();
@@ -343,7 +351,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             isRecording={isRecording}
             isTranscribing={isTranscribing}
             isDisabled={isProcessing || isTranscribing || !isAuthenticated}
-            showUpload={isYoutubeUrlWorkflowEnabled}
+            showUpload={showProcessYoutubeLink}
             onToggleRecording={toggleRecording}
             onUploadClick={() => setYoutubeDialogOpen(true)}
             className={className}
