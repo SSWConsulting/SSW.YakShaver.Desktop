@@ -302,7 +302,7 @@ Embed this URL in the task content that you create. Follow user requirements STR
     // streams anything (and even when its narration ends up terse).
     options.onStep?.({
       type: "start",
-      message: "Orchestrating with Claude Code (local)…",
+      message: "Orchestrating with Claude Code…",
     });
 
     // The full prompt = system prompt + the transcript as the user input, passed over stdin so

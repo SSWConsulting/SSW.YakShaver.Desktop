@@ -39,10 +39,10 @@ function OrchestratorBadge({ backend }: { backend: "openai" | "claude-code" }) {
       <Badge
         variant="outline"
         className="border-amber-400/40 bg-amber-400/10 text-amber-300"
-        title="This stage is orchestrated locally by Claude Code (claude -p)"
+        title="Orchestrated by the Claude Code CLI on this machine — uses your Claude Code sign-in, no API key"
       >
         <Sparkles className="size-3" />
-        Claude Code (local)
+        Claude Code
       </Badge>
     );
   }

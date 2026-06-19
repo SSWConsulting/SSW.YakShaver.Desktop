@@ -25,7 +25,7 @@ const BACKEND_OPTIONS: readonly BackendOption[] = [
   },
   {
     id: "local-claude",
-    title: "Claude Code (local)",
+    title: "Claude Code",
     description:
       "Drive backlog creation with a local headless `claude` process. Requires the `claude` CLI installed and on PATH.",
   },
@@ -33,7 +33,7 @@ const BACKEND_OPTIONS: readonly BackendOption[] = [
 
 const BACKEND_LABELS: Record<OrchestrationBackend, string> = {
   openai: "OpenAI",
-  "local-claude": "Claude Code (local)",
+  "local-claude": "Claude Code",
 };
 
 export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSettingProps) {
@@ -110,8 +110,8 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
       <CardHeader className="px-4">
         <CardTitle>Orchestrator</CardTitle>
         <CardDescription>
-          Choose which backend drives backlog creation. Claude Code (local) requires the{" "}
-          <code className="rounded bg-white/10 px-1 py-0.5 text-xs">claude</code> CLI installed.
+          Choose which backend drives backlog creation. Claude Code requires the{" "}
+          <code className="rounded bg-white/10 px-1 py-0.5 text-xs">claude</code> CLI installed, and uses your Claude Code sign-in (no API key).
         </CardDescription>
       </CardHeader>
 
