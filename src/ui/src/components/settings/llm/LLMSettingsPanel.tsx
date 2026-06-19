@@ -1,4 +1,5 @@
 import { LanguageModelSetting } from "./LanguageModelSetting";
+import { OrchestratorBackendSetting } from "./OrchestratorBackendSetting";
 import { TranscriptionModelSetting } from "./TranscriptionModelSetting";
 
 interface LLMSettingsPanelProps {
@@ -17,6 +18,7 @@ export function LLMSettingsPanel({ isActive }: LLMSettingsPanelProps) {
 
       <LanguageModelSetting isActive={isActive} />
       <TranscriptionModelSetting isActive={isActive} />
+      <OrchestratorBackendSetting isActive={isActive} />
     </div>
   );
 }
