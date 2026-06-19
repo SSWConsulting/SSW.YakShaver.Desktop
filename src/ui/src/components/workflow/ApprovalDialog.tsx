@@ -137,12 +137,13 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
   const isOpen = true;
 
   const readableToolInfo = toolName ? parseToolName(toolName) : null;
+  const toolLabel = readableToolInfo?.tool ?? "an action";
   const dialogTitle = readableToolInfo
-    ? `Allow "${readableToolInfo.tool}" to run?`
-    : "Allow tool to run?";
+    ? `Can YakShaver use "${readableToolInfo.tool}"?`
+    : "Can YakShaver perform this action?";
   const dialogDescription = readableToolInfo?.server
-    ? `The AI wants to run the "${readableToolInfo.tool}" tool from the ${readableToolInfo.server} server. Do you want to allow this?`
-    : `The AI wants to run a tool. Do you want to allow this?`;
+    ? `To keep working on your task, YakShaver needs to use the "${readableToolInfo.tool}" tool (from ${readableToolInfo.server}). It only runs when you say it's OK.`
+    : `To keep working on your task, YakShaver needs to perform an action. It only runs when you say it's OK.`;
 
   return (
     <AlertDialog open={isOpen}>
@@ -156,6 +157,22 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
           </div>
           <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
         </AlertDialogHeader>
+        {!showCorrectionForm && (
+          <ul className="space-y-1.5 text-sm text-white/70">
+            <li>
+              <span className="font-medium text-white/90">Allow</span> &mdash; let YakShaver use{" "}
+              {`"${toolLabel}"`} this one time.
+            </li>
+            <li>
+              <span className="font-medium text-white/90">Allow Always</span> &mdash; let YakShaver
+              use {`"${toolLabel}"`} now and skip this prompt next time.
+            </li>
+            <li>
+              <span className="font-medium text-white/90">Don't Allow</span> &mdash; skip this step.
+              YakShaver won't use {`"${toolLabel}"`}, and you can tell it what to do instead.
+            </li>
+          </ul>
+        )}
         {autoApprovalCountdown !== null && (
           <p className="text-xs text-yellow-300">
             Auto-approving in {autoApprovalCountdown}s if no action is taken.
