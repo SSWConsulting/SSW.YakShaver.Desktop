@@ -2,6 +2,7 @@
 import { parseArgs } from "./args";
 import { BridgeClient, BridgeUnavailableError } from "./bridge-client";
 import { buildRequest, type CommandRequest, ID_PLACEHOLDER, UsageError } from "./commands";
+import { runMcpServe } from "./mcp-serve";
 import { resolveServerIdByName } from "./resolve-name";
 
 const HELP = `yakshaver — configure YakShaver Desktop from the terminal
@@ -23,6 +24,10 @@ MCP
   remove/enable/update also accept --name <name> instead of a positional <id>
   (resolved against the server list; errors if the name is missing or ambiguous).
 
+MCP FRONT-DOOR (internal — used by the Claude Code orchestrator)
+  yakshaver mcp-serve                       # run the stdio MCP server that proxies
+                                            # the app's aggregated toolset to Claude
+
 CONFIG
   yakshaver config get [llm|orchestrator|settings]   # defaults to settings
   yakshaver config set settings --tool-approval-mode <yolo|wait|ask>
@@ -42,6 +47,14 @@ async function main(argv: string[]): Promise<number> {
   if (parsed.options.help || parsed.positionals.length === 0) {
     console.log(HELP);
     return parsed.positionals.length === 0 && !parsed.options.help ? 1 : 0;
+  }
+
+  // `mcp-serve` is special: it RUNS the stdio MCP front-door (proxying to the
+  // bridge) rather than issuing a single bridge request. The Claude orchestrator
+  // spawns this as its one MCP server.
+  if (parsed.positionals[0] === "mcp-serve") {
+    await runMcpServe({ dev: parsed.options.dev === true });
+    return typeof process.exitCode === "number" ? process.exitCode : 0;
   }
 
   let request: CommandRequest;

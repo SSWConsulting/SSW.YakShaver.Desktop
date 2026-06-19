@@ -44,6 +44,10 @@ function makeServices(): BridgeServices {
       getSettingsAsync: vi.fn().mockResolvedValue({ toolApprovalMode: "ask" }),
       updateSettingsAsync: vi.fn(),
     },
+    tools: {
+      listTools: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn().mockResolvedValue({ ok: true, result: null }),
+    },
   };
 }
 

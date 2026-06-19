@@ -122,6 +122,47 @@ export const McpEnabledInputSchema = z.object({
   enabled: z.boolean(),
 });
 
+// ---------------------------------------------------------------------------
+// Aggregated tool endpoints (#915). The bridge exposes the app's full,
+// server-prefixed toolset (INCLUDING internal/in-memory servers) so the single
+// `yakshaver` MCP front-door can list + proxy them to the Claude orchestrator.
+// ---------------------------------------------------------------------------
+
+/** One aggregated tool as listed by `GET /tools`. */
+export interface BridgeToolSummary {
+  /** Server-prefixed name, e.g. `GitHub__create_issue`. */
+  name: string;
+  description?: string;
+  /** JSON Schema (draft-07-ish) describing the tool's input arguments. */
+  inputSchema: Record<string, unknown>;
+}
+
+/** Body accepted by `POST /tools/call`. */
+export const ToolCallInputSchema = z.object({
+  /** Server-prefixed tool name as returned by `GET /tools`. */
+  name: z.string().min(1, "tool name is required"),
+  /** Arguments object passed to the tool's execute(). Defaults to `{}`. */
+  arguments: z.record(z.string(), z.unknown()).optional(),
+});
+export type ToolCallInput = z.infer<typeof ToolCallInputSchema>;
+
+/**
+ * Result envelope from `POST /tools/call`.
+ *
+ * `ok:false` with `notApproved:true` is a STRUCTURED refusal (the tool was not
+ * whitelisted under the current approval mode) — NOT a transport error, and the
+ * caller must surface it to the model rather than retrying or hanging.
+ */
+export interface ToolCallResult {
+  ok: boolean;
+  /** Present on success — the tool's raw execute() return value. */
+  result?: unknown;
+  /** Present on failure — a human-readable reason. */
+  error?: string;
+  /** True when the failure is an approval-policy refusal, not an execution error. */
+  notApproved?: boolean;
+}
+
 /** Orchestration backends the CLI may set. Mirrors `OrchestrationBackend`. */
 export const OrchestrationBackendSchema = z.enum(["openai", "local-claude"]);
 

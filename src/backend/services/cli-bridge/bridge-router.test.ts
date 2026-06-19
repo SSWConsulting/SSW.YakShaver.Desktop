@@ -44,6 +44,17 @@ function makeServices(overrides: Partial<BridgeServices> = {}): BridgeServices {
       updateSettingsAsync: vi.fn().mockResolvedValue(undefined),
       ...overrides.settings,
     },
+    tools: {
+      listTools: vi.fn().mockResolvedValue([
+        {
+          name: "GitHub__create_issue",
+          description: "Create a GitHub issue",
+          inputSchema: { type: "object", properties: { title: { type: "string" } } },
+        },
+      ]),
+      callTool: vi.fn().mockResolvedValue({ ok: true, result: "Created #5" }),
+      ...overrides.tools,
+    },
   };
 }
 
@@ -383,6 +394,74 @@ describe("routeRequest - settings", () => {
     });
     expect(res.status).toBe(400);
     expect(services.settings.updateSettingsAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe("routeRequest - tools (#915 aggregated front-door)", () => {
+  it("GET /tools returns the aggregated tool list", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, { method: "GET", path: "/tools" });
+    expect(res.status).toBe(200);
+    expect(services.tools.listTools).toHaveBeenCalledOnce();
+    if (!res.body.ok) throw new Error("expected ok");
+    const tools = res.body.data as Array<{ name: string }>;
+    expect(tools.map((t) => t.name)).toEqual(["GitHub__create_issue"]);
+  });
+
+  it("GET /tools rejects non-GET methods", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, { method: "POST", path: "/tools" });
+    expect(res.status).toBe(405);
+  });
+
+  it("POST /tools/call validates the body via zod", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, {
+      method: "POST",
+      path: "/tools/call",
+      body: { arguments: {} }, // missing required `name`
+    });
+    expect(res.status).toBe(400);
+    expect(services.tools.callTool).not.toHaveBeenCalled();
+  });
+
+  it("POST /tools/call proxies name+arguments and returns the result envelope", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, {
+      method: "POST",
+      path: "/tools/call",
+      body: { name: "GitHub__create_issue", arguments: { title: "Bug" } },
+    });
+    expect(res.status).toBe(200);
+    expect(services.tools.callTool).toHaveBeenCalledWith("GitHub__create_issue", { title: "Bug" });
+    if (!res.body.ok) throw new Error("expected ok envelope");
+    expect(res.body.data).toEqual({ ok: true, result: "Created #5" });
+  });
+
+  it("POST /tools/call surfaces a structured not-approved result as a 200 envelope (no hang)", async () => {
+    const services = makeServices({
+      tools: {
+        listTools: vi.fn(),
+        callTool: vi
+          .fn()
+          .mockResolvedValue({ ok: false, notApproved: true, error: "not approved" }),
+      },
+    });
+    const res = await routeRequest(services, {
+      method: "POST",
+      path: "/tools/call",
+      body: { name: "GitHub__create_issue" },
+    });
+    // Tool-level refusal is still a successful BRIDGE response.
+    expect(res.status).toBe(200);
+    if (!res.body.ok) throw new Error("expected ok envelope");
+    expect(res.body.data).toEqual({ ok: false, notApproved: true, error: "not approved" });
+  });
+
+  it("POST /tools/call rejects non-POST methods", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, { method: "GET", path: "/tools/call" });
+    expect(res.status).toBe(405);
   });
 });
 
