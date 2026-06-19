@@ -161,7 +161,7 @@ export function SettingsDialog() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none h-[85vh] overflow-hidden flex flex-col [&_button:not([role=switch])]:min-h-11 [&_button:not([role=switch])]:min-w-11 [&_input:not([type=checkbox]):not([type=radio])]:min-h-11 [&_select]:min-h-11">
+      <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none h-[85vh] overflow-hidden flex flex-col [&_:is(button:not([role=switch]),select,input:not([type=checkbox]):not([type=radio]))]:min-h-11 [&_button:not([role=switch])]:min-w-11">
         <DialogHeader className="mb-2 flex-shrink-0">
           <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
             <Settings className="h-5 w-5" />
