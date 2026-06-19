@@ -27,8 +27,14 @@ If no template is found, create a well-structured issue body that includes:
 - ALWAYS capture exactly one screenshot from the video using \`capture_video_frame\`.
 - Select a timestamp where key UI elements, errors, or context are clearly visible.
 - Upload the captured image using \`upload_screenshot\` to generate a public URL.
-- If \`upload_screenshot\` returns a valid URL, embed it in the issue body:
+- If \`upload_screenshot\` returns a valid URL, embed it in the issue body EXACTLY ONCE,
+  immediately followed by a bold caption on the next line:
   \`![Screenshot description](screenshotUrl)\`
+  \`**Figure: <concise description of what the screenshot shows>**\`
+- **CRITICAL**: Embed the screenshot in only ONE place. If the template has a "### Screenshots"
+  section, put the single captioned screenshot there; otherwise embed it once near the top.
+  NEVER insert the same screenshot in more than one location.
+- **CRITICAL**: The caption MUST be bold and MUST start with \`Figure:\`.
 - **CRITICAL**: Preserve the complete \`screenshotUrl\`, including all query parameters.
 - **CRITICAL**: If \`upload_screenshot\` returns an empty URL, omit the screenshot entirely.
 
