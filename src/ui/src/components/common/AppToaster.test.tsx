@@ -1,5 +1,15 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+// Mock sonner's <Toaster> so we assert the `position` prop AppToaster passes —
+// without depending on sonner's internal rendering, which portals and doesn't emit
+// the [data-sonner-toaster] element in jsdom until a toast actually fires.
+vi.mock("sonner", () => ({
+  Toaster: (props: { position?: string }) => (
+    <div data-testid="app-toaster" data-position={props.position ?? ""} />
+  ),
+}));
+
 import { APP_TOAST_POSITION, AppToaster } from "./AppToaster";
 
 describe("AppToaster (#784)", () => {
@@ -8,16 +18,10 @@ describe("AppToaster (#784)", () => {
     expect(APP_TOAST_POSITION).toBe("bottom-center");
   });
 
-  it("renders the sonner toaster anchored bottom-center, not bottom-right (AC1/AC2)", () => {
-    const { container } = render(<AppToaster />);
-
-    // sonner emits the rendered container with data-sonner-toaster and splits the
-    // position into x/y axis attributes.
-    const toaster = container.querySelector("[data-sonner-toaster]");
-    expect(toaster).not.toBeNull();
-    expect(toaster?.getAttribute("data-y-position")).toBe("bottom");
-    expect(toaster?.getAttribute("data-x-position")).toBe("center");
-    // explicitly assert it is NOT the old bottom-right default
-    expect(toaster?.getAttribute("data-x-position")).not.toBe("right");
+  it("passes bottom-center (not the bottom-right default) to sonner's Toaster (AC1/AC2)", () => {
+    render(<AppToaster />);
+    const pos = screen.getByTestId("app-toaster").getAttribute("data-position");
+    expect(pos).toBe("bottom-center");
+    expect(pos).not.toBe("bottom-right");
   });
 });
