@@ -1,7 +1,9 @@
 import {
   type BridgeResponse,
+  LLMConfigV2Schema,
   McpEnabledInputSchema,
   McpServerInputSchema,
+  type McpServerPatch,
   McpServerPatchSchema,
   OrchestratorInputSchema,
 } from "../../../shared/cli-bridge/protocol";
@@ -149,11 +151,11 @@ async function routeMcp(
       if (!existing) {
         return fail(`MCP server '${serverId}' not found`, 404);
       }
-      const merged = {
-        ...existing,
-        ...(parsed.data as object),
-        id: serverId,
-      } as MCPServerConfig;
+      const mergeResult = mergeMcpPatch(existing, parsed.data);
+      if (!mergeResult.ok) {
+        return fail(mergeResult.error);
+      }
+      const merged = mergeResult.value;
       await services.mcp.updateServerAsync(serverId, merged);
       return ok(redactMcpServer(merged));
     }
@@ -182,14 +184,11 @@ async function routeLlm(services: BridgeServices, req: BridgeRequest): Promise<B
     return ok(redacted);
   }
   if (req.method === "POST") {
-    if (!req.body || typeof req.body !== "object") {
-      return fail("Invalid LLM config payload");
+    const parsed = LLMConfigV2Schema.safeParse(req.body);
+    if (!parsed.success) {
+      return fail(`Invalid LLM config: ${formatZodError(parsed.error)}`);
     }
-    const config = req.body as LLMConfigV2;
-    if (config.version !== 2) {
-      return fail("LLM config must be version 2");
-    }
-    await services.llm.storeLLMConfig(config);
+    await services.llm.storeLLMConfig(parsed.data as LLMConfigV2);
     const stored = await services.llm.getLLMConfig();
     return ok(redactLlmConfig(stored));
   }
@@ -243,6 +242,59 @@ async function routeSettings(services: BridgeServices, req: BridgeRequest): Prom
     return ok(await services.settings.getSettingsAsync());
   }
   return fail(`Method not allowed: ${req.method} ${req.path}`, 405);
+}
+
+/** Fields that belong ONLY to an HTTP (streamableHttp) server config. */
+const HTTP_ONLY_FIELDS = ["url", "headers", "version", "timeoutMs"] as const;
+/** Fields that belong ONLY to a stdio server config. */
+const STDIO_ONLY_FIELDS = ["command", "args", "env", "cwd", "stderr"] as const;
+
+type MergeResult = { ok: true; value: MCPServerConfig } | { ok: false; error: string };
+
+/**
+ * Merge a validated patch onto an existing MCP server config.
+ *
+ * When the patch CHANGES the transport, the config is normalized to the target
+ * transport's discriminated-union member: fields that belong only to the old
+ * transport are stripped so no stale `url`/`headers` (or `command`/`args`/...)
+ * survive a switch, and the new transport's required field (`url` for HTTP,
+ * `command` for stdio) must be supplied in the same patch (or already present
+ * on the existing config) — otherwise the update is rejected. When the
+ * transport is unchanged, fields are overlaid as-is.
+ */
+function mergeMcpPatch(existing: MCPServerConfig, patch: McpServerPatch): MergeResult {
+  const targetTransport = patch.transport ?? existing.transport;
+  const transportChanged = patch.transport !== undefined && patch.transport !== existing.transport;
+
+  const merged: Record<string, unknown> = {
+    ...(existing as unknown as Record<string, unknown>),
+    ...(patch as Record<string, unknown>),
+    id: existing.id,
+  };
+
+  if (transportChanged) {
+    // Strip the OTHER transport's fields so no stale config survives the switch.
+    const staleFields = targetTransport === "streamableHttp" ? STDIO_ONLY_FIELDS : HTTP_ONLY_FIELDS;
+    for (const field of staleFields) {
+      delete merged[field];
+    }
+
+    // Require the new transport's mandatory field (from the patch or existing).
+    if (targetTransport === "streamableHttp" && typeof merged.url !== "string") {
+      return {
+        ok: false,
+        error: "Changing transport to http requires --url",
+      };
+    }
+    if (targetTransport === "stdio" && typeof merged.command !== "string") {
+      return {
+        ok: false,
+        error: "Changing transport to stdio requires --command",
+      };
+    }
+  }
+
+  return { ok: true, value: merged as unknown as MCPServerConfig };
 }
 
 function formatZodError(error: {
