@@ -287,7 +287,19 @@ function createDefaultServices(): BridgeServices {
     },
     settings: {
       getSettingsAsync: () => UserSettingsStorage.getInstance().getSettingsAsync(),
-      updateSettingsAsync: (patch) => UserSettingsStorage.getInstance().updateSettingsAsync(patch),
+      async updateSettingsAsync(patch) {
+        await UserSettingsStorage.getInstance().updateSettingsAsync(patch);
+        // Apply the same OS-level side effects the UI/IPC path applies, so a CLI
+        // settings change takes effect this session (not only after restart).
+        // Mirrors UserSettingsIPCHandlers.handleOpenAtLoginUpdate.
+        if (patch.openAtLogin !== undefined) {
+          try {
+            app.setLoginItemSettings({ openAtLogin: patch.openAtLogin, openAsHidden: false });
+          } catch (err) {
+            console.warn("[CliBridge] Failed to apply openAtLogin side effect:", err);
+          }
+        }
+      },
     },
   };
 }
