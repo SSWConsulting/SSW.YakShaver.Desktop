@@ -74,24 +74,23 @@ export function registerPortalHandlers(identityServerAuthService: IdentityServer
     }
   });
 
-  // #816: list the projects (tenants/organisations) the signed-in user is a member of.
-  // NOTE: there is no confirmed "list my projects" endpoint yet. This wires to the portal
-  // tenants service base (config.portalTenantsUrl()) and maps the response defensively — the
-  // exact path + field shape need backend confirmation (a backend issue against
-  // SSWConsulting/SSW.YakShaver is the proper home for the contract). The UI degrades to a
-  // clear error/empty state if the endpoint/shape differs.
+  // #816: list the projects the signed-in user is a member of.
+  // Sources the confirmed portal endpoint GET {portalApiUrl}/projects/summaries — the same
+  // per-user project list the remote-prompts feature already consumes in production (see
+  // PromptManager.getRemotePrompts). Returns a structured `code` for the signed-out case so
+  // the UI branches on a discriminator rather than parsing the error prose.
   ipcMain.handle(IPC_CHANNELS.PORTAL_GET_MY_PROJECTS, async () => {
     try {
       const accessToken = await identityServerAuthService.getAccessToken();
       if (!accessToken) {
-        return { success: false, error: "Not signed in" } as const;
+        return { success: false, code: "NOT_SIGNED_IN", error: "Not signed in" } as const;
       }
 
-      const apiUrl = config.portalTenantsUrl();
+      const apiUrl = config.portalApiUrl();
       const url = new URL(apiUrl);
       const hostname = url.hostname;
       const port = url.port ? parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
-      const path = url.pathname.replace(/\/$/, "");
+      const path = `${url.pathname.replace(/\/$/, "")}/projects/summaries`;
 
       const data = await new Promise<GetMyProjectsResponse>((resolve, reject) => {
         const options = {
@@ -103,8 +102,6 @@ export function registerPortalHandlers(identityServerAuthService: IdentityServer
             Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
-          // localhost portal uses a self-signed cert in dev (see registerTenantAfterLogin)
-          rejectUnauthorized: !apiUrl.includes("localhost"),
         };
 
         const req = https.request(options, (res) => {
@@ -116,8 +113,14 @@ export function registerPortalHandlers(identityServerAuthService: IdentityServer
             if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
               try {
                 const parsed = JSON.parse(responseData);
-                // Defensive mapping (tested) — the real tenant/project shape isn't confirmed yet.
-                resolve({ items: mapProjectsResponse(parsed) });
+                const items = mapProjectsResponse(parsed);
+                if (items === null) {
+                  // 2xx but an unrecognised body — surface an error rather than a misleading
+                  // "you're not a member of any projects" empty state.
+                  reject(new Error("Unexpected projects response shape"));
+                  return;
+                }
+                resolve({ items });
               } catch (error) {
                 reject(
                   new Error(
@@ -141,7 +144,11 @@ export function registerPortalHandlers(identityServerAuthService: IdentityServer
       return { success: true, data } as const;
     } catch (error) {
       console.error("Portal API error:", formatAndReportError(error, "portal_api"));
-      return { success: false, error: formatAndReportError(error, "portal_api") } as const;
+      return {
+        success: false,
+        code: "REQUEST_FAILED",
+        error: formatAndReportError(error, "portal_api"),
+      } as const;
     }
   });
 

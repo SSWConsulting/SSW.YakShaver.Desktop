@@ -20,8 +20,7 @@ export function ProjectsPage() {
     try {
       const result = await ipcClient.portal.getMyProjects();
       if (!result.success) {
-        // The handler returns "Not signed in" when there is no access token.
-        if ((result.error ?? "").toLowerCase().includes("signed in")) {
+        if (result.code === "NOT_SIGNED_IN") {
           setSignedOut(true);
         } else {
           setError(result.error || "Failed to load projects");
@@ -74,10 +73,10 @@ export function ProjectsPage() {
               key={project.id}
               className="rounded-md border border-white/10 bg-white/5 px-5 py-4 transition-colors hover:bg-white/8"
             >
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-1">
                 <span className="font-medium">{project.name}</span>
-                {project.role ? (
-                  <span className="text-xs capitalize text-muted-foreground">{project.role}</span>
+                {project.description ? (
+                  <span className="text-sm text-muted-foreground">{project.description}</span>
                 ) : null}
               </div>
             </li>

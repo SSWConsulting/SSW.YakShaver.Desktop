@@ -102,17 +102,18 @@ export interface GetMyShavesResponse {
 }
 
 /**
- * A project (tenant/organisation) the signed-in user is a member of (#816).
- * NOTE: the backend "list my projects" contract is not yet confirmed — the field
- * mapping in the portal handler is a best guess and may need adjusting once the
- * real endpoint/shape is pinned (see PR notes for #816).
+ * A project the signed-in user is a member of (#816). Sourced from the portal
+ * `GET {portalApiUrl}/projects/summaries` endpoint (`{ id, title, description }`).
  */
 export interface Project {
   id: string;
   name: string;
-  role?: string | null;
+  description?: string | null;
 }
 
 export interface GetMyProjectsResponse {
   items: Project[];
 }
+
+/** Discriminated error codes the get-my-projects handler can return (#816). */
+export type GetMyProjectsErrorCode = "NOT_SIGNED_IN" | "REQUEST_FAILED";

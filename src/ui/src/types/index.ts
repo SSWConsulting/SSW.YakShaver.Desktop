@@ -194,12 +194,15 @@ export interface GetMyShavesResponse {
 export interface Project {
   id: string;
   name: string;
-  role?: string | null;
+  description?: string | null;
 }
 
 export interface GetMyProjectsResponse {
   items: Project[];
 }
+
+/** Discriminated error codes the get-my-projects handler can return (#816). */
+export type GetMyProjectsErrorCode = "NOT_SIGNED_IN" | "REQUEST_FAILED";
 
 export type VideoFileMetadata = {
   fileName: string;
