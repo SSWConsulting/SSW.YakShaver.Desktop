@@ -70,6 +70,25 @@ describe("McpWorkflowAdapter", () => {
     expect(final.mcpResult).toBe("done");
   });
 
+  it("preserves the streamed steps and orchestrator badge on the failed path (#833)", () => {
+    const { manager, readPayload, getStatus } = makeStubManager();
+    const adapter = new McpWorkflowAdapter(manager, { orchestrator: "claude-code" });
+
+    adapter.onStep({ type: "start", message: "Orchestrating with Claude Code…" });
+    adapter.onStep({ type: "tool_call", toolName: "create_backlog_item" });
+
+    adapter.fail("drafted result", "final output", "No work item was created");
+
+    const final = readPayload();
+    expect(getStatus()).toBe("failed");
+    // failStage clobbers the slot to { error } — fail() must restore the snapshot taken first.
+    expect(final.orchestrator).toBe("claude-code");
+    expect(final.steps).toHaveLength(2);
+    expect(final.error).toBe("No work item was created");
+    expect(final.mcpResult).toBe("drafted result");
+    expect(final.finalOutput).toBe("final output");
+  });
+
   it("does not stamp an orchestrator when none is provided", () => {
     const { manager, readPayload } = makeStubManager();
 

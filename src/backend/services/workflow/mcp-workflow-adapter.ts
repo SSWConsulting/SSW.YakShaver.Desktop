@@ -73,12 +73,15 @@ export class McpWorkflowAdapter {
    * created a backlog item (#833).
    */
   public fail(finalResult: unknown, finalOutput: string | undefined, errorMessage: string) {
+    // Snapshot the streamed steps + orchestrator badge BEFORE failStage() clobbers the payload:
     // failStage records the error + telemetry but REPLACES the stage payload with just { error }.
+    const existing = this.getPayload();
     this.workflowManager.failStage(WorkflowProgressStage.EXECUTING_TASK, errorMessage);
-    // Re-attach the drafted result afterwards (keeping the failed status and the error) so the
-    // user can still see what the model produced.
+    // Re-attach the snapshotted result afterwards (keeping the failed status and the error) so the
+    // user can still see the streamed steps, the orchestrator badge, and what the model produced.
     const payload = {
-      ...this.getPayload(),
+      ...existing,
+      error: errorMessage,
       mcpResult: typeof finalResult === "string" ? finalResult : JSON.stringify(finalResult),
       finalOutput,
     };
