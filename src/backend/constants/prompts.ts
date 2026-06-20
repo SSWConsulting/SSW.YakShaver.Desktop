@@ -11,9 +11,10 @@
  * is deleted.
  */
 export const DUPLICATE_DETECTION_RULES = `10) **Duplicate Detection (CRITICAL)**:
-- Before creating an item you may check the backlog for an existing duplicate, but you MUST IGNORE items that have been deleted or removed.
+- Before creating an item you may check the backlog for an existing duplicate. Only items that are DELETED or REMOVED are excluded from this check — every other matching item still counts.
 - A deleted/removed item DOES NOT count as a duplicate. Treat the following as deleted and exclude them: Azure DevOps work items in the "Removed" state or returned as deleted/in the recycle bin (\`System.State\` = "Removed", or \`isDeleted\` true); GitHub issues that are deleted or closed as "not planned"; Jira issues that are deleted; and any item a tool reports as deleted, removed, archived, or not found.
-- When querying Azure DevOps with WIQL, exclude removed items, e.g. add \`AND [System.State] <> 'Removed'\` to the query.
+- A LIVE, active item is STILL a duplicate. Do NOT use this rule to skip legitimate matches: an item that is merely open, closed/completed normally, in progress, or in any non-removed state is NOT deleted, so if it matches you MUST treat it as the existing duplicate and update it as usual — never create a second copy of a live item.
+- When querying Azure DevOps with WIQL, exclude removed items, e.g. add \`AND [System.State] <> 'Removed'\` to the query. This filter must exclude ONLY removed items; do not let it drop live items in other states.
 - NEVER attempt to update an item that is deleted or removed — the platform will reject the update.
 - If the ONLY matching item is deleted/removed, treat it as if no duplicate exists: create a brand-new, fully-populated item (title, steps to reproduce, acceptance criteria, etc.) and DO NOT add a "duplicate" comment.`;
 

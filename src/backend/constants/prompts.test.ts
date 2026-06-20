@@ -46,6 +46,25 @@ describe("DUPLICATE_DETECTION_RULES — #862 deleted items must not count as dup
     // AC #5: no duplicate comment is added when the only matching PBI is deleted.
     expect(DUPLICATE_DETECTION_RULES.toLowerCase()).toMatch(/do not add a "?duplicate"? comment/i);
   });
+
+  // Happy-path twin (over-trigger guard): the "ignore deleted" rule must NOT suppress legitimate
+  // dedup. A LIVE, non-removed duplicate must STILL be detected and updated. Without an explicit
+  // two-sided rule, an LLM could over-apply "exclude removed items" and stop matching live items.
+  it("still requires a LIVE (non-removed) duplicate to be detected and updated", () => {
+    const rules = DUPLICATE_DETECTION_RULES.toLowerCase();
+    // Only deleted/removed items are excluded — a live item is still a duplicate and must be updated.
+    expect(rules).toContain("live");
+    expect(rules).toMatch(/still.*duplicate/i);
+    expect(rules).toMatch(/update it as usual|update it|treat it as the existing duplicate/i);
+    // And the rule must warn against using the exclusion to skip legitimate matches.
+    expect(rules).toMatch(/do not use this rule to skip|never create a second copy/i);
+  });
+
+  it("scopes the WIQL exclusion to removed items only, not other states", () => {
+    // The Azure DevOps filter must drop ONLY removed items; live items in other states stay in scope.
+    expect(DUPLICATE_DETECTION_RULES).toContain("[System.State] <> 'Removed'");
+    expect(DUPLICATE_DETECTION_RULES.toLowerCase()).toMatch(/exclude only removed/i);
+  });
 });
 
 describe("duplicate-detection guidance is wired into every issue-creation prompt", () => {
