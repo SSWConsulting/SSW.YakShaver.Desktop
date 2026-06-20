@@ -117,7 +117,8 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
         <CardTitle>Orchestrator</CardTitle>
         <CardDescription>
           Choose which backend drives backlog creation. Claude Code requires the{" "}
-          <code className="rounded bg-white/10 px-1 py-0.5 text-xs">claude</code> CLI installed, and uses your Claude Code sign-in (no API key).
+          <code className="rounded bg-white/10 px-1 py-0.5 text-xs">claude</code> CLI installed, and
+          uses your Claude Code sign-in (no API key).
         </CardDescription>
       </CardHeader>
 

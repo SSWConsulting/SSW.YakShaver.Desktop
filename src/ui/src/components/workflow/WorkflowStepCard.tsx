@@ -1,4 +1,5 @@
 import type { WorkflowState, WorkflowStep } from "@shared/types/workflow";
+import type { OrchestratorBackend } from "@shared/types/workflow-payloads";
 import {
   CheckCircle2,
   ChevronDown,
@@ -23,7 +24,7 @@ import { isErrorStep, StageWithContent } from "./StageWithContent";
  * Reads the active orchestrator that drove the Executing Task stage from its parsed payload.
  * Stamped backend-side at stage start (see ExecutingTaskPayload.orchestrator).
  */
-function getOrchestratorBackend(stage: string, parsed: unknown): "openai" | "claude-code" | null {
+function getOrchestratorBackend(stage: string, parsed: unknown): OrchestratorBackend | null {
   if (stage !== "executing_task" || !isRecord(parsed)) return null;
   const backend = parsed.orchestrator;
   return backend === "claude-code" || backend === "openai" ? backend : null;
@@ -33,7 +34,7 @@ function getOrchestratorBackend(stage: string, parsed: unknown): "openai" | "cla
  * A distinct pill marking the Executing Task stage as driven by the local Claude Code orchestrator,
  * so the user clearly sees it even when Claude's live reasoning is terse.
  */
-function OrchestratorBadge({ backend }: { backend: "openai" | "claude-code" }) {
+function OrchestratorBadge({ backend }: { backend: OrchestratorBackend }) {
   if (backend === "claude-code") {
     return (
       <Badge
