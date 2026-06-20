@@ -1,5 +1,6 @@
 import { ProgressStage, type WorkflowState, type WorkflowStatus } from "@shared/types/workflow";
 import { describe, expect, it } from "vitest";
+import { MCPStepType } from "@/types";
 import { formatKeyAsTitle, isWorkflowFailed } from "./";
 
 function makeStep(status: WorkflowStatus) {
@@ -76,5 +77,29 @@ describe("isWorkflowFailed", () => {
       completed[key] = makeStep("completed");
     }
     expect(isWorkflowFailed(completed)).toBe(false);
+  });
+
+  it("returns true when executing_task completed but its payload has a tool-error step", () => {
+    const state = makeState({ executing_task: "completed" });
+    state.executing_task.payload = JSON.stringify({
+      steps: [{ type: MCPStepType.TOOL_RESULT, error: "boom" }],
+    });
+    expect(isWorkflowFailed(state)).toBe(true);
+  });
+
+  it("returns true when executing_task completed but its payload has a tool-denied step", () => {
+    const state = makeState({ executing_task: "completed" });
+    state.executing_task.payload = JSON.stringify({
+      steps: [{ type: MCPStepType.TOOL_DENIED, message: "denied" }],
+    });
+    expect(isWorkflowFailed(state)).toBe(true);
+  });
+
+  it("returns false when executing_task completed with only successful steps", () => {
+    const state = makeState({ executing_task: "completed" });
+    state.executing_task.payload = JSON.stringify({
+      steps: [{ type: MCPStepType.TOOL_RESULT, result: "ok" }],
+    });
+    expect(isWorkflowFailed(state)).toBe(false);
   });
 });

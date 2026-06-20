@@ -2,6 +2,7 @@ import { WORKFLOW_STAGE_ORDER, type WorkflowState } from "@shared/types/workflow
 import { AlertTriangle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { isWorkflowFailed, parseWorkflowProgressNeoPayload } from "@/utils";
+import { WORKFLOW_CLEAR_EVENT_CHANNEL } from "../../types/index";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { WorkflowStepCard } from "./WorkflowStepCard";
@@ -35,10 +36,13 @@ export function WorkflowProgressPanel() {
   }, []);
 
   // Dismiss a finished/failed run and return the processing screen to its ready
-  // state so the user can start fresh without restarting the app (#733).
+  // state so the user can start fresh without restarting the app (#733). The
+  // sibling FinalResultPanel holds its own state, so broadcast a clear event to
+  // reset both panels together rather than orphaning the Final Result card.
   const handleClear = () => {
     setState(null);
     setShaveId(undefined);
+    window.dispatchEvent(new CustomEvent(WORKFLOW_CLEAR_EVENT_CHANNEL));
   };
 
   if (state) {

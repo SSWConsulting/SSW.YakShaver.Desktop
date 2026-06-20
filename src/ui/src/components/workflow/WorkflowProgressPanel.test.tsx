@@ -2,6 +2,8 @@ import { ProgressStage, type WorkflowState, type WorkflowStatus } from "@shared/
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MCPStepType } from "@/types";
+import { WORKFLOW_CLEAR_EVENT_CHANNEL } from "../../types/index";
 import { WorkflowProgressPanel } from "./WorkflowProgressPanel";
 
 type ProgressCallback = (payload: unknown) => void;
@@ -25,22 +27,43 @@ function stubElectronApi() {
   });
 }
 
-function makeStep(status: WorkflowStatus) {
-  return { stage: ProgressStage.UPLOADING_VIDEO, status };
+function makeStep(status: WorkflowStatus, stage: ProgressStage = ProgressStage.UPLOADING_VIDEO) {
+  return { stage, status };
+}
+
+function makeIdleState(): WorkflowState {
+  return {
+    uploading_video: makeStep("not_started", ProgressStage.UPLOADING_VIDEO),
+    downloading_video: makeStep("not_started", ProgressStage.DOWNLOADING_VIDEO),
+    converting_audio: makeStep("not_started", ProgressStage.CONVERTING_AUDIO),
+    transcribing: makeStep("not_started", ProgressStage.TRANSCRIBING),
+    analyzing_transcript: makeStep("not_started", ProgressStage.ANALYZING_TRANSCRIPT),
+    selecting_prompt: makeStep("not_started", ProgressStage.SELECTING_PROMPT),
+    executing_task: makeStep("not_started", ProgressStage.EXECUTING_TASK),
+    updating_metadata: makeStep("not_started", ProgressStage.UPDATING_METADATA),
+  };
 }
 
 // A workflow state where the upload stage has failed and everything else is idle.
 function makeFailedState(): WorkflowState {
-  return {
-    uploading_video: makeStep("failed"),
-    downloading_video: makeStep("not_started"),
-    converting_audio: makeStep("not_started"),
-    transcribing: makeStep("not_started"),
-    analyzing_transcript: makeStep("not_started"),
-    selecting_prompt: makeStep("not_started"),
-    executing_task: makeStep("not_started"),
-    updating_metadata: makeStep("not_started"),
+  const state = makeIdleState();
+  state.uploading_video = makeStep("failed", ProgressStage.UPLOADING_VIDEO);
+  return state;
+}
+
+// A run that the backend marked "completed" because the backlog item was created,
+// yet whose executing_task payload still carries a tool-error step — the case the
+// per-step card renders red but the raw-status failure check used to miss (#733).
+function makeCompletedWithErrorsState(): WorkflowState {
+  const state = makeIdleState();
+  state.executing_task = {
+    stage: ProgressStage.EXECUTING_TASK,
+    status: "completed",
+    payload: JSON.stringify({
+      steps: [{ type: MCPStepType.TOOL_RESULT, error: "tool blew up" }],
+    }),
   };
+  return state;
 }
 
 afterEach(() => {
@@ -92,5 +115,63 @@ describe("WorkflowProgressPanel — clear on processing failure (#733)", () => {
     expect(
       screen.queryByRole("button", { name: /clear failed workflow/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows a Clear action when executing_task completed with error steps in its payload", () => {
+    stubElectronApi();
+
+    render(<WorkflowProgressPanel />);
+
+    act(() => {
+      progressCallback?.({ shaveId: "shave-err", state: makeCompletedWithErrorsState() });
+    });
+
+    expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /clear failed workflow/i })).toBeInTheDocument();
+    expect(screen.getByText(/processing failed/i)).toBeInTheDocument();
+  });
+
+  it("re-populates the panel after Clear when a fresh run arrives (Clear is a soft dismiss)", async () => {
+    stubElectronApi();
+    const user = userEvent.setup();
+
+    render(<WorkflowProgressPanel />);
+
+    act(() => {
+      progressCallback?.({ shaveId: "shave-1", state: makeFailedState() });
+    });
+
+    await user.click(screen.getByRole("button", { name: /clear failed workflow/i }));
+    expect(screen.queryByText("AI Workflow Progress")).not.toBeInTheDocument();
+
+    // The listener stays subscribed, so a brand-new run still drives the panel.
+    const fresh = makeFailedState();
+    fresh.uploading_video = makeStep("in_progress");
+    act(() => {
+      progressCallback?.({ shaveId: "shave-2", state: fresh });
+    });
+
+    expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /clear failed workflow/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("broadcasts a workflow-clear event so sibling panels reset together", async () => {
+    stubElectronApi();
+    const user = userEvent.setup();
+    const onClear = vi.fn();
+    window.addEventListener(WORKFLOW_CLEAR_EVENT_CHANNEL, onClear);
+
+    render(<WorkflowProgressPanel />);
+
+    act(() => {
+      progressCallback?.({ shaveId: "shave-1", state: makeFailedState() });
+    });
+
+    await user.click(screen.getByRole("button", { name: /clear failed workflow/i }));
+
+    expect(onClear).toHaveBeenCalledTimes(1);
+    window.removeEventListener(WORKFLOW_CLEAR_EVENT_CHANNEL, onClear);
   });
 });
