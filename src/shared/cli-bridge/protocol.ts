@@ -23,6 +23,17 @@ export const CLI_BRIDGE_DEFAULT_PORT = 8765;
 /** Env var that, when truthy, disables the bridge entirely. */
 export const CLI_BRIDGE_DISABLE_ENV = "YAKSHAVER_DISABLE_CLI_BRIDGE";
 
+/**
+ * Env vars the desktop orchestrator injects into the spawned `yakshaver
+ * mcp-serve` front-door so it connects to the live bridge deterministically
+ * (without racing the token file). The orchestrator (producer) WRITES these and
+ * the front-door's `buildClient` (consumer) READS them — they are a cross-module
+ * contract, so they live here as the single source of truth. A rename here is a
+ * compile-checked change on both sides; raw string literals were not.
+ */
+export const CLI_BRIDGE_PORT_ENV = "YAKSHAVER_BRIDGE_PORT";
+export const CLI_BRIDGE_TOKEN_ENV = "YAKSHAVER_BRIDGE_TOKEN";
+
 /** Placeholder shown instead of any secret value. */
 export const REDACTED = "***redacted***";
 

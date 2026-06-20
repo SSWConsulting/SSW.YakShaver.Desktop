@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { CLI_BRIDGE_PORT_ENV, CLI_BRIDGE_TOKEN_ENV } from "../../../shared/cli-bridge/protocol";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
 import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
@@ -469,8 +470,8 @@ async function resolveFrontDoorConfig(): Promise<YakshaverFrontDoorConfig> {
   const bridge = CliBridgeServer.getInstance();
   const port = bridge.getPort();
   const token = bridge.getToken();
-  if (port != null) env.YAKSHAVER_BRIDGE_PORT = String(port);
-  if (token) env.YAKSHAVER_BRIDGE_TOKEN = token;
+  if (port != null) env[CLI_BRIDGE_PORT_ENV] = String(port);
+  if (token) env[CLI_BRIDGE_TOKEN_ENV] = token;
 
   return { command: process.execPath, cliEntryPath, env };
 }

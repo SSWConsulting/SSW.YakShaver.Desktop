@@ -5,7 +5,12 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { BridgeToolSummary, ToolCallResult } from "../shared/cli-bridge/protocol";
+import {
+  type BridgeToolSummary,
+  CLI_BRIDGE_PORT_ENV,
+  CLI_BRIDGE_TOKEN_ENV,
+  type ToolCallResult,
+} from "../shared/cli-bridge/protocol";
 import { BridgeClient, BridgeUnavailableError } from "./bridge-client";
 
 /**
@@ -25,10 +30,6 @@ import { BridgeClient, BridgeUnavailableError } from "./bridge-client";
  * token+port are resolved from the same token file the rest of the CLI uses
  * (or env vars the orchestrator injects).
  */
-
-/** Env var overrides the orchestrator may inject so we skip the token-file read. */
-const BRIDGE_PORT_ENV = "YAKSHAVER_BRIDGE_PORT";
-const BRIDGE_TOKEN_ENV = "YAKSHAVER_BRIDGE_TOKEN";
 
 export interface McpServeOptions {
   dev?: boolean;
@@ -57,11 +58,33 @@ export function createMcpServer(options: McpServeOptions = {}): Server {
   return server;
 }
 
-/** Proxy `tools/list` to `GET /tools`, mapping summaries to MCP tool descriptors. */
+/**
+ * Proxy `tools/list` to `GET /tools`, mapping summaries to MCP tool descriptors.
+ *
+ * If the app/bridge becomes UNREACHABLE after the front-door is up (the user
+ * quits/restarts the app, a socket drops mid-shave — surfaced as a
+ * {@link BridgeUnavailableError}), discovery must not abort the whole session
+ * with a JSON-RPC protocol error: it collapses to an empty toolset, mirroring
+ * the bridge router's own never-throw-on-empty contract server-side
+ * (`McpToolBridge.collectToolsOrEmpty`).
+ *
+ * A NON-availability failure (e.g. an authenticated-boundary 401 from a stale
+ * token, or a malformed response) is a persistent misconfiguration, not a
+ * transient dropout — silently returning `[]` would hide it forever, so we let
+ * it propagate.
+ */
 export async function listToolsViaBridge(
   client: Pick<BridgeClient, "get">,
 ): Promise<{ tools: Array<{ name: string; description?: string; inputSchema: object }> }> {
-  const tools = await client.get<BridgeToolSummary[]>("/tools");
+  let tools: BridgeToolSummary[];
+  try {
+    tools = await client.get<BridgeToolSummary[]>("/tools");
+  } catch (err) {
+    if (err instanceof BridgeUnavailableError) {
+      return { tools: [] };
+    }
+    throw err;
+  }
   return {
     tools: tools.map((t) => ({
       name: t.name,
@@ -85,16 +108,32 @@ type McpToolResult = Pick<CallToolResult, "content" | "isError">;
  * original `content` AND the `isError` flag, so an underlying tool FAILURE is
  * never surfaced to Claude as a successful call. (The in-process orchestrator
  * does the same — see mcp-orchestrator.ts: `ok: !toolErrored`.)
+ *
+ * A TRANSPORT failure (the bridge client throws — app quit/restart, socket drop,
+ * non-JSON body mid-shave) is caught and mapped to the SAME `isError` tool-result
+ * shape as the `ok:false` execution-failure path. Per the MCP spec a tool-call
+ * failure must reach the model as `isError:true` so it can see it and self-correct;
+ * a thrown error would instead escape as a JSON-RPC protocol error that aborts the
+ * request unrecoverably.
  */
 export async function callToolViaBridge(
   client: Pick<BridgeClient, "post">,
   name: string,
   args: Record<string, unknown> | undefined,
 ): Promise<McpToolResult> {
-  const result = await client.post<ToolCallResult>("/tools/call", {
-    name,
-    arguments: args ?? {},
-  });
+  let result: ToolCallResult;
+  try {
+    result = await client.post<ToolCallResult>("/tools/call", {
+      name,
+      arguments: args ?? {},
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      isError: true,
+      content: [{ type: "text", text: `Tool failed: ${message}` }],
+    };
+  }
 
   if (!result.ok) {
     const prefix = result.notApproved ? "Tool not approved: " : "Tool failed: ";
@@ -149,8 +188,8 @@ export async function runMcpServe(options: McpServeOptions = {}): Promise<void> 
 
 /** Construct a BridgeClient, honouring orchestrator-injected env overrides. */
 function buildClient(dev?: boolean): BridgeClient {
-  const port = process.env[BRIDGE_PORT_ENV];
-  const token = process.env[BRIDGE_TOKEN_ENV];
+  const port = process.env[CLI_BRIDGE_PORT_ENV];
+  const token = process.env[CLI_BRIDGE_TOKEN_ENV];
   if (port && token) {
     const parsedPort = Number(port);
     if (Number.isFinite(parsedPort) && parsedPort > 0) {

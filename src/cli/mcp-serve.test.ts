@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { BridgeToolSummary, ToolCallResult } from "../shared/cli-bridge/protocol";
+import { BridgeUnavailableError } from "./bridge-client";
 import { callToolViaBridge, listToolsViaBridge } from "./mcp-serve";
 
 /** Read the `text` off the first content item (MCP content is a typed union). */
@@ -43,6 +44,22 @@ describe("mcp-serve front-door — tools/list proxy", () => {
     ]);
     const result = await listToolsViaBridge({ get });
     expect(result.tools[0].inputSchema).toEqual({ type: "object", properties: {} });
+  });
+
+  it("collapses a mid-run bridge UNAVAILABILITY to an empty toolset (not a protocol error)", async () => {
+    // The app quit/restarted after the front-door was up: the GET throws
+    // BridgeUnavailableError. Discovery must not abort the session — it degrades
+    // to [] like the bridge router's own never-throw-on-empty contract.
+    const get = vi.fn().mockRejectedValue(new BridgeUnavailableError("app not running"));
+    const result = await listToolsViaBridge({ get });
+    expect(result.tools).toEqual([]);
+  });
+
+  it("propagates a non-availability failure (e.g. 401/malformed) rather than masking it as []", async () => {
+    // A stale-token 401 or malformed response is a persistent misconfiguration, not
+    // a transient dropout — silently returning [] would hide it, so it must surface.
+    const get = vi.fn().mockRejectedValue(new Error("unauthorized"));
+    await expect(listToolsViaBridge({ get })).rejects.toThrow(/unauthorized/i);
   });
 });
 
@@ -114,5 +131,19 @@ describe("mcp-serve front-door — tools/call proxy", () => {
     const result = await callToolViaBridge({ post }, "GitHub__create_issue", {});
     expect(result.isError).toBe(true);
     expect(firstText(result.content)).toMatch(/Tool failed: boom/);
+  });
+
+  it("maps a mid-run bridge transport throw to an isError tool result (not a protocol error)", async () => {
+    // The bridge became unreachable mid-shave (app quit/socket drop): post() throws.
+    // Per MCP, that must reach Claude as a recoverable isError result so it can
+    // self-correct — never escape as a JSON-RPC protocol error.
+    const post = vi
+      .fn()
+      .mockRejectedValue(new Error("YakShaver Desktop doesn't appear to be running"));
+    const result = await callToolViaBridge({ post }, "GitHub__create_issue", {});
+    expect(result.isError).toBe(true);
+    expect(firstText(result.content)).toMatch(
+      /Tool failed: YakShaver Desktop doesn't appear to be running/,
+    );
   });
 });
