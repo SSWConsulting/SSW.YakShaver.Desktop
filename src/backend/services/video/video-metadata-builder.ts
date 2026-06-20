@@ -3,6 +3,7 @@ import { z } from "zod";
 import { METADATA_SYSTEM_PROMPT } from "../../constants/prompts.js";
 import type { YouTubeSnippetUpdate } from "../auth/types.js";
 import { LanguageModelProvider } from "../mcp/language-model-provider.js";
+import { sanitizeYouTubeSnippet } from "./youtube-metadata-sanitizer.js";
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s)]+/gi;
 
@@ -90,12 +91,15 @@ export class VideoMetadataBuilder {
       input.transcript,
       executionHistorySnippet,
     );
-    const snippet: YouTubeSnippetUpdate = {
+    // #861: sanitize/validate the snippet before it leaves the builder so the
+    // YouTube Data API does not reject it with "invalid video description" — the
+    // root cause of #861 (disallowed angle brackets, over-length fields, etc.).
+    const snippet: YouTubeSnippetUpdate = sanitizeYouTubeSnippet({
       title: metadata.title,
       description: appendChapters(metadata.description, metadata.chapters),
       tags: metadata.tags.slice(0, 10),
       categoryId: "28", // Science & Technology
-    };
+    });
 
     return { snippet, metadata };
   }

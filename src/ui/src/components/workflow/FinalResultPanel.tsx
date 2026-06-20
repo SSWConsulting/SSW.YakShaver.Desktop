@@ -341,21 +341,31 @@ function ValueRenderer({ value, onCopy }: ValueRendererProps): React.ReactNode {
 }
 
 interface StatusBadgeProps {
-  status: "success" | "fail";
+  status: "success" | "fail" | "warning";
 }
 
+const STATUS_BADGE_STYLES: Record<
+  StatusBadgeProps["status"],
+  { className: string; label: string }
+> = {
+  success: {
+    className: "bg-green-500/20 text-green-400 border border-green-500/30",
+    label: "Success",
+  },
+  warning: {
+    className: "bg-amber-500/20 text-amber-300 border border-amber-500/30",
+    label: "Completed with a warning",
+  },
+  fail: {
+    className: "bg-red-500/20 text-red-400 border border-red-500/30",
+    label: "Failed",
+  },
+};
+
 function StatusBadge({ status }: StatusBadgeProps) {
-  const isSuccess = status === "success";
+  const { className, label } = STATUS_BADGE_STYLES[status];
   return (
-    <span
-      className={`text-sm font-medium px-3 py-1.5 rounded-full ${
-        isSuccess
-          ? "bg-green-500/20 text-green-400 border border-green-500/30"
-          : "bg-red-500/20 text-red-400 border border-red-500/30"
-      }`}
-    >
-      {isSuccess ? "Success" : "Failed"}
-    </span>
+    <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${className}`}>{label}</span>
   );
 }
 
@@ -568,6 +578,46 @@ function getActiveStage(state: WorkflowState): keyof WorkflowState | null {
   return activeStage ?? null;
 }
 
+/**
+ * #861/#672: derive the post-creation warning TOTALLY from the current workflow state.
+ * Returns the failure message when the video upload OR the metadata-update stage failed,
+ * and `null` otherwise — so the warning self-clears once a retry brings those stages back
+ * to a non-failed state. Upload failure takes precedence (it skips the metadata stage).
+ */
+export function deriveStageWarning(state: WorkflowState): string | null {
+  const uploadStep = state[WorkflowProgressStage.UPLOADING_VIDEO];
+  if (uploadStep?.status === "failed") {
+    return (
+      getStringValue(parseWorkflowStepPayload(uploadStep), "error") ||
+      "The work item was created, but uploading the video to YouTube failed."
+    );
+  }
+
+  const metadataStep = state[WorkflowProgressStage.UPDATING_METADATA];
+  if (metadataStep?.status === "failed") {
+    return (
+      getStringValue(parseWorkflowStepPayload(metadataStep), "error") ||
+      "The work item was created, but updating the YouTube video metadata failed."
+    );
+  }
+
+  return null;
+}
+
+/**
+ * #861 AC#3: the overall run must NOT be shown as a plain "Success" when a required
+ * post-creation stage failed. Downgrade the AI's "success" status to "warning" so the
+ * badge reflects reality; a genuine "fail" from the AI stays "fail".
+ */
+export function resolveDisplayStatus(
+  aiStatus: "success" | "fail" | undefined,
+  state: WorkflowState | null,
+): "success" | "fail" | "warning" | undefined {
+  if (aiStatus === "fail") return "fail";
+  if (state && deriveStageWarning(state)) return "warning";
+  return aiStatus;
+}
+
 export function FinalResultPanel() {
   const [finalOutput, setFinalOutput] = useState<string | undefined>();
   const [intermediateOutput, setIntermediateOutput] = useState<string | undefined>();
@@ -587,6 +637,9 @@ export function FinalResultPanel() {
   // created. The AI's Status still reads "success", so surface the failure as a warning
   // instead of letting the panel claim everything is "all good".
   const [stageWarning, setStageWarning] = useState<string | null>(null);
+  // #861 AC#3: retain the latest workflow state so the final badge can reflect a failed
+  // post-creation stage (upload/metadata) rather than blindly trusting the AI's "success".
+  const [workflowState, setWorkflowState] = useState<WorkflowState | null>(null);
 
   const stageRef = useRef<keyof WorkflowState | null>(null);
 
@@ -623,6 +676,7 @@ export function FinalResultPanel() {
     setHasUndoCompleted(false);
     setLastUndoPrompt(null);
     setStageWarning(null);
+    setWorkflowState(null);
     emitUndoEvent("reset");
   }, []);
 
@@ -688,21 +742,12 @@ export function FinalResultPanel() {
       // A failed upload SKIPS the metadata stage (it never runs), so it needs its own check —
       // the metadata branch alone stays silent on an upload failure, re-introducing the exact
       // silent-success bug #672 set out to kill, just on the final panel.
-      const uploadStep = state[WorkflowProgressStage.UPLOADING_VIDEO];
-      const metadataStep = state[WorkflowProgressStage.UPDATING_METADATA];
-      if (uploadStep?.status === "failed") {
-        const uploadPayload = parseWorkflowStepPayload(uploadStep);
-        setStageWarning(
-          getStringValue(uploadPayload, "error") ||
-            "The work item was created, but uploading the video to YouTube failed.",
-        );
-      } else if (metadataStep?.status === "failed") {
-        const metadataPayload = parseWorkflowStepPayload(metadataStep);
-        setStageWarning(
-          getStringValue(metadataPayload, "error") ||
-            "The work item was created, but updating the YouTube video metadata failed.",
-        );
-      }
+      //
+      // Derive the warning TOTALLY from the current state on every broadcast (and clear it when
+      // neither stage is failed) so a successful metadata-only retry — which never re-enters the
+      // EXECUTING_TASK stage that resetForNewRun keys off — doesn't leave a stale warning behind.
+      setStageWarning(deriveStageWarning(state));
+      setWorkflowState(state);
 
       stageRef.current = currentStage;
     });
@@ -812,7 +857,10 @@ export function FinalResultPanel() {
   if (!finalOutput) return null;
 
   const { parsed, raw, isJson } = parseFinalOutput(finalOutput);
-  const status = (isJson && parsed?.Status) as "success" | "fail" | undefined;
+  const aiStatus = (isJson && parsed?.Status) as "success" | "fail" | undefined;
+  // #861 AC#3: a failed post-creation stage downgrades the AI's "success" to a "warning"
+  // badge so the panel never claims a plain success while the upload/metadata stage failed.
+  const status = resolveDisplayStatus(aiStatus, workflowState);
   const showActions = Boolean(finalOutput);
   const canReprocessOriginal = showActions && Boolean(intermediateOutput && uploadResult);
   const canReprocessUndo = hasUndoCompleted && Boolean(lastUndoPrompt);

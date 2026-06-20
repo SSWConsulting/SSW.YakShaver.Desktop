@@ -5,6 +5,7 @@ import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
 import { formatAndReportError } from "../../utils/error-utils";
 import { YoutubeStorage } from "../storage/youtube-storage";
+import { sanitizeYouTubeSnippet } from "../video/youtube-metadata-sanitizer";
 import type {
   AuthResult,
   UserInfo,
@@ -223,6 +224,11 @@ export class YouTubeClient {
         };
       }
 
+      // #861: sanitize at the API boundary too (defense-in-depth) so a snippet
+      // built elsewhere can't reach the YouTube API with disallowed angle
+      // brackets / over-length fields that trigger "invalid video description".
+      const safeSnippet = sanitizeYouTubeSnippet(snippet);
+
       const client = await this.getAuthenticatedClient();
       const youtube = google.youtube({ version: "v3", auth: client });
       const response = await youtube.videos.update({
@@ -230,20 +236,20 @@ export class YouTubeClient {
         requestBody: {
           id: videoId,
           snippet: {
-            ...snippet,
-            categoryId: snippet.categoryId ?? "28",
+            ...safeSnippet,
+            categoryId: safeSnippet.categoryId ?? "28",
           },
         },
       });
 
-      const updatedSnippet = response.data.snippet ?? snippet;
+      const updatedSnippet = response.data.snippet ?? safeSnippet;
 
       return {
         success: true,
         data: {
           videoId,
-          title: updatedSnippet.title || snippet.title,
-          description: updatedSnippet.description || snippet.description,
+          title: updatedSnippet.title || safeSnippet.title,
+          description: updatedSnippet.description || safeSnippet.description,
           url: `https://www.youtube.com/watch?v=${videoId}`,
         },
         origin,

@@ -11,6 +11,7 @@ import { ShaveService } from "../shave/shave-service";
 import type { YouTubeDownloadService } from "../video/youtube-service";
 import type { CheckpointData } from "./workflow-checkpoint-service";
 import type { WorkflowStateManager } from "./workflow-state-manager";
+import { applyUploadStageOutcome } from "./youtube-stage-decisions";
 
 export type VideoProcessingContext = {
   filePath: string;
@@ -148,11 +149,11 @@ export class WorkflowRetryService {
         youtubeResult.data.duration = duration;
       }
 
-      workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, {
-        filePath,
-        sourceOrigin: youtubeResult.origin,
-        uploadResult: youtubeResult,
-      });
+      // #672: route the retry upload through the SAME success-gating helper as the
+      // first-run path. uploadVideo() returns { success:false } (without throwing)
+      // for the no-YouTube-channel case, so an unconditional completeStage here
+      // would re-introduce the #672 "green tick with no link" bug on retry.
+      applyUploadStageOutcome(youtubeResult, filePath, workflowManager);
       workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
         filePath,
         youtubeResult,

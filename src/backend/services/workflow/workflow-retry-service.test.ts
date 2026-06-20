@@ -301,6 +301,38 @@ describe("WorkflowRetryService", () => {
     expect(deps.processVideoSource).toHaveBeenCalled();
   });
 
+  it("completes the upload stage on a successful retry (green tick + link)", async () => {
+    const manager = setupFailedWorkflow(ProgressStage.UPLOADING_VIDEO);
+    manager.createCheckpoint(ProgressStage.UPLOADING_VIDEO, { filePath: "/tmp/test.mp4" });
+    (deps.getOrCreateWorkflowManager as ReturnType<typeof vi.fn>).mockReturnValue(manager);
+
+    await service.retryFromStage(ProgressStage.UPLOADING_VIDEO, SHAVE_ID);
+
+    expect(manager.getStepState(ProgressStage.UPLOADING_VIDEO).status).toBe("completed");
+    expect(deps.processVideoSource).toHaveBeenCalled();
+  });
+
+  it("#672: FAILS the upload stage when a retry upload returns success:false without throwing", async () => {
+    // The no-YouTube-channel case: uploadVideo resolves { success:false } (no throw).
+    // The retry must NOT show a green tick — it must fail the stage so the user sees why.
+    const manager = setupFailedWorkflow(ProgressStage.UPLOADING_VIDEO);
+    manager.createCheckpoint(ProgressStage.UPLOADING_VIDEO, { filePath: "/tmp/test.mp4" });
+    (deps.getOrCreateWorkflowManager as ReturnType<typeof vi.fn>).mockReturnValue(manager);
+    (deps.youtube.uploadVideo as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      error: "Your Google account has no YouTube channel",
+    } satisfies VideoUploadResult);
+
+    await service.retryFromStage(ProgressStage.UPLOADING_VIDEO, SHAVE_ID);
+
+    const step = manager.getStepState(ProgressStage.UPLOADING_VIDEO);
+    expect(step.status).toBe("failed");
+    expect(step.payload).toBeDefined();
+    expect(JSON.parse(step.payload as string).error).toBe(
+      "Your Google account has no YouTube channel",
+    );
+  });
+
   it("retries downloading_video by re-downloading the URL", async () => {
     const manager = new WorkflowStateManager(SHAVE_ID);
     manager.skipStage(ProgressStage.UPLOADING_VIDEO);
