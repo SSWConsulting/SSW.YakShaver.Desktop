@@ -10,6 +10,10 @@
 /**
  * A project surfaced in the desktop Projects section (#816). Sourced from the portal
  * `GET {portalApiUrl}/projects/summaries` endpoint (`{ id, title, description }`).
+ *
+ * That endpoint is tenant/organisation-scoped (all active projects in the signed-in user's
+ * org), not membership-scoped — a true "projects I'm a member of" list awaits the user-scoped
+ * backend endpoint tracked in SSWConsulting/SSW.YakShaver#3775.
  */
 export interface Project {
   id: string;

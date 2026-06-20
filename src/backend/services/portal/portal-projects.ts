@@ -4,7 +4,20 @@ import { config } from "../../config/env";
 import { formatErrorMessage } from "../../utils/error-utils";
 
 /**
- * The shape returned by the portal `GET {portalApiUrl}/projects/summaries` endpoint.
+ * Path (relative to the portal API base) of the project-summaries endpoint.
+ *
+ * IMPORTANT (#816 AC2): this endpoint is the backend `GetProjectSummaries` query, which is
+ * scoped to the signed-in user's *tenant/organisation* — it returns every active project in
+ * the caller's org, NOT only the projects the caller is an explicit member of. There is no
+ * user-membership-scoped endpoint in the backend yet; that contract is tracked in backend
+ * issue SSWConsulting/SSW.YakShaver#3775. When #3775 lands, repoint this one constant at the
+ * user-scoped path (e.g. `/me/projects`) and the Projects section becomes a true memberships
+ * list — no other change required here.
+ */
+export const PROJECT_SUMMARIES_PATH = "/projects/summaries";
+
+/**
+ * The shape returned by the portal `GET {portalApiUrl}${PROJECT_SUMMARIES_PATH}` endpoint.
  * A JSON array of `{ id, title, description }`. This module is the single owner of that
  * contract — both the remote-prompts feature (PromptManager.getRemotePrompts) and the
  * Projects section (#816) consume it from here rather than re-deriving it (AGENTS.md
@@ -26,16 +39,16 @@ function isProjectSummaryDto(value: unknown): value is ProjectSummaryDto {
 }
 
 /**
- * Performs the authenticated `GET {portalApiUrl}/projects/summaries` request and returns the
- * raw parsed JSON body. Uses the Node `https` module (rather than `fetch`) to stay consistent
- * with the other portal calls' SSL-certificate handling. Rejects on a non-2xx status or a body
- * that fails to parse as JSON. Callers are responsible for validating/mapping the shape.
+ * Performs the authenticated `GET {portalApiUrl}${PROJECT_SUMMARIES_PATH}` request and returns
+ * the raw parsed JSON body. Uses the Node `https` module (rather than `fetch`) to stay
+ * consistent with the other portal calls' SSL-certificate handling. Rejects on a non-2xx status
+ * or a body that fails to parse as JSON. Callers are responsible for validating/mapping the shape.
  */
 export function fetchProjectSummaries(accessToken: string): Promise<unknown> {
   const url = new URL(config.portalApiUrl());
   const hostname = url.hostname;
   const port = url.port ? Number.parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
-  const path = `${url.pathname.replace(/\/$/, "")}/projects/summaries`;
+  const path = `${url.pathname.replace(/\/$/, "")}${PROJECT_SUMMARIES_PATH}`;
 
   return new Promise<unknown>((resolve, reject) => {
     const req = https.request(
