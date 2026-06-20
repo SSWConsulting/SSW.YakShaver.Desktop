@@ -1,14 +1,28 @@
 import { Circle, Square } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import logoImageRed from "/logos/SQ-YakShaver-LogoIcon-Red.svg?url";
 
 export default function RecordingControlBar() {
   const [time, setTime] = useState("00:00");
+  // Tracks whether a live push has already arrived, so the async on-mount
+  // pull never clobbers a newer pushed value if they race.
+  const receivedPushRef = useRef(false);
 
   useEffect(() => {
-    const unsubscribe = window.electronAPI.controlBar.onTimeUpdate(setTime);
+    const unsubscribe = window.electronAPI.controlBar.onTimeUpdate((t) => {
+      receivedPushRef.current = true;
+      setTime(t);
+    });
+    // Pull the current time now that we've subscribed. This closes the
+    // drop-before-subscribe race (#870): if the timer started and pushed its
+    // first value before this renderer mounted, that push was missed, so we
+    // ask the main process for the authoritative current time instead of
+    // staying stuck on the initial 00:00.
+    window.electronAPI.controlBar.getCurrentTime().then((t) => {
+      if (t && !receivedPushRef.current) setTime(t);
+    });
     return unsubscribe;
   }, []);
 

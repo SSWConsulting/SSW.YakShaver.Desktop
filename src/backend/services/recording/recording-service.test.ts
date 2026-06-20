@@ -51,6 +51,19 @@ describe("RecordingService timer (#870)", () => {
     expect(ticks).toEqual([0, 1, 2]); // no further ticks after stop
   });
 
+  it("reports live elapsed seconds while running and null when stopped (#870 handshake)", async () => {
+    expect(service.getCurrentElapsedSeconds()).toBeNull();
+
+    service.startRecordingTimer();
+    expect(service.getCurrentElapsedSeconds()).toBe(0);
+
+    vi.advanceTimersByTime(3000);
+    expect(service.getCurrentElapsedSeconds()).toBe(3);
+
+    await service.cleanupAllTempFiles();
+    expect(service.getCurrentElapsedSeconds()).toBeNull();
+  });
+
   it("restarts cleanly from 0 on a subsequent recording", async () => {
     service.startRecordingTimer();
     vi.advanceTimersByTime(2000);

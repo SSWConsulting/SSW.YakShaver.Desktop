@@ -25,6 +25,15 @@ export class RecordingService extends EventEmitter {
     return this.displayId;
   }
 
+  // Live elapsed seconds for the running timer, or null when no timer is
+  // active. Used by the control bar's mount handshake so a renderer that
+  // subscribes after the timer started can pull the current value instead of
+  // relying on a push it may have missed (#870).
+  getCurrentElapsedSeconds(): number | null {
+    if (!this.timer) return null;
+    return Math.floor((Date.now() - this.startTime) / 1000);
+  }
+
   async handleStartRecording(sourceId?: string): Promise<StartRecordingResult> {
     try {
       this.stopTimer();

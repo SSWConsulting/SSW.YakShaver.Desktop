@@ -9,9 +9,12 @@ export class RecordingControlBarWindow {
   private static instance: RecordingControlBarWindow;
   private window: BrowserWindow | null = null;
   private isDev = false;
-  // Most recent recording time forwarded from the service, retained so a
-  // newly-loaded control bar renderer can be re-synced (#870).
+  // Most recent recording time forwarded from the service, retained so the
+  // control bar renderer can be re-synced via the mount handshake (#870).
   private latestSeconds: number | null = null;
+  // Resolves the live elapsed time when the renderer requests it on mount.
+  // Injected so this window stays decoupled from RecordingService.
+  private getElapsedSeconds: (() => number | null) | null = null;
 
   static getInstance() {
     RecordingControlBarWindow.instance ??= new RecordingControlBarWindow();
@@ -20,6 +23,22 @@ export class RecordingControlBarWindow {
 
   initialize(isDev: boolean): void {
     this.isDev = isDev;
+  }
+
+  // Provide a source of truth for the live elapsed time so the renderer's
+  // mount handshake can be answered with the current value.
+  setElapsedProvider(provider: () => number | null): void {
+    this.getElapsedSeconds = provider;
+  }
+
+  // Answer the renderer's on-mount request for the current time. The renderer
+  // calls this immediately after it has subscribed to time updates, which
+  // closes the drop-before-subscribe race: regardless of whether the renderer
+  // mounted before or after the first push, it pulls the authoritative value
+  // here. Prefers the live elapsed time, falling back to the last pushed value.
+  getCurrentTime(): string | null {
+    const seconds = this.getElapsedSeconds?.() ?? this.latestSeconds;
+    return seconds === null || seconds === undefined ? null : formatRecordingTime(seconds);
   }
 
   async showAtDisplay(displayId?: string): Promise<void> {
@@ -50,16 +69,6 @@ export class RecordingControlBarWindow {
       this.window = null;
     });
 
-    // The renderer subscribes to time updates on mount, which can complete
-    // after the timer has already emitted ticks (more likely on slower/macOS
-    // timing). Re-push the latest known time once the page has loaded so the
-    // bar isn't stuck on its initial 00:00 (#870).
-    this.window.webContents.on("did-finish-load", () => {
-      if (this.latestSeconds !== null) {
-        this.sendTime(this.latestSeconds);
-      }
-    });
-
     this.window.setAlwaysOnTop(true, "screen-saver");
 
     // Don't include this window in the recording
@@ -73,7 +82,8 @@ export class RecordingControlBarWindow {
   hide() {
     this.window?.destroy();
     this.window = null;
-    // Clear so the next recording doesn't briefly re-push a stale time on load.
+    // Clear so a new recording's mount handshake doesn't fall back to a stale
+    // time before the live elapsed provider reports the fresh recording.
     this.latestSeconds = null;
   }
 
@@ -103,7 +113,7 @@ export class RecordingControlBarWindow {
   }
 
   private sendTime(seconds: number): void {
-    if (this.window && !this.window.isDestroyed()) {
+    if (this.window && !this.window.isDestroyed() && !this.window.webContents.isDestroyed()) {
       this.window.webContents.send("update-recording-time", formatRecordingTime(seconds));
     }
   }
