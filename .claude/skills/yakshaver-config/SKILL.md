@@ -93,19 +93,26 @@ instead of pretty output), `-h` / `--help`. Exit codes: `0` ok, `1` runtime/requ
 
 ```text
 yakshaver mcp list
-yakshaver mcp add --name <name> --transport stdio --command <cmd> [--args "a b c"] [--env "K=V,K2=V2"]
+yakshaver mcp add --name <name> --transport stdio --command <cmd> [--arg <a> --arg <b> ...] [--env "K=V,K2=V2"]
 yakshaver mcp add --name <name> --transport http  --url <url>      [--header "K=V"]
 yakshaver mcp remove <id>
 yakshaver mcp enable <id> [--off]   # without --off enables; --off disables
 ```
 
 - `--transport` accepts `stdio` or `http` (aliased to the internal `streamableHttp`).
-- **Launch args (`stdio`): use `--args "a b c"`** — a single string that the CLI splits on
-  **spaces** into the argument list (e.g. `--args "-y @azure-devops/mcp <org>"` becomes
-  `["-y", "@azure-devops/mcp", "<org>"]`). Because the split is on whitespace, `--args`
-  **cannot express an individual argument that itself contains a space** (e.g. a Windows path
-  like `C:\My Tools\server.js`); the CLI has no flag for that today. If a server genuinely
-  needs a space-containing argument, tell the user and direct them to the app's Settings UI.
+- **Launch args (`stdio`): use the repeatable `--arg <value>` flag** — this is the primary,
+  robust mechanism. Pass one `--arg` per launch argument; each value is taken **verbatim**, so
+  a single argument may contain spaces (e.g. a Windows path: `--arg "C:\My Tools\server.js"`)
+  and may itself begin with `--` (a flag-shaped argument: `--arg --port --arg 3000`). For
+  example, `--arg -y --arg @azure-devops/mcp --arg <org>` becomes
+  `["-y", "@azure-devops/mcp", "<org>"]`.
+- **Legacy `--args "a b c"`** is kept only as a convenience for the trivial, space-free case:
+  it's a single string that the CLI splits on **spaces** into the argument list. Because the
+  split is on whitespace, `--args` **cannot express an individual argument that itself contains
+  a space** — use `--arg "C:\My Tools\server.js"` for that instead.
+- `--arg` and `--args` are **mutually exclusive** — passing both is a usage error
+  (`Use either --arg (repeatable, supports spaces) or --args (space-separated), not both`).
+  Prefer `--arg`; reach for `--args` only for a quick, space-free arg list.
 - `--env` and `--header` are **comma-separated** `KEY=VALUE` lists (e.g. `--env "A=1,B=2"`).
 - `mcp remove` and `mcp enable` select the target server by its positional **id** (get the
   id from `yakshaver mcp list`). There is no `--name` selector for remove/enable in this
@@ -151,24 +158,28 @@ yakshaver mcp list          # confirm it appears
 
 ### Add a stdio MCP server (e.g. Azure DevOps via npx)
 
-Pass the launch arguments as a single space-separated `--args` string; the CLI splits it on
-spaces into the argument list:
+Pass each launch argument with its own repeatable `--arg` flag (each value is taken verbatim):
 
 ```bash
 yakshaver mcp add \
   --name "Azure DevOps" \
   --transport stdio \
   --command "npx" \
-  --args "-y @azure-devops/mcp <your-org> --authentication pat" \
+  --arg -y \
+  --arg @azure-devops/mcp \
+  --arg <your-org> \
+  --arg --authentication \
+  --arg pat \
   --env "PERSONAL_ACCESS_TOKEN=$ADO_PAT_B64"
 ```
 
 (Set `export ADO_PAT_B64="<USER_PROVIDED_BASE64_EMAIL_COLON_PAT>"` first so the literal token
 isn't typed into the command line — see the secrets guardrail. Clear your history afterward.)
 
-(`--args` is split on spaces, so each token above — `-y`, `@azure-devops/mcp`, `<your-org>`,
-`--authentication`, `pat` — becomes a separate argument. None of these arguments contains a
-space, so the space-split is safe here.)
+(Each `--arg` value above — `-y`, `@azure-devops/mcp`, `<your-org>`, `--authentication`, `pat`
+— becomes one argument verbatim. Note `--arg --authentication` works because `--arg` takes its
+following token literally even when that token is itself flag-shaped. If any argument needed to
+contain a space — e.g. a Windows path — you'd quote it: `--arg "C:\My Tools\server.js"`.)
 
 **Get the auth wiring from the official docs — don't invent it.** The example above is the
 Microsoft `@azure-devops/mcp` server, which selects its auth method with the
