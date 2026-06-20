@@ -5,6 +5,7 @@ import { formatAndReportError } from "../../utils/error-utils";
 import {
   authorizeWithBackend,
   isInvalidRefreshTokenError,
+  McpTokenRefreshError,
   refreshTokenWithBackendWithRetry,
 } from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
@@ -71,6 +72,11 @@ export class MCPServerClient {
           await tokenStorage.saveTokensAsync(serverId, newTokens);
           tokens = await tokenStorage.getTokensAsync(serverId);
         } catch (refreshError) {
+          // Status, if the backend classified the failure. Never log token values (#836 AC #4
+          // asks for diagnosable sign-outs, not secrets).
+          const refreshStatus =
+            refreshError instanceof McpTokenRefreshError ? refreshError.status : undefined;
+
           if (isInvalidRefreshTokenError(refreshError)) {
             // The backend positively rejected the refresh token (revoked / expired). The
             // credential is genuinely dead, so clear it and let the user reconnect.
@@ -78,6 +84,14 @@ export class MCPServerClient {
               `[MCPServerClient] Refresh token for ${mcpConfig.name} (server ${serverId}) was rejected as invalid; clearing stored tokens so the user can re-authenticate.`,
               refreshError,
             );
+            // Route to Application Insights so an unexpected sign-out is diagnosable centrally
+            // for this intermittent, in-the-field bug (#836 AC #4), not only in local console
+            // logs that never leave the user's machine.
+            formatAndReportError(refreshError, "mcp_token_refresh", {
+              serverId,
+              reason: "invalid_grant_cleared",
+              ...(refreshStatus !== undefined ? { status: refreshStatus } : {}),
+            });
             await tokenStorage.clearTokensAsync(serverId);
             tokens = undefined;
           } else {
@@ -90,6 +104,13 @@ export class MCPServerClient {
               `[MCPServerClient] Transient failure refreshing token for ${mcpConfig.name} (server ${serverId}); preserving stored tokens for automatic retry.`,
               refreshError,
             );
+            // Also report transient refresh failures centrally so a recurring transient cause
+            // (e.g. a backend/SSL issue silently retrying forever) is diagnosable in App Insights.
+            formatAndReportError(refreshError, "mcp_token_refresh", {
+              serverId,
+              reason: "transient_preserved",
+              ...(refreshStatus !== undefined ? { status: refreshStatus } : {}),
+            });
             throw refreshError;
           }
         }
