@@ -14,10 +14,16 @@ token-authenticated bridge.
 
 MCP
   yakshaver mcp list
-  yakshaver mcp add --name <name> --transport stdio --command <cmd> [--args "a b"] [--env "K=V,K2=V2"]
+  yakshaver mcp add --name <name> --transport stdio --command <cmd> [--arg <a> --arg <b> ...] [--env "K=V,K2=V2"]
   yakshaver mcp add --name <name> --transport http  --url <url> [--header "K=V"]
   yakshaver mcp remove <id>
   yakshaver mcp enable <id> [--off]        # --off disables instead of enabling
+
+  Use --arg (repeatable) for each launch argument; values may contain spaces,
+  e.g. --arg "C:\\My Tools\\server.js". A value that itself begins with -- must
+  use the equals form, e.g. --arg=--config="My File.json". The legacy
+  --args "a b c" splits on spaces and cannot express an argument that itself
+  contains a space.
 
 CONFIG
   yakshaver config get [llm|settings]      # defaults to settings

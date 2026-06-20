@@ -1,4 +1,10 @@
-import { optionalString, type ParsedArgs, parseKeyValueList, requireString } from "./args";
+import {
+  optionalString,
+  optionalStringArray,
+  type ParsedArgs,
+  parseKeyValueList,
+  requireString,
+} from "./args";
 
 /** A resolved request the CLI should issue against the bridge. */
 export interface CommandRequest {
@@ -20,7 +26,7 @@ export function buildRequest(parsed: ParsedArgs): CommandRequest {
   const { options } = parsed;
 
   if (group === "mcp") {
-    return buildMcpRequest(action, rest, options);
+    return buildMcpRequest(action, rest, options, parsed.multiOptions);
   }
   if (group === "config") {
     return buildConfigRequest(action, rest, options);
@@ -33,6 +39,7 @@ function buildMcpRequest(
   action: string | undefined,
   rest: string[],
   options: Record<string, string | boolean>,
+  multiOptions: Record<string, string[]>,
 ): CommandRequest {
   switch (action) {
     case "list":
@@ -48,13 +55,12 @@ function buildMcpRequest(
 
       if (transport === "stdio") {
         const command = requireString(options, "command");
-        const argsValue = optionalString(options, "args");
         const body = {
           name,
           description,
           transport: "stdio" as const,
           command,
-          args: argsValue ? argsValue.split(" ").filter(Boolean) : undefined,
+          args: parseStdioArgs(options, multiOptions),
           env: parseKeyValueList(optionalString(options, "env")),
         };
         return { method: "POST", path: "/mcp/servers", body, label: "Added MCP server" };
@@ -97,6 +103,42 @@ function buildMcpRequest(
     default:
       throw new UsageError(`Unknown mcp subcommand: ${action ?? "(none)"}`);
   }
+}
+
+/**
+ * Resolve the stdio launch argv for `mcp add`.
+ *
+ * `--arg` is the primary, robust mechanism: it is repeatable and each value is
+ * taken verbatim, so a single argument may contain spaces (a Windows path like
+ * `--arg "C:\My Tools\server.js"`, or `--arg "--config=My File.json"`). The
+ * legacy `--args "a b c"` form is kept only as a convenience for the trivial,
+ * space-free case — it splits on spaces and therefore CANNOT express an
+ * individual argument that contains a space. The two are mutually exclusive to
+ * avoid silently merging an ambiguous mix.
+ */
+function parseStdioArgs(
+  options: Record<string, string | boolean>,
+  multiOptions: Record<string, string[]>,
+): string[] | undefined {
+  const repeatable = optionalStringArray(multiOptions, "arg");
+  const joined = optionalString(options, "args");
+
+  if (repeatable && joined !== undefined) {
+    throw new UsageError(
+      "Use either --arg (repeatable, supports spaces) or --args (space-separated), not both",
+    );
+  }
+
+  if (repeatable) {
+    return repeatable;
+  }
+
+  if (joined !== undefined) {
+    const split = joined.split(" ").filter(Boolean);
+    return split.length > 0 ? split : undefined;
+  }
+
+  return undefined;
 }
 
 function buildConfigRequest(

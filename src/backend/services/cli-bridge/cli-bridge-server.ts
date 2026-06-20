@@ -12,6 +12,7 @@ import {
   type CliBridgeTokenFile,
 } from "../../../shared/cli-bridge/protocol";
 import { MCPServerManager } from "../mcp/mcp-server-manager";
+import { applyOpenAtLoginSetting } from "../settings/login-item";
 import { LlmStorage } from "../storage/llm-storage";
 import { UserSettingsStorage } from "../storage/user-settings-storage";
 import { type BridgeServices, routeRequest } from "./bridge-router";
@@ -258,7 +259,7 @@ function safeAppVersion(): string | undefined {
 }
 
 /** Wire the router to the real app singletons. */
-function createDefaultServices(): BridgeServices {
+export function createDefaultServices(): BridgeServices {
   return {
     mcp: {
       async listAvailableServers() {
@@ -287,7 +288,15 @@ function createDefaultServices(): BridgeServices {
     },
     settings: {
       getSettingsAsync: () => UserSettingsStorage.getInstance().getSettingsAsync(),
-      updateSettingsAsync: (patch) => UserSettingsStorage.getInstance().updateSettingsAsync(patch),
+      async updateSettingsAsync(patch) {
+        await UserSettingsStorage.getInstance().updateSettingsAsync(patch);
+        // Apply the same OS-level side effect the Settings IPC handler applies,
+        // so a CLI-driven openAtLogin change actually registers/unregisters the
+        // login item instead of only being persisted.
+        if (patch.openAtLogin !== undefined) {
+          applyOpenAtLoginSetting(patch.openAtLogin);
+        }
+      },
     },
   };
 }

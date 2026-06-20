@@ -8,6 +8,12 @@
 export interface ParsedArgs {
   positionals: string[];
   options: Record<string, string | boolean>;
+  /**
+   * Every string value seen for a flag, keyed by flag name and preserving order
+   * and repeats. `options` is last-write-wins; this is where repeatable flags
+   * (e.g. `--arg`) collect their full list. Boolean flags do not appear here.
+   */
+  multiOptions: Record<string, string[]>;
 }
 
 const BOOLEAN_FLAGS = new Set(["off", "help", "dev", "json"]);
@@ -15,6 +21,14 @@ const BOOLEAN_FLAGS = new Set(["off", "help", "dev", "json"]);
 export function parseArgs(argv: string[]): ParsedArgs {
   const positionals: string[] = [];
   const options: Record<string, string | boolean> = {};
+  const multiOptions: Record<string, string[]> = {};
+
+  const recordValue = (key: string, value: string): void => {
+    options[key] = value;
+    const existing = multiOptions[key] ?? [];
+    existing.push(value);
+    multiOptions[key] = existing;
+  };
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -28,7 +42,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       const eq = arg.indexOf("=");
       if (eq !== -1) {
         const key = arg.slice(2, eq);
-        options[key] = arg.slice(eq + 1);
+        recordValue(key, arg.slice(eq + 1));
         continue;
       }
 
@@ -38,7 +52,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       if (BOOLEAN_FLAGS.has(key) || next === undefined || next.startsWith("--")) {
         options[key] = true;
       } else {
-        options[key] = next;
+        recordValue(key, next);
         i++;
       }
       continue;
@@ -47,7 +61,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     positionals.push(arg);
   }
 
-  return { positionals, options };
+  return { positionals, options, multiOptions };
 }
 
 /** Read a string option, throwing a clear error when required and missing. */
@@ -66,6 +80,19 @@ export function optionalString(
 ): string | undefined {
   const value = options[name];
   return typeof value === "string" ? value : undefined;
+}
+
+/**
+ * Read every value supplied for a repeatable flag (e.g. `--arg a --arg b`),
+ * preserving order and never splitting on spaces — so a single value may safely
+ * contain spaces (a Windows path, a `--config=My File.json`, etc.).
+ */
+export function optionalStringArray(
+  multiOptions: Record<string, string[]>,
+  name: string,
+): string[] | undefined {
+  const values = multiOptions[name];
+  return values && values.length > 0 ? [...values] : undefined;
 }
 
 /** Parse a `key=value,key2=value2` style option into a record. */

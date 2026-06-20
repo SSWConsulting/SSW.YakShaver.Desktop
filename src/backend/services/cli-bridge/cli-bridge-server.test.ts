@@ -7,16 +7,23 @@ import type { BridgeServices } from "./bridge-router";
 // A throwaway userData dir so the token file lands somewhere harmless.
 // vi.mock factories are hoisted above imports, so compute the path via
 // vi.hoisted so the electron mock can reference it.
-const { TEST_USER_DATA } = vi.hoisted(() => {
-  const os = require("node:os") as typeof import("node:os");
-  const path = require("node:path") as typeof import("node:path");
-  return { TEST_USER_DATA: path.join(os.tmpdir(), `yakshaver-bridge-test-${process.pid}`) };
-});
+const { TEST_USER_DATA, setLoginItemSettingsMock, updateSettingsAsyncMock, getSettingsAsyncMock } =
+  vi.hoisted(() => {
+    const os = require("node:os") as typeof import("node:os");
+    const path = require("node:path") as typeof import("node:path");
+    return {
+      TEST_USER_DATA: path.join(os.tmpdir(), `yakshaver-bridge-test-${process.pid}`),
+      setLoginItemSettingsMock: vi.fn(),
+      updateSettingsAsyncMock: vi.fn().mockResolvedValue(undefined),
+      getSettingsAsyncMock: vi.fn().mockResolvedValue({}),
+    };
+  });
 
 vi.mock("electron", () => ({
   app: {
     getPath: vi.fn().mockReturnValue(TEST_USER_DATA),
     getVersion: vi.fn().mockReturnValue("0.0.0-test"),
+    setLoginItemSettings: setLoginItemSettingsMock,
   },
 }));
 
@@ -24,11 +31,16 @@ vi.mock("electron", () => ({
 // explicit services into getInstance() so these are only a safety net.
 vi.mock("../storage/llm-storage", () => ({ LlmStorage: { getInstance: () => ({}) } }));
 vi.mock("../storage/user-settings-storage", () => ({
-  UserSettingsStorage: { getInstance: () => ({}) },
+  UserSettingsStorage: {
+    getInstance: () => ({
+      getSettingsAsync: getSettingsAsyncMock,
+      updateSettingsAsync: updateSettingsAsyncMock,
+    }),
+  },
 }));
 vi.mock("../mcp/mcp-server-manager", () => ({ MCPServerManager: {} }));
 
-import { CliBridgeServer } from "./cli-bridge-server";
+import { CliBridgeServer, createDefaultServices } from "./cli-bridge-server";
 
 function makeServices(): BridgeServices {
   return {
@@ -136,5 +148,41 @@ describe("CliBridgeServer", () => {
     const filePath = join(TEST_USER_DATA, "yakshaver-tokens", "cli-bridge.json");
     await server.stop();
     await expect(fs.access(filePath)).rejects.toThrow();
+  });
+});
+
+describe("createDefaultServices - settings side effects", () => {
+  beforeEach(() => {
+    setLoginItemSettingsMock.mockClear();
+    updateSettingsAsyncMock.mockClear();
+  });
+
+  it("registers the OS login item when openAtLogin is set", async () => {
+    const services = createDefaultServices();
+    await services.settings.updateSettingsAsync({ openAtLogin: true });
+
+    expect(updateSettingsAsyncMock).toHaveBeenCalledWith({ openAtLogin: true });
+    expect(setLoginItemSettingsMock).toHaveBeenCalledWith({
+      openAtLogin: true,
+      openAsHidden: false,
+    });
+  });
+
+  it("unregisters the OS login item when openAtLogin is cleared", async () => {
+    const services = createDefaultServices();
+    await services.settings.updateSettingsAsync({ openAtLogin: false });
+
+    expect(setLoginItemSettingsMock).toHaveBeenCalledWith({
+      openAtLogin: false,
+      openAsHidden: false,
+    });
+  });
+
+  it("does not touch the login item when openAtLogin is absent from the patch", async () => {
+    const services = createDefaultServices();
+    await services.settings.updateSettingsAsync({ toolApprovalMode: "yolo" });
+
+    expect(updateSettingsAsyncMock).toHaveBeenCalledWith({ toolApprovalMode: "yolo" });
+    expect(setLoginItemSettingsMock).not.toHaveBeenCalled();
   });
 });
