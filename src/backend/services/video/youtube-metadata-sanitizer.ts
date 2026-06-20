@@ -10,8 +10,11 @@ import type { YouTubeSnippetUpdate } from "../auth/types.js";
  *     whole request. This is the single most common trigger for the #861 failure,
  *     because the AI-generated description happily includes things like
  *     `Issue <#123>`, generic-type signatures (`List<string>`), or comparisons.
- *  2. Length caps: title <= 100 chars, description <= 5000 chars, and the combined
- *     length of all tags <= 500 chars. Over-length values are rejected outright.
+ *  2. Length caps: title <= 100 characters, description <= 5000 BYTES (UTF-8),
+ *     and the combined length of all tags <= 500 chars. Over-length values are
+ *     rejected outright. Note the description cap is a BYTE limit, not a character
+ *     one — a 5000-character string of multi-byte text (emoji/CJK/accents) can be
+ *     well over 5000 bytes and would still be rejected.
  *
  * We sanitize (rather than reject) so the metadata update can still succeed on the
  * exact inputs that previously failed — satisfying #861 AC#4 ("validates or
@@ -23,8 +26,11 @@ import type { YouTubeSnippetUpdate } from "../auth/types.js";
  */
 
 // YouTube Data API hard limits.
+// Title is capped in characters; description is capped in UTF-8 BYTES (per the
+// Videos resource spec: snippet.title "has a maximum length of 100 characters",
+// snippet.description "has a maximum length of 5000 bytes").
 export const YOUTUBE_TITLE_MAX_LENGTH = 100;
-export const YOUTUBE_DESCRIPTION_MAX_LENGTH = 5000;
+export const YOUTUBE_DESCRIPTION_MAX_BYTES = 5000;
 export const YOUTUBE_TAGS_TOTAL_MAX_LENGTH = 500;
 
 // C0/C1 control characters other than tab (U+0009) and newline (U+000A), which
@@ -46,8 +52,33 @@ export function sanitizeYouTubeText(value: string): string {
     .replace(CONTROL_CHARS_TO_STRIP, "");
 }
 
-function truncate(value: string, max: number): string {
-  return value.length <= max ? value : value.slice(0, max);
+/** Truncate to at most `maxChars` UTF-16 characters (used for the title's char cap). */
+function truncateChars(value: string, maxChars: number): string {
+  return value.length <= maxChars ? value : value.slice(0, maxChars);
+}
+
+const UTF8_ENCODER = new TextEncoder();
+
+/**
+ * Truncate `value` to at most `maxBytes` UTF-8 bytes, never splitting a Unicode
+ * code point. We iterate over code points (via the string iterator, which yields
+ * whole surrogate pairs) and stop before any code point that would push the
+ * running byte count past the budget. This keeps emoji/CJK/accented descriptions
+ * within YouTube's 5000-BYTE limit and never emits a lone surrogate.
+ */
+function truncateBytes(value: string, maxBytes: number): string {
+  // Fast path: already within budget.
+  if (UTF8_ENCODER.encode(value).length <= maxBytes) return value;
+
+  let result = "";
+  let bytes = 0;
+  for (const codePoint of value) {
+    const cost = UTF8_ENCODER.encode(codePoint).length;
+    if (bytes + cost > maxBytes) break;
+    bytes += cost;
+    result += codePoint;
+  }
+  return result;
 }
 
 /**
@@ -78,8 +109,11 @@ export function clampTags(tags: string[]): string[] {
 export function sanitizeYouTubeSnippet(snippet: YouTubeSnippetUpdate): YouTubeSnippetUpdate {
   return {
     ...snippet,
-    title: truncate(sanitizeYouTubeText(snippet.title), YOUTUBE_TITLE_MAX_LENGTH),
-    description: truncate(sanitizeYouTubeText(snippet.description), YOUTUBE_DESCRIPTION_MAX_LENGTH),
+    title: truncateChars(sanitizeYouTubeText(snippet.title), YOUTUBE_TITLE_MAX_LENGTH),
+    description: truncateBytes(
+      sanitizeYouTubeText(snippet.description),
+      YOUTUBE_DESCRIPTION_MAX_BYTES,
+    ),
     tags: snippet.tags ? clampTags(snippet.tags) : snippet.tags,
   };
 }

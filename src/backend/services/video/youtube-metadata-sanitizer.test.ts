@@ -4,9 +4,11 @@ import {
   clampTags,
   sanitizeYouTubeSnippet,
   sanitizeYouTubeText,
-  YOUTUBE_DESCRIPTION_MAX_LENGTH,
+  YOUTUBE_DESCRIPTION_MAX_BYTES,
   YOUTUBE_TITLE_MAX_LENGTH,
 } from "./youtube-metadata-sanitizer";
+
+const utf8Bytes = (value: string) => new TextEncoder().encode(value).length;
 
 describe("sanitizeYouTubeText (#861 — strip the chars YouTube rejects)", () => {
   it("replaces angle brackets (the invalid-description trigger)", () => {
@@ -54,7 +56,7 @@ describe("sanitizeYouTubeSnippet (#861 — total compliance pass)", () => {
   it("sanitizes title + description and truncates to the API limits", () => {
     const snippet: YouTubeSnippetUpdate = {
       title: `<${"t".repeat(YOUTUBE_TITLE_MAX_LENGTH + 50)}>`,
-      description: `<desc> ${"d".repeat(YOUTUBE_DESCRIPTION_MAX_LENGTH + 100)}`,
+      description: `<desc> ${"d".repeat(YOUTUBE_DESCRIPTION_MAX_BYTES + 100)}`,
       tags: ["yakshaver"],
       categoryId: "28",
     };
@@ -63,9 +65,37 @@ describe("sanitizeYouTubeSnippet (#861 — total compliance pass)", () => {
 
     expect(out.title.length).toBe(YOUTUBE_TITLE_MAX_LENGTH);
     expect(out.title).not.toContain("<");
-    expect(out.description.length).toBe(YOUTUBE_DESCRIPTION_MAX_LENGTH);
+    // ASCII description: 1 byte/char, so the byte cap equals the char count here.
+    expect(utf8Bytes(out.description)).toBe(YOUTUBE_DESCRIPTION_MAX_BYTES);
     expect(out.description).not.toContain(">");
     expect(out.categoryId).toBe("28");
+  });
+
+  it("caps a multi-byte (emoji) description at the BYTE limit, not the char count", () => {
+    // 3000 🦬 = 6000 UTF-16 code units = 12000 UTF-8 bytes — well over the 5000-byte cap.
+    const out = sanitizeYouTubeSnippet({
+      title: "t",
+      description: "🦬".repeat(3000),
+    });
+
+    expect(utf8Bytes(out.description)).toBeLessThanOrEqual(YOUTUBE_DESCRIPTION_MAX_BYTES);
+    // Each 🦬 is 4 UTF-8 bytes, so 5000 bytes fits floor(5000/4) = 1250 of them.
+    expect(out.description).toBe("🦬".repeat(1250));
+  });
+
+  it("never splits a surrogate pair / emits a lone surrogate at the byte boundary", () => {
+    // Pad with ASCII so an emoji straddles the byte boundary, then assert the
+    // truncated description is still well-formed (no lone surrogates).
+    const padding = "a".repeat(YOUTUBE_DESCRIPTION_MAX_BYTES - 2);
+    const out = sanitizeYouTubeSnippet({
+      title: "t",
+      description: `${padding}🦬🦬`,
+    });
+
+    expect(utf8Bytes(out.description)).toBeLessThanOrEqual(YOUTUBE_DESCRIPTION_MAX_BYTES);
+    // The trailing 🦬 (4 bytes) won't fit in the remaining 2 bytes, so it is dropped whole.
+    expect(out.description).toBe(padding);
+    expect(out.description).not.toMatch(/[\uD800-\uDFFF]/); // no lone surrogate
   });
 
   it("preserves a missing tags field as undefined", () => {

@@ -18,7 +18,10 @@ import {
   convertToTokenData,
   refreshYouTubeTokenWithBackend,
 } from "./youtube-oauth";
-import { describeYouTubeUploadError } from "./youtube-upload-error";
+import {
+  describeYouTubeUploadError,
+  NO_YOUTUBE_CHANNEL_CONNECT_MESSAGE,
+} from "./youtube-upload-error";
 
 export class YouTubeClient {
   private static instance: YouTubeClient;
@@ -59,9 +62,24 @@ export class YouTubeClient {
       console.log("[YouTubeClient] Authentication successful, fetching user info...");
 
       // Get user info after successful authentication
-      const userInfo = await this.getCurrentUser();
+      const client = await this.getAuthenticatedClient();
+      const { userInfo, hasChannel } = await this.getUserInfo(client);
 
-      return { success: true, userInfo: userInfo ?? undefined };
+      // #672: validate channel existence at CONNECT time, not just at upload.
+      // A Google account with no YouTube channel can OAuth fine but can't host
+      // videos, so treat it as a failed connection with actionable copy instead
+      // of a misleading "connected" state the user only discovers is broken on
+      // their first upload.
+      if (!hasChannel) {
+        // Don't leave half-connected tokens behind: clear them so the state stays
+        // NOT_AUTHENTICATED and the user can cleanly reconnect once they've made a
+        // channel (otherwise isAuthenticated() would report a connected account
+        // that can never upload).
+        await this.disconnect();
+        return { success: false, error: NO_YOUTUBE_CHANNEL_CONNECT_MESSAGE };
+      }
+
+      return { success: true, userInfo };
     } catch (error) {
       console.error("[YouTubeClient] Authentication failed:", error);
       return {
@@ -71,7 +89,9 @@ export class YouTubeClient {
     }
   }
 
-  private async getUserInfo(client: OAuth2Client): Promise<UserInfo> {
+  private async getUserInfo(
+    client: OAuth2Client,
+  ): Promise<{ userInfo: UserInfo; hasChannel: boolean }> {
     const [userRes, channelRes] = await Promise.all([
       google.oauth2({ version: "v2", auth: client }).userinfo.get(),
       google
@@ -81,13 +101,19 @@ export class YouTubeClient {
 
     const user = userRes.data;
     const channel = channelRes.data.items?.[0];
+    // Presence of a channel is distinct from it having a (non-empty) title — key
+    // it off the items list so a titleless channel isn't misread as "no channel".
+    const hasChannel = (channelRes.data.items?.length ?? 0) > 0;
 
     return {
-      id: user.id || "",
-      name: user.name || "",
-      email: user.email || "",
-      avatar: user.picture || undefined,
-      channelName: channel?.snippet?.title || undefined,
+      userInfo: {
+        id: user.id || "",
+        name: user.name || "",
+        email: user.email || "",
+        avatar: user.picture || undefined,
+        channelName: channel?.snippet?.title || undefined,
+      },
+      hasChannel,
     };
   }
 
@@ -131,7 +157,8 @@ export class YouTubeClient {
   async getCurrentUser(): Promise<UserInfo | null> {
     try {
       const client = await this.getAuthenticatedClient();
-      return await this.getUserInfo(client);
+      const { userInfo } = await this.getUserInfo(client);
+      return userInfo;
     } catch {
       return null;
     }
