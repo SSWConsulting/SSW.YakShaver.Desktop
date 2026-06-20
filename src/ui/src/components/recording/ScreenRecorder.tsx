@@ -106,7 +106,7 @@ function RecordButton({
 
 export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
   const navigateToWorkflow = useWorkflowNavigation({ listen: false });
-  const { authState, uploadStatus, setUploadResult, setUploadStatus } = useYouTubeAuth();
+  const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
   const [isTranscribing, _] = useState(false);
@@ -116,6 +116,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const [recordHotkey, setRecordHotkey] = useState("");
 
   const [youtubeDialogOpen, setYoutubeDialogOpen] = useState(false);
+  const [recordingMade, setRecordingMade] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
@@ -126,11 +127,14 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
   // The "Process YouTube link" affordance is only relevant before any recording
-  // exists. Once a recording has been made (or is in progress / processing) we
-  // hide it, because the app does not yet support processing multiple videos in
-  // parallel (#775). `uploadStatus` leaves IDLE the moment a recording is
-  // continued (handleContinue) and never returns to IDLE for the session.
-  const hasRecordingBeenMade = isRecording || uploadStatus !== UploadStatus.IDLE;
+  // exists. Once a recording has been made (or is in progress) we hide it,
+  // because the app does not yet support processing multiple videos in parallel
+  // (#775). We track this with a dedicated session flag set on the recording
+  // path (handleContinue) rather than reusing the session-global `uploadStatus`,
+  // which is ALSO driven by the URL-processing path and the workflow-progress
+  // listener — so a failed URL submit must not latch this affordance off and
+  // strip the user's only way to retry the URL workflow.
+  const hasRecordingBeenMade = isRecording || recordingMade;
   const showProcessYoutubeLink = isYoutubeUrlWorkflowEnabled && !hasRecordingBeenMade;
 
   const handleStopRecording = useCallback(async () => {
@@ -247,6 +251,9 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     }
 
     resetPreview();
+    // A recording has now been committed for processing; hide the
+    // Process-YouTube-link affordance for the rest of the session (#775).
+    setRecordingMade(true);
 
     try {
       setUploadStatus(UploadStatus.UPLOADING);

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthStatus, UploadStatus } from "../../types";
 import { ScreenRecorder } from "./ScreenRecorder";
@@ -9,6 +9,14 @@ const state = vi.hoisted(() => ({
   isYoutubeUrlWorkflowEnabled: true,
   isRecording: false,
   uploadStatus: "idle" as UploadStatus,
+  // The recorded video returned by stop(); when set, "Continue" drives the
+  // real handleContinue path that marks a recording as made.
+  recordedVideo: null as { blob: Blob; filePath: string; fileName: string } | null,
+  saveRecording: vi.fn(),
+  checkExistingShave: vi.fn(),
+  // Captured handler the app registers on the screen-recording stop channel;
+  // invoking it drives the real handleStopRecording -> preview flow.
+  stopRequestHandler: null as ((...args: unknown[]) => void) | null,
 }));
 
 vi.mock("../../contexts/AdvancedSettingsContext", () => ({
@@ -31,12 +39,15 @@ vi.mock("../../hooks/useScreenRecording", () => ({
     isRecording: state.isRecording,
     isProcessing: false,
     start: vi.fn(),
-    stop: vi.fn(),
+    stop: vi.fn(async () => state.recordedVideo),
   }),
 }));
 
 vi.mock("@/hooks/useShaveManager", () => ({
-  useShaveManager: () => ({ saveRecording: vi.fn(), checkExistingShave: vi.fn() }),
+  useShaveManager: () => ({
+    saveRecording: state.saveRecording,
+    checkExistingShave: state.checkExistingShave,
+  }),
 }));
 
 vi.mock("@/hooks/useWorkflowNavigation", () => ({
@@ -49,11 +60,29 @@ vi.mock("@/services/ipc-client", () => ({
   },
 }));
 
-// Child dialogs reach into other electronAPI channels on mount/unmount; they are
-// not under test here, so stub them out to keep this test focused on the
-// Process-YouTube-link affordance.
+// Stub SourcePickerDialog; it reaches into electronAPI channels not under test.
 vi.mock("./SourcePickerDialog", () => ({ SourcePickerDialog: () => null }));
-vi.mock("./VideoPreviewModal", () => ({ VideoPreviewModal: () => null }));
+
+// Surface the preview modal's onContinue as a button so tests can drive the
+// real "a recording was made" path without a full media-capture pipeline.
+vi.mock("./VideoPreviewModal", () => ({
+  VideoPreviewModal: ({
+    onContinue,
+    onDurationLoad,
+  }: {
+    onContinue: (auto: boolean) => void;
+    onDurationLoad: (duration: number) => void;
+  }) => {
+    // The real modal loads the duration before Continue is enabled; mirror that
+    // so handleContinue does not bail on its duration guard.
+    onDurationLoad(42);
+    return (
+      <button type="button" data-testid="continue-recording" onClick={() => onContinue(false)}>
+        Continue
+      </button>
+    );
+  },
+}));
 
 const processYoutubeLink = () => screen.queryByTitle("Process YouTube URL");
 
@@ -62,14 +91,25 @@ describe("ScreenRecorder - Process YouTube link visibility (#775)", () => {
     state.isYoutubeUrlWorkflowEnabled = true;
     state.isRecording = false;
     state.uploadStatus = UploadStatus.IDLE;
+    state.recordedVideo = { blob: new Blob(), filePath: "/tmp/rec.webm", fileName: "rec.webm" };
+    state.saveRecording = vi.fn().mockResolvedValue({ data: { id: "shave-1" } });
+    state.checkExistingShave = vi.fn().mockResolvedValue(undefined);
 
     // ScreenRecorder subscribes to a few electronAPI event channels on mount.
+    state.stopRequestHandler = null;
     (window as unknown as { electronAPI: unknown }).electronAPI = {
       screenRecording: {
-        onStopRequest: vi.fn(() => () => {}),
+        onStopRequest: vi.fn((cb: (...args: unknown[]) => void) => {
+          state.stopRequestHandler = cb;
+          return () => {};
+        }),
         onOpenSourcePicker: vi.fn(() => () => {}),
         restoreMainWindow: vi.fn(),
-        hasAudio: vi.fn(),
+        hasAudio: vi.fn().mockResolvedValue({ success: true, hasAudio: true }),
+      },
+      pipelines: {
+        processVideoFile: vi.fn().mockResolvedValue(undefined),
+        processVideoUrl: vi.fn().mockResolvedValue(undefined),
       },
       userSettings: { onHotkeyUpdate: vi.fn(() => () => {}) },
     };
@@ -83,16 +123,13 @@ describe("ScreenRecorder - Process YouTube link visibility (#775)", () => {
   });
 
   it("hides the Process YouTube link once a recording has been made (AC1)", async () => {
-    // uploadStatus leaves IDLE the moment a recording is continued, and never
-    // returns to IDLE for the session.
-    state.uploadStatus = UploadStatus.UPLOADING;
     render(<ScreenRecorder showButtonOnly />);
-    await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
-  });
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
 
-  it("hides the Process YouTube link after processing finishes (SUCCESS)", async () => {
-    state.uploadStatus = UploadStatus.SUCCESS;
-    render(<ScreenRecorder showButtonOnly />);
+    // Drive the real recording path: stop opens the preview, then continue.
+    await act(async () => state.stopRequestHandler?.());
+    fireEvent.click(await screen.findByTestId("continue-recording"));
+
     await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
   });
 
@@ -106,5 +143,15 @@ describe("ScreenRecorder - Process YouTube link visibility (#775)", () => {
     state.isYoutubeUrlWorkflowEnabled = false;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
+  });
+
+  it("keeps the Process YouTube link after a URL submit fails on a fresh session", async () => {
+    // Regression for the one-way latch: a failed Process-YouTube-URL submit
+    // drives session-global uploadStatus to ERROR. The affordance must NOT be
+    // gated on that signal, otherwise the upload button — the only entry point
+    // to the URL dialog — would vanish and the user could never retry (#775).
+    state.uploadStatus = UploadStatus.ERROR;
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
   });
 });
