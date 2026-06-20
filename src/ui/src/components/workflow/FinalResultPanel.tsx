@@ -8,6 +8,7 @@ import {
   isWorkflowReadyForFinalOutput,
   parseWorkflowProgressNeoPayload,
   parseWorkflowStepPayload,
+  requiredPostCreationStageFailure,
 } from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
@@ -583,25 +584,12 @@ function getActiveStage(state: WorkflowState): keyof WorkflowState | null {
  * Returns the failure message when the video upload OR the metadata-update stage failed,
  * and `null` otherwise — so the warning self-clears once a retry brings those stages back
  * to a non-failed state. Upload failure takes precedence (it skips the metadata stage).
+ *
+ * Delegates to the shared requiredPostCreationStageFailure() predicate so this warning
+ * badge and the persisted shave-status downgrade (useShaveManager) stay in lockstep.
  */
 export function deriveStageWarning(state: WorkflowState): string | null {
-  const uploadStep = state[WorkflowProgressStage.UPLOADING_VIDEO];
-  if (uploadStep?.status === "failed") {
-    return (
-      getStringValue(parseWorkflowStepPayload(uploadStep), "error") ||
-      "The work item was created, but uploading the video to YouTube failed."
-    );
-  }
-
-  const metadataStep = state[WorkflowProgressStage.UPDATING_METADATA];
-  if (metadataStep?.status === "failed") {
-    return (
-      getStringValue(parseWorkflowStepPayload(metadataStep), "error") ||
-      "The work item was created, but updating the YouTube video metadata failed."
-    );
-  }
-
-  return null;
+  return requiredPostCreationStageFailure(state)?.error ?? null;
 }
 
 /**

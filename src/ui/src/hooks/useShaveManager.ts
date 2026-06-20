@@ -13,6 +13,7 @@ import {
   isWorkflowReadyForFinalOutput,
   parseWorkflowProgressNeoPayload,
   parseWorkflowStepPayload,
+  requiredPostCreationStageFailure,
 } from "../utils";
 
 interface FinalOutput {
@@ -51,17 +52,6 @@ function parseFinalOutput(finalOutput: string): ParsedShaveOutput | null {
       `Invalid shave output format: Unable to parse LLM response. This prevents saving the shave record. ${e instanceof Error ? e.message : String(e)}`,
     );
   }
-}
-
-/**
- * #861 AC#3/#5: the run must NOT be persisted as successfully Completed when a required
- * post-creation stage (video upload OR YouTube metadata update) failed. The AI's Status
- * still reads "success" in that case, so we downgrade the persisted status to Failed here.
- * The work item URL is still saved so the user can reach it — the status just tells the
- * truth that not every required step completed without errors.
- */
-function hasRequiredStageFailed(state: WorkflowState): boolean {
-  return state.uploading_video.status === "failed" || state.updating_metadata.status === "failed";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -242,10 +232,12 @@ export function useShaveManager() {
       if (parsedOutput) {
         const finalTitle = parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
 
-        // #861 AC#3/#5: a failed required stage overrides the AI's "success" so the
-        // persisted shave status doesn't claim a clean completion.
+        // #861 AC#3/#5: a failed required post-creation stage overrides the AI's "success"
+        // so the persisted shave status doesn't claim a clean completion. This shares the
+        // single source of truth with FinalResultPanel's warning badge, so the persisted
+        // status and the on-screen badge can never disagree.
         const shaveStatus =
-          parsedOutput.status === ShaveStatus.Completed && hasRequiredStageFailed(state)
+          parsedOutput.status === ShaveStatus.Completed && requiredPostCreationStageFailure(state)
             ? ShaveStatus.Failed
             : parsedOutput.status;
 

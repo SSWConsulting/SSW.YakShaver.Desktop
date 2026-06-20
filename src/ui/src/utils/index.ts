@@ -1,4 +1,5 @@
 import {
+  ProgressStage,
   WORKFLOW_STAGE_ORDER,
   type WorkflowState,
   type WorkflowStep,
@@ -6,6 +7,10 @@ import {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getStringValue(payload: unknown, key: string): string | undefined {
+  return isRecord(payload) && typeof payload[key] === "string" ? payload[key] : undefined;
 }
 
 function isWorkflowState(value: unknown): value is WorkflowState {
@@ -45,6 +50,47 @@ export function isWorkflowReadyForFinalOutput(state: WorkflowState): boolean {
     state.executing_task.status === "completed" &&
     ["completed", "failed", "skipped"].includes(state.updating_metadata.status)
   );
+}
+
+/**
+ * #861/#672: the single source of truth for "a required post-creation stage failed", so the
+ * persisted shave status (see useShaveManager) and the on-screen warning badge
+ * (see FinalResultPanel) can never disagree about what counts as a clean success.
+ *
+ * The required post-creation stages are the video upload and the YouTube metadata update:
+ * if either failed, the run is NOT a clean success even when the AI's final Status reads
+ * "success". Returns the first failed stage plus a human-readable error message (the stage's
+ * own payload error when present, otherwise a sensible default), or `null` when both stages
+ * are non-failed — so any warning self-clears once a retry brings them back to a good state.
+ * Upload failure takes precedence because it skips the metadata stage.
+ */
+const REQUIRED_POST_CREATION_STAGE_MESSAGES: ReadonlyArray<{
+  stage: ProgressStage;
+  defaultMessage: string;
+}> = [
+  {
+    stage: ProgressStage.UPLOADING_VIDEO,
+    defaultMessage: "The work item was created, but uploading the video to YouTube failed.",
+  },
+  {
+    stage: ProgressStage.UPDATING_METADATA,
+    defaultMessage: "The work item was created, but updating the YouTube video metadata failed.",
+  },
+];
+
+export function requiredPostCreationStageFailure(
+  state: WorkflowState,
+): { stage: ProgressStage; error: string } | null {
+  for (const { stage, defaultMessage } of REQUIRED_POST_CREATION_STAGE_MESSAGES) {
+    const step = state[stage];
+    if (step?.status === "failed") {
+      return {
+        stage,
+        error: getStringValue(parseWorkflowStepPayload(step), "error") || defaultMessage,
+      };
+    }
+  }
+  return null;
 }
 
 /**
