@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { VideoUploadResult } from "../auth/types";
 import {
+  applyPortalVideoFields,
   applyVideoMetadataPersistence,
   decideVideoMetadataPersistence,
   derivePortalVideoFields,
+  type PortalVideoFieldTarget,
   type VideoMetadataShaveStore,
 } from "./video-metadata-persistence";
 
@@ -349,5 +351,110 @@ describe("derivePortalVideoFields (#808 Tenant view)", () => {
     } as VideoUploadResult;
 
     expect(derivePortalVideoFields(noUrl)).toBeNull();
+  });
+});
+
+/**
+ * #808 (override-wiring gap, mirrors applyVideoMetadataPersistence): the derivation tests above
+ * only prove what SHOULD be carried on the portal payload. These tests exercise the actual
+ * override the IPC handler applies to the WorkItemDto before SendWorkItemDetailsToPortal — that
+ * (a) the three uploadedVideo* fields are overwritten from the upload result, (b) the dto is
+ * otherwise untouched, and (c) a null derivation leaves the model's values in place. Without this,
+ * a future edit could drop or reorder the override after the portal POST and every test stays
+ * green.
+ */
+describe("applyPortalVideoFields wiring (#808 Tenant view)", () => {
+  /** A representative model-produced WorkItemDto slice with model-guessed video fields. */
+  function makeDto(): PortalVideoFieldTarget & {
+    title: string;
+    description: string;
+  } {
+    return {
+      title: "Model Title",
+      description: "Model description",
+      uploadedVideoProvider: "model-guess",
+      uploadedVideoEmbedUrl: "https://model.example/guessed-embed",
+      uploadedVideoUrl: "https://model.example/guessed-url",
+    };
+  }
+
+  it("overrides the three video fields from the upload result (the deterministic fix)", () => {
+    const dto = makeDto();
+    const upload: VideoUploadResult = {
+      success: true,
+      origin: "upload",
+      data: {
+        videoId: "abcdefghijk",
+        title: "t",
+        description: "",
+        url: "https://www.youtube.com/watch?v=abcdefghijk",
+      },
+    };
+
+    const applied = applyPortalVideoFields(dto, upload);
+
+    expect(applied).toEqual({
+      uploadedVideoProvider: "youtube",
+      uploadedVideoUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+      uploadedVideoEmbedUrl: "https://www.youtube.com/embed/abcdefghijk",
+    });
+    expect(dto.uploadedVideoProvider).toBe("youtube");
+    expect(dto.uploadedVideoUrl).toBe("https://www.youtube.com/watch?v=abcdefghijk");
+    expect(dto.uploadedVideoEmbedUrl).toBe("https://www.youtube.com/embed/abcdefghijk");
+  });
+
+  it("leaves the dto's other (model-produced) fields untouched", () => {
+    const dto = makeDto();
+    const upload: VideoUploadResult = {
+      success: true,
+      origin: "upload",
+      data: {
+        videoId: "abcdefghijk",
+        title: "t",
+        description: "",
+        url: "https://www.youtube.com/watch?v=abcdefghijk",
+      },
+    };
+
+    applyPortalVideoFields(dto, upload);
+
+    expect(dto.title).toBe("Model Title");
+    expect(dto.description).toBe("Model description");
+  });
+
+  it("leaves the model's video values in place when the derivation is null (failed upload)", () => {
+    const dto = makeDto();
+    const failed: VideoUploadResult = { success: false, origin: "upload", error: "x" };
+
+    const applied = applyPortalVideoFields(dto, failed);
+
+    expect(applied).toBeNull();
+    // Never overwrite real model output with nulls.
+    expect(dto.uploadedVideoProvider).toBe("model-guess");
+    expect(dto.uploadedVideoEmbedUrl).toBe("https://model.example/guessed-embed");
+    expect(dto.uploadedVideoUrl).toBe("https://model.example/guessed-url");
+  });
+
+  it("clears the embed URL to null for an unrecognized provider (no broken iframe src)", () => {
+    // The model may have guessed an embed URL; for a provider we can't synthesize an embeddable
+    // form for, the override must REPLACE it with null so the Tenant view falls back to a link
+    // rather than rendering an <iframe> whose src fails to load.
+    const dto = makeDto();
+    const upload: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "x",
+        title: "t",
+        description: "",
+        url: "https://example.com/videos/some-clip",
+      },
+    };
+
+    applyPortalVideoFields(dto, upload);
+
+    expect(dto.uploadedVideoProvider).toBeNull();
+    expect(dto.uploadedVideoUrl).toBe("https://example.com/videos/some-clip");
+    expect(dto.uploadedVideoEmbedUrl).toBeNull();
   });
 });

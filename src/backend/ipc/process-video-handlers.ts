@@ -26,8 +26,8 @@ import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 import {
+  applyPortalVideoFields,
   applyVideoMetadataPersistence,
-  derivePortalVideoFields,
 } from "../services/workflow/video-metadata-persistence";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
 import {
@@ -640,15 +640,12 @@ export class ProcessVideoIPCHandlers {
             // #808: The Tenant view renders its preview from the portal payload's video fields.
             // These were previously left to the LLM to copy out of the system prompt during
             // structured extraction, which intermittently dropped them — the exact "missing
-            // embedUrl/videoFile" symptom #808 reports. Set them deterministically from the
+            // embedUrl/videoFile" symptom #808 reports. Override them deterministically from the
             // same authoritative upload result the local backstop uses, so a successful
             // recording ALWAYS carries the embed URL to the portal regardless of model output.
-            const portalVideoFields = derivePortalVideoFields(youtubeResult);
-            if (portalVideoFields) {
-              workItemDto.uploadedVideoProvider = portalVideoFields.uploadedVideoProvider;
-              workItemDto.uploadedVideoEmbedUrl = portalVideoFields.uploadedVideoEmbedUrl;
-              workItemDto.uploadedVideoUrl = portalVideoFields.uploadedVideoUrl;
-            }
+            // The override + its skip-on-null behaviour lives in applyPortalVideoFields so the
+            // wiring (and that it fires BEFORE the portal POST) is unit-testable.
+            applyPortalVideoFields(workItemDto, youtubeResult);
 
             const portalResult = await SendWorkItemDetailsToPortal(workItemDto);
             if (!portalResult.success) {

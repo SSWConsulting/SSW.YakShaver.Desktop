@@ -188,6 +188,49 @@ export function derivePortalVideoFields(
 }
 
 /**
+ * The minimal slice of the portal WorkItemDto that {@link applyPortalVideoFields} overrides — the
+ * three deterministic video fields the Tenant view renders its preview from. Typed structurally
+ * (rather than importing WorkItemDto from the portal module) to keep this workflow helper free of
+ * a portal dependency; the real WorkItemDto is a structural supertype of this.
+ */
+export type PortalVideoFieldTarget = {
+  uploadedVideoProvider: string | null;
+  uploadedVideoEmbedUrl: string | null;
+  uploadedVideoUrl: string | null;
+};
+
+/**
+ * Override the portal WorkItemDto's video fields with the deterministic derivation from the
+ * authoritative upload result, mirroring {@link applyVideoMetadataPersistence} for the local DB.
+ *
+ * #808: The Tenant view renders its preview from the portal payload's `uploadedVideo*` fields.
+ * Those were previously left to the LLM to copy out of the system prompt during structured
+ * extraction, which intermittently dropped them. This applies the deterministic override the IPC
+ * handler performs before `SendWorkItemDetailsToPortal`, extracted so the wiring is unit-testable:
+ * - when the derivation yields fields, all three are overwritten on the dto from the upload result;
+ * - when it returns `null` (no usable URL), the dto is left exactly as the model produced it —
+ *   we never overwrite real model output with nulls.
+ *
+ * Mutates `dto` in place (matching the handler's existing behaviour) and returns the applied
+ * fields, or `null` when nothing was overridden.
+ */
+export function applyPortalVideoFields(
+  dto: PortalVideoFieldTarget,
+  youtubeResult: VideoUploadResult,
+): PortalVideoFields | null {
+  const fields = derivePortalVideoFields(youtubeResult);
+  if (!fields) {
+    return null;
+  }
+
+  dto.uploadedVideoProvider = fields.uploadedVideoProvider;
+  dto.uploadedVideoEmbedUrl = fields.uploadedVideoEmbedUrl;
+  dto.uploadedVideoUrl = fields.uploadedVideoUrl;
+
+  return fields;
+}
+
+/**
  * Resolves the iframe-embeddable Vimeo player URL from a Vimeo page URL, else null.
  *
  * A plain `vimeo.com/<id>` page URL is NOT iframe-embeddable; Vimeo's embeddable form is
