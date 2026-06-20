@@ -40,6 +40,38 @@ function getServiceIcon(serverName: string | null): ReactElement {
   return <Terminal className="w-5 h-5 text-white/70" />;
 }
 
+/**
+ * Extracts the raw, unformatted tool id from a prefixed MCP tool name, i.e. the
+ * segment after the server prefix. Handles both the "__" (MCP system) and "."
+ * (AI output) separators, e.g. "Yak_Video_Tools__capture_video_frame" and
+ * "Yak_Video_Tools.capture_video_frame" both yield "capture_video_frame".
+ */
+function rawToolId(rawToolName: string): string {
+  const dunderIndex = rawToolName.indexOf("__");
+  if (dunderIndex !== -1) {
+    return rawToolName.slice(dunderIndex + 2);
+  }
+  const dotIndex = rawToolName.indexOf(".");
+  if (dotIndex !== -1) {
+    return rawToolName.slice(dotIndex + 1);
+  }
+  return rawToolName;
+}
+
+/**
+ * Plain-language explanations of why specific tools are needed, so non-technical
+ * users can make an informed choice (issue #783 AC2). Returns null for tools
+ * without a bespoke explanation, in which case the generic description is used.
+ */
+function getToolPurpose(rawToolName: string): string | null {
+  switch (rawToolId(rawToolName)) {
+    case "capture_video_frame":
+      return "YakShaver wants to capture a still frame from your screen recording so it can see what you're pointing at and keep working on your task accurately. It only runs when you say it's OK.";
+    default:
+      return null;
+  }
+}
+
 export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDialogProps) {
   const payload = request.payload as ToolApprovalPayload;
   const { toolName } = payload;
@@ -141,9 +173,16 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
   const dialogTitle = readableToolInfo
     ? `Can YakShaver use "${readableToolInfo.tool}"?`
     : "Can YakShaver perform this action?";
-  const dialogDescription = readableToolInfo?.server
-    ? `To keep working on your task, YakShaver needs to use the "${readableToolInfo.tool}" tool (from ${readableToolInfo.server}). It only runs when you say it's OK.`
-    : `To keep working on your task, YakShaver needs to perform an action. It only runs when you say it's OK.`;
+
+  // Some tools have a clear, user-facing purpose that non-technical users benefit
+  // from understanding (issue #783 AC2). Keyed on the raw, unformatted tool id so it
+  // survives both MCP separators ("__" and ".") and any display-label changes.
+  const toolPurpose = toolName ? getToolPurpose(toolName) : null;
+  const dialogDescription =
+    toolPurpose ??
+    (readableToolInfo?.server
+      ? `To keep working on your task, YakShaver needs to use the "${readableToolInfo.tool}" tool (from ${readableToolInfo.server}). It only runs when you say it's OK.`
+      : `To keep working on your task, YakShaver needs to perform an action. It only runs when you say it's OK.`);
 
   return (
     <AlertDialog open={isOpen}>
@@ -168,8 +207,9 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
               use {`"${toolLabel}"`} now and skip this prompt next time.
             </li>
             <li>
-              <span className="font-medium text-white/90">Don't Allow</span> &mdash; skip this step.
-              YakShaver won't use {`"${toolLabel}"`}, and you can tell it what to do instead.
+              <span className="font-medium text-white/90">Review / Correct&hellip;</span> &mdash;
+              don't run {`"${toolLabel}"`} as-is. You can leave a note telling YakShaver what to
+              change and try again, or stop the step entirely.
             </li>
           </ul>
         )}
@@ -264,7 +304,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                   setShowCorrectionForm(true);
                 }}
               >
-                Don't Allow
+                Review / Correct&hellip;
               </AlertDialogCancel>
               <Button
                 type="button"
