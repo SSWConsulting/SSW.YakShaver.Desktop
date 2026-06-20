@@ -4,7 +4,10 @@ import { type ZodType, z } from "zod";
 import type { MCPStep } from "../../../shared/types/mcp";
 import { getDurationParts } from "../../utils/duration-utils";
 import { formatAndReportError } from "../../utils/error-utils";
-import { normalizeIssueScreenshots } from "../../utils/screenshot-markdown";
+import {
+  isBacklogItemMutationTool,
+  normalizeIssueScreenshots,
+} from "../../utils/screenshot-markdown";
 import type { VideoUploadResult } from "../auth/types";
 import { TelemetryService } from "../telemetry/telemetry-service";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
@@ -172,11 +175,9 @@ export class MCPOrchestrator {
     input: Record<string, unknown>,
   ): Record<string, unknown> {
     // Only touch tools that create/update a backlog item (issue / work item / PBI / ticket).
-    const lowerName = toolName.toLowerCase();
-    const isBacklogMutation =
-      /(issue|work[_-]?item|backlog|pbi|ticket|story|task)/.test(lowerName) &&
-      /(create|update|add|new|edit|file|append)/.test(lowerName);
-    if (!isBacklogMutation) {
+    // Decided by an anchored allow-list that explicitly excludes comment/reply/cache/read-only
+    // tools (e.g. `add_issue_comment`, `update_issue_cache`) — see isBacklogItemMutationTool.
+    if (!isBacklogItemMutationTool(toolName)) {
       return input;
     }
 

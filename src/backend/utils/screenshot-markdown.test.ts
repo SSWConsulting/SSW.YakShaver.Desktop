@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildFigureCaption, normalizeIssueScreenshots } from "./screenshot-markdown";
+import {
+  buildFigureCaption,
+  isBacklogItemMutationTool,
+  normalizeIssueScreenshots,
+} from "./screenshot-markdown";
 
 const URL_A =
   "https://sayakshaverproduction.blob.core.windows.net/images/desktop-screenshots/abc.png?sv=2025-05-05&sig=xyz";
@@ -98,6 +102,88 @@ describe("normalizeIssueScreenshots — #834 caption + duplicate fixes", () => {
   it("returns bodies without images unchanged", () => {
     const body = "### Pain\nNo screenshots here.\n\n### Acceptance Criteria\n- [ ] Done";
     expect(normalizeIssueScreenshots(body)).toBe(body);
+  });
+
+  it("keeps the '### Screenshots' copy (not a stray top embed) so the conventional section is not emptied", () => {
+    // The prompt steers the model to put the single captioned screenshot in "### Screenshots"
+    // (near the bottom of the bug template). If it ALSO leaves a stray top embed, the surviving
+    // image must be the one inside "### Screenshots" — not the stray — or the guard would empty
+    // the section and contradict the prompt.
+    const body = [
+      "### Pain",
+      `![stray](${URL_A})`,
+      "",
+      "### Screenshots",
+      `![Login page crashes on submit](${URL_A})`,
+      "**Figure: Login page crashes on submit**",
+    ].join("\n");
+
+    const out = normalizeIssueScreenshots(body);
+
+    // Image appears exactly once, and it is the one in the Screenshots section.
+    expect(out.split(URL_A).length - 1).toBe(1);
+    // The descriptive caption survives; the weak stray caption is not synthesised at the top.
+    expect(out).toContain("**Figure: Login page crashes on submit**");
+    expect(out).not.toContain("**Figure: stray**");
+
+    // The "### Screenshots" section still has the image directly under it (section not emptied).
+    expect(out).toContain(
+      `### Screenshots\n![Login page crashes on submit](${URL_A})\n**Figure: Login page crashes on submit**`,
+    );
+
+    // The stray top embed under "### Pain" is gone.
+    expect(out).toContain("### Pain");
+    expect(out).not.toContain(`### Pain\n![stray](${URL_A})`);
+  });
+
+  it("synthesises a caption for the surviving '### Screenshots' embed when it lacks one", () => {
+    const body = [
+      "### Pain",
+      `![stray top](${URL_A})`,
+      "**Figure: stray top**",
+      "",
+      "### Screenshots",
+      `![Crash on submit](${URL_A})`,
+    ].join("\n");
+
+    const out = normalizeIssueScreenshots(body);
+    expect(out.split(URL_A).length - 1).toBe(1);
+    // The Screenshots embed survives and gets its own caption from its alt text.
+    expect(out).toContain(
+      `### Screenshots\n![Crash on submit](${URL_A})\n**Figure: Crash on submit**`,
+    );
+    expect(out).not.toContain("**Figure: stray top**");
+  });
+});
+
+describe("isBacklogItemMutationTool — #834 gating (anchored allow-list, not keyword spotting)", () => {
+  it("fires for backlog CREATE/UPDATE tools across providers", () => {
+    expect(isBacklogItemMutationTool("GitHub__create_issue")).toBe(true);
+    expect(isBacklogItemMutationTool("GitHub__update_issue")).toBe(true);
+    expect(isBacklogItemMutationTool("Azure_DevOps__wit_create_work_item")).toBe(true);
+    expect(isBacklogItemMutationTool("Azure_DevOps__wit_update_work_item")).toBe(true);
+    expect(isBacklogItemMutationTool("Jira__jira_create_issue")).toBe(true);
+    expect(isBacklogItemMutationTool("Jira__editJiraIssue")).toBe(true);
+    // Unprefixed names work too.
+    expect(isBacklogItemMutationTool("create_issue")).toBe(true);
+  });
+
+  it("does NOT fire for comment tools (the body field carries user-facing comment text)", () => {
+    // The exact false positive the old regex produced: issue + add → rewrote comment bodies.
+    expect(isBacklogItemMutationTool("GitHub__add_issue_comment")).toBe(false);
+    expect(isBacklogItemMutationTool("GitHub__create_issue_comment")).toBe(false);
+    expect(isBacklogItemMutationTool("GitHub__update_issue_comment")).toBe(false);
+    expect(isBacklogItemMutationTool("Jira__add_comment")).toBe(false);
+  });
+
+  it("does NOT fire for read-only / cache / search / list / get tools", () => {
+    expect(isBacklogItemMutationTool("GitHub__update_issue_cache")).toBe(false);
+    expect(isBacklogItemMutationTool("GitHub__search_repositories")).toBe(false);
+    expect(isBacklogItemMutationTool("GitHub__get_file_contents")).toBe(false);
+    expect(isBacklogItemMutationTool("GitHub__list_issues")).toBe(false);
+    expect(isBacklogItemMutationTool("Jira__get_issue")).toBe(false);
+    expect(isBacklogItemMutationTool("GitHub__create_pull_request")).toBe(false);
+    expect(isBacklogItemMutationTool("GitHub__create_or_update_file")).toBe(false);
   });
 });
 
