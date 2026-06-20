@@ -5,13 +5,23 @@ description: Configure YakShaver Desktop's MCP servers and supported settings by
 
 # Configure YakShaver Desktop (yakshaver CLI)
 
+> **⚠️ Availability: this skill is INERT until the `yakshaver` CLI lands.** It documents and
+> drives the `yakshaver` CLI introduced by PR #910 (`src/cli/**` + the localhost config
+> bridge), which is **not yet merged to `main`**. Until #910 is merged (or you are on a branch
+> that includes `src/cli/**`), there is no `dist/cli/index.js` to build and no `yakshaver`
+> command on PATH — the Prerequisites below will fail with *command not found* / missing
+> `dist/cli/index.js`. **Before running any command in this skill, verify the CLI exists**
+> (e.g. `yakshaver --help`, or `test -f dist/cli/index.js`); if it doesn't, tell the user the
+> CLI hasn't shipped yet and stop — do not fall back to editing config files by hand.
+
 Drive the `yakshaver` CLI to configure YakShaver Desktop's MCP servers and supported
 settings from the terminal. The CLI does NOT touch config files directly — it talks to
 the **running desktop app** over a localhost-only, token-authenticated HTTP bridge, so
 the app must be running and every change goes through the same services the app's own UI
 uses (no duplicated logic, shared Zod validation, secrets redacted).
 
-This skill depends on the `yakshaver` CLI shipped in PR #910 (`src/cli/**`).
+This skill depends on the `yakshaver` CLI introduced by PR #910 (`src/cli/**`), which must be
+merged before the skill is usable (see the availability note above).
 
 ## What this skill is for
 
@@ -46,7 +56,11 @@ app's Settings UI instead of guessing.
    - Bridge binds **127.0.0.1** only, tries port **8765**, falls back to an ephemeral port
      (recorded in the token file). It can be disabled with `YAKSHAVER_DISABLE_CLI_BRIDGE`.
 
-2. **The `yakshaver` CLI must be built and available.** From the repo root:
+2. **The `yakshaver` CLI must be built and available.** This requires PR #910 to be merged
+   (or to be on a branch that includes `src/cli/**`) — see the availability note at the top.
+   If `src/cli/` is absent, `npm run build` will **not** emit `dist/cli/index.js` and there is
+   no `yakshaver` command; stop and tell the user the CLI hasn't shipped yet. Otherwise, from
+   the repo root:
 
    ```bash
    npm run build      # emits dist/cli/index.js (with a node shebang)
