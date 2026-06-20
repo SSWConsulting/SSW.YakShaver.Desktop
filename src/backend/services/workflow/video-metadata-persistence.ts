@@ -142,9 +142,12 @@ export interface PortalVideoFields {
  *
  * When a URL is present we always return all three fields together so the caller can override
  * the model-derived values atomically:
- * - `uploadedVideoUrl` is the canonical watch URL (normalized for YouTube, otherwise as-is).
- * - `uploadedVideoEmbedUrl` is the `/embed/` form for YouTube, otherwise the same URL.
- * - `uploadedVideoProvider` is `"youtube"` for recognizable YouTube URLs, otherwise null.
+ * - `uploadedVideoUrl` is the canonical watch/page URL (normalized for YouTube, otherwise as-is).
+ * - `uploadedVideoEmbedUrl` is an iframe-embeddable URL for recognized providers (YouTube's
+ *   `/embed/` form, Vimeo's `player.vimeo.com/video/` form), otherwise `null` — because a plain
+ *   provider page URL is NOT iframe-embeddable, and the Tenant view should fall back to a link
+ *   rather than render an `<iframe>` whose `src` fails to load.
+ * - `uploadedVideoProvider` is `"youtube"`/`"vimeo"` for recognizable URLs, otherwise null.
  */
 export function derivePortalVideoFields(
   youtubeResult: VideoUploadResult,
@@ -165,13 +168,71 @@ export function derivePortalVideoFields(
     };
   }
 
-  // Non-YouTube URL: still carry it deterministically, but we can't synthesize an embed form
-  // or claim a provider, so mirror the raw URL and leave the provider unknown.
+  const vimeoEmbedUrl = deriveVimeoEmbedUrl(url);
+  if (vimeoEmbedUrl) {
+    return {
+      uploadedVideoProvider: "vimeo",
+      uploadedVideoUrl: url,
+      uploadedVideoEmbedUrl: vimeoEmbedUrl,
+    };
+  }
+
+  // Unrecognized provider: carry the page URL deterministically, but we can't synthesize an
+  // iframe-embeddable form, so leave the embed URL null (the Tenant view falls back to a link
+  // instead of rendering an <iframe> whose src would fail to load) and the provider unknown.
   return {
     uploadedVideoProvider: null,
     uploadedVideoUrl: url,
-    uploadedVideoEmbedUrl: url,
+    uploadedVideoEmbedUrl: null,
   };
+}
+
+/**
+ * Resolves the iframe-embeddable Vimeo player URL from a Vimeo page URL, else null.
+ *
+ * A plain `vimeo.com/<id>` page URL is NOT iframe-embeddable; Vimeo's embeddable form is
+ * `https://player.vimeo.com/video/<id>`. Unlisted videos carry a privacy hash as the second
+ * path segment (`vimeo.com/<id>/<hash>`) which must be forwarded as the `h` query param so the
+ * player will load them. We only synthesize from a numeric video id we recognize.
+ *
+ * Examples:
+ * - https://vimeo.com/123456            -> https://player.vimeo.com/video/123456
+ * - https://vimeo.com/123456/ab12cd34ef -> https://player.vimeo.com/video/123456?h=ab12cd34ef
+ * - https://player.vimeo.com/video/123456?h=ab12cd34ef (already embeddable) -> unchanged form
+ */
+function deriveVimeoEmbedUrl(rawUrl: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+
+  const host = parsed.hostname.replace(/^www\./, "");
+  const segments = parsed.pathname.split("/").filter(Boolean);
+
+  // Already an embeddable player URL: player.vimeo.com/video/<id>[?h=<hash>]
+  if (host === "player.vimeo.com") {
+    if (segments[0] === "video" && /^\d+$/.test(segments[1] ?? "")) {
+      const hash = parsed.searchParams.get("h");
+      const base = `https://player.vimeo.com/video/${segments[1]}`;
+      return hash ? `${base}?h=${hash}` : base;
+    }
+    return null;
+  }
+
+  if (host !== "vimeo.com") {
+    return null;
+  }
+
+  // Page URL: vimeo.com/<id>[/<hash>]
+  const [videoId, privacyHash] = segments;
+  if (!videoId || !/^\d+$/.test(videoId)) {
+    return null;
+  }
+
+  const base = `https://player.vimeo.com/video/${videoId}`;
+  return privacyHash ? `${base}?h=${privacyHash}` : base;
 }
 
 /** Extracts the 11-char video id from a normalized `watch?v=ID` YouTube URL, else null. */

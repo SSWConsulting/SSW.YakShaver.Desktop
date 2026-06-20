@@ -274,7 +274,10 @@ describe("derivePortalVideoFields (#808 Tenant view)", () => {
     });
   });
 
-  it("mirrors a non-YouTube URL with no provider/embed synthesis", () => {
+  it("resolves the embeddable player URL for a Vimeo page URL", () => {
+    // A plain vimeo.com/<id> page URL is NOT iframe-embeddable; the embed form is
+    // player.vimeo.com/video/<id>. The Tenant view renders uploadedVideoEmbedUrl in an
+    // <iframe>, so we must synthesize the player URL rather than mirror the page URL.
     const result: VideoUploadResult = {
       success: true,
       origin: "external",
@@ -287,9 +290,50 @@ describe("derivePortalVideoFields (#808 Tenant view)", () => {
     };
 
     expect(derivePortalVideoFields(result)).toEqual({
-      uploadedVideoProvider: null,
+      uploadedVideoProvider: "vimeo",
       uploadedVideoUrl: "https://vimeo.com/123456",
-      uploadedVideoEmbedUrl: "https://vimeo.com/123456",
+      uploadedVideoEmbedUrl: "https://player.vimeo.com/video/123456",
+    });
+  });
+
+  it("forwards the privacy hash of an unlisted Vimeo URL as the player ?h= param", () => {
+    const result: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "x",
+        title: "t",
+        description: "",
+        url: "https://vimeo.com/123456/ab12cd34ef",
+      },
+    };
+
+    expect(derivePortalVideoFields(result)).toEqual({
+      uploadedVideoProvider: "vimeo",
+      uploadedVideoUrl: "https://vimeo.com/123456/ab12cd34ef",
+      uploadedVideoEmbedUrl: "https://player.vimeo.com/video/123456?h=ab12cd34ef",
+    });
+  });
+
+  it("leaves the embed URL null for an unrecognized provider (Tenant view falls back to a link)", () => {
+    // A page URL we can't turn into an iframe-embeddable form must NOT be put in the embed
+    // field, or the Tenant view renders an <iframe> whose src fails to load. Carry the page URL
+    // as uploadedVideoUrl and leave uploadedVideoEmbedUrl null.
+    const result: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "x",
+        title: "t",
+        description: "",
+        url: "https://example.com/videos/some-clip",
+      },
+    };
+
+    expect(derivePortalVideoFields(result)).toEqual({
+      uploadedVideoProvider: null,
+      uploadedVideoUrl: "https://example.com/videos/some-clip",
+      uploadedVideoEmbedUrl: null,
     });
   });
 
