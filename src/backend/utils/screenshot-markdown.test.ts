@@ -136,7 +136,7 @@ describe("normalizeIssueScreenshots — #834 caption + duplicate fixes", () => {
     expect(out).not.toContain(`### Pain\n![stray](${URL_A})`);
   });
 
-  it("synthesises a caption for the surviving '### Screenshots' embed when it lacks one", () => {
+  it("carries the dropped caption forward to the surviving '### Screenshots' embed when it lacks one", () => {
     const body = [
       "### Pain",
       `![stray top](${URL_A})`,
@@ -148,11 +148,54 @@ describe("normalizeIssueScreenshots — #834 caption + duplicate fixes", () => {
 
     const out = normalizeIssueScreenshots(body);
     expect(out.split(URL_A).length - 1).toBe(1);
-    // The Screenshots embed survives and gets its own caption from its alt text.
+    // The Screenshots embed survives; lacking its own caption it reuses the dropped caption
+    // rather than synthesising a fresh one (carry-forward preserves the authored caption).
+    expect(out).toContain(`### Screenshots\n![Crash on submit](${URL_A})\n**Figure: stray top**`);
+  });
+
+  it("synthesises a caption from alt only when NO dropped caption exists to carry forward", () => {
+    const body = [
+      "### Pain",
+      `![Screenshot description](${URL_A})`, // duplicate, no caption
+      "",
+      "### Screenshots",
+      `![Crash on submit](${URL_A})`, // survivor, no caption either
+    ].join("\n");
+
+    const out = normalizeIssueScreenshots(body);
+    expect(out.split(URL_A).length - 1).toBe(1);
+    // No caption anywhere to carry forward, so the survivor's caption is synthesised from its alt.
     expect(out).toContain(
       `### Screenshots\n![Crash on submit](${URL_A})\n**Figure: Crash on submit**`,
     );
-    expect(out).not.toContain("**Figure: stray top**");
+  });
+
+  it("carries a RICH dropped caption forward to a caption-less survivor instead of synthesising a weaker one", () => {
+    // Regression (#834): the top embed carries a descriptive LLM caption while the
+    // "### Screenshots" copy has only bare alt text. We keep the section copy (correct) but must
+    // NOT re-synthesise a weaker caption from its alt and discard the rich one — that would make
+    // the rendered caption strictly worse than what the model wrote.
+    const body = [
+      "### Pain",
+      `![Login page crashes](${URL_A})`,
+      "**Figure: Login page crashes on submit**",
+      "",
+      "### Screenshots",
+      `![Login page crashes](${URL_A})`,
+    ].join("\n");
+
+    const out = normalizeIssueScreenshots(body);
+
+    expect(out.split(URL_A).length - 1).toBe(1);
+    // The rich top caption is carried forward to the surviving Screenshots-section embed.
+    expect(out).toContain(
+      `### Screenshots\n![Login page crashes](${URL_A})\n**Figure: Login page crashes on submit**`,
+    );
+    // The weaker alt-derived caption is NOT synthesised, and the detail is not lost.
+    expect(out).not.toMatch(/\*\*Figure: Login page crashes\*\*/);
+    expect(out).toContain("on submit");
+    // Exactly one caption remains.
+    expect(out.match(/\*\*Figure:/g)?.length).toBe(1);
   });
 });
 
@@ -166,6 +209,21 @@ describe("isBacklogItemMutationTool — #834 gating (anchored allow-list, not ke
     expect(isBacklogItemMutationTool("Jira__editJiraIssue")).toBe(true);
     // Unprefixed names work too.
     expect(isBacklogItemMutationTool("create_issue")).toBe(true);
+  });
+
+  it("fires for the LIVE GitHub `issue_write` tool (action-based, ends in `write` not `issue`)", () => {
+    // The official remote GitHub MCP server (api.githubcopilot.com/mcp) consolidated
+    // create_issue/update_issue into a single `issue_write` tool. Its bare name ends in `write`,
+    // so an end-anchored noun would silently miss it and the #834 backstop would never run for the
+    // configured GitHub server. The guard must recognise it.
+    expect(isBacklogItemMutationTool("GitHub__issue_write")).toBe(true);
+    expect(isBacklogItemMutationTool("issue_write")).toBe(true);
+  });
+
+  it("does NOT fire for `sub_issue_write` (manages parent/child links — has no body)", () => {
+    // GitHub's sub_issue_write reorders/links sub-issues; it has no `body` to normalise.
+    expect(isBacklogItemMutationTool("GitHub__sub_issue_write")).toBe(false);
+    expect(isBacklogItemMutationTool("GitHub__issue_read")).toBe(false);
   });
 
   it("does NOT fire for comment tools (the body field carries user-facing comment text)", () => {

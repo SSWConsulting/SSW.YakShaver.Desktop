@@ -23,35 +23,48 @@ const SCREENSHOTS_HEADING_REGEX = /^\s*#{1,6}\s+screenshots\b/i;
  * Whether `toolName` is a backlog item CREATE/UPDATE tool whose body markdown we should
  * normalise (#834). The decision must be robust across third-party MCP servers
  * (GitHub / Azure DevOps / Jira) whose tool names we don't own, so we do NOT scan for loose
- * keywords (the brittle pattern #833 deliberately moved away from). Instead we match an
- * explicit, anchored allow-list of the create/update tools and exclude anything that is a
- * comment, reply, cache, search, list, get, or read — none of which author a backlog body.
+ * keywords (the brittle pattern #833 deliberately moved away from). Instead we require BOTH a
+ * backlog noun AND a body-authoring mutation verb anywhere in the bare operation name, then
+ * exclude the operations that carry one of those words but never author a backlog BODY
+ * (comments, sub-issue links, labels, attachments, and read-only ops).
  *
- * Tool names arrive server-prefixed, e.g. `GitHub__create_issue`, `Azure_DevOps__wit_update_work_item`,
- * `Jira__jira_create_issue`. We strip the `<server>__` prefix and match the bare operation name.
+ * Crucially the backlog noun is matched ANYWHERE in the name, not anchored at the end: the
+ * official remote GitHub MCP server (api.githubcopilot.com/mcp) consolidated `create_issue`
+ * /`update_issue` into a single action-based `issue_write` tool, whose bare name ends in
+ * `write` — an end-anchor would silently miss the live tool and the #834 backstop would never
+ * run for the configured GitHub server.
+ *
+ * Tool names arrive server-prefixed, e.g. `GitHub__issue_write`, `GitHub__create_issue`,
+ * `Azure_DevOps__wit_update_work_item`, `Jira__jira_create_issue`. We strip the `<server>__`
+ * prefix and match the bare operation name.
  */
 export function isBacklogItemMutationTool(toolName: string): boolean {
   // Strip the `<server>__` prefix the orchestrator adds; keep the bare operation name.
   const bare = toolName.includes("__") ? (toolName.split("__").pop() ?? toolName) : toolName;
   const name = bare.trim().toLowerCase();
 
-  // Explicit exclusions: these may contain a backlog noun + a create-ish verb but do NOT author
-  // an issue/work-item BODY. Comments/replies carry user-facing text we must not rewrite;
-  // cache/search/list/get/read are read-only. Exclude first so e.g. `add_issue_comment`,
-  // `update_issue_cache`, `create_issue_comment` never slip through.
-  if (/(comment|reply|reaction|cache|search|list|get|read|find|query|delete|close)/.test(name)) {
+  // Explicit exclusions FIRST: these may contain a backlog noun + a mutation verb but do NOT
+  // author an issue/work-item BODY, so normalising their args would corrupt unrelated content.
+  //  - comment/reply/reaction: carry user-facing text we must not rewrite.
+  //  - sub_issue: GitHub's `sub_issue_write` manages parent/child links and has no `body`.
+  //  - label/assign/milestone/link/relation/attachment: metadata mutations, no body.
+  //  - cache/search/list/get/read/find/query/delete/close: read-only or non-body.
+  if (
+    /(comment|reply|reaction|sub[_-]?issue|label|assign|milestone|link|relation|attachment|cache|search|list|get|read|find|query|delete|close)/.test(
+      name,
+    )
+  ) {
     return false;
   }
 
-  // Allow-list, anchored on the OBJECT of the operation: a backlog create/update tool ends with
-  // the backlog noun it acts on (`create_issue`, `wit_update_work_item`, `jira_create_issue`,
-  // `editJiraIssue` -> `editjiraissue`), and contains a create/update verb. Anchoring the noun
-  // at the END is what makes this robust without keyword spotting: `add_issue_comment` ends in
-  // `comment` and `update_issue_cache` ends in `cache` (both excluded above), while
-  // `create_or_update_file` / `create_pull_request` end in `file` / `request` (not backlog nouns).
-  const nounAtEnd = /(work[_-]?item|backlog[_-]?item|issue|pbi|ticket|story|task)$/;
-  const hasMutationVerb = /(create|update|edit|new|add|file)/.test(name);
-  return nounAtEnd.test(name) && hasMutationVerb;
+  // Require a backlog noun AND a body-authoring mutation verb anywhere in the name. This admits
+  // the action-based `issue_write` (GitHub remote), the verb-prefixed `create_issue`
+  // /`update_issue` (legacy), `wit_update_work_item` (Azure), `jira_create_issue` and
+  // `editjiraissue` (Jira) alike, while `create_or_update_file`/`create_pull_request` lack a
+  // backlog noun and `add_issue_comment`/`update_issue_cache`/`sub_issue_write` are excluded above.
+  const backlogNoun = /(work[_-]?item|backlog[_-]?item|issue|pbi|ticket|story|task)/;
+  const mutationVerb = /(create|update|edit|write|new|add|file)/;
+  return backlogNoun.test(name) && mutationVerb.test(name);
 }
 
 /** A line that is already a bold Figure caption, e.g. `**Figure: something**`. */
@@ -114,6 +127,35 @@ function chooseSurvivingOccurrences(lines: string[]): Map<string, number> {
 }
 
 /**
+ * Collects the Figure caption that immediately follows each DROPPED duplicate embed, keyed by
+ * URL, so a rich LLM-authored caption on a discarded occurrence can be carried forward to the
+ * surviving embed if that survivor has no caption of its own. The first dropped caption seen
+ * for a URL wins (it is typically the top-of-body embed the model captioned descriptively).
+ */
+function collectDroppedCaptions(
+  lines: string[],
+  survivingIndexByUrl: Map<string, number>,
+): Map<string, string> {
+  const dropped = new Map<string, string>();
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(IMAGE_LINE_REGEX);
+    if (!match?.groups) {
+      continue;
+    }
+    const url = match.groups.url;
+    // Only DROPPED occurrences contribute a carry-forward caption.
+    if (survivingIndexByUrl.get(url) === i) {
+      continue;
+    }
+    const next = lines[i + 1];
+    if (next !== undefined && FIGURE_CAPTION_REGEX.test(next) && !dropped.has(url)) {
+      dropped.set(url, next);
+    }
+  }
+  return dropped;
+}
+
+/**
  * Normalises screenshot markdown in an issue/work-item body:
  *  - removes duplicate embeds of the same image URL (keeping the occurrence inside the
  *    "### Screenshots" section when one exists, otherwise the first), and
@@ -130,6 +172,11 @@ export function normalizeIssueScreenshots(body: string): string {
   // Split on newlines but preserve them so we can faithfully re-join.
   const lines = body.split("\n");
   const survivingIndexByUrl = chooseSurvivingOccurrences(lines);
+  // Captions found on DROPPED duplicate embeds, keyed by URL. When the surviving embed lacks
+  // its own caption we reuse a dropped one instead of synthesising a weaker caption from alt
+  // text — the LLM-authored caption on a top embed is typically richer than the bare alt text
+  // on the "### Screenshots" copy we keep, and discarding it is a quality regression (#834).
+  const droppedCaptionByUrl = collectDroppedCaptions(lines, survivingIndexByUrl);
   const result: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -146,7 +193,7 @@ export function normalizeIssueScreenshots(body: string): string {
     // Keep only the chosen surviving occurrence of each URL; drop every other embed.
     if (survivingIndexByUrl.get(url) !== i) {
       // Also drop a Figure caption that immediately followed the dropped embed, so we don't
-      // leave an orphaned caption behind.
+      // leave an orphaned caption behind (it is carried forward via droppedCaptionByUrl below).
       if (i + 1 < lines.length && FIGURE_CAPTION_REGEX.test(lines[i + 1])) {
         i += 1;
       }
@@ -155,11 +202,12 @@ export function normalizeIssueScreenshots(body: string): string {
 
     result.push(line);
 
-    // Ensure a bold Figure caption follows this embed.
+    // Ensure a bold Figure caption follows this embed. Prefer the survivor's own caption; if it
+    // has none, carry forward a caption from a dropped duplicate; otherwise synthesise from alt.
     const next = lines[i + 1];
     const hasCaption = next !== undefined && FIGURE_CAPTION_REGEX.test(next);
     if (!hasCaption) {
-      result.push(buildFigureCaption(match.groups.alt));
+      result.push(droppedCaptionByUrl.get(url) ?? buildFigureCaption(match.groups.alt));
     }
   }
 
