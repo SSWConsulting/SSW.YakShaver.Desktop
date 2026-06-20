@@ -95,15 +95,19 @@ instead of pretty output), `-h` / `--help`. Exit codes: `0` ok, `1` runtime/requ
 yakshaver mcp list
 yakshaver mcp add --name <name> --transport stdio --command <cmd> [--args "a b c"] [--env "K=V,K2=V2"]
 yakshaver mcp add --name <name> --transport http  --url <url>      [--header "K=V"]
-yakshaver mcp remove <id>
-yakshaver mcp enable <id> [--off]          # without --off enables; --off disables
+yakshaver mcp remove <id> | --name <name>
+yakshaver mcp enable <id> | --name <name> [--off]   # without --off enables; --off disables
 ```
 
 - `--transport` accepts `stdio` or `http` (aliased to the internal `streamableHttp`).
 - `--args` is a single **space-separated** string; it's split on spaces.
 - `--env` and `--header` are **comma-separated** `KEY=VALUE` lists (e.g. `--env "A=1,B=2"`).
-- `mcp remove <id>` and `mcp enable <id>` take the server **id** (a positional), not the
-  name. Get the id from `yakshaver mcp list` first.
+- `mcp remove` and `mcp enable` select the target server **either** by a positional
+  **id** **or** by `--name <name>` (resolved against `mcp list` at runtime). Name matching
+  is exact and case-sensitive: it **errors** if no server matches that name, and errors on
+  an **ambiguous** name (more than one match) telling you to use the positional `<id>`
+  instead. When you already have the id (e.g. from `yakshaver mcp list`), prefer the
+  positional `<id>`; otherwise `--name` saves a lookup round-trip.
 - `--description` is optional on `add`.
 
 ### Config (settings + LLM)
@@ -145,12 +149,26 @@ yakshaver mcp add \
   --name "Azure DevOps" \
   --transport stdio \
   --command "npx" \
-  --args "-y @azure-devops/mcp <your-org>" \
-  --env "AZURE_DEVOPS_PAT=<USER_PROVIDED_PAT>"
+  --args "-y @azure-devops/mcp <your-org> --authentication pat" \
+  --env "PERSONAL_ACCESS_TOKEN=<USER_PROVIDED_BASE64_EMAIL_COLON_PAT>"
 ```
 
-(Confirm the exact package / args with the user — the command, args, and env shown here are
-placeholders.)
+**Get the auth wiring from the official docs — don't invent it.** The example above is the
+Microsoft `@azure-devops/mcp` server, which selects its auth method with the
+`--authentication` / `-a` flag (one of `interactive | azcli | envvar | pat`), **not** an
+arbitrary `*_PAT` env var. With no `--authentication` flag it defaults to **interactive
+browser login**, which fails in a headless Claude Code context — so a non-interactive setup
+must pass the flag explicitly:
+
+- `--authentication pat` reads `PERSONAL_ACCESS_TOKEN`, which must be the **base64 encoding of
+  `<email>:<pat>`** (the email can be any non-empty string).
+- `--authentication envvar` reads a **raw bearer token** from `ADO_MCP_AUTH_TOKEN` (handy in
+  CI).
+
+Confirm the exact org, package, flag, and env var with the user against the server's own
+getting-started doc
+(<https://github.com/microsoft/azure-devops-mcp/blob/main/docs/GETTINGSTARTED.md>) before
+running this — never guess the env var name (see the "Never invent values" guardrail).
 
 ### List / inspect
 
@@ -164,8 +182,10 @@ yakshaver config get llm            # LLM config (keys redacted, hasApiKey boole
 ### Enable / disable a server
 
 ```bash
-yakshaver mcp enable <id>           # enable
-yakshaver mcp enable <id> --off     # disable
+yakshaver mcp enable <id>              # enable by id
+yakshaver mcp enable <id> --off        # disable by id
+yakshaver mcp enable --name "Jira"     # enable by name (errors if missing/ambiguous)
+yakshaver mcp enable --name "Jira" --off
 ```
 
 ### Change the tool-approval mode
@@ -177,8 +197,9 @@ yakshaver config set settings --tool-approval-mode wait   # one of: yolo | wait 
 ### Remove a server
 
 ```bash
-yakshaver mcp list                  # find the id
+yakshaver mcp list                  # find the id (or use --name below)
 yakshaver mcp remove <id>           # confirm with the user first (see Guardrails)
+yakshaver mcp remove --name "Jira"  # alternative: select by name (errors if missing/ambiguous)
 ```
 
 ## Guardrails
@@ -194,8 +215,8 @@ yakshaver mcp remove <id>           # confirm with the user first (see Guardrail
 - **The orchestration-backend toggle (#908) is NOT settable via the CLI yet.** `config set
   settings` only supports `--tool-approval-mode` and `--open-at-login`. For orchestration
   mode, tell the user to change it in the app's Settings.
-- **Confirm before removing.** `mcp remove <id>` is destructive — show the user which server
-  (name + id) you're about to remove and get confirmation first.
+- **Confirm before removing.** `mcp remove` (by `<id>` or `--name`) is destructive — show the
+  user which server (name + id) you're about to remove and get confirmation first.
 - **Built-in servers.** `mcp list` marks built-ins with `[builtin]`; prefer
   enabling/disabling these over removing them, and check with the user.
 - **App-not-running (exit 3).** Surface the friendly message and ask the user to start the
