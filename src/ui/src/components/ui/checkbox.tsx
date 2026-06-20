@@ -16,8 +16,9 @@ import { cn } from "@/lib/utils"
 // To stay safe we expand to 44px on the HORIZONTAL axis only and let the
 // overlay fill exactly the row height (`before:inset-y-0`), so overlays never
 // overlap. Call sites that need the full 44px vertical target give the row a
-// `min-h-11` (the label spans the row via htmlFor), which the overlay then
-// inherits — see PromptForm / McpWhitelistDialog.
+// `min-h-11` and a row-spanning `htmlFor` label, which the overlay then
+// inherits — see PromptForm, McpWhitelistDialog, TelemetryConsentDialog, and
+// VideoPreviewModal.
 const HIT_TARGET_44_X =
   "relative before:absolute before:inset-y-0 before:left-1/2 before:w-11 before:min-w-11 before:-translate-x-1/2 before:content-['']"
 
