@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { defaultCustomPrompt } from "../services/storage/default-custom-prompt";
 import { defaultProjectPrompt } from "../services/workflow/prompts";
-import { DUPLICATE_DETECTION_RULES, SHARED_ISSUE_CREATION_RULES } from "./prompts";
+import {
+  DUPLICATE_DETECTION_RULES,
+  ensureDuplicateDetectionRules,
+  SHARED_ISSUE_CREATION_RULES,
+} from "./prompts";
 
 // Bug #862: a previously created PBI that has since been DELETED in Azure DevOps was still
 // treated as a live duplicate. The agent then tried to update the deleted item (rejected by the
@@ -55,5 +59,39 @@ describe("duplicate-detection guidance is wired into every issue-creation prompt
 
   it("reaches the default custom prompt (local-style flow)", () => {
     expect(defaultCustomPrompt).toContain(DUPLICATE_DETECTION_RULES);
+  });
+});
+
+// Bug #862 follow-up: the rules are baked into the DEFAULT prompts, but the runtime only falls
+// back to a default when the selected project has no stored prompt. A project (local custom or
+// remote portal) that ships its OWN desktopAgentProjectPrompt — including prompts saved before
+// this fix — bypassed the default and never carried the guidance. ensureDuplicateDetectionRules
+// is the composition-time guarantee that closes that gap for every prompt source.
+describe("ensureDuplicateDetectionRules — guarantees the guidance on the finally-resolved prompt", () => {
+  it("appends the rules to a non-empty custom/remote prompt that lacks them", () => {
+    const customPrompt = "Always file issues in the Acme project. Tag @acme-team.";
+    const result = ensureDuplicateDetectionRules(customPrompt);
+    expect(result).toContain(customPrompt);
+    expect(result).toContain(DUPLICATE_DETECTION_RULES);
+  });
+
+  it("is idempotent: a prompt already carrying the rules is returned unchanged", () => {
+    // A default/template-derived prompt already embeds the rules — don't duplicate them.
+    expect(ensureDuplicateDetectionRules(defaultProjectPrompt)).toBe(defaultProjectPrompt);
+    expect(ensureDuplicateDetectionRules(defaultCustomPrompt)).toBe(defaultCustomPrompt);
+  });
+
+  it("does not duplicate the rules when applied twice", () => {
+    const customPrompt = "Free-form prompt with no duplicate-detection guidance.";
+    const once = ensureDuplicateDetectionRules(customPrompt);
+    const twice = ensureDuplicateDetectionRules(once);
+    expect(twice).toBe(once);
+    // Exactly one occurrence of the rules block.
+    expect(twice?.split(DUPLICATE_DETECTION_RULES).length).toBe(2);
+  });
+
+  it("passes through empty/undefined prompts unchanged (default fallback handles those)", () => {
+    expect(ensureDuplicateDetectionRules(undefined)).toBeUndefined();
+    expect(ensureDuplicateDetectionRules("")).toBe("");
   });
 });

@@ -17,6 +17,24 @@ export const DUPLICATE_DETECTION_RULES = `10) **Duplicate Detection (CRITICAL)**
 - NEVER attempt to update an item that is deleted or removed — the platform will reject the update.
 - If the ONLY matching item is deleted/removed, treat it as if no duplicate exists: create a brand-new, fully-populated item (title, steps to reproduce, acceptance criteria, etc.) and DO NOT add a "duplicate" comment.`;
 
+/**
+ * Guarantees the #862 duplicate-detection guidance is present in whatever issue-creation prompt
+ * is finally handed to the agent — defaults, stored local custom prompts, or remote portal prompts.
+ *
+ * The rules are baked into the two default-prompt constants, but the runtime only falls back to a
+ * default when the selected project has NO stored prompt. A project (local or portal) that ships
+ * its own `desktopAgentProjectPrompt` would otherwise bypass the guidance entirely, leaving those
+ * users exposed to bug #862. Appending here at composition time closes that gap for every source,
+ * including prompts saved before this fix existed. It is idempotent: if the rules are already
+ * present (e.g. a default prompt or a template-derived custom prompt), the prompt is returned
+ * unchanged.
+ */
+export function ensureDuplicateDetectionRules(prompt: string | undefined): string | undefined {
+  if (!prompt) return prompt;
+  if (prompt.includes(DUPLICATE_DETECTION_RULES)) return prompt;
+  return `${prompt}\n\n${DUPLICATE_DETECTION_RULES}`;
+}
+
 export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If the target repository has an issue template, you MUST follow it exactly. Use the available tools to verify if a template exists.
 
 4) **Issue Creation Guidelines**:
