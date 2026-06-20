@@ -8,6 +8,13 @@
 export interface ParsedArgs {
   positionals: string[];
   options: Record<string, string | boolean>;
+  /**
+   * Values for options that were repeated (e.g. `--arg a --arg b`), keyed by
+   * option name, in the order they appeared. A repeatable flag like `--arg`
+   * preserves each value verbatim (spaces included), unlike a space-split
+   * single string. Populated for every option name, even when given once.
+   */
+  repeated: Record<string, string[]>;
 }
 
 const BOOLEAN_FLAGS = new Set(["off", "help", "dev", "json"]);
@@ -15,6 +22,16 @@ const BOOLEAN_FLAGS = new Set(["off", "help", "dev", "json"]);
 export function parseArgs(argv: string[]): ParsedArgs {
   const positionals: string[] = [];
   const options: Record<string, string | boolean> = {};
+  const repeated: Record<string, string[]> = {};
+
+  const recordValue = (key: string, value: string) => {
+    // Last value wins for the flat `options` map (back-compat); the full list of
+    // values is preserved in `repeated` for flags that may be supplied N times.
+    options[key] = value;
+    const list = repeated[key] ?? [];
+    list.push(value);
+    repeated[key] = list;
+  };
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -28,7 +45,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       const eq = arg.indexOf("=");
       if (eq !== -1) {
         const key = arg.slice(2, eq);
-        options[key] = arg.slice(eq + 1);
+        recordValue(key, arg.slice(eq + 1));
         continue;
       }
 
@@ -38,7 +55,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       if (BOOLEAN_FLAGS.has(key) || next === undefined || next.startsWith("--")) {
         options[key] = true;
       } else {
-        options[key] = next;
+        recordValue(key, next);
         i++;
       }
       continue;
@@ -47,7 +64,20 @@ export function parseArgs(argv: string[]): ParsedArgs {
     positionals.push(arg);
   }
 
-  return { positionals, options };
+  return { positionals, options, repeated };
+}
+
+/**
+ * Read all values supplied for a repeatable option (e.g. every `--arg`), in
+ * order, each preserved verbatim. Returns `undefined` when the flag was never
+ * given so callers can distinguish "not provided" from "provided empty".
+ */
+export function repeatedStrings(
+  parsed: Pick<ParsedArgs, "repeated">,
+  name: string,
+): string[] | undefined {
+  const values = parsed.repeated[name];
+  return values && values.length > 0 ? values : undefined;
 }
 
 /** Read a string option, throwing a clear error when required and missing. */

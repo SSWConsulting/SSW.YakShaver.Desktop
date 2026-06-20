@@ -133,6 +133,10 @@ async function routeMcp(
     if (!existing) {
       return fail(`MCP server '${serverId}' not found`, 404);
     }
+    const builtinError = rejectBuiltinMutation(existing, "modified");
+    if (builtinError) {
+      return builtinError;
+    }
     const updated = { ...existing, enabled: parsed.data.enabled } as MCPServerConfig;
     await services.mcp.updateServerAsync(serverId, updated);
     return ok(redactMcpServer(updated));
@@ -151,6 +155,10 @@ async function routeMcp(
       if (!existing) {
         return fail(`MCP server '${serverId}' not found`, 404);
       }
+      const builtinError = rejectBuiltinMutation(existing, "modified");
+      if (builtinError) {
+        return builtinError;
+      }
       const mergeResult = mergeMcpPatch(existing, parsed.data);
       if (!mergeResult.ok) {
         return fail(mergeResult.error);
@@ -160,6 +168,15 @@ async function routeMcp(
       return ok(redactMcpServer(merged));
     }
     if (req.method === "DELETE") {
+      // Built-in servers are not persisted in user storage, so removeServerAsync
+      // would no-op while the CLI reports success. Reject explicitly instead.
+      const existing = await services.mcp.getServerByIdAsync(serverId);
+      if (existing) {
+        const builtinError = rejectBuiltinMutation(existing, "removed");
+        if (builtinError) {
+          return builtinError;
+        }
+      }
       await services.mcp.removeServerAsync(serverId);
       return ok({ id: serverId, removed: true });
     }
@@ -175,13 +192,17 @@ async function routeLlm(services: BridgeServices, req: BridgeRequest): Promise<B
     const redacted = redactLlmConfig(config);
     // Surface the effective orchestration backend so `config get` always shows a
     // concrete value even when the field has never been set (defaults to openai).
+    // On a fresh install no LLM config exists yet (getLLMConfig() -> null, so the
+    // redacted value is null too); return a minimal object carrying the default
+    // rather than printing `null`.
     if (redacted && typeof redacted === "object") {
       const r = redacted as Record<string, unknown>;
       if (r.orchestrationBackend === undefined) {
         r.orchestrationBackend = DEFAULT_ORCHESTRATION_BACKEND;
       }
+      return ok(redacted);
     }
-    return ok(redacted);
+    return ok({ orchestrationBackend: DEFAULT_ORCHESTRATION_BACKEND });
   }
   if (req.method === "POST") {
     const parsed = LLMConfigV2Schema.safeParse(req.body);
@@ -242,6 +263,28 @@ async function routeSettings(services: BridgeServices, req: BridgeRequest): Prom
     return ok(await services.settings.getSettingsAsync());
   }
   return fail(`Method not allowed: ${req.method} ${req.path}`, 405);
+}
+
+/**
+ * Reject any mutation targeting a built-in (internal) MCP server.
+ *
+ * Built-in servers are always-on, in-memory servers that are NOT persisted in
+ * user storage. Without this guard, enable/update/remove would silently no-op
+ * (or write a dead shadow copy into storage that is never surfaced) while the
+ * CLI still printed a success message. Returns a 400 BridgeResult to surface
+ * the rejection, or `undefined` when the config is a normal user/preset server.
+ *
+ * Preset servers are NOT built-in (they don't carry `builtin: true`), so this
+ * guard does not interfere with enabling/configuring them.
+ */
+function rejectBuiltinMutation(
+  existing: MCPServerConfig,
+  verb: "modified" | "removed",
+): BridgeResult | undefined {
+  if (existing.builtin === true) {
+    return fail(`'${existing.name}' is a built-in server and cannot be ${verb}.`);
+  }
+  return undefined;
 }
 
 /** Fields that belong ONLY to an HTTP (streamableHttp) server config. */

@@ -1,4 +1,10 @@
-import { optionalString, type ParsedArgs, parseKeyValueList, requireString } from "./args";
+import {
+  optionalString,
+  type ParsedArgs,
+  parseKeyValueList,
+  repeatedStrings,
+  requireString,
+} from "./args";
 
 /** A resolved request the CLI should issue against the bridge. */
 export interface CommandRequest {
@@ -30,7 +36,7 @@ export function buildRequest(parsed: ParsedArgs): CommandRequest {
   const { options } = parsed;
 
   if (group === "mcp") {
-    return buildMcpRequest(action, rest, options);
+    return buildMcpRequest(action, rest, options, parsed);
   }
   if (group === "config") {
     return buildConfigRequest(action, rest, options);
@@ -39,10 +45,41 @@ export function buildRequest(parsed: ParsedArgs): CommandRequest {
   throw new UsageError(`Unknown command: ${[group, action].filter(Boolean).join(" ")}`);
 }
 
+/**
+ * Resolve the stdio `args` array from the CLI flags.
+ *
+ * Prefers the repeatable `--arg <value>` form (one value per flag, each
+ * preserved VERBATIM so a single argument may contain spaces, e.g. a path like
+ * `/My Documents/server.js`). Falls back to the legacy single `--args "a b c"`
+ * form, which splits on whitespace and therefore CANNOT express an argument
+ * containing a space. The two forms are mutually exclusive.
+ *
+ * Returns `undefined` when neither flag is given (so the field is omitted and
+ * any existing value is preserved on update).
+ */
+function resolveStdioArgs(
+  options: Record<string, string | boolean>,
+  parsed: Pick<ParsedArgs, "repeated">,
+): string[] | undefined {
+  const repeated = repeatedStrings(parsed, "arg");
+  const argsValue = optionalString(options, "args");
+
+  if (repeated && argsValue !== undefined) {
+    throw new UsageError(
+      'Use either repeatable --arg <value> (preserves spaces) or a single --args "a b c", not both.',
+    );
+  }
+
+  if (repeated) return repeated;
+  if (argsValue !== undefined) return argsValue.split(" ").filter(Boolean);
+  return undefined;
+}
+
 function buildMcpRequest(
   action: string | undefined,
   rest: string[],
   options: Record<string, string | boolean>,
+  parsed: Pick<ParsedArgs, "repeated">,
 ): CommandRequest {
   switch (action) {
     case "list":
@@ -58,13 +95,12 @@ function buildMcpRequest(
 
       if (transport === "stdio") {
         const command = requireString(options, "command");
-        const argsValue = optionalString(options, "args");
         const body = {
           name,
           description,
           transport: "stdio" as const,
           command,
-          args: argsValue ? argsValue.split(" ").filter(Boolean) : undefined,
+          args: resolveStdioArgs(options, parsed),
           env: parseKeyValueList(optionalString(options, "env")),
         };
         return { method: "POST", path: "/mcp/servers", body, label: "Added MCP server" };
@@ -110,7 +146,7 @@ function buildMcpRequest(
         options,
         "update <id> | --name <name> [--url ... | --command ... | --args ... | --env ... | --header ... | --transport ...]",
       );
-      const body = buildMcpPatch(options, target.usedNameForLookup);
+      const body = buildMcpPatch(options, target.usedNameForLookup, parsed);
       return {
         ...target,
         method: "PUT",
@@ -160,6 +196,7 @@ function resolveTarget(
 function buildMcpPatch(
   options: Record<string, string | boolean>,
   nameUsedForLookup: boolean,
+  parsed: Pick<ParsedArgs, "repeated">,
 ): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
 
@@ -186,8 +223,8 @@ function buildMcpPatch(
   const command = optionalString(options, "command");
   if (command !== undefined) patch.command = command;
 
-  const argsValue = optionalString(options, "args");
-  if (argsValue !== undefined) patch.args = argsValue.split(" ").filter(Boolean);
+  const args = resolveStdioArgs(options, parsed);
+  if (args !== undefined) patch.args = args;
 
   const env = parseKeyValueList(optionalString(options, "env"));
   if (env !== undefined) patch.env = env;

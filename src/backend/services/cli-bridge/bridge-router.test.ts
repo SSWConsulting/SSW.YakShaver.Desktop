@@ -268,6 +268,80 @@ describe("routeRequest - MCP", () => {
     );
   });
 
+  it("POST /mcp/servers/:id/enabled rejects disabling a built-in server", async () => {
+    const builtin: MCPServerConfig = {
+      id: "yak_video_tools",
+      name: "Yak_Video_Tools",
+      transport: "inMemory",
+      builtin: true,
+      enabled: true,
+    };
+    const svc = makeServices({
+      mcp: {
+        ...makeServices().mcp,
+        getServerByIdAsync: vi.fn().mockResolvedValue(builtin),
+      },
+    });
+    const res = await routeRequest(svc, {
+      method: "POST",
+      path: "/mcp/servers/yak_video_tools/enabled",
+      body: { enabled: false },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    if (res.body.ok) throw new Error("expected error");
+    expect(res.body.error).toContain("built-in");
+    // Must NOT persist a shadow copy of the built-in server.
+    expect(svc.mcp.updateServerAsync).not.toHaveBeenCalled();
+  });
+
+  it("PUT /mcp/servers/:id rejects updating a built-in server", async () => {
+    const builtin: MCPServerConfig = {
+      id: "yak_video_tools",
+      name: "Yak_Video_Tools",
+      transport: "inMemory",
+      builtin: true,
+      enabled: true,
+    };
+    const svc = makeServices({
+      mcp: {
+        ...makeServices().mcp,
+        getServerByIdAsync: vi.fn().mockResolvedValue(builtin),
+      },
+    });
+    const res = await routeRequest(svc, {
+      method: "PUT",
+      path: "/mcp/servers/yak_video_tools",
+      body: { description: "hijacked" },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(svc.mcp.updateServerAsync).not.toHaveBeenCalled();
+  });
+
+  it("DELETE /mcp/servers/:id rejects removing a built-in server", async () => {
+    const builtin: MCPServerConfig = {
+      id: "yak_video_tools",
+      name: "Yak_Video_Tools",
+      transport: "inMemory",
+      builtin: true,
+      enabled: true,
+    };
+    const svc = makeServices({
+      mcp: {
+        ...makeServices().mcp,
+        getServerByIdAsync: vi.fn().mockResolvedValue(builtin),
+      },
+    });
+    const res = await routeRequest(svc, {
+      method: "DELETE",
+      path: "/mcp/servers/yak_video_tools",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(svc.mcp.removeServerAsync).not.toHaveBeenCalled();
+  });
+
   it("POST /mcp/servers/:id/enabled 404s on unknown server", async () => {
     const svc = makeServices({
       mcp: {
@@ -377,6 +451,20 @@ describe("routeRequest - LLM", () => {
     expect(res.status).toBe(200);
     if (!res.body.ok) throw new Error("expected ok");
     expect((res.body.data as { orchestrationBackend: string }).orchestrationBackend).toBe("openai");
+  });
+
+  it("GET /llm/config returns the default backend on a fresh install (null config)", async () => {
+    const services = makeServices({
+      llm: {
+        getLLMConfig: vi.fn().mockResolvedValue(null),
+        storeLLMConfig: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const res = await routeRequest(services, { method: "GET", path: "/llm/config" });
+    expect(res.status).toBe(200);
+    if (!res.body.ok) throw new Error("expected ok");
+    // Must surface a concrete value, never null, even when no config exists yet.
+    expect(res.body.data).toEqual({ orchestrationBackend: "openai" });
   });
 });
 
