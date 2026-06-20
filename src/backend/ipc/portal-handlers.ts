@@ -1,9 +1,10 @@
 import https from "node:https";
+import type { GetMyProjectsResponse } from "@shared/types/portal";
 import { ipcMain } from "electron";
 import { config } from "../config/env";
 import type { IdentityServerAuthService } from "../services/auth/identity-server-auth";
-import { mapProjectsResponse } from "../services/portal/map-projects";
-import type { GetMyProjectsResponse, GetMyShavesResponse } from "../types";
+import { fetchProjectSummaries, mapProjectsResponse } from "../services/portal/portal-projects";
+import type { GetMyShavesResponse } from "../types";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
@@ -74,11 +75,12 @@ export function registerPortalHandlers(identityServerAuthService: IdentityServer
     }
   });
 
-  // #816: list the projects the signed-in user is a member of.
-  // Sources the confirmed portal endpoint GET {portalApiUrl}/projects/summaries — the same
-  // per-user project list the remote-prompts feature already consumes in production (see
-  // PromptManager.getRemotePrompts). Returns a structured `code` for the signed-out case so
-  // the UI branches on a discriminator rather than parsing the error prose.
+  // #816: list the signed-in user's projects, sourced from the portal endpoint
+  // GET {portalApiUrl}/projects/summaries — the same per-user project list the remote-prompts
+  // feature already consumes in production. The fetch + DTO + mapping live in the shared
+  // portal-projects service so the endpoint contract has a single owner (AGENTS.md Rule 7/10).
+  // Returns a structured `code` for the signed-out case so the UI branches on a discriminator
+  // rather than parsing the error prose.
   ipcMain.handle(IPC_CHANNELS.PORTAL_GET_MY_PROJECTS, async () => {
     try {
       const accessToken = await identityServerAuthService.getAccessToken();
@@ -86,61 +88,15 @@ export function registerPortalHandlers(identityServerAuthService: IdentityServer
         return { success: false, code: "NOT_SIGNED_IN", error: "Not signed in" } as const;
       }
 
-      const apiUrl = config.portalApiUrl();
-      const url = new URL(apiUrl);
-      const hostname = url.hostname;
-      const port = url.port ? parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
-      const path = `${url.pathname.replace(/\/$/, "")}/projects/summaries`;
+      const parsed = await fetchProjectSummaries(accessToken);
+      const items = mapProjectsResponse(parsed);
+      if (items === null) {
+        // 2xx but an unrecognised body — surface an error rather than a misleading
+        // "you're not a member of any projects" empty state.
+        throw new Error("Unexpected projects response shape");
+      }
 
-      const data = await new Promise<GetMyProjectsResponse>((resolve, reject) => {
-        const options = {
-          hostname,
-          port,
-          path,
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-        };
-
-        const req = https.request(options, (res) => {
-          let responseData = "";
-          res.on("data", (chunk) => {
-            responseData += chunk;
-          });
-          res.on("end", () => {
-            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-              try {
-                const parsed = JSON.parse(responseData);
-                const items = mapProjectsResponse(parsed);
-                if (items === null) {
-                  // 2xx but an unrecognised body — surface an error rather than a misleading
-                  // "you're not a member of any projects" empty state.
-                  reject(new Error("Unexpected projects response shape"));
-                  return;
-                }
-                resolve({ items });
-              } catch (error) {
-                reject(
-                  new Error(
-                    `Failed to parse JSON response: ${formatAndReportError(error, "portal_api")}`,
-                  ),
-                );
-              }
-            } else {
-              reject(new Error(`API call failed: ${res.statusCode} ${res.statusMessage}`));
-            }
-          });
-        });
-
-        req.on("error", (error) => {
-          reject(error);
-        });
-
-        req.end();
-      });
-
+      const data: GetMyProjectsResponse = { items };
       return { success: true, data } as const;
     } catch (error) {
       console.error("Portal API error:", formatAndReportError(error, "portal_api"));

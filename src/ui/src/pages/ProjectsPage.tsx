@@ -1,7 +1,7 @@
+import type { Project } from "@shared/types/portal";
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Heading } from "@/components/typography/heading-tag";
-import type { Project } from "../../../backend/types";
 import { LoadingState } from "../components/common/LoadingState";
 import { NoProjects } from "../components/projects/NoProjects";
 import { Button } from "../components/ui/button";
@@ -41,7 +41,7 @@ export function ProjectsPage() {
   }, [loadProjects]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <main className="z-10 flex flex-col p-8 h-full gap-6 w-full min-w-0">
       <div className="flex items-center justify-between">
         <Heading>Projects</Heading>
         <Button variant="outline" size="sm" onClick={loadProjects} disabled={loading}>
@@ -54,7 +54,7 @@ export function ProjectsPage() {
         <LoadingState />
       ) : signedOut ? (
         <div className="rounded-md border border-white/10 bg-white/5 p-8 text-center">
-          <p className="text-muted-foreground">Sign in to see the projects you're a member of.</p>
+          <p className="text-muted-foreground">Sign in to see your projects.</p>
         </div>
       ) : error ? (
         <div className="rounded-md border border-white/10 bg-white/5 p-8 text-center">
@@ -83,6 +83,6 @@ export function ProjectsPage() {
           ))}
         </ul>
       )}
-    </div>
+    </main>
   );
 }

@@ -101,19 +101,7 @@ export interface GetMyShavesResponse {
   items: ShaveItem[];
 }
 
-/**
- * A project the signed-in user is a member of (#816). Sourced from the portal
- * `GET {portalApiUrl}/projects/summaries` endpoint (`{ id, title, description }`).
- */
-export interface Project {
-  id: string;
-  name: string;
-  description?: string | null;
-}
-
-export interface GetMyProjectsResponse {
-  items: Project[];
-}
-
-/** Discriminated error codes the get-my-projects handler can return (#816). */
-export type GetMyProjectsErrorCode = "NOT_SIGNED_IN" | "REQUEST_FAILED";
+// Portal-projects types (#816) are shared between the backend and the UI, so per
+// AGENTS.md Rule 9 they live in `@shared/types/portal`. Re-exported here for the
+// backend's existing `../types` import sites.
+export type { GetMyProjectsErrorCode, GetMyProjectsResponse, Project } from "@shared/types/portal";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapProjectsResponse } from "./map-projects";
+import { mapProjectsResponse } from "./portal-projects";
 
 describe("mapProjectsResponse (#816)", () => {
   it("maps the /projects/summaries array to Project[]", () => {
