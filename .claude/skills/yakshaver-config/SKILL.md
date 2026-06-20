@@ -93,21 +93,25 @@ instead of pretty output), `-h` / `--help`. Exit codes: `0` ok, `1` runtime/requ
 
 ```text
 yakshaver mcp list
-yakshaver mcp add --name <name> --transport stdio --command <cmd> [--args "a b c"] [--env "K=V,K2=V2"]
+yakshaver mcp add --name <name> --transport stdio --command <cmd> [--arg <a> --arg <b> ...] [--env "K=V,K2=V2"]
 yakshaver mcp add --name <name> --transport http  --url <url>      [--header "K=V"]
-yakshaver mcp remove <id> | --name <name>
-yakshaver mcp enable <id> | --name <name> [--off]   # without --off enables; --off disables
+yakshaver mcp remove <id>
+yakshaver mcp enable <id> [--off]   # without --off enables; --off disables
 ```
 
 - `--transport` accepts `stdio` or `http` (aliased to the internal `streamableHttp`).
-- `--args` is a single **space-separated** string; it's split on spaces.
+- **Launch args (`stdio`): use `--arg` (repeatable), not `--args`.** `--arg` is the
+  primary, robust mechanism — it is repeatable and each value is taken **verbatim**, so a
+  single argument may contain spaces (a Windows path like `--arg "C:\My Tools\server.js"`).
+  A value that itself begins with `--` must use the equals form, e.g.
+  `--arg=--config="My File.json"`. The legacy `--args "a b c"` is a single
+  **space-separated** string that's split on spaces and therefore **cannot express an
+  individual argument that contains a space** — use it only for the trivial, space-free
+  case. The two are **mutually exclusive**; passing both is a usage error.
 - `--env` and `--header` are **comma-separated** `KEY=VALUE` lists (e.g. `--env "A=1,B=2"`).
-- `mcp remove` and `mcp enable` select the target server **either** by a positional
-  **id** **or** by `--name <name>` (resolved against `mcp list` at runtime). Name matching
-  is exact and case-sensitive: it **errors** if no server matches that name, and errors on
-  an **ambiguous** name (more than one match) telling you to use the positional `<id>`
-  instead. When you already have the id (e.g. from `yakshaver mcp list`), prefer the
-  positional `<id>`; otherwise `--name` saves a lookup round-trip.
+- `mcp remove` and `mcp enable` select the target server by its positional **id** (get the
+  id from `yakshaver mcp list`). There is no `--name` selector for remove/enable in this
+  CLI surface — always look up the id with `mcp list` first.
 - `--description` is optional on `add`.
 
 ### Config (settings + LLM)
@@ -133,25 +137,43 @@ Always run `yakshaver mcp list` first so you know the current state and the serv
 GitHub's hosted MCP server is HTTP-based and authenticated with a token header. Ask the
 user for the real URL and token — never invent them.
 
+To keep the literal PAT out of shell history and the process table (see the secrets
+guardrail), set it in an environment variable first and reference it in the header rather
+than typing the token inline:
+
 ```bash
+export GITHUB_PAT="<USER_PROVIDED_PAT>"   # not persisted to history if you prefer; clear afterward
 yakshaver mcp add \
   --name "GitHub" \
   --transport http \
   --url "https://api.githubcopilot.com/mcp/" \
-  --header "Authorization=Bearer <USER_PROVIDED_PAT>"
+  --header "Authorization=Bearer $GITHUB_PAT"
 yakshaver mcp list          # confirm it appears
 ```
 
 ### Add a stdio MCP server (e.g. Azure DevOps via npx)
+
+Pass each launch argument as a separate repeatable `--arg` (verbatim, space-safe) rather
+than the legacy space-splitting `--args`:
 
 ```bash
 yakshaver mcp add \
   --name "Azure DevOps" \
   --transport stdio \
   --command "npx" \
-  --args "-y @azure-devops/mcp <your-org> --authentication pat" \
-  --env "PERSONAL_ACCESS_TOKEN=<USER_PROVIDED_BASE64_EMAIL_COLON_PAT>"
+  --arg "-y" \
+  --arg "@azure-devops/mcp" \
+  --arg "<your-org>" \
+  --arg=--authentication \
+  --arg "pat" \
+  --env "PERSONAL_ACCESS_TOKEN=$ADO_PAT_B64"
 ```
+
+(Set `export ADO_PAT_B64="<USER_PROVIDED_BASE64_EMAIL_COLON_PAT>"` first so the literal token
+isn't typed into the command line — see the secrets guardrail. Clear your history afterward.)
+
+(Use `--arg=--authentication` — the equals form — because the value begins with `--`; a
+bare `--arg --authentication` would be parsed as two flags.)
 
 **Get the auth wiring from the official docs — don't invent it.** The example above is the
 Microsoft `@azure-devops/mcp` server, which selects its auth method with the
@@ -181,11 +203,13 @@ yakshaver config get llm            # LLM config (keys redacted, hasApiKey boole
 
 ### Enable / disable a server
 
+Select the server by its **id** — run `yakshaver mcp list` first to find it (the list shows
+each server's name alongside its id).
+
 ```bash
+yakshaver mcp list                     # find the id for "Jira"
 yakshaver mcp enable <id>              # enable by id
 yakshaver mcp enable <id> --off        # disable by id
-yakshaver mcp enable --name "Jira"     # enable by name (errors if missing/ambiguous)
-yakshaver mcp enable --name "Jira" --off
 ```
 
 ### Change the tool-approval mode
@@ -197,9 +221,8 @@ yakshaver config set settings --tool-approval-mode wait   # one of: yolo | wait 
 ### Remove a server
 
 ```bash
-yakshaver mcp list                  # find the id (or use --name below)
+yakshaver mcp list                  # find the id for the server to remove
 yakshaver mcp remove <id>           # confirm with the user first (see Guardrails)
-yakshaver mcp remove --name "Jira"  # alternative: select by name (errors if missing/ambiguous)
 ```
 
 ## Guardrails
@@ -212,11 +235,21 @@ yakshaver mcp remove --name "Jira"  # alternative: select by name (errors if mis
   CLI, only set new ones where supported.
 - **Setting LLM secrets is not supported via the CLI.** `config set llm` errors on purpose —
   direct the user to the app's Settings UI to configure providers / API keys.
+- **Inline secrets in `--header` / `--env` leak into shell history and the process table.**
+  A PAT or token typed directly into a `yakshaver mcp add` command line (e.g.
+  `--header "Authorization=Bearer <PAT>"`, `--env "PERSONAL_ACCESS_TOKEN=<PAT>"`) is
+  persisted to the operator's shell history (`.bash_history` / PSReadLine) and is visible to
+  other processes on the host (`ps`, `/proc/<pid>/cmdline`) for the lifetime of the command.
+  Prefer routing credential-bearing setup through the app's **Settings UI**, where the bridge
+  redacts secrets (mirroring the unsupported `config set llm`). If you must use the CLI,
+  reference the secret from an environment variable rather than typing the literal token
+  (e.g. set `$GITHUB_PAT` first, then `--header "Authorization=Bearer $GITHUB_PAT"`), and
+  warn the user to clear their shell history afterward.
 - **The orchestration-backend toggle (#908) is NOT settable via the CLI yet.** `config set
   settings` only supports `--tool-approval-mode` and `--open-at-login`. For orchestration
   mode, tell the user to change it in the app's Settings.
-- **Confirm before removing.** `mcp remove` (by `<id>` or `--name`) is destructive — show the
-  user which server (name + id) you're about to remove and get confirmation first.
+- **Confirm before removing.** `mcp remove <id>` is destructive — show the user which server
+  (name + id, from `mcp list`) you're about to remove and get confirmation first.
 - **Built-in servers.** `mcp list` marks built-ins with `[builtin]`; prefer
   enabling/disabling these over removing them, and check with the user.
 - **App-not-running (exit 3).** Surface the friendly message and ask the user to start the
