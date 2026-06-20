@@ -11,7 +11,15 @@ import { z } from "zod";
 /** Name of the token file written under `userData/yakshaver-tokens/`. */
 export const CLI_BRIDGE_TOKEN_FILE = "cli-bridge.json";
 
-/** Directory (relative to userData) where secure tokens live. */
+/**
+ * Directory (relative to userData) the handshake file is written to. It shares
+ * the `yakshaver-tokens` folder with the safeStorage-encrypted `*.enc`
+ * credentials, but unlike those the bridge handshake file is PLAINTEXT JSON: the
+ * non-Electron CLI cannot decrypt safeStorage, so it must be able to read the
+ * port + bearer token directly. The bridge binds to localhost only and the file
+ * is written owner-only (mode 0o600, a no-op on Windows). See AGENTS.md →
+ * "Security & Privacy" for the documented exception to the encrypt-all rule.
+ */
 export const CLI_BRIDGE_TOKEN_DIR = "yakshaver-tokens";
 
 /** Host the bridge binds to. Localhost ONLY — never expose to the network. */
@@ -64,7 +72,7 @@ const baseFields = {
 export const HttpServerInputSchema = z.object({
   ...baseFields,
   transport: z.literal("streamableHttp"),
-  url: z.string().url("url must be a valid URL"),
+  url: z.url("url must be a valid URL"),
   headers: stringRecord.optional(),
   version: z.string().optional(),
   timeoutMs: z.number().int().positive().optional(),

@@ -2,6 +2,7 @@
 import { parseArgs } from "./args";
 import { BridgeClient, BridgeUnavailableError } from "./bridge-client";
 import { buildRequest, type CommandRequest, UsageError } from "./commands";
+import { printResult } from "./print";
 
 const HELP = `yakshaver — configure YakShaver Desktop from the terminal
 
@@ -64,47 +65,6 @@ async function main(argv: string[]): Promise<number> {
     console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
-}
-
-function printResult(label: string, data: unknown, asJson: boolean): void {
-  if (asJson) {
-    console.log(JSON.stringify(data, null, 2));
-    return;
-  }
-
-  // Pretty-print MCP server lists as a compact table-ish summary.
-  if (Array.isArray(data)) {
-    console.log(`${label} (${data.length}):`);
-    for (const item of data) {
-      printServerLine(item);
-    }
-    return;
-  }
-
-  if (label.startsWith("Added") || label.startsWith("Removed") || label.includes("MCP server")) {
-    console.log(`${label}:`);
-    printServerLine(data);
-    return;
-  }
-
-  console.log(`${label}:`);
-  console.log(JSON.stringify(data, null, 2));
-}
-
-function printServerLine(item: unknown): void {
-  if (!item || typeof item !== "object") {
-    console.log(`  ${JSON.stringify(item)}`);
-    return;
-  }
-  const s = item as Record<string, unknown>;
-  const enabled = s.enabled === false ? "disabled" : "enabled";
-  const target = s.url ?? s.command ?? "";
-  const builtin = s.builtin ? " [builtin]" : "";
-  console.log(
-    `  - ${String(s.name ?? "(unnamed)")} [${String(s.transport ?? "?")}] (${enabled})${builtin}` +
-      `\n      id: ${String(s.id ?? "?")}` +
-      (target ? `\n      ${s.url ? "url" : "command"}: ${String(target)}` : ""),
-  );
 }
 
 main(process.argv.slice(2))

@@ -168,6 +168,58 @@ describe("routeRequest - MCP", () => {
     const res = await routeRequest(services, { method: "PATCH", path: "/mcp/servers" });
     expect(res.status).toBe(405);
   });
+
+  describe("built-in server immutability", () => {
+    const builtin: MCPServerConfig = {
+      id: "builtin-1",
+      name: "Built In",
+      transport: "inMemory",
+      enabled: true,
+      builtin: true,
+    } as MCPServerConfig;
+
+    function builtinServices() {
+      return makeServices({
+        mcp: {
+          ...makeServices().mcp,
+          getServerByIdAsync: vi.fn().mockResolvedValue(builtin),
+        },
+      });
+    }
+
+    it("rejects enabling/disabling a built-in server with 409 and does not persist", async () => {
+      const svc = builtinServices();
+      const res = await routeRequest(svc, {
+        method: "POST",
+        path: "/mcp/servers/builtin-1/enabled",
+        body: { enabled: false },
+      });
+      expect(res.status).toBe(409);
+      expect(res.body.ok).toBe(false);
+      expect(svc.mcp.updateServerAsync).not.toHaveBeenCalled();
+    });
+
+    it("rejects PUT on a built-in server with 409 and does not persist", async () => {
+      const svc = builtinServices();
+      const res = await routeRequest(svc, {
+        method: "PUT",
+        path: "/mcp/servers/builtin-1",
+        body: { name: "Hijack", transport: "streamableHttp", url: "https://evil.example.com/mcp" },
+      });
+      expect(res.status).toBe(409);
+      expect(svc.mcp.updateServerAsync).not.toHaveBeenCalled();
+    });
+
+    it("rejects DELETE on a built-in server with 409 and does not remove", async () => {
+      const svc = builtinServices();
+      const res = await routeRequest(svc, {
+        method: "DELETE",
+        path: "/mcp/servers/builtin-1",
+      });
+      expect(res.status).toBe(409);
+      expect(svc.mcp.removeServerAsync).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("routeRequest - LLM", () => {

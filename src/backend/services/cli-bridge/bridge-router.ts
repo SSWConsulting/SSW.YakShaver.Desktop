@@ -49,6 +49,14 @@ export interface BridgeResult {
   body: BridgeResponse;
 }
 
+/**
+ * Built-in (internal/preset) MCP servers are managed by the app and must not be
+ * mutated through the bridge — the desktop UI excludes them from its
+ * enable/edit/delete surface (McpServerManager.tsx), so the bridge mirrors that
+ * invariant instead of silently persisting a phantom row the merge logic ignores.
+ */
+const BUILTIN_IMMUTABLE_MESSAGE = "Cannot modify a built-in MCP server";
+
 const ok = <T>(data: T, status = 200): BridgeResult => ({ status, body: { ok: true, data } });
 const fail = (error: string, status = 400): BridgeResult => ({
   status,
@@ -124,6 +132,9 @@ async function routeMcp(
     if (!existing) {
       return fail(`MCP server '${serverId}' not found`, 404);
     }
+    if (existing.builtin) {
+      return fail(BUILTIN_IMMUTABLE_MESSAGE, 409);
+    }
     const updated = { ...existing, enabled: parsed.data.enabled } as MCPServerConfig;
     await services.mcp.updateServerAsync(serverId, updated);
     return ok(redactMcpServer(updated));
@@ -137,6 +148,9 @@ async function routeMcp(
         return fail(`Invalid server config: ${formatZodError(parsed.error)}`);
       }
       const existing = await services.mcp.getServerByIdAsync(serverId);
+      if (existing?.builtin) {
+        return fail(BUILTIN_IMMUTABLE_MESSAGE, 409);
+      }
       const merged = {
         ...(existing ?? {}),
         ...(parsed.data as object),
@@ -146,6 +160,10 @@ async function routeMcp(
       return ok(redactMcpServer(merged));
     }
     if (req.method === "DELETE") {
+      const existing = await services.mcp.getServerByIdAsync(serverId);
+      if (existing?.builtin) {
+        return fail(BUILTIN_IMMUTABLE_MESSAGE, 409);
+      }
       await services.mcp.removeServerAsync(serverId);
       return ok({ id: serverId, removed: true });
     }
