@@ -206,12 +206,15 @@ describe("LocalClaudeOrchestrator", () => {
   });
 
   describe("argv building per approval mode", () => {
-    it("yolo -> --permission-mode bypassPermissions (no --allowedTools)", () => {
+    it("always passes the serialized config strictly + the system prompt file", () => {
       const orch = new LocalClaudeOrchestrator();
-      const argv = orch.buildArgv("/tmp/cfg.json", "yolo", ["mcp__GitHub__create_issue"]);
-      expect(argv).toContain("--permission-mode");
-      expect(argv).toContain("bypassPermissions");
-      expect(argv).not.toContain("--allowedTools");
+      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "yolo", []);
+      // --strict-mcp-config keeps the run to YakShaver's servers only (no ambient .mcp.json).
+      expect(argv).toContain("--strict-mcp-config");
+      // The orchestrator role is delivered as the system prompt, not as the user turn.
+      const sysIdx = argv.indexOf("--system-prompt-file");
+      expect(sysIdx).toBeGreaterThan(-1);
+      expect(argv[sysIdx + 1]).toBe("/tmp/sys.txt");
       expect(argv).toEqual(
         expect.arrayContaining([
           "-p",
@@ -224,21 +227,47 @@ describe("LocalClaudeOrchestrator", () => {
       );
     });
 
-    it("ask -> --allowedTools built from the whitelist", () => {
+    it("yolo -> --permission-mode bypassPermissions (no --allowedTools)", () => {
       const orch = new LocalClaudeOrchestrator();
-      const argv = orch.buildArgv("/tmp/cfg.json", "ask", [
+      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "yolo", [
+        "mcp__GitHub__create_issue",
+      ]);
+      expect(argv).toContain("--permission-mode");
+      expect(argv).toContain("bypassPermissions");
+      expect(argv).not.toContain("--allowedTools");
+    });
+
+    it("wait -> --permission-mode bypassPermissions (matches OpenAI's auto-approve-after-delay)", () => {
+      const orch = new LocalClaudeOrchestrator();
+      // wait auto-approves non-whitelisted tools after a delay on the OpenAI path; the headless
+      // analogue that still RUNS them is bypassPermissions, not a hard deny.
+      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "wait", []);
+      expect(argv).toContain("--permission-mode");
+      expect(argv).toContain("bypassPermissions");
+      expect(argv).not.toContain("--allowedTools");
+      expect(argv).not.toContain("dontAsk");
+    });
+
+    it("ask -> --permission-mode dontAsk + --allowedTools (denies non-whitelisted, never hangs)", () => {
+      const orch = new LocalClaudeOrchestrator();
+      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "ask", [
         "mcp__GitHub__create_issue",
         "mcp__Local_FS__read_file",
       ]);
+      // dontAsk converts any approval prompt into a denial so a headless run can't block.
+      const pmIdx = argv.indexOf("--permission-mode");
+      expect(pmIdx).toBeGreaterThan(-1);
+      expect(argv[pmIdx + 1]).toBe("dontAsk");
       const idx = argv.indexOf("--allowedTools");
       expect(idx).toBeGreaterThan(-1);
       expect(argv[idx + 1]).toBe("mcp__GitHub__create_issue,mcp__Local_FS__read_file");
       expect(argv).not.toContain("bypassPermissions");
     });
 
-    it("wait with empty whitelist -> no --allowedTools and no bypass (constrained run)", () => {
+    it("ask with empty whitelist -> dontAsk and no --allowedTools (no MCP tools run, no hang)", () => {
       const orch = new LocalClaudeOrchestrator();
-      const argv = orch.buildArgv("/tmp/cfg.json", "wait", []);
+      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "ask", []);
+      expect(argv).toContain("dontAsk");
       expect(argv).not.toContain("--allowedTools");
       expect(argv).not.toContain("bypassPermissions");
     });
@@ -263,6 +292,8 @@ describe("LocalClaudeOrchestrator", () => {
         reasoning: "created",
       });
 
+      // Realistic stream: the tool_use block carries an OPAQUE id; the tool_result references it
+      // only via tool_use_id (NOT the tool name). The orchestrator must correlate id -> name.
       const lines = [
         JSON.stringify({
           type: "assistant",
@@ -272,7 +303,12 @@ describe("LocalClaudeOrchestrator", () => {
           type: "assistant",
           message: {
             content: [
-              { type: "tool_use", name: "mcp__GitHub__create_issue", input: { title: "Bug" } },
+              {
+                type: "tool_use",
+                id: "toolu_01ABCdef",
+                name: "mcp__GitHub__create_issue",
+                input: { title: "Bug" },
+              },
             ],
           },
         }),
@@ -282,7 +318,7 @@ describe("LocalClaudeOrchestrator", () => {
             content: [
               {
                 type: "tool_result",
-                tool_use_id: "mcp__GitHub__create_issue",
+                tool_use_id: "toolu_01ABCdef",
                 content: "Created issue #5: https://github.com/o/r/issues/5",
               },
             ],
@@ -309,7 +345,7 @@ describe("LocalClaudeOrchestrator", () => {
         onStep: (s) => steps.push(s),
       });
 
-      // stdin received the system prompt + transcript
+      // stdin received only the transcript as the user turn (the system prompt goes via argv).
       expect(runChild.stdin.write).toHaveBeenCalled();
       const written = (runChild.stdin.write as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
       expect(written).toContain("video transcription: a bug report");
@@ -319,6 +355,19 @@ describe("LocalClaudeOrchestrator", () => {
       expect(types).toContain("tool_call");
       expect(types).toContain("tool_result");
       expect(types).toContain("final_result");
+
+      // Reasoning is emitted JSON-encoded ({type,text}) so ReasoningStep renders it (not blank).
+      const reasoningStep = steps.find((s) => s.type === "reasoning");
+      expect(JSON.parse(reasoningStep?.reasoning ?? "{}")).toEqual({
+        type: "text",
+        text: "I'll create an issue.",
+      });
+
+      // The judge must receive the REAL tool name, correlated from the opaque tool_use_id — not
+      // the opaque `toolu_...` id itself.
+      const judgePrompt = generateObject.mock.calls[0][0] as string;
+      expect(judgePrompt).toContain("mcp__GitHub__create_issue");
+      expect(judgePrompt).not.toContain("toolu_01ABCdef");
 
       expect(generateObject).toHaveBeenCalledTimes(1);
       expect(result.backlogActionSucceeded).toBe(true);

@@ -27,7 +27,7 @@ const BACKEND_OPTIONS: readonly BackendOption[] = [
     id: "local-claude",
     title: "Claude Code (local)",
     description:
-      "Drive backlog creation with a local headless `claude` process. Requires the `claude` CLI installed and on PATH.",
+      'Drive backlog creation with a local headless `claude` process. Requires the `claude` CLI installed and on PATH, and still needs a configured OpenAI/Azure language model to verify success. Under "ask" approval mode only whitelisted tools run (no runtime approval prompt), and YakShaver\'s built-in screenshot tools are unavailable.',
   },
 ];
 

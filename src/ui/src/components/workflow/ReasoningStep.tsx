@@ -6,12 +6,14 @@ interface ReasoningStepProps {
 }
 
 export function ReasoningStep({ reasoning }: ReasoningStepProps) {
+  // Reasoning is normally a JSON-encoded `{ type, text }` payload, but fall back to rendering the
+  // raw string when it isn't valid JSON so plain-text reasoning never renders blank.
   let parsed: ParsedResult = {};
 
   try {
     parsed = JSON.parse(reasoning);
-  } catch (error) {
-    console.error("Failed to parse reasoning:", error);
+  } catch {
+    parsed = { text: reasoning };
   }
 
   return (

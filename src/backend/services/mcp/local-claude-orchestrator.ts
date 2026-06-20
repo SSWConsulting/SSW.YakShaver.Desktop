@@ -129,25 +129,63 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
       options.videoFilePath,
     );
 
-    const { mcpConfig, allowedTools, skippedNonWhitelistedServers } =
+    const { mcpConfig, allowedTools, skippedNonWhitelistedServers, droppedInMemoryServers } =
       await this.serializeMcpServers(manager, options.serverFilter);
 
-    if (skippedNonWhitelistedServers.length > 0) {
-      console.warn(
-        `[LocalClaudeOrchestrator] No whitelisted tools for server(s): ${skippedNonWhitelistedServers.join(", ")} under "${approvalMode}" approval mode — proceeding with whatever is whitelisted; non-whitelisted tools were skipped.`,
-      );
-    }
+    this.surfaceServerNotices(
+      approvalMode,
+      skippedNonWhitelistedServers,
+      droppedInMemoryServers,
+      options.onStep,
+    );
 
     const tmpConfigPath = join(tmpdir(), `yakshaver-mcp-${randomUUID()}.json`);
+    const tmpPromptPath = join(tmpdir(), `yakshaver-sysprompt-${randomUUID()}.txt`);
     await fs.writeFile(tmpConfigPath, JSON.stringify(mcpConfig, null, 2), "utf8");
+    await fs.writeFile(tmpPromptPath, systemPrompt, "utf8");
 
     try {
-      const argv = this.buildArgv(tmpConfigPath, approvalMode, allowedTools);
-      return await this.runClaude(argv, systemPrompt, videoTranscription, options);
+      const argv = this.buildArgv(tmpConfigPath, tmpPromptPath, approvalMode, allowedTools);
+      return await this.runClaude(argv, videoTranscription, options);
     } finally {
-      await fs.unlink(tmpConfigPath).catch(() => {
-        /* best-effort cleanup */
-      });
+      await Promise.all([
+        fs.unlink(tmpConfigPath).catch(() => {
+          /* best-effort cleanup */
+        }),
+        fs.unlink(tmpPromptPath).catch(() => {
+          /* best-effort cleanup */
+        }),
+      ]);
+    }
+  }
+
+  /**
+   * Surfaces server-selection caveats to both the log and the UI (via an onStep notice) so the
+   * user understands why a tool/server may be unavailable under the local backend — rather than
+   * seeing a silent run that quietly does less than the OpenAI path would.
+   */
+  private surfaceServerNotices(
+    approvalMode: ToolApprovalMode,
+    skippedNonWhitelistedServers: string[],
+    droppedInMemoryServers: string[],
+    onStep?: ManualLoopOptions["onStep"],
+  ): void {
+    const notices: string[] = [];
+
+    if (skippedNonWhitelistedServers.length > 0 && approvalMode === "ask") {
+      const msg = `Claude Code (local) only runs whitelisted tools under "ask" approval mode (no runtime approval prompt). These server(s) have no whitelisted tools, so their tools were not made available: ${skippedNonWhitelistedServers.join(", ")}.`;
+      notices.push(msg);
+      console.warn(`[LocalClaudeOrchestrator] ${msg}`);
+    }
+
+    if (droppedInMemoryServers.length > 0) {
+      const msg = `Claude Code (local) cannot reach YakShaver's built-in in-memory tools, so these are unavailable under this backend (e.g. screenshot capture): ${droppedInMemoryServers.join(", ")}.`;
+      notices.push(msg);
+      console.warn(`[LocalClaudeOrchestrator] ${msg}`);
+    }
+
+    for (const text of notices) {
+      onStep?.({ type: "reasoning", reasoning: JSON.stringify({ type: "text", text }) });
     }
   }
 
@@ -207,6 +245,7 @@ Embed this URL in the task content that you create. Follow user requirements STR
     mcpConfig: ClaudeMcpConfigFile;
     allowedTools: string[];
     skippedNonWhitelistedServers: string[];
+    droppedInMemoryServers: string[];
   }> {
     const all = await manager.listAvailableServers();
     const filterSet = serverFilter && serverFilter.length > 0 ? new Set(serverFilter) : null;
@@ -220,11 +259,16 @@ Embed this URL in the task content that you create. Follow user requirements STR
     const mcpServers: Record<string, ClaudeMcpServer> = {};
     const allowedTools: string[] = [];
     const skippedNonWhitelistedServers: string[] = [];
+    const droppedInMemoryServers: string[] = [];
 
     for (const config of selected) {
-      // inMemory servers are YakShaver-internal; Claude Code can't reach them over its own
-      // transports, so they're skipped for the local backend.
-      if (config.transport === "inMemory") continue;
+      // inMemory servers are YakShaver-internal (e.g. Yak_Video_Tools' screenshot capture); Claude
+      // Code can't reach them over its own transports, so they're dropped for the local backend.
+      // Surface them so the caller can warn the user that the local backend lacks those tools.
+      if (config.transport === "inMemory") {
+        droppedInMemoryServers.push(config.name);
+        continue;
+      }
 
       const serverKey = sanitizeServerName(config.name);
       const entry = await this.toClaudeServerEntry(config);
@@ -244,6 +288,7 @@ Embed this URL in the task content that you create. Follow user requirements STR
       mcpConfig: { mcpServers },
       allowedTools,
       skippedNonWhitelistedServers,
+      droppedInMemoryServers,
     };
   }
 
@@ -277,13 +322,27 @@ Embed this URL in the task content that you create. Follow user requirements STR
   }
 
   /**
-   * Maps the approval mode to Claude Code's permission flags:
+   * Maps the approval mode to Claude Code's permission flags.
+   *
    * - `yolo` → `--permission-mode bypassPermissions` (run every tool immediately).
-   * - `ask` / `wait` → `--allowedTools <whitelist>` (only the whitelisted tools may run; anything
-   *   else is denied by Claude rather than hanging on an interactive prompt the headless run can't answer).
+   * - `wait` → ALSO `--permission-mode bypassPermissions`. In the OpenAI backend `wait` shows the
+   *   approval prompt but AUTO-APPROVES after a delay, so a non-whitelisted tool the user doesn't
+   *   dismiss still RUNS. A headless `claude -p` can't render a deferred prompt, so the faithful
+   *   analogue of "auto-approve after a delay" is to bypass permissions — otherwise `wait` would
+   *   silently HARD-DENY non-whitelisted tools, diverging from the OpenAI behaviour for the same
+   *   setting. (See requestToolApproval's `wait` -> auto-approve path.)
+   * - `ask` → `--allowedTools <whitelist>` + `--permission-mode dontAsk`. `--allowedTools` only
+   *   auto-approves the listed tools; on its own (default permission mode) a non-whitelisted tool
+   *   would trigger an interactive prompt the headless run can't answer and the run can hang/abort.
+   *   `dontAsk` converts any such prompt into an outright denial, so the run never blocks.
+   *
+   * `--strict-mcp-config` ensures Claude only uses the servers we serialized into `--mcp-config`,
+   * ignoring any ambient project `.mcp.json` / `~/.claude` MCP config so the embedded run is
+   * deterministic across machines and can't reach servers YakShaver never configured.
    */
   public buildArgv(
     mcpConfigPath: string,
+    systemPromptPath: string,
     approvalMode: ToolApprovalMode,
     allowedTools: string[],
   ): string[] {
@@ -291,16 +350,21 @@ Embed this URL in the task content that you create. Follow user requirements STR
       "-p",
       "--mcp-config",
       mcpConfigPath,
+      "--strict-mcp-config",
+      "--system-prompt-file",
+      systemPromptPath,
       "--output-format",
       "stream-json",
       "--verbose",
     ];
 
-    if (approvalMode === "yolo") {
+    if (approvalMode === "yolo" || approvalMode === "wait") {
       argv.push("--permission-mode", "bypassPermissions");
     } else {
-      // ask & wait: a headless process can't service interactive approvals, so we constrain the
-      // run to the user-approved (whitelisted) tools. An empty whitelist yields no extra tools.
+      // ask: only the user-approved (whitelisted) tools auto-approve; `dontAsk` denies anything
+      // else instead of prompting (which a headless run can't answer). An empty whitelist means
+      // no MCP tools run.
+      argv.push("--permission-mode", "dontAsk");
       if (allowedTools.length > 0) {
         argv.push("--allowedTools", allowedTools.join(","));
       }
@@ -311,18 +375,20 @@ Embed this URL in the task content that you create. Follow user requirements STR
 
   private async runClaude(
     argv: string[],
-    systemPrompt: string,
     videoTranscription: string,
     options: ManualLoopOptions,
   ): Promise<MCPLoopResult> {
     const toolActivity: ToolActivity[] = [];
+    // Correlates a tool_use block's opaque id (e.g. `toolu_01ABC...`) back to its real tool name,
+    // so the tool_result we record later carries the actual name instead of the opaque id.
+    const toolNameById = new Map<string, string>();
 
     const child = this.spawner.spawn(this.claudeCommand, argv);
 
-    // The full prompt = system prompt + the transcript as the user input, passed over stdin so
-    // long transcripts don't bump into argv length limits.
-    const fullPrompt = `${systemPrompt}\n\n---\nvideo transcription: ${videoTranscription}`;
-    child.stdin?.write(fullPrompt);
+    // The orchestrator role is delivered via `--system-prompt` (in argv), so only the transcript
+    // goes on stdin as the user turn. Passing it over stdin avoids argv length limits.
+    const userPrompt = `video transcription: ${videoTranscription}`;
+    child.stdin?.write(userPrompt);
     child.stdin?.end();
 
     const { finalText, terminationReason } = await new Promise<{
@@ -344,7 +410,7 @@ Embed this URL in the task content that you create. Follow user requirements STR
           // Non-JSON lines (e.g. stray logs) are ignored — the stream is newline-delimited JSON.
           return;
         }
-        const result = this.handleStreamEvent(event, toolActivity, options.onStep);
+        const result = this.handleStreamEvent(event, toolActivity, toolNameById, options.onStep);
         if (result.finalText !== undefined) finalText = result.finalText;
         if (result.terminationReason) terminationReason = result.terminationReason;
       };
@@ -384,6 +450,22 @@ Embed this URL in the task content that you create. Follow user requirements STR
     options.onStep?.({ type: "final_result", message: terminationReason });
 
     const provider = this.judgeProvider ?? (await this.getJudgeProvider());
+
+    // The success judge (#833) runs on the configured OpenAI/Azure language model — it is NOT
+    // driven by Claude. If a user selected Claude Code (local) to avoid configuring a language
+    // model, the judge is unavailable and judgeBacklogOutcome fails CLOSED, so a run where Claude
+    // genuinely filed an item would be reported as FAILED. Surface that cause instead of a silent
+    // misleading failure.
+    if (!provider && toolActivity.some((t) => t.ok)) {
+      const text =
+        "Claude Code (local) created or updated something, but success could NOT be verified " +
+        "because no OpenAI/Azure language model is configured — Claude Code orchestration still " +
+        "needs a configured language model to verify the outcome. Configure one in Settings to " +
+        "confirm success.";
+      options.onStep?.({ type: "reasoning", reasoning: JSON.stringify({ type: "text", text }) });
+      console.warn(`[LocalClaudeOrchestrator] ${text}`);
+    }
+
     const outcome = await judgeBacklogOutcome(
       provider,
       options.desktopAgentProjectPrompt,
@@ -407,17 +489,27 @@ Embed this URL in the task content that you create. Follow user requirements STR
   private handleStreamEvent(
     event: ClaudeStreamEvent,
     toolActivity: ToolActivity[],
+    toolNameById: Map<string, string>,
     onStep?: ManualLoopOptions["onStep"],
   ): { finalText?: string; terminationReason?: MCPTerminationReason } {
     // Assistant turn: may carry text and/or tool_use blocks.
     if (event.type === "assistant" && event.message?.content) {
       for (const block of event.message.content) {
         if (block.type === "text" && block.text) {
-          onStep?.({ type: "reasoning", reasoning: block.text });
+          // Match the OpenAI loop's payload shape so ReasoningStep's JSON.parse path renders it
+          // (it reads `parsed.text`). Emitting raw text here would render blank in the UI.
+          onStep?.({
+            type: "reasoning",
+            reasoning: JSON.stringify({ type: "text", text: block.text }),
+          });
         } else if (block.type === "tool_use") {
+          const toolName = block.name ?? "unknown";
+          // Remember which tool this opaque id belongs to so the matching tool_result (which only
+          // carries the id) can be recorded under the real tool name.
+          if (block.id) toolNameById.set(block.id, toolName);
           onStep?.({
             type: "tool_call",
-            toolName: block.name ?? "unknown",
+            toolName,
             args: block.input,
           });
         }
@@ -431,8 +523,14 @@ Embed this URL in the task content that you create. Follow user requirements STR
         if (block.type === "tool_result") {
           const resultText = extractToolResultText(block.content);
           const ok = block.is_error !== true;
+          // `tool_use_id` is the opaque correlation id of the originating tool_use block, NOT the
+          // tool name. Resolve it back to the real name so the judge and logs see meaningful names.
+          const toolName =
+            (block.tool_use_id ? toolNameById.get(block.tool_use_id) : undefined) ??
+            block.tool_use_id ??
+            "unknown";
           toolActivity.push({
-            toolName: block.tool_use_id ?? "unknown",
+            toolName,
             ok,
             resultText: resultText.slice(0, 8000),
           });
@@ -475,6 +573,7 @@ interface ClaudeStreamEvent {
   message?: {
     content?: Array<{
       type: string;
+      id?: string;
       text?: string;
       name?: string;
       input?: unknown;
