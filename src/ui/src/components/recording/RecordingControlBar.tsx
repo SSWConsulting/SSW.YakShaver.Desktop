@@ -11,6 +11,7 @@ export default function RecordingControlBar() {
   const receivedPushRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
     const unsubscribe = window.electronAPI.controlBar.onTimeUpdate((t) => {
       receivedPushRef.current = true;
       setTime(t);
@@ -20,10 +21,18 @@ export default function RecordingControlBar() {
     // first value before this renderer mounted, that push was missed, so we
     // ask the main process for the authoritative current time instead of
     // staying stuck on the initial 00:00.
-    window.electronAPI.controlBar.getCurrentTime().then((t) => {
-      if (t && !receivedPushRef.current) setTime(t);
-    });
-    return unsubscribe;
+    window.electronAPI.controlBar
+      .getCurrentTime()
+      .then((t) => {
+        // Guard against a setState after the control-bar window unmounts while
+        // this IPC invoke is still in flight (AGENTS.md async-effect rule).
+        if (!cancelled && t && !receivedPushRef.current) setTime(t);
+      })
+      .catch((error) => console.error("Failed to pull current recording time:", error));
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   return (
