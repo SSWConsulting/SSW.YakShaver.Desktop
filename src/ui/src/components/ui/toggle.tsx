@@ -14,9 +14,13 @@ const toggleVariants = cva(
           "border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground",
       },
       size: {
-        default: "h-9 min-w-9 px-2",
-        sm: "h-8 min-w-8 px-1.5",
-        lg: "h-10 min-w-10 px-2.5",
+        // 44px minimum touch target on both axes (WCAG 2.5.5, issue #898).
+        // Toggles render as role=button and sit in horizontally-adjacent groups,
+        // so we raise the box itself rather than use a ::before overlay (which
+        // would overlap the neighbouring toggle and mis-target clicks).
+        default: "min-h-11 min-w-11 px-2",
+        sm: "min-h-11 min-w-11 px-1.5",
+        lg: "min-h-11 min-w-11 px-2.5",
       },
     },
     defaultVariants: {

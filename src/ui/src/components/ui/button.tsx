@@ -8,7 +8,18 @@ import { cn } from "@/lib/utils";
 // For compact variants (sm/icon) we keep the visual box small but expand the
 // *hit* area to 44px via a transparent ::before overlay, so dense rows
 // (toolbars, the recording bar, list rows) don't visually grow.
-const HIT_TARGET_44 =
+//
+// Exported so other primitives (e.g. checkbox.tsx) reuse the same overlay
+// instead of inlining a copy (AGENTS.md "Constants Over Literals").
+//
+// NOTE: a full 44px-tall overlay safely covers both axes for an *isolated*
+// control, but it overflows its row when controls are stacked vertically
+// closer than 44px apart, so adjacent overlays overlap and a click can hit
+// the wrong control. Use this only where vertical neighbours are >=44px away
+// (icon/sm buttons sit in horizontal toolbars). Vertically-stacked controls
+// such as checkboxes must instead clamp the overlay to the row height — see
+// HIT_TARGET_44_X in checkbox.tsx.
+export const HIT_TARGET_44 =
   "relative before:absolute before:left-1/2 before:top-1/2 before:size-11 before:min-h-11 before:min-w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']";
 
 const buttonVariants = cva(
@@ -28,11 +39,12 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        // 44px minimum height by default (WCAG 2.5.5, issue #898).
-        default: "min-h-11 px-4 py-2 has-[>svg]:px-3",
+        // 44px minimum touch target on both axes by default
+        // (WCAG 2.5.5 C44 requires min-block-size AND min-inline-size).
+        default: "min-h-11 min-w-11 px-4 py-2 has-[>svg]:px-3",
         // Compact variants keep their visual size but get a 44px hit area.
         sm: `h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5 ${HIT_TARGET_44}`,
-        lg: "min-h-11 rounded-md px-6 has-[>svg]:px-4",
+        lg: "min-h-11 min-w-11 rounded-md px-6 has-[>svg]:px-4",
         icon: `size-9 ${HIT_TARGET_44}`,
         chunky: "h-14 px-6 py-4"
       },
