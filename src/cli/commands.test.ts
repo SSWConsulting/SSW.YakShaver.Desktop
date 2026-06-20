@@ -75,13 +75,38 @@ describe("buildRequest - mcp", () => {
       "node",
       "--arg",
       "C:\\My Tools\\server.js",
-      // A value that itself begins with -- must use the equals form so the
-      // parser doesn't read it as a new flag.
-      "--arg=--config=My File.json",
+      // A value that itself begins with -- is taken verbatim, no equals form needed.
+      "--arg",
+      "--config",
+      "--arg",
+      "My File.json",
     ]);
     expect(req.body).toMatchObject({
       command: "node",
-      args: ["C:\\My Tools\\server.js", "--config=My File.json"],
+      args: ["C:\\My Tools\\server.js", "--config", "My File.json"],
+    });
+  });
+
+  it("mcp add stdio passes a flag-shaped --arg value through verbatim (no silent drop)", () => {
+    const req = build([
+      "mcp",
+      "add",
+      "--name",
+      "Local",
+      "--transport",
+      "stdio",
+      "--command",
+      "node",
+      "--arg",
+      "server.js",
+      "--arg",
+      "--port",
+      "--arg",
+      "3000",
+    ]);
+    expect(req.body).toMatchObject({
+      command: "node",
+      args: ["server.js", "--port", "3000"],
     });
   });
 

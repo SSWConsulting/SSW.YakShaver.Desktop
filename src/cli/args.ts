@@ -18,6 +18,24 @@ export interface ParsedArgs {
 
 const BOOLEAN_FLAGS = new Set(["off", "help", "dev", "json"]);
 
+/**
+ * Flags whose immediately-following token is ALWAYS consumed verbatim as the
+ * value — even when that token itself begins with `--`. This is required for
+ * flags that legitimately carry an arbitrary value which may look like a flag,
+ * e.g. an MCP launch argument: `--arg --port` / `--arg --config`. Without this,
+ * the generic lookahead rule (treat a `--`-prefixed next token as the next flag)
+ * would silently swallow the value and produce a misconfigured server.
+ */
+const VALUE_FLAGS = new Set(["arg"]);
+
+/** A usage/parse error raised while splitting argv (e.g. a flag missing its value). */
+export class ArgParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ArgParseError";
+  }
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
   const positionals: string[] = [];
   const options: Record<string, string | boolean> = {};
@@ -48,6 +66,19 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
       const key = arg.slice(2);
       const next = argv[i + 1];
+
+      // A value-flag (e.g. --arg) always takes the very next token as its value,
+      // verbatim, even if it starts with "--". A missing value is a hard error
+      // rather than a silent drop.
+      if (VALUE_FLAGS.has(key)) {
+        if (next === undefined) {
+          throw new ArgParseError(`--${key} requires a value`);
+        }
+        recordValue(key, next);
+        i++;
+        continue;
+      }
+
       // Boolean flags, or a flag at the end / followed by another flag.
       if (BOOLEAN_FLAGS.has(key) || next === undefined || next.startsWith("--")) {
         options[key] = true;

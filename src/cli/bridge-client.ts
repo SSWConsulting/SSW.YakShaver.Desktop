@@ -12,9 +12,13 @@ import { getUserDataDir } from "./user-data-path";
 
 /** Thrown when the app/bridge isn't reachable. The CLI prints a friendly hint. */
 export class BridgeUnavailableError extends Error {
-  constructor(message: string) {
+  /** True when the token file simply did not exist (vs. corrupt/unreachable). */
+  readonly notFound: boolean;
+
+  constructor(message: string, options?: { notFound?: boolean }) {
     super(message);
     this.name = "BridgeUnavailableError";
+    this.notFound = options?.notFound ?? false;
   }
 }
 
@@ -22,8 +26,40 @@ const NOT_RUNNING_HINT =
   "YakShaver Desktop doesn't appear to be running (or the CLI bridge is disabled). " +
   "Start the app and retry.";
 
-/** Read + validate the token file the app wrote. */
+/**
+ * Read + validate the token file the app wrote.
+ *
+ * The desktop app and the CLI are separate processes that do NOT share an env,
+ * and they detect "dev" differently (the app keys off NODE_ENV/--dev-protocol;
+ * a developer's plain shell has neither). To avoid a misleading "not running"
+ * error when the dev app is up but the CLI looked in the prod folder (or vice
+ * versa), an UNSPECIFIED `dev` (the default) tries BOTH the prod and the dev
+ * token locations before giving up. Passing `dev: true`/`false` explicitly
+ * (e.g. via `--dev`) pins the search to that single location.
+ */
 export async function readTokenFile(dev?: boolean): Promise<CliBridgeTokenFile> {
+  // When dev is unspecified, probe both builds (prod first, then dev).
+  const candidates: boolean[] = dev === undefined ? [false, true] : [dev];
+
+  let lastError: Error | undefined;
+  for (const candidate of candidates) {
+    try {
+      return await readTokenFileFrom(candidate);
+    } catch (err) {
+      // Keep probing other locations only when this one simply isn't there.
+      if (err instanceof BridgeUnavailableError && err.notFound) {
+        lastError = err;
+        continue;
+      }
+      // A present-but-corrupt/invalid file is a real signal — surface it.
+      throw err;
+    }
+  }
+  throw lastError ?? new BridgeUnavailableError(NOT_RUNNING_HINT);
+}
+
+/** Read + validate the token file from one specific build's userData dir. */
+async function readTokenFileFrom(dev: boolean): Promise<CliBridgeTokenFile> {
   const filePath = join(getUserDataDir(dev), CLI_BRIDGE_TOKEN_DIR, CLI_BRIDGE_TOKEN_FILE);
 
   let raw: string;
@@ -31,7 +67,7 @@ export async function readTokenFile(dev?: boolean): Promise<CliBridgeTokenFile> 
     raw = await fs.readFile(filePath, "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new BridgeUnavailableError(NOT_RUNNING_HINT);
+      throw new BridgeUnavailableError(NOT_RUNNING_HINT, { notFound: true });
     }
     throw err;
   }

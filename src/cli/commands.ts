@@ -110,7 +110,8 @@ function buildMcpRequest(
  *
  * `--arg` is the primary, robust mechanism: it is repeatable and each value is
  * taken verbatim, so a single argument may contain spaces (a Windows path like
- * `--arg "C:\My Tools\server.js"`, or `--arg "--config=My File.json"`). The
+ * `--arg "C:\My Tools\server.js"`) and may itself begin with `--` (a flag-shaped
+ * argument such as `--arg --port --arg 3000`). The
  * legacy `--args "a b c"` form is kept only as a convenience for the trivial,
  * space-free case — it splits on spaces and therefore CANNOT express an
  * individual argument that contains a space. The two are mutually exclusive to

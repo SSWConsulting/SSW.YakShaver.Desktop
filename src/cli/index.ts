@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { parseArgs } from "./args";
+import { ArgParseError, parseArgs } from "./args";
 import { BridgeClient, BridgeUnavailableError } from "./bridge-client";
 import { buildRequest, type CommandRequest, UsageError } from "./commands";
 import { printResult } from "./print";
@@ -19,11 +19,10 @@ MCP
   yakshaver mcp remove <id>
   yakshaver mcp enable <id> [--off]        # --off disables instead of enabling
 
-  Use --arg (repeatable) for each launch argument; values may contain spaces,
-  e.g. --arg "C:\\My Tools\\server.js". A value that itself begins with -- must
-  use the equals form, e.g. --arg=--config="My File.json". The legacy
-  --args "a b c" splits on spaces and cannot express an argument that itself
-  contains a space.
+  Use --arg (repeatable) for each launch argument; each value is taken verbatim,
+  so it may contain spaces, e.g. --arg "C:\\My Tools\\server.js", and it may even
+  begin with -- (e.g. --arg --port --arg 3000). The legacy --args "a b c" splits
+  on spaces and cannot express an argument that itself contains a space.
 
 CONFIG
   yakshaver config get [llm|settings]      # defaults to settings
@@ -38,7 +37,17 @@ GLOBAL
 Secrets (api keys, header/env values) are always redacted in output.`;
 
 async function main(argv: string[]): Promise<number> {
-  const parsed = parseArgs(argv);
+  let parsed: ReturnType<typeof parseArgs>;
+  try {
+    parsed = parseArgs(argv);
+  } catch (err) {
+    if (err instanceof ArgParseError) {
+      console.error(`Error: ${err.message}\n`);
+      console.error(HELP);
+      return 2;
+    }
+    throw err;
+  }
 
   if (parsed.options.help || parsed.positionals.length === 0) {
     console.log(HELP);
@@ -57,7 +66,9 @@ async function main(argv: string[]): Promise<number> {
     throw err;
   }
 
-  const client = new BridgeClient({ dev: parsed.options.dev === true });
+  // `--dev` forces the dev (YakShaverDev) build; without it we leave `dev`
+  // unset so the client auto-detects by trying both prod and dev token files.
+  const client = new BridgeClient({ dev: parsed.options.dev === true ? true : undefined });
 
   try {
     const data = await client.request(request.method, request.path, request.body);
