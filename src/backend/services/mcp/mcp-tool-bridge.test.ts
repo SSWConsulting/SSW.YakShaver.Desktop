@@ -62,6 +62,20 @@ describe("McpToolBridge.listTools", () => {
     const [summary] = await bridge.listTools();
     expect(summary.inputSchema).toEqual({ type: "object", properties: {} });
   });
+
+  it("resolves to an EMPTY list (never rejects) when no enabled servers are healthy", async () => {
+    // collectToolsWithServerPrefixAsync throws ("No MCP clients available" /
+    // "No tools available...") whenever zero enabled servers are healthy — e.g.
+    // the first-run "no MCP servers configured" state. The bridge must collapse
+    // that to [] so the front-door's tools/list returns an empty list rather
+    // than a JSON-RPC transport error mid-run.
+    const manager = makeManager(makeToolSet());
+    manager.collectToolsWithServerPrefixAsync.mockRejectedValue(
+      new Error("[MCPServerManager]: No MCP clients available"),
+    );
+    const bridge = new McpToolBridge(manager, makeSettings("ask"));
+    await expect(bridge.listTools()).resolves.toEqual([]);
+  });
 });
 
 describe("McpToolBridge.callTool - approval policy enforcement", () => {
@@ -118,6 +132,22 @@ describe("McpToolBridge.callTool - approval policy enforcement", () => {
     );
     const res = await bridge.callTool("GitHub__create_issue", { title: "Bug" });
     expect(res).toEqual({ ok: false, error: "boom" });
+  });
+
+  it("returns a structured failure (never rejects) when no enabled servers are healthy", async () => {
+    // Same degenerate state as the listTools case: collecting the toolset throws.
+    // callTool must collapse it to an empty toolset, so the existing "Unknown
+    // tool" structured refusal is returned and the front-door can relay it as an
+    // MCP isError result instead of rejecting with a transport error mid-run.
+    const manager = makeManager(makeToolSet(), ["GitHub__create_issue"]);
+    manager.collectToolsWithServerPrefixAsync.mockRejectedValue(
+      new Error("[MCPServerManager]: No tools available from selected/healthy servers"),
+    );
+    const bridge = new McpToolBridge(manager, makeSettings("yolo"));
+    const res = await bridge.callTool("GitHub__create_issue", { title: "Bug" });
+    expect(res.ok).toBe(false);
+    if (res.ok) throw new Error("expected a structured failure");
+    expect(res.error).toMatch(/unknown tool/i);
   });
 
   it("defaults arguments to {} and passes them to execute()", async () => {

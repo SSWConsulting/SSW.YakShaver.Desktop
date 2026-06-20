@@ -44,7 +44,7 @@ export class McpToolBridge {
 
   /** Aggregated tool list for `GET /tools`. Names/descriptions/schemas only. */
   async listTools(): Promise<BridgeToolSummary[]> {
-    const tools = await this.manager.collectToolsWithServerPrefixAsync();
+    const tools = await this.collectToolsOrEmpty();
     const summaries: BridgeToolSummary[] = [];
     for (const [name, tool] of Object.entries(tools)) {
       summaries.push({
@@ -65,7 +65,7 @@ export class McpToolBridge {
    * route these to the in-app approval UI; for v1 it's a clean refusal.)
    */
   async callTool(name: string, args: Record<string, unknown> = {}): Promise<ToolCallResult> {
-    const tools = await this.manager.collectToolsWithServerPrefixAsync();
+    const tools = await this.collectToolsOrEmpty();
     const tool = tools[name];
     if (!tool) {
       return { ok: false, error: `Unknown tool: ${name}` };
@@ -98,6 +98,28 @@ export class McpToolBridge {
       return { ok: true, result };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  /**
+   * Resolve the aggregated toolset, treating the "no healthy/enabled servers"
+   * degenerate state as an EMPTY toolset rather than an error.
+   *
+   * {@link ToolBridgeManager.collectToolsWithServerPrefixAsync} throws when zero
+   * enabled servers are healthy (e.g. the first-run "no MCP servers configured"
+   * state, or every configured server failing to connect). That throw must NOT
+   * propagate to the bridge router (which would relay it as an HTTP 500 and make
+   * the front-door reject mid-run). Honouring the bridge's "never hang, always
+   * return a structured envelope" contract, we collapse it to `{}`:
+   *  - `listTools()` then returns an empty list (tools/list ⇒ []), and
+   *  - `callTool()` then returns the existing structured `{ok:false, "Unknown
+   *    tool"}` refusal, which the front-door relays as an MCP `isError` result.
+   */
+  private async collectToolsOrEmpty(): Promise<ToolSet> {
+    try {
+      return await this.manager.collectToolsWithServerPrefixAsync();
+    } catch {
+      return {} as ToolSet;
     }
   }
 }
