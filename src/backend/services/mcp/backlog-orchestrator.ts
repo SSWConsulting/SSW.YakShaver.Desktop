@@ -30,6 +30,13 @@ export interface MCPLoopResult {
   artifacts: BacklogArtifact[];
   /** Why the loop ended — distinguishes a clean finish from hitting a safety cap. */
   terminationReason: MCPTerminationReason;
+  /**
+   * True when a tool call succeeded but the outcome could NOT be verified because no judge model
+   * was configured (the local-Claude-without-an-OpenAI/Azure-model case). The run still counts as
+   * not-succeeded (we fail closed), but the caller should tell the user an item MAY have been
+   * created and to check their backlog before re-running — not that their connection is signed out.
+   */
+  verificationUnavailable?: boolean;
 }
 
 /** One executed tool call and (a truncated view of) its result — the ground truth the judge reasons over. */
@@ -51,6 +58,12 @@ export interface ManualLoopOptions {
   serverFilter?: string[]; // if provided, only include tools from these server IDs
   shaveId?: string; // identifies the current shave for per-shave auto-approve
   onStep?: (step: MCPStep) => void;
+  /**
+   * Aborts an in-flight run. The OpenAI backend can already be cancelled via its approval flow;
+   * the headless local-Claude backend has no approval prompts, so this signal is its cancellation
+   * path — when it fires the spawned `claude -p` child is killed and the run rejects.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -106,7 +119,7 @@ export async function judgeBacklogOutcome(
   transcript: string,
   toolActivity: ToolActivity[],
   finalText: string,
-): Promise<{ achieved: boolean; artifacts: BacklogArtifact[] }> {
+): Promise<{ achieved: boolean; artifacts: BacklogArtifact[]; verificationUnavailable?: boolean }> {
   const succeeded = toolActivity.filter((t) => t.ok);
   if (succeeded.length === 0) {
     console.log("[judgeBacklogOutcome] no successful tool calls -> not achieved");
@@ -114,8 +127,15 @@ export async function judgeBacklogOutcome(
   }
 
   if (!provider) {
-    console.warn("[judgeBacklogOutcome] outcome judge unavailable (no LLM) -> not achieved");
-    return { achieved: false, artifacts: [] };
+    // A tool DID succeed, but there's no judge to confirm whether it filed a backlog item. We
+    // still fail CLOSED (achieved=false), but flag verificationUnavailable so the caller can tell
+    // the user "an item may have been created but couldn't be verified" instead of the misleading
+    // generic "your backlog connection is signed out" copy (#833 / local-Claude no-LLM case).
+    console.warn(
+      "[judgeBacklogOutcome] outcome judge unavailable (no LLM) but a tool succeeded -> " +
+        "not achieved, verification unavailable",
+    );
+    return { achieved: false, artifacts: [], verificationUnavailable: true };
   }
 
   const judgeSystemPrompt =

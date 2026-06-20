@@ -28,6 +28,15 @@ import type { MCPServerConfig } from "./types";
 const DEFAULT_MAX_TOOL_ITERATIONS = 20;
 
 /**
+ * Wall-clock cap on a single headless `claude -p` run. `--max-turns` bounds the number of agent
+ * TURNS, but a tool stalled on I/O (a hung MCP server, a network stall) never advances a turn, so
+ * that cap never trips and the awaited Promise would hang EXECUTING_TASK forever. This timeout
+ * kills the child and rejects with a clear message so a stuck run surfaces instead of hanging.
+ * Overridable via `LOCAL_CLAUDE_RUN_TIMEOUT_MS` for slow environments / long-running tools.
+ */
+const DEFAULT_RUN_TIMEOUT_MS = Number(process.env.LOCAL_CLAUDE_RUN_TIMEOUT_MS ?? 10 * 60 * 1000);
+
+/**
  * Default spawner for the `claude` CLI. On Windows, an npm-global install of `@anthropic-ai/claude-code`
  * places a `claude.cmd`/`claude.ps1` shim on PATH (no `.exe`), and Node's `child_process.spawn` cannot
  * launch a `.cmd`/`.ps1` shim without `shell: true` — it throws ENOENT, which would make a user who
@@ -89,6 +98,7 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
     private readonly tokenStorage: TokenLookup | null = null,
     private readonly settingsStorage: Pick<UserSettingsStorage, "getSettingsAsync"> | null = null,
     private readonly judgeProvider: OutcomeJudgeProvider | null = null,
+    private readonly runTimeoutMs: number = DEFAULT_RUN_TIMEOUT_MS,
   ) {}
 
   private getTokenStorage(): TokenLookup {
@@ -442,6 +452,11 @@ Embed this URL in the task content that you create. Follow user requirements STR
     // so the tool_result we record later carries the actual name instead of the opaque id.
     const toolNameById = new Map<string, string>();
 
+    // Reject early if the caller already aborted before we spawned anything.
+    if (options.signal?.aborted) {
+      throw new Error("Claude Code run was cancelled.");
+    }
+
     const child = this.spawner.spawn(this.claudeCommand, argv);
 
     // The orchestrator role is delivered via `--system-prompt` (in argv), so only the transcript
@@ -458,6 +473,50 @@ Embed this URL in the task content that you create. Follow user requirements STR
       let stderr = "";
       let finalText = "";
       let terminationReason: MCPTerminationReason = "unknown";
+      let settled = false;
+
+      // Kill the spawned child on any terminal path (timeout, abort, error, non-zero exit) so a
+      // stalled `claude -p` never lingers as an orphan after we stop awaiting it.
+      const killChild = () => {
+        try {
+          child.kill();
+        } catch {
+          /* the child may already be gone — best effort */
+        }
+      };
+
+      // A wall-clock guard: `--max-turns` bounds turns, not time, so a tool hung on I/O would hang
+      // forever. On timeout, kill the child and reject with an actionable message.
+      const timeoutMs = this.runTimeoutMs;
+      const timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        killChild();
+        reject(
+          new Error(
+            `Claude Code run timed out after ${Math.round(timeoutMs / 1000)}s with no result. ` +
+              "The Claude CLI or an MCP tool may be stalled — try again, or switch Orchestrator " +
+              "to OpenAI in Settings.",
+          ),
+        );
+      }, timeoutMs);
+
+      // Cancellation: when the caller's signal fires, kill the child and reject so an in-flight
+      // local run can be aborted the way the OpenAI backend can.
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        killChild();
+        reject(new Error("Claude Code run was cancelled."));
+      };
+
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        options.signal?.removeEventListener("abort", onAbort);
+      };
+      options.signal?.addEventListener("abort", onAbort);
 
       const handleLine = (line: string) => {
         const trimmed = line.trim();
@@ -487,10 +546,17 @@ Embed this URL in the task content that you create. Follow user requirements STR
       });
 
       child.on("error", (error: Error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        killChild();
         reject(new Error(`Failed to start Claude Code: ${error.message}`));
       });
 
       child.on("close", (code: number | null) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
         // Flush any trailing buffered line.
         if (stdoutBuffer.trim()) handleLine(stdoutBuffer);
 
@@ -510,21 +576,6 @@ Embed this URL in the task content that you create. Follow user requirements STR
 
     const provider = this.judgeProvider ?? (await this.getJudgeProvider());
 
-    // The success judge (#833) runs on the configured OpenAI/Azure language model — it is NOT
-    // driven by Claude. If a user selected Claude Code (local) to avoid configuring a language
-    // model, the judge is unavailable and judgeBacklogOutcome fails CLOSED, so a run where Claude
-    // genuinely filed an item would be reported as FAILED. Surface that cause instead of a silent
-    // misleading failure.
-    if (!provider && toolActivity.some((t) => t.ok)) {
-      const text =
-        "Claude Code (local) created or updated something, but success could NOT be verified " +
-        "because no OpenAI/Azure language model is configured — Claude Code orchestration still " +
-        "needs a configured language model to verify the outcome. Configure one in Settings to " +
-        "confirm success.";
-      options.onStep?.({ type: "reasoning", reasoning: JSON.stringify({ type: "text", text }) });
-      console.warn(`[LocalClaudeOrchestrator] ${text}`);
-    }
-
     const outcome = await judgeBacklogOutcome(
       provider,
       options.desktopAgentProjectPrompt,
@@ -533,11 +584,27 @@ Embed this URL in the task content that you create. Follow user requirements STR
       finalText,
     );
 
+    // The success judge (#833) runs on the configured OpenAI/Azure language model — it is NOT
+    // driven by Claude. If a user selected Claude Code to avoid configuring a language model, the
+    // judge is unavailable: judgeBacklogOutcome fails CLOSED but flags verificationUnavailable so
+    // a run where Claude genuinely filed an item isn't reported with the misleading generic
+    // "backlog signed out" copy. Surface the real cause in the step stream too.
+    if (outcome.verificationUnavailable) {
+      const text =
+        "Claude Code created or updated something, but success could NOT be verified because no " +
+        "OpenAI/Azure language model is configured — Claude Code orchestration still needs a " +
+        "configured language model to verify the outcome. Check your backlog before re-running " +
+        "(to avoid duplicates), and configure a language model in Settings to confirm success.";
+      options.onStep?.({ type: "reasoning", reasoning: JSON.stringify({ type: "text", text }) });
+      console.warn(`[LocalClaudeOrchestrator] ${text}`);
+    }
+
     return {
       text: finalText,
       backlogActionSucceeded: outcome.achieved,
       artifacts: outcome.artifacts,
       terminationReason,
+      verificationUnavailable: outcome.verificationUnavailable,
     };
   }
 

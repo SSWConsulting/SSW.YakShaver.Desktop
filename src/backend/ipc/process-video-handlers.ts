@@ -590,7 +590,9 @@ export class ProcessVideoIPCHandlers {
         // created/updated a backlog item, the run did nothing — fail the stage so the user
         // isn't told an issue exists when none does. Temp files are kept for retry.
         if (!loopResult.backlogActionSucceeded) {
-          const failureMessage = formatNoWorkItemError(loopResult.terminationReason);
+          const failureMessage = formatNoWorkItemError(loopResult.terminationReason, {
+            verificationUnavailable: loopResult.verificationUnavailable,
+          });
           mcpAdapter.fail(mcpResult, finalOutput, failureMessage);
           workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
             mcpResult,

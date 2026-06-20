@@ -20,6 +20,7 @@ import type { MCPServerConfig } from "./types";
 
 type MockChild = ChildProcess & {
   stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
+  kill: ReturnType<typeof vi.fn>;
 };
 
 function createMockChild(): MockChild {
@@ -27,10 +28,12 @@ function createMockChild(): MockChild {
     stdout: EventEmitter;
     stderr: EventEmitter;
     stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
+    kill: ReturnType<typeof vi.fn>;
   };
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
   proc.stdin = { write: vi.fn(), end: vi.fn() };
+  proc.kill = vi.fn();
   return proc as unknown as MockChild;
 }
 
@@ -478,6 +481,94 @@ describe("LocalClaudeOrchestrator", () => {
 
       const result = await orch.manualLoopAsync("t", undefined, {});
       expect(result.terminationReason).toBe("max-iterations");
+    });
+
+    it("no judge model + a tool succeeded -> verificationUnavailable (not the generic failure)", async () => {
+      // A user picked Claude Code without configuring an OpenAI/Azure model: the judge is null.
+      // The run must NOT silently report a plain failure — it should flag verificationUnavailable
+      // so the handler tells the user an item MAY have been created instead of "signed out".
+      const lines = [
+        JSON.stringify({
+          type: "user",
+          message: {
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "mcp__GitHub__create_issue",
+                content: "Created issue #7: https://github.com/o/r/issues/7",
+              },
+            ],
+          },
+        }),
+        JSON.stringify({ type: "result", subtype: "success", result: "Done." }),
+      ];
+      const { spawn } = makeSpawner(0, runChild, streamScript(runChild, lines));
+      // No judge provider passed (null) — mirrors "no language model configured".
+      const orch = new LocalClaudeOrchestrator(
+        "claude",
+        { spawn },
+        makeManager([httpServer]),
+        makeTokenStorage(),
+        makeSettings("yolo"),
+        null,
+      );
+
+      const steps: MCPStep[] = [];
+      const result = await orch.manualLoopAsync("t", undefined, { onStep: (s) => steps.push(s) });
+
+      expect(result.backlogActionSucceeded).toBe(false);
+      expect(result.verificationUnavailable).toBe(true);
+      // The user-facing reasoning notice explains the real cause.
+      const reasoning = steps
+        .filter((s) => s.type === "reasoning")
+        .map((s) => s.reasoning ?? "")
+        .join(" ");
+      expect(reasoning).toMatch(/could NOT be verified/i);
+    });
+
+    it("kills the child and rejects when the caller's AbortSignal fires mid-run", async () => {
+      const controller = new AbortController();
+      // A run child that never closes on its own; aborting must kill it and reject.
+      const abortScript = () => {
+        runChild.stdout?.emit("data", Buffer.from(`${JSON.stringify({ type: "assistant" })}\n`));
+        controller.abort();
+      };
+      const { spawn } = makeSpawner(0, runChild, abortScript);
+      const orch = new LocalClaudeOrchestrator(
+        "claude",
+        { spawn },
+        makeManager([]),
+        makeTokenStorage(),
+        makeSettings("yolo"),
+        { generateObject: vi.fn() },
+      );
+
+      await expect(
+        orch.manualLoopAsync("t", undefined, { signal: controller.signal }),
+      ).rejects.toThrow(/cancelled/i);
+      expect(runChild.kill).toHaveBeenCalled();
+    });
+
+    it("kills the child and rejects when the wall-clock run timeout elapses", async () => {
+      // A run child that emits a line but never closes — only the wall-clock timeout can end it.
+      // Real timers (not fake) because the orchestrator does real fs.writeFile before spawning the
+      // run child, which fake timers can't advance past. A tiny 20ms timeout keeps it fast.
+      const stallScript = () => {
+        runChild.stdout?.emit("data", Buffer.from(`${JSON.stringify({ type: "assistant" })}\n`));
+      };
+      const { spawn } = makeSpawner(0, runChild, stallScript);
+      const orch = new LocalClaudeOrchestrator(
+        "claude",
+        { spawn },
+        makeManager([]),
+        makeTokenStorage(),
+        makeSettings("yolo"),
+        { generateObject: vi.fn() },
+        20,
+      );
+
+      await expect(orch.manualLoopAsync("t", undefined, {})).rejects.toThrow(/timed out/i);
+      expect(runChild.kill).toHaveBeenCalled();
     });
 
     it("rejects when the process exits non-zero before any result event", async () => {
