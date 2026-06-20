@@ -25,7 +25,10 @@ import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
-import { decideVideoMetadataPersistence } from "../services/workflow/video-metadata-persistence";
+import {
+  applyVideoMetadataPersistence,
+  derivePortalVideoFields,
+} from "../services/workflow/video-metadata-persistence";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
 import {
   type RetryResult,
@@ -634,6 +637,19 @@ export class ProcessVideoIPCHandlers {
             workItemDto.projectId = projectDetails.id;
             workItemDto.projectName = projectDetails.name;
 
+            // #808: The Tenant view renders its preview from the portal payload's video fields.
+            // These were previously left to the LLM to copy out of the system prompt during
+            // structured extraction, which intermittently dropped them — the exact "missing
+            // embedUrl/videoFile" symptom #808 reports. Set them deterministically from the
+            // same authoritative upload result the local backstop uses, so a successful
+            // recording ALWAYS carries the embed URL to the portal regardless of model output.
+            const portalVideoFields = derivePortalVideoFields(youtubeResult);
+            if (portalVideoFields) {
+              workItemDto.uploadedVideoProvider = portalVideoFields.uploadedVideoProvider;
+              workItemDto.uploadedVideoEmbedUrl = portalVideoFields.uploadedVideoEmbedUrl;
+              workItemDto.uploadedVideoUrl = portalVideoFields.uploadedVideoUrl;
+            }
+
             const portalResult = await SendWorkItemDetailsToPortal(workItemDto);
             if (!portalResult.success) {
               console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
@@ -749,29 +765,9 @@ export class ProcessVideoIPCHandlers {
     }
 
     try {
-      const shaveService = ShaveService.getInstance();
-      const existing = shaveService.getShaveById(shaveId);
-      if (!existing) {
-        return;
-      }
-
-      const action = decideVideoMetadataPersistence(youtubeResult, existing.videoEmbedUrl);
-
-      switch (action.kind) {
-        case "attachVideoSource":
-          // Idempotent: attachVideoSourceToShave returns early if a source already exists.
-          shaveService.attachVideoSourceToShave(shaveId, {
-            title: action.title,
-            sourceUrl: action.sourceUrl,
-            durationSeconds: action.durationSeconds,
-          });
-          break;
-        case "setEmbedUrl":
-          shaveService.updateShave(shaveId, { videoEmbedUrl: action.url });
-          break;
-        case "none":
-          break;
-      }
+      // The decision + ShaveService wiring lives in applyVideoMetadataPersistence so it can be
+      // unit-tested against an in-memory store (proving the no-clobber and write branches).
+      applyVideoMetadataPersistence(ShaveService.getInstance(), shaveId, youtubeResult);
     } catch (err) {
       // Non-fatal — the UI progress listener is the other path to this write.
       console.warn(

@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { VideoUploadResult } from "../auth/types";
-import { decideVideoMetadataPersistence } from "./video-metadata-persistence";
+import {
+  applyVideoMetadataPersistence,
+  decideVideoMetadataPersistence,
+  derivePortalVideoFields,
+  type VideoMetadataShaveStore,
+} from "./video-metadata-persistence";
 
 /**
  * #808: Desktop-recorded YakShaves intermittently saved without `videoEmbedUrl`/`videoFile`.
@@ -117,5 +122,188 @@ describe("decideVideoMetadataPersistence (#808)", () => {
     } as VideoUploadResult;
 
     expect(decideVideoMetadataPersistence(noUrl, null)).toEqual({ kind: "none" });
+  });
+});
+
+/**
+ * #808 (one-sided-verification gap): the decision tests above only prove what SHOULD be written.
+ * These tests exercise the actual wiring — applyVideoMetadataPersistence -> ShaveService writes —
+ * against an in-memory fake, proving the backstop really persists the embed URL when missing and
+ * really skips the write when one already exists (no clobber), plus the external-source branch.
+ */
+describe("applyVideoMetadataPersistence wiring (#808)", () => {
+  const successfulUpload: VideoUploadResult = {
+    success: true,
+    origin: "upload",
+    data: {
+      videoId: "abc123",
+      title: "My Recording",
+      description: "",
+      url: "https://www.youtube.com/watch?v=abc123",
+      duration: 42,
+    },
+  };
+
+  function makeStore(existing: { videoEmbedUrl?: string | null } | undefined): {
+    store: VideoMetadataShaveStore;
+    updateShave: ReturnType<typeof vi.fn>;
+    attachVideoSourceToShave: ReturnType<typeof vi.fn>;
+  } {
+    const updateShave = vi.fn();
+    const attachVideoSourceToShave = vi.fn();
+    const store: VideoMetadataShaveStore = {
+      getShaveById: () => existing,
+      updateShave,
+      attachVideoSourceToShave,
+    };
+    return { store, updateShave, attachVideoSourceToShave };
+  }
+
+  it("writes videoEmbedUrl when the shave has none (the backstop fires)", () => {
+    const { store, updateShave, attachVideoSourceToShave } = makeStore({ videoEmbedUrl: null });
+
+    const action = applyVideoMetadataPersistence(store, "shave-1", successfulUpload);
+
+    expect(action).toEqual({ kind: "setEmbedUrl", url: "https://www.youtube.com/watch?v=abc123" });
+    expect(updateShave).toHaveBeenCalledTimes(1);
+    expect(updateShave).toHaveBeenCalledWith("shave-1", {
+      videoEmbedUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+    expect(attachVideoSourceToShave).not.toHaveBeenCalled();
+  });
+
+  it("does NOT write when the shave already has an embed URL (no clobber)", () => {
+    const { store, updateShave, attachVideoSourceToShave } = makeStore({
+      videoEmbedUrl: "https://www.youtube.com/watch?v=already-set",
+    });
+
+    const action = applyVideoMetadataPersistence(store, "shave-1", successfulUpload);
+
+    expect(action).toEqual({ kind: "none" });
+    expect(updateShave).not.toHaveBeenCalled();
+    expect(attachVideoSourceToShave).not.toHaveBeenCalled();
+  });
+
+  it("attaches a video source for external origins (not updateShave)", () => {
+    const external: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "ext1",
+        title: "External Video",
+        description: "",
+        url: "https://www.youtube.com/watch?v=ext1",
+        duration: 100,
+      },
+    };
+    const { store, updateShave, attachVideoSourceToShave } = makeStore({ videoEmbedUrl: null });
+
+    const action = applyVideoMetadataPersistence(store, "shave-1", external);
+
+    expect(action.kind).toBe("attachVideoSource");
+    expect(attachVideoSourceToShave).toHaveBeenCalledWith("shave-1", {
+      title: "External Video",
+      sourceUrl: "https://www.youtube.com/watch?v=ext1",
+      durationSeconds: 100,
+    });
+    expect(updateShave).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when there is no shave id", () => {
+    const { store, updateShave, attachVideoSourceToShave } = makeStore({ videoEmbedUrl: null });
+
+    expect(applyVideoMetadataPersistence(store, undefined, successfulUpload)).toEqual({
+      kind: "none",
+    });
+    expect(updateShave).not.toHaveBeenCalled();
+    expect(attachVideoSourceToShave).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when the shave is not found", () => {
+    const { store, updateShave, attachVideoSourceToShave } = makeStore(undefined);
+
+    expect(applyVideoMetadataPersistence(store, "missing", successfulUpload)).toEqual({
+      kind: "none",
+    });
+    expect(updateShave).not.toHaveBeenCalled();
+    expect(attachVideoSourceToShave).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #808 (Tenant-view payload): the portal WorkItemDto video fields must be set deterministically
+ * from the authoritative upload result — never left to the LLM to copy. These tests prove the
+ * derivation that the IPC handler applies before posting to the portal.
+ */
+describe("derivePortalVideoFields (#808 Tenant view)", () => {
+  it("derives provider/url/embed from a YouTube watch URL", () => {
+    const result: VideoUploadResult = {
+      success: true,
+      origin: "upload",
+      data: {
+        videoId: "abcdefghijk",
+        title: "t",
+        description: "",
+        url: "https://www.youtube.com/watch?v=abcdefghijk",
+      },
+    };
+
+    expect(derivePortalVideoFields(result)).toEqual({
+      uploadedVideoProvider: "youtube",
+      uploadedVideoUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+      uploadedVideoEmbedUrl: "https://www.youtube.com/embed/abcdefghijk",
+    });
+  });
+
+  it("normalizes youtu.be short links to canonical watch + embed forms", () => {
+    const result: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "abcdefghijk",
+        title: "t",
+        description: "",
+        url: "https://youtu.be/abcdefghijk",
+      },
+    };
+
+    expect(derivePortalVideoFields(result)).toEqual({
+      uploadedVideoProvider: "youtube",
+      uploadedVideoUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+      uploadedVideoEmbedUrl: "https://www.youtube.com/embed/abcdefghijk",
+    });
+  });
+
+  it("mirrors a non-YouTube URL with no provider/embed synthesis", () => {
+    const result: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "x",
+        title: "t",
+        description: "",
+        url: "https://vimeo.com/123456",
+      },
+    };
+
+    expect(derivePortalVideoFields(result)).toEqual({
+      uploadedVideoProvider: null,
+      uploadedVideoUrl: "https://vimeo.com/123456",
+      uploadedVideoEmbedUrl: "https://vimeo.com/123456",
+    });
+  });
+
+  it("returns null when the upload failed (caller leaves model output untouched)", () => {
+    expect(derivePortalVideoFields({ success: false, origin: "upload", error: "x" })).toBeNull();
+  });
+
+  it("returns null when there is no URL", () => {
+    const noUrl = {
+      success: true,
+      origin: "upload",
+      data: { videoId: "x", title: "x", description: "", url: "" },
+    } as VideoUploadResult;
+
+    expect(derivePortalVideoFields(noUrl)).toBeNull();
   });
 });
