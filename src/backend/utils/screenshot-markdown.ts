@@ -16,6 +16,14 @@
 /** Matches a standalone markdown image embed: `![alt](url)` with optional surrounding whitespace. */
 const IMAGE_LINE_REGEX = /!\[(?<alt>[^\]]*)\]\((?<url>[^)\s]+)(?<rest>[^)]*)\)/;
 
+/**
+ * Global twin of {@link IMAGE_LINE_REGEX} used to find EVERY image embed on a line, not just the
+ * first. Markdown permits multiple inline images on one line; `line.match(IMAGE_LINE_REGEX)` (non
+ * -global) would only ever see the first, so a second screenshot on the same line would be neither
+ * deduplicated nor captioned (#834).
+ */
+const IMAGE_LINE_REGEX_GLOBAL = new RegExp(IMAGE_LINE_REGEX.source, "g");
+
 /** Matches a `### Screenshots` heading line (any heading level), case-insensitive. */
 const SCREENSHOTS_HEADING_REGEX = /^\s*#{1,6}\s+screenshots\b/i;
 
@@ -69,6 +77,80 @@ export function isBacklogItemMutationTool(toolName: string): boolean {
 
 /** A line that is already a bold Figure caption, e.g. `**Figure: something**`. */
 const FIGURE_CAPTION_REGEX = /^\s*\*\*\s*Figure:.*\*\*\s*$/i;
+
+/** True when the line is empty or only whitespace. */
+function isBlank(line: string | undefined): boolean {
+  return line === undefined || line.trim().length === 0;
+}
+
+/**
+ * Returns the index of the next NON-blank line at or after `from`, skipping blank/whitespace-only
+ * lines, or -1 if none. The model commonly separates an image embed from its `**Figure: ...**`
+ * caption with a blank line (idiomatic markdown). Looking only at `lines[i + 1]` would miss that
+ * caption and synthesise a duplicate one (#834), so caption detection must skip the gap.
+ */
+function nextNonBlankIndex(lines: string[], from: number): number {
+  for (let i = from; i < lines.length; i++) {
+    if (!isBlank(lines[i])) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Returns the index of the line holding the existing Figure caption for an embed at `imageIndex`,
+ * or -1 if the next non-blank line is not a caption. Skips intervening blank lines so a caption the
+ * model spaced out from its image (`![...]\n\n**Figure: ...**`) is still recognised (#834).
+ */
+function existingCaptionIndex(lines: string[], imageIndex: number): number {
+  const candidate = nextNonBlankIndex(lines, imageIndex + 1);
+  if (candidate !== -1 && FIGURE_CAPTION_REGEX.test(lines[candidate])) {
+    return candidate;
+  }
+  return -1;
+}
+
+/**
+ * Pre-pass that puts every image embed on its own line. Markdown allows multiple inline images,
+ * and/or text wrapped around an image, on a single line; the dedup + caption algorithm assumes one
+ * image per line (it inserts a caption as the FOLLOWING line). Normalising embeds onto their own
+ * lines first makes that assumption hold so each image is independently deduplicated and captioned,
+ * and synthesised captions land directly beneath their image rather than after a multi-image line.
+ * Non-image lines are returned unchanged.
+ */
+function splitInlineImages(lines: string[]): string[] {
+  const out: string[] = [];
+  for (const line of lines) {
+    const matches = [...line.matchAll(IMAGE_LINE_REGEX_GLOBAL)];
+    // Fast path: no image, OR exactly one image and no other non-whitespace content. Leave the
+    // line untouched so we don't disturb indentation or spacing on the common one-image-per-line
+    // case (only multi-image / wrapped-text lines need splitting).
+    if (
+      matches.length === 0 ||
+      (matches.length === 1 && line.replace(matches[0][0], "").trim().length === 0)
+    ) {
+      out.push(line);
+      continue;
+    }
+
+    let cursor = 0;
+    for (const m of matches) {
+      const start = m.index ?? 0;
+      const before = line.slice(cursor, start);
+      if (before.trim().length > 0) {
+        out.push(before.replace(/\s+$/, ""));
+      }
+      out.push(m[0]);
+      cursor = start + m[0].length;
+    }
+    const after = line.slice(cursor);
+    if (after.trim().length > 0) {
+      out.push(after.replace(/^\s+/, ""));
+    }
+  }
+  return out;
+}
 
 /**
  * Builds a bold caption line for a screenshot from its alt text.
@@ -147,9 +229,10 @@ function collectDroppedCaptions(
     if (survivingIndexByUrl.get(url) === i) {
       continue;
     }
-    const next = lines[i + 1];
-    if (next !== undefined && FIGURE_CAPTION_REGEX.test(next) && !dropped.has(url)) {
-      dropped.set(url, next);
+    // Skip intervening blank lines so a caption the model spaced out from its embed is collected.
+    const captionIdx = existingCaptionIndex(lines, i);
+    if (captionIdx !== -1 && !dropped.has(url)) {
+      dropped.set(url, lines[captionIdx].trim());
     }
   }
   return dropped;
@@ -169,8 +252,10 @@ export function normalizeIssueScreenshots(body: string): string {
     return body;
   }
 
-  // Split on newlines but preserve them so we can faithfully re-join.
-  const lines = body.split("\n");
+  // Split on newlines but preserve them so we can faithfully re-join. First put every embed on its
+  // own line so multiple inline images (or text wrapped around an image) are each independently
+  // deduplicated and captioned, and captions land directly beneath their image (#834).
+  const lines = splitInlineImages(body.split("\n"));
   const survivingIndexByUrl = chooseSurvivingOccurrences(lines);
   // Captions found on DROPPED duplicate embeds, keyed by URL. When the surviving embed lacks
   // its own caption we reuse a dropped one instead of synthesising a weaker caption from alt
@@ -192,10 +277,12 @@ export function normalizeIssueScreenshots(body: string): string {
 
     // Keep only the chosen surviving occurrence of each URL; drop every other embed.
     if (survivingIndexByUrl.get(url) !== i) {
-      // Also drop a Figure caption that immediately followed the dropped embed, so we don't
-      // leave an orphaned caption behind (it is carried forward via droppedCaptionByUrl below).
-      if (i + 1 < lines.length && FIGURE_CAPTION_REGEX.test(lines[i + 1])) {
-        i += 1;
+      // Also drop a Figure caption that followed the dropped embed (even across blank lines), so we
+      // don't leave an orphaned caption behind (it is carried forward via droppedCaptionByUrl
+      // below). Advance past the caption AND any blank lines between it and the embed.
+      const captionIdx = existingCaptionIndex(lines, i);
+      if (captionIdx !== -1) {
+        i = captionIdx;
       }
       continue;
     }
@@ -204,8 +291,9 @@ export function normalizeIssueScreenshots(body: string): string {
 
     // Ensure a bold Figure caption follows this embed. Prefer the survivor's own caption; if it
     // has none, carry forward a caption from a dropped duplicate; otherwise synthesise from alt.
-    const next = lines[i + 1];
-    const hasCaption = next !== undefined && FIGURE_CAPTION_REGEX.test(next);
+    // The existing caption may be separated from the embed by a blank line (idiomatic markdown), so
+    // we look past blank lines before deciding a caption is missing (#834).
+    const hasCaption = existingCaptionIndex(lines, i) !== -1;
     if (!hasCaption) {
       result.push(droppedCaptionByUrl.get(url) ?? buildFigureCaption(match.groups.alt));
     }

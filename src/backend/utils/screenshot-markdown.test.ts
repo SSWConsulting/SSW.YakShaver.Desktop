@@ -9,6 +9,11 @@ const URL_A =
   "https://sayakshaverproduction.blob.core.windows.net/images/desktop-screenshots/abc.png?sv=2025-05-05&sig=xyz";
 const URL_B = "https://example.com/images/second.png?token=123";
 
+/** Escape a string for safe interpolation into a RegExp. */
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 describe("normalizeIssueScreenshots — #834 caption + duplicate fixes", () => {
   it("adds a bold Figure caption beneath an uncaptioned screenshot", () => {
     const body = `### Pain\nSomething broke.\n\n![Login screen error](${URL_A})\n\n### Acceptance Criteria\n- [ ] Fix it`;
@@ -89,6 +94,82 @@ describe("normalizeIssueScreenshots — #834 caption + duplicate fixes", () => {
     const out = normalizeIssueScreenshots(body);
     expect(out.match(/\*\*Figure:/g)?.length).toBe(1);
     expect(out).toBe(body);
+  });
+
+  it("does not double-add a caption when one exists but is separated by a blank line", () => {
+    // A blank line between the embed and the model's own caption is idiomatic markdown and not
+    // forbidden by the prompt's "on the next line" wording. The guard must still detect the
+    // existing caption (skipping the blank line) rather than synthesising a second one (#834).
+    const body = [
+      `### Screenshots`,
+      `![Login crash](${URL_A})`,
+      "",
+      "**Figure: Login crash**",
+    ].join("\n");
+    const out = normalizeIssueScreenshots(body);
+    // Exactly one caption survives, and the body is unchanged.
+    expect(out.match(/\*\*Figure:/g)?.length).toBe(1);
+    expect(out).toBe(body);
+  });
+
+  it("does not synthesise a weak caption when a richer one is blank-line-separated", () => {
+    // The existing caption is descriptive AND spaced out from the embed. The guard must not add a
+    // second, weaker alt-derived caption directly under the image.
+    const body = [`![Login crash](${URL_A})`, "", "**Figure: Login crash detail on submit**"].join(
+      "\n",
+    );
+    const out = normalizeIssueScreenshots(body);
+    expect(out.match(/\*\*Figure:/g)?.length).toBe(1);
+    expect(out).toContain("**Figure: Login crash detail on submit**");
+    expect(out).not.toContain("**Figure: Login crash**");
+  });
+
+  it("dedupes a duplicate whose caption is blank-line-separated, carrying it forward", () => {
+    // The dropped embed's caption sits a blank line away; it must still be collected (not left
+    // orphaned) and carried forward to the caption-less survivor.
+    const body = [
+      "### Pain",
+      `![Login crash](${URL_A})`,
+      "",
+      "**Figure: Login crash on submit**",
+      "",
+      "### Screenshots",
+      `![Login crash](${URL_A})`,
+    ].join("\n");
+
+    const out = normalizeIssueScreenshots(body);
+    // Image appears exactly once, exactly one caption, and the rich caption is preserved.
+    expect(out.split(URL_A).length - 1).toBe(1);
+    expect(out.match(/\*\*Figure:/g)?.length).toBe(1);
+    expect(out).toContain("**Figure: Login crash on submit**");
+    // No orphaned caption stranded under "### Pain".
+    expect(out).not.toMatch(/### Pain\n+\*\*Figure:/);
+  });
+
+  it("captions BOTH images when two distinct images share one line", () => {
+    // Multiple inline images on one line is valid markdown; each must be deduped and captioned.
+    const body = `Here ![first shot](${URL_A}) and ![second shot](${URL_B}) inline`;
+    const out = normalizeIssueScreenshots(body);
+    expect(out.split(URL_A).length - 1).toBe(1);
+    expect(out.split(URL_B).length - 1).toBe(1);
+    expect(out).toContain("**Figure: first shot**");
+    expect(out).toContain("**Figure: second shot**");
+    // Each caption sits directly beneath its own image, not after both.
+    expect(out).toMatch(
+      new RegExp(`!\\[first shot\\]\\(${escapeRe(URL_A)}\\)\\n\\*\\*Figure: first shot\\*\\*`),
+    );
+    expect(out).toMatch(
+      new RegExp(`!\\[second shot\\]\\(${escapeRe(URL_B)}\\)\\n\\*\\*Figure: second shot\\*\\*`),
+    );
+  });
+
+  it("dedupes the SAME image repeated twice on one line", () => {
+    // The #834 duplicate-screenshot symptom expressed inline on a single line.
+    const body = `![Crash](${URL_A}) ![Crash](${URL_A})`;
+    const out = normalizeIssueScreenshots(body);
+    expect(out.split(URL_A).length - 1).toBe(1);
+    expect(out.match(/\*\*Figure:/g)?.length).toBe(1);
+    expect(out).toContain("**Figure: Crash**");
   });
 
   it("preserves query parameters in the screenshot URL", () => {
