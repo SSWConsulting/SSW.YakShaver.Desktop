@@ -272,7 +272,13 @@ describe("LocalClaudeOrchestrator", () => {
           type: "assistant",
           message: {
             content: [
-              { type: "tool_use", name: "mcp__GitHub__create_issue", input: { title: "Bug" } },
+              {
+                type: "tool_use",
+                // Real Claude Code stream-json carries an OPAQUE id here, NOT the tool name.
+                id: "toolu_01ABCdef234567",
+                name: "mcp__GitHub__create_issue",
+                input: { title: "Bug" },
+              },
             ],
           },
         }),
@@ -282,7 +288,8 @@ describe("LocalClaudeOrchestrator", () => {
             content: [
               {
                 type: "tool_result",
-                tool_use_id: "mcp__GitHub__create_issue",
+                // The result references the tool_use block by its opaque id — never by tool name.
+                tool_use_id: "toolu_01ABCdef234567",
                 content: "Created issue #5: https://github.com/o/r/issues/5",
               },
             ],
@@ -321,6 +328,12 @@ describe("LocalClaudeOrchestrator", () => {
       expect(types).toContain("final_result");
 
       expect(generateObject).toHaveBeenCalledTimes(1);
+      // The judge must see the human-readable tool name (correlated from the opaque tool_use_id),
+      // NOT the raw `toolu_...` id — this is the #833 ground-truth signal.
+      const judgePrompt = (generateObject as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(judgePrompt).toContain("mcp__GitHub__create_issue");
+      expect(judgePrompt).not.toContain("toolu_01ABCdef234567");
+
       expect(result.backlogActionSucceeded).toBe(true);
       expect(result.terminationReason).toBe("stop");
       expect(result.artifacts).toEqual([
@@ -338,7 +351,7 @@ describe("LocalClaudeOrchestrator", () => {
             content: [
               {
                 type: "tool_result",
-                tool_use_id: "mcp__GitHub__create_issue",
+                tool_use_id: "toolu_01ERRoredcall99",
                 is_error: true,
                 content: "401 Unauthorized",
               },

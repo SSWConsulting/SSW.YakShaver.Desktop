@@ -138,8 +138,15 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
       );
     }
 
+    // The serialized config carries live OAuth bearer tokens, so it must not be world-readable on a
+    // shared machine. Write it owner-only (0o600). The default umask would otherwise leave it
+    // readable by other local users in the shared system temp dir. On Windows the POSIX mode is a
+    // no-op, but there the per-user temp dir is already ACL-restricted.
     const tmpConfigPath = join(tmpdir(), `yakshaver-mcp-${randomUUID()}.json`);
-    await fs.writeFile(tmpConfigPath, JSON.stringify(mcpConfig, null, 2), "utf8");
+    await fs.writeFile(tmpConfigPath, JSON.stringify(mcpConfig, null, 2), {
+      encoding: "utf8",
+      mode: 0o600,
+    });
 
     try {
       const argv = this.buildArgv(tmpConfigPath, approvalMode, allowedTools);
@@ -316,6 +323,11 @@ Embed this URL in the task content that you create. Follow user requirements STR
     options: ManualLoopOptions,
   ): Promise<MCPLoopResult> {
     const toolActivity: ToolActivity[] = [];
+    // Correlates a tool_use block's opaque id (e.g. `toolu_01ABC...`) back to its human-readable
+    // tool name (e.g. `mcp__GitHub__create_issue`). Claude Code's stream-json reports the name only
+    // on the assistant `tool_use` block, while the matching `tool_result` references it by id — so we
+    // must remember the mapping to record a meaningful name for the outcome judge.
+    const toolNameById = new Map<string, string>();
 
     const child = this.spawner.spawn(this.claudeCommand, argv);
 
@@ -344,7 +356,7 @@ Embed this URL in the task content that you create. Follow user requirements STR
           // Non-JSON lines (e.g. stray logs) are ignored — the stream is newline-delimited JSON.
           return;
         }
-        const result = this.handleStreamEvent(event, toolActivity, options.onStep);
+        const result = this.handleStreamEvent(event, toolActivity, toolNameById, options.onStep);
         if (result.finalText !== undefined) finalText = result.finalText;
         if (result.terminationReason) terminationReason = result.terminationReason;
       };
@@ -407,6 +419,7 @@ Embed this URL in the task content that you create. Follow user requirements STR
   private handleStreamEvent(
     event: ClaudeStreamEvent,
     toolActivity: ToolActivity[],
+    toolNameById: Map<string, string>,
     onStep?: ManualLoopOptions["onStep"],
   ): { finalText?: string; terminationReason?: MCPTerminationReason } {
     // Assistant turn: may carry text and/or tool_use blocks.
@@ -415,9 +428,13 @@ Embed this URL in the task content that you create. Follow user requirements STR
         if (block.type === "text" && block.text) {
           onStep?.({ type: "reasoning", reasoning: block.text });
         } else if (block.type === "tool_use") {
+          const toolName = block.name ?? "unknown";
+          // Remember id -> name so the matching tool_result (which references this block only by
+          // its opaque `id`) can be recorded against the real tool name, not the id.
+          if (block.id) toolNameById.set(block.id, toolName);
           onStep?.({
             type: "tool_call",
-            toolName: block.name ?? "unknown",
+            toolName,
             args: block.input,
           });
         }
@@ -431,8 +448,14 @@ Embed this URL in the task content that you create. Follow user requirements STR
         if (block.type === "tool_result") {
           const resultText = extractToolResultText(block.content);
           const ok = block.is_error !== true;
+          // `tool_use_id` is the OPAQUE id of the originating tool_use block — resolve it back to the
+          // human-readable tool name so the outcome judge (and diagnostics) see e.g.
+          // `mcp__GitHub__create_issue` rather than `toolu_01ABC...`. Fall back to the id only if the
+          // tool_use block was never seen (out-of-order / dropped event).
+          const id = block.tool_use_id;
+          const toolName = (id ? toolNameById.get(id) : undefined) ?? id ?? "unknown";
           toolActivity.push({
-            toolName: block.tool_use_id ?? "unknown",
+            toolName,
             ok,
             resultText: resultText.slice(0, 8000),
           });
@@ -476,6 +499,9 @@ interface ClaudeStreamEvent {
     content?: Array<{
       type: string;
       text?: string;
+      // The opaque id of a tool_use block (e.g. `toolu_01ABC...`); a tool_result references it via
+      // `tool_use_id`. We map id -> name so results are recorded against the real tool name.
+      id?: string;
       name?: string;
       input?: unknown;
       tool_use_id?: string;
