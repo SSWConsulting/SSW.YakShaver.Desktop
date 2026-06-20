@@ -96,7 +96,7 @@ describe("LocalClaudeOrchestrator", () => {
   });
 
   describe("claude availability", () => {
-    it("throws a clear error when `claude` is not found (--version fails)", async () => {
+    it("throws a clear 'exited with an error' message when `claude --version` exits non-zero", async () => {
       const { spawn } = makeSpawner(/* versionExitCode */ 127, runChild);
       const orch = new LocalClaudeOrchestrator(
         "claude",
@@ -107,12 +107,13 @@ describe("LocalClaudeOrchestrator", () => {
         { generateObject: vi.fn() },
       );
 
+      // The binary launched (close fired) but exited non-zero — distinguished from a PATH miss.
       await expect(orch.manualLoopAsync("transcript", undefined, {})).rejects.toThrow(
-        /Claude Code CLI not found on PATH/,
+        /exited with an error/,
       );
     });
 
-    it("throws a clear error when spawning `claude --version` errors (ENOENT)", async () => {
+    it("throws a 'could not be launched' error when spawning `claude --version` errors (ENOENT)", async () => {
       const versionChild = createMockChild();
       const spawn = vi.fn((_cmd: string, args: string[]) => {
         if (args.includes("--version")) {
@@ -131,7 +132,7 @@ describe("LocalClaudeOrchestrator", () => {
       );
 
       await expect(orch.manualLoopAsync("t", undefined, {})).rejects.toThrow(
-        /Claude Code CLI not found on PATH/,
+        /could not be launched/,
       );
     });
   });
@@ -188,6 +189,45 @@ describe("LocalClaudeOrchestrator", () => {
       expect(Object.keys(mcpConfig.mcpServers)).toEqual(["GitHub"]);
     });
 
+    it("refreshes an expired OAuth token before injecting it (no stale Bearer header)", async () => {
+      // A refreshable storage whose stored token is expired but has a refresh_token: the helper
+      // must refresh it and inject the NEW access token, matching the in-process client.
+      const refreshableStorage = {
+        getTokensAsync: vi
+          .fn()
+          .mockResolvedValueOnce({
+            access_token: "stale",
+            refresh_token: "r1",
+            expires_in: 3600,
+            storedAt: 1, // long expired
+          })
+          .mockResolvedValue({ access_token: "fresh", refresh_token: "r2", token_type: "Bearer" }),
+        isTokenExpired: vi.fn().mockReturnValue(true),
+        saveTokensAsync: vi.fn().mockResolvedValue(undefined),
+        clearTokensAsync: vi.fn().mockResolvedValue(undefined),
+      };
+      // Stub the backend refresh call the helper invokes.
+      const refreshMod = await import("./mcp-oauth");
+      const refreshSpy = vi
+        .spyOn(refreshMod, "refreshTokenWithBackend")
+        .mockResolvedValue({ access_token: "fresh", refresh_token: "r2", token_type: "Bearer" });
+
+      const orch = new LocalClaudeOrchestrator(
+        "claude",
+        { spawn: vi.fn() },
+        null,
+        refreshableStorage,
+      );
+
+      const { mcpConfig } = await orch.serializeMcpServers(makeManager([httpServer]), undefined);
+      expect(refreshSpy).toHaveBeenCalledWith("https://mcp.github.test/", "r1");
+      expect(refreshableStorage.saveTokensAsync).toHaveBeenCalled();
+      expect((mcpConfig.mcpServers.GitHub as { headers?: Record<string, string> }).headers).toEqual(
+        { Authorization: "Bearer fresh" },
+      );
+      refreshSpy.mockRestore();
+    });
+
     it("flags servers with no whitelist (under ask/wait) instead of hanging", async () => {
       const noWhitelist: MCPServerConfig = { ...httpServer, toolWhitelist: [] };
       const orch = new LocalClaudeOrchestrator(
@@ -225,6 +265,19 @@ describe("LocalClaudeOrchestrator", () => {
           "--verbose",
         ]),
       );
+    });
+
+    it("passes --max-turns as the iteration safety cap (default 20, override honoured)", () => {
+      const orch = new LocalClaudeOrchestrator();
+      const def = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "yolo", []);
+      const defIdx = def.indexOf("--max-turns");
+      expect(defIdx).toBeGreaterThan(-1);
+      expect(def[defIdx + 1]).toBe("20");
+
+      const custom = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "yolo", [], 5);
+      const customIdx = custom.indexOf("--max-turns");
+      expect(customIdx).toBeGreaterThan(-1);
+      expect(custom[customIdx + 1]).toBe("5");
     });
 
     it("yolo -> --permission-mode bypassPermissions (no --allowedTools)", () => {

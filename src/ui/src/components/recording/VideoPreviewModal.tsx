@@ -1,7 +1,6 @@
 import type { ToolApprovalMode } from "@shared/types/user-settings";
 import { ArrowRight, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useWorkflowNavigation } from "@/hooks/useWorkflowNavigation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { useWorkflowNavigation } from "@/hooks/useWorkflowNavigation";
 import { VideoPlayer } from "./VideoPlayer";
 
 interface VideoPreviewModalProps {

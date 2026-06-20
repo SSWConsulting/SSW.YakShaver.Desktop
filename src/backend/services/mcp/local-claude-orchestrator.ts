@@ -6,6 +6,7 @@ import { join } from "node:path";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
 import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
+import type { IProcessSpawner } from "../process/process-spawner";
 import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 import { UserSettingsStorage } from "../storage/user-settings-storage";
 import {
@@ -19,19 +20,23 @@ import {
 } from "./backlog-orchestrator";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
+import { getFreshAccessTokenAsync, type RefreshableTokenStorage } from "./mcp-token-refresh";
 import { orchestratorSystemPrompt } from "./prompts";
 import type { MCPServerConfig } from "./types";
 
-/**
- * Spawner abstraction mirroring ffmpeg-service's `IProcessSpawner`, kept here so the unit tests
- * can inject a mock child process and assert on the exact argv without ever running `claude`.
- */
-export interface IClaudeProcessSpawner {
-  spawn(command: string, args: string[]): ChildProcess;
-}
+/** Default safety cap on tool iterations when the caller doesn't supply one (mirrors the OpenAI loop). */
+const DEFAULT_MAX_TOOL_ITERATIONS = 20;
 
-const defaultClaudeSpawner: IClaudeProcessSpawner = {
-  spawn: (command, args) => spawn(command, args),
+/**
+ * Default spawner for the `claude` CLI. On Windows, an npm-global install of `@anthropic-ai/claude-code`
+ * places a `claude.cmd`/`claude.ps1` shim on PATH (no `.exe`), and Node's `child_process.spawn` cannot
+ * launch a `.cmd`/`.ps1` shim without `shell: true` — it throws ENOENT, which would make a user who
+ * genuinely has Claude Code installed see a false "not found". So spawn through the shell on win32.
+ * (ffmpeg-service can use the plain spawner because it launches an absolute bundled binary, never a
+ * bare PATH name.)
+ */
+const defaultClaudeSpawner: IProcessSpawner = {
+  spawn: (command, args) => spawn(command, args, { shell: process.platform === "win32" }),
 };
 
 /** Claude Code's `--mcp-config` JSON entry for one stdio server. */
@@ -55,10 +60,13 @@ export interface ClaudeMcpConfigFile {
   mcpServers: Record<string, ClaudeMcpServer>;
 }
 
-/** Minimal token lookup the orchestrator needs — narrower than the full storage so tests stub it easily. */
-export interface TokenLookup {
-  getTokensAsync(serverId: string): Promise<{ access_token?: string } | undefined>;
-}
+/**
+ * Token lookup the orchestrator needs. A bare `getTokensAsync` is enough for tests; the real
+ * `McpOAuthTokenStorage` also provides the optional refresh hooks (`isTokenExpired` /
+ * `saveTokensAsync` / `clearTokensAsync`) so expired tokens are refreshed before use — see
+ * `getFreshAccessTokenAsync`.
+ */
+export type TokenLookup = RefreshableTokenStorage;
 
 /** Claude Code's tool name format is `mcp__<server>__<tool>`. Server names are sanitized to match. */
 function sanitizeServerName(name: string): string {
@@ -76,7 +84,7 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
   // (and the argv/serialization unit tests that do) never touches the electron-backed singletons.
   constructor(
     private readonly claudeCommand: string = "claude",
-    private readonly spawner: IClaudeProcessSpawner = defaultClaudeSpawner,
+    private readonly spawner: IProcessSpawner = defaultClaudeSpawner,
     private readonly serverManager: Pick<MCPServerManager, "listAvailableServers"> | null = null,
     private readonly tokenStorage: TokenLookup | null = null,
     private readonly settingsStorage: Pick<UserSettingsStorage, "getSettingsAsync"> | null = null,
@@ -93,23 +101,37 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
 
   /** Verifies the `claude` CLI is reachable; throws a user-actionable error if not. */
   public async ensureClaudeAvailable(): Promise<void> {
-    const detected = await new Promise<boolean>((resolve) => {
+    const { ok, spawnError } = await new Promise<{ ok: boolean; spawnError?: Error }>((resolve) => {
       let child: ChildProcess;
       try {
         child = this.spawner.spawn(this.claudeCommand, ["--version"]);
-      } catch {
-        resolve(false);
+      } catch (error) {
+        resolve({
+          ok: false,
+          spawnError: error instanceof Error ? error : new Error(String(error)),
+        });
         return;
       }
-      child.on("error", () => resolve(false));
-      child.on("close", (code) => resolve(code === 0));
+      // An `error` event (e.g. ENOENT) means we could not launch the binary at all.
+      child.on("error", (error: Error) => resolve({ ok: false, spawnError: error }));
+      // A non-zero exit means the binary launched but reported a problem (not a PATH miss).
+      child.on("close", (code) => resolve({ ok: code === 0, spawnError: undefined }));
     });
 
-    if (!detected) {
+    if (ok) return;
+
+    // Distinguish "couldn't launch the process at all" (PATH miss / unlaunchable shim) from
+    // "launched but exited non-zero" so the message points at the real cause.
+    if (spawnError) {
       throw new Error(
-        "Claude Code CLI not found on PATH — install it, or switch Orchestrator to OpenAI in Settings.",
+        `Claude Code CLI could not be launched (${spawnError.message}). Make sure the \`claude\` ` +
+          "CLI is installed and on PATH, or switch Orchestrator to OpenAI in Settings.",
       );
     }
+    throw new Error(
+      "Claude Code CLI was found but `claude --version` exited with an error. Reinstall the " +
+        "CLI, or switch Orchestrator to OpenAI in Settings.",
+    );
   }
 
   public async manualLoopAsync(
@@ -141,11 +163,23 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
 
     const tmpConfigPath = join(tmpdir(), `yakshaver-mcp-${randomUUID()}.json`);
     const tmpPromptPath = join(tmpdir(), `yakshaver-sysprompt-${randomUUID()}.txt`);
-    await fs.writeFile(tmpConfigPath, JSON.stringify(mcpConfig, null, 2), "utf8");
-    await fs.writeFile(tmpPromptPath, systemPrompt, "utf8");
+    // The MCP config carries the live OAuth bearer token, so write it owner-read/write only
+    // (0600). Without this, Node defaults to 0644 and `tmpdir()` is a world-readable shared dir
+    // on POSIX, so any local user could read the token for the lifetime of the run.
+    await fs.writeFile(tmpConfigPath, JSON.stringify(mcpConfig, null, 2), {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await fs.writeFile(tmpPromptPath, systemPrompt, { encoding: "utf8", mode: 0o600 });
 
     try {
-      const argv = this.buildArgv(tmpConfigPath, tmpPromptPath, approvalMode, allowedTools);
+      const argv = this.buildArgv(
+        tmpConfigPath,
+        tmpPromptPath,
+        approvalMode,
+        allowedTools,
+        options.maxToolIterations ?? DEFAULT_MAX_TOOL_ITERATIONS,
+      );
       return await this.runClaude(argv, videoTranscription, options);
     } finally {
       await Promise.all([
@@ -174,6 +208,19 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
 
     if (skippedNonWhitelistedServers.length > 0 && approvalMode === "ask") {
       const msg = `Claude Code (local) only runs whitelisted tools under "ask" approval mode (no runtime approval prompt). These server(s) have no whitelisted tools, so their tools were not made available: ${skippedNonWhitelistedServers.join(", ")}.`;
+      notices.push(msg);
+      console.warn(`[LocalClaudeOrchestrator] ${msg}`);
+    }
+
+    // Under "wait", the OpenAI path shows a 15s approval dialog the user can still deny within. A
+    // headless `claude -p` can't render that deferred prompt, so "wait" runs EVERY tool immediately
+    // (effectively YOLO) under the local backend. Tell the user so the safe-looking "wait" setting
+    // doesn't silently widen tool execution without any signal.
+    if (approvalMode === "wait") {
+      const msg =
+        'Claude Code (local) cannot show the "wait" approval dialog because it runs headlessly, ' +
+        "so under this backend every tool runs immediately without a chance to deny (the same as " +
+        '"YOLO"). Switch to "ask" to restrict the run to whitelisted tools only.';
       notices.push(msg);
       console.warn(`[LocalClaudeOrchestrator] ${msg}`);
     }
@@ -306,11 +353,17 @@ Embed this URL in the task content that you create. Follow user requirements STR
     if (config.transport === "streamableHttp") {
       const headers: Record<string, string> = { ...config.headers };
       // Inject the OAuth bearer token so Claude Code authenticates the same way the in-process
-      // client does (built-in servers don't use OAuth).
+      // client does (built-in servers don't use OAuth). Refresh an expired token first — the same
+      // freshness guarantee MCPServerClient applies — so the local backend doesn't hand Claude a
+      // stale token that an HTTP MCP server would 401.
       if (!config.builtin) {
-        const tokens = await this.getTokenStorage().getTokensAsync(config.id);
-        if (tokens?.access_token) {
-          headers.Authorization = `Bearer ${tokens.access_token}`;
+        const accessToken = await getFreshAccessTokenAsync(
+          this.getTokenStorage(),
+          config.id,
+          config.url,
+        );
+        if (accessToken) {
+          headers.Authorization = `Bearer ${accessToken}`;
         }
       }
       const entry: ClaudeHttpServer = { type: "http", url: config.url };
@@ -345,6 +398,7 @@ Embed this URL in the task content that you create. Follow user requirements STR
     systemPromptPath: string,
     approvalMode: ToolApprovalMode,
     allowedTools: string[],
+    maxToolIterations: number = DEFAULT_MAX_TOOL_ITERATIONS,
   ): string[] {
     const argv = [
       "-p",
@@ -356,6 +410,11 @@ Embed this URL in the task content that you create. Follow user requirements STR
       "--output-format",
       "stream-json",
       "--verbose",
+      // Mirror the OpenAI loop's iteration safety cap (`maxToolIterations`) so a runaway local
+      // run is bounded by the SAME limit; `handleStreamEvent` maps Claude's `error_max_turns` to
+      // our `max-iterations` termination reason.
+      "--max-turns",
+      String(maxToolIterations),
     ];
 
     if (approvalMode === "yolo" || approvalMode === "wait") {

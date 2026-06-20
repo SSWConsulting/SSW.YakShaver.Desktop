@@ -59,6 +59,11 @@ YakShaver is a desktop AI agent with the following capabilities:
 - **Windows/macOS YouTube downloads**: `scripts/install-yt-dlp.mjs` installs standalone
   `yt-dlp` binaries into `node_modules/youtube-dl-exec/bin/` during setup so local
   development does not depend on the operating system's Python.
+- **Optional Claude Code CLI runtime**: the `local-claude` orchestration backend spawns a
+  headless `claude` (`@anthropic-ai/claude-code`) subprocess from PATH. It is NOT a bundled
+  dependency — the user installs it separately, and the feature is only active when the user
+  selects it in Settings. (Spawned through the shell on Windows so an npm `claude.cmd`/`.ps1`
+  shim still launches.)
 
 ## Project Structure
 
@@ -391,6 +396,24 @@ APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=.
 #### Singleton Pattern (Services)
 
 Most backend services use the singleton pattern. Use `getInstanceAsync()` for async initialization (e.g., `MCPServerManager`, `MCPOrchestrator`), or `getInstance()` with nullish coalescing for sync (e.g., `RecordingService`, all `*Storage` classes). See any storage class for the sync pattern.
+
+#### Backlog Orchestration Backends (Pluggable Seam)
+
+The EXECUTING_TASK stage drives backlog creation through the `IBacklogOrchestrator` seam
+(`src/backend/services/mcp/backlog-orchestrator.ts`). Two interchangeable backends implement it:
+
+- **`openai`** (default): the in-process `MCPOrchestrator` OpenAI tool loop.
+- **`local-claude`**: `LocalClaudeOrchestrator`, which spawns a headless `claude -p` subprocess,
+  serializes the enabled MCP servers to a temp `--mcp-config` (with OAuth bearer headers; the
+  config file is written `0600` because it carries a live token), maps the tool-approval mode to
+  Claude's `--permission-mode`/`--allowedTools`, and reuses the shared `judgeBacklogOutcome`
+  verifier. The verifier still runs on the configured OpenAI/Azure model, so `local-claude` is
+  "no API key for orchestration" but still needs a language model configured to confirm success.
+
+The backend is selected per run by `getBacklogOrchestrator()` from the `orchestrationBackend`
+field on `LLMConfigV2` (`src/shared/types/llm.ts`, default `openai`), surfaced in Settings via
+`OrchestratorBackendSetting`. Both backends return the same `MCPLoopResult`, whose
+`backlogActionSucceeded` gates COMPLETE vs FAIL.
 
 #### IPC Handler Pattern (Class-based)
 
