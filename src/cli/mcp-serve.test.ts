@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { BridgeToolSummary, ToolCallResult } from "../shared/cli-bridge/protocol";
 import { callToolViaBridge, listToolsViaBridge } from "./mcp-serve";
 
+/** Read the `text` off the first content item (MCP content is a typed union). */
+function firstText(content: Array<{ type: string }>): string | undefined {
+  const item = content[0] as { text?: string };
+  return item.text;
+}
+
 describe("mcp-serve front-door — tools/list proxy", () => {
   it("maps GET /tools summaries to MCP tool descriptors", async () => {
     const summaries: BridgeToolSummary[] = [
@@ -57,7 +63,33 @@ describe("mcp-serve front-door — tools/call proxy", () => {
   it("stringifies a non-string tool result", async () => {
     const post = vi.fn().mockResolvedValue({ ok: true, result: { id: 5 } } as ToolCallResult);
     const result = await callToolViaBridge({ post }, "X__y", {});
-    expect(result.content[0].text).toBe(JSON.stringify({ id: 5 }));
+    expect(firstText(result.content)).toBe(JSON.stringify({ id: 5 }));
+  });
+
+  it("relays a native MCP CallToolResult's content verbatim (no double-stringify)", async () => {
+    const post = vi.fn().mockResolvedValue({
+      ok: true,
+      result: { content: [{ type: "text", text: "Created #5" }] },
+    } as ToolCallResult);
+    const result = await callToolViaBridge({ post }, "GitHub__create_issue", {});
+    expect(result.isError).toBe(false);
+    expect(result.content).toEqual([{ type: "text", text: "Created #5" }]);
+  });
+
+  it("surfaces an MCP-level isError (auth-denied/rate-limit) as isError, NOT a successful call", async () => {
+    // A failed MCP tool resolves WITHOUT throwing, returning { isError: true, content }.
+    // The bridge envelope is still ok:true (transport succeeded), so this case is the
+    // one that previously leaked an underlying failure to Claude as success.
+    const post = vi.fn().mockResolvedValue({
+      ok: true,
+      result: {
+        isError: true,
+        content: [{ type: "text", text: "401 Unauthorized: token expired" }],
+      },
+    } as ToolCallResult);
+    const result = await callToolViaBridge({ post }, "GitHub__create_issue", {});
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([{ type: "text", text: "401 Unauthorized: token expired" }]);
   });
 
   it("defaults missing arguments to {}", async () => {
@@ -74,13 +106,13 @@ describe("mcp-serve front-door — tools/call proxy", () => {
     const result = await callToolViaBridge({ post }, "GitHub__create_issue", {});
 
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toMatch(/Tool not approved: not approved/);
+    expect(firstText(result.content)).toMatch(/Tool not approved: not approved/);
   });
 
   it("surfaces an execution failure as an MCP isError tool result", async () => {
     const post = vi.fn().mockResolvedValue({ ok: false, error: "boom" } as ToolCallResult);
     const result = await callToolViaBridge({ post }, "GitHub__create_issue", {});
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toMatch(/Tool failed: boom/);
+    expect(firstText(result.content)).toMatch(/Tool failed: boom/);
   });
 });

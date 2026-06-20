@@ -99,6 +99,7 @@ describe("McpToolBridge.callTool - approval policy enforcement", () => {
     const res = await bridge.callTool("GitHub__create_issue", { title: "Bug" });
     expect(executeSpy).not.toHaveBeenCalled();
     expect(res.ok).toBe(false);
+    if (res.ok) throw new Error("expected a not-approved failure");
     expect(res.notApproved).toBe(true);
     expect(res.error).toMatch(/not approved/i);
   });

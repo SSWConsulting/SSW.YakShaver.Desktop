@@ -149,19 +149,27 @@ export type ToolCallInput = z.infer<typeof ToolCallInputSchema>;
 /**
  * Result envelope from `POST /tools/call`.
  *
+ * A discriminated union on `ok` (matching the house pattern of {@link BridgeResponse}
+ * above) so success and failure each carry ONLY their relevant fields — illegal
+ * states (e.g. `error` on a success, `result` on a failure) are unrepresentable.
+ *
  * `ok:false` with `notApproved:true` is a STRUCTURED refusal (the tool was not
  * whitelisted under the current approval mode) — NOT a transport error, and the
  * caller must surface it to the model rather than retrying or hanging.
  */
-export interface ToolCallResult {
-  ok: boolean;
-  /** Present on success — the tool's raw execute() return value. */
-  result?: unknown;
-  /** Present on failure — a human-readable reason. */
-  error?: string;
-  /** True when the failure is an approval-policy refusal, not an execution error. */
-  notApproved?: boolean;
-}
+export type ToolCallResult =
+  | {
+      ok: true;
+      /** The tool's raw execute() return value. */
+      result?: unknown;
+    }
+  | {
+      ok: false;
+      /** A human-readable reason for the failure. */
+      error: string;
+      /** True when the failure is an approval-policy refusal, not an execution error. */
+      notApproved?: boolean;
+    };
 
 /** Orchestration backends the CLI may set. Mirrors `OrchestrationBackend`. */
 export const OrchestrationBackendSchema = z.enum(["openai", "local-claude"]);

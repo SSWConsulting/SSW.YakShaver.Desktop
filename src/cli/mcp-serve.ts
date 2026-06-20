@@ -1,6 +1,10 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import {
+  CallToolRequestSchema,
+  type CallToolResult,
+  ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 import type { BridgeToolSummary, ToolCallResult } from "../shared/cli-bridge/protocol";
 import { BridgeClient, BridgeUnavailableError } from "./bridge-client";
 
@@ -67,16 +71,26 @@ export async function listToolsViaBridge(
   };
 }
 
+/** The MCP tool-result shape this front-door returns over stdio. */
+type McpToolResult = Pick<CallToolResult, "content" | "isError">;
+
 /**
  * Proxy `tools/call` to `POST /tools/call`. A non-`ok` bridge result (incl. a
  * structured "not approved") becomes an MCP `isError` tool result so the model
  * sees the refusal rather than treating it as silent success.
+ *
+ * A bridge-level success (`ok:true`) may still carry an MCP `CallToolResult` whose
+ * own `isError` is true (auth-denied, rate-limit, validation — these resolve
+ * WITHOUT throwing). We pass that shape through verbatim, preserving both the
+ * original `content` AND the `isError` flag, so an underlying tool FAILURE is
+ * never surfaced to Claude as a successful call. (The in-process orchestrator
+ * does the same — see mcp-orchestrator.ts: `ok: !toolErrored`.)
  */
 export async function callToolViaBridge(
   client: Pick<BridgeClient, "post">,
   name: string,
   args: Record<string, unknown> | undefined,
-): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
+): Promise<McpToolResult> {
   const result = await client.post<ToolCallResult>("/tools/call", {
     name,
     arguments: args ?? {},
@@ -90,7 +104,31 @@ export async function callToolViaBridge(
     };
   }
 
+  // If the tool returned a native MCP CallToolResult, relay its content + isError
+  // unchanged rather than stringifying it as a single text blob. This is what
+  // preserves a tool-level failure (isError:true) instead of masking it as success.
+  const passthrough = asMcpResult(result.result);
+  if (passthrough) {
+    return passthrough;
+  }
+
   return { content: [toTextContent(result.result)] };
+}
+
+/**
+ * Narrow an arbitrary `execute()` return value to an MCP `CallToolResult` shape
+ * (`{ content: [...], isError? }`). Returns null when it isn't one, so the caller
+ * falls back to stringifying. Only a `content` ARRAY qualifies — that is the MCP
+ * contract — and `isError` is normalized to a boolean (defaulting to false).
+ */
+function asMcpResult(value: unknown): McpToolResult | null {
+  if (!value || typeof value !== "object") return null;
+  const obj = value as { content?: unknown; isError?: unknown };
+  if (!Array.isArray(obj.content)) return null;
+  return {
+    content: obj.content as CallToolResult["content"],
+    isError: obj.isError === true,
+  };
 }
 
 /** Start the front-door over stdio. Resolves when the transport closes. */
