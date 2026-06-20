@@ -154,4 +154,47 @@ describe("ScreenRecorder - Process YouTube link visibility (#775)", () => {
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
   });
+
+  it("hides the Process YouTube link after a successful URL submit", async () => {
+    // A submitted URL consumes the same single-video slot as a recording, so
+    // the gate must be symmetric: a *successful* URL submit hides the link too,
+    // not just a recording (#775 AC2 — only available when multi-video is
+    // supported). The recording path is covered above; this covers the URL
+    // branch that previously left the gate open.
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+
+    // Open the URL dialog (the upload sub-button is its only entry point),
+    // enter a valid URL, and submit it through the real handleProcessYoutubeUrl.
+    fireEvent.click(processYoutubeLink() as HTMLElement);
+    const input = await screen.findByLabelText("YouTube URL");
+    fireEvent.change(input, {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Process Link" }));
+    });
+
+    await waitFor(() => expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalled());
+    await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
+  });
+
+  it("keeps the primary record button labelled 'Record' after a recording is made", async () => {
+    // Regression for the overloaded prop: hiding the upload sub-button after a
+    // video is committed must NOT relabel/reshape the primary record button.
+    // While the YouTube-URL workflow is enabled the button keeps its split
+    // "Record" affordance even after the upload action is hidden (#775 only
+    // asked to hide the upload control, not to restyle the record button).
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(screen.getByText("Record")).toBeInTheDocument());
+
+    await act(async () => state.stopRequestHandler?.());
+    fireEvent.click(await screen.findByTestId("continue-recording"));
+
+    // Upload sub-button is gone, but the record button must still read "Record"
+    // (not revert to the single-button "Start Recording" affordance).
+    await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
+    expect(screen.getByText("Record")).toBeInTheDocument();
+    expect(screen.queryByText("Start Recording")).not.toBeInTheDocument();
+  });
 });
