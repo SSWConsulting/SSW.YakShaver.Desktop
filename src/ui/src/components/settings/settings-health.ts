@@ -1,5 +1,5 @@
 import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
-import type { LLMConfigV2 } from "@shared/types/llm";
+import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { MCPServerConfig } from "@shared/types/mcp";
 import { useCallback, useEffect, useState } from "react";
 import { ipcClient } from "@/services/ipc-client";
@@ -35,7 +35,13 @@ export type SettingsHealthMap = Readonly<Record<string, SettingsTabHealth | unde
 
 export interface SettingsHealthInputs {
   /** The persisted LLM config (`ipcClient.llm.getConfig()`), or null if unset. */
-  llmConfig: Pick<LLMConfigV2, "languageModel"> | null;
+  llmConfig: Pick<LLMConfigV2, "languageModel" | "orchestrationBackend"> | null;
+  /**
+   * Readiness of the Claude Code orchestration backend (`ipcClient.llm.checkOrchestratorReadiness()`).
+   * Only meaningful when `orchestrationBackend === "local-claude"`; null/undefined means "not
+   * checked / inconclusive" and never raises a warning.
+   */
+  orchestratorReadiness?: OrchestratorReadiness | null;
   /** Configured MCP servers (`ipcClient.mcp.listServers()`). */
   mcpServers: ReadonlyArray<Pick<MCPServerConfig, "id" | "name" | "enabled">>;
   /** Health by server id; only an explicit `isHealthy === false` counts as down
@@ -66,6 +72,23 @@ export function deriveSettingsHealth(inputs: SettingsHealthInputs): SettingsHeal
       tabId: "llm",
       severity: "critical",
       message: "No language model API key is configured.",
+    };
+  }
+
+  // Orchestrator — when Claude Code is the chosen backend but it isn't ready (CLI missing or not
+  // signed in), the backlog-creation step will fail. Only flag on a positive not-ready result, and
+  // never override the more fundamental missing-model message on the same tab.
+  const readiness = inputs.orchestratorReadiness;
+  if (
+    !map.llm &&
+    inputs.llmConfig?.orchestrationBackend === "local-claude" &&
+    readiness &&
+    !readiness.ready
+  ) {
+    map.llm = {
+      tabId: "llm",
+      severity: "critical",
+      message: readiness.message || "Claude Code orchestration isn't ready.",
     };
   }
 
@@ -113,6 +136,13 @@ export function useSettingsTabHealth(open: boolean): SettingsHealthMap {
         ipcClient.githubToken.has().catch(() => true),
       ]);
 
+      // Only probe Claude Code readiness when it's the selected backend — otherwise it's irrelevant
+      // and we skip the spawn entirely.
+      const orchestratorReadiness =
+        llmConfig?.orchestrationBackend === "local-claude"
+          ? await ipcClient.llm.checkOrchestratorReadiness().catch(() => null)
+          : null;
+
       // Only probe health for the enabled backlog providers we might flag.
       const backlog = mcpServers.filter(isEnabledBacklogProvider);
       const mcpHealthById: Record<string, HealthStatusInfo | undefined> = {};
@@ -128,7 +158,15 @@ export function useSettingsTabHealth(open: boolean): SettingsHealthMap {
         }),
       );
 
-      setHealth(deriveSettingsHealth({ llmConfig, mcpServers, mcpHealthById, hasGithubToken }));
+      setHealth(
+        deriveSettingsHealth({
+          llmConfig,
+          mcpServers,
+          mcpHealthById,
+          hasGithubToken,
+          orchestratorReadiness,
+        }),
+      );
     } catch {
       // Couldn't read config — say nothing rather than show a misleading indicator.
       setHealth({});

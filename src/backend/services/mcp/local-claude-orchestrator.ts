@@ -356,9 +356,14 @@ Embed this URL in the task content that you create. Follow user requirements STR
         if (stdoutBuffer.trim()) handleLine(stdoutBuffer);
 
         if (code !== 0 && terminationReason === "unknown") {
+          // A non-zero exit with no result event is most commonly an auth failure (the headless
+          // `claude -p` can't prompt for login, so it exits with an auth error on stderr). Append
+          // actionable guidance so the user isn't left with a bare exit code.
+          const guidance =
+            " Claude Code may not be signed in — run `claude` in a terminal to log in, or switch the Orchestrator to OpenAI in Settings.";
           reject(
             new Error(
-              `Claude Code process exited with code ${code ?? "unknown"}.${stderr ? ` Error: ${stderr}` : ""}`,
+              `Claude Code process exited with code ${code ?? "unknown"}.${stderr ? ` Error: ${stderr}` : ""}${guidance}`,
             ),
           );
           return;
