@@ -85,10 +85,15 @@ export function deriveSettingsHealth(inputs: SettingsHealthInputs): SettingsHeal
     readiness &&
     !readiness.ready
   ) {
+    // Keep the nav-tooltip message terse (the full install/sign-in guidance lives in the inline
+    // warning on the Model Settings page); a long message overflows the small hover tooltip.
     map.llm = {
       tabId: "llm",
       severity: "critical",
-      message: readiness.message || "Claude Code orchestration isn't ready.",
+      message:
+        readiness.state === "not-installed"
+          ? "Claude Code CLI not found."
+          : "Claude Code isn't signed in.",
     };
   }
 

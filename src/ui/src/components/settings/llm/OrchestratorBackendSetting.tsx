@@ -180,8 +180,8 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
               role="img"
               aria-label="Claude Code not ready"
             />
-            <div className="flex flex-col gap-2">
-              <span>{readiness.message}</span>
+            <div className="flex min-w-0 flex-col gap-2">
+              <span className="break-words">{readiness.message}</span>
               <div>
                 <Button
                   variant="outline"
