@@ -13,12 +13,15 @@ import { IdentityServerAuthService } from "../services/auth/identity-server-auth
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
+import type { IBacklogOrchestrator } from "../services/mcp/backlog-orchestrator";
 import { LanguageModelProvider } from "../services/mcp/language-model-provider";
+import { LocalClaudeOrchestrator } from "../services/mcp/local-claude-orchestrator";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
+import { LlmStorage } from "../services/storage/llm-storage";
 import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
@@ -136,7 +139,7 @@ export class ProcessVideoIPCHandlers {
 
           const mcpAdapter = new McpWorkflowAdapter(workflowManager);
 
-          const orchestrator = await MCPOrchestrator.getInstanceAsync();
+          const orchestrator = await this.getBacklogOrchestrator();
           const loopResult = await orchestrator.manualLoopAsync(
             intermediateOutput,
             videoUploadResult,
@@ -564,7 +567,7 @@ export class ProcessVideoIPCHandlers {
           intermediateOutput,
         });
 
-        const orchestrator = await MCPOrchestrator.getInstanceAsync();
+        const orchestrator = await this.getBacklogOrchestrator();
 
         // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
         const loopResult = await orchestrator.manualLoopAsync(
@@ -587,7 +590,9 @@ export class ProcessVideoIPCHandlers {
         // created/updated a backlog item, the run did nothing — fail the stage so the user
         // isn't told an issue exists when none does. Temp files are kept for retry.
         if (!loopResult.backlogActionSucceeded) {
-          const failureMessage = formatNoWorkItemError(loopResult.terminationReason);
+          const failureMessage = formatNoWorkItemError(loopResult.terminationReason, {
+            verificationUnavailable: loopResult.verificationUnavailable,
+          });
           mcpAdapter.fail(mcpResult, finalOutput, failureMessage);
           workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
             mcpResult,
@@ -616,7 +621,11 @@ export class ProcessVideoIPCHandlers {
           (await IdentityServerAuthService.getInstance().isAuthenticated())
         ) {
           try {
-            const objectResult = await orchestrator.convertToObjectAsync(
+            // Portal serialization uses the OpenAI orchestrator's structured-output helper
+            // regardless of which backend drove the loop (the local Claude backend has no
+            // convertToObjectAsync). This is a separate LLM call from the orchestration step.
+            const portalOrchestrator = await MCPOrchestrator.getInstanceAsync();
+            const objectResult = await portalOrchestrator.convertToObjectAsync(
               mcpResult,
               WorkItemDtoSchema,
             );
@@ -721,6 +730,31 @@ export class ProcessVideoIPCHandlers {
     const outputFilePath = tmp.tmpNameSync({ postfix: ".mp3" });
     const result = await this.ffmpegService.ConvertVideoToMp3(inputPath, outputFilePath);
     return result;
+  }
+
+  /**
+   * Selects the orchestrator backend for the backlog-creation step from the persisted LLM config.
+   * `local-claude` drives the step with a headless `claude -p`; anything else (including a config
+   * with no `orchestrationBackend` field) uses the in-process OpenAI loop. Falls back to OpenAI if
+   * the config can't be read so the stage never hard-fails on a config hiccup.
+   */
+  private async getBacklogOrchestrator(): Promise<IBacklogOrchestrator> {
+    let backend: string | undefined;
+    try {
+      backend = (await LlmStorage.getInstance().getLLMConfig())?.orchestrationBackend;
+    } catch (error) {
+      console.warn(
+        "[ProcessVideo] Failed to read orchestration backend, defaulting to OpenAI",
+        error,
+      );
+    }
+
+    if (backend === "local-claude") {
+      console.log("[ProcessVideo] Using local Claude Code orchestrator");
+      return new LocalClaudeOrchestrator();
+    }
+
+    return await MCPOrchestrator.getInstanceAsync();
   }
 
   private async formatFinalResult(mcpResult: string | undefined): Promise<string | undefined> {
