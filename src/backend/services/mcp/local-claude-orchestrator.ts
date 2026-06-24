@@ -462,6 +462,13 @@ Embed this URL in the task content that you create. Follow user requirements STR
     // The orchestrator role is delivered via `--system-prompt` (in argv), so only the transcript
     // goes on stdin as the user turn. Passing it over stdin avoids argv length limits.
     const userPrompt = `video transcription: ${videoTranscription}`;
+    // If `claude` dies before/while we write, its stdin pipe closes and the write emits EPIPE on the
+    // stdin stream. An unhandled `error` on a stream throws (and would crash the host process), so
+    // swallow it here — the real failure is reported by the child's `error`/non-zero `close` paths.
+    // (Optional `?.on` guards the unit-test mock whose stdin is a plain `{write,end}` object.)
+    child.stdin?.on?.("error", () => {
+      /* EPIPE on a dead child — handled via child error/close below */
+    });
     child.stdin?.write(userPrompt);
     child.stdin?.end();
 
