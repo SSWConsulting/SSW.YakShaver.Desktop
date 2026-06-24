@@ -29,10 +29,20 @@ export default function RecordingControlBar() {
           <span className="font-mono text-sm font-medium tabular-nums text-white">{time}</span>
         </div>
         <Separator orientation="vertical" className="h-6 bg-white/20" />
+        {/*
+          size="icon" ships a centered 44px ::before overlay (HIT_TARGET_44).
+          On this 28px button in the frameless control bar that overlay spills
+          ~8px LEFT over the Separator and into the adjacent drag region, so a
+          click in that strip would fire Stop instead of dragging the bar. We
+          disable the centered overlay (before:hidden) and instead give the
+          button its own explicit, self-contained hit area: ml-1 clears the
+          separator, and px-2.5 + py-2 grows the click box rightward into the
+          pill's own padding (it does not overflow the drag region).
+        */}
         <Button
           variant="ghost"
           size="icon"
-          className="size-7 rounded-md transition-all hover:scale-105 hover:bg-white/10"
+          className="ml-1 size-auto px-2.5 py-2 rounded-md transition-all before:hidden hover:scale-105 hover:bg-white/10"
           onClick={() => window.electronAPI.screenRecording.stopFromControlBar()}
         >
           <Square className="size-4 fill-ssw-red text-ssw-red" />

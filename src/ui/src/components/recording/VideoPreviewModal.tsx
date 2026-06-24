@@ -132,13 +132,18 @@ export function VideoPreviewModal({
 
           <DialogFooter className="flex-col items-start gap-3 sm:flex-col">
             {approvalMode !== "yolo" && (
-              <div className="flex items-center gap-2">
+              // min-h-11 gives the row a 44px-tall click target (WCAG 2.5.5);
+              // the label spans the row via htmlFor so the row is the hit area.
+              <div className="flex items-center gap-2 min-h-11">
                 <Checkbox
                   id="auto-approve"
                   checked={autoApproveChecked}
                   onCheckedChange={(checked) => setAutoApproveChecked(checked === true)}
                 />
-                <Label htmlFor="auto-approve" className="text-sm font-normal text-muted-foreground">
+                <Label
+                  htmlFor="auto-approve"
+                  className="text-sm font-normal text-muted-foreground self-stretch flex items-center cursor-pointer"
+                >
                   Auto-approve all confirmations
                 </Label>
               </div>

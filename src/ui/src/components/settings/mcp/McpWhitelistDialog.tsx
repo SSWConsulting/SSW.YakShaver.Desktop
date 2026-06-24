@@ -94,21 +94,34 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
             )}
             {!isLoading && tools.length > 0 && (
               <div className="flex flex-col gap-2">
-                {tools.map((tool) => (
-                  <div key={tool.name} className="flex items-start gap-3">
-                    <Checkbox
-                      className="mt-1"
-                      checked={selected.has(tool.name)}
-                      onCheckedChange={() => toggleTool(tool.name)}
-                    />
-                    <div className="flex-1">
-                      <p className="text-sm">{formatToolName(tool.name)}</p>
-                      {tool.description && (
-                        <p className="text-xs text-muted-foreground">{tool.description}</p>
-                      )}
+                {tools.map((tool) => {
+                  const checkboxId = `whitelist-${tool.name}`;
+                  return (
+                    // min-h-11 gives the row a 44px-tall click target (WCAG 2.5.5).
+                    // items-start top-aligns the checkbox against multi-line
+                    // descriptions; the label is self-stretch + flex flex-col
+                    // justify-center so it fills the full row height via htmlFor —
+                    // so even a description-less (single-line) row exposes the whole
+                    // 44px row as the hit area, matching the other call sites.
+                    <div key={tool.name} className="flex items-start gap-3 min-h-11 py-1">
+                      <Checkbox
+                        id={checkboxId}
+                        className="mt-1"
+                        checked={selected.has(tool.name)}
+                        onCheckedChange={() => toggleTool(tool.name)}
+                      />
+                      <label
+                        htmlFor={checkboxId}
+                        className="flex-1 self-stretch flex flex-col justify-center cursor-pointer select-none"
+                      >
+                        <p className="text-sm">{formatToolName(tool.name)}</p>
+                        {tool.description && (
+                          <p className="text-xs text-muted-foreground">{tool.description}</p>
+                        )}
+                      </label>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
