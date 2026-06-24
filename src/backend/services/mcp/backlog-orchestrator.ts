@@ -163,8 +163,9 @@ export async function judgeBacklogOutcome(
     );
     // Enforce the contract in CODE, not just the prompt: a verdict is only trusted as success
     // if it cites concrete evidence. A model that answers achieved=true but populates no
-    // artifacts is treated as not-achieved (conservative — a false success is the costly error).
-    const achieved = verdict.achieved && verdict.artifacts.length > 0;
+    // artifacts — or only blank `idOrUrl`s (the schema allows empty strings) — is treated as
+    // not-achieved (conservative — a false success is the costly error).
+    const achieved = verdict.achieved && verdict.artifacts.some((a) => a.idOrUrl.trim().length > 0);
     console.log("[judgeBacklogOutcome] outcome judged:", {
       achieved,
       modelClaimedAchieved: verdict.achieved,
