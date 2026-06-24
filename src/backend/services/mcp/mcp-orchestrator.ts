@@ -3,6 +3,10 @@ import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMes
 import type { ZodType } from "zod";
 import { getDurationParts } from "../../utils/duration-utils";
 import { formatAndReportError } from "../../utils/error-utils";
+import {
+  isBacklogItemMutationTool,
+  normalizeIssueScreenshots,
+} from "../../utils/screenshot-markdown";
 import type { VideoUploadResult } from "../auth/types";
 import { TelemetryService } from "../telemetry/telemetry-service";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
@@ -124,6 +128,43 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
       }
     }
 
+    return resolved;
+  }
+
+  /**
+   * #834 — Deterministic guard applied to backlog create/update tool arguments before execution.
+   * The issue/work-item body markdown is authored freely by the LLM, which intermittently embeds
+   * the same screenshot twice (top of body + "### Screenshots" section) and omits the bold
+   * `**Figure: ...**` caption. We normalise the body-bearing string fields here so the rendered
+   * issue always has exactly one captioned screenshot, regardless of model phrasing.
+   */
+  private normalizeScreenshotMarkdownInArgs(
+    toolName: string,
+    input: Record<string, unknown>,
+  ): Record<string, unknown> {
+    // Only touch tools that create/update a backlog item (issue / work item / PBI / ticket).
+    // Decided by an anchored allow-list that explicitly excludes comment/reply/cache/read-only
+    // tools (e.g. `add_issue_comment`, `update_issue_cache`) — see isBacklogItemMutationTool.
+    if (!isBacklogItemMutationTool(toolName)) {
+      return input;
+    }
+
+    // Body-like fields used across GitHub / Azure DevOps / Jira MCP servers.
+    const bodyFieldNames = new Set(["body", "description", "content", "markdown", "text"]);
+    let changed = false;
+    const resolved: Record<string, unknown> = { ...input };
+    for (const [key, value] of Object.entries(input)) {
+      if (bodyFieldNames.has(key.toLowerCase()) && typeof value === "string") {
+        const normalized = normalizeIssueScreenshots(value);
+        if (normalized !== value) {
+          resolved[key] = normalized;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      console.log(`[MCPOrchestrator] Normalized screenshot markdown for tool '${toolName}' (#834)`);
+    }
     return resolved;
   }
 
@@ -382,7 +423,10 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
               });
 
               // Resolve any toolOutputRef parameters before executing the tool
-              const resolvedInput = this.resolveToolOutputReferences(toolCall.input);
+              const resolvedInput = this.normalizeScreenshotMarkdownInArgs(
+                toolCall.toolName,
+                this.resolveToolOutputReferences(toolCall.input),
+              );
 
               const toolOutput = await toolToCall.execute(resolvedInput, {
                 toolCallId: toolCall.toolCallId,
