@@ -231,6 +231,22 @@ describe("buildRequest - mcp", () => {
     expect(req.body).toEqual({ name: "Renamed", env: { K: "V" } });
   });
 
+  it("mcp update collects repeatable --arg values verbatim (like add)", () => {
+    const req = build(["mcp", "update", "srv-9", "--arg", "-y", "--arg", "/My Docs/server.js"]);
+    expect(req.body).toEqual({ args: ["-y", "/My Docs/server.js"] });
+  });
+
+  it("mcp update supports the legacy space-split --args", () => {
+    const req = build(["mcp", "update", "srv-9", "--args", "a b c"]);
+    expect(req.body).toEqual({ args: ["a", "b", "c"] });
+  });
+
+  it("mcp update rejects mixing --arg and --args", () => {
+    expect(() => build(["mcp", "update", "srv-9", "--arg", "a", "--args", "b c"])).toThrow(
+      UsageError,
+    );
+  });
+
   it("mcp update normalizes --transport http to streamableHttp", () => {
     const req = build(["mcp", "update", "srv-9", "--transport", "http"]);
     expect(req.body).toEqual({ transport: "streamableHttp" });

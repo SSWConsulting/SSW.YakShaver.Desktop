@@ -116,7 +116,7 @@ function buildMcpRequest(
         options,
         "update <id> | --name <name> [--url ... | --command ... | --args ... | --env ... | --header ... | --transport ...]",
       );
-      const body = buildMcpPatch(options, target.usedNameForLookup);
+      const body = buildMcpPatch(options, multiOptions, target.usedNameForLookup);
       return {
         ...target,
         method: "PUT",
@@ -202,6 +202,7 @@ function resolveTarget(
  */
 function buildMcpPatch(
   options: Record<string, string | boolean>,
+  multiOptions: Record<string, string[]>,
   nameUsedForLookup: boolean,
 ): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
@@ -229,8 +230,9 @@ function buildMcpPatch(
   const command = optionalString(options, "command");
   if (command !== undefined) patch.command = command;
 
-  const argsValue = optionalString(options, "args");
-  if (argsValue !== undefined) patch.args = argsValue.split(" ").filter(Boolean);
+  // Mirror `mcp add`: repeatable verbatim `--arg` or legacy `--args` (exclusive).
+  const args = parseStdioArgs(options, multiOptions);
+  if (args !== undefined) patch.args = args;
 
   const env = parseKeyValueList(optionalString(options, "env"));
   if (env !== undefined) patch.env = env;

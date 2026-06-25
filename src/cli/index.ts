@@ -17,7 +17,7 @@ MCP
   yakshaver mcp list
   yakshaver mcp add --name <name> --transport stdio --command <cmd> [--arg <a> --arg <b> ...] [--env "K=V,K2=V2"]
   yakshaver mcp add --name <name> --transport http  --url <url> [--header "K=V"]
-  yakshaver mcp update <id> [--name ... --url ... --command ... --args ... --env ... --header ... --transport ...]
+  yakshaver mcp update <id> [--name ... --url ... --command ... --arg ... --env ... --header ... --transport ...]
   yakshaver mcp remove <id>
   yakshaver mcp enable <id> [--off]        # --off disables instead of enabling
 
