@@ -315,6 +315,20 @@ describe("routeRequest - LLM", () => {
     if (!res.body.ok) throw new Error("expected ok");
     expect((res.body.data as { orchestrationBackend: string }).orchestrationBackend).toBe("openai");
   });
+
+  it("GET /llm/config returns the default backend on a fresh install (null config)", async () => {
+    const services = makeServices({
+      llm: {
+        getLLMConfig: vi.fn().mockResolvedValue(null),
+        storeLLMConfig: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const res = await routeRequest(services, { method: "GET", path: "/llm/config" });
+    expect(res.status).toBe(200);
+    if (!res.body.ok) throw new Error("expected ok");
+    // Must surface a concrete value, never null, even when no config exists yet.
+    expect(res.body.data).toEqual({ orchestrationBackend: "openai" });
+  });
 });
 
 describe("routeRequest - LLM orchestrator", () => {

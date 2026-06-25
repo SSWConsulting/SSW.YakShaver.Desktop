@@ -296,11 +296,17 @@ export class MCPServerManager {
 
     const existing = storedConfigs[index];
 
-    const merged: MCPServerConfig = {
-      ...existing,
-      ...(config as unknown as Record<string, unknown>),
-      id: existing.id,
-    } as MCPServerConfig;
+    // On a transport change, REPLACE rather than overlay: overlaying onto
+    // `existing` would re-introduce the old transport's fields (e.g. a stale url +
+    // secret-bearing headers on a now-stdio server). Caller supplies a complete config.
+    const transportChanged = existing.transport !== config.transport;
+    const merged: MCPServerConfig = transportChanged
+      ? ({ ...(config as unknown as Record<string, unknown>), id: existing.id } as MCPServerConfig)
+      : ({
+          ...existing,
+          ...(config as unknown as Record<string, unknown>),
+          id: existing.id,
+        } as MCPServerConfig);
 
     MCPServerManager.validateServerConfig(merged);
 

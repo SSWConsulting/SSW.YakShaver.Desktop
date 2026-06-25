@@ -3,6 +3,7 @@ import {
   LlmConfigInputSchema,
   McpEnabledInputSchema,
   McpServerInputSchema,
+  type McpServerPatch,
   McpServerPatchSchema,
   OrchestratorInputSchema,
 } from "../../../shared/cli-bridge/protocol";
@@ -151,8 +152,8 @@ async function routeMcp(
   // /mcp/servers/:id
   if (rest.length === 1) {
     if (req.method === "PUT") {
-      // Merge-update: validate ONLY the provided fields (every field optional)
-      // and overlay them on the existing server. The server must already exist.
+      // Merge-update: validate the provided fields, then merge via mergeMcpPatch
+      // (which normalizes a transport switch). The server must already exist.
       const parsed = McpServerPatchSchema.safeParse(req.body);
       if (!parsed.success) {
         return fail(`Invalid server config: ${formatZodError(parsed.error)}`);
@@ -164,11 +165,11 @@ async function routeMcp(
       if (existing.builtin) {
         return fail(BUILTIN_IMMUTABLE_MESSAGE, 409);
       }
-      const merged = {
-        ...existing,
-        ...(parsed.data as object),
-        id: serverId,
-      } as MCPServerConfig;
+      const mergeResult = mergeMcpPatch(existing, parsed.data);
+      if (!mergeResult.ok) {
+        return fail(mergeResult.error);
+      }
+      const merged = mergeResult.value;
       await services.mcp.updateServerAsync(serverId, merged);
       return ok(redactMcpServer(merged));
     }
@@ -197,8 +198,10 @@ async function routeLlm(services: BridgeServices, req: BridgeRequest): Promise<B
       if (r.orchestrationBackend === undefined) {
         r.orchestrationBackend = DEFAULT_ORCHESTRATION_BACKEND;
       }
+      return ok(redacted);
     }
-    return ok(redacted);
+    // Fresh install: no LLM config yet (null) — surface the default, not `null`.
+    return ok({ orchestrationBackend: DEFAULT_ORCHESTRATION_BACKEND });
   }
   if (req.method === "POST") {
     const parsed = LlmConfigInputSchema.safeParse(req.body);
@@ -259,6 +262,55 @@ async function routeSettings(services: BridgeServices, req: BridgeRequest): Prom
     return ok(await services.settings.getSettingsAsync());
   }
   return fail(`Method not allowed: ${req.method} ${req.path}`, 405);
+}
+
+/** Fields that belong ONLY to an HTTP (streamableHttp) server config. */
+const HTTP_ONLY_FIELDS = ["url", "headers", "version", "timeoutMs"] as const;
+/** Fields that belong ONLY to a stdio server config. */
+const STDIO_ONLY_FIELDS = ["command", "args", "env", "cwd", "stderr"] as const;
+
+type MergeResult = { ok: true; value: MCPServerConfig } | { ok: false; error: string };
+
+/**
+ * Merge a validated patch onto an existing MCP server config, normalized to the
+ * TARGET transport: fields belonging only to the OTHER transport are stripped so
+ * no foreign field survives (whether the patch switches transport or just slips
+ * in a wrong-transport field). A transport switch also requires the new
+ * transport's mandatory field (`url` for HTTP, `command` for stdio).
+ */
+function mergeMcpPatch(existing: MCPServerConfig, patch: McpServerPatch): MergeResult {
+  const targetTransport = patch.transport ?? existing.transport;
+  const transportChanged = patch.transport !== undefined && patch.transport !== existing.transport;
+
+  const merged: Record<string, unknown> = {
+    ...(existing as unknown as Record<string, unknown>),
+    ...(patch as Record<string, unknown>),
+    id: existing.id,
+  };
+
+  // Strip the OTHER transport's fields so no foreign field survives.
+  const staleFields = targetTransport === "streamableHttp" ? STDIO_ONLY_FIELDS : HTTP_ONLY_FIELDS;
+  for (const field of staleFields) {
+    delete merged[field];
+  }
+
+  if (transportChanged) {
+    // Require the new transport's mandatory field (from the patch or existing).
+    if (targetTransport === "streamableHttp" && typeof merged.url !== "string") {
+      return {
+        ok: false,
+        error: "Changing transport to http requires --url",
+      };
+    }
+    if (targetTransport === "stdio" && typeof merged.command !== "string") {
+      return {
+        ok: false,
+        error: "Changing transport to stdio requires --command",
+      };
+    }
+  }
+
+  return { ok: true, value: merged as unknown as MCPServerConfig };
 }
 
 function formatZodError(error: {
