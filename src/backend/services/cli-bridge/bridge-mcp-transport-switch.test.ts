@@ -153,4 +153,37 @@ describe("bridge -> real MCPServerManager transport switch", () => {
     expect(persisted.command).toBeUndefined();
     expect(persisted.args).toBeUndefined();
   });
+
+  it("preserves common fields (enabled/toolWhitelist) on a transport switch when the incoming config omits them", async () => {
+    // Mirrors the Settings UI, whose McpServerForm submits a config WITHOUT
+    // `enabled`/`toolWhitelist`. A transport switch must keep those from existing,
+    // not reset a disabled server to enabled or drop its whitelist.
+    store = [
+      {
+        id: "srv-4",
+        name: "Test HTTP",
+        transport: "streamableHttp",
+        url: "https://example.com/mcp",
+        enabled: false,
+        toolWhitelist: ["search"],
+      },
+    ];
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    await manager.updateServerAsync("srv-4", {
+      id: "srv-4",
+      name: "Test HTTP",
+      transport: "stdio",
+      command: "node",
+    } as MCPServerConfig);
+
+    const persisted = store.find((s) => s.id === "srv-4") as unknown as Record<string, unknown>;
+    expect(persisted.transport).toBe("stdio");
+    expect(persisted.command).toBe("node");
+    // Old transport's field stripped...
+    expect(persisted.url).toBeUndefined();
+    // ...but common fields preserved from existing.
+    expect(persisted.enabled).toBe(false);
+    expect(persisted.toolWhitelist).toEqual(["search"]);
+  });
 });

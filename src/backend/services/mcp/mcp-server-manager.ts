@@ -7,6 +7,11 @@ import { McpStorage } from "../storage/mcp-storage";
 import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
 import type { MCPServerConfig } from "./types";
 
+/** Fields valid ONLY on an HTTP (streamableHttp) server config. */
+const HTTP_ONLY_FIELDS = ["url", "headers", "version", "timeoutMs"] as const;
+/** Fields valid ONLY on a stdio server config. */
+const STDIO_ONLY_FIELDS = ["command", "args", "env", "cwd", "stderr"] as const;
+
 export class MCPServerManager {
   private static instance: MCPServerManager;
   private static internalServerConfigs: MCPServerConfig[] = [];
@@ -296,17 +301,24 @@ export class MCPServerManager {
 
     const existing = storedConfigs[index];
 
-    // On a transport change, REPLACE rather than overlay: overlaying onto
-    // `existing` would re-introduce the old transport's fields (e.g. a stale url +
-    // secret-bearing headers on a now-stdio server). Caller supplies a complete config.
-    const transportChanged = existing.transport !== config.transport;
-    const merged: MCPServerConfig = transportChanged
-      ? ({ ...(config as unknown as Record<string, unknown>), id: existing.id } as MCPServerConfig)
-      : ({
-          ...existing,
-          ...(config as unknown as Record<string, unknown>),
-          id: existing.id,
-        } as MCPServerConfig);
+    const mergedRecord: Record<string, unknown> = {
+      ...(existing as unknown as Record<string, unknown>),
+      ...(config as unknown as Record<string, unknown>),
+      id: existing.id,
+    };
+
+    // On a transport change, strip ONLY the old transport's transport-specific
+    // fields (e.g. a stale url + secret-bearing headers on a now-stdio server).
+    // Common fields like `enabled`/`toolWhitelist` are preserved from `existing`
+    // even when the incoming config omits them.
+    if (existing.transport !== config.transport) {
+      const staleFields = config.transport === "stdio" ? HTTP_ONLY_FIELDS : STDIO_ONLY_FIELDS;
+      for (const field of staleFields) {
+        delete mergedRecord[field];
+      }
+    }
+
+    const merged = mergedRecord as unknown as MCPServerConfig;
 
     MCPServerManager.validateServerConfig(merged);
 
