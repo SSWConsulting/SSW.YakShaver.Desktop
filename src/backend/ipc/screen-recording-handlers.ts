@@ -95,6 +95,10 @@ export class ScreenRecordingIPCHandlers {
   private hideControlBarAndCamera() {
     this.cameraWindow.hide();
     this.controlBar.hideWithSuccess();
+    // The screen frame overlay is shown during source selection/recording but is not torn down
+    // by the control-bar stop path. Destroy it here so it doesn't linger after recording stops
+    // (otherwise an empty frame overlay remains on-screen until the app quits).
+    this.screenFrameWindow.hide();
     return { success: true };
   }
 
