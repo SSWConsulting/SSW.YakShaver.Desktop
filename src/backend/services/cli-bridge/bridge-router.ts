@@ -1,6 +1,7 @@
 import type { LLMConfigV2 } from "@shared/types/llm";
 import {
   type BridgeResponse,
+  LlmConfigInputSchema,
   McpEnabledInputSchema,
   McpServerInputSchema,
 } from "../../../shared/cli-bridge/protocol";
@@ -179,14 +180,11 @@ async function routeLlm(services: BridgeServices, req: BridgeRequest): Promise<B
     return ok(redactLlmConfig(config));
   }
   if (req.method === "POST") {
-    if (!req.body || typeof req.body !== "object") {
-      return fail("Invalid LLM config payload");
+    const parsed = LlmConfigInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return fail(`Invalid LLM config: ${formatZodError(parsed.error)}`);
     }
-    const config = req.body as LLMConfigV2;
-    if (config.version !== 2) {
-      return fail("LLM config must be version 2");
-    }
-    await services.llm.storeLLMConfig(config);
+    await services.llm.storeLLMConfig(parsed.data as LLMConfigV2);
     const stored = await services.llm.getLLMConfig();
     return ok(redactLlmConfig(stored));
   }

@@ -100,6 +100,35 @@ export const McpEnabledInputSchema = z.object({
   enabled: z.boolean(),
 });
 
+// LLM config payload (V2). Mirrors LLMConfigV2 so POST /llm/config validates at
+// the boundary instead of trusting an `as` cast, like the MCP/settings routes.
+const ModelConfigInputSchema = z.discriminatedUnion("provider", [
+  z.object({
+    provider: z.literal("openai"),
+    model: z.string().nullable(),
+    apiKey: z.string(),
+  }),
+  z.object({
+    provider: z.literal("deepseek"),
+    model: z.string().nullable(),
+    apiKey: z.string(),
+  }),
+  z.object({
+    provider: z.literal("azure"),
+    model: z.string().nullable(),
+    apiKey: z.string(),
+    resourceName: z.string(),
+  }),
+]);
+
+/** Input accepted by POST /llm/config. */
+export const LlmConfigInputSchema = z.object({
+  version: z.literal(2),
+  languageModel: ModelConfigInputSchema.nullable(),
+  transcriptionModel: ModelConfigInputSchema.nullable(),
+  providerApiKeys: z.record(z.string(), z.string()).optional(),
+});
+
 /**
  * Keys on an MCP server config considered secret. Redacted in any response.
  * `headers` and `env` often carry tokens/api keys so we redact their values.
