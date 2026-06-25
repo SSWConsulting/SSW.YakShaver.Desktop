@@ -28,6 +28,10 @@ import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
+import {
+  applyPortalVideoFields,
+  applyVideoMetadataPersistence,
+} from "../services/workflow/video-metadata-persistence";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
 import {
   type RetryResult,
@@ -440,6 +444,15 @@ export class ProcessVideoIPCHandlers {
     try {
       this.lastVideoFilePath = filePath;
 
+      // #808: Persist the video embed URL / source onto the shave record directly from the
+      // authoritative upload result. The UI normally writes this in response to a workflow
+      // progress event, but that event can be missed or coalesced (e.g. the workflow advances
+      // past `uploading_video` before the renderer subscribes, or the renderer's in-memory
+      // dedup set drops it), leaving the saved shave without `videoEmbedUrl`/`videoFile` and so
+      // with no preview in the Tenant view. Writing it here from the backend guarantees the
+      // field is persisted whenever the upload/download succeeded, regardless of UI timing.
+      this.persistVideoMetadataToShave(shaveId, youtubeResult);
+
       // -- CONVERTING_AUDIO --
       if (shouldRunStage(WorkflowProgressStage.CONVERTING_AUDIO)) {
         currentStage = WorkflowProgressStage.CONVERTING_AUDIO;
@@ -633,6 +646,16 @@ export class ProcessVideoIPCHandlers {
             workItemDto.projectId = projectDetails.id;
             workItemDto.projectName = projectDetails.name;
 
+            // #808: The Tenant view renders its preview from the portal payload's video fields.
+            // These were previously left to the LLM to copy out of the system prompt during
+            // structured extraction, which intermittently dropped them — the exact "missing
+            // embedUrl/videoFile" symptom #808 reports. Override them deterministically from the
+            // same authoritative upload result the local backstop uses, so a successful
+            // recording ALWAYS carries the embed URL to the portal regardless of model output.
+            // The override + its skip-on-null behaviour lives in applyPortalVideoFields so the
+            // wiring (and that it fires BEFORE the portal POST) is unit-testable.
+            applyPortalVideoFields(workItemDto, youtubeResult);
+
             const portalResult = await SendWorkItemDetailsToPortal(workItemDto);
             if (!portalResult.success) {
               console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
@@ -723,6 +746,40 @@ export class ProcessVideoIPCHandlers {
       // Note: Temp files and DB records are NOT cleaned up here on failure.
       // They are preserved for potential retry and cleaned up only on success
       // via cleanupTempFiles() or when user cancels the workflow.
+    }
+  }
+
+  /**
+   * #808: Backstop that persists the authoritative video metadata from the upload/download
+   * result onto the shave record, independent of the UI workflow-progress listener.
+   *
+   * - For uploads (origin !== "external"), the embed URL is `youtubeResult.data.url`; it is
+   *   written to `videoEmbedUrl` only when the shave doesn't already have one, so it never
+   *   clobbers a value the UI (or metadata-update) already set.
+   * - For external sources, a video source row is attached via the idempotent
+   *   `attachVideoSourceToShave` (which is a no-op if a source is already linked).
+   *
+   * Best-effort and fully non-fatal: any failure here must not abort the workflow, since the
+   * UI listener remains a second path to the same write.
+   */
+  private persistVideoMetadataToShave(
+    shaveId: string | undefined,
+    youtubeResult: VideoUploadResult,
+  ): void {
+    if (!shaveId) {
+      return;
+    }
+
+    try {
+      // The decision + ShaveService wiring lives in applyVideoMetadataPersistence so it can be
+      // unit-tested against an in-memory store (proving the no-clobber and write branches).
+      applyVideoMetadataPersistence(ShaveService.getInstance(), shaveId, youtubeResult);
+    } catch (err) {
+      // Non-fatal — the UI progress listener is the other path to this write.
+      console.warn(
+        "[ProcessVideo] Failed to persist video metadata to shave (non-fatal):",
+        formatAndReportError(err, "persist_video_metadata"),
+      );
     }
   }
 
