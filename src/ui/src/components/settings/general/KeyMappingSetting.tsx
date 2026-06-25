@@ -4,11 +4,11 @@ import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
+import { SettingsSection } from "../SettingsSection";
 
 const FUNCTION_KEY_REGEX = /^F([1-9]|1[0-9]|2[0-4])$/;
 
@@ -148,59 +148,55 @@ export function KeyMappingSetting({ isActive }: KeyMappingSettingProps) {
   const isDisabled = isLoading || isSaving;
 
   return (
-    <Card className="w-full gap-4 border-white/10 py-4">
-      <CardHeader className="px-4">
-        <CardTitle className="flex items-center gap-2">
+    <SettingsSection
+      title={
+        <>
           <Keyboard className="h-4 w-4" />
           Key Mapping
-        </CardTitle>
-        <CardDescription>
-          Set the global shortcut used to start a YakShaver recording.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="px-4">
-        <div className="grid gap-3 md:grid-cols-[130px_minmax(0,1fr)_auto] md:items-start">
-          <Label htmlFor={inputId} className="pt-2 text-sm font-medium">
-            Record shortcut
-          </Label>
-          <div className="min-w-0 space-y-1">
-            <Input
-              id={inputId}
-              value={shortcutInput}
-              onKeyDown={handleKeyCapture}
-              onFocus={handleInputFocus}
-              onBlur={handleInputBlur}
-              placeholder={isCapturing ? "Press a key combination..." : defaultShortcut}
-              disabled={isDisabled}
-              className="font-mono"
-              readOnly
-            />
-            <div className="h-5">
-              {isCapturing && (
-                <p className="text-xs text-muted-foreground">
-                  Press a key combination, for example Ctrl+F12 or Ctrl+Shift+R.
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => void handleShortcutSave()}
-              disabled={isDisabled || !shortcutInput.trim() || shortcutInput === startRecording}
-            >
-              Save
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => void handleResetToDefault()}
-              disabled={isDisabled || startRecording === defaultShortcut}
-            >
-              Reset
-            </Button>
+        </>
+      }
+      description="Set the global shortcut used to start a YakShaver recording."
+    >
+      <div className="grid gap-3 md:grid-cols-[130px_minmax(0,1fr)_auto] md:items-start">
+        <Label htmlFor={inputId} className="pt-2 text-sm font-medium">
+          Record shortcut
+        </Label>
+        <div className="min-w-0 space-y-1">
+          <Input
+            id={inputId}
+            value={shortcutInput}
+            onKeyDown={handleKeyCapture}
+            onFocus={handleInputFocus}
+            onBlur={handleInputBlur}
+            placeholder={isCapturing ? "Press a key combination..." : defaultShortcut}
+            disabled={isDisabled}
+            className="font-mono"
+            readOnly
+          />
+          <div className="h-5">
+            {isCapturing && (
+              <p className="text-xs text-muted-foreground">
+                Press a key combination, for example Ctrl+F12 or Ctrl+Shift+R.
+              </p>
+            )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => void handleShortcutSave()}
+            disabled={isDisabled || !shortcutInput.trim() || shortcutInput === startRecording}
+          >
+            Save
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => void handleResetToDefault()}
+            disabled={isDisabled || startRecording === defaultShortcut}
+          >
+            Reset
+          </Button>
+        </div>
+      </div>
+    </SettingsSection>
   );
 }

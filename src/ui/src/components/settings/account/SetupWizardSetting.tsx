@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from "../../ui/alert-dialog";
 import { Button } from "../../ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card";
+import { SettingsSection } from "../SettingsSection";
 
 export function SetupWizardSetting() {
   const [isWizardDialogOpen, setIsWizardDialogOpen] = useState(false);
@@ -41,22 +41,18 @@ export function SetupWizardSetting() {
 
   return (
     <>
-      <Card className="w-full gap-4 border-white/10 py-4">
-        <CardHeader className="px-4">
-          <CardTitle className="flex items-center gap-2">
+      <SettingsSection
+        title={
+          <>
             <Wand2 className="h-5 w-5" />
             Setup Wizard
-          </CardTitle>
-          <CardDescription>
-            Re-run the initial setup wizard to configure your services again.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-4">
-          <Button onClick={() => setIsWizardDialogOpen(true)} className="w-full">
-            Open Wizard
-          </Button>
-        </CardContent>
-      </Card>
+          </>
+        }
+        description="Re-run the initial setup wizard to configure your services again."
+      >
+        {/* #880 AC17: no longer full-width — a single optional action doesn't warrant it on desktop. */}
+        <Button onClick={() => setIsWizardDialogOpen(true)}>Open Wizard</Button>
+      </SettingsSection>
 
       <AlertDialog open={isWizardDialogOpen} onOpenChange={setIsWizardDialogOpen}>
         <AlertDialogContent>
