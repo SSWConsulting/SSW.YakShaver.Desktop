@@ -299,6 +299,13 @@ Embed this URL in the task content that you create. Follow user requirements STR
 
     const child = this.spawner.spawn(this.claudeCommand, argv);
 
+    // Always emit a first line so the Executing Task box is never empty, even before Claude
+    // streams anything (and even when its narration ends up terse).
+    options.onStep?.({
+      type: "start",
+      message: "Orchestrating with Claude Code…",
+    });
+
     // The full prompt = system prompt + the transcript as the user input, passed over stdin so
     // long transcripts don't bump into argv length limits.
     const fullPrompt = `${systemPrompt}\n\n---\nvideo transcription: ${videoTranscription}`;
@@ -350,9 +357,14 @@ Embed this URL in the task content that you create. Follow user requirements STR
         if (stdoutBuffer.trim()) handleLine(stdoutBuffer);
 
         if (code !== 0 && terminationReason === "unknown") {
+          // A non-zero exit with no result event is most commonly an auth failure (the headless
+          // `claude -p` can't prompt for login, so it exits with an auth error on stderr). Append
+          // actionable guidance so the user isn't left with a bare exit code.
+          const guidance =
+            " Claude Code may not be signed in — run `claude` in a terminal to log in, or switch the Orchestrator to OpenAI in Settings.";
           reject(
             new Error(
-              `Claude Code process exited with code ${code ?? "unknown"}.${stderr ? ` Error: ${stderr}` : ""}`,
+              `Claude Code process exited with code ${code ?? "unknown"}.${stderr ? ` Error: ${stderr}` : ""}${guidance}`,
             ),
           );
           return;
@@ -393,11 +405,18 @@ Embed this URL in the task content that you create. Follow user requirements STR
     if (event.type === "assistant" && event.message?.content) {
       for (const block of event.message.content) {
         if (block.type === "text" && block.text) {
-          onStep?.({ type: "reasoning", reasoning: block.text });
+          // The UI's <ReasoningStep> JSON.parses `reasoning` and renders `parsed.text` — matching
+          // how the OpenAI loop emits it. Wrap Claude's raw text the same way; emitting a bare
+          // string would fail that parse and render a BLANK reasoning box (the root cause of the
+          // sparse Executing Task box under the local-claude backend).
+          onStep?.({
+            type: "reasoning",
+            reasoning: JSON.stringify({ type: "text", text: block.text }),
+          });
         } else if (block.type === "tool_use") {
           onStep?.({
             type: "tool_call",
-            toolName: block.name ?? "unknown",
+            toolName: stripFrontDoorPrefix(block.name ?? "unknown"),
             args: block.input,
           });
         }
@@ -492,6 +511,21 @@ interface ClaudeStreamEvent {
       content?: unknown;
     }>;
   };
+}
+
+/** The prefix Claude prepends to every front-door tool: `mcp__yakshaver__<Server__tool>`. */
+const FRONT_DOOR_TOOL_PREFIX = `mcp__${YAKSHAVER_MCP_SERVER_KEY}__`;
+
+/**
+ * Strips the single-front-door prefix from a tool name so the UI shows the real `Server__tool`
+ * (e.g. `mcp__yakshaver__GitHub__issue_write` -> `GitHub__issue_write`). The UI's `formatToolName`
+ * splits on the FIRST `__`, so without this it would mis-parse the server as `mcp` and render a
+ * messy/blank tool label. Non-front-door tools (Claude built-ins) are returned unchanged.
+ */
+export function stripFrontDoorPrefix(toolName: string): string {
+  return toolName.startsWith(FRONT_DOOR_TOOL_PREFIX)
+    ? toolName.slice(FRONT_DOOR_TOOL_PREFIX.length)
+    : toolName;
 }
 
 /** Tool results in stream-json may be a string or an array of `{type:"text", text}` blocks. */

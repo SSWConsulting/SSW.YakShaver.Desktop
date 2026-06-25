@@ -118,6 +118,73 @@ describe("deriveSettingsHealth", () => {
     });
   });
 
+  describe("Orchestrator readiness (llm)", () => {
+    const notReady = {
+      installed: true,
+      authenticated: false,
+      ready: false,
+      state: "not-authenticated" as const,
+      message: "Claude Code is installed but not signed in.",
+    };
+
+    it("flags Claude Code as critical when selected but not ready", () => {
+      const health = deriveSettingsHealth(
+        inputs({
+          llmConfig: { ...healthyLlm, orchestrationBackend: "local-claude" },
+          orchestratorReadiness: notReady,
+        }),
+      );
+      expect(health.llm?.severity).toBe("critical");
+      expect(health.llm?.message).toMatch(/signed in/i);
+    });
+
+    it("does NOT flag when the backend is OpenAI, even if a stale readiness is not ready", () => {
+      const health = deriveSettingsHealth(
+        inputs({
+          llmConfig: { ...healthyLlm, orchestrationBackend: "openai" },
+          orchestratorReadiness: notReady,
+        }),
+      );
+      expect(health.llm).toBeUndefined();
+    });
+
+    it("does NOT flag when Claude Code is ready", () => {
+      const health = deriveSettingsHealth(
+        inputs({
+          llmConfig: { ...healthyLlm, orchestrationBackend: "local-claude" },
+          orchestratorReadiness: {
+            installed: true,
+            authenticated: true,
+            ready: true,
+            state: "ready",
+            message: "",
+          },
+        }),
+      );
+      expect(health.llm).toBeUndefined();
+    });
+
+    it("does NOT flag while readiness is still inconclusive (null)", () => {
+      const health = deriveSettingsHealth(
+        inputs({
+          llmConfig: { ...healthyLlm, orchestrationBackend: "local-claude" },
+          orchestratorReadiness: null,
+        }),
+      );
+      expect(health.llm).toBeUndefined();
+    });
+
+    it("keeps the missing-model message (more fundamental) over orchestrator readiness", () => {
+      const health = deriveSettingsHealth(
+        inputs({
+          llmConfig: { languageModel: null, orchestrationBackend: "local-claude" },
+          orchestratorReadiness: notReady,
+        }),
+      );
+      expect(health.llm?.message).toMatch(/api key/i);
+    });
+  });
+
   describe("Releases (release)", () => {
     it("flags a missing GitHub token as critical", () => {
       expect(deriveSettingsHealth(inputs({ hasGithubToken: false })).release?.severity).toBe(

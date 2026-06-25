@@ -18,6 +18,7 @@ import type { ToolApprovalMode } from "../../../shared/types/user-settings";
 import {
   LocalClaudeOrchestrator,
   type OrchestratorServerManager,
+  stripFrontDoorPrefix,
   YAKSHAVER_MCP_SERVER_KEY,
   type YakshaverFrontDoorConfig,
 } from "./local-claude-orchestrator";
@@ -297,10 +298,25 @@ describe("LocalClaudeOrchestrator", () => {
       expect(written).toContain("video transcription: a bug report");
 
       const types = steps.map((s) => s.type);
+      // A `start` step is always emitted first so the Executing Task box is never empty.
+      expect(types[0]).toBe("start");
       expect(types).toContain("reasoning");
       expect(types).toContain("tool_call");
       expect(types).toContain("tool_result");
       expect(types).toContain("final_result");
+
+      // Reasoning is wrapped so the UI's <ReasoningStep> (which JSON.parses + renders .text) shows
+      // the text instead of a blank box.
+      const reasoningStep = steps.find((s) => s.type === "reasoning");
+      expect(reasoningStep?.reasoning).toBeDefined();
+      expect(JSON.parse(reasoningStep?.reasoning as string)).toMatchObject({
+        text: "I'll create an issue.",
+      });
+
+      // The single-front-door prefix is stripped from the displayed tool name so it reads as the
+      // real `Server__tool` rather than mis-parsing the server as `mcp`.
+      const toolCallStep = steps.find((s) => s.type === "tool_call");
+      expect(toolCallStep?.toolName).toBe("GitHub__create_issue");
 
       expect(generateObject).toHaveBeenCalledTimes(1);
       expect(result.backlogActionSucceeded).toBe(true);
@@ -378,6 +394,19 @@ describe("LocalClaudeOrchestrator", () => {
       await expect(orch.manualLoopAsync("t", undefined, {})).rejects.toThrow(
         /Claude Code process exited with code 1/,
       );
+    });
+  });
+
+  describe("stripFrontDoorPrefix", () => {
+    it("strips the mcp__yakshaver__ front-door prefix so the real Server__tool remains", () => {
+      expect(stripFrontDoorPrefix(`mcp__${YAKSHAVER_MCP_SERVER_KEY}__GitHub__issue_write`)).toBe(
+        "GitHub__issue_write",
+      );
+    });
+
+    it("leaves non-front-door (Claude built-in) tool names unchanged", () => {
+      expect(stripFrontDoorPrefix("Read")).toBe("Read");
+      expect(stripFrontDoorPrefix("mcp__other__Foo__bar")).toBe("mcp__other__Foo__bar");
     });
   });
 });
