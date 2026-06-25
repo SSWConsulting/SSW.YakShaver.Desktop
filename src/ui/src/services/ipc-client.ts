@@ -114,6 +114,7 @@ declare global {
       };
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;
+        getCurrentTime: () => Promise<string | null>;
       };
       workflow: {
         onProgressNeo: (callback: (progress: unknown) => void) => () => void;

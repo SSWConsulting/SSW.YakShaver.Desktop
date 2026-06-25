@@ -31,6 +31,7 @@ export class ScreenRecordingIPCHandlers {
       ) => await this.showScreenFrame(sourceId),
       [IPC_CHANNELS.CLEANUP_TEMP_FILE]: (_: unknown, filePath: string) =>
         this.service.cleanupTempFile(filePath),
+      [IPC_CHANNELS.GET_RECORDING_TIME]: () => this.controlBar.getCurrentTime(),
       [IPC_CHANNELS.SHOW_CONTROL_BAR]: (_: unknown, cameraDeviceId?: string) =>
         this.showControlBarWithCamera(cameraDeviceId),
       [IPC_CHANNELS.HIDE_CONTROL_BAR]: () => this.hideControlBarAndCamera(),
