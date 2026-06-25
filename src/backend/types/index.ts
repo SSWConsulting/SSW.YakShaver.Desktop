@@ -100,3 +100,8 @@ export interface ShaveItem {
 export interface GetMyShavesResponse {
   items: ShaveItem[];
 }
+
+// Portal-projects types (#816) are shared between the backend and the UI, so per
+// AGENTS.md Rule 9 they live in `@shared/types/portal`. Re-exported here for the
+// backend's existing `../types` import sites.
+export type { GetMyProjectsErrorCode, GetMyProjectsResponse, Project } from "@shared/types/portal";

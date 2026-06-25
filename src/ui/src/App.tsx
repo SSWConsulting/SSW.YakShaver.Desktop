@@ -12,6 +12,7 @@ import { AdvancedSettingsProvider } from "./contexts/AdvancedSettingsContext";
 import { YouTubeAuthProvider } from "./contexts/YouTubeAuthContext";
 import { useShaveManager } from "./hooks/useShaveManager";
 import { HomePage } from "./pages/HomePage";
+import { ProjectsPage } from "./pages/ProjectsPage";
 import { WorkflowPage } from "./pages/WorkflowPage";
 import { ipcClient } from "./services/ipc-client";
 
@@ -44,6 +45,7 @@ export default function App() {
                   <Routes>
                     <Route element={<Layout />}>
                       <Route path="/" element={<HomePage />} />
+                      <Route path="/projects" element={<ProjectsPage />} />
                       <Route path="/workflow" element={<WorkflowPage />} />
                       {/* #821: re-open a past shave's Workflow Progress by id */}
                       <Route path="/workflow/:shaveId" element={<WorkflowPage />} />
