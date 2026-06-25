@@ -71,7 +71,19 @@ const VideoCard = ({
       {!uploading && (
         <CardContent>
           <div className="p-3 bg-white/5 rounded-md flex items-center justify-between border border-white/10">
-            <p className="text-sm truncate flex-1 min-w-0">{url}</p>
+            {url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open in browser"
+                className="text-sm truncate flex-1 min-w-0 text-blue-300 hover:text-blue-200 hover:underline"
+              >
+                {url}
+              </a>
+            ) : (
+              <p className="text-sm truncate flex-1 min-w-0">{url}</p>
+            )}
             <div className="flex items-center gap-1 ml-2">
               <Button
                 type="button"
