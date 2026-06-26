@@ -1,4 +1,6 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { SettingsNavHealthIndicator } from "./SettingsNavHealthIndicator";
+import type { SettingsHealthMap } from "./settings-health";
 import { nextRovingIndex } from "./settings-nav-keys";
 
 export interface SettingsNavTab {
@@ -12,6 +14,9 @@ interface SettingsNavProps {
   /** Stable id of the panel region these tabs control (for aria-controls). */
   panelId?: string;
   onSelect: (tabId: string) => void;
+  /** #878 — per-tab critical-configuration state; renders a warning indicator on
+   * the affected tab. Optional so callers without health checks stay simple. */
+  tabHealth?: SettingsHealthMap;
 }
 
 /**
@@ -31,7 +36,7 @@ interface SettingsNavProps {
  *    and the resync effect below wouldn't fire). A later Arrow press then steps
  *    from where the user visibly is, not a stale keyboard position.
  */
-export function SettingsNav({ tabs, activeTabId, panelId, onSelect }: SettingsNavProps) {
+export function SettingsNav({ tabs, activeTabId, panelId, onSelect, tabHealth }: SettingsNavProps) {
   const activeIndex = Math.max(
     0,
     tabs.findIndex((tab) => tab.id === activeTabId),
@@ -65,6 +70,7 @@ export function SettingsNav({ tabs, activeTabId, panelId, onSelect }: SettingsNa
     >
       {tabs.map((tab, index) => {
         const isActive = tab.id === activeTabId;
+        const health = tabHealth?.[tab.id];
         return (
           <button
             key={tab.id}
@@ -78,13 +84,14 @@ export function SettingsNav({ tabs, activeTabId, panelId, onSelect }: SettingsNa
             tabIndex={index === focusIndex ? 0 : -1}
             onFocus={() => setFocusIndex(index)}
             onClick={() => onSelect(tab.id)}
-            className={`text-left px-3 py-2.5 rounded-md transition-colors border border-transparent ${
+            className={`group relative flex items-center justify-between gap-2 text-left px-3 py-2.5 rounded-md transition-colors border border-transparent ${
               isActive
                 ? "bg-white/10 border-white/20 text-white"
                 : "text-white/80 hover:bg-white/5 hover:text-white"
             }`}
           >
             <div className="text-sm font-medium">{tab.label}</div>
+            {health ? <SettingsNavHealthIndicator health={health} /> : null}
           </button>
         );
       })}

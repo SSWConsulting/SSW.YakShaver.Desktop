@@ -1,7 +1,15 @@
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MCP_HEALTH_REFRESH_EVENT } from "../home/mcp-status";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
 import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
@@ -11,6 +19,7 @@ import { LLMSettingsPanel } from "./llm/LLMSettingsPanel";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelSettingsPanel";
 import { SettingsNav } from "./SettingsNav";
+import { useSettingsTabHealth } from "./settings-health";
 import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
 
 const SETTINGS_PANEL_ID = "settings-tabpanel";
@@ -70,6 +79,16 @@ export function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const [activeTabId, setActiveTabId] = useState<string>(TABS[0]?.id ?? "release");
   const leaveHandlerRef = useRef<LeaveHandler | null>(null);
+  const wasOpenRef = useRef(false);
+
+  // #869 AC4: when the dialog closes (e.g. after reconnecting an MCP provider),
+  // tell the Home banner to re-check provider health so it stays accurate.
+  useEffect(() => {
+    if (wasOpenRef.current && !open) {
+      window.dispatchEvent(new CustomEvent(MCP_HEALTH_REFRESH_EVENT));
+    }
+    wasOpenRef.current = open;
+  }, [open]);
 
   useEffect(() => {
     const handleOpenTab = (e: Event) => {
@@ -151,6 +170,9 @@ export function SettingsDialog() {
     [activeTabId],
   );
 
+  // #878 — per-tab critical configuration state for the side-nav indicators.
+  const tabHealth = useSettingsTabHealth(open);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -165,14 +187,13 @@ export function SettingsDialog() {
       </DialogTrigger>
 
       <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader className="mb-2 flex-shrink-0">
-          <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Settings
-          </DialogTitle>
-          <p className="text-muted-foreground text-sm">
-            Configure YakShaver preferences and integrations.
-          </p>
+        {/* #879: the global "Settings" header was redundant with each panel's own
+            title (SettingsPageHeader). It's now visually hidden — kept only for
+            Radix Dialog accessibility (aria-labelledby/aria-describedby + screen
+            readers). The active tab name makes the accessible title specific. */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{activeTab ? `Settings — ${activeTab.label}` : "Settings"}</DialogTitle>
+          <DialogDescription>Configure YakShaver preferences and integrations.</DialogDescription>
         </DialogHeader>
 
         <div className="flex gap-6 flex-1 min-h-0 overflow-hidden">
@@ -181,6 +202,7 @@ export function SettingsDialog() {
             activeTabId={activeTabId}
             panelId={SETTINGS_PANEL_ID}
             onSelect={attemptTabChange}
+            tabHealth={tabHealth}
           />
 
           <section

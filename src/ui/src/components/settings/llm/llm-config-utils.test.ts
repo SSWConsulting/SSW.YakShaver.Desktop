@@ -72,6 +72,30 @@ describe("LLM settings config utilities", () => {
     });
   });
 
+  describe("orchestrationBackend preservation", () => {
+    const configWithBackend: LLMConfigV2 = {
+      ...baseConfig,
+      orchestrationBackend: "local-claude",
+    };
+
+    it("preserves orchestrationBackend when saving a model", () => {
+      const result = buildConfigWithSavedModel(configWithBackend, "languageModel", {
+        provider: "azure",
+        model: "gpt-4o",
+        apiKey: "new-azure-key",
+        resourceName: "yakshaver-openai",
+      });
+
+      expect(result.orchestrationBackend).toBe("local-claude");
+    });
+
+    it("preserves orchestrationBackend when clearing a model", () => {
+      const result = buildConfigWithClearedModel(configWithBackend, "languageModel");
+
+      expect(result.orchestrationBackend).toBe("local-claude");
+    });
+  });
+
   describe("buildConfigWithSavedModel", () => {
     it("saves language model without overwriting the fresh transcription model", () => {
       const updatedLanguageModel: ModelConfig = {

@@ -31,6 +31,10 @@ export const IPC_CHANNELS = {
   SHOW_CONTROL_BAR: "show-control-bar",
   HIDE_CONTROL_BAR: "hide-control-bar",
   RECORDING_TIME_UPDATE: "recording-time-update",
+  // Renderer -> main handshake: the control bar asks for the current recording
+  // time once it has mounted and subscribed, so a late-loading renderer is
+  // synced regardless of load/subscribe timing (#870).
+  GET_RECORDING_TIME: "get-recording-time",
   CHECK_VIDEO_HAS_AUDIO: "check-video-has-audio",
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
@@ -110,6 +114,7 @@ export const IPC_CHANNELS = {
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
+  PORTAL_GET_MY_PROJECTS: "portal:get-my-projects",
   PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 
   // Shave Management

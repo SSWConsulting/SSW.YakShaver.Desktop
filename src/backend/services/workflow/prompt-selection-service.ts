@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ensureDuplicateDetectionRules } from "../../constants/prompts";
 import type { LanguageModelProvider } from "../mcp/language-model-provider";
 import { PromptManager, type PromptSummary } from "../prompt/prompt-manager";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
@@ -50,6 +51,12 @@ export class PromptSelectionService {
     if (projectDetails) {
       // use default prompt if project doesn't have a custom one
       projectDetails.desktopAgentProjectPrompt ||= defaultProjectPrompt;
+      // #862: guarantee the deleted-item duplicate-detection guidance is present regardless of the
+      // prompt's source. Stored local/custom and remote portal prompts skip the default fallback,
+      // so without this they would never carry the rules (idempotent — defaults already include it).
+      projectDetails.desktopAgentProjectPrompt = ensureDuplicateDetectionRules(
+        projectDetails.desktopAgentProjectPrompt,
+      );
       return {
         ...projectDetails,
         selectionReason: selectedProject.reason,

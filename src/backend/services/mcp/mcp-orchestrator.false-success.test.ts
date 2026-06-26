@@ -274,6 +274,20 @@ describe("#833 — outcome is judged from tool RESULTS, not tool-name heuristics
     const r = await orch.manualLoopAsync("a bug report transcript", undefined, {});
     expect(r.backlogActionSucceeded).toBe(false);
   });
+
+  it("judge says achieved:true but every cited artifact has a BLANK idOrUrl → treated as failure", async () => {
+    // `idOrUrl` is `z.string()`, so "" parses. A non-empty `artifacts` array with only blank ids is
+    // no evidence at all — it must not phantom-succeed.
+    const createIssue = tool("the model emitted an artifact entry but left idOrUrl empty");
+    const { orch } = makeOrchestrator(
+      [toolTurn("github__create_issue"), stop("Done!")],
+      { github__create_issue: createIssue },
+      ["github__create_issue"],
+      { achieved: true, artifacts: [{ type: "issue", idOrUrl: "   " }] }, // blank/whitespace id
+    );
+    const r = await orch.manualLoopAsync("a bug report transcript", undefined, {});
+    expect(r.backlogActionSucceeded).toBe(false);
+  });
 });
 
 describe("BacklogOutcomeSchema stays OpenAI strict-structured-output compatible", () => {
