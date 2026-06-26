@@ -1,4 +1,4 @@
-import { Globe } from "lucide-react";
+import { Globe, Plug } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "../../ui/alert-dialog";
 import { buttonVariants } from "../../ui/button";
+import { SettingsPageHeader } from "../SettingsPageHeader";
 import { McpAzureDevOpsCard } from "./devops/mcp-devops-card";
 import { McpGitHubCard } from "./github/mcp-github-card";
 import { McpJiraCard } from "./jira/mcp-jira-card";
@@ -298,6 +299,15 @@ export function McpSettingsPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      {viewMode === "detailed" ? (
+        <div className="mb-4">
+          <SettingsPageHeader
+            icon={Plug}
+            title="MCP Settings"
+            description="Connect backlog providers and built-in tools for creating work items."
+          />
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 gap-4 mb-4">
         {sortedServers.map((server) => {
           if (server.id === McpGitHubCard.Id) {

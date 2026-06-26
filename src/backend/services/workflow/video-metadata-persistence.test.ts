@@ -1,0 +1,460 @@
+import { describe, expect, it, vi } from "vitest";
+import type { VideoUploadResult } from "../auth/types";
+import {
+  applyPortalVideoFields,
+  applyVideoMetadataPersistence,
+  decideVideoMetadataPersistence,
+  derivePortalVideoFields,
+  type PortalVideoFieldTarget,
+  type VideoMetadataShaveStore,
+} from "./video-metadata-persistence";
+
+/**
+ * #808: Desktop-recorded YakShaves intermittently saved without `videoEmbedUrl`/`videoFile`.
+ *
+ * The embed URL used to be written ONLY by the UI in response to a workflow-progress event.
+ * When that event was missed or coalesced, the saved shave had no `videoEmbedUrl`, so the
+ * Tenant view rendered no preview. These tests capture the backend backstop decision that now
+ * guarantees the field is persisted from the authoritative upload result.
+ */
+describe("decideVideoMetadataPersistence (#808)", () => {
+  const successfulUpload: VideoUploadResult = {
+    success: true,
+    origin: "upload",
+    data: {
+      videoId: "abc123",
+      title: "My Recording",
+      description: "",
+      url: "https://youtube.com/watch?v=abc123",
+      duration: 42,
+    },
+  };
+
+  it("persists the embed URL for an uploaded video when the shave has none (the bug)", () => {
+    // This is the regression: the UI never wrote videoEmbedUrl (missed/coalesced progress
+    // event), so the shave's videoEmbedUrl is still unset. The backstop must fill it in.
+    const action = decideVideoMetadataPersistence(successfulUpload, null);
+
+    expect(action).toEqual({
+      kind: "setEmbedUrl",
+      url: "https://youtube.com/watch?v=abc123",
+    });
+  });
+
+  it("treats undefined existing embed URL the same as null", () => {
+    const action = decideVideoMetadataPersistence(successfulUpload, undefined);
+
+    expect(action).toEqual({
+      kind: "setEmbedUrl",
+      url: "https://youtube.com/watch?v=abc123",
+    });
+  });
+
+  it("does NOT clobber an embed URL the UI already wrote", () => {
+    // The UI path won the race and already persisted the URL — backstop must be a no-op so it
+    // never overwrites a (possibly metadata-updated) value.
+    const action = decideVideoMetadataPersistence(
+      successfulUpload,
+      "https://youtube.com/watch?v=already-set",
+    );
+
+    expect(action).toEqual({ kind: "none" });
+  });
+
+  it("attaches a video source for external-origin videos", () => {
+    const externalResult: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "ext1",
+        title: "External Video",
+        description: "",
+        url: "https://youtube.com/watch?v=ext1",
+        duration: 100,
+      },
+    };
+
+    const action = decideVideoMetadataPersistence(externalResult, null);
+
+    expect(action).toEqual({
+      kind: "attachVideoSource",
+      title: "External Video",
+      sourceUrl: "https://youtube.com/watch?v=ext1",
+      durationSeconds: 100,
+    });
+  });
+
+  it("uses -1 for unknown duration on external sources", () => {
+    const externalResult: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "ext2",
+        title: "External Video",
+        description: "",
+        url: "https://youtube.com/watch?v=ext2",
+      },
+    };
+
+    const action = decideVideoMetadataPersistence(externalResult, null);
+
+    expect(action).toEqual({
+      kind: "attachVideoSource",
+      title: "External Video",
+      sourceUrl: "https://youtube.com/watch?v=ext2",
+      durationSeconds: -1,
+    });
+  });
+
+  it("does nothing when the upload did not succeed", () => {
+    const failed: VideoUploadResult = {
+      success: false,
+      origin: "upload",
+      error: "upload failed",
+    };
+
+    expect(decideVideoMetadataPersistence(failed, null)).toEqual({ kind: "none" });
+  });
+
+  it("does nothing when there is no URL even if marked successful", () => {
+    const noUrl = {
+      success: true,
+      origin: "upload",
+      data: { videoId: "x", title: "x", description: "", url: "" },
+    } as VideoUploadResult;
+
+    expect(decideVideoMetadataPersistence(noUrl, null)).toEqual({ kind: "none" });
+  });
+});
+
+/**
+ * #808 (one-sided-verification gap): the decision tests above only prove what SHOULD be written.
+ * These tests exercise the actual wiring — applyVideoMetadataPersistence -> ShaveService writes —
+ * against an in-memory fake, proving the backstop really persists the embed URL when missing and
+ * really skips the write when one already exists (no clobber), plus the external-source branch.
+ */
+describe("applyVideoMetadataPersistence wiring (#808)", () => {
+  const successfulUpload: VideoUploadResult = {
+    success: true,
+    origin: "upload",
+    data: {
+      videoId: "abc123",
+      title: "My Recording",
+      description: "",
+      url: "https://www.youtube.com/watch?v=abc123",
+      duration: 42,
+    },
+  };
+
+  function makeStore(existing: { videoEmbedUrl?: string | null } | undefined): {
+    store: VideoMetadataShaveStore;
+    updateShave: ReturnType<typeof vi.fn>;
+    attachVideoSourceToShave: ReturnType<typeof vi.fn>;
+  } {
+    const updateShave = vi.fn();
+    const attachVideoSourceToShave = vi.fn();
+    const store: VideoMetadataShaveStore = {
+      getShaveById: () => existing,
+      updateShave,
+      attachVideoSourceToShave,
+    };
+    return { store, updateShave, attachVideoSourceToShave };
+  }
+
+  it("writes videoEmbedUrl when the shave has none (the backstop fires)", () => {
+    const { store, updateShave, attachVideoSourceToShave } = makeStore({ videoEmbedUrl: null });
+
+    const action = applyVideoMetadataPersistence(store, "shave-1", successfulUpload);
+
+    expect(action).toEqual({ kind: "setEmbedUrl", url: "https://www.youtube.com/watch?v=abc123" });
+    expect(updateShave).toHaveBeenCalledTimes(1);
+    expect(updateShave).toHaveBeenCalledWith("shave-1", {
+      videoEmbedUrl: "https://www.youtube.com/watch?v=abc123",
+    });
+    expect(attachVideoSourceToShave).not.toHaveBeenCalled();
+  });
+
+  it("does NOT write when the shave already has an embed URL (no clobber)", () => {
+    const { store, updateShave, attachVideoSourceToShave } = makeStore({
+      videoEmbedUrl: "https://www.youtube.com/watch?v=already-set",
+    });
+
+    const action = applyVideoMetadataPersistence(store, "shave-1", successfulUpload);
+
+    expect(action).toEqual({ kind: "none" });
+    expect(updateShave).not.toHaveBeenCalled();
+    expect(attachVideoSourceToShave).not.toHaveBeenCalled();
+  });
+
+  it("attaches a video source for external origins (not updateShave)", () => {
+    const external: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "ext1",
+        title: "External Video",
+        description: "",
+        url: "https://www.youtube.com/watch?v=ext1",
+        duration: 100,
+      },
+    };
+    const { store, updateShave, attachVideoSourceToShave } = makeStore({ videoEmbedUrl: null });
+
+    const action = applyVideoMetadataPersistence(store, "shave-1", external);
+
+    expect(action.kind).toBe("attachVideoSource");
+    expect(attachVideoSourceToShave).toHaveBeenCalledWith("shave-1", {
+      title: "External Video",
+      sourceUrl: "https://www.youtube.com/watch?v=ext1",
+      durationSeconds: 100,
+    });
+    expect(updateShave).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when there is no shave id", () => {
+    const { store, updateShave, attachVideoSourceToShave } = makeStore({ videoEmbedUrl: null });
+
+    expect(applyVideoMetadataPersistence(store, undefined, successfulUpload)).toEqual({
+      kind: "none",
+    });
+    expect(updateShave).not.toHaveBeenCalled();
+    expect(attachVideoSourceToShave).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when the shave is not found", () => {
+    const { store, updateShave, attachVideoSourceToShave } = makeStore(undefined);
+
+    expect(applyVideoMetadataPersistence(store, "missing", successfulUpload)).toEqual({
+      kind: "none",
+    });
+    expect(updateShave).not.toHaveBeenCalled();
+    expect(attachVideoSourceToShave).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #808 (Tenant-view payload): the portal WorkItemDto video fields must be set deterministically
+ * from the authoritative upload result — never left to the LLM to copy. These tests prove the
+ * derivation that the IPC handler applies before posting to the portal.
+ */
+describe("derivePortalVideoFields (#808 Tenant view)", () => {
+  it("derives provider/url/embed from a YouTube watch URL", () => {
+    const result: VideoUploadResult = {
+      success: true,
+      origin: "upload",
+      data: {
+        videoId: "abcdefghijk",
+        title: "t",
+        description: "",
+        url: "https://www.youtube.com/watch?v=abcdefghijk",
+      },
+    };
+
+    expect(derivePortalVideoFields(result)).toEqual({
+      uploadedVideoProvider: "youtube",
+      uploadedVideoUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+      uploadedVideoEmbedUrl: "https://www.youtube.com/embed/abcdefghijk",
+    });
+  });
+
+  it("normalizes youtu.be short links to canonical watch + embed forms", () => {
+    const result: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "abcdefghijk",
+        title: "t",
+        description: "",
+        url: "https://youtu.be/abcdefghijk",
+      },
+    };
+
+    expect(derivePortalVideoFields(result)).toEqual({
+      uploadedVideoProvider: "youtube",
+      uploadedVideoUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+      uploadedVideoEmbedUrl: "https://www.youtube.com/embed/abcdefghijk",
+    });
+  });
+
+  it("resolves the embeddable player URL for a Vimeo page URL", () => {
+    // A plain vimeo.com/<id> page URL is NOT iframe-embeddable; the embed form is
+    // player.vimeo.com/video/<id>. The Tenant view renders uploadedVideoEmbedUrl in an
+    // <iframe>, so we must synthesize the player URL rather than mirror the page URL.
+    const result: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "x",
+        title: "t",
+        description: "",
+        url: "https://vimeo.com/123456",
+      },
+    };
+
+    expect(derivePortalVideoFields(result)).toEqual({
+      uploadedVideoProvider: "vimeo",
+      uploadedVideoUrl: "https://vimeo.com/123456",
+      uploadedVideoEmbedUrl: "https://player.vimeo.com/video/123456",
+    });
+  });
+
+  it("forwards the privacy hash of an unlisted Vimeo URL as the player ?h= param", () => {
+    const result: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "x",
+        title: "t",
+        description: "",
+        url: "https://vimeo.com/123456/ab12cd34ef",
+      },
+    };
+
+    expect(derivePortalVideoFields(result)).toEqual({
+      uploadedVideoProvider: "vimeo",
+      uploadedVideoUrl: "https://vimeo.com/123456/ab12cd34ef",
+      uploadedVideoEmbedUrl: "https://player.vimeo.com/video/123456?h=ab12cd34ef",
+    });
+  });
+
+  it("leaves the embed URL null for an unrecognized provider (Tenant view falls back to a link)", () => {
+    // A page URL we can't turn into an iframe-embeddable form must NOT be put in the embed
+    // field, or the Tenant view renders an <iframe> whose src fails to load. Carry the page URL
+    // as uploadedVideoUrl and leave uploadedVideoEmbedUrl null.
+    const result: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "x",
+        title: "t",
+        description: "",
+        url: "https://example.com/videos/some-clip",
+      },
+    };
+
+    expect(derivePortalVideoFields(result)).toEqual({
+      uploadedVideoProvider: null,
+      uploadedVideoUrl: "https://example.com/videos/some-clip",
+      uploadedVideoEmbedUrl: null,
+    });
+  });
+
+  it("returns null when the upload failed (caller leaves model output untouched)", () => {
+    expect(derivePortalVideoFields({ success: false, origin: "upload", error: "x" })).toBeNull();
+  });
+
+  it("returns null when there is no URL", () => {
+    const noUrl = {
+      success: true,
+      origin: "upload",
+      data: { videoId: "x", title: "x", description: "", url: "" },
+    } as VideoUploadResult;
+
+    expect(derivePortalVideoFields(noUrl)).toBeNull();
+  });
+});
+
+/**
+ * #808 (override-wiring gap, mirrors applyVideoMetadataPersistence): the derivation tests above
+ * only prove what SHOULD be carried on the portal payload. These tests exercise the actual
+ * override the IPC handler applies to the WorkItemDto before SendWorkItemDetailsToPortal — that
+ * (a) the three uploadedVideo* fields are overwritten from the upload result, (b) the dto is
+ * otherwise untouched, and (c) a null derivation leaves the model's values in place. Without this,
+ * a future edit could drop or reorder the override after the portal POST and every test stays
+ * green.
+ */
+describe("applyPortalVideoFields wiring (#808 Tenant view)", () => {
+  /** A representative model-produced WorkItemDto slice with model-guessed video fields. */
+  function makeDto(): PortalVideoFieldTarget & {
+    title: string;
+    description: string;
+  } {
+    return {
+      title: "Model Title",
+      description: "Model description",
+      uploadedVideoProvider: "model-guess",
+      uploadedVideoEmbedUrl: "https://model.example/guessed-embed",
+      uploadedVideoUrl: "https://model.example/guessed-url",
+    };
+  }
+
+  it("overrides the three video fields from the upload result (the deterministic fix)", () => {
+    const dto = makeDto();
+    const upload: VideoUploadResult = {
+      success: true,
+      origin: "upload",
+      data: {
+        videoId: "abcdefghijk",
+        title: "t",
+        description: "",
+        url: "https://www.youtube.com/watch?v=abcdefghijk",
+      },
+    };
+
+    const applied = applyPortalVideoFields(dto, upload);
+
+    expect(applied).toEqual({
+      uploadedVideoProvider: "youtube",
+      uploadedVideoUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+      uploadedVideoEmbedUrl: "https://www.youtube.com/embed/abcdefghijk",
+    });
+    expect(dto.uploadedVideoProvider).toBe("youtube");
+    expect(dto.uploadedVideoUrl).toBe("https://www.youtube.com/watch?v=abcdefghijk");
+    expect(dto.uploadedVideoEmbedUrl).toBe("https://www.youtube.com/embed/abcdefghijk");
+  });
+
+  it("leaves the dto's other (model-produced) fields untouched", () => {
+    const dto = makeDto();
+    const upload: VideoUploadResult = {
+      success: true,
+      origin: "upload",
+      data: {
+        videoId: "abcdefghijk",
+        title: "t",
+        description: "",
+        url: "https://www.youtube.com/watch?v=abcdefghijk",
+      },
+    };
+
+    applyPortalVideoFields(dto, upload);
+
+    expect(dto.title).toBe("Model Title");
+    expect(dto.description).toBe("Model description");
+  });
+
+  it("leaves the model's video values in place when the derivation is null (failed upload)", () => {
+    const dto = makeDto();
+    const failed: VideoUploadResult = { success: false, origin: "upload", error: "x" };
+
+    const applied = applyPortalVideoFields(dto, failed);
+
+    expect(applied).toBeNull();
+    // Never overwrite real model output with nulls.
+    expect(dto.uploadedVideoProvider).toBe("model-guess");
+    expect(dto.uploadedVideoEmbedUrl).toBe("https://model.example/guessed-embed");
+    expect(dto.uploadedVideoUrl).toBe("https://model.example/guessed-url");
+  });
+
+  it("clears the embed URL to null for an unrecognized provider (no broken iframe src)", () => {
+    // The model may have guessed an embed URL; for a provider we can't synthesize an embeddable
+    // form for, the override must REPLACE it with null so the Tenant view falls back to a link
+    // rather than rendering an <iframe> whose src fails to load.
+    const dto = makeDto();
+    const upload: VideoUploadResult = {
+      success: true,
+      origin: "external",
+      data: {
+        videoId: "x",
+        title: "t",
+        description: "",
+        url: "https://example.com/videos/some-clip",
+      },
+    };
+
+    applyPortalVideoFields(dto, upload);
+
+    expect(dto.uploadedVideoProvider).toBeNull();
+    expect(dto.uploadedVideoUrl).toBe("https://example.com/videos/some-clip");
+    expect(dto.uploadedVideoEmbedUrl).toBeNull();
+  });
+});

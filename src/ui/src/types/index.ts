@@ -191,6 +191,11 @@ export interface GetMyShavesResponse {
   items: ShaveItem[];
 }
 
+// Portal-projects types (#816) are shared between the backend and the UI, so per
+// AGENTS.md Rule 9 they live in `@shared/types/portal`. Re-exported here for the
+// UI's existing `../types` import sites.
+export type { GetMyProjectsErrorCode, GetMyProjectsResponse, Project } from "@shared/types/portal";
+
 export type VideoFileMetadata = {
   fileName: string;
   filePath?: string;
@@ -218,6 +223,11 @@ export type Shave = {
   portalWorkItemId: string | null;
   createdAt: string;
   updatedAt: string | null;
+  // #821: persisted outcome detail returned by getShaveById (used to rehydrate the Workflow
+  // Progress page when reached by navigation rather than from a live run). Absent on list rows.
+  finalOutput?: string | null;
+  errorMessage?: string | null;
+  errorCode?: string | null;
 };
 
 export type VersionInfo = {

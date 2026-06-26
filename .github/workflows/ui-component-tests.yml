@@ -1,0 +1,28 @@
+name: UI Component Tests
+
+# Runs the renderer (src/ui) component tests (vitest + jsdom + React Testing Library).
+# NOTE: before this workflow, CI ran NO vitest at all — unit tests were only
+# type-checked by the build's `tsc`, never executed. This is the first CI job that
+# actually runs tests. A follow-up should add a job that runs the root (backend +
+# pure-logic) `*.test.ts` suite too.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ui-component-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/ui/package-lock.json
+      - name: Install renderer dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+      - name: Run UI component tests
+        run: npm test
+        working-directory: src/ui

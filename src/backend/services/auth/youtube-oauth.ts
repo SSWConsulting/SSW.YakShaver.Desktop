@@ -2,6 +2,7 @@ import { shell } from "electron";
 import { config } from "../../config/env";
 import { YoutubeStorage } from "../storage/youtube-storage";
 import type { TokenData } from "./types";
+import { YouTubeAuthError } from "./youtube-auth-error";
 
 /**
  * Response from the backend OAuth token endpoint.
@@ -12,6 +13,11 @@ interface YouTubeTokenResponse {
   expires_in?: number;
   refresh_token?: string;
   scope?: string;
+}
+
+/** Elapsed-time helper for OAuth phase diagnostics (#596). */
+function elapsedMsSince(start: number): number {
+  return Math.round(Date.now() - start);
 }
 
 /**
@@ -27,6 +33,10 @@ export async function getYouTubeAuthUrlFromBackend(): Promise<string> {
   const url = new URL(`${portalApiUrl}${endpoint}`);
   url.searchParams.set("redirectUri", redirectUri);
 
+  // Diagnostic context for #596 — endpoint + redirectUri only, never secrets/tokens.
+  console.log("[YouTubeOAuth] Requesting auth URL from backend", { endpoint, redirectUri });
+  const startedAt = Date.now();
+
   let response: Response;
   try {
     response = await fetch(url.toString(), {
@@ -34,9 +44,14 @@ export async function getYouTubeAuthUrlFromBackend(): Promise<string> {
       headers: { Accept: "application/json" },
     });
   } catch (fetchError) {
-    console.error(`[YouTubeOAuth] Fetch failed for ${url.toString()}:`, fetchError);
-    throw new Error(
+    console.error(
+      `[YouTubeOAuth] auth-start fetch failed after ${elapsedMsSince(startedAt)}ms for ${endpoint}:`,
+      fetchError,
+    );
+    throw new YouTubeAuthError(
+      "backend_unreachable",
       `Failed to connect to backend at ${url.toString()}. Ensure the backend is running and SSL certificates are trusted.`,
+      { cause: fetchError },
     );
   }
 
@@ -48,10 +63,15 @@ export async function getYouTubeAuthUrlFromBackend(): Promise<string> {
     } catch {
       errorMessage = `${errorMessage} (Status: ${response.status})`;
     }
-    throw new Error(errorMessage);
+    console.error(
+      `[YouTubeOAuth] auth-start returned ${response.status} after ${elapsedMsSince(startedAt)}ms:`,
+      errorMessage,
+    );
+    throw new YouTubeAuthError("auth_start_failed", errorMessage, { status: response.status });
   }
 
   const data = await response.json();
+  console.log(`[YouTubeOAuth] auth-start succeeded in ${elapsedMsSince(startedAt)}ms`);
   return data.authorizationUrl;
 }
 
@@ -70,6 +90,7 @@ export async function waitForYouTubeTokens(
   }
 
   console.log(`[YouTubeOAuth] Waiting for tokens (Timeout: ${timeoutMs}ms)...`);
+  const waitStartedAt = Date.now();
 
   return new Promise((resolve, reject) => {
     let timeoutId: NodeJS.Timeout;
@@ -80,7 +101,9 @@ export async function waitForYouTubeTokens(
     };
 
     const onTokensUpdated = async () => {
-      console.log("[YouTubeOAuth] Received tokens-updated event");
+      console.log(
+        `[YouTubeOAuth] Received tokens-updated event after ${elapsedMsSince(waitStartedAt)}ms`,
+      );
       const tokens = await storage.getYouTubeTokens();
       if (tokens) {
         cleanup();
@@ -92,8 +115,17 @@ export async function waitForYouTubeTokens(
 
     timeoutId = setTimeout(() => {
       cleanup();
-      console.error("[YouTubeOAuth] Timed out waiting for OAuth tokens");
-      reject(new Error("Timed out waiting for YouTube OAuth tokens"));
+      const elapsedMs = elapsedMsSince(waitStartedAt);
+      // Distinct, structured timeout — this is the #596 "stuck waiting" case.
+      // It is NOT a hard error: the user likely never received Google's prompt.
+      console.error(
+        `[YouTubeOAuth] Timed out waiting for OAuth tokens after ${elapsedMs}ms (no callback received)`,
+      );
+      reject(
+        new YouTubeAuthError("timeout", "Timed out waiting for YouTube OAuth tokens", {
+          elapsedMs,
+        }),
+      );
     }, timeoutMs);
   });
 }
@@ -106,9 +138,13 @@ export async function authorizeYouTubeWithBackend(
   storage: YoutubeStorage,
   timeoutMs: number = 60000,
 ): Promise<TokenData> {
+  const flowStartedAt = Date.now();
   const authUrl = await getYouTubeAuthUrlFromBackend();
   console.log("[YouTubeOAuth] Opening browser for authentication...");
   await shell.openExternal(authUrl);
+  console.log(
+    `[YouTubeOAuth] Browser opened after ${elapsedMsSince(flowStartedAt)}ms; awaiting callback...`,
+  );
   return waitForYouTubeTokens(storage, timeoutMs);
 }
 
