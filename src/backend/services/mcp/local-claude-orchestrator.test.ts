@@ -15,8 +15,13 @@ vi.mock("../../utils/error-utils", () => ({
 import type { MCPStep } from "../../../shared/types/mcp";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
 // vi.mock calls above are hoisted, so this static import sees the stubbed modules.
-import { LocalClaudeOrchestrator } from "./local-claude-orchestrator";
-import type { MCPServerConfig } from "./types";
+import {
+  LocalClaudeOrchestrator,
+  type OrchestratorServerManager,
+  stripFrontDoorPrefix,
+  YAKSHAVER_MCP_SERVER_KEY,
+  type YakshaverFrontDoorConfig,
+} from "./local-claude-orchestrator";
 
 type MockChild = ChildProcess & {
   stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
@@ -52,40 +57,22 @@ function makeSpawner(versionExitCode: number, runChild: MockChild, runScript?: (
   return { spawn };
 }
 
-function makeManager(servers: MCPServerConfig[]) {
-  return { listAvailableServers: vi.fn().mockResolvedValue(servers) };
+/** A manager mock exposing the new orchestrator surface: the prefixed whitelist + a warm hook. */
+function makeManager(whitelist: string[] = []): OrchestratorServerManager {
+  return {
+    getWhitelistWithServerPrefixAsync: vi.fn().mockResolvedValue(whitelist),
+    collectToolsWithServerPrefixAsync: vi.fn().mockResolvedValue({}),
+  };
 }
 
 function makeSettings(mode: ToolApprovalMode) {
   return { getSettingsAsync: vi.fn().mockResolvedValue({ toolApprovalMode: mode }) };
 }
 
-function makeTokenStorage(tokenByServer: Record<string, string> = {}) {
-  return {
-    getTokensAsync: vi.fn(async (serverId: string) =>
-      tokenByServer[serverId] ? { access_token: tokenByServer[serverId] } : undefined,
-    ),
-  };
-}
-
-const httpServer: MCPServerConfig = {
-  id: "gh-1",
-  name: "GitHub",
-  transport: "streamableHttp",
-  url: "https://mcp.github.test/",
-  toolWhitelist: ["create_issue"],
-  enabled: true,
-};
-
-const stdioServer: MCPServerConfig = {
-  id: "fs-1",
-  name: "Local FS",
-  transport: "stdio",
-  command: "npx",
-  args: ["-y", "fs-mcp"],
-  env: { FOO: "bar" },
-  toolWhitelist: ["read_file"],
-  enabled: true,
+const frontDoor: YakshaverFrontDoorConfig = {
+  command: "/path/to/node",
+  cliEntryPath: "/app/dist/cli/index.js",
+  env: { ELECTRON_RUN_AS_NODE: "1", YAKSHAVER_BRIDGE_PORT: "8765", YAKSHAVER_BRIDGE_TOKEN: "tok" },
 };
 
 describe("LocalClaudeOrchestrator", () => {
@@ -101,8 +88,8 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([]),
-        makeTokenStorage(),
+        makeManager(),
+        frontDoor,
         makeSettings("ask"),
         { generateObject: vi.fn() },
       );
@@ -124,8 +111,8 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([]),
-        makeTokenStorage(),
+        makeManager(),
+        frontDoor,
         makeSettings("ask"),
         { generateObject: vi.fn() },
       );
@@ -136,87 +123,67 @@ describe("LocalClaudeOrchestrator", () => {
     });
   });
 
-  describe("MCP config serialization", () => {
-    it("serializes stdio (command/args/env) and http (url + injected bearer token)", async () => {
-      const orch = new LocalClaudeOrchestrator(
-        "claude",
-        { spawn: vi.fn() },
-        makeManager([stdioServer, httpServer]),
-        makeTokenStorage({ "gh-1": "tok-123" }),
-        makeSettings("ask"),
-        { generateObject: vi.fn() },
-      );
+  describe("single-entry yakshaver MCP config (#915 front-door)", () => {
+    it("writes ONE mcp server entry: yakshaver -> the mcp-serve front-door", () => {
+      const orch = new LocalClaudeOrchestrator();
+      const config = orch.buildMcpConfig(frontDoor);
 
-      const { mcpConfig, allowedTools } = await orch.serializeMcpServers(
-        makeManager([stdioServer, httpServer]),
-        undefined,
-      );
-
-      expect(mcpConfig.mcpServers).toEqual({
-        Local_FS: {
-          type: "stdio",
-          command: "npx",
-          args: ["-y", "fs-mcp"],
-          env: { FOO: "bar" },
-        },
-        GitHub: {
-          type: "http",
-          url: "https://mcp.github.test/",
-          headers: { Authorization: "Bearer tok-123" },
+      expect(Object.keys(config.mcpServers)).toEqual([YAKSHAVER_MCP_SERVER_KEY]);
+      expect(config.mcpServers.yakshaver).toEqual({
+        type: "stdio",
+        command: "/path/to/node",
+        args: ["/app/dist/cli/index.js", "mcp-serve"],
+        env: {
+          ELECTRON_RUN_AS_NODE: "1",
+          YAKSHAVER_BRIDGE_PORT: "8765",
+          YAKSHAVER_BRIDGE_TOKEN: "tok",
         },
       });
-      expect(allowedTools).toEqual(["mcp__Local_FS__read_file", "mcp__GitHub__create_issue"]);
     });
 
-    it("respects the serverFilter and skips disabled + inMemory servers", async () => {
-      const disabled: MCPServerConfig = { ...stdioServer, id: "off", name: "Off", enabled: false };
-      const internal: MCPServerConfig = {
-        id: "in",
-        name: "Internal",
-        transport: "inMemory",
-        enabled: true,
+    it("omits env when the front-door has none", () => {
+      const orch = new LocalClaudeOrchestrator();
+      const config = orch.buildMcpConfig({
+        command: "node",
+        cliEntryPath: "/app/dist/cli/index.js",
+      });
+      expect(config.mcpServers.yakshaver).not.toHaveProperty("env");
+    });
+
+    it("re-prefixes the app's whitelist as mcp__yakshaver__<Server__tool>", async () => {
+      const orch = new LocalClaudeOrchestrator();
+      const manager = makeManager(["GitHub__create_issue", "Internal__fill_template"]);
+
+      const allowed = await orch.buildAllowedTools(manager);
+
+      expect(manager.collectToolsWithServerPrefixAsync).toHaveBeenCalledOnce();
+      expect(allowed).toEqual([
+        "mcp__yakshaver__GitHub__create_issue",
+        "mcp__yakshaver__Internal__fill_template",
+      ]);
+    });
+
+    it("warming failure is non-fatal; the stored whitelist still applies", async () => {
+      const orch = new LocalClaudeOrchestrator();
+      const manager: OrchestratorServerManager = {
+        getWhitelistWithServerPrefixAsync: vi.fn().mockResolvedValue(["GitHub__create_issue"]),
+        collectToolsWithServerPrefixAsync: vi.fn().mockRejectedValue(new Error("no servers")),
       };
-      const orch = new LocalClaudeOrchestrator(
-        "claude",
-        { spawn: vi.fn() },
-        null,
-        makeTokenStorage(),
-      );
-      const mgr = makeManager([stdioServer, httpServer, disabled, internal]);
-
-      const { mcpConfig } = await orch.serializeMcpServers(mgr, ["gh-1"]);
-      expect(Object.keys(mcpConfig.mcpServers)).toEqual(["GitHub"]);
-    });
-
-    it("flags servers with no whitelist (under ask/wait) instead of hanging", async () => {
-      const noWhitelist: MCPServerConfig = { ...httpServer, toolWhitelist: [] };
-      const orch = new LocalClaudeOrchestrator(
-        "claude",
-        { spawn: vi.fn() },
-        null,
-        makeTokenStorage(),
-      );
-      const { skippedNonWhitelistedServers, allowedTools } = await orch.serializeMcpServers(
-        makeManager([noWhitelist]),
-        undefined,
-      );
-      expect(skippedNonWhitelistedServers).toEqual(["GitHub"]);
-      expect(allowedTools).toEqual([]);
+      const allowed = await orch.buildAllowedTools(manager);
+      expect(allowed).toEqual(["mcp__yakshaver__GitHub__create_issue"]);
     });
   });
 
   describe("argv building per approval mode", () => {
-    it("yolo -> --permission-mode bypassPermissions (no --allowedTools)", () => {
+    it("always passes --strict-mcp-config + the single --mcp-config", () => {
       const orch = new LocalClaudeOrchestrator();
-      const argv = orch.buildArgv("/tmp/cfg.json", "yolo", ["mcp__GitHub__create_issue"]);
-      expect(argv).toContain("--permission-mode");
-      expect(argv).toContain("bypassPermissions");
-      expect(argv).not.toContain("--allowedTools");
+      const argv = orch.buildArgv("/tmp/cfg.json", "yolo", []);
       expect(argv).toEqual(
         expect.arrayContaining([
           "-p",
           "--mcp-config",
           "/tmp/cfg.json",
+          "--strict-mcp-config",
           "--output-format",
           "stream-json",
           "--verbose",
@@ -224,15 +191,27 @@ describe("LocalClaudeOrchestrator", () => {
       );
     });
 
-    it("ask -> --allowedTools built from the whitelist", () => {
+    it("yolo -> --permission-mode bypassPermissions (no --allowedTools)", () => {
+      const orch = new LocalClaudeOrchestrator();
+      const argv = orch.buildArgv("/tmp/cfg.json", "yolo", [
+        "mcp__yakshaver__GitHub__create_issue",
+      ]);
+      expect(argv).toContain("--permission-mode");
+      expect(argv).toContain("bypassPermissions");
+      expect(argv).not.toContain("--allowedTools");
+    });
+
+    it("ask -> --allowedTools built from the yakshaver-prefixed whitelist", () => {
       const orch = new LocalClaudeOrchestrator();
       const argv = orch.buildArgv("/tmp/cfg.json", "ask", [
-        "mcp__GitHub__create_issue",
-        "mcp__Local_FS__read_file",
+        "mcp__yakshaver__GitHub__create_issue",
+        "mcp__yakshaver__Local_FS__read_file",
       ]);
       const idx = argv.indexOf("--allowedTools");
       expect(idx).toBeGreaterThan(-1);
-      expect(argv[idx + 1]).toBe("mcp__GitHub__create_issue,mcp__Local_FS__read_file");
+      expect(argv[idx + 1]).toBe(
+        "mcp__yakshaver__GitHub__create_issue,mcp__yakshaver__Local_FS__read_file",
+      );
       expect(argv).not.toContain("bypassPermissions");
     });
 
@@ -275,8 +254,9 @@ describe("LocalClaudeOrchestrator", () => {
               {
                 type: "tool_use",
                 // Real Claude Code stream-json carries an OPAQUE id here, NOT the tool name.
+                // Through the single front-door the name is `mcp__yakshaver__<Server>__<tool>`.
                 id: "toolu_01ABCdef234567",
-                name: "mcp__GitHub__create_issue",
+                name: "mcp__yakshaver__GitHub__create_issue",
                 input: { title: "Bug" },
               },
             ],
@@ -306,8 +286,8 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([httpServer]),
-        makeTokenStorage({ "gh-1": "tok" }),
+        makeManager(["GitHub__create_issue"]),
+        frontDoor,
         makeSettings("yolo"),
         { generateObject },
       );
@@ -322,16 +302,32 @@ describe("LocalClaudeOrchestrator", () => {
       expect(written).toContain("video transcription: a bug report");
 
       const types = steps.map((s) => s.type);
+      // A `start` step is always emitted first so the Executing Task box is never empty.
+      expect(types[0]).toBe("start");
       expect(types).toContain("reasoning");
       expect(types).toContain("tool_call");
       expect(types).toContain("tool_result");
       expect(types).toContain("final_result");
 
+      // Reasoning is wrapped so the UI's <ReasoningStep> (which JSON.parses + renders .text) shows
+      // the text instead of a blank box.
+      const reasoningStep = steps.find((s) => s.type === "reasoning");
+      expect(reasoningStep?.reasoning).toBeDefined();
+      expect(JSON.parse(reasoningStep?.reasoning as string)).toMatchObject({
+        text: "I'll create an issue.",
+      });
+
+      // The single-front-door prefix is stripped from the displayed tool name so it reads as the
+      // real `Server__tool` rather than mis-parsing the server as `mcp`.
+      const toolCallStep = steps.find((s) => s.type === "tool_call");
+      expect(toolCallStep?.toolName).toBe("GitHub__create_issue");
+
       expect(generateObject).toHaveBeenCalledTimes(1);
       // The judge must see the human-readable tool name (correlated from the opaque tool_use_id),
-      // NOT the raw `toolu_...` id — this is the #833 ground-truth signal.
+      // NOT the raw `toolu_...` id — this is the #833 ground-truth signal. Through the front-door
+      // the correlated name is the full `mcp__yakshaver__<Server>__<tool>`.
       const judgePrompt = (generateObject as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(judgePrompt).toContain("mcp__GitHub__create_issue");
+      expect(judgePrompt).toContain("mcp__yakshaver__GitHub__create_issue");
       expect(judgePrompt).not.toContain("toolu_01ABCdef234567");
 
       expect(result.backlogActionSucceeded).toBe(true);
@@ -364,8 +360,8 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([httpServer]),
-        makeTokenStorage(),
+        makeManager(),
+        frontDoor,
         makeSettings("yolo"),
         { generateObject },
       );
@@ -381,8 +377,8 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([]),
-        makeTokenStorage(),
+        makeManager(),
+        frontDoor,
         makeSettings("yolo"),
         { generateObject: vi.fn() },
       );
@@ -400,8 +396,8 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([]),
-        makeTokenStorage(),
+        makeManager(),
+        frontDoor,
         makeSettings("yolo"),
         { generateObject: vi.fn() },
       );
@@ -409,6 +405,19 @@ describe("LocalClaudeOrchestrator", () => {
       await expect(orch.manualLoopAsync("t", undefined, {})).rejects.toThrow(
         /Claude Code process exited with code 1/,
       );
+    });
+  });
+
+  describe("stripFrontDoorPrefix", () => {
+    it("strips the mcp__yakshaver__ front-door prefix so the real Server__tool remains", () => {
+      expect(stripFrontDoorPrefix(`mcp__${YAKSHAVER_MCP_SERVER_KEY}__GitHub__issue_write`)).toBe(
+        "GitHub__issue_write",
+      );
+    });
+
+    it("leaves non-front-door (Claude built-in) tool names unchanged", () => {
+      expect(stripFrontDoorPrefix("Read")).toBe("Read");
+      expect(stripFrontDoorPrefix("mcp__other__Foo__bar")).toBe("mcp__other__Foo__bar");
     });
   });
 });

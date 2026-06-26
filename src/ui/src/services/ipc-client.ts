@@ -1,4 +1,4 @@
-import type { LLMConfigV2 } from "@shared/types/llm";
+import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { TelemetrySettings } from "@shared/types/telemetry";
 import type { UserSettings } from "@shared/types/user-settings";
 import type { WorkflowState } from "@shared/types/workflow";
@@ -67,6 +67,7 @@ declare global {
         getConfig: () => Promise<LLMConfigV2 | null>;
         clearConfig: () => Promise<{ success: boolean }>;
         checkHealth: () => Promise<HealthStatusInfo>;
+        checkOrchestratorReadiness: () => Promise<OrchestratorReadiness>;
       };
       auth: {
         microsoft: {

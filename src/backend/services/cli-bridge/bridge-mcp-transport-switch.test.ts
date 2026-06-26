@@ -66,6 +66,11 @@ function makeServices() {
       getSettingsAsync: async () => ({}) as never,
       updateSettingsAsync: async () => {},
     },
+    // These transport-switch tests only hit MCP routes; the tools front-door is never invoked.
+    tools: {
+      listTools: async () => [],
+      callTool: async () => ({ ok: true, result: "" }) as never,
+    },
   };
 }
 

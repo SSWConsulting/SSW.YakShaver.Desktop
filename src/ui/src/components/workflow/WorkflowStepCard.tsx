@@ -1,14 +1,62 @@
 import type { WorkflowState, WorkflowStep } from "@shared/types/workflow";
-import { CheckCircle2, ChevronDown, ChevronRight, Loader2, RefreshCw, XCircle } from "lucide-react";
+import type { OrchestratorBackend } from "@shared/types/workflow-payloads";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  XCircle,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../services/ipc-client";
 import type { MCPStep } from "../../types";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { isErrorStep, StageWithContent } from "./StageWithContent";
+
+/**
+ * Reads the active orchestrator that drove the Executing Task stage from its parsed payload.
+ * Stamped backend-side at stage start (see ExecutingTaskPayload.orchestrator).
+ */
+function getOrchestratorBackend(stage: string, parsed: unknown): OrchestratorBackend | null {
+  if (stage !== "executing_task" || !isRecord(parsed)) return null;
+  const backend = parsed.orchestrator;
+  return backend === "claude-code" || backend === "openai" ? backend : null;
+}
+
+/**
+ * A distinct pill marking the Executing Task stage as driven by the local Claude Code orchestrator,
+ * so the user clearly sees it even when Claude's live reasoning is terse.
+ */
+function OrchestratorBadge({ backend }: { backend: OrchestratorBackend }) {
+  if (backend === "claude-code") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-amber-400/40 bg-amber-400/10 text-amber-300"
+        title="Orchestrated by the Claude Code CLI on this machine — uses your Claude Code sign-in, no API key"
+      >
+        <Sparkles className="size-3" />
+        Claude Code
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="border-white/15 bg-white/5 text-white/50"
+      title="OpenAI orchestrator"
+    >
+      OpenAI
+    </Badge>
+  );
+}
 
 const STATUS_CONFIG = {
   in_progress: {
@@ -120,6 +168,8 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
     }
   }, [step.payload, step.stage]);
 
+  const orchestratorBackend = getOrchestratorBackend(step.stage, parsedPayload);
+
   const effectiveStatus: WorkflowStep["status"] =
     hasStepErrors && step.status === "completed" ? "failed" : step.status;
 
@@ -174,6 +224,7 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             <div className="flex items-center gap-3 flex-1">
               <StatusIcon status={effectiveStatus} />
               <span className={cn("font-medium", config.textClass)}>{label}</span>
+              {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
             </div>
             <div className="text-white/50 hover:text-white/90">
               {isExpanded ? (
@@ -187,6 +238,7 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
           <div className="flex items-center gap-3 flex-1">
             <StatusIcon status={effectiveStatus} />
             <span className={cn("font-medium", config.textClass)}>{label}</span>
+            {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
           </div>
         )}
         {step.status === "failed" && shaveId && (

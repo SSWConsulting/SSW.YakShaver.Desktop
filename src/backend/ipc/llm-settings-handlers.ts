@@ -1,5 +1,6 @@
 import type { LLMConfigV2 } from "@shared/types/llm";
 import { type IpcMainInvokeEvent, ipcMain } from "electron";
+import { checkClaudeReadiness } from "../services/mcp/claude-readiness";
 import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { LlmStorage } from "../services/storage/llm-storage";
 import { IPC_CHANNELS } from "./channels";
@@ -34,6 +35,12 @@ export class LLMSettingsIPCHandlers {
     ipcMain.handle(IPC_CHANNELS.LLM_CHECK_HEALTH, async () => {
       const provider = await LanguageModelProvider.getInstance();
       return await provider.checkHealth();
+    });
+
+    // Readiness of the Claude Code (local-claude) orchestration backend — installed + (best-effort)
+    // authenticated — so the UI can warn BEFORE a run that Claude Code can't be driven.
+    ipcMain.handle(IPC_CHANNELS.LLM_CHECK_ORCHESTRATOR_READINESS, async () => {
+      return await checkClaudeReadiness();
     });
   }
 }
