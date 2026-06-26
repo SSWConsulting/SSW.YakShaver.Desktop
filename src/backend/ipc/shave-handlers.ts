@@ -7,7 +7,7 @@ import type {
 } from "../db/schema";
 import { ShaveService } from "../services/shave/shave-service";
 import type { ShaveStatus } from "../types";
-import { formatErrorMessage } from "../utils/error-utils";
+import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class ShaveIPCHandlers {
@@ -50,7 +50,7 @@ export class ShaveIPCHandlers {
     try {
       return { success: true, data: this.service.createShave(shave, videoFile, videoSource) };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "shave_operation") };
     }
   }
 
@@ -59,7 +59,7 @@ export class ShaveIPCHandlers {
       const data = this.service.getShaveById(id);
       return { success: true, data };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "shave_operation") };
     }
   }
 
@@ -68,7 +68,7 @@ export class ShaveIPCHandlers {
       const data = this.service.getAllShaves();
       return { success: true, data };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "shave_operation") };
     }
   }
 
@@ -77,7 +77,7 @@ export class ShaveIPCHandlers {
       const data = this.service.findShaveByVideoUrl(videoEmbedUrl);
       return { success: true, data };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "shave_operation") };
     }
   }
 
@@ -86,7 +86,7 @@ export class ShaveIPCHandlers {
       const result = this.service.updateShave(id, data);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "shave_operation") };
     }
   }
 
@@ -95,7 +95,7 @@ export class ShaveIPCHandlers {
       const result = this.service.updateShaveStatus(id, status);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "shave_operation") };
     }
   }
 
@@ -104,7 +104,7 @@ export class ShaveIPCHandlers {
       const result = this.service.attachVideoSourceToShave(shaveId, videoSource);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "shave_operation") };
     }
   }
 
@@ -113,7 +113,7 @@ export class ShaveIPCHandlers {
       const result = this.service.deleteShave(id);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "shave_operation") };
     }
   }
 }

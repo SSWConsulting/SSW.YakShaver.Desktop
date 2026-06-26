@@ -1,12 +1,13 @@
 import { join } from "node:path";
 import { BaseSecureStorage } from "./base-secure-storage";
+import { defaultCustomPrompt } from "./default-custom-prompt";
 
 export interface CustomPrompt {
   id: string;
   name: string;
   description?: string;
   content: string;
-  isDefault?: boolean;
+  isTemplate?: boolean;
   selectedMcpServerIds?: string[];
   createdAt: number;
   updatedAt: number;
@@ -14,97 +15,22 @@ export interface CustomPrompt {
 
 interface CustomPromptData {
   prompts: CustomPrompt[];
-  activePromptId: string | null;
 }
 
 const SETTINGS_FILE = "custom-settings.enc";
 
-const DEFAULT_PROMPT: CustomPrompt = {
+const TEMPLATE_PROMPT: CustomPrompt = {
   id: "default",
-  name: "Default Prompt",
-  description: "This is the default prompt for YakShaver",
-  content: `You are an AI assistant with MCP capabilities to assist with creating and managing GitHub issues (PBIs).
-  You MUST follow the target repository's GitHub issue templates exactly.
-
-1) When creating an issue:
-- If a video link is available, embed it at the very top of the issue body in the format of [▶️ Watch the video (duration)](videolink).
-- The duration is in the format of mm:ss
-- Always apply the "YakShaver" label IN ADDITION to any template-required labels.
-
-2) Choose the correct backlog (repository):
-- https://github.com/SSWConsulting/SSW.YakShaver.Desktop
-- https://github.com/SSWConsulting/SSW.YakShaver
-
-3) Find and apply the matching ISSUE_TEMPLATE (MANDATORY):
-- Use your tools to locate issue templates in the target repo (usually .github/ISSUE_TEMPLATE/*.md).
-- Pick the template that matches the context (e.g., bug vs feature).
-- Read the full template file content.
-- Follow the template structure and requirements STRICTLY when creating the issue.
-- The transcript or user input is just for context.
-
-4) Frontmatter rules (STRICT):
-- YAML frontmatter is the block between the first pair of "---" lines.
-- Frontmatter is METADATA ONLY and MUST NOT appear in the final issue body.
-- Use frontmatter fields ONLY to:
-  - Validate the issue title pattern (e.g. title)
-  - Determine labels, assignees, or issue type if required
-- ALWAYS remove the entire frontmatter block from the rendered issue body.
-
-4.5) Handle template placeholders (CRITICAL):
-- When encountering {{ placeholder }} patterns in templates, use the "fill_template" MCP tool to process them
-- Provide the template content and relevant transcript context to the fill_template tool
-- Let the fill_template tool generate appropriate values for all placeholders
-- Use the filled template returned by the tool for issue creation
-
-5) Issue title rules (STRICT):
-- Title MUST follow the template frontmatter's title pattern exactly INCLUDING EMOJI.
-- Do not omit any fixed words like "🐛 Bug -" and do not use a different emoji.
-
-6) Format the issue body to match the template (STRICT):
-- Preserve the template's section headings and checklist items.
-- Make sure that all sections starting with "###" in the template such as "### Tasks" are present in the final issue body.
-- Do NOT invent new sections or change heading text.
-- Remove template-only HTML comments like "<!-- ... -->" from the final issue body.
-- Each checklist item MUST represent exactly ONE atomic task meaning that the item describes a single action to be taken.
-- A task MUST NOT combine multiple actions (no "and", ";", "/", or comma-separated actions).
-- If multiple tasks are implied, they MUST be split into multiple - [ ] task items.
-
-7) Screenshots from video (when video file path is available, recommended):
-- ALWAYS capture exactly one screenshot from the video using capture_video_frame.
-- Choose a timestamp where important UI elements, errors, or context is visible.
-- After capturing, upload it using upload_screenshot to obtain a public URL.
-- If upload_screenshot returns a screenshotUrl, include it in the issue body exactly as:
-  ![Screenshot description](screenshotUrl)
-- CRITICAL: Preserve the complete screenshotUrl including all query parameters.
-- CRITICAL: If upload_screenshot returns an empty URL, do not mention screenshots at all.
-
-8) Privacy and local paths (CRITICAL):
-- NEVER mention local video or local screenshot file paths in the issue description.
-
-9) Duplicate issues (CRITICAL):
-- BEFORE creating any new GitHub issue, you MUST search the target repository for existing OPEN issues that match the same bug/feature.
-- IGNORE closed issues completely.
-- If you find a likely duplicate (very similar title/description, same UI area, same error/behavior), DO NOT create a new issue.
-- ONLY comment on existing OPEN issues, never closed issues.
-- Use the GitHub tools to search issues using the normalized bug description (remove the emoji prefix and fixed words like "Bug -").
-- Instead, add a comment to the existing issue with:
-  - A note that this is a potential duplicate created by YakShaver (STRICT).
-  - CC the user who created the original GitHub issue (STRICT).
-  - Embed the video URL at the very top (if available).
-  - The screenshot markdown (only if upload_screenshot returned a non-empty public URL).
-  - Any new reproduction details and differences found in this new YakShave.
-  - Add a 'Tasks' Markdown checklist in the comment, listing concrete follow-up items for the assignee (STRICT).
-- The end state for a duplicate must be: 1 existing issue updated with a comment, 0 new issues created.
-`,
-
-  isDefault: true,
+  name: "Create Issues Template",
+  description: "Template for creating issues from video recordings",
+  content: `Project Name: <REPLACE WITH YOUR PROJECT NAME>\nProject URL: <REPLACE WITH REPO OR BOARD URL>\n${defaultCustomPrompt}`,
+  isTemplate: true,
   createdAt: Date.now(),
   updatedAt: Date.now(),
 };
 
 const DEFAULT_SETTINGS: CustomPromptData = {
-  prompts: [DEFAULT_PROMPT],
-  activePromptId: "default",
+  prompts: [],
 };
 
 export class CustomPromptStorage extends BaseSecureStorage {
@@ -134,20 +60,16 @@ export class CustomPromptStorage extends BaseSecureStorage {
     const data = await this.decryptAndLoad<CustomPromptData>(this.getSettingsPath());
     this.cache = data || DEFAULT_SETTINGS;
 
-    // Migrate default prompt to new default if there are changes
-    if (this.cache) {
-      const defaultPromptIndex = this.cache.prompts.findIndex((p) => p.id === "default");
-      if (defaultPromptIndex !== -1) {
-        const currentDefaultPrompt = this.cache.prompts[defaultPromptIndex];
-        if (currentDefaultPrompt.content !== DEFAULT_PROMPT.content) {
-          this.cache.prompts[defaultPromptIndex] = {
-            ...currentDefaultPrompt,
-            content: DEFAULT_PROMPT.content,
-            updatedAt: Date.now(),
-          };
-          await this.saveSettings(this.cache);
-        }
-      }
+    // remove any stored template/default prompt (now served from the hardcoded constant).
+    type LegacyPrompt = CustomPrompt & { isDefault?: boolean };
+    const hadLegacyPrompt = this.cache.prompts.some(
+      (p) => p.isTemplate || (p as LegacyPrompt).isDefault,
+    );
+    if (hadLegacyPrompt) {
+      this.cache.prompts = this.cache.prompts.filter(
+        (p) => !p.isTemplate && !(p as LegacyPrompt).isDefault,
+      );
+      await this.saveSettings(this.cache);
     }
 
     return this.cache;
@@ -163,13 +85,12 @@ export class CustomPromptStorage extends BaseSecureStorage {
     return settings.prompts;
   }
 
-  async getActivePrompt(): Promise<CustomPrompt | null> {
-    const settings = await this.loadSettings();
-    if (!settings.activePromptId) return null;
-    return settings.prompts.find((p) => p.id === settings.activePromptId) || null;
+  async getTemplates(): Promise<CustomPrompt[]> {
+    return [TEMPLATE_PROMPT];
   }
 
   async getPromptById(id: string): Promise<CustomPrompt | null> {
+    if (id === TEMPLATE_PROMPT.id) return TEMPLATE_PROMPT;
     const settings = await this.loadSettings();
     return settings.prompts.find((p) => p.id === id) || null;
   }
@@ -197,6 +118,7 @@ export class CustomPromptStorage extends BaseSecureStorage {
       Pick<CustomPrompt, "name" | "content" | "description" | "selectedMcpServerIds">
     >,
   ): Promise<boolean> {
+    if (id === TEMPLATE_PROMPT.id) return false;
     const settings = await this.loadSettings();
     const index = settings.prompts.findIndex((p) => p.id === id);
     if (index === -1) return false;
@@ -212,39 +134,21 @@ export class CustomPromptStorage extends BaseSecureStorage {
   }
 
   async deletePrompt(id: string): Promise<boolean> {
+    if (id === TEMPLATE_PROMPT.id) return false;
     const settings = await this.loadSettings();
     const prompt = settings.prompts.find((p) => p.id === id);
 
-    // Prevent deleting default prompt
-    if (!prompt || prompt.isDefault) return false;
+    if (!prompt) return false;
 
     settings.prompts = settings.prompts.filter((p) => p.id !== id);
 
-    // If deleted prompt was active, switch to default
-    if (settings.activePromptId === id) {
-      settings.activePromptId = "default";
-    }
-
-    await this.saveSettings(settings);
-    return true;
-  }
-
-  async setActivePrompt(id: string): Promise<boolean> {
-    const settings = await this.loadSettings();
-    const prompt = settings.prompts.find((p) => p.id === id);
-    if (!prompt) return false;
-
-    settings.activePromptId = id;
     await this.saveSettings(settings);
     return true;
   }
 
   async clearCustomPrompts(): Promise<void> {
     const settings = await this.loadSettings();
-
-    settings.prompts = [DEFAULT_PROMPT];
-    settings.activePromptId = DEFAULT_PROMPT.id;
-
+    settings.prompts = [];
     await this.saveSettings(settings);
   }
 }

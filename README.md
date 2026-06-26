@@ -1,5 +1,11 @@
 # Desktop Electron App
 
+This is the YakShaver Desktop Electron app, designed to help you create the perfect PBI in 30 seconds, with built-in MCP support.
+
+For more information, visit our website at [yakshaver.ai](https://yakshaver.ai)
+
+We also offer a **web version** [YakShaver 360](https://360.yakshaver.ai)
+
 ## Prerequisites
 
 - [Node JS](https://nodejs.org/en/download)
@@ -14,6 +20,9 @@ In the root folder, run
 1. `npm install -g concurrently`, which will install the [`concurrently` package](https://www.npmjs.com/package/concurrently)
 1. `npm run setup` – install dependencies
 2. `npm run dev` – start the app
+
+On Windows and macOS, `npm run setup` also installs the standalone `yt-dlp` binary used
+for YouTube downloads. This avoids relying on the operating system's Python.
 
 ## Building
 

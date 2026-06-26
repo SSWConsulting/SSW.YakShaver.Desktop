@@ -4,6 +4,8 @@ import tmp from "tmp";
 import youtubedl, { type Flags } from "youtube-dl-exec";
 import type { VideoUploadResult } from "../auth/types";
 
+const YT_DLP_EXECUTABLE = process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp";
+
 function getYtDlpPath(): string {
   if (app.isPackaged) {
     // In production, the binary is unpacked to app.asar.unpacked
@@ -13,11 +15,25 @@ function getYtDlpPath(): string {
       "node_modules",
       "youtube-dl-exec",
       "bin",
-      process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp",
+      YT_DLP_EXECUTABLE,
     );
   }
-  // In development, use the default path
-  return require("youtube-dl-exec").constants.YOUTUBE_DL_PATH;
+
+  return path.join(process.cwd(), "node_modules", "youtube-dl-exec", "bin", YT_DLP_EXECUTABLE);
+}
+
+function formatYtDlpError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("ENOENT") || message.includes("no such file or directory")) {
+    if (app.isPackaged) {
+      return `${message}. The bundled yt-dlp binary appears to be missing. Please reinstall or repair the app, and contact support if the problem persists.`;
+    }
+
+    return `${message}. Run npm run install:yt-dlp to install the standalone yt-dlp binary.`;
+  }
+
+  return message;
 }
 
 export class YouTubeDownloadService {
@@ -72,9 +88,7 @@ export class YouTubeDownloadService {
     } catch (error) {
       return {
         success: false,
-        error: `Failed to fetch video metadata: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        error: `Failed to fetch video metadata: ${formatYtDlpError(error)}`,
       };
     }
   }
@@ -98,9 +112,7 @@ export class YouTubeDownloadService {
       await this.downloadClient(youtubeUrl, flags);
       return outputPath;
     } catch (error) {
-      throw new Error(
-        `Failed to download video: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new Error(`Failed to download video: ${formatYtDlpError(error)}`);
     }
   }
 }

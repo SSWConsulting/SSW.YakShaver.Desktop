@@ -30,6 +30,7 @@ export default defineConfig({
         "control-bar": path.resolve(__dirname, "control-bar.html"),
         camera: path.resolve(__dirname, "camera.html"),
         countdown: path.resolve(__dirname, "countdown.html"),
+        frameoverlay: path.resolve(__dirname, "frame-overlay.html"),
       },
     },
   },

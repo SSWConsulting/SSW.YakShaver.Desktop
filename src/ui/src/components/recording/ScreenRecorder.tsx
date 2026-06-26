@@ -1,7 +1,10 @@
-import type { UserSettings } from "@shared/types/user-settings";
+import type { ToolApprovalMode, UserSettings } from "@shared/types/user-settings";
+import { CircleStopIcon, Upload } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
+import { useWorkflowNavigation } from "@/hooks/useWorkflowNavigation";
+import { cn } from "@/lib/utils";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
 import { VideoSourceType } from "../../../../backend/types";
@@ -11,7 +14,16 @@ import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
 import { Button } from "../ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { Input } from "../ui/input";
+import { Kbd } from "../ui/kbd";
 import { Label } from "../ui/label";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { VideoPreviewModal } from "./VideoPreviewModal";
@@ -22,7 +34,95 @@ interface RecordedVideo {
   fileName: string;
 }
 
-export function ScreenRecorder() {
+interface ScreenRecorderProps {
+  showButtonOnly?: boolean;
+  className?: string;
+}
+
+interface RecordButtonProps {
+  isRecording: boolean;
+  isTranscribing: boolean;
+  isDisabled: boolean;
+  // Renders the split-button shell (and its "Record"/"Stop" label/layout)
+  // whenever the YouTube-URL workflow is enabled. This is intentionally
+  // decoupled from `showUploadAction` so hiding the upload sub-button after a
+  // video is committed does NOT relabel/reshape the primary record button.
+  showSplitLayout: boolean;
+  // Renders the right-hand Upload sub-button. Only meaningful when
+  // `showSplitLayout` is true (the single-button shell has no slot for it).
+  showUploadAction: boolean;
+  onToggleRecording: () => void;
+  onUploadClick: () => void;
+  className?: string;
+}
+
+function RecordButton({
+  isRecording,
+  isTranscribing,
+  isDisabled,
+  showSplitLayout,
+  showUploadAction,
+  onToggleRecording,
+  onUploadClick,
+  className = "",
+}: RecordButtonProps) {
+  let label = showSplitLayout ? "Record" : "Start Recording";
+  if (isRecording) label = showSplitLayout ? "Stop" : "Stop Recording";
+  else if (isTranscribing) label = "Transcribing...";
+
+  if (!showSplitLayout) {
+    return (
+      <Button
+        className={cn(
+          "bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
+          className,
+        )}
+        onClick={onToggleRecording}
+        size="chunky"
+        disabled={isDisabled}
+      >
+        <CircleStopIcon className="w-5 h-5" />
+        {label}
+      </Button>
+    );
+  }
+
+  return (
+    <div className={cn("flex w-full rounded-md overflow-hidden", className)}>
+      <Button
+        className={cn(
+          "flex-1 bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md",
+          // When the upload sub-button is hidden, the primary button owns the
+          // full pill, so round its right edge too.
+          !showUploadAction && "rounded-r-md",
+        )}
+        onClick={onToggleRecording}
+        size="chunky"
+        disabled={isDisabled}
+      >
+        <CircleStopIcon />
+        {label}
+      </Button>
+      {showUploadAction && (
+        <>
+          <div className="w-px bg-ssw-red-foreground/20" />
+          <Button
+            className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
+            size="chunky"
+            onClick={onUploadClick}
+            disabled={isDisabled}
+            title="Process YouTube URL"
+          >
+            <Upload className="h-4 w-4" />
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
+  const navigateToWorkflow = useWorkflowNavigation({ listen: false });
   const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
@@ -32,13 +132,36 @@ export function ScreenRecorder() {
   const youtubeUrlInputId = useId();
   const [recordHotkey, setRecordHotkey] = useState("");
 
+  const [youtubeDialogOpen, setYoutubeDialogOpen] = useState(false);
+  const [videoCommitted, setVideoCommitted] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
   const [duration, setDuration] = useState<number>(0);
+  const [approvalMode, setApprovalMode] = useState<ToolApprovalMode>("ask");
   const { saveRecording, checkExistingShave } = useShaveManager();
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
+
+  // The "Process YouTube link" affordance is only relevant before any video has
+  // been committed for processing. Once a video is committed — via EITHER the
+  // recording path (handleContinue) or a successful URL submit
+  // (handleProcessYoutubeUrl) — or a recording is in progress, we hide it,
+  // because the app does not yet support processing multiple videos in parallel
+  // (#775). Both commit paths consume the same single-video slot, so the gate is
+  // symmetric across them.
+  //
+  // We track this with a dedicated session flag (`videoCommitted`) rather than
+  // reusing the session-global `uploadStatus`, which is ALSO driven to ERROR by
+  // a *failed* URL submit and the workflow-progress listener — so a failed URL
+  // submit must not latch this affordance off and strip the user's only way to
+  // retry the URL workflow.
+  const hasVideoBeenCommitted = isRecording || videoCommitted;
+  // Show the upload sub-button (the entry to the URL dialog) only before a video
+  // is committed. This is decoupled from the split-button shell below so hiding
+  // it does not relabel/reshape the primary record button (#775 asked only to
+  // hide this control, not to restyle the record button).
+  const showProcessYoutubeLink = isYoutubeUrlWorkflowEnabled && !hasVideoBeenCommitted;
 
   const handleStopRecording = useCallback(async () => {
     const result = await stop();
@@ -60,6 +183,7 @@ export function ScreenRecorder() {
         if (settings.hotkeys.startRecording) {
           setRecordHotkey(settings.hotkeys.startRecording);
         }
+        setApprovalMode(settings.toolApprovalMode ?? "ask");
       } catch (error) {
         console.error("Failed to load hotkey settings:", error);
       }
@@ -77,6 +201,14 @@ export function ScreenRecorder() {
 
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    ipcClient.userSettings
+      .get()
+      .then((settings) => setApprovalMode(settings.toolApprovalMode ?? "ask"))
+      .catch((error) => console.error("Failed to refresh approval mode:", error));
+  }, [previewOpen]);
 
   const toggleRecording = () => {
     isRecording ? handleStopRecording() : setPickerOpen(true);
@@ -126,7 +258,7 @@ export function ScreenRecorder() {
     setPickerOpen(true);
   };
 
-  const handleContinue = async () => {
+  const handleContinue = async (shaveAutoApprove: boolean) => {
     if (!recordedVideo) return;
 
     // Validate that duration was loaded
@@ -145,6 +277,9 @@ export function ScreenRecorder() {
     }
 
     resetPreview();
+    // A recording has now been committed for processing; hide the
+    // Process-YouTube-link affordance for the rest of the session (#775).
+    setVideoCommitted(true);
 
     try {
       setUploadStatus(UploadStatus.UPLOADING);
@@ -165,8 +300,13 @@ export function ScreenRecorder() {
         },
       );
       const newShave = result?.data;
+      if (!newShave?.id && shaveAutoApprove) {
+        toast.warning(
+          "Auto-approve is unavailable — shave record could not be created. You will be prompted for confirmations.",
+        );
+      }
       //Process video even if Shave creation failed, do not block user
-      await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id);
+      await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id, shaveAutoApprove);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = formatErrorMessage(error);
@@ -211,6 +351,12 @@ export function ScreenRecorder() {
       }
       await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, shaveId);
       setYoutubeUrl("");
+      // A URL has now been committed for processing; it consumes the same
+      // single-video slot as a recording, so hide the Process-YouTube-link
+      // affordance for the rest of the session — symmetric with the recording
+      // path in handleContinue (#775). Set only on success so a failed submit
+      // leaves the user able to retry.
+      setVideoCommitted(true);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = formatErrorMessage(error);
@@ -239,53 +385,34 @@ export function ScreenRecorder() {
   return (
     <>
       <section className="flex flex-col gap-4 items-center w-full">
-        <div className="flex flex-row items-center gap-2">
-          <Button
-            className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90"
-            onClick={toggleRecording}
-            disabled={isProcessing || isTranscribing || !isAuthenticated}
-          >
-            {isRecording
-              ? "Stop Recording"
-              : isTranscribing
-                ? "Transcribing..."
-                : `Start Recording${recordHotkey ? ` (${recordHotkey})` : ""}`}
-          </Button>
+        <div className="flex flex-col items-center gap-1 w-full">
+          <RecordButton
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            isDisabled={isProcessing || isTranscribing || !isAuthenticated}
+            showSplitLayout={isYoutubeUrlWorkflowEnabled}
+            showUploadAction={showProcessYoutubeLink}
+            onToggleRecording={toggleRecording}
+            onUploadClick={() => setYoutubeDialogOpen(true)}
+            className={className}
+          />
+          {!isRecording && !isTranscribing && recordHotkey && !showButtonOnly && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              Keyboard:{" "}
+              {recordHotkey.split("+").map((key, index, parts) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: order of keys in a shortcut is stable
+                <span key={index} className="flex items-center gap-1">
+                  <Kbd>{key}</Kbd>
+                  {index < parts.length - 1 && <span aria-hidden="true">+</span>}
+                </span>
+              ))}
+            </p>
+          )}
         </div>
-        {!isAuthenticated && (
+        {!isAuthenticated && !showButtonOnly && (
           <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
           </p>
-        )}
-        {isYoutubeUrlWorkflowEnabled && (
-          <div className="max-w-6xl p-4 flex flex-col gap-2">
-            <div className="flex items-center">
-              <Label htmlFor={youtubeUrlInputId} className="text-sm">
-                Process an existing YouTube link
-              </Label>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                id={youtubeUrlInputId}
-                type="url"
-                placeholder="https://www.youtube.com/watch?v=..."
-                value={youtubeUrl}
-                onChange={handleYoutubeUrlChange}
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleProcessYoutubeUrl}
-                disabled={!youtubeUrl.trim() || isProcessingUrl}
-              >
-                {isProcessingUrl ? "Processing..." : "Process Link"}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Paste any published YouTube URL to kick off workflow processing without recording.
-            </p>
-          </div>
         )}
         <SourcePickerDialog
           open={pickerOpen}
@@ -294,11 +421,52 @@ export function ScreenRecorder() {
         />
       </section>
 
+      <Dialog open={youtubeDialogOpen} onOpenChange={setYoutubeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Process YouTube Link</DialogTitle>
+            <DialogDescription>
+              Paste a published YouTube URL to process without recording.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={youtubeUrlInputId}>YouTube URL</Label>
+            <Input
+              id={youtubeUrlInputId}
+              type="url"
+              placeholder="https://www.youtube.com/watch?v=..."
+              value={youtubeUrl}
+              onChange={handleYoutubeUrlChange}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setYoutubeDialogOpen(false)}
+              disabled={isProcessingUrl}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                navigateToWorkflow();
+                handleProcessYoutubeUrl();
+                setYoutubeDialogOpen(false);
+              }}
+              disabled={!youtubeUrl.trim() || isProcessingUrl}
+            >
+              {isProcessingUrl ? "Processing..." : "Process Link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {recordedVideo && (
         <VideoPreviewModal
           open={previewOpen}
           videoBlob={recordedVideo.blob}
           videoFilePath={recordedVideo.filePath}
+          approvalMode={approvalMode}
           onClose={resetPreview}
           onRetry={handleRetry}
           onContinue={handleContinue}

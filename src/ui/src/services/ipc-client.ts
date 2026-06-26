@@ -1,10 +1,12 @@
 import type { LLMConfigV2 } from "@shared/types/llm";
+import type { TelemetrySettings } from "@shared/types/telemetry";
 import type { UserSettings } from "@shared/types/user-settings";
+import type { WorkflowState } from "@shared/types/workflow";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
   ReleaseChannel,
-} from "@/components/settings/release-channels/ReleaseChannelManager";
+} from "@/components/settings/release-channels/types";
 import type {
   CreateShaveData,
   CreateVideoData,
@@ -16,6 +18,8 @@ import type {
   AuthState,
   ConvertVideoToMp3Result,
   CustomPrompt,
+  GetMyProjectsErrorCode,
+  GetMyProjectsResponse,
   GetMyShavesResponse,
   HealthStatusInfo,
   MCPStep,
@@ -34,15 +38,20 @@ declare global {
   interface Window {
     electronAPI: {
       pipelines: {
-        processVideoFile: (filePath: string, shaveId?: string) => Promise<void>;
+        processVideoFile: (
+          filePath: string,
+          shaveId?: string,
+          shaveAutoApprove?: boolean,
+        ) => Promise<void>;
         processVideoUrl: (url: string, shaveId?: string) => Promise<void>;
-        retryVideo: (
+        rerunTask: (
           intermediateOutput: string,
           videoUploadResult: VideoUploadResult,
           shaveId?: string,
         ) => Promise<{
           success: boolean;
-          finalOutput?: string | null;
+          youtubeResult?: VideoUploadResult;
+          mcpResult?: string;
           error?: string;
         }>;
       };
@@ -68,6 +77,12 @@ declare global {
           status: () => Promise<AuthState>;
           accountInfo: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
         };
+        identityServer: {
+          login: () => Promise<AuthResult>;
+          logout: () => Promise<boolean>;
+          status: () => Promise<AuthState>;
+          accountInfo: () => Promise<{ success: boolean; data?: UserInfo | null; error?: string }>;
+        };
       };
       video: {
         selectVideoFile: () => Promise<string | null>;
@@ -83,6 +98,7 @@ declare global {
         stop: (videoData: Uint8Array) => Promise<ScreenRecordingStopResult>;
         listSources: () => Promise<ScreenSource[]>;
         cleanupTempFile: (filePath: string) => Promise<void>;
+        highlightSourceSelection: (sourceId?: string | null) => Promise<void>;
         hasAudio: (
           filePath: string,
         ) => Promise<{ success: boolean; hasAudio?: boolean; error?: string }>;
@@ -98,10 +114,29 @@ declare global {
       };
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;
+        getCurrentTime: () => Promise<string | null>;
       };
       workflow: {
-        onProgress: (callback: (progress: unknown) => void) => () => void;
         onProgressNeo: (callback: (progress: unknown) => void) => () => void;
+        retryFromStage: (
+          stage: keyof WorkflowState,
+          shaveId?: string,
+        ) => Promise<{
+          success: boolean;
+          error?: string;
+          workflowId?: string;
+          youtubeResult?: unknown;
+          mcpResult?: string;
+        }>;
+        getRetryStatus: (shaveId: string) => Promise<{
+          success: boolean;
+          stages?: Array<{
+            stage: keyof WorkflowState;
+            lastError?: string;
+          }>;
+          error?: string;
+        }>;
+        cancelRetry: (shaveId: string) => Promise<{ success: boolean; error?: string }>;
       };
       mcp: {
         processMessage: (
@@ -137,7 +172,7 @@ declare global {
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;
-        getActivePrompt: () => Promise<CustomPrompt | null>;
+        getTemplates: () => Promise<Array<CustomPrompt>>;
         addPrompt: (prompt: {
           name: string;
           description?: string;
@@ -154,8 +189,11 @@ declare global {
           },
         ) => Promise<boolean>;
         deletePrompt: (id: string) => Promise<boolean>;
-        setActivePrompt: (id: string) => Promise<boolean>;
         clearCustomPrompts: () => Promise<void>;
+      };
+      userInteraction: {
+        sendResponse(data: unknown): Promise<boolean>;
+        onRequest(callback: (request: unknown) => void): () => void;
       };
       releaseChannel: {
         get: () => Promise<ReleaseChannel>;
@@ -203,6 +241,12 @@ declare global {
           data?: GetMyShavesResponse;
           error?: string;
         }>;
+        getMyProjects: () => Promise<{
+          success: boolean;
+          data?: GetMyProjectsResponse;
+          code?: GetMyProjectsErrorCode;
+          error?: string;
+        }>;
         cancelWorkItem: (workItemId: string) => Promise<{
           success: boolean;
           error?: string;
@@ -234,6 +278,21 @@ declare global {
           status: ShaveStatus,
         ) => Promise<{ success: boolean; data?: Shave | undefined; error?: string }>;
         delete: (id: string) => Promise<{ success: boolean; data?: boolean; error?: string }>;
+      };
+      telemetry: {
+        getSettings: () => Promise<{ success: boolean; data?: TelemetrySettings; error?: string }>;
+        updateSettings: (
+          settings: Partial<TelemetrySettings>,
+        ) => Promise<{ success: boolean; data?: TelemetrySettings; error?: string }>;
+        getConsentStatus: () => Promise<{
+          success: boolean;
+          data?: { hasMadeDecision: boolean; isEnabled: boolean };
+          error?: string;
+        }>;
+        requestConsent: (consent: {
+          granted: boolean;
+          userId?: string;
+        }) => Promise<{ success: boolean; error?: string }>;
       };
     };
   }

@@ -1,8 +1,9 @@
 import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { formatErrorMessage } from "../../utils/error-utils";
-import { authorizeWithBackend, refreshTokenWithBackend } from "./mcp-oauth";
+import { formatAndReportError } from "../../utils/error-utils";
+import { authorizeWithBackend } from "./mcp-oauth";
+import { getFreshAccessTokenAsync } from "./mcp-token-refresh";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
@@ -17,13 +18,16 @@ export interface CreateClientOptions {
 export class MCPServerClient {
   public mcpClientName: string;
   public mcpClientId: string;
+  public readonly builtin: boolean;
 
   private mcpClient: experimental_MCPClient;
+  private cachedPrefixedToolNames: string[] | null = null;
 
-  private constructor(id: string, name: string, client: experimental_MCPClient) {
+  private constructor(id: string, name: string, client: experimental_MCPClient, builtin: boolean) {
     this.mcpClientId = id;
     this.mcpClientName = name;
     this.mcpClient = client;
+    this.builtin = builtin;
   }
 
   public static async createClientAsync(
@@ -43,36 +47,20 @@ export class MCPServerClient {
             headers: mcpConfig.headers,
           },
         });
-        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, true);
       }
 
       const serverId = mcpConfig.id;
       const tokenStorage = McpOAuthTokenStorage.getInstance();
 
-      // Check if we already have tokens
+      // Refresh the access token if it has expired (shared with the local-Claude orchestrator so
+      // both backends inject the same freshness guarantee), then re-read what's in storage.
+      await getFreshAccessTokenAsync(tokenStorage, serverId, serverUrl);
       let tokens = await tokenStorage.getTokensAsync(serverId);
       console.log(
         `[MCPServerClient] Tokens for ${mcpConfig.name}:`,
         tokens ? "Present" : "Missing",
       );
-
-      // Handle refresh token logic if the token is stale
-      if (tokens?.refresh_token && tokenStorage.isTokenExpired(tokens)) {
-        try {
-          console.log(`[MCPServerClient] Token expired for ${mcpConfig.name}, refreshing...`);
-          const newTokens = await refreshTokenWithBackend(serverUrl, tokens.refresh_token);
-          await tokenStorage.saveTokensAsync(serverId, newTokens);
-          tokens = await tokenStorage.getTokensAsync(serverId);
-        } catch (refreshError) {
-          console.error(
-            `[MCPServerClient] Failed to refresh token for ${mcpConfig.name}:`,
-            refreshError,
-          );
-          // If refresh fails, we clear the tokens to trigger re-auth.
-          await tokenStorage.clearTokensAsync(serverId);
-          tokens = undefined;
-        }
-      }
 
       // If no valid tokens, trigger backend OAuth flow
       if (!tokens?.access_token) {
@@ -124,7 +112,7 @@ export class MCPServerClient {
           headers,
         },
       });
-      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, false);
     }
 
     // create stdio transport MCP client
@@ -148,7 +136,12 @@ export class MCPServerClient {
           cwd,
         }),
       });
-      return new MCPServerClient(mcpConfig.id, mcpConfig.name, mcpClient);
+      return new MCPServerClient(
+        mcpConfig.id,
+        mcpConfig.name,
+        mcpClient,
+        mcpConfig.builtin === true,
+      );
     }
 
     // create inMemory transport MCP client
@@ -162,7 +155,7 @@ export class MCPServerClient {
       const client = await experimental_createMCPClient({
         transport: clientTransport,
       });
-      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, mcpConfig.builtin === true);
     }
 
     throw new Error(`Unsupported transport type: ${mcpConfig}`);
@@ -186,6 +179,18 @@ export class MCPServerClient {
     return prefixedTools;
   }
 
+  /**
+   * Returns cached prefixed tool names. Fetches once, then reuses.
+   * Used by getWhitelistWithServerPrefixAsync to avoid repeated RPC calls for built-in clients.
+   */
+  public async getPrefixedToolNamesAsync(): Promise<string[]> {
+    if (!this.cachedPrefixedToolNames) {
+      const tools = await this.listToolsWithServerPrefixAsync();
+      this.cachedPrefixedToolNames = Object.keys(tools);
+    }
+    return this.cachedPrefixedToolNames;
+  }
+
   public async toolCountAsync(): Promise<number> {
     try {
       const tools = await this.listToolsAsync();
@@ -195,8 +200,9 @@ export class MCPServerClient {
         return Object.keys(tools).length;
       }
     } catch (error) {
+      const errorMsg = formatAndReportError(error, "mcp_tool_count");
       throw new Error(
-        `Failed to get tool count from MCP server: ${this.mcpClientName}. Error: ${formatErrorMessage(error)}`,
+        `Failed to get tool count from MCP server: ${this.mcpClientName}. Error: ${errorMsg}`,
       );
     }
   }

@@ -1,6 +1,7 @@
 import type { Hotkeys, UserSettings } from "@shared/types/user-settings";
+import type { WorkflowState } from "@shared/types/workflow";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
-import type { ToolApprovalDecision } from "../shared/types/mcp";
+import type { TelemetrySettings } from "../shared/types/telemetry";
 import type {
   CreateShaveData,
   CreateVideoData,
@@ -30,6 +31,12 @@ const IPC_CHANNELS = {
   MS_AUTH_STATUS: "msauth:status",
   MS_AUTH_ACCOUNT_INFO: "msgraph:get-me",
 
+  // IdentityServer auth
+  IS_AUTH_LOGIN: "identityserver:login",
+  IS_AUTH_LOGOUT: "identityserver:logout",
+  IS_AUTH_STATUS: "identityserver:status",
+  IS_AUTH_ACCOUNT_INFO: "identityserver:account-info",
+
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
   START_RECORDING_TIMER: "start-recording-timer",
@@ -39,6 +46,8 @@ const IPC_CHANNELS = {
   CLEANUP_TEMP_FILE: "cleanup-temp-file",
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
+  GET_RECORDING_TIME: "get-recording-time",
+  HIGHLIGHT_SCREEN_SOURCE_SELECTION: "highlight-screen-source-selection",
   ENABLE_LOOPBACK_AUDIO: "enable-loopback-audio",
   DISABLE_LOOPBACK_AUDIO: "disable-loopback-audio",
   HIDE_CONTROL_BAR: "hide-control-bar",
@@ -63,13 +72,16 @@ const IPC_CHANNELS = {
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
-  MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
 
   // Automated workflow
-  WORKFLOW_PROGRESS: "workflow:progress",
   WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
+  // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
+  // Different from RERUN_TASK which is a user-initiated re-execution after success.
+  WORKFLOW_RETRY_FROM_STAGE: "workflow:retry-from-stage",
+  WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
+  WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
@@ -77,15 +89,16 @@ const IPC_CHANNELS = {
   // Video processing - the main process pipeline
   PROCESS_VIDEO_FILE: "process-video:file",
   PROCESS_VIDEO_URL: "process-video:url",
-  RETRY_VIDEO: "retry-video",
+  // Re-execute: user-initiated re-run from SELECTING_PROMPT with modified input after a successful workflow.
+  // Different from WORKFLOW_RETRY_FROM_STAGE which resumes from a failed checkpoint.
+  RERUN_TASK: "rerun-task",
 
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
-  SETTINGS_GET_ACTIVE_PROMPT: "settings:get-active-prompt",
+  SETTINGS_GET_TEMPLATES: "settings:get-templates",
   SETTINGS_ADD_PROMPT: "settings:add-prompt",
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
-  SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
   SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
 
   // General User Settings
@@ -117,6 +130,7 @@ const IPC_CHANNELS = {
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
+  PORTAL_GET_MY_PROJECTS: "portal:get-my-projects",
   PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 
   // Shave Management
@@ -128,6 +142,16 @@ const IPC_CHANNELS = {
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
+
+  // User Interaction (Generic)
+  USER_INTERACTION_REQUEST: "user-interaction:request",
+  USER_INTERACTION_RESPONSE: "user-interaction:response",
+
+  // Telemetry
+  TELEMETRY_GET_SETTINGS: "telemetry:get-settings",
+  TELEMETRY_UPDATE_SETTINGS: "telemetry:update-settings",
+  TELEMETRY_GET_CONSENT_STATUS: "telemetry:get-consent-status",
+  TELEMETRY_REQUEST_CONSENT: "telemetry:request-consent",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -138,16 +162,16 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideoFile: (filePath: string, shaveId?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId),
+    processVideoFile: (filePath: string, shaveId?: string, shaveAutoApprove?: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId, shaveAutoApprove),
     processVideoUrl: (url: string, shaveId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url, shaveId),
-    retryVideo: (
+    rerunTask: (
       intermediateOutput: string,
       videoUploadResult: VideoUploadResult,
       shaveId?: string,
     ) =>
-      ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult, shaveId),
+      ipcRenderer.invoke(IPC_CHANNELS.RERUN_TASK, intermediateOutput, videoUploadResult, shaveId),
   },
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),
@@ -166,6 +190,12 @@ const electronAPI = {
       status: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_STATUS),
       accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO),
     },
+    identityServer: {
+      login: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_LOGIN),
+      logout: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_LOGOUT),
+      status: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_STATUS),
+      accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_ACCOUNT_INFO),
+    },
   },
   screenRecording: {
     start: (sourceId?: string) => ipcRenderer.invoke(IPC_CHANNELS.START_SCREEN_RECORDING, sourceId),
@@ -179,6 +209,8 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.CHECK_VIDEO_HAS_AUDIO, filePath),
     showControlBar: (cameraDeviceId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.SHOW_CONTROL_BAR, cameraDeviceId),
+    highlightSourceSelection: async (sourceId?: string | null) =>
+      await ipcRenderer.invoke(IPC_CHANNELS.HIGHLIGHT_SCREEN_SOURCE_SELECTION, sourceId),
     hideControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.HIDE_CONTROL_BAR),
     stopFromControlBar: () => ipcRenderer.invoke(IPC_CHANNELS.STOP_RECORDING_FROM_CONTROL_BAR),
     minimizeMainWindow: () => ipcRenderer.invoke(IPC_CHANNELS.MINIMIZE_MAIN_WINDOW),
@@ -203,12 +235,20 @@ const electronAPI = {
       ipcRenderer.on("update-recording-time", listener);
       return () => ipcRenderer.removeListener("update-recording-time", listener);
     },
+    // Pull the current recording time once the renderer has mounted and
+    // subscribed, so a late-loading control bar isn't stuck on 00:00 (#870).
+    getCurrentTime: (): Promise<string | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GET_RECORDING_TIME),
   },
   workflow: {
-    onProgress: (callback: (progress: unknown) => void) =>
-      onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS, callback),
     onProgressNeo: (callback: (progress: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, callback),
+    retryFromStage: (stage: keyof WorkflowState, shaveId?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId),
+    getRetryStatus: (shaveId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
+    cancelRetry: (shaveId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_CANCEL_RETRY, shaveId),
   },
   llm: {
     setConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),
@@ -227,14 +267,7 @@ const electronAPI = {
       onIpcEvent<string>(IPC_CHANNELS.MCP_PREFILL_PROMPT, callback),
     onStepUpdate: (
       callback: (step: {
-        type:
-          | "start"
-          | "reasoning"
-          | "tool_call"
-          | "tool_result"
-          | "final_result"
-          | "tool_approval_required"
-          | "tool_denied";
+        type: "start" | "reasoning" | "tool_call" | "tool_result" | "final_result" | "tool_denied";
         message?: string;
         toolName?: string;
         serverName?: string;
@@ -246,11 +279,6 @@ const electronAPI = {
         autoApproveAt?: number;
       }) => void,
     ) => onIpcEvent(IPC_CHANNELS.MCP_STEP_UPDATE, callback),
-    respondToToolApproval: (requestId: string, decision: ToolApprovalDecision) =>
-      ipcRenderer.invoke(IPC_CHANNELS.MCP_TOOL_APPROVAL_DECISION, {
-        requestId,
-        decision,
-      }),
     addToolToWhitelist: (toolName: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD_TOOL_TO_WHITELIST, { toolName }),
     listServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVERS),
@@ -269,15 +297,30 @@ const electronAPI = {
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
-    getActivePrompt: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ACTIVE_PROMPT),
-    addPrompt: (prompt: { name: string; content: string }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
-    updatePrompt: (id: string, updates: { name?: string; content?: string }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_PROMPT, id, updates),
+    getTemplates: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_TEMPLATES),
+    addPrompt: (prompt: {
+      name: string;
+      content: string;
+      description?: string;
+      selectedMcpServerIds?: string[];
+    }) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
+    updatePrompt: (
+      id: string,
+      updates: {
+        name?: string;
+        content?: string;
+        description?: string;
+        selectedMcpServerIds?: string[];
+      },
+    ) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_PROMPT, id, updates),
     deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
-    setActivePrompt: (id: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
     clearCustomPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS),
+  },
+  userInteraction: {
+    sendResponse: (responseData: unknown) =>
+      ipcRenderer.invoke(IPC_CHANNELS.USER_INTERACTION_RESPONSE, responseData),
+    onRequest: (callback: (request: unknown) => void) =>
+      onIpcEvent(IPC_CHANNELS.USER_INTERACTION_REQUEST, callback),
   },
   releaseChannel: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.RELEASE_CHANNEL_GET),
@@ -318,6 +361,7 @@ const electronAPI = {
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
+    getMyProjects: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_PROJECTS),
     cancelWorkItem: (workItemId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PORTAL_CANCEL_WORK_ITEM, workItemId),
   },
@@ -338,6 +382,14 @@ const electronAPI = {
     updateStatus: (id: string, status: ShaveStatus) =>
       ipcRenderer.invoke(IPC_CHANNELS.SHAVE_UPDATE_STATUS, id, status),
     delete: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SHAVE_DELETE, id),
+  },
+  telemetry: {
+    getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.TELEMETRY_GET_SETTINGS),
+    updateSettings: (settings: Partial<TelemetrySettings>) =>
+      ipcRenderer.invoke(IPC_CHANNELS.TELEMETRY_UPDATE_SETTINGS, settings),
+    getConsentStatus: () => ipcRenderer.invoke(IPC_CHANNELS.TELEMETRY_GET_CONSENT_STATUS),
+    requestConsent: (consent: { granted: boolean; userId?: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.TELEMETRY_REQUEST_CONSENT, consent),
   },
   // Camera window
   onSetCameraDevice: (callback: (deviceId: string) => void) => {

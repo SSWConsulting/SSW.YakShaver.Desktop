@@ -13,17 +13,28 @@ export const IPC_CHANNELS = {
   MS_AUTH_STATUS: "msauth:status",
   MS_AUTH_ACCOUNT_INFO: "msgraph:get-me",
 
+  // IdentityServer auth
+  IS_AUTH_LOGIN: "identityserver:login",
+  IS_AUTH_LOGOUT: "identityserver:logout",
+  IS_AUTH_STATUS: "identityserver:status",
+  IS_AUTH_ACCOUNT_INFO: "identityserver:account-info",
+
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
   START_RECORDING_TIMER: "start-recording-timer",
   STOP_SCREEN_RECORDING: "stop-screen-recording",
   STOP_RECORDING_FROM_CONTROL_BAR: "stop-recording-from-control-bar",
   LIST_SCREEN_SOURCES: "list-screen-sources",
+  HIGHLIGHT_SCREEN_SOURCE_SELECTION: "highlight-screen-source-selection",
   CLEANUP_TEMP_FILE: "cleanup-temp-file",
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
   HIDE_CONTROL_BAR: "hide-control-bar",
   RECORDING_TIME_UPDATE: "recording-time-update",
+  // Renderer -> main handshake: the control bar asks for the current recording
+  // time once it has mounted and subscribed, so a late-loading renderer is
+  // synced regardless of load/subscribe timing (#870).
+  GET_RECORDING_TIME: "get-recording-time",
   CHECK_VIDEO_HAS_AUDIO: "check-video-has-audio",
   MINIMIZE_MAIN_WINDOW: "minimize-main-window",
   RESTORE_MAIN_WINDOW: "restore-main-window",
@@ -45,13 +56,16 @@ export const IPC_CHANNELS = {
   MCP_REMOVE_SERVER: "mcp:remove-server",
   MCP_CHECK_SERVER_HEALTH: "mcp:check-server-health",
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
-  MCP_TOOL_APPROVAL_DECISION: "mcp:tool-approval-decision",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
 
   // Automated workflow
-  WORKFLOW_PROGRESS: "workflow:progress",
   WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
+  // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
+  // Different from RERUN_TASK which is a user-initiated re-execution after success.
+  WORKFLOW_RETRY_FROM_STAGE: "workflow:retry-from-stage",
+  WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
+  WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
@@ -59,15 +73,16 @@ export const IPC_CHANNELS = {
   // Video processing - the main process pipeline
   PROCESS_VIDEO_FILE: "process-video:file",
   PROCESS_VIDEO_URL: "process-video:url",
-  RETRY_VIDEO: "retry-video",
+  // Re-execute: user-initiated re-run from SELECTING_PROMPT with modified input after a successful workflow.
+  // Different from WORKFLOW_RETRY_FROM_STAGE which resumes from a failed checkpoint.
+  RERUN_TASK: "rerun-task",
 
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
-  SETTINGS_GET_ACTIVE_PROMPT: "settings:get-active-prompt",
+  SETTINGS_GET_TEMPLATES: "settings:get-templates",
   SETTINGS_ADD_PROMPT: "settings:add-prompt",
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
-  SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
   SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
   SETTINGS_HOTKEY_UPDATE: "settings:hotkey-update",
 
@@ -99,6 +114,7 @@ export const IPC_CHANNELS = {
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
+  PORTAL_GET_MY_PROJECTS: "portal:get-my-projects",
   PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 
   // Shave Management
@@ -110,4 +126,14 @@ export const IPC_CHANNELS = {
   SHAVE_UPDATE: "shave:update",
   SHAVE_UPDATE_STATUS: "shave:update-status",
   SHAVE_DELETE: "shave:delete",
+
+  // User Interaction (Generic)
+  USER_INTERACTION_REQUEST: "user-interaction:request",
+  USER_INTERACTION_RESPONSE: "user-interaction:response",
+
+  // Telemetry
+  TELEMETRY_GET_SETTINGS: "telemetry:get-settings",
+  TELEMETRY_UPDATE_SETTINGS: "telemetry:update-settings",
+  TELEMETRY_GET_CONSENT_STATUS: "telemetry:get-consent-status",
+  TELEMETRY_REQUEST_CONSENT: "telemetry:request-consent",
 } as const;

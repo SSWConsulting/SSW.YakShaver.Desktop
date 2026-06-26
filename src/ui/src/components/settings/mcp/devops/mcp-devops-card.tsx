@@ -1,4 +1,5 @@
-import { ipcClient } from "@/services/ipc-client";
+import { AZURE_DEVOPS_PRESET_CONFIG, PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
+import { useMcpCardActions } from "@/hooks/useMcpCardActions";
 import type { HealthStatusInfo } from "../../../../../../backend/types";
 import type { MCPServerConfig } from "../McpServerForm";
 import { McpCard } from "../mcp-card";
@@ -12,8 +13,8 @@ interface McpDevOpsCardProps {
   viewMode: "compact" | "detailed";
 }
 
-McpAzureDevOpsCard.Name = "Azure DevOps";
-McpAzureDevOpsCard.Id = "483d49a4-0902-415a-a987-832a21bd3d63";
+McpAzureDevOpsCard.Name = "Azure_DevOps";
+McpAzureDevOpsCard.Id = PRESET_SERVER_IDS.AZURE_DEVOPS;
 
 export function McpAzureDevOpsCard({
   config,
@@ -22,37 +23,13 @@ export function McpAzureDevOpsCard({
   onTools,
   viewMode,
 }: McpDevOpsCardProps) {
-  const configLocal = config ?? {
-    id: McpAzureDevOpsCard.Id,
-    name: McpAzureDevOpsCard.Name,
-    transport: "stdio",
-    command: "npx",
-    //TODO: need to be able to customize this last parameter
-    // https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/547
-    args: ["-y", "@azure-devops/mcp", "ssw2"],
+  const configLocal = config ?? AZURE_DEVOPS_PRESET_CONFIG;
 
-    description: "Azure DevOps MCP Server",
-    toolWhitelist: [],
-    enabled: false,
-  };
-
-  async function toggleSettings(status: boolean): Promise<void> {
-    const updatedConfig = { ...configLocal, enabled: status };
-    await ipcClient.mcp.updateServerAsync(McpAzureDevOpsCard.Id, updatedConfig);
-
-    if (onChange) {
-      onChange(updatedConfig);
-    }
-  }
-
-  function handleOnConnect(): void {
-    toggleSettings(true);
-  }
-
-  async function handleOnDisconnect(): Promise<void> {
-    await ipcClient.mcp.clearTokensAsync(McpAzureDevOpsCard.Id);
-    await toggleSettings(false);
-  }
+  const { handleOnConnect, handleOnDisconnect } = useMcpCardActions(
+    McpAzureDevOpsCard.Id,
+    configLocal,
+    onChange,
+  );
 
   return (
     <McpCard

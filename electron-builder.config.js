@@ -17,8 +17,7 @@ module.exports = {
   extraResources: [
     ".env",
     "src/ui/public/**",
-    "src/ui/successTemplate.html",
-    "src/ui/errorTemplate.html",
+    "src/backend/assets/auth/**",
     {
       from: "src/backend/db/migrations",
       to: "migrations",
@@ -51,7 +50,7 @@ module.exports = {
     icon: "src/ui/public/icons/icon.icns",
     target: {
       target: "default",
-      arch: ["arm64"],
+      arch: ["arm64", "x64"],
     },
     hardenedRuntime: true,
     gatekeeperAssess: false,

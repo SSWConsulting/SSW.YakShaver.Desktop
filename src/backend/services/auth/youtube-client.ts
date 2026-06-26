@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { app } from "electron";
 import { OAuth2Client } from "google-auth-library";
 import { google } from "googleapis";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import { YoutubeStorage } from "../storage/youtube-storage";
 import type {
   AuthResult,
@@ -12,6 +12,7 @@ import type {
   VideoUploadResult,
   YouTubeSnippetUpdate,
 } from "./types";
+import { classifyYouTubeAuthError, describeYouTubeAuthError } from "./youtube-auth-error";
 import {
   authorizeYouTubeWithBackend,
   convertToTokenData,
@@ -61,10 +62,16 @@ export class YouTubeClient {
 
       return { success: true, userInfo: userInfo ?? undefined };
     } catch (error) {
-      console.error("[YouTubeClient] Authentication failed:", error);
+      const reason = classifyYouTubeAuthError(error);
+      // Report to telemetry under the auth context (was mislabelled "youtube_upload"),
+      // tagged with the structured reason so sign-out/timeout events are diagnosable (#596).
+      formatAndReportError(error, "youtube_auth", { reason });
+      console.error(`[YouTubeClient] Authentication failed (${reason}):`, error);
       return {
         success: false,
-        error: formatErrorMessage(error),
+        // Honest, actionable copy mapped from the structured reason — not a raw
+        // internal message and never a false "success".
+        error: describeYouTubeAuthError(reason),
       };
     }
   }
@@ -154,19 +161,26 @@ export class YouTubeClient {
       }
 
       const youtube = google.youtube({ version: "v3", auth: client });
-      const response = await youtube.videos.insert({
-        part: ["snippet", "status"],
-        requestBody: {
-          snippet: {
-            title: "Uploaded Video",
-            description: "Video uploaded via Desktop Electron App",
-            tags: ["electron", "upload"],
-            categoryId: "28",
+      const fileStream = createReadStream(videoPath);
+      // biome-ignore lint/suspicious/noExplicitAny: Google API return type is complex
+      let response: any;
+      try {
+        response = await youtube.videos.insert({
+          part: ["snippet", "status"],
+          requestBody: {
+            snippet: {
+              title: "Uploaded Video",
+              description: "Video uploaded via Desktop Electron App",
+              tags: ["electron", "upload"],
+              categoryId: "28",
+            },
+            status: { privacyStatus: "unlisted" },
           },
-          status: { privacyStatus: "unlisted" },
-        },
-        media: { body: createReadStream(videoPath) },
-      });
+          media: { body: fileStream },
+        });
+      } finally {
+        fileStream.destroy();
+      }
 
       const { id: videoId, snippet } = response.data;
 
@@ -187,7 +201,7 @@ export class YouTubeClient {
     } catch (error) {
       return {
         success: false,
-        error: formatErrorMessage(error),
+        error: formatAndReportError(error, "youtube_upload"),
       };
     }
   }
@@ -241,7 +255,7 @@ export class YouTubeClient {
     } catch (error) {
       return {
         success: false,
-        error: formatErrorMessage(error),
+        error: formatAndReportError(error, "youtube_upload"),
       };
     }
   }

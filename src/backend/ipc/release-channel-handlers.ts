@@ -1,10 +1,11 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import { config } from "../config/env";
+import { setIsQuitting } from "../index";
 import { GitHubTokenStorage } from "../services/storage/github-token-storage";
 import type { ReleaseChannel } from "../services/storage/release-channel-storage";
 import { ReleaseChannelStorage } from "../services/storage/release-channel-storage";
-import { formatErrorMessage } from "../utils/error-utils";
+import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 interface GitHubRelease {
@@ -44,6 +45,7 @@ export class ReleaseChannelIPCHandlers {
   } | null = null;
   private updateCheckInterval: NodeJS.Timeout | null = null;
   private readonly UPDATE_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
+  private updateDialogDismissedInSession = false; // Track if user dismissed update dialog this session
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.RELEASE_CHANNEL_GET, () => this.getChannel());
@@ -80,6 +82,11 @@ export class ReleaseChannelIPCHandlers {
     });
 
     autoUpdater.on("update-downloaded", () => {
+      // Skip showing dialog if user already dismissed it this session
+      if (this.updateDialogDismissedInSession) {
+        return;
+      }
+
       dialog
         .showMessageBox({
           type: "info",
@@ -91,11 +98,16 @@ export class ReleaseChannelIPCHandlers {
         })
         .then((result) => {
           if (result.response === 0) {
+            // Set isQuitting to true so that the before-quit handler allows the app to quit
+            setIsQuitting(true);
             // Force immediate quit and install
             setImmediate(() => {
               // isSilent: false, isForceRunAfter: true, check docs: https://www.jsdocs.io/package/electron-updater#AppUpdater.quitAndInstall
               autoUpdater.quitAndInstall(false, true);
             });
+          } else {
+            // User chose "Later" - remember this for the current session
+            this.updateDialogDismissedInSession = true;
           }
         })
         .catch((err) => {
@@ -173,7 +185,7 @@ export class ReleaseChannelIPCHandlers {
 
       return { releases: this.processReleases(releases) };
     } catch (error) {
-      const errMsg = formatErrorMessage(error);
+      const errMsg = formatAndReportError(error, "fetch_releases");
       return {
         releases: [],
         error: errMsg,
@@ -318,7 +330,7 @@ export class ReleaseChannelIPCHandlers {
               };
             }
           } catch (error) {
-            const errMsg = formatErrorMessage(error);
+            const errMsg = formatAndReportError(error, "check_prerelease");
             return {
               available: false,
               error: errMsg,
@@ -345,7 +357,7 @@ export class ReleaseChannelIPCHandlers {
       }
       return { available: false };
     } catch (error) {
-      const errMsg = formatErrorMessage(error);
+      const errMsg = formatAndReportError(error, "check_update");
       return {
         available: false,
         error: errMsg,

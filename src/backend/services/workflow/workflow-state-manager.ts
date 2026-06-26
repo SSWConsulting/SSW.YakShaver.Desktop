@@ -1,19 +1,28 @@
 import { BrowserWindow } from "electron";
 import {
   ProgressStage,
+  WORKFLOW_STAGE_ORDER,
   type WorkflowState,
   type WorkflowStatus,
   type WorkflowStep,
 } from "../../../shared/types/workflow";
 import { IPC_CHANNELS } from "../../ipc/channels";
 import { formatErrorMessage } from "../../utils/error-utils";
+import { TelemetryService } from "../telemetry/telemetry-service";
+import { type CheckpointData, WorkflowCheckpointService } from "./workflow-checkpoint-service";
+
 export class WorkflowStateManager {
   private shaveId: string;
   private state: WorkflowState;
+  private telemetryService: TelemetryService;
+  private checkpointService: WorkflowCheckpointService;
+  private stageStartTimes: Map<string, number> = new Map();
 
   public constructor(shaveId?: string) {
     this.shaveId = shaveId ?? crypto.randomUUID();
     this.state = this.initiateStates();
+    this.telemetryService = TelemetryService.getInstance();
+    this.checkpointService = WorkflowCheckpointService.getInstance();
   }
 
   private initiateStates(): WorkflowState {
@@ -28,6 +37,7 @@ export class WorkflowStateManager {
       [ProgressStage.CONVERTING_AUDIO]: createStep(ProgressStage.CONVERTING_AUDIO),
       [ProgressStage.TRANSCRIBING]: createStep(ProgressStage.TRANSCRIBING),
       [ProgressStage.ANALYZING_TRANSCRIPT]: createStep(ProgressStage.ANALYZING_TRANSCRIPT),
+      [ProgressStage.SELECTING_PROMPT]: createStep(ProgressStage.SELECTING_PROMPT),
       [ProgressStage.EXECUTING_TASK]: createStep(ProgressStage.EXECUTING_TASK),
       [ProgressStage.UPDATING_METADATA]: createStep(ProgressStage.UPDATING_METADATA),
     };
@@ -47,7 +57,105 @@ export class WorkflowStateManager {
 
   public reset() {
     this.state = this.initiateStates();
+    this.checkpointService.clearAll(this.shaveId);
     this.broadcast();
+  }
+
+  /**
+   * Prepare a stage for retry by resetting it and all subsequent stages.
+   */
+  public prepareStageForRetry(stageKey: keyof WorkflowState): boolean {
+    if (this.state[stageKey].status !== "failed") return false;
+
+    const stageIndex = WORKFLOW_STAGE_ORDER.indexOf(stageKey);
+    if (stageIndex === -1) {
+      return false;
+    }
+
+    // Reset current and all subsequent stages to "not_started"
+    for (let i = stageIndex; i < WORKFLOW_STAGE_ORDER.length; i++) {
+      const key = WORKFLOW_STAGE_ORDER[i];
+      // Keep prior stages as completed, reset current and later ones
+      if (this.state[key].status !== "skipped") {
+        this.state[key] = {
+          ...this.state[key],
+          status: "not_started",
+          payload: undefined,
+        };
+      }
+    }
+
+    this.telemetryService.trackEvent({
+      name: "WorkflowStageRetryInitiated",
+      properties: {
+        workflowId: this.shaveId,
+        stage: stageKey as string,
+      },
+    });
+
+    this.broadcast();
+    return true;
+  }
+
+  /**
+   * Create a checkpoint for a stage with its data.
+   */
+  public createCheckpoint(stageKey: keyof WorkflowState, data: CheckpointData): void {
+    this.checkpointService.createCheckpoint(this.shaveId, stageKey, data);
+  }
+
+  /**
+   * Get checkpoint data for a stage.
+   */
+  public getCheckpoint(stageKey: keyof WorkflowState): CheckpointData | undefined {
+    return this.checkpointService.getCheckpoint(this.shaveId, stageKey);
+  }
+
+  /**
+   * Get all checkpoints for this workflow.
+   */
+  public getAllCheckpoints(): Map<keyof WorkflowState, CheckpointData> {
+    return this.checkpointService.getAllCheckpoints(this.shaveId);
+  }
+
+  /**
+   * Clear all checkpoints and retry counts for this workflow.
+   */
+  public clearAllCheckpoints(): void {
+    this.checkpointService.clearAll(this.shaveId);
+  }
+
+  /**
+   * Get all failed stages that can be retried.
+   */
+  public getRetryableFailedStages(): Array<{
+    stage: keyof WorkflowState;
+    lastError?: string;
+  }> {
+    const failed: Array<{
+      stage: keyof WorkflowState;
+      lastError?: string;
+    }> = [];
+
+    for (const stage of WORKFLOW_STAGE_ORDER) {
+      const stepState = this.getStepState(stage);
+      if (stepState.status === "failed") {
+        let lastError: string | undefined;
+        if (stepState.payload) {
+          try {
+            lastError = (JSON.parse(stepState.payload) as { error?: string }).error;
+          } catch {
+            lastError = stepState.payload;
+          }
+        }
+        failed.push({
+          stage,
+          lastError,
+        });
+      }
+    }
+
+    return failed;
   }
 
   /**
@@ -55,11 +163,20 @@ export class WorkflowStateManager {
    * Sets status to 'in_progress' and records start time.
    */
   public startStage(stageKey: keyof WorkflowState) {
+    const startTime = Date.now();
+    this.stageStartTimes.set(stageKey as string, startTime);
+
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "in_progress",
-      createdAt: Date.now(),
+      createdAt: startTime,
     };
+
+    this.telemetryService.trackWorkflowStage({
+      workflowId: this.shaveId,
+      stage: stageKey as string,
+      status: "started",
+    });
 
     this.broadcast();
   }
@@ -69,19 +186,41 @@ export class WorkflowStateManager {
    * Sets status to 'completed' and attaches payload.
    */
   public completeStage(stageKey: keyof WorkflowState, payload?: unknown) {
+    const startTime = this.stageStartTimes.get(stageKey as string);
+    const duration = startTime ? Date.now() - startTime : undefined;
+
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "completed",
       payload: payload ? JSON.stringify(payload) : undefined,
     };
+
+    this.telemetryService.trackWorkflowStage({
+      workflowId: this.shaveId,
+      stage: stageKey as string,
+      status: "completed",
+      duration,
+    });
+
     this.broadcast();
   }
 
   public skipStage(stageKey: keyof WorkflowState) {
+    const startTime = this.stageStartTimes.get(stageKey as string);
+    const duration = startTime ? Date.now() - startTime : undefined;
+
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "skipped",
     };
+
+    this.telemetryService.trackWorkflowStage({
+      workflowId: this.shaveId,
+      stage: stageKey as string,
+      status: "skipped",
+      duration,
+    });
+
     this.broadcast();
   }
 
@@ -90,12 +229,35 @@ export class WorkflowStateManager {
    */
   public failStage(stageKey: keyof WorkflowState, error: string | Error) {
     const errorMessage = formatErrorMessage(error);
+    const startTime = this.stageStartTimes.get(stageKey as string);
+    const duration = startTime ? Date.now() - startTime : undefined;
 
     this.state[stageKey] = {
       ...this.state[stageKey],
       status: "failed",
-      payload: JSON.stringify({ error: errorMessage }),
+      payload: JSON.stringify({
+        error: errorMessage,
+      }),
     };
+
+    this.telemetryService.trackWorkflowStage({
+      workflowId: this.shaveId,
+      stage: stageKey as string,
+      status: "failed",
+      duration,
+      error: errorMessage,
+    });
+
+    this.telemetryService.trackError({
+      error: error instanceof Error ? error : new Error(errorMessage),
+      context: `workflow_stage_${stageKey as string}`,
+      workflowId: this.shaveId,
+      additionalProperties: {
+        stage: stageKey as string,
+        duration: duration?.toString() ?? "unknown",
+      },
+    });
+
     this.broadcast();
   }
 
@@ -120,7 +282,10 @@ export class WorkflowStateManager {
     BrowserWindow.getAllWindows()
       .filter((win) => !win.isDestroyed())
       .forEach((win) => {
-        win.webContents.send(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, stateToSend);
+        win.webContents.send(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, {
+          shaveId: this.shaveId,
+          state: stateToSend,
+        });
       });
   }
 }

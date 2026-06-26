@@ -1,14 +1,37 @@
 import { randomUUID } from "node:crypto";
-import type { ToolApprovalMode } from "@shared/types/user-settings";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
-import { BrowserWindow } from "electron";
 import type { ZodType } from "zod";
-import type { MCPStep, ToolApprovalDecision } from "../../../shared/types/mcp";
 import { getDurationParts } from "../../utils/duration-utils";
+import { formatAndReportError } from "../../utils/error-utils";
+import {
+  isBacklogItemMutationTool,
+  normalizeIssueScreenshots,
+} from "../../utils/screenshot-markdown";
 import type { VideoUploadResult } from "../auth/types";
-import { UserSettingsStorage } from "../storage/user-settings-storage";
+import { TelemetryService } from "../telemetry/telemetry-service";
+import { UserInteractionService } from "../user-interaction/user-interaction-service";
+import {
+  type BacklogArtifact,
+  type IBacklogOrchestrator,
+  judgeBacklogOutcome,
+  type ManualLoopOptions,
+  type MCPLoopResult,
+  type MCPTerminationReason,
+  type ToolActivity,
+} from "./backlog-orchestrator";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
+import { orchestratorSystemPrompt } from "./prompts";
+
+// Re-export the shared backlog-orchestrator contract from here so existing importers
+// (and tests) that reference these symbols on the orchestrator module keep working.
+export {
+  type BacklogArtifact,
+  BacklogOutcomeSchema,
+  type IBacklogOrchestrator,
+  type MCPLoopResult,
+  type MCPTerminationReason,
+} from "./backlog-orchestrator";
 
 /**
  * Tool Output Buffer for host-level tool chaining.
@@ -78,24 +101,11 @@ export class ToolOutputBuffer {
   }
 }
 
-const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
-
-// TODO: Separate the ApprovalDialog event trigger from this, and remove this event sender
-// ISSUE: https://github.com/SSWConsulting/SSW.YakShaver.Desktop/issues/602
-function sendStepEvent(event: MCPStep): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send("mcp:step-update", event);
-    }
-  }
-}
-
-export class MCPOrchestrator {
+export class MCPOrchestrator implements IBacklogOrchestrator {
   private static instance: MCPOrchestrator;
 
   private static languageModelProvider: LanguageModelProvider | null = null;
   private static mcpServerManager: MCPServerManager | null = null;
-  private pendingToolApprovals = new Map<string, (decision: ToolApprovalDecision) => void>();
 
   private constructor() {}
 
@@ -121,6 +131,43 @@ export class MCPOrchestrator {
     return resolved;
   }
 
+  /**
+   * #834 — Deterministic guard applied to backlog create/update tool arguments before execution.
+   * The issue/work-item body markdown is authored freely by the LLM, which intermittently embeds
+   * the same screenshot twice (top of body + "### Screenshots" section) and omits the bold
+   * `**Figure: ...**` caption. We normalise the body-bearing string fields here so the rendered
+   * issue always has exactly one captioned screenshot, regardless of model phrasing.
+   */
+  private normalizeScreenshotMarkdownInArgs(
+    toolName: string,
+    input: Record<string, unknown>,
+  ): Record<string, unknown> {
+    // Only touch tools that create/update a backlog item (issue / work item / PBI / ticket).
+    // Decided by an anchored allow-list that explicitly excludes comment/reply/cache/read-only
+    // tools (e.g. `add_issue_comment`, `update_issue_cache`) — see isBacklogItemMutationTool.
+    if (!isBacklogItemMutationTool(toolName)) {
+      return input;
+    }
+
+    // Body-like fields used across GitHub / Azure DevOps / Jira MCP servers.
+    const bodyFieldNames = new Set(["body", "description", "content", "markdown", "text"]);
+    let changed = false;
+    const resolved: Record<string, unknown> = { ...input };
+    for (const [key, value] of Object.entries(input)) {
+      if (bodyFieldNames.has(key.toLowerCase()) && typeof value === "string") {
+        const normalized = normalizeIssueScreenshots(value);
+        if (normalized !== value) {
+          resolved[key] = normalized;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      console.log(`[MCPOrchestrator] Normalized screenshot markdown for tool '${toolName}' (#834)`);
+    }
+    return resolved;
+  }
+
   public static async getInstanceAsync(): Promise<MCPOrchestrator> {
     if (MCPOrchestrator.instance) {
       return MCPOrchestrator.instance;
@@ -137,20 +184,16 @@ export class MCPOrchestrator {
   }
 
   public async manualLoopAsync(
-    prompt: string,
+    videoTranscription: string,
     videoUploadResult?: VideoUploadResult,
-    options: {
-      systemPrompt?: string;
-      maxToolIterations?: number; // safety cap to avoid infinite loops
-      videoFilePath?: string; // local video file path for screenshot capture
-      serverFilter?: string[]; // if provided, only include tools from these server IDs
-      onStep?: (step: MCPStep) => void;
-    } = {},
-  ): Promise<string | undefined> {
+    options: ManualLoopOptions = {},
+  ): Promise<MCPLoopResult> {
     // Ensure LLM has been initialized
     if (!MCPOrchestrator.languageModelProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
     }
+
+    console.log("[MCPOrchestrator] Starting manual loop with prompt strings");
 
     // Ensure MCP server manager is initialized
     const serverManager = MCPOrchestrator.mcpServerManager;
@@ -160,21 +203,16 @@ export class MCPOrchestrator {
 
     // Get tools and apply the server filter if provided
     const tools = await serverManager.collectToolsWithServerPrefixAsync();
-    const userSettingsStorage = UserSettingsStorage.getInstance();
 
-    let systemPrompt =
-      options.systemPrompt ??
-      "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
+    let systemPrompt = orchestratorSystemPrompt;
 
-    // Add tool chaining instructions
-    systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
-When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
-If you need to pass one tool's output directly to another tool WITHOUT modification:
-1. Look for the Tool Output Reference ID in the previous tool result
-2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
-3. This passes the raw output directly, preserving all structure and content
-4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
-5. Do NOT use this if you need to transform or summarize the content first`;
+    systemPrompt += options.projectMetaData
+      ? `\n---\nProject Metadata:\n${options.projectMetaData}`
+      : "";
+
+    systemPrompt += options.desktopAgentProjectPrompt
+      ? `\n---\nProject Prompt:\n${options.desktopAgentProjectPrompt}`
+      : "";
 
     systemPrompt = this.appendVideoInfoToSystemPrompt(
       systemPrompt,
@@ -192,20 +230,36 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
         role: "system",
         content: "When selecting tools, briefly explain the reason for choosing them.",
       },
-      { role: "user", content: prompt },
+      { role: "user", content: `video transcription: ${videoTranscription}` },
     ];
+
+    // Records every executed tool call + its result. At the end we judge — from these
+    // RESULTS, not the model's narration — whether a backlog item was actually filed (#833).
+    const toolActivity: ToolActivity[] = [];
+
+    // Every loop exit funnels through here so the outcome is judged from the tool RESULTS
+    // regardless of WHY the loop ended — an item filed before a cap/limit is still honoured.
+    const finalize = async (
+      text: string,
+      terminationReason: MCPTerminationReason,
+      judgeFinalText: string,
+    ): Promise<MCPLoopResult> => {
+      const outcome = await this.judgeBacklogOutcome(
+        options.desktopAgentProjectPrompt,
+        videoTranscription,
+        toolActivity,
+        judgeFinalText,
+      );
+      return {
+        text,
+        backlogActionSucceeded: outcome.achieved,
+        artifacts: outcome.artifacts,
+        terminationReason,
+      };
+    };
 
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
-      const toolApprovalSettings = await userSettingsStorage.getSettingsAsync();
-      const toolApprovalMode: ToolApprovalMode = toolApprovalSettings.toolApprovalMode;
-      const bypassApprovalChecks = toolApprovalMode === "yolo";
-      const toolWhiteList = bypassApprovalChecks
-        ? new Set<string>()
-        : new Set(
-            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
-          );
-
       const llmResponse = await MCPOrchestrator.languageModelProvider
         .generateTextWithTools(messages, tools)
         .catch((error) => {
@@ -223,10 +277,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
 
       const reasoningContent = llmResponse.content.find((resp) => resp.type === "text");
       if (reasoningContent && llmResponse.finishReason !== "stop") {
-        sendStepEvent({
-          type: "reasoning",
-          reasoning: JSON.stringify(reasoningContent),
-        });
         options.onStep?.({
           type: "reasoning",
           reasoning: JSON.stringify(reasoningContent),
@@ -235,18 +285,24 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
 
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
+        const telemetryService = TelemetryService.getInstance();
+        const toolWhiteList = new Set(
+          (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
+        );
         for (const toolCall of llmResponse.toolCalls) {
-          const requiresApproval = !bypassApprovalChecks && !toolWhiteList.has(toolCall.toolName);
+          const isWhitelisted = toolWhiteList.has(toolCall.toolName);
+          const toolStartTime = Date.now();
 
-          if (requiresApproval) {
-            const autoApproveAt =
-              toolApprovalMode === "wait"
-                ? Date.now() + WAIT_MODE_AUTO_APPROVE_DELAY_MS
-                : undefined;
-            const { decision, requestId } = await this.requestToolApproval(
+          if (!isWhitelisted) {
+            const requestId = randomUUID();
+
+            const decision = await UserInteractionService.getInstance().requestToolApproval(
               toolCall.toolName,
               toolCall.input,
-              { autoApproveAt, onStep: options.onStep },
+              {
+                message: `Approval required to run ${toolCall.toolName}`,
+                shaveId: options.shaveId,
+              },
             );
 
             if (decision.kind === "deny_stop") {
@@ -254,13 +310,17 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
                 ? `User cancelled tool: ${decision.feedback.trim()}`
                 : "Tool execution cancelled by user";
 
-              sendStepEvent({
-                type: "tool_denied",
-                toolName: toolCall.toolName,
-                args: toolCall.input,
-                requestId,
-                message: denialMessage,
+              // Track tool denial
+              telemetryService.trackEvent({
+                name: "MCPToolCall",
+                properties: {
+                  toolName: toolCall.toolName,
+                  status: "denied",
+                  serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                  denialReason: decision.feedback?.trim() || "user_cancelled",
+                },
               });
+
               options.onStep?.({
                 type: "tool_denied",
                 toolName: toolCall.toolName,
@@ -268,18 +328,30 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
                 requestId,
                 message: denialMessage,
               });
-              sendStepEvent({
-                type: "final_result",
-                message: "Tool execution cancelled by user",
-              });
               options.onStep?.({
                 type: "final_result",
                 message: "Tool execution cancelled by user",
               });
-              return "Tool execution cancelled by user";
+              return finalize("Tool execution cancelled by user", "cancelled", "");
             }
 
             if (decision.kind === "request_changes") {
+              // Track tool change request
+              const durationMs = Date.now() - toolStartTime;
+              telemetryService.trackEvent({
+                name: "MCPToolCall",
+                properties: {
+                  toolName: toolCall.toolName,
+                  status: "change_requested",
+                  serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                  durationMs: durationMs.toString(),
+                  feedback: decision.feedback?.trim() || "no_feedback",
+                },
+                measurements: {
+                  duration: durationMs,
+                },
+              });
+
               let retryFeedback: { message: string; userVisibleMessage: string } | null = null;
               const formattedFeedback = decision.feedback.trim();
               const userVisibleMessage = formattedFeedback
@@ -293,13 +365,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
                 ),
                 userVisibleMessage,
               };
-              sendStepEvent({
-                type: "tool_denied",
-                toolName: toolCall.toolName,
-                args: toolCall.input,
-                requestId,
-                message: userVisibleMessage,
-              });
               options.onStep?.({
                 type: "tool_denied",
                 toolName: toolCall.toolName,
@@ -336,11 +401,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
           }
 
           // send event to UI about tool call now that it is approved/whitelisted
-          sendStepEvent({
-            type: "tool_call",
-            toolName: toolCall.toolName,
-            args: toolCall.input,
-          });
           options.onStep?.({
             type: "tool_call",
             toolName: toolCall.toolName,
@@ -352,8 +412,21 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
 
           if (toolToCall?.execute) {
             try {
+              // Track tool call start
+              telemetryService.trackEvent({
+                name: "MCPToolCall",
+                properties: {
+                  toolName: toolCall.toolName,
+                  status: "started",
+                  serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                },
+              });
+
               // Resolve any toolOutputRef parameters before executing the tool
-              const resolvedInput = this.resolveToolOutputReferences(toolCall.input);
+              const resolvedInput = this.normalizeScreenshotMarkdownInArgs(
+                toolCall.toolName,
+                this.resolveToolOutputReferences(toolCall.input),
+              );
 
               const toolOutput = await toolToCall.execute(resolvedInput, {
                 toolCallId: toolCall.toolCallId,
@@ -371,21 +444,42 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
                   .filter(Boolean)
                   .join("\n\n") || "(no text output)";
 
+              // Record the call + its result for the end-of-loop outcome judge. `ok` reflects
+              // whether the tool itself errored (MCP sets isError on a failed/auth-denied call).
+              const toolErrored = (toolOutput as { isError?: boolean }).isError === true;
+              toolActivity.push({
+                toolName: toolCall.toolName,
+                ok: !toolErrored,
+                // Keep enough of the result that a created-item id/URL near the end is still
+                // visible to the outcome judge (a verbose tool body shouldn't hide the artifact).
+                resultText: rawOutputText.slice(0, 8000),
+              });
+
               // Store complete raw output in buffer for tool chaining
               const contentToStore = JSON.stringify(toolOutput.content);
               const outputBuffer = ToolOutputBuffer.getInstance();
               const outputRefId = outputBuffer.store(toolCall.toolName, contentToStore);
 
               // send event to UI about tool result
-              sendStepEvent({
-                type: "tool_result",
-                toolName: toolCall.toolName,
-                result: toolOutput,
-              });
               options.onStep?.({
                 type: "tool_result",
                 toolName: toolCall.toolName,
                 result: toolOutput,
+              });
+
+              // Track successful tool completion
+              const toolDuration = Date.now() - toolStartTime;
+              telemetryService.trackEvent({
+                name: "MCPToolCall",
+                properties: {
+                  toolName: toolCall.toolName,
+                  status: "completed",
+                  serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                  durationMs: toolDuration.toString(),
+                },
+                measurements: {
+                  duration: toolDuration,
+                },
               });
 
               // Construct tool result message with buffer reference for tool chaining
@@ -412,6 +506,29 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
                 `[MCPOrchestrator] TOOL ERROR: ${toolCall.toolName} (${toolCall.toolCallId})`,
                 toolError,
               );
+
+              // Track tool failure
+              const toolDuration = Date.now() - toolStartTime;
+              const errorMessage = formatAndReportError(toolError, "mcp_tool_execution", {
+                toolName: toolCall.toolName,
+                serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                durationMs: toolDuration,
+              });
+
+              telemetryService.trackEvent({
+                name: "MCPToolCall",
+                properties: {
+                  toolName: toolCall.toolName,
+                  status: "failed",
+                  serverName: toolCall.toolName.split("__")[0] ?? "unknown",
+                  durationMs: toolDuration.toString(),
+                  error: errorMessage,
+                },
+                measurements: {
+                  duration: toolDuration,
+                },
+              });
+
               throw toolError;
             }
           } else {
@@ -428,30 +545,56 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
         ToolOutputBuffer.getInstance().clear();
 
         // send final result event to UI
-        sendStepEvent({
-          type: "final_result",
-          message: llmResponse.finishReason,
-        });
         options.onStep?.({
           type: "final_result",
           message: llmResponse.finishReason,
         });
-        return llmResponse.text;
+        // Clean finish: judge from the tool RESULTS whether a backlog item was actually filed.
+        return finalize(llmResponse.text, "stop", llmResponse.text);
       } else if (llmResponse.finishReason === "content-filter") {
         console.log("[MCPOrchestrator] Session ended: Content filter triggered");
         ToolOutputBuffer.getInstance().clear();
-        return "Conversation ended due to content filter.";
+        return finalize(
+          "Conversation ended due to content filter.",
+          "content-filter",
+          llmResponse.text,
+        );
       } else if (llmResponse.finishReason === "length") {
         console.log("[MCPOrchestrator] Session ended: Maximum length reached");
         ToolOutputBuffer.getInstance().clear();
-        return "Conversation ended due to length limit.";
+        return finalize("Conversation ended due to length limit.", "length", llmResponse.text);
       } else {
         console.log("[MCPOrchestrator] Session ended with unknown reason:");
         console.log(llmResponse.finishReason);
         ToolOutputBuffer.getInstance().clear();
-        break;
+        return finalize("", "unknown", llmResponse.text);
       }
     }
+
+    // The loop exhausted its iteration cap. An item may already have been filed before the cap,
+    // so judge from the tool results rather than assuming failure.
+    ToolOutputBuffer.getInstance().clear();
+    return finalize("", "max-iterations", "");
+  }
+
+  /**
+   * Decides whether the run ACTUALLY created/updated a backlog item (#833). Delegates to the
+   * shared `judgeBacklogOutcome`, which is also used by the local Claude Code backend so success
+   * is judged identically regardless of who drove the tools.
+   */
+  private async judgeBacklogOutcome(
+    goal: string | undefined,
+    transcript: string,
+    toolActivity: ToolActivity[],
+    finalText: string,
+  ): Promise<{ achieved: boolean; artifacts: BacklogArtifact[] }> {
+    return judgeBacklogOutcome(
+      MCPOrchestrator.languageModelProvider,
+      goal,
+      transcript,
+      toolActivity,
+      finalText,
+    );
   }
 
   public async convertToObjectAsync(prompt: string, schema: ZodType): Promise<unknown> {
@@ -466,55 +609,6 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
       console.error("[MCPOrchestrator]: Error in convertToObjectAsync:", error);
       throw error;
     }
-  }
-
-  public async autoLoopAsync(
-    prompt: string,
-    videoUploadResult?: VideoUploadResult,
-    options: {
-      serverFilter?: string[]; // if provided, only include tools from these servers
-      systemPrompt?: string;
-      maxToolIterations?: number; // safety cap to avoid infinite loops
-    } = {},
-  ): Promise<string> {
-    // Ensure LLM has been initialized
-    if (!MCPOrchestrator.languageModelProvider) {
-      throw new Error("[MCPOrchestrator]: LLM client not initialized");
-    }
-
-    // Ensure MCP server manager is initialized
-    const serverManager = MCPOrchestrator.mcpServerManager;
-    if (!serverManager) {
-      throw new Error("[MCPOrchestrator]: MCP server manager not initialized");
-    }
-
-    // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsForSelectedServersAsync(options.serverFilter);
-
-    let systemPrompt =
-      options.systemPrompt ??
-      "You are a helpful AI that can call tools. Use the provided tools to satisfy the user request. When you have the final answer, respond normally so the session can end.";
-
-    // Add tool chaining instructions
-    systemPrompt += `\n\n**TOOL OUTPUT CHAINING:**
-When a tool executes, its output includes a reference ID like "[Tool Output Reference: tool_output_xxxxx]".
-If you need to pass one tool's output directly to another tool WITHOUT modification:
-1. Look for the Tool Output Reference ID in the previous tool result
-2. Add a parameter "toolOutputRef": "tool_output_xxxxx" to the next tool call
-3. This passes the raw output directly, preserving all structure and content
-4. Use this when tools need to chain outputs (e.g., read_file → process_content → write_file)
-5. Do NOT use this if you need to transform or summarize the content first`;
-
-    systemPrompt = this.appendVideoInfoToSystemPrompt(systemPrompt, videoUploadResult);
-
-    const messages: ModelMessage[] = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: prompt },
-    ];
-
-    //  this is the AI SDK's automatic orchestrator loop, can be used for YOLO mode
-    const response = await MCPOrchestrator.languageModelProvider.sendMessage(messages, tools);
-    return response.text;
   }
 
   private formatToolCorrectionMessage(
@@ -540,54 +634,8 @@ If you need to pass one tool's output directly to another tool WITHOUT modificat
     return feedbackLines.join("\n\n");
   }
 
-  private async requestToolApproval(
-    toolName: string,
-    args: unknown,
-    options?: { autoApproveAt?: number; onStep?: (step: MCPStep) => void },
-  ): Promise<{ requestId: string; decision: ToolApprovalDecision }> {
-    if (!MCPOrchestrator.instance) {
-      throw new Error("[MCPOrchestrator]: requestToolApproval called before initialization");
-    }
-
-    const requestId = randomUUID();
-    const event: MCPStep = {
-      type: "tool_approval_required",
-      toolName,
-      args,
-      requestId,
-      message: `Approval required to run ${toolName}`,
-      autoApproveAt: options?.autoApproveAt,
-    };
-    sendStepEvent(event);
-    options?.onStep?.(event);
-
-    const decision = await new Promise<ToolApprovalDecision>((resolve) => {
-      // Store resolver for normal approval/denial
-      this.pendingToolApprovals.set(requestId, (result: ToolApprovalDecision) => {
-        this.pendingToolApprovals.delete(requestId);
-        resolve(result);
-      });
-    });
-
-    return { requestId, decision };
-  }
-
-  public resolveToolApproval(requestId: string, decision: ToolApprovalDecision): boolean {
-    const resolver = this.pendingToolApprovals.get(requestId);
-    if (!resolver) {
-      return false;
-    }
-
-    this.pendingToolApprovals.delete(requestId);
-    resolver(decision);
-    return true;
-  }
-
   public cancelAllPendingApprovals(reason = "Session cancelled"): void {
-    for (const resolve of this.pendingToolApprovals.values()) {
-      resolve({ kind: "deny_stop", feedback: reason });
-    }
-    this.pendingToolApprovals.clear();
+    UserInteractionService.getInstance().cancelAllPending(reason);
   }
 
   private appendVideoInfoToSystemPrompt(

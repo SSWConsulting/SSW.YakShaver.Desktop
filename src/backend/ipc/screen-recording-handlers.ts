@@ -5,7 +5,8 @@ import { CameraWindow } from "../services/recording/camera-window";
 import { RecordingControlBarWindow } from "../services/recording/control-bar-window";
 import { CountdownWindow } from "../services/recording/countdown-window";
 import { RecordingService } from "../services/recording/recording-service";
-import { formatErrorMessage } from "../utils/error-utils";
+import { ScreenFrameWindow } from "../services/recording/screen-frame-window";
+import { formatAndReportError, formatErrorMessage } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class ScreenRecordingIPCHandlers {
@@ -13,6 +14,7 @@ export class ScreenRecordingIPCHandlers {
   private controlBar = RecordingControlBarWindow.getInstance();
   private cameraWindow = CameraWindow.getInstance();
   private countdownWindow = CountdownWindow.getInstance();
+  private screenFrameWindow = ScreenFrameWindow.getInstance();
   private ffmpegService = FFmpegService.getInstance();
 
   constructor() {
@@ -23,8 +25,13 @@ export class ScreenRecordingIPCHandlers {
       [IPC_CHANNELS.STOP_SCREEN_RECORDING]: (_: unknown, videoData: Uint8Array) =>
         this.service.handleStopRecording(videoData),
       [IPC_CHANNELS.LIST_SCREEN_SOURCES]: () => this.service.listSources(),
+      [IPC_CHANNELS.HIGHLIGHT_SCREEN_SOURCE_SELECTION]: async (
+        _: unknown,
+        sourceId?: string | null,
+      ) => await this.showScreenFrame(sourceId),
       [IPC_CHANNELS.CLEANUP_TEMP_FILE]: (_: unknown, filePath: string) =>
         this.service.cleanupTempFile(filePath),
+      [IPC_CHANNELS.GET_RECORDING_TIME]: () => this.controlBar.getCurrentTime(),
       [IPC_CHANNELS.SHOW_CONTROL_BAR]: (_: unknown, cameraDeviceId?: string) =>
         this.showControlBarWithCamera(cameraDeviceId),
       [IPC_CHANNELS.HIDE_CONTROL_BAR]: () => this.hideControlBarAndCamera(),
@@ -36,7 +43,7 @@ export class ScreenRecordingIPCHandlers {
           const hasAudio = await this.ffmpegService.hasAudibleAudio(filePath);
           return { success: true, hasAudio };
         } catch (error) {
-          return { success: false, error: formatErrorMessage(error) };
+          return { success: false, error: formatAndReportError(error, "check_video_audio") };
         }
       },
     };
@@ -62,6 +69,16 @@ export class ScreenRecordingIPCHandlers {
     return { success: true };
   }
 
+  private async showScreenFrame(displayId?: string | null) {
+    try {
+      if (displayId) await this.screenFrameWindow.show(displayId);
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: formatErrorMessage(error) };
+    }
+  }
+
   private async showControlBarWithCamera(cameraDeviceId?: string) {
     const displayId = this.service.getCurrentRecordingDisplayId();
 
@@ -79,14 +96,20 @@ export class ScreenRecordingIPCHandlers {
   private hideControlBarAndCamera() {
     this.cameraWindow.hide();
     this.controlBar.hideWithSuccess();
+    // The screen frame overlay is shown during source selection/recording but is not torn down
+    // by the control-bar stop path. Destroy it here so it doesn't linger after recording stops
+    // (otherwise an empty frame overlay remains on-screen until the app quits).
+    this.screenFrameWindow.hide();
     return { success: true };
   }
 
-  private stopRecordingFromControlBar() {
+  private async stopRecordingFromControlBar() {
     const mainWindow = getMainWindow();
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
       mainWindow.webContents.send("stop-recording-request");
     }
+
+    this.screenFrameWindow.hide();
 
     setTimeout(() => {
       this.cameraWindow.hide();

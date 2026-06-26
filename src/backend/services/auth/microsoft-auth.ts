@@ -1,14 +1,13 @@
 // Followed example from Microsoft's Electron sample app
 // https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/samples/msal-node-samples/ElectronSystemBrowserTestApp/README.md
-import { join } from "node:path";
 import { InteractionRequiredAuthError, LogLevel, PublicClientApplication } from "@azure/msal-node";
-import { app, shell } from "electron";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { shell } from "electron";
+import { formatAndReportError } from "../../utils/error-utils";
+import { loadAuthTemplate, loadSuccessAuthTemplate } from "./auth-templates";
 import { MsalSecureCachePlugin } from "./msal-cache-plugin";
 import type { AuthState } from "./types";
 import { AuthStatus } from "./types";
 import "isomorphic-fetch";
-import * as fs from "node:fs";
 import type {
   AccountInfo,
   AuthenticationResult,
@@ -85,20 +84,34 @@ export class MicrosoftAuthService {
           scopes: this.getScopes(),
           account: account,
         };
-        const accountInfo = await this.loginSilent(tokenRequest);
-        if (accountInfo) {
-          return { status: AuthStatus.AUTHENTICATED, accountInfo } as AuthState;
-        } else {
-          return { status: AuthStatus.NOT_AUTHENTICATED } as AuthState;
+        // Use tokenRequest which already has the account
+        // We want to verify the token is valid, but NOT prompt if it isn't.
+        // loginSilent previously called getTokenSilent which defaulted to interactive.
+        // We must avoid interactive here.
+        try {
+          const response = await this.getTokenSilent(tokenRequest, false);
+          MicrosoftAuthService.account = response.account;
+          return { status: AuthStatus.AUTHENTICATED, accountInfo: account } as AuthState;
+        } catch (error) {
+          if (error instanceof InteractionRequiredAuthError) {
+            return { status: AuthStatus.NOT_AUTHENTICATED } as AuthState;
+          }
+          throw error;
         }
       } catch (e) {
         if (e instanceof InteractionRequiredAuthError) {
           return { status: AuthStatus.NOT_AUTHENTICATED } as AuthState;
         }
-        return { status: AuthStatus.ERROR, error: formatErrorMessage(e) } as AuthState;
+        return {
+          status: AuthStatus.ERROR,
+          error: formatAndReportError(e, "microsoft_auth"),
+        } as AuthState;
       }
     } catch (error) {
-      return { status: AuthStatus.ERROR, error: formatErrorMessage(error) } as AuthState;
+      return {
+        status: AuthStatus.ERROR,
+        error: formatAndReportError(error, "microsoft_auth"),
+      } as AuthState;
     }
   }
 
@@ -120,7 +133,7 @@ export class MicrosoftAuthService {
       await MicrosoftAuthService.pca.getTokenCache().removeAccount(MicrosoftAuthService.account);
       MicrosoftAuthService.account = null;
     } catch (error) {
-      const errorMsg = formatErrorMessage(error);
+      const errorMsg = formatAndReportError(error, "microsoft_auth");
       console.error("Logout error:", errorMsg);
     }
   }
@@ -156,15 +169,21 @@ export class MicrosoftAuthService {
       MicrosoftAuthService.account = authResponse.account;
       return authResponse;
     } catch (error) {
-      console.error("Error getting token:", formatErrorMessage(error));
+      console.error("Error getting token:", formatAndReportError(error, "microsoft_auth"));
       throw error;
     }
   }
 
-  async getTokenSilent(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
+  async getTokenSilent(
+    tokenRequest: SilentFlowRequest,
+    allowInteractiveFallback = true,
+  ): Promise<AuthenticationResult> {
     try {
       return await MicrosoftAuthService.pca.acquireTokenSilent(tokenRequest);
-    } catch (_error) {
+    } catch (error) {
+      if (!allowInteractiveFallback) {
+        throw error;
+      }
       console.warn("Silent token acquisition failed, acquiring token using pop up");
       return await this.getTokenInteractive(tokenRequest);
     }
@@ -172,40 +191,9 @@ export class MicrosoftAuthService {
 
   async getTokenInteractive(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
     try {
-      // Determine the correct path for template files based on environment
-      let uiDir: string;
-      if (app.isPackaged) {
-        // In production, templates are in extraResources in the Resources folder
-        uiDir = join(process.resourcesPath, "src/ui");
-      } else {
-        // In development, templates are in src/ui
-        uiDir = join(__dirname, "../../../../src/ui");
-      }
-
-      const successPath = join(uiDir, "successTemplate.html");
-      const errorPath = join(uiDir, "errorTemplate.html");
-
-      // Check if files exist
-      if (!fs.existsSync(successPath)) {
-        console.error(`[Auth Debug] Success template not found at: ${successPath}`);
-        throw new Error(`Success template not found: ${successPath}`);
-      }
-      if (!fs.existsSync(errorPath)) {
-        console.error(`[Auth Debug] Error template not found at: ${errorPath}`);
-        throw new Error(`Error template not found: ${errorPath}`);
-      }
-
-      // Determine protocol for deep linking back to the app
       const azureConfig = config.azure();
-      const protocol =
-        azureConfig?.customProtocol ||
-        (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
-      const redirectUrl = `${protocol}://auth`;
-
-      let successHtml = fs.readFileSync(successPath, "utf8");
-      successHtml = successHtml.replace("redirectUrl", redirectUrl);
-
-      const errorHtml = fs.readFileSync(errorPath, "utf8");
+      const successHtml = loadSuccessAuthTemplate(azureConfig?.customProtocol);
+      const errorHtml = loadAuthTemplate("errorTemplate.html");
       const openBrowser = async (url: string) => await shell.openExternal(url);
       const interactiveRequest: InteractiveRequest = {
         ...tokenRequest,
@@ -219,7 +207,10 @@ export class MicrosoftAuthService {
         await MicrosoftAuthService.pca.acquireTokenInteractive(interactiveRequest);
       return authResponse;
     } catch (error) {
-      console.error("Error getting token interactively:", formatErrorMessage(error));
+      console.error(
+        "Error getting token interactively:",
+        formatAndReportError(error, "microsoft_auth"),
+      );
       throw error;
     }
   }

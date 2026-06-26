@@ -4,19 +4,24 @@
   "version": "0.6.0",
   "description": "YakShaver, an AI agent to help you trim the fluff and get straight to the point",
   "main": "dist/backend/index.js",
+  "bin": {
+    "yakshaver": "./dist/cli/index.js"
+  },
   "build": {},
   "scripts": {
-    "setup": "concurrently \"npm install\"  \"cd src/ui && npm install\"",
+    "setup": "concurrently \"npm run setup:root\" \"cd src/ui && npm install\"",
+    "setup:root": "cross-env YOUTUBE_DL_SKIP_DOWNLOAD=true npm install && npm run install:yt-dlp",
     "build": "tsc",
     "start": "npm run build && electron .",
     "dev": "concurrently \"cd src/ui && npm run dev\" \"wait-on http://localhost:3000 && npm run build && cross-env NODE_ENV=development NODE_TLS_REJECT_UNAUTHORIZED=0 electron .\"",
     "package": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --dir",
     "make": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --config electron-builder.config.js",
     "publish": "npm run build && cd src/ui && npm run build && cd ../.. && electron-builder --publish always --config electron-builder.config.js",
-    "lint": "biome check --write .",
+    "lint": "biome check --write . --error-on-warnings",
     "format": "biome format --write .",
     "test": "vitest",
-    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "install:yt-dlp": "node scripts/install-yt-dlp.mjs",
+    "postinstall": "electron-rebuild -f -w better-sqlite3 && (npm run install:yt-dlp || node -e \"console.warn('Warning: yt-dlp installation failed during postinstall; continuing without it. Run npm run install:yt-dlp manually if you need YouTube support.')\")",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
@@ -32,7 +37,7 @@
   },
   "dependencies": {
     "@ai-sdk/azure": "^3.0.7",
-    "@ai-sdk/deepseek": "^2.0.4",
+    "@ai-sdk/deepseek": "^2.0.18",
     "@ai-sdk/mcp": "^1.0.6",
     "@ai-sdk/openai": "^3.0.2",
     "@azure/msal-node": "^5.0.2",
@@ -41,6 +46,7 @@
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "ai": "^6.0.14",
+    "applicationinsights": "^3.13.0",
     "better-sqlite3": "^12.5.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
@@ -55,15 +61,17 @@
     "isomorphic-fetch": "^3.0.0",
     "json-schema-to-zod": "^2.6.1",
     "openai": "^6.16.0",
+    "openid-client": "^6.8.2",
     "tmp": "^0.2.5",
-    "youtube-dl-exec": "^3.0.29"
+    "youtube-dl-exec": "^3.0.29",
+    "zod": "^4.2.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.11",
     "@electron/fuses": "^2.0.0",
     "@electron/notarize": "^3.1.1",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^25.0.3",
+    "@types/node": "^25.2.2",
     "@types/tmp": "^0.2.6",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
@@ -71,8 +79,9 @@
     "electron": "^39.2.7",
     "electron-builder": "^26.0.12",
     "electron-rebuild": "^3.2.9",
+    "js-yaml": "^4.1.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.15",
+    "vitest": "^4.0.18",
     "wait-on": "^9.0.3"
   }
 }

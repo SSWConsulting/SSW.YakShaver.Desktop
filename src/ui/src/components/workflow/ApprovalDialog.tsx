@@ -1,8 +1,12 @@
-import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import type { InteractionRequest, ToolApprovalPayload } from "@shared/types/user-interaction";
+import { Terminal } from "lucide-react";
+import { type ReactElement, useCallback, useEffect, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
-import { MCPStepType, ProgressStage, type WorkflowProgress } from "../../types";
-import { deepParseJson, formatErrorMessage } from "../../utils";
+import { formatErrorMessage, parseToolName, splitToolName } from "../../utils";
+import { LoadingState } from "../common/LoadingState";
+import { AzureDevOpsIcon } from "../settings/mcp/devops/devops-icon";
+import { GitHubIcon } from "../settings/mcp/github/github-icon";
+import { AtlassianIcon } from "../settings/mcp/jira/atlassian";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,63 +21,62 @@ import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 
-export function ApprovalDialog() {
-  const [pendingToolApproval, setPendingToolApproval] = useState<{
-    requestId: string;
-    toolName?: string;
-    args?: unknown;
-    autoApproveAt?: number;
-  } | null>(null);
+interface ApprovalDialogProps {
+  request: InteractionRequest;
+  onSubmit: (data: unknown) => Promise<void>;
+  error?: string | null;
+}
+function getServiceIcon(serverName: string | null): ReactElement {
+  const lower = serverName?.toLowerCase() ?? "";
+  if (lower.includes("github")) {
+    return <GitHubIcon className="w-5 h-5" />;
+  }
+  if (lower.includes("azure") || lower.includes("devops")) {
+    return <AzureDevOpsIcon className="w-5 h-5" />;
+  }
+  if (lower.includes("jira") || lower.includes("atlassian")) {
+    return <AtlassianIcon className="w-5 h-5" />;
+  }
+  return <Terminal className="w-5 h-5 text-white/70" />;
+}
+
+/**
+ * Plain-language explanations of why specific tools are needed, so non-technical
+ * users can make an informed choice (issue #783 AC2). Returns null for tools
+ * without a bespoke explanation, in which case the generic description is used.
+ *
+ * Keyed on the raw, unformatted tool id (the segment after any server prefix) via
+ * the shared {@link splitToolName} so it survives both MCP separators ("__" and ".").
+ */
+function getToolPurpose(rawToolName: string): string | null {
+  switch (splitToolName(rawToolName).tool) {
+    case "capture_video_frame":
+      return "YakShaver wants to capture a still frame from your screen recording so it can see what you're pointing at and keep working on your task accurately. It only runs when you say it's OK.";
+    default:
+      return null;
+  }
+}
+
+export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDialogProps) {
+  const payload = request.payload as ToolApprovalPayload;
+  const { toolName } = payload;
+  const autoApproveAt = request.autoApproveAt;
+
   const [approvalSubmitting, setApprovalSubmitting] = useState(false);
-  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [autoApprovalCountdown, setAutoApprovalCountdown] = useState<number | null>(null);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
 
-  const isOpen = Boolean(pendingToolApproval);
+  const displayError = pError || localError;
 
+  // Reset internal state when request changes
   useEffect(() => {
-    const unsubscribeProgress = ipcClient.workflow.onProgress((data: unknown) => {
-      const progressData = data as WorkflowProgress;
-      if (
-        progressData.stage === ProgressStage.CONVERTING_AUDIO ||
-        progressData.stage === ProgressStage.IDLE
-      ) {
-        setPendingToolApproval(null);
-        setApprovalSubmitting(false);
-        setApprovalError(null);
-      }
-    });
-
-    const unsubscribeSteps = ipcClient.mcp.onStepUpdate((step) => {
-      if (step.type === MCPStepType.TOOL_APPROVAL_REQUIRED && step.requestId) {
-        setPendingToolApproval({
-          requestId: step.requestId,
-          toolName: step.toolName,
-          args: step.args,
-          autoApproveAt: step.autoApproveAt,
-        });
-        setApprovalError(null);
-      }
-
-      if (step.type === MCPStepType.TOOL_DENIED) {
-        setPendingToolApproval((prev) => {
-          if (!prev) {
-            return prev;
-          }
-          if (!step.requestId || step.requestId === prev.requestId) {
-            return null;
-          }
-          return prev;
-        });
-        setApprovalSubmitting(false);
-      }
-    });
-
-    return () => {
-      unsubscribeProgress();
-      unsubscribeSteps();
-    };
+    setApprovalSubmitting(false);
+    setLocalError(null);
+    setShowCorrectionForm(false);
+    setCorrectionText("");
+    setAutoApprovalCountdown(null);
   }, []);
 
   type ApprovalAction =
@@ -83,20 +86,14 @@ export function ApprovalDialog() {
 
   const resolveToolApproval = useCallback(
     async (action: ApprovalAction) => {
-      if (!pendingToolApproval?.requestId) {
-        return;
-      }
-
       setApprovalSubmitting(true);
-      setApprovalError(null);
+      setLocalError(null);
       try {
         if (action.kind === "approve" && action.whitelist) {
-          if (!pendingToolApproval.toolName) {
+          if (!toolName) {
             throw new Error("Tool name missing for whitelist request.");
           }
-          const whitelistResponse = await ipcClient.mcp.addToolToWhitelist(
-            pendingToolApproval.toolName,
-          );
+          const whitelistResponse = await ipcClient.mcp.addToolToWhitelist(toolName);
           if (!whitelistResponse?.success) {
             throw new Error("Failed to add tool to whitelist.");
           }
@@ -118,39 +115,30 @@ export function ApprovalDialog() {
           return { kind: "approve" } as const;
         })();
 
-        const result = await ipcClient.mcp.respondToToolApproval(
-          pendingToolApproval.requestId,
-          decisionPayload,
-        );
-        if (!result?.success) {
-          throw new Error("Unable to submit tool approval decision.");
-        }
-        setPendingToolApproval(null);
+        await onSubmit(decisionPayload);
       } catch (error) {
-        setApprovalError(formatErrorMessage(error));
-      } finally {
-        setApprovalSubmitting(false);
+        setLocalError(formatErrorMessage(error));
+        setApprovalSubmitting(false); // Only stop loading on error, otherwise allow parent to unmount
       }
     },
-    [pendingToolApproval],
+    [toolName, onSubmit],
   );
 
   useEffect(() => {
-    if (!pendingToolApproval?.autoApproveAt || !pendingToolApproval.requestId) {
+    if (!autoApproveAt) {
       setAutoApprovalCountdown(null);
       return;
     }
 
-    const deadline = pendingToolApproval.autoApproveAt;
     const updateCountdown = () => {
-      const remainingMs = deadline - Date.now();
+      const remainingMs = autoApproveAt - Date.now();
       setAutoApprovalCountdown(Math.max(0, Math.ceil(remainingMs / 1000)));
     };
 
     updateCountdown();
 
     const intervalId = window.setInterval(updateCountdown, 500);
-    const timeoutDelay = Math.max(0, deadline - Date.now());
+    const timeoutDelay = Math.max(0, autoApproveAt - Date.now());
     const timeoutId = window.setTimeout(() => {
       updateCountdown();
       void resolveToolApproval({ kind: "approve" });
@@ -160,59 +148,62 @@ export function ApprovalDialog() {
       window.clearInterval(intervalId);
       window.clearTimeout(timeoutId);
     };
-  }, [pendingToolApproval?.autoApproveAt, pendingToolApproval?.requestId, resolveToolApproval]);
+  }, [autoApproveAt, resolveToolApproval]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setShowCorrectionForm(false);
-      setCorrectionText("");
-    }
-  }, [isOpen]);
+  // Always open if we have a request
+  const isOpen = true;
 
-  if (!isOpen) {
-    return null;
-  }
+  const readableToolInfo = toolName ? parseToolName(toolName) : null;
+  const toolLabel = readableToolInfo?.tool ?? "an action";
+  const dialogTitle = readableToolInfo
+    ? `Can YakShaver use "${readableToolInfo.tool}"?`
+    : "Can YakShaver perform this action?";
 
-  const approvalArgsText = pendingToolApproval?.args
-    ? (() => {
-        try {
-          return JSON.stringify(deepParseJson(pendingToolApproval.args), null, 2);
-        } catch {
-          try {
-            return JSON.stringify(pendingToolApproval.args, null, 2);
-          } catch {
-            return String(pendingToolApproval.args);
-          }
-        }
-      })()
-    : null;
+  // Some tools have a clear, user-facing purpose that non-technical users benefit
+  // from understanding (issue #783 AC2). Keyed on the raw, unformatted tool id so it
+  // survives both MCP separators ("__" and ".") and any display-label changes.
+  const toolPurpose = toolName ? getToolPurpose(toolName) : null;
+  const dialogDescription =
+    toolPurpose ??
+    (readableToolInfo?.server
+      ? `To keep working on your task, YakShaver needs to use the "${readableToolInfo.tool}" tool (from ${readableToolInfo.server}). It only runs when you say it's OK.`
+      : `To keep working on your task, YakShaver needs to perform an action. It only runs when you say it's OK.`);
 
   return (
     <AlertDialog open={isOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            {pendingToolApproval?.toolName
-              ? `Allow ${pendingToolApproval.toolName}?`
-              : "Approve requested tool?"}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            The orchestrator needs your confirmation before executing this MCP tool.
-          </AlertDialogDescription>
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0 w-5 h-5">
+              {getServiceIcon(readableToolInfo?.server ?? null)}
+            </div>
+            <AlertDialogTitle>{dialogTitle}</AlertDialogTitle>
+          </div>
+          <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
         </AlertDialogHeader>
+        {!showCorrectionForm && (
+          <ul className="space-y-1.5 text-sm text-white/70">
+            <li>
+              <span className="font-medium text-white/90">Allow</span> &mdash; let YakShaver use{" "}
+              {`"${toolLabel}"`} this one time.
+            </li>
+            <li>
+              <span className="font-medium text-white/90">Allow Always</span> &mdash; let YakShaver
+              use {`"${toolLabel}"`} now and skip this prompt next time.
+            </li>
+            <li>
+              <span className="font-medium text-white/90">Review / Correct&hellip;</span> &mdash;
+              don't run {`"${toolLabel}"`} as-is. You can leave a note telling YakShaver what to
+              change and try again, or stop the step entirely.
+            </li>
+          </ul>
+        )}
         {autoApprovalCountdown !== null && (
           <p className="text-xs text-yellow-300">
             Auto-approving in {autoApprovalCountdown}s if no action is taken.
           </p>
         )}
-        {approvalArgsText && (
-          <div className="bg-black/30 border border-white/10 rounded-md max-h-48 overflow-y-auto">
-            <pre className="text-xs text-white/80 p-3 whitespace-pre-wrap break-words">
-              {approvalArgsText}
-            </pre>
-          </div>
-        )}
-        {approvalError && <p className="text-red-400 text-sm">{approvalError}</p>}
+        {displayError && <p className="text-red-400 text-sm">{displayError}</p>}
         {showCorrectionForm && (
           <div className="space-y-2">
             <div className="space-y-1">
@@ -244,7 +235,7 @@ export function ApprovalDialog() {
                   setCorrectionText("");
                 }}
               >
-                Back
+                Cancel
               </Button>
               <Button
                 type="button"
@@ -260,11 +251,11 @@ export function ApprovalDialog() {
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoadingState />
                     Cancelling...
                   </span>
                 ) : (
-                  "Deny & stop"
+                  "Don't Allow"
                 )}
               </Button>
               <Button
@@ -281,7 +272,7 @@ export function ApprovalDialog() {
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoadingState />
                     Sending...
                   </span>
                 ) : (
@@ -298,12 +289,12 @@ export function ApprovalDialog() {
                   setShowCorrectionForm(true);
                 }}
               >
-                Deny
+                Review / Correct&hellip;
               </AlertDialogCancel>
               <Button
                 type="button"
                 variant="secondary"
-                disabled={approvalSubmitting || !pendingToolApproval?.toolName}
+                disabled={approvalSubmitting || !toolName}
                 onClick={(event) => {
                   event.preventDefault();
                   void resolveToolApproval({ kind: "approve", whitelist: true });
@@ -311,11 +302,11 @@ export function ApprovalDialog() {
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoadingState />
                     Saving...
                   </span>
                 ) : (
-                  "Approve & whitelist"
+                  "Allow Always"
                 )}
               </Button>
               <AlertDialogAction
@@ -327,11 +318,11 @@ export function ApprovalDialog() {
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <LoadingState />
                     Processing...
                   </span>
                 ) : (
-                  "Approve once"
+                  "Allow"
                 )}
               </AlertDialogAction>
             </>

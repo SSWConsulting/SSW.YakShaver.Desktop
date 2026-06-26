@@ -4,8 +4,8 @@ import { basename } from "node:path";
 import FormData from "form-data";
 import { z } from "zod";
 import { config } from "../../config/env";
-import { formatErrorMessage } from "../../utils/error-utils";
-import { MicrosoftAuthService } from "../auth/microsoft-auth";
+import { formatAndReportError } from "../../utils/error-utils";
+import { IdentityServerAuthService } from "../auth/identity-server-auth";
 
 /**
  * Makes an HTTP request to the portal API using Node.js https module
@@ -70,6 +70,7 @@ async function makePortalRequest(
 
 export const WorkItemDtoSchema = z.object({
   projectName: z.string(),
+  projectId: z.uuid(),
   title: z.string(),
   description: z.string(),
   workItemUrl: z.string().nullable(),
@@ -82,18 +83,22 @@ export const WorkItemDtoSchema = z.object({
 export type WorkItemDto = z.infer<typeof WorkItemDtoSchema>;
 
 const PostTaskRecordResponseSchema = z.object({
-  workItemId: z.string().uuid(),
+  workItemId: z.uuid(),
 });
 
 /**
  * Sends work item details to the portal API.
- * Requires the user to be authenticated with Microsoft.
+ * Requires the user to be authenticated with IdentityServer.
  */
 export async function SendWorkItemDetailsToPortal(
   payload: WorkItemDto,
 ): Promise<{ success: true; workItemId: string } | { success: false; error: string }> {
-  const ms = MicrosoftAuthService.getInstance();
-  const result = await ms.getToken();
+  const ids = IdentityServerAuthService.getInstance();
+  const accessToken = await ids.getAccessToken();
+
+  if (!accessToken) {
+    return { success: false, error: "Failed to obtain access token" } as const;
+  }
 
   const body = JSON.stringify(payload);
 
@@ -106,14 +111,14 @@ export async function SendWorkItemDetailsToPortal(
         },
         body: body,
       },
-      result.accessToken,
+      accessToken,
     );
 
     const parsed = JSON.parse(responseData);
     const validated = PostTaskRecordResponseSchema.parse(parsed);
     return { success: true, workItemId: validated.workItemId } as const;
   } catch (error) {
-    const message = formatErrorMessage(error);
+    const message = formatAndReportError(error, "portal_action");
     return { success: false, error: message } as const;
   }
 }
@@ -121,11 +126,15 @@ export async function SendWorkItemDetailsToPortal(
 export async function CancelWorkItemInPortal(
   workItemId: string,
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const ms = MicrosoftAuthService.getInstance();
-  if (!(await ms.isAuthenticated())) {
-    return { success: false, error: "User is not authenticated with Microsoft" };
+  const ids = IdentityServerAuthService.getInstance();
+  if (!(await ids.isAuthenticated())) {
+    return { success: false, error: "User is not authenticated with IdentityServer" };
   }
-  const result = await ms.getToken();
+  const accessToken = await ids.getAccessToken();
+
+  if (!accessToken) {
+    return { success: false, error: "Failed to obtain access token" } as const;
+  }
 
   try {
     await makePortalRequest(
@@ -135,7 +144,7 @@ export async function CancelWorkItemInPortal(
           "Content-Type": "application/json",
         },
       },
-      result.accessToken,
+      accessToken,
     );
     return { success: true } as const;
   } catch (error) {
@@ -151,16 +160,20 @@ export type ScreenshotUploadResponse = z.infer<typeof ScreenshotUploadResponseSc
 
 /**
  * Uploads a screenshot to the portal's Azure Blob Storage and returns the public URL.
- * Requires the user to be authenticated with Microsoft.
+ * Requires the user to be authenticated with IdentityServer.
  */
 export async function UploadScreenshotToPortal(
   screenshotPath: string,
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
-  const ms = MicrosoftAuthService.getInstance();
-  if (!(await ms.isAuthenticated())) {
-    return { success: false, error: "User is not authenticated with Microsoft" };
+  const ids = IdentityServerAuthService.getInstance();
+  if (!(await ids.isAuthenticated())) {
+    return { success: false, error: "User is not authenticated with IdentityServer" };
   }
-  const result = await ms.getToken();
+  const accessToken = await ids.getAccessToken();
+
+  if (!accessToken) {
+    return { success: false, error: "Failed to obtain access token" } as const;
+  }
 
   // Parse the portal API URL
   const apiUrl = config.portalApiUrl();
@@ -194,7 +207,7 @@ export async function UploadScreenshotToPortal(
         },
         body: body,
       },
-      result.accessToken,
+      accessToken,
     );
 
     const parsed = JSON.parse(responseData);
@@ -202,7 +215,7 @@ export async function UploadScreenshotToPortal(
 
     return { success: true, url: validatedResponse.url };
   } catch (error) {
-    const message = formatErrorMessage(error);
+    const message = formatAndReportError(error, "portal_action");
     return { success: false, error: message };
   }
 }

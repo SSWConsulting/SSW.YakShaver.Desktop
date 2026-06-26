@@ -5,7 +5,7 @@ import { desktopCapturer, systemPreferences } from "electron";
 import tmp from "tmp";
 import { SCREEN_RECORDING_ERRORS } from "../../../shared/constants/error-messages";
 import { getMainWindow } from "../../index";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import type { VideoUploadResult } from "../auth/types";
 import type { ScreenSource, StartRecordingResult, StopRecordingResult } from "./types";
 
@@ -25,6 +25,15 @@ export class RecordingService extends EventEmitter {
     return this.displayId;
   }
 
+  // Live elapsed seconds for the running timer, or null when no timer is
+  // active. Used by the control bar's mount handshake so a renderer that
+  // subscribes after the timer started can pull the current value instead of
+  // relying on a push it may have missed (#870).
+  getCurrentElapsedSeconds(): number | null {
+    if (!this.timer) return null;
+    return Math.floor((Date.now() - this.startTime) / 1000);
+  }
+
   async handleStartRecording(sourceId?: string): Promise<StartRecordingResult> {
     try {
       this.stopTimer();
@@ -34,6 +43,7 @@ export class RecordingService extends EventEmitter {
       });
       if (!sources.length) return { success: false, error: "No screen sources available" };
 
+      // BUG: it seems like it will always end up with source[0] which is the primary screen which causes the countdown not to have the right size
       const selected =
         sources.find((s) => s.id === sourceId) || sources.find((s) => s.display_id) || sources[0];
 
@@ -43,7 +53,7 @@ export class RecordingService extends EventEmitter {
 
       return { success: true, sourceId: selected.id };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "start_recording") };
     }
   }
 
@@ -60,7 +70,7 @@ export class RecordingService extends EventEmitter {
       const fileName = basename(tempFile.name);
       return { success: true, filePath: tempFile.name, fileName };
     } catch (error) {
-      return { success: false, error: formatErrorMessage(error) };
+      return { success: false, error: formatAndReportError(error, "stop_recording") };
     }
   }
 
@@ -117,6 +127,12 @@ export class RecordingService extends EventEmitter {
 
   private startTimer() {
     this.startTime = Date.now();
+    // #870: emit an immediate 0 so the control bar shows a value right away
+    // instead of waiting a full second for the first setInterval tick. Combined
+    // with the control bar re-pushing the latest time once its window loads,
+    // this stops a late-subscribing renderer (observed on macOS) from being
+    // stuck on 00:00.
+    this.emit("recording-time-update", 0);
     this.timer = setInterval(() => {
       const time = Math.floor((Date.now() - this.startTime) / 1000);
       this.emit("recording-time-update", time);

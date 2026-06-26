@@ -20,4 +20,4 @@ jobs:
       - name: Run Biome format check
         run: npx biome format .
       - name: Run Biome linter
-        run: npx biome lint .
+        run: npx biome lint . --error-on-warnings

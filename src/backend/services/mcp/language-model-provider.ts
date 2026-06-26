@@ -1,18 +1,10 @@
-import {
-  generateText,
-  type LanguageModel,
-  type ModelMessage,
-  Output,
-  stepCountIs,
-  streamText,
-  type ToolSet,
-} from "ai";
+import { generateText, type LanguageModel, type ModelMessage, Output, type ToolSet } from "ai";
 import { BrowserWindow } from "electron";
 import type { ZodType, z } from "zod";
 import { LLM_PROVIDER_CONFIGS } from "../../../shared/llm/llm-providers";
 import type { LLMConfig } from "../../../shared/types/llm";
 import type { HealthStatusInfo } from "../../types";
-import { formatErrorMessage } from "../../utils/error-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import { LlmStorage } from "../storage/llm-storage";
 
 type StepType =
@@ -21,7 +13,6 @@ type StepType =
   | "tool_call"
   | "tool_result"
   | "final_result"
-  | "tool_approval_required"
   | "tool_denied";
 
 interface MCPStep {
@@ -36,7 +27,7 @@ interface MCPStep {
   timestamp?: number;
 }
 
-function sendStepEvent(event: MCPStep): void {
+function _sendStepEvent(event: MCPStep): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
       win.webContents.send("mcp:step-update", event);
@@ -163,44 +154,6 @@ export class LanguageModelProvider {
     }
   }
 
-  public async sendMessage(
-    message: ModelMessage[],
-    tools: ToolSet,
-  ): Promise<Awaited<ReturnType<typeof streamText>>> {
-    if (!this.languageModel) {
-      throw new Error("[LanguageModelProvider]: LLM client not initialized");
-    }
-
-    try {
-      return streamText({
-        model: this.languageModel,
-        tools,
-        messages: message,
-        stopWhen: stepCountIs(50),
-        onFinish: (result) => sendStepEvent({ type: "final_result", message: result.finishReason }),
-        onChunk: ({ chunk }) => {
-          switch (chunk.type) {
-            case "tool-call":
-              // send an event to your orchestrator UI: "Calling tool X …"
-              sendStepEvent({ type: "tool_call", toolName: chunk.toolName, args: chunk.input });
-              break;
-            case "tool-result":
-              // show the result once the tool returns
-              sendStepEvent({
-                type: "tool_result",
-                toolName: chunk.toolName,
-                result: chunk.output,
-              });
-              break;
-          }
-        },
-      });
-    } catch (error) {
-      console.error("[LanguageModelProvider]: Error in sendMessage:", error);
-      throw error;
-    }
-  }
-
   public async checkHealth(): Promise<HealthStatusInfo> {
     // Ensure the latest model configuration
     await this.updateLanguageModel();
@@ -230,7 +183,7 @@ export class LanguageModelProvider {
     } catch (err) {
       return {
         isHealthy: false,
-        error: formatErrorMessage(err),
+        error: formatAndReportError(err, "llm_health_check"),
         isChecking: false,
       };
     }

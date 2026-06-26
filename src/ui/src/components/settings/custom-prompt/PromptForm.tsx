@@ -1,7 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronLeft, ChevronRight, Copy, Trash2 } from "lucide-react";
+import { ensureBuiltinServerIds, getBuiltinServerIds } from "@shared/utils/mcp-utils";
+import { AlertTriangle, ChevronLeft, ChevronRight, Copy, FilePlus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { useClipboard } from "../../../hooks/useClipboard";
 import { ipcClient } from "../../../services/ipc-client";
 import { Button } from "../../ui/button";
@@ -16,21 +18,26 @@ import {
   FormMessage,
 } from "../../ui/form";
 import { Input } from "../../ui/input";
-import { Textarea } from "../../ui/textarea";
 import type { MCPServerConfig } from "../mcp/McpServerForm";
-import { type PromptFormValues, promptFormSchema } from "./schema";
+import { HighlightedTextarea, hasPlaceholder } from "./HighlightedTextarea";
+import {
+  PROMPT_DESCRIPTION_MAX,
+  PROMPT_NAME_MAX,
+  type PromptFormValues,
+  promptFormSchema,
+} from "./schema";
 
 interface PromptFormProps {
   defaultValues?: PromptFormValues;
-  onSubmit: (data: PromptFormValues, andActivate: boolean) => Promise<void>;
+  onSubmit?: (data: PromptFormValues) => Promise<void>;
   onCancel: () => void;
   onDelete?: () => void;
+  onUseTemplate?: () => void;
   loading: boolean;
-  isDefault?: boolean;
+  isTemplate?: boolean;
+  templateContent?: string;
   isNewPrompt?: boolean;
-}
-
-interface InternalPromptFormProps extends PromptFormProps {
+  selectAllServersForNewPrompt?: boolean;
   onDirtyChange?: (isDirty: boolean) => void;
 }
 
@@ -39,11 +46,14 @@ export function PromptForm({
   onSubmit,
   onCancel,
   onDelete,
+  onUseTemplate,
   loading,
-  isDefault = false,
+  isTemplate = false,
+  templateContent,
   isNewPrompt = false,
+  selectAllServersForNewPrompt = false,
   onDirtyChange,
-}: InternalPromptFormProps) {
+}: PromptFormProps) {
   const { copyToClipboard } = useClipboard();
   const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
   const [serversLoaded, setServersLoaded] = useState(false);
@@ -65,10 +75,18 @@ export function PromptForm({
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
-  const serversWithIds = useMemo(
-    () => mcpServers.filter((server): server is MCPServerConfig & { id: string } => !!server.id),
-    [mcpServers],
-  );
+  const serversWithIds = useMemo(() => {
+    return mcpServers
+      .filter(
+        (server): server is MCPServerConfig & { id: string } => !!server.id && !server.builtin,
+      )
+      .sort((a, b) => {
+        const aEnabled = a.enabled !== false ? 0 : 1;
+        const bEnabled = b.enabled !== false ? 0 : 1;
+        if (aEnabled !== bEnabled) return aEnabled - bEnabled;
+        return a.name.localeCompare(b.name);
+      });
+  }, [mcpServers]);
   const totalPages = Math.ceil(serversWithIds.length / SERVERS_PER_PAGE);
   const paginatedServers = useMemo(
     () => serversWithIds.slice(serverPage * SERVERS_PER_PAGE, (serverPage + 1) * SERVERS_PER_PAGE),
@@ -104,71 +122,109 @@ export function PromptForm({
     });
   }, [mcpServers.length]);
 
-  // Auto-select all servers for existing prompts without selectedMcpServerIds
-  // This runs once after servers are loaded
+  // Initialise MCP server selection once after servers are loaded. Three cases:
+  //   default prompt  → select all servers (locked, not editable)
+  //   new prompt      → pre-select built-in server IDs only
+  //   existing prompt → keep saved selection and ensure built-ins are always included;
+  //                     if no prior selection exists, default to all non-builtin servers
   // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally omitting form methods to prevent re-runs
   useEffect(() => {
-    if (serversLoaded && !isNewPrompt && !hasAutoSelectedServers.current && mcpServers.length > 0) {
-      const currentSelection = form.getValues("selectedMcpServerIds");
-      if (!currentSelection || currentSelection.length === 0) {
+    if (serversLoaded && !hasAutoSelectedServers.current && mcpServers.length > 0) {
+      if (isTemplate) {
         const allServerIds = mcpServers.map((s) => s.id).filter((id): id is string => !!id);
         form.setValue("selectedMcpServerIds", allServerIds, { shouldDirty: false });
+      } else if (isNewPrompt) {
+        const ids = selectAllServersForNewPrompt
+          ? mcpServers.map((s) => s.id).filter((id): id is string => !!id)
+          : getBuiltinServerIds(mcpServers);
+        form.setValue("selectedMcpServerIds", ids, { shouldDirty: false });
+      } else {
+        const currentSelection = form.getValues("selectedMcpServerIds");
+        if (!currentSelection || currentSelection.length === 0) {
+          // No prior selection: default to all non-builtin servers (regardless of connection status)
+          const allNonBuiltinIds = mcpServers
+            .filter((s) => !s.builtin)
+            .map((s) => s.id)
+            .filter((id): id is string => !!id);
+          form.setValue(
+            "selectedMcpServerIds",
+            ensureBuiltinServerIds(allNonBuiltinIds, mcpServers),
+            { shouldDirty: false },
+          );
+        } else {
+          // Existing selection: preserve it and silently add any missing built-ins
+          form.setValue(
+            "selectedMcpServerIds",
+            ensureBuiltinServerIds(currentSelection, mcpServers),
+            { shouldDirty: false },
+          );
+        }
       }
       hasAutoSelectedServers.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serversLoaded, isNewPrompt, mcpServers]);
+  }, [serversLoaded, isTemplate, isNewPrompt, selectAllServersForNewPrompt, mcpServers]);
 
-  const handleSubmit = async (andActivate: boolean) => {
+  const handleSubmit = async () => {
     const isValid = await form.trigger();
     if (!isValid) return;
 
     const data = form.getValues();
 
-    // Validate that at least one enabled non-built-in MCP server is selected (if any are available)
-    // Skip validation for default prompts since their server selection cannot be changed
-    if (!isDefault) {
-      const availableEnabledNonBuiltinServers = mcpServers.filter(
-        (server) => !server.builtin && server.enabled !== false,
-      );
-      if (availableEnabledNonBuiltinServers.length > 0) {
-        const selectedEnabledNonBuiltinServers = availableEnabledNonBuiltinServers.filter(
-          (server) => server.id && data.selectedMcpServerIds?.includes(server.id),
-        );
-        if (selectedEnabledNonBuiltinServers.length === 0) {
-          form.setError("selectedMcpServerIds", {
-            type: "manual",
-            message: "Please select at least one enabled MCP server (excluding built-in servers)",
-          });
-          return;
-        }
+    if (!isTemplate) {
+      const nonBuiltinServers = mcpServers.filter((s) => !s.builtin);
+
+      // Case 1: no non-builtin servers exist at all → hard block
+      if (nonBuiltinServers.length === 0) {
+        form.setError("selectedMcpServerIds", {
+          type: "manual",
+          message: "No MCP servers configured. Please add a server in the MCP settings tab.",
+        });
+        return;
       }
+
+      // Case 2: non-builtin servers exist but none are selected → hard block
+      const selectedNonBuiltinIds = (data.selectedMcpServerIds ?? []).filter((id) =>
+        nonBuiltinServers.some((s) => s.id === id),
+      );
+      if (selectedNonBuiltinIds.length === 0) {
+        form.setError("selectedMcpServerIds", {
+          type: "manual",
+          message: "Please select at least one MCP server (excluding built-in servers).",
+        });
+        return;
+      }
+
+      // Case 3: all selected non-builtins are disconnected → soft warning, allow save (handled in UI)
     }
 
-    await onSubmit(data, andActivate);
+    await onSubmit?.(data);
   };
 
   return (
     <Form {...form}>
-      <form className="flex flex-col gap-4 h-full max-w-full">
+      <form className="flex flex-col gap-4 max-w-full">
         <FormField
           control={form.control}
           name="name"
           render={({ field }) => (
             <FormItem className="shrink-0">
-              <FormLabel>Prompt Name *</FormLabel>
+              <div className="flex items-center justify-between">
+                <FormLabel>Prompt Name *</FormLabel>
+                {!isTemplate && (
+                  <span className="text-xs text-muted-foreground">
+                    {(field.value ?? "").length}/{PROMPT_NAME_MAX}
+                  </span>
+                )}
+              </div>
               <FormControl>
                 <Input
                   {...field}
                   placeholder="e.g., Documentation Writer, Code Reviewer"
-                  disabled={isDefault}
+                  disabled={isTemplate}
+                  maxLength={PROMPT_NAME_MAX}
                 />
               </FormControl>
-              {isDefault ? (
-                <FormDescription>Default prompt name cannot be changed</FormDescription>
-              ) : (
-                <FormMessage />
-              )}
+              <FormMessage />
             </FormItem>
           )}
         />
@@ -178,19 +234,23 @@ export function PromptForm({
           name="description"
           render={({ field }) => (
             <FormItem className="shrink-0">
-              <FormLabel>Description</FormLabel>
+              <div className="flex items-center justify-between">
+                <FormLabel>Description</FormLabel>
+                {!isTemplate && (
+                  <span className="text-xs text-muted-foreground">
+                    {(field.value ?? "").length}/{PROMPT_DESCRIPTION_MAX}
+                  </span>
+                )}
+              </div>
               <FormControl>
                 <Input
                   {...field}
                   placeholder="Brief description of what this prompt does"
-                  disabled={isDefault}
+                  disabled={isTemplate}
+                  maxLength={PROMPT_DESCRIPTION_MAX}
                 />
               </FormControl>
-              <FormDescription>
-                {isDefault
-                  ? "Default prompt description cannot be changed"
-                  : "This will be shown in the prompt card for quick reference"}
-              </FormDescription>
+              <FormMessage />
             </FormItem>
           )}
         />
@@ -198,40 +258,65 @@ export function PromptForm({
         <FormField
           control={form.control}
           name="content"
-          render={({ field }) => (
-            <FormItem className="flex flex-col flex-1 min-h-0 overflow-hidden shrink-0 max-w-full">
-              <div className="flex items-center justify-between">
-                <FormLabel className="text-white/90 text-sm">Prompt Instructions</FormLabel>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => copyToClipboard(field.value)}
-                  className="cursor-pointer"
-                >
-                  <Copy className="w-4 h-4" />
-                  Copy
-                </Button>
-              </div>
-              <FormControl>
-                <Textarea
-                  {...field}
-                  placeholder="Enter your custom instructions here..."
-                  disabled={isDefault}
-                  className="resize-none flex-1 max-h-50 overflow-y-auto font-mono text-sm bg-black/40 border-white/20 max-w-full wrap-break-word break-normal whitespace-pre-wrap overflow-x-hidden [word-break:break-word]"
-                />
-              </FormControl>
-              <FormDescription>
-                {isDefault
-                  ? "Default prompt instructions cannot be changed"
-                  : "These instructions will be appended to the task execution system prompt"}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            const hasPlaceholders = hasPlaceholder(field.value ?? "");
+            return (
+              <FormItem className="flex flex-col shrink-0 max-w-full">
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  <FormLabel className="text-white/90 text-sm">Prompt Instructions *</FormLabel>
+                  <div className="flex items-center gap-1">
+                    {!isTemplate && templateContent && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const current = form.getValues("content");
+                          const appended = current
+                            ? `${current}\n\n---\n\n${templateContent}`
+                            : templateContent;
+                          form.setValue("content", appended, { shouldDirty: true });
+                          toast.success("Template appended");
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <FilePlus className="w-4 h-4" />
+                        Insert template
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(field.value)}
+                      className="cursor-pointer"
+                    >
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+                <FormControl>
+                  <HighlightedTextarea
+                    {...field}
+                    placeholder="Enter your custom instructions here..."
+                    disabled={isTemplate}
+                    containerClassName="h-64"
+                  />
+                </FormControl>
+                {hasPlaceholders && !isTemplate && (
+                  <p className="text-xs text-amber-500/80 flex items-center gap-1 mt-1">
+                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                    Replace the highlighted fields before using this prompt
+                  </p>
+                )}
+                <FormMessage />
+              </FormItem>
+            );
+          }}
         />
 
-        {serversLoaded && mcpServers.length > 0 && (
+        {serversLoaded && serversWithIds.length > 0 && (
           <FormField
             control={form.control}
             name="selectedMcpServerIds"
@@ -239,6 +324,12 @@ export function PromptForm({
               const selectedNames = serversWithIds
                 .filter((s) => field.value?.includes(s.id))
                 .map((s) => s.name);
+
+              const hasDisconnectedSelection =
+                !isTemplate &&
+                serversWithIds.some(
+                  (s) => !s.builtin && s.enabled === false && field.value?.includes(s.id),
+                );
 
               return (
                 <FormItem className="shrink-0">
@@ -262,8 +353,12 @@ export function PromptForm({
                     aria-live="polite"
                   >
                     {paginatedServers.map((server) => {
-                      const isChecked = field.value?.includes(server.id) ?? false;
-                      const isDisabled = isDefault || server.enabled === false;
+                      const isBuiltin = server.builtin ?? false;
+                      const isServerDisabled = server.enabled === false;
+                      const isChecked =
+                        isTemplate || isBuiltin || (field.value?.includes(server.id) ?? false);
+                      // Lock checkboxes for template prompts and built-ins
+                      const isCheckboxDisabled = isTemplate || isBuiltin;
                       const handleToggle = () => {
                         const newValue = isChecked
                           ? (field.value || []).filter((id) => id !== server.id)
@@ -271,30 +366,34 @@ export function PromptForm({
                         field.onChange(newValue);
                       };
                       return (
+                        // min-h-11 gives the whole row a 44px-tall click target
+                        // (WCAG 2.5.5). The label spans the row via htmlFor, so
+                        // the row — not an overflowing checkbox overlay — is the
+                        // hit area, avoiding mis-toggling a stacked neighbour.
                         <div
                           key={server.id}
-                          className={`flex items-center gap-3 p-1 rounded ${
-                            isDisabled ? "opacity-50" : ""
-                          }`}
+                          className="flex items-center gap-3 min-h-11 px-1 rounded"
                         >
                           <Checkbox
                             id={`server-${server.id}`}
                             checked={isChecked}
                             onCheckedChange={handleToggle}
-                            disabled={isDisabled}
+                            disabled={isCheckboxDisabled}
                           />
                           <label
                             htmlFor={`server-${server.id}`}
-                            className={`text-sm flex-1 select-none ${
-                              isDisabled ? "cursor-not-allowed" : "cursor-pointer"
+                            className={`text-sm flex-1 self-stretch flex items-center select-none ${
+                              isCheckboxDisabled ? "cursor-not-allowed" : "cursor-pointer"
                             }`}
                           >
                             {server.name}
-                            {server.builtin && (
+                            {isBuiltin && (
                               <span className="ml-2 text-xs text-white/50">(Built-in)</span>
                             )}
-                            {isDisabled && (
-                              <span className="ml-2 text-xs text-yellow-500/70">(Disabled)</span>
+                            {isServerDisabled && (
+                              <span className="ml-2 text-xs text-yellow-500/70">
+                                (Not connected)
+                              </span>
                             )}
                           </label>
                         </div>
@@ -332,6 +431,12 @@ export function PromptForm({
                       </div>
                     )}
                   </div>
+                  {hasDisconnectedSelection && (
+                    <p className="text-xs text-yellow-500/80 mt-1">
+                      Some selected servers are disconnected. Connect them in MCP settings tab to
+                      make their tools available.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               );
@@ -339,55 +444,68 @@ export function PromptForm({
           />
         )}
 
-        {serversLoaded && mcpServers.length === 0 && (
+        {serversLoaded && serversWithIds.length === 0 && (
           <div className="text-sm text-yellow-500/80 p-3 rounded-md border border-yellow-500/30 bg-yellow-500/10">
-            No MCP servers configured. Please add MCP servers in the MCP settings tab.
+            No external MCP servers configured. You can add additional MCP servers in the MCP
+            settings tab.
           </div>
         )}
 
         <div className="flex justify-between gap-2 shrink-0">
-          {onDelete && (
-            <Button
-              type="button"
-              onClick={onDelete}
-              variant="destructive"
-              size="sm"
-              disabled={loading}
-              className="cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
-            </Button>
+          {isTemplate ? (
+            <div className="flex gap-2 ml-auto">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onCancel}
+                className="cursor-pointer"
+              >
+                Close
+              </Button>
+              {onUseTemplate && (
+                <Button type="button" size="sm" onClick={onUseTemplate} className="cursor-pointer">
+                  Use Template
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              {onDelete && (
+                <Button
+                  type="button"
+                  onClick={onDelete}
+                  variant="destructive"
+                  size="sm"
+                  disabled={loading}
+                  className="cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onCancel}
+                  className="cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => handleSubmit()}
+                  disabled={loading || !form.formState.isValid}
+                  size="sm"
+                  className="cursor-pointer"
+                >
+                  {loading ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </>
           )}
-          <div className="flex gap-2 ml-auto">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onCancel}
-              className="cursor-pointer"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={() => handleSubmit(false)}
-              disabled={loading || !form.formState.isValid}
-              size="sm"
-              className="cursor-pointer"
-            >
-              {loading ? "Saving..." : "Save"}
-            </Button>
-            <Button
-              type="button"
-              onClick={() => handleSubmit(true)}
-              disabled={loading || !form.formState.isValid}
-              size="sm"
-              className="cursor-pointer"
-            >
-              {loading ? "Saving..." : "Save & Use"}
-            </Button>
-          </div>
         </div>
       </form>
     </Form>

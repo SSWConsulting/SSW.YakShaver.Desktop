@@ -8,4 +8,5 @@ export interface VideoProcessingPayload {
 
 export interface ExecutingTaskPayload extends VideoProcessingPayload {
   mcpResult?: string;
+  finalOutput?: string;
 }

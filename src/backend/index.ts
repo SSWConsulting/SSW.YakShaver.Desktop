@@ -12,6 +12,7 @@ import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { IPC_CHANNELS } from "./ipc/channels";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
+import { IdentityServerAuthIPCHandlers } from "./ipc/identity-server-auth-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
 import { MicrosoftAuthIPCHandlers } from "./ipc/microsoft-auth-handlers";
@@ -20,9 +21,13 @@ import { ProcessVideoIPCHandlers } from "./ipc/process-video-handlers";
 import { ReleaseChannelIPCHandlers } from "./ipc/release-channel-handlers";
 import { ScreenRecordingIPCHandlers } from "./ipc/screen-recording-handlers";
 import { ShaveIPCHandlers } from "./ipc/shave-handlers";
+import { TelemetryIPCHandlers } from "./ipc/telemetry-handlers";
+import { registerUserInteractionHandlers } from "./ipc/user-interaction-handlers";
 import { UserSettingsIPCHandlers } from "./ipc/user-settings-handlers";
 import { handleProtocolUrl } from "./protocol/protocol-router";
+import { IdentityServerAuthService } from "./services/auth/identity-server-auth";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
+import { CliBridgeServer } from "./services/cli-bridge/cli-bridge-server";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPOrchestrator } from "./services/mcp/mcp-orchestrator";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
@@ -30,7 +35,9 @@ import { CameraWindow } from "./services/recording/camera-window";
 import { RecordingControlBarWindow } from "./services/recording/control-bar-window";
 import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
+import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
+import { TelemetryService } from "./services/telemetry/telemetry-service";
 import { TrayManager } from "./services/tray/tray-manager";
 import { getIconPath } from "./utils/path-utils";
 
@@ -60,6 +67,7 @@ loadEnv();
 let mainWindow: BrowserWindow | null = null;
 let pendingProtocolUrl: string | null = null;
 let isQuitting: boolean = false;
+let isCreatingMainWindow: boolean = false;
 
 const trayManager = new TrayManager(() => {
   isQuitting = true;
@@ -157,10 +165,20 @@ const createApplicationMenu = (): void => {
   Menu.setApplicationMenu(menu);
 };
 
-const createWindow = (): void => {
+const createWindow = (): BrowserWindow | null => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow;
+  }
+
+  if (isCreatingMainWindow) {
+    return null;
+  }
+
+  isCreatingMainWindow = true;
+
   const title = `YakShaver`;
 
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1200,
     height: 800,
     title,
@@ -173,8 +191,10 @@ const createWindow = (): void => {
     },
   });
 
+  mainWindow = window;
+
   // URLs - by default, open in default browser
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
       shell.openExternal(url);
       return { action: "deny" };
@@ -182,20 +202,34 @@ const createWindow = (): void => {
     return { action: "allow" };
   });
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow?.show();
+  window.once("ready-to-show", () => {
+    isCreatingMainWindow = false;
+    if (!window.isDestroyed()) {
+      window.show();
+    }
   });
 
-  mainWindow.on("close", (event) => {
+  window.on("close", (event) => {
     if (!isQuitting) {
       event.preventDefault();
-      mainWindow?.hide();
+      window.hide();
+
+      // Ensure screen frame overlay is closed
+      try {
+        ScreenFrameWindow.getInstance().hide();
+      } catch (err) {
+        console.error("ScreenFrameWindow cleanup error:", err);
+      }
+
       return false;
     }
   });
 
-  mainWindow.on("closed", () => {
-    mainWindow = null;
+  window.on("closed", () => {
+    isCreatingMainWindow = false;
+    if (mainWindow === window) {
+      mainWindow = null;
+    }
     // Cleanup any pending MCP tool approvals to prevent hanging promises
     MCPOrchestrator.getInstanceAsync().then((orchestrator) => {
       orchestrator.cancelAllPendingApprovals("Window closed");
@@ -203,14 +237,29 @@ const createWindow = (): void => {
   });
 
   if (isDev) {
-    mainWindow.loadURL("http://localhost:3000");
-    mainWindow.webContents.openDevTools();
+    window.loadURL("http://localhost:3000").catch((err) => {
+      isCreatingMainWindow = false;
+      console.error("Failed to load dev server URL (is the dev server running?):", err);
+      if (!window.isDestroyed()) {
+        window.destroy();
+      }
+    });
+    window.webContents.openDevTools();
   } else {
     const indexPath = join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/index.html");
-    mainWindow.loadFile(indexPath).catch((err) => {
+    window.loadFile(indexPath).catch((err) => {
+      isCreatingMainWindow = false;
       console.error("Failed to load index.html:", err);
+      if (mainWindow === window) {
+        mainWindow = null;
+      }
+      if (!window.isDestroyed()) {
+        window.destroy();
+      }
     });
   }
+
+  return window;
 };
 
 const getProtocolUrlFromArgs = (args: string[]): string | null => {
@@ -242,6 +291,7 @@ const handleProtocolUrlSafely = async (
 let _screenRecordingHandlers: ScreenRecordingIPCHandlers;
 let _authHandlers: AuthIPCHandlers;
 let _msAuthHandlers: MicrosoftAuthIPCHandlers;
+let _isAuthHandlers: IdentityServerAuthIPCHandlers;
 let _llmSettingsHandlers: LLMSettingsIPCHandlers;
 let _mcpHandlers: McpIPCHandlers;
 let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
@@ -251,6 +301,7 @@ let _githubTokenHandlers: GitHubTokenIPCHandlers;
 let _userSettingsHandlers: UserSettingsIPCHandlers;
 let _shaveHandlers: ShaveIPCHandlers;
 let _appControlHandlers: AppControlIPCHandlers;
+let _telemetryHandlers: TelemetryIPCHandlers;
 let unregisterEventForwarders: (() => void) | undefined;
 
 // Register protocol handler
@@ -290,13 +341,25 @@ if (!gotTheLock) {
       mainWindow.focus();
 
       // Check for protocol URL in command line (Windows)
-      const url = commandLine.find((arg) => arg.startsWith(`${customProtocol}://`));
+      // Match any yakshaver protocol URL (covers both dev and prod protocols,
+      // as well as custom protocols from Azure/IdentityServer config)
+      const url = commandLine.find(
+        (arg) =>
+          arg.startsWith(`${customProtocol}://`) ||
+          arg.startsWith("yakshaver-desktop-dev://") ||
+          arg.startsWith("yakshaver-desktop://"),
+      );
       if (url) {
         handleProtocolUrlSafely(mainWindow, url);
       }
     } else {
       // Store for later if window not ready yet
-      const url = commandLine.find((arg) => arg.startsWith(`${customProtocol}://`));
+      const url = commandLine.find(
+        (arg) =>
+          arg.startsWith(`${customProtocol}://`) ||
+          arg.startsWith("yakshaver-desktop-dev://") ||
+          arg.startsWith("yakshaver-desktop://"),
+      );
       if (url) {
         pendingProtocolUrl = url;
       }
@@ -358,9 +421,17 @@ app.whenReady().then(async () => {
   try {
     const microsoftAuthService = MicrosoftAuthService.getInstance();
     _msAuthHandlers = new MicrosoftAuthIPCHandlers(microsoftAuthService);
-    registerPortalHandlers(microsoftAuthService);
+    // registerPortalHandlers(microsoftAuthService);
   } catch (error) {
     console.error("Failed to initialize Microsoft Auth:", error);
+  }
+  try {
+    const identityServerAuthService = IdentityServerAuthService.getInstance();
+    await identityServerAuthService.initialize();
+    _isAuthHandlers = new IdentityServerAuthIPCHandlers(identityServerAuthService);
+    registerPortalHandlers(identityServerAuthService);
+  } catch (error) {
+    console.error("Failed to initialize IdentityServer Auth:", error);
   }
   _processVideoHandlers = new ProcessVideoIPCHandlers();
 
@@ -377,6 +448,13 @@ app.whenReady().then(async () => {
 
   const mcpServerManager = await MCPServerManager.getInstanceAsync();
   _mcpHandlers = new McpIPCHandlers(mcpServerManager);
+
+  // Start the localhost-only CLI config bridge (best-effort; never blocks startup).
+  try {
+    await CliBridgeServer.getInstance().start();
+  } catch (err) {
+    console.error("Failed to start CLI bridge:", err);
+  }
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
   _appControlHandlers = new AppControlIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
@@ -385,10 +463,18 @@ app.whenReady().then(async () => {
   await _userSettingsHandlers.initialize();
   _shaveHandlers = new ShaveIPCHandlers();
 
+  registerUserInteractionHandlers();
+  _telemetryHandlers = new TelemetryIPCHandlers();
+
+  // Initialize telemetry service (checks consent and sets up App Insights if granted)
+  const telemetryService = TelemetryService.getInstance();
+  await telemetryService.initializeAsync();
+
   // Pre-initialize recording windows for faster display
   RecordingControlBarWindow.getInstance().initialize(isDev);
   CameraWindow.getInstance().initialize(isDev);
   CountdownWindow.getInstance().initialize(isDev);
+  ScreenFrameWindow.getInstance().initialize(isDev);
   unregisterEventForwarders = registerEventForwarders();
 
   // Create application menu
@@ -427,9 +513,19 @@ const cleanup = async () => {
 
   unregisterEventForwarders?.();
   try {
+    await CliBridgeServer.getInstance().stop();
+  } catch (err) {
+    console.error("CLI bridge shutdown error:", err);
+  }
+  try {
     await RecordingService.getInstance().cleanupAllTempFiles();
   } catch (err) {
     console.error("Cleanup error:", err);
+  }
+  try {
+    await _processVideoHandlers?.cleanupAllTempFiles();
+  } catch (err) {
+    console.error("ProcessVideo cleanup error:", err);
   }
 };
 
@@ -447,13 +543,17 @@ app.on("before-quit", async (event) => {
 });
 
 app.on("activate", () => {
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show();
-  } else if (BrowserWindow.getAllWindows().length === 0) {
+  } else if (!isCreatingMainWindow) {
     createWindow();
   }
 });
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
+}
+
+export function setIsQuitting(value: boolean): void {
+  isQuitting = value;
 }

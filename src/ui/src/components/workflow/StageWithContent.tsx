@@ -1,7 +1,7 @@
 import { AlertTriangle, Check, ChevronRight, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import { type MCPStep, MCPStepType, type MetadataPreview, type VideoChapter } from "../../types";
-import { deepParseJson } from "../../utils";
+import { deepParseJson, formatToolName } from "../../utils";
 import { ReasoningStep } from "./ReasoningStep";
 
 interface StageWithContentProps {
@@ -11,6 +11,46 @@ interface StageWithContentProps {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function getVideoUrl(payload: unknown): string | undefined {
+  if (typeof payload === "string") {
+    return payload;
+  }
+
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+
+  const uploadResult = isRecord(payload.uploadResult) ? payload.uploadResult : undefined;
+  const uploadData = uploadResult && isRecord(uploadResult.data) ? uploadResult.data : undefined;
+
+  if (typeof uploadData?.url === "string") {
+    return uploadData.url;
+  }
+
+  if (typeof payload.url === "string") {
+    return payload.url;
+  }
+
+  if (typeof payload.downloadUrl === "string") {
+    return payload.downloadUrl;
+  }
+
+  return undefined;
+}
+
+function VideoUrlContent({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="text-sm text-blue-300 hover:text-blue-200 break-all"
+    >
+      {url}
+    </a>
+  );
 }
 
 const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
@@ -51,12 +91,10 @@ function ToolResultSuccess({ result }: { result: unknown }) {
   );
 }
 
-function ToolApprovalPending({ toolName }: { toolName?: string }) {
+export function isErrorStep(step: MCPStep): boolean {
   return (
-    <div className="text-amber-300 flex items-center gap-2">
-      <AlertTriangle className="w-4 h-4" />
-      Waiting for approval to run {toolName ?? "the requested tool"}
-    </div>
+    (step.type === MCPStepType.TOOL_RESULT && Boolean(step.error)) ||
+    step.type === MCPStepType.TOOL_DENIED
   );
 }
 
@@ -142,15 +180,7 @@ function ChapterRow({ chapter }: { chapter: VideoChapter }) {
   );
 }
 
-function ToolCallStep({
-  toolName,
-  serverName,
-  args,
-}: {
-  toolName?: string;
-  serverName?: string;
-  args?: unknown;
-}) {
+function ToolCallStep({ toolName, args }: { toolName?: string; args?: unknown }) {
   const hasArgs =
     typeof args === "object" &&
     args !== null &&
@@ -161,8 +191,7 @@ function ToolCallStep({
     <div className="space-y-1">
       <div className="font-medium flex items-center gap-2">
         <Wrench className="w-4 h-4" />
-        Calling tool: {toolName}
-        {serverName && <span className="text-zinc-400 text-xs ml-2">(from {serverName})</span>}
+        {toolName ? formatToolName(toolName) : "Unknown tool"}
       </div>
       {hasArgs && (
         <details className="ml-4 text-xs group" onToggle={handleDetailsToggle(args)}>
@@ -183,78 +212,108 @@ export function StageWithContent({ stage, payload }: StageWithContentProps) {
   // If no payload or empty object, nothing to render
   if (!payload) return null;
 
+  if (stage === "uploading_video" || stage === "downloading_video") {
+    const url = getVideoUrl(payload);
+    return url ? <VideoUrlContent url={url} /> : null;
+  }
+
   // Handing executing_task (MCP Steps)
   if (stage === "executing_task" && isRecord(payload) && Array.isArray(payload.steps)) {
     const mcpSteps = payload.steps as MCPStep[];
 
+    const errorSteps = mcpSteps.filter(isErrorStep);
+
     return (
       <div className="max-h-[400px] overflow-y-auto space-y-2">
-        {mcpSteps.map((step, idx) => (
-          <div
-            // timestamp might be undefined or duplicated, using index as fallback
-            key={`${step.timestamp}-${idx}`}
-            className="border-l-2 border-green-400/30 pl-3 py-1"
-          >
-            {step.type === MCPStepType.START && (
-              <div className="text-secondary font-medium flex items-center gap-2">
-                <Play className="w-4 h-4" />
-                {step.message || "Start task execution"}
-              </div>
-            )}
-            {step.type === MCPStepType.REASONING && step.reasoning && (
-              <ReasoningStep reasoning={step.reasoning} />
-            )}
-            {step.type === MCPStepType.TOOL_CALL && (
-              <ToolCallStep
-                toolName={step.toolName}
-                serverName={step.serverName}
-                args={step.args}
-              />
-            )}
-            {step.type === MCPStepType.TOOL_APPROVAL_REQUIRED && (
-              <div className="space-y-1">
-                <ToolApprovalPending toolName={step.toolName} />
-                <ToolCallStep
-                  toolName={step.toolName}
-                  serverName={step.serverName}
-                  args={step.args}
-                />
-              </div>
-            )}
-            {step.type === MCPStepType.TOOL_RESULT && (
-              <div className="ml-4 space-y-1">
-                {step.error ? (
-                  <ToolResultError error={step.error} />
-                ) : (
-                  <ToolResultSuccess result={step.result} />
-                )}
-              </div>
-            )}
-            {step.type === MCPStepType.TOOL_DENIED && (
-              <div className="ml-4">
-                <ToolDeniedNotice message={step.message} />
-              </div>
-            )}
-            {step.type === MCPStepType.FINAL_RESULT && (
-              <div className="font-medium flex items-center gap-2">
-                <Check className="w-4 h-4" />
-                {step.message || "Generated final result"}
-              </div>
-            )}
+        {errorSteps.length > 0 && (
+          <div className="flex items-start gap-2 p-2 bg-amber-500/5 border border-amber-500/20 rounded text-amber-400/80 text-sm">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>
+              {errorSteps.length} error{errorSteps.length > 1 ? "s" : ""} occurred during task
+              execution
+            </span>
           </div>
-        ))}
+        )}
+        {mcpSteps.map((step, idx) => {
+          const isError = isErrorStep(step);
+          return (
+            <div
+              // timestamp might be undefined or duplicated, using index as fallback
+              key={`${step.timestamp}-${idx}`}
+              className={
+                isError
+                  ? "border-l-2 border-amber-400/40 pl-3 py-1 bg-amber-500/5 rounded-r"
+                  : "border-l-2 border-green-400/30 pl-3 py-1"
+              }
+            >
+              {step.type === MCPStepType.START && (
+                <div className="font-medium flex items-center gap-2">
+                  <Play className="w-4 h-4" />
+                  {step.message || "Start task execution"}
+                </div>
+              )}
+              {step.type === MCPStepType.REASONING && step.reasoning && (
+                <ReasoningStep reasoning={step.reasoning} />
+              )}
+              {step.type === MCPStepType.TOOL_CALL && (
+                <ToolCallStep toolName={step.toolName} args={step.args} />
+              )}
+              {step.type === MCPStepType.TOOL_RESULT && (
+                <div className="ml-4 space-y-1">
+                  {step.error ? (
+                    <ToolResultError error={step.error} />
+                  ) : (
+                    <ToolResultSuccess result={step.result} />
+                  )}
+                </div>
+              )}
+              {step.type === MCPStepType.TOOL_DENIED && (
+                <div className="ml-4">
+                  <ToolDeniedNotice message={step.message} />
+                </div>
+              )}
+              {step.type === MCPStepType.FINAL_RESULT && (
+                <div className="font-medium flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  {step.message || "Generated final result"}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (stage === "selecting_prompt" && isRecord(payload)) {
+    const { name, description, selectionReason } = payload as {
+      name?: string;
+      description?: string;
+      selectionReason?: string;
+    };
+    return (
+      <div className="space-y-2">
+        <div className="font-medium text-sm">{name || "Unknown Project"}</div>
+        {description && <div className="text-xs text-white/70">{description}</div>}
+        {selectionReason && (
+          <div className="text-xs text-white/50 italic">Reason: {selectionReason}</div>
+        )}
       </div>
     );
   }
 
   if (stage === "transcribing" && typeof payload === "string") {
-    return <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">{payload}</div>;
+    return (
+      <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
+        {payload.trim()}
+      </div>
+    );
   }
 
   if (stage === "transcribing" && isRecord(payload) && typeof payload.transcriptText === "string") {
     return (
       <div className="text-sm whitespace-pre-wrap break-words overflow-hidden">
-        {payload.transcriptText}
+        {(payload.transcriptText as string).trim()}
       </div>
     );
   }
