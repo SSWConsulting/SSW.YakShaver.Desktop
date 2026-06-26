@@ -30,8 +30,12 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+        // Outlined danger variant — reserved for irreversible / destructive
+        // actions. Quieter than a solid-red primary; deepens on interaction.
+        // Uses the SSW hot-red token (--danger / #ff453a). The button itself
+        // never confirms — it only signals danger and triggers a confirm step.
         destructiveOutline:
-          "border border-destructive/50 text-white bg-destructive/10 shadow-xs hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
+          "min-h-11 border border-danger/60 text-white bg-danger/8 shadow-xs transition-colors duration-150 hover:bg-danger/15 focus-visible:ring-danger/40 focus-visible:border-danger",
         outline:
           "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",

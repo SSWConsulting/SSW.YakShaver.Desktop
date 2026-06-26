@@ -1,4 +1,4 @@
-import { AlertTriangle, RotateCcw } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { resetOnboarding } from "@/components/onboarding/OnboardingWizard";
@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../ui/alert-dialog";
-import { Button } from "../../ui/button";
+import { Button, buttonVariants } from "../../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card";
 
 export function ResetAccountSetting() {
@@ -65,7 +65,7 @@ export function ResetAccountSetting() {
     <>
       <Card className="w-full gap-4 border-white/10 py-4">
         <CardHeader className="px-4">
-          <CardTitle className="flex items-center gap-2 text-red-400">
+          <CardTitle className="flex items-center gap-2 text-danger">
             <AlertTriangle className="h-5 w-5" />
             Reset Account
           </CardTitle>
@@ -75,8 +75,7 @@ export function ResetAccountSetting() {
         </CardHeader>
         <CardContent className="px-4">
           {/* #880 AC17: no longer full-width — a single confirmation-gated action doesn't warrant it on desktop. */}
-          <Button onClick={() => setIsResetDialogOpen(true)} variant="destructive">
-            <RotateCcw className="h-4 w-4" />
+          <Button onClick={() => setIsResetDialogOpen(true)} variant="destructiveOutline">
             Reset Account to Default
           </Button>
         </CardContent>
@@ -106,7 +105,7 @@ export function ResetAccountSetting() {
             <AlertDialogAction
               onClick={handleResetAccount}
               disabled={isResetting}
-              className="bg-destructive text-primary hover:bg-destructive/90"
+              className={buttonVariants({ variant: "destructiveOutline" })}
             >
               {isResetting ? "Resetting..." : "Reset Account"}
             </AlertDialogAction>
