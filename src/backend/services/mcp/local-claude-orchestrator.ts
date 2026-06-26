@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CLI_BRIDGE_PORT_ENV, CLI_BRIDGE_TOKEN_ENV } from "../../../shared/cli-bridge/protocol";
+import {
+  CLI_BRIDGE_PORT_ENV,
+  CLI_BRIDGE_SERVER_FILTER_ENV,
+  CLI_BRIDGE_TOKEN_ENV,
+} from "../../../shared/cli-bridge/protocol";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
 import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
@@ -183,7 +187,7 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
     await this.ensureClaudeAvailable();
 
     const manager = this.serverManager ?? (await MCPServerManager.getInstanceAsync());
-    const frontDoor = this.frontDoor ?? (await resolveFrontDoorConfig());
+    const frontDoor = this.frontDoor ?? (await resolveFrontDoorConfig(options.serverFilter));
     const approvalMode = (await this.getSettingsStorage().getSettingsAsync()).toolApprovalMode;
 
     const systemPrompt = this.buildSystemPrompt(
@@ -193,10 +197,11 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
       options.videoFilePath,
     );
 
-    // #915: one front-door entry proxies the app's full aggregated toolset (incl. internal/in-memory
-    // servers), so there is no per-server serialization, skip, or in-memory drop anymore.
-    // NOTE: `options.serverFilter` does NOT apply to this backend — the front-door always exposes the
-    // app's whole toolset; per-tool gating happens via the approval whitelist below, not a server filter.
+    // #915: one front-door entry proxies the app's aggregated toolset (incl. internal/in-memory
+    // servers). `options.serverFilter` (the project's selected servers) is passed to the front-door
+    // via env so the app restricts both the LISTED and the CALLABLE tools to that project — that
+    // server-side filter is the authoritative gate. `--allowedTools` below is only the ask-mode
+    // auto-approve list; it need not be filtered because an unselected tool isn't reachable anyway.
     const mcpConfig = this.buildMcpConfig(frontDoor);
     const allowedTools = await this.buildAllowedTools(manager);
 
@@ -687,7 +692,7 @@ Embed this URL in the task content that you create. Follow user requirements STR
  * Lazily imports electron + the bridge server so the pure argv/config unit tests (which always
  * inject a `frontDoor`) never touch these singletons.
  */
-async function resolveFrontDoorConfig(): Promise<YakshaverFrontDoorConfig> {
+async function resolveFrontDoorConfig(serverFilter?: string[]): Promise<YakshaverFrontDoorConfig> {
   const { app } = await import("electron");
   const { CliBridgeServer } = await import("../cli-bridge/cli-bridge-server");
 
@@ -700,6 +705,10 @@ async function resolveFrontDoorConfig(): Promise<YakshaverFrontDoorConfig> {
   const token = bridge.getToken();
   if (port != null) env[CLI_BRIDGE_PORT_ENV] = String(port);
   if (token) env[CLI_BRIDGE_TOKEN_ENV] = token;
+  // Restrict the front-door to the project's selected servers (empty = all enabled servers).
+  if (serverFilter && serverFilter.length > 0) {
+    env[CLI_BRIDGE_SERVER_FILTER_ENV] = serverFilter.join(",");
+  }
 
   return { command: process.execPath, cliEntryPath, env };
 }

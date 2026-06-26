@@ -8,6 +8,7 @@ import {
 import {
   type BridgeToolSummary,
   CLI_BRIDGE_PORT_ENV,
+  CLI_BRIDGE_SERVER_FILTER_ENV,
   CLI_BRIDGE_TOKEN_ENV,
   type ToolCallResult,
 } from "../shared/cli-bridge/protocol";
@@ -35,6 +36,12 @@ export interface McpServeOptions {
   dev?: boolean;
   /** Injectable for testing. Defaults to a real {@link BridgeClient}. */
   client?: Pick<BridgeClient, "get" | "post">;
+  /**
+   * Server ids/names to restrict the toolset to. Injectable for testing; in production it is read
+   * from {@link CLI_BRIDGE_SERVER_FILTER_ENV}, which the orchestrator sets to the project's
+   * selected servers. Undefined/empty means every enabled server.
+   */
+  serverFilter?: string[];
 }
 
 /**
@@ -44,15 +51,18 @@ export interface McpServeOptions {
  */
 export function createMcpServer(options: McpServeOptions = {}): Server {
   const client = options.client ?? buildClient(options.dev);
+  // The orchestrator injects the project's selected servers; the front-door forwards them so the
+  // app restricts the toolset (and tool execution) to that project, not every configured server.
+  const serverFilter = options.serverFilter ?? readServerFilterFromEnv();
 
   const server = new Server(
     { name: "yakshaver", version: "1.0.0" },
     { capabilities: { tools: {} } },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, () => listToolsViaBridge(client));
+  server.setRequestHandler(ListToolsRequestSchema, () => listToolsViaBridge(client, serverFilter));
   server.setRequestHandler(CallToolRequestSchema, (request) =>
-    callToolViaBridge(client, request.params.name, request.params.arguments),
+    callToolViaBridge(client, request.params.name, request.params.arguments, serverFilter),
   );
 
   return server;
@@ -75,10 +85,11 @@ export function createMcpServer(options: McpServeOptions = {}): Server {
  */
 export async function listToolsViaBridge(
   client: Pick<BridgeClient, "get">,
+  serverFilter?: string[],
 ): Promise<{ tools: Array<{ name: string; description?: string; inputSchema: object }> }> {
   let tools: BridgeToolSummary[];
   try {
-    tools = await client.get<BridgeToolSummary[]>("/tools");
+    tools = await client.get<BridgeToolSummary[]>(`/tools${serverFilterQuery(serverFilter)}`);
   } catch (err) {
     if (err instanceof BridgeUnavailableError) {
       return { tools: [] };
@@ -110,12 +121,14 @@ export async function callToolViaBridge(
   client: Pick<BridgeClient, "post">,
   name: string,
   args: Record<string, unknown> | undefined,
+  serverFilter?: string[],
 ): Promise<McpToolResult> {
   let result: ToolCallResult;
   try {
     result = await client.post<ToolCallResult>("/tools/call", {
       name,
       arguments: args ?? {},
+      ...(serverFilter && serverFilter.length > 0 ? { serverFilter } : {}),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -194,6 +207,23 @@ function buildClient(dev?: boolean): BridgeClient {
     }
   }
   return new BridgeClient({ dev });
+}
+
+/** Read the comma-separated server filter the orchestrator injected, as a trimmed list (or undefined). */
+function readServerFilterFromEnv(): string[] | undefined {
+  const raw = process.env[CLI_BRIDGE_SERVER_FILTER_ENV];
+  if (!raw) return undefined;
+  const ids = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return ids.length > 0 ? ids : undefined;
+}
+
+/** Encode a server filter as a `?serverFilter=a,b` query suffix, or "" when there is none. */
+function serverFilterQuery(serverFilter?: string[]): string {
+  if (!serverFilter || serverFilter.length === 0) return "";
+  return `?serverFilter=${encodeURIComponent(serverFilter.join(","))}`;
 }
 
 /** MCP requires `inputSchema` to be an object schema; default to a permissive one. */

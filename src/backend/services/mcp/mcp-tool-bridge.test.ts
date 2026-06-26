@@ -26,10 +26,10 @@ function makeManager(
   tools: ToolSet,
   whitelist: string[] = [],
 ): ToolBridgeManager & {
-  collectToolsWithServerPrefixAsync: ReturnType<typeof vi.fn>;
+  collectToolsForSelectedServersAsync: ReturnType<typeof vi.fn>;
 } {
   return {
-    collectToolsWithServerPrefixAsync: vi.fn().mockResolvedValue(tools),
+    collectToolsForSelectedServersAsync: vi.fn().mockResolvedValue(tools),
     getWhitelistWithServerPrefixAsync: vi.fn().mockResolvedValue(whitelist),
   };
 }
@@ -54,6 +54,13 @@ describe("McpToolBridge.listTools", () => {
     expect((gh?.inputSchema as { properties?: unknown }).properties).toHaveProperty("title");
   });
 
+  it("forwards the serverFilter to the manager so only selected servers are collected", async () => {
+    const manager = makeManager(makeToolSet());
+    const bridge = new McpToolBridge(manager, makeSettings("ask"));
+    await bridge.listTools(["srv-1", "srv-2"]);
+    expect(manager.collectToolsForSelectedServersAsync).toHaveBeenCalledWith(["srv-1", "srv-2"]);
+  });
+
   it("falls back to a permissive object schema when a tool has no inputSchema", async () => {
     const tools = {
       Bare__tool: { description: "no schema", execute: vi.fn() },
@@ -70,7 +77,7 @@ describe("McpToolBridge.listTools", () => {
     // that to [] so the front-door's tools/list returns an empty list rather
     // than a JSON-RPC transport error mid-run.
     const manager = makeManager(makeToolSet());
-    manager.collectToolsWithServerPrefixAsync.mockRejectedValue(
+    manager.collectToolsForSelectedServersAsync.mockRejectedValue(
       new Error("[MCPServerManager]: No MCP clients available"),
     );
     const bridge = new McpToolBridge(manager, makeSettings("ask"));
@@ -105,10 +112,10 @@ describe("McpToolBridge.callTool - approval policy enforcement", () => {
     expect(res.ok).toBe(true);
   });
 
-  it("ask/wait: a NON-whitelisted tool returns a structured not-approved result and does NOT run (no hang)", async () => {
+  it("ask: a NON-whitelisted tool returns a structured not-approved result and does NOT run (no hang)", async () => {
     const bridge = new McpToolBridge(
       makeManager(makeToolSet({ GitHub__create_issue: executeSpy }), /* whitelist */ []),
-      makeSettings("wait"),
+      makeSettings("ask"),
     );
     const res = await bridge.callTool("GitHub__create_issue", { title: "Bug" });
     expect(executeSpy).not.toHaveBeenCalled();
@@ -116,6 +123,16 @@ describe("McpToolBridge.callTool - approval policy enforcement", () => {
     if (res.ok) throw new Error("expected a not-approved failure");
     expect(res.notApproved).toBe(true);
     expect(res.error).toMatch(/not approved/i);
+  });
+
+  it("wait: runs a NON-whitelisted tool (wait = auto-approve, matching buildArgv's bypassPermissions)", async () => {
+    const bridge = new McpToolBridge(
+      makeManager(makeToolSet({ GitHub__create_issue: executeSpy }), /* whitelist */ []),
+      makeSettings("wait"),
+    );
+    const res = await bridge.callTool("GitHub__create_issue", { title: "Bug" });
+    expect(executeSpy).toHaveBeenCalledOnce();
+    expect(res.ok).toBe(true);
   });
 
   it("returns a clear error for an unknown tool", async () => {
@@ -140,7 +157,7 @@ describe("McpToolBridge.callTool - approval policy enforcement", () => {
     // tool" structured refusal is returned and the front-door can relay it as an
     // MCP isError result instead of rejecting with a transport error mid-run.
     const manager = makeManager(makeToolSet(), ["GitHub__create_issue"]);
-    manager.collectToolsWithServerPrefixAsync.mockRejectedValue(
+    manager.collectToolsForSelectedServersAsync.mockRejectedValue(
       new Error("[MCPServerManager]: No tools available from selected/healthy servers"),
     );
     const bridge = new McpToolBridge(manager, makeSettings("yolo"));

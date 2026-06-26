@@ -47,8 +47,12 @@ export interface BridgeServices {
    * tool execution through the app's approval policy.
    */
   tools: {
-    listTools(): Promise<BridgeToolSummary[]>;
-    callTool(name: string, args?: Record<string, unknown>): Promise<ToolCallResult>;
+    listTools(serverFilter?: string[]): Promise<BridgeToolSummary[]>;
+    callTool(
+      name: string,
+      args?: Record<string, unknown>,
+      serverFilter?: string[],
+    ): Promise<ToolCallResult>;
   };
 }
 
@@ -58,6 +62,8 @@ export interface BridgeRequest {
   path: string;
   /** Parsed JSON body (already validated as JSON upstream). */
   body?: unknown;
+  /** Parsed query-string params, e.g. `{ serverFilter: "a,b" }` for `GET /tools`. */
+  query?: Record<string, string>;
 }
 
 export interface BridgeResult {
@@ -300,7 +306,9 @@ async function routeTools(
     if (req.method !== "GET") {
       return fail(`Method not allowed: ${req.method} ${req.path}`, 405);
     }
-    const tools = await services.tools.listTools();
+    // Restrict to the project's selected servers when the front-door forwards a filter
+    // (`?serverFilter=a,b`); absent/empty means every enabled server.
+    const tools = await services.tools.listTools(parseServerFilter(req.query?.serverFilter));
     return ok(tools);
   }
 
@@ -313,7 +321,11 @@ async function routeTools(
     if (!parsed.success) {
       return fail(`Invalid tool call: ${formatZodError(parsed.error)}`);
     }
-    const result = await services.tools.callTool(parsed.data.name, parsed.data.arguments ?? {});
+    const result = await services.tools.callTool(
+      parsed.data.name,
+      parsed.data.arguments ?? {},
+      parsed.data.serverFilter,
+    );
     // A tool-level failure (incl. a structured "not approved") is still a
     // successful BRIDGE response — the envelope carries {ok:false,...} so the
     // MCP front-door can relay it to the model verbatim. Only transport/route
@@ -322,6 +334,16 @@ async function routeTools(
   }
 
   return fail(`Unknown route: ${req.method} ${req.path}`, 404);
+}
+
+/** Parse a `serverFilter` query value (`"a,b"`) into a trimmed id/name list, or undefined if empty. */
+function parseServerFilter(raw: string | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  const ids = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return ids.length > 0 ? ids : undefined;
 }
 
 /** Fields that belong ONLY to an HTTP (streamableHttp) server config. */

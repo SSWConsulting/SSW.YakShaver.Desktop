@@ -40,6 +40,14 @@ export const CLI_BRIDGE_DISABLE_ENV = "YAKSHAVER_DISABLE_CLI_BRIDGE";
 export const CLI_BRIDGE_PORT_ENV = "YAKSHAVER_BRIDGE_PORT";
 export const CLI_BRIDGE_TOKEN_ENV = "YAKSHAVER_BRIDGE_TOKEN";
 
+/**
+ * Comma-separated server ids/names the front-door must restrict its toolset to (the project's
+ * `selectedMcpServerIds`). When unset/empty the front-door exposes every enabled server. The
+ * orchestrator injects it; `mcp-serve` reads it and forwards it on `GET /tools` + `POST /tools/call`
+ * so the server-side filter is applied where tools actually run.
+ */
+export const CLI_BRIDGE_SERVER_FILTER_ENV = "YAKSHAVER_BRIDGE_SERVER_FILTER";
+
 /** Placeholder shown instead of any secret value. */
 export const REDACTED = "***redacted***";
 
@@ -160,6 +168,12 @@ export const ToolCallInputSchema = z.object({
   name: z.string().min(1, "tool name is required"),
   /** Arguments object passed to the tool's execute(). Defaults to `{}`. */
   arguments: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * Optional server ids/names to restrict resolution to (the project's selected servers). The tool
+   * must belong to one of them, mirroring the `GET /tools` filter, so a call can't reach a tool from
+   * an unselected project even if the model guesses its name.
+   */
+  serverFilter: z.array(z.string()).optional(),
 });
 export type ToolCallInput = z.infer<typeof ToolCallInputSchema>;
 

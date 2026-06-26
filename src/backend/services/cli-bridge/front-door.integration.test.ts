@@ -73,7 +73,7 @@ function makeToolSet(): ToolSet {
 function makeManager(whitelist: string[]): ToolBridgeManager {
   const tools = makeToolSet();
   return {
-    collectToolsWithServerPrefixAsync: async () => tools,
+    collectToolsForSelectedServersAsync: async () => tools,
     getWhitelistWithServerPrefixAsync: async () => whitelist,
   };
 }
@@ -122,6 +122,7 @@ function startBridge(services: BridgeServices): Promise<{ server: HttpServer; po
         method: req.method ?? "GET",
         path: url.pathname,
         body,
+        query: Object.fromEntries(url.searchParams.entries()),
       });
       const payload = JSON.stringify(result.body);
       res.writeHead(result.status, { "Content-Type": "application/json" });
@@ -219,5 +220,30 @@ describe("front-door integration — mcp-serve → BridgeClient → router → M
       }),
     });
     await expect(listToolsViaBridge(badClient)).rejects.toThrow(/unauthorized/i);
+  });
+
+  it("forwards the front-door's serverFilter end-to-end to the manager (#915 project gate)", async () => {
+    // Capture what the real router/McpToolBridge passes through to the manager so we prove the
+    // `?serverFilter=` query (list) and body filter (call) survive the whole HTTP round-trip.
+    const seen: { list?: string[]; call?: string[] } = {};
+    const services = makeServices("yolo", []);
+    services.tools = {
+      async listTools(serverFilter) {
+        seen.list = serverFilter;
+        return [];
+      },
+      async callTool(_name, _args, serverFilter) {
+        seen.call = serverFilter;
+        return { ok: true, result: "ok" };
+      },
+    };
+    ({ server, port } = await startBridge(services));
+    const client = makeClient(port);
+
+    await listToolsViaBridge(client, ["proj-a", "proj-b"]);
+    await callToolViaBridge(client, "GitHub__create_issue", { title: "x" }, ["proj-a", "proj-b"]);
+
+    expect(seen.list).toEqual(["proj-a", "proj-b"]);
+    expect(seen.call).toEqual(["proj-a", "proj-b"]);
   });
 });

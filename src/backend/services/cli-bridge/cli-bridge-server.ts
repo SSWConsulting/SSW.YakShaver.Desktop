@@ -153,7 +153,8 @@ export class CliBridgeServer {
       return;
     }
 
-    const result = await routeRequest(this.services, { method, path, body });
+    const query = Object.fromEntries(url.searchParams.entries());
+    const result = await routeRequest(this.services, { method, path, body, query });
     this.sendJson(res, result.status, result.body);
   }
 
@@ -309,11 +310,11 @@ export function createDefaultServices(): BridgeServices {
       },
     },
     tools: {
-      async listTools() {
-        return (await getToolBridge()).listTools();
+      async listTools(serverFilter) {
+        return (await getToolBridge()).listTools(serverFilter);
       },
-      async callTool(name, args) {
-        return (await getToolBridge()).callTool(name, args);
+      async callTool(name, args, serverFilter) {
+        return (await getToolBridge()).callTool(name, args, serverFilter);
       },
     },
   };

@@ -10,11 +10,12 @@ import type { ToolApprovalMode } from "../../../shared/types/user-settings";
  */
 export interface ToolBridgeManager {
   /**
-   * The aggregated, server-prefixed toolset across ALL enabled servers —
-   * INCLUDING internal/in-memory ones (the #915 win: these are reachable here
-   * even though Claude Code cannot reach them over its own transports).
+   * The aggregated, server-prefixed toolset — INCLUDING internal/in-memory servers (the #915 win:
+   * reachable here even though Claude Code can't reach them over its own transports). When
+   * `serverFilter` is given, only those server ids/names are included (the project's selected
+   * servers); otherwise every enabled server is.
    */
-  collectToolsWithServerPrefixAsync(): Promise<ToolSet>;
+  collectToolsForSelectedServersAsync(serverFilter?: string[]): Promise<ToolSet>;
   /** Prefixed tool names that may run without interactive approval. */
   getWhitelistWithServerPrefixAsync(): Promise<string[]>;
 }
@@ -44,8 +45,8 @@ export class McpToolBridge {
   ) {}
 
   /** Aggregated tool list for `GET /tools`. Names/descriptions/schemas only. */
-  async listTools(): Promise<BridgeToolSummary[]> {
-    const tools = await this.collectToolsOrEmpty();
+  async listTools(serverFilter?: string[]): Promise<BridgeToolSummary[]> {
+    const tools = await this.collectToolsOrEmpty(serverFilter);
     const summaries: BridgeToolSummary[] = [];
     for (const [name, tool] of Object.entries(tools)) {
       summaries.push({
@@ -60,26 +61,35 @@ export class McpToolBridge {
   /**
    * Execute a single tool by its server-prefixed name for `POST /tools/call`.
    *
-   * Enforces the approval policy first, NEVER hanging: under `ask`/`wait` a
-   * non-whitelisted tool returns `{ok:false, notApproved:true}` rather than
-   * waiting on a UI prompt the headless caller can't answer. (Phase 4.1 will
-   * route these to the in-app approval UI; for v1 it's a clean refusal.)
+   * Enforces the approval policy first, NEVER hanging. Only `ask` gates on the
+   * whitelist (a non-whitelisted tool returns `{ok:false, notApproved:true}`
+   * rather than waiting on a prompt the headless caller can't answer). `yolo` and
+   * `wait` both run everything — matching the orchestrator's `buildArgv`, which
+   * maps `wait` to `bypassPermissions` because the OpenAI backend's `wait` is
+   * "auto-approve after a delay", not a hard deny. Treating `wait` like `ask` here
+   * would hard-deny every non-whitelisted tool and break wait-mode runs.
    */
-  async callTool(name: string, args: Record<string, unknown> = {}): Promise<ToolCallResult> {
-    const tools = await this.collectToolsOrEmpty();
+  async callTool(
+    name: string,
+    args: Record<string, unknown> = {},
+    serverFilter?: string[],
+  ): Promise<ToolCallResult> {
+    // Resolve against the SAME filtered toolset `listTools` exposes, so a tool from an unselected
+    // project isn't reachable even if the model guesses its name (the server-side gate for #915).
+    const tools = await this.collectToolsOrEmpty(serverFilter);
     const tool = tools[name];
     if (!tool) {
       return { ok: false, error: `Unknown tool: ${name}` };
     }
 
     const approvalMode = (await this.settings.getSettingsAsync()).toolApprovalMode;
-    if (approvalMode !== "yolo") {
+    if (approvalMode === "ask") {
       const whitelist = new Set(await this.manager.getWhitelistWithServerPrefixAsync());
       if (!whitelist.has(name)) {
         return {
           ok: false,
           notApproved: true,
-          error: `Tool '${name}' is not approved under the '${approvalMode}' approval mode. Whitelist it in YakShaver, or switch the approval mode to 'yolo'.`,
+          error: `Tool '${name}' is not approved under the 'ask' approval mode. Whitelist it in YakShaver, or switch the approval mode to 'yolo'.`,
         };
       }
     }
@@ -106,19 +116,20 @@ export class McpToolBridge {
    * Resolve the aggregated toolset, treating the "no healthy/enabled servers"
    * degenerate state as an EMPTY toolset rather than an error.
    *
-   * {@link ToolBridgeManager.collectToolsWithServerPrefixAsync} throws when zero
+   * {@link ToolBridgeManager.collectToolsForSelectedServersAsync} throws when zero
    * enabled servers are healthy (e.g. the first-run "no MCP servers configured"
-   * state, or every configured server failing to connect). That throw must NOT
-   * propagate to the bridge router (which would relay it as an HTTP 500 and make
-   * the front-door reject mid-run). Honouring the bridge's "never hang, always
-   * return a structured envelope" contract, we collapse it to `{}`:
+   * state, every configured server failing to connect, or a `serverFilter` that
+   * matches nothing). That throw must NOT propagate to the bridge router (which
+   * would relay it as an HTTP 500 and make the front-door reject mid-run).
+   * Honouring the bridge's "never hang, always return a structured envelope"
+   * contract, we collapse it to `{}`:
    *  - `listTools()` then returns an empty list (tools/list ⇒ []), and
    *  - `callTool()` then returns the existing structured `{ok:false, "Unknown
    *    tool"}` refusal, which the front-door relays as an MCP `isError` result.
    */
-  private async collectToolsOrEmpty(): Promise<ToolSet> {
+  private async collectToolsOrEmpty(serverFilter?: string[]): Promise<ToolSet> {
     try {
-      return await this.manager.collectToolsWithServerPrefixAsync();
+      return await this.manager.collectToolsForSelectedServersAsync(serverFilter);
     } catch {
       return {} as ToolSet;
     }
