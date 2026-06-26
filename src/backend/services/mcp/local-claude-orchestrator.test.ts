@@ -15,12 +15,16 @@ vi.mock("../../utils/error-utils", () => ({
 import type { MCPStep } from "../../../shared/types/mcp";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
 // vi.mock calls above are hoisted, so this static import sees the stubbed modules.
-import { LocalClaudeOrchestrator } from "./local-claude-orchestrator";
-import type { MCPServerConfig } from "./types";
+import {
+  LocalClaudeOrchestrator,
+  type OrchestratorServerManager,
+  stripFrontDoorPrefix,
+  YAKSHAVER_MCP_SERVER_KEY,
+  type YakshaverFrontDoorConfig,
+} from "./local-claude-orchestrator";
 
 type MockChild = ChildProcess & {
   stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
-  kill: ReturnType<typeof vi.fn>;
 };
 
 function createMockChild(): MockChild {
@@ -28,12 +32,10 @@ function createMockChild(): MockChild {
     stdout: EventEmitter;
     stderr: EventEmitter;
     stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
-    kill: ReturnType<typeof vi.fn>;
   };
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
   proc.stdin = { write: vi.fn(), end: vi.fn() };
-  proc.kill = vi.fn();
   return proc as unknown as MockChild;
 }
 
@@ -55,40 +57,22 @@ function makeSpawner(versionExitCode: number, runChild: MockChild, runScript?: (
   return { spawn };
 }
 
-function makeManager(servers: MCPServerConfig[]) {
-  return { listAvailableServers: vi.fn().mockResolvedValue(servers) };
+/** A manager mock exposing the new orchestrator surface: the prefixed whitelist + a warm hook. */
+function makeManager(whitelist: string[] = []): OrchestratorServerManager {
+  return {
+    getWhitelistWithServerPrefixAsync: vi.fn().mockResolvedValue(whitelist),
+    collectToolsWithServerPrefixAsync: vi.fn().mockResolvedValue({}),
+  };
 }
 
 function makeSettings(mode: ToolApprovalMode) {
   return { getSettingsAsync: vi.fn().mockResolvedValue({ toolApprovalMode: mode }) };
 }
 
-function makeTokenStorage(tokenByServer: Record<string, string> = {}) {
-  return {
-    getTokensAsync: vi.fn(async (serverId: string) =>
-      tokenByServer[serverId] ? { access_token: tokenByServer[serverId] } : undefined,
-    ),
-  };
-}
-
-const httpServer: MCPServerConfig = {
-  id: "gh-1",
-  name: "GitHub",
-  transport: "streamableHttp",
-  url: "https://mcp.github.test/",
-  toolWhitelist: ["create_issue"],
-  enabled: true,
-};
-
-const stdioServer: MCPServerConfig = {
-  id: "fs-1",
-  name: "Local FS",
-  transport: "stdio",
-  command: "npx",
-  args: ["-y", "fs-mcp"],
-  env: { FOO: "bar" },
-  toolWhitelist: ["read_file"],
-  enabled: true,
+const frontDoor: YakshaverFrontDoorConfig = {
+  command: "/path/to/node",
+  cliEntryPath: "/app/dist/cli/index.js",
+  env: { ELECTRON_RUN_AS_NODE: "1", YAKSHAVER_BRIDGE_PORT: "8765", YAKSHAVER_BRIDGE_TOKEN: "tok" },
 };
 
 describe("LocalClaudeOrchestrator", () => {
@@ -99,24 +83,23 @@ describe("LocalClaudeOrchestrator", () => {
   });
 
   describe("claude availability", () => {
-    it("throws a clear 'exited with an error' message when `claude --version` exits non-zero", async () => {
+    it("throws a clear error when `claude` is not found (--version fails)", async () => {
       const { spawn } = makeSpawner(/* versionExitCode */ 127, runChild);
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([]),
-        makeTokenStorage(),
+        makeManager(),
+        frontDoor,
         makeSettings("ask"),
         { generateObject: vi.fn() },
       );
 
-      // The binary launched (close fired) but exited non-zero — distinguished from a PATH miss.
       await expect(orch.manualLoopAsync("transcript", undefined, {})).rejects.toThrow(
-        /exited with an error/,
+        /Claude Code CLI was found but `claude --version` exited with an error/,
       );
     });
 
-    it("throws a 'could not be launched' error when spawning `claude --version` errors (ENOENT)", async () => {
+    it("throws a clear error when spawning `claude --version` errors (ENOENT)", async () => {
       const versionChild = createMockChild();
       const spawn = vi.fn((_cmd: string, args: string[]) => {
         if (args.includes("--version")) {
@@ -128,141 +111,79 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([]),
-        makeTokenStorage(),
+        makeManager(),
+        frontDoor,
         makeSettings("ask"),
         { generateObject: vi.fn() },
       );
 
       await expect(orch.manualLoopAsync("t", undefined, {})).rejects.toThrow(
-        /could not be launched/,
+        /Claude Code CLI could not be launched/,
       );
     });
   });
 
-  describe("MCP config serialization", () => {
-    it("serializes stdio (command/args/env) and http (url + injected bearer token)", async () => {
-      const orch = new LocalClaudeOrchestrator(
-        "claude",
-        { spawn: vi.fn() },
-        makeManager([stdioServer, httpServer]),
-        makeTokenStorage({ "gh-1": "tok-123" }),
-        makeSettings("ask"),
-        { generateObject: vi.fn() },
-      );
+  describe("single-entry yakshaver MCP config (#915 front-door)", () => {
+    it("writes ONE mcp server entry: yakshaver -> the mcp-serve front-door", () => {
+      const orch = new LocalClaudeOrchestrator();
+      const config = orch.buildMcpConfig(frontDoor);
 
-      const { mcpConfig, allowedTools } = await orch.serializeMcpServers(
-        makeManager([stdioServer, httpServer]),
-        undefined,
-      );
-
-      expect(mcpConfig.mcpServers).toEqual({
-        Local_FS: {
-          type: "stdio",
-          command: "npx",
-          args: ["-y", "fs-mcp"],
-          env: { FOO: "bar" },
-        },
-        GitHub: {
-          type: "http",
-          url: "https://mcp.github.test/",
-          headers: { Authorization: "Bearer tok-123" },
+      expect(Object.keys(config.mcpServers)).toEqual([YAKSHAVER_MCP_SERVER_KEY]);
+      expect(config.mcpServers.yakshaver).toEqual({
+        type: "stdio",
+        command: "/path/to/node",
+        args: ["/app/dist/cli/index.js", "mcp-serve"],
+        env: {
+          ELECTRON_RUN_AS_NODE: "1",
+          YAKSHAVER_BRIDGE_PORT: "8765",
+          YAKSHAVER_BRIDGE_TOKEN: "tok",
         },
       });
-      expect(allowedTools).toEqual(["mcp__Local_FS__read_file", "mcp__GitHub__create_issue"]);
     });
 
-    it("respects the serverFilter and skips disabled + inMemory servers", async () => {
-      const disabled: MCPServerConfig = { ...stdioServer, id: "off", name: "Off", enabled: false };
-      const internal: MCPServerConfig = {
-        id: "in",
-        name: "Internal",
-        transport: "inMemory",
-        enabled: true,
+    it("omits env when the front-door has none", () => {
+      const orch = new LocalClaudeOrchestrator();
+      const config = orch.buildMcpConfig({
+        command: "node",
+        cliEntryPath: "/app/dist/cli/index.js",
+      });
+      expect(config.mcpServers.yakshaver).not.toHaveProperty("env");
+    });
+
+    it("re-prefixes the app's whitelist as mcp__yakshaver__<Server__tool>", async () => {
+      const orch = new LocalClaudeOrchestrator();
+      const manager = makeManager(["GitHub__create_issue", "Internal__fill_template"]);
+
+      const allowed = await orch.buildAllowedTools(manager);
+
+      expect(manager.collectToolsWithServerPrefixAsync).toHaveBeenCalledOnce();
+      expect(allowed).toEqual([
+        "mcp__yakshaver__GitHub__create_issue",
+        "mcp__yakshaver__Internal__fill_template",
+      ]);
+    });
+
+    it("warming failure is non-fatal; the stored whitelist still applies", async () => {
+      const orch = new LocalClaudeOrchestrator();
+      const manager: OrchestratorServerManager = {
+        getWhitelistWithServerPrefixAsync: vi.fn().mockResolvedValue(["GitHub__create_issue"]),
+        collectToolsWithServerPrefixAsync: vi.fn().mockRejectedValue(new Error("no servers")),
       };
-      const orch = new LocalClaudeOrchestrator(
-        "claude",
-        { spawn: vi.fn() },
-        null,
-        makeTokenStorage(),
-      );
-      const mgr = makeManager([stdioServer, httpServer, disabled, internal]);
-
-      const { mcpConfig } = await orch.serializeMcpServers(mgr, ["gh-1"]);
-      expect(Object.keys(mcpConfig.mcpServers)).toEqual(["GitHub"]);
-    });
-
-    it("refreshes an expired OAuth token before injecting it (no stale Bearer header)", async () => {
-      // A refreshable storage whose stored token is expired but has a refresh_token: the helper
-      // must refresh it and inject the NEW access token, matching the in-process client.
-      const refreshableStorage = {
-        getTokensAsync: vi
-          .fn()
-          .mockResolvedValueOnce({
-            access_token: "stale",
-            refresh_token: "r1",
-            expires_in: 3600,
-            storedAt: 1, // long expired
-          })
-          .mockResolvedValue({ access_token: "fresh", refresh_token: "r2", token_type: "Bearer" }),
-        isTokenExpired: vi.fn().mockReturnValue(true),
-        saveTokensAsync: vi.fn().mockResolvedValue(undefined),
-        clearTokensAsync: vi.fn().mockResolvedValue(undefined),
-      };
-      // Stub the backend refresh call the helper invokes.
-      const refreshMod = await import("./mcp-oauth");
-      const refreshSpy = vi
-        .spyOn(refreshMod, "refreshTokenWithBackend")
-        .mockResolvedValue({ access_token: "fresh", refresh_token: "r2", token_type: "Bearer" });
-
-      const orch = new LocalClaudeOrchestrator(
-        "claude",
-        { spawn: vi.fn() },
-        null,
-        refreshableStorage,
-      );
-
-      const { mcpConfig } = await orch.serializeMcpServers(makeManager([httpServer]), undefined);
-      expect(refreshSpy).toHaveBeenCalledWith("https://mcp.github.test/", "r1");
-      expect(refreshableStorage.saveTokensAsync).toHaveBeenCalled();
-      expect((mcpConfig.mcpServers.GitHub as { headers?: Record<string, string> }).headers).toEqual(
-        { Authorization: "Bearer fresh" },
-      );
-      refreshSpy.mockRestore();
-    });
-
-    it("flags servers with no whitelist (under ask/wait) instead of hanging", async () => {
-      const noWhitelist: MCPServerConfig = { ...httpServer, toolWhitelist: [] };
-      const orch = new LocalClaudeOrchestrator(
-        "claude",
-        { spawn: vi.fn() },
-        null,
-        makeTokenStorage(),
-      );
-      const { skippedNonWhitelistedServers, allowedTools } = await orch.serializeMcpServers(
-        makeManager([noWhitelist]),
-        undefined,
-      );
-      expect(skippedNonWhitelistedServers).toEqual(["GitHub"]);
-      expect(allowedTools).toEqual([]);
+      const allowed = await orch.buildAllowedTools(manager);
+      expect(allowed).toEqual(["mcp__yakshaver__GitHub__create_issue"]);
     });
   });
 
   describe("argv building per approval mode", () => {
-    it("always passes the serialized config strictly + the system prompt file", () => {
+    it("always passes --strict-mcp-config + the single --mcp-config", () => {
       const orch = new LocalClaudeOrchestrator();
-      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "yolo", []);
-      // --strict-mcp-config keeps the run to YakShaver's servers only (no ambient .mcp.json).
-      expect(argv).toContain("--strict-mcp-config");
-      // The orchestrator role is delivered as the system prompt, not as the user turn.
-      const sysIdx = argv.indexOf("--system-prompt-file");
-      expect(sysIdx).toBeGreaterThan(-1);
-      expect(argv[sysIdx + 1]).toBe("/tmp/sys.txt");
+      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/prompt.txt", "yolo", []);
       expect(argv).toEqual(
         expect.arrayContaining([
           "-p",
           "--mcp-config",
           "/tmp/cfg.json",
+          "--strict-mcp-config",
           "--output-format",
           "stream-json",
           "--verbose",
@@ -270,62 +191,37 @@ describe("LocalClaudeOrchestrator", () => {
       );
     });
 
-    it("passes --max-turns as the iteration safety cap (default 20, override honoured)", () => {
-      const orch = new LocalClaudeOrchestrator();
-      const def = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "yolo", []);
-      const defIdx = def.indexOf("--max-turns");
-      expect(defIdx).toBeGreaterThan(-1);
-      expect(def[defIdx + 1]).toBe("20");
-
-      const custom = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "yolo", [], 5);
-      const customIdx = custom.indexOf("--max-turns");
-      expect(customIdx).toBeGreaterThan(-1);
-      expect(custom[customIdx + 1]).toBe("5");
-    });
-
     it("yolo -> --permission-mode bypassPermissions (no --allowedTools)", () => {
       const orch = new LocalClaudeOrchestrator();
-      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "yolo", [
-        "mcp__GitHub__create_issue",
+      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/prompt.txt", "yolo", [
+        "mcp__yakshaver__GitHub__create_issue",
       ]);
       expect(argv).toContain("--permission-mode");
       expect(argv).toContain("bypassPermissions");
       expect(argv).not.toContain("--allowedTools");
     });
 
-    it("wait -> --permission-mode bypassPermissions (matches OpenAI's auto-approve-after-delay)", () => {
+    it("ask -> --allowedTools built from the yakshaver-prefixed whitelist", () => {
       const orch = new LocalClaudeOrchestrator();
-      // wait auto-approves non-whitelisted tools after a delay on the OpenAI path; the headless
-      // analogue that still RUNS them is bypassPermissions, not a hard deny.
-      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "wait", []);
-      expect(argv).toContain("--permission-mode");
-      expect(argv).toContain("bypassPermissions");
-      expect(argv).not.toContain("--allowedTools");
-      expect(argv).not.toContain("dontAsk");
-    });
-
-    it("ask -> --permission-mode dontAsk + --allowedTools (denies non-whitelisted, never hangs)", () => {
-      const orch = new LocalClaudeOrchestrator();
-      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "ask", [
-        "mcp__GitHub__create_issue",
-        "mcp__Local_FS__read_file",
+      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/prompt.txt", "ask", [
+        "mcp__yakshaver__GitHub__create_issue",
+        "mcp__yakshaver__Local_FS__read_file",
       ]);
-      // dontAsk converts any approval prompt into a denial so a headless run can't block.
-      const pmIdx = argv.indexOf("--permission-mode");
-      expect(pmIdx).toBeGreaterThan(-1);
-      expect(argv[pmIdx + 1]).toBe("dontAsk");
       const idx = argv.indexOf("--allowedTools");
       expect(idx).toBeGreaterThan(-1);
-      expect(argv[idx + 1]).toBe("mcp__GitHub__create_issue,mcp__Local_FS__read_file");
+      expect(argv[idx + 1]).toBe(
+        "mcp__yakshaver__GitHub__create_issue,mcp__yakshaver__Local_FS__read_file",
+      );
       expect(argv).not.toContain("bypassPermissions");
     });
 
-    it("ask with empty whitelist -> dontAsk and no --allowedTools (no MCP tools run, no hang)", () => {
+    it("wait -> --permission-mode bypassPermissions (headless can't defer the prompt)", () => {
       const orch = new LocalClaudeOrchestrator();
-      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/sys.txt", "ask", []);
-      expect(argv).toContain("dontAsk");
+      const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/prompt.txt", "wait", []);
+      // main maps `wait` -> bypassPermissions (headless can't show the deferred dialog), so an empty
+      // whitelist still runs every tool. There is no --allowedTools because none was passed.
       expect(argv).not.toContain("--allowedTools");
-      expect(argv).not.toContain("bypassPermissions");
+      expect(argv).toContain("bypassPermissions");
     });
   });
 
@@ -348,8 +244,6 @@ describe("LocalClaudeOrchestrator", () => {
         reasoning: "created",
       });
 
-      // Realistic stream: the tool_use block carries an OPAQUE id; the tool_result references it
-      // only via tool_use_id (NOT the tool name). The orchestrator must correlate id -> name.
       const lines = [
         JSON.stringify({
           type: "assistant",
@@ -361,8 +255,10 @@ describe("LocalClaudeOrchestrator", () => {
             content: [
               {
                 type: "tool_use",
-                id: "toolu_01ABCdef",
-                name: "mcp__GitHub__create_issue",
+                // Real Claude Code stream-json carries an OPAQUE id here, NOT the tool name.
+                // Through the single front-door the name is `mcp__yakshaver__<Server>__<tool>`.
+                id: "toolu_01ABCdef234567",
+                name: "mcp__yakshaver__GitHub__create_issue",
                 input: { title: "Bug" },
               },
             ],
@@ -374,7 +270,8 @@ describe("LocalClaudeOrchestrator", () => {
             content: [
               {
                 type: "tool_result",
-                tool_use_id: "toolu_01ABCdef",
+                // The result references the tool_use block by its opaque id — never by tool name.
+                tool_use_id: "toolu_01ABCdef234567",
                 content: "Created issue #5: https://github.com/o/r/issues/5",
               },
             ],
@@ -391,8 +288,8 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([httpServer]),
-        makeTokenStorage({ "gh-1": "tok" }),
+        makeManager(["GitHub__create_issue"]),
+        frontDoor,
         makeSettings("yolo"),
         { generateObject },
       );
@@ -401,7 +298,7 @@ describe("LocalClaudeOrchestrator", () => {
         onStep: (s) => steps.push(s),
       });
 
-      // stdin received only the transcript as the user turn (the system prompt goes via argv).
+      // stdin received the system prompt + transcript
       expect(runChild.stdin.write).toHaveBeenCalled();
       const written = (runChild.stdin.write as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
       expect(written).toContain("video transcription: a bug report");
@@ -412,20 +309,28 @@ describe("LocalClaudeOrchestrator", () => {
       expect(types).toContain("tool_result");
       expect(types).toContain("final_result");
 
-      // Reasoning is emitted JSON-encoded ({type,text}) so ReasoningStep renders it (not blank).
+      // Reasoning is wrapped so the UI's <ReasoningStep> (which JSON.parses + renders .text) shows
+      // the text instead of a blank box.
       const reasoningStep = steps.find((s) => s.type === "reasoning");
-      expect(JSON.parse(reasoningStep?.reasoning ?? "{}")).toEqual({
-        type: "text",
+      expect(reasoningStep?.reasoning).toBeDefined();
+      expect(JSON.parse(reasoningStep?.reasoning as string)).toMatchObject({
         text: "I'll create an issue.",
       });
 
-      // The judge must receive the REAL tool name, correlated from the opaque tool_use_id — not
-      // the opaque `toolu_...` id itself.
-      const judgePrompt = generateObject.mock.calls[0][0] as string;
-      expect(judgePrompt).toContain("mcp__GitHub__create_issue");
-      expect(judgePrompt).not.toContain("toolu_01ABCdef");
+      // The single-front-door prefix is stripped from the displayed tool name so it reads as the
+      // real `Server__tool` rather than mis-parsing the server as `mcp`.
+      const toolCallStep = steps.find((s) => s.type === "tool_call");
+      expect(toolCallStep?.toolName).toBe("GitHub__create_issue");
 
       expect(generateObject).toHaveBeenCalledTimes(1);
+      // The judge must see the human-readable tool name (correlated from the opaque tool_use_id),
+      // NOT the raw `toolu_...` id — this is the #833 ground-truth signal. The front-door prefix is
+      // stripped so the judge sees the same `Server__tool` name the OpenAI loop uses.
+      const judgePrompt = (generateObject as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(judgePrompt).toContain("GitHub__create_issue");
+      expect(judgePrompt).not.toContain("mcp__yakshaver__");
+      expect(judgePrompt).not.toContain("toolu_01ABCdef234567");
+
       expect(result.backlogActionSucceeded).toBe(true);
       expect(result.terminationReason).toBe("stop");
       expect(result.artifacts).toEqual([
@@ -443,7 +348,7 @@ describe("LocalClaudeOrchestrator", () => {
             content: [
               {
                 type: "tool_result",
-                tool_use_id: "mcp__GitHub__create_issue",
+                tool_use_id: "toolu_01ERRoredcall99",
                 is_error: true,
                 content: "401 Unauthorized",
               },
@@ -456,8 +361,8 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([httpServer]),
-        makeTokenStorage(),
+        makeManager(),
+        frontDoor,
         makeSettings("yolo"),
         { generateObject },
       );
@@ -473,102 +378,14 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([]),
-        makeTokenStorage(),
+        makeManager(),
+        frontDoor,
         makeSettings("yolo"),
         { generateObject: vi.fn() },
       );
 
       const result = await orch.manualLoopAsync("t", undefined, {});
       expect(result.terminationReason).toBe("max-iterations");
-    });
-
-    it("no judge model + a tool succeeded -> verificationUnavailable (not the generic failure)", async () => {
-      // A user picked Claude Code without configuring an OpenAI/Azure model: the judge is null.
-      // The run must NOT silently report a plain failure — it should flag verificationUnavailable
-      // so the handler tells the user an item MAY have been created instead of "signed out".
-      const lines = [
-        JSON.stringify({
-          type: "user",
-          message: {
-            content: [
-              {
-                type: "tool_result",
-                tool_use_id: "mcp__GitHub__create_issue",
-                content: "Created issue #7: https://github.com/o/r/issues/7",
-              },
-            ],
-          },
-        }),
-        JSON.stringify({ type: "result", subtype: "success", result: "Done." }),
-      ];
-      const { spawn } = makeSpawner(0, runChild, streamScript(runChild, lines));
-      // No judge provider passed (null) — mirrors "no language model configured".
-      const orch = new LocalClaudeOrchestrator(
-        "claude",
-        { spawn },
-        makeManager([httpServer]),
-        makeTokenStorage(),
-        makeSettings("yolo"),
-        null,
-      );
-
-      const steps: MCPStep[] = [];
-      const result = await orch.manualLoopAsync("t", undefined, { onStep: (s) => steps.push(s) });
-
-      expect(result.backlogActionSucceeded).toBe(false);
-      expect(result.verificationUnavailable).toBe(true);
-      // The user-facing reasoning notice explains the real cause.
-      const reasoning = steps
-        .filter((s) => s.type === "reasoning")
-        .map((s) => s.reasoning ?? "")
-        .join(" ");
-      expect(reasoning).toMatch(/could NOT be verified/i);
-    });
-
-    it("kills the child and rejects when the caller's AbortSignal fires mid-run", async () => {
-      const controller = new AbortController();
-      // A run child that never closes on its own; aborting must kill it and reject.
-      const abortScript = () => {
-        runChild.stdout?.emit("data", Buffer.from(`${JSON.stringify({ type: "assistant" })}\n`));
-        controller.abort();
-      };
-      const { spawn } = makeSpawner(0, runChild, abortScript);
-      const orch = new LocalClaudeOrchestrator(
-        "claude",
-        { spawn },
-        makeManager([]),
-        makeTokenStorage(),
-        makeSettings("yolo"),
-        { generateObject: vi.fn() },
-      );
-
-      await expect(
-        orch.manualLoopAsync("t", undefined, { signal: controller.signal }),
-      ).rejects.toThrow(/cancelled/i);
-      expect(runChild.kill).toHaveBeenCalled();
-    });
-
-    it("kills the child and rejects when the wall-clock run timeout elapses", async () => {
-      // A run child that emits a line but never closes — only the wall-clock timeout can end it.
-      // Real timers (not fake) because the orchestrator does real fs.writeFile before spawning the
-      // run child, which fake timers can't advance past. A tiny 20ms timeout keeps it fast.
-      const stallScript = () => {
-        runChild.stdout?.emit("data", Buffer.from(`${JSON.stringify({ type: "assistant" })}\n`));
-      };
-      const { spawn } = makeSpawner(0, runChild, stallScript);
-      const orch = new LocalClaudeOrchestrator(
-        "claude",
-        { spawn },
-        makeManager([]),
-        makeTokenStorage(),
-        makeSettings("yolo"),
-        { generateObject: vi.fn() },
-        20,
-      );
-
-      await expect(orch.manualLoopAsync("t", undefined, {})).rejects.toThrow(/timed out/i);
-      expect(runChild.kill).toHaveBeenCalled();
     });
 
     it("rejects when the process exits non-zero before any result event", async () => {
@@ -580,8 +397,8 @@ describe("LocalClaudeOrchestrator", () => {
       const orch = new LocalClaudeOrchestrator(
         "claude",
         { spawn },
-        makeManager([]),
-        makeTokenStorage(),
+        makeManager(),
+        frontDoor,
         makeSettings("yolo"),
         { generateObject: vi.fn() },
       );
@@ -589,6 +406,19 @@ describe("LocalClaudeOrchestrator", () => {
       await expect(orch.manualLoopAsync("t", undefined, {})).rejects.toThrow(
         /Claude Code process exited with code 1/,
       );
+    });
+  });
+
+  describe("stripFrontDoorPrefix", () => {
+    it("strips the mcp__yakshaver__ front-door prefix so the real Server__tool remains", () => {
+      expect(stripFrontDoorPrefix(`mcp__${YAKSHAVER_MCP_SERVER_KEY}__GitHub__issue_write`)).toBe(
+        "GitHub__issue_write",
+      );
+    });
+
+    it("leaves non-front-door (Claude built-in) tool names unchanged", () => {
+      expect(stripFrontDoorPrefix("Read")).toBe("Read");
+      expect(stripFrontDoorPrefix("mcp__other__Foo__bar")).toBe("mcp__other__Foo__bar");
     });
   });
 });

@@ -44,6 +44,11 @@ function makeServices(overrides: Partial<BridgeServices> = {}): BridgeServices {
       updateSettingsAsync: vi.fn().mockResolvedValue(undefined),
       ...overrides.settings,
     },
+    tools: {
+      listTools: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn().mockResolvedValue({ ok: false, error: "not used in this test" }),
+      ...overrides.tools,
+    },
   };
 }
 

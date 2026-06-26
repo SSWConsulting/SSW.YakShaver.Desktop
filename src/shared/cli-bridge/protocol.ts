@@ -31,6 +31,23 @@ export const CLI_BRIDGE_DEFAULT_PORT = 8765;
 /** Env var that, when truthy, disables the bridge entirely. */
 export const CLI_BRIDGE_DISABLE_ENV = "YAKSHAVER_DISABLE_CLI_BRIDGE";
 
+/**
+ * Env vars the desktop orchestrator injects into the spawned `yakshaver mcp-serve` front-door so it
+ * connects to the live bridge deterministically (without racing the token file). The orchestrator
+ * (producer) WRITES these and the front-door's `buildClient` (consumer) READS them — they are a
+ * cross-module contract, so they live here as the single source of truth.
+ */
+export const CLI_BRIDGE_PORT_ENV = "YAKSHAVER_BRIDGE_PORT";
+export const CLI_BRIDGE_TOKEN_ENV = "YAKSHAVER_BRIDGE_TOKEN";
+
+/**
+ * Comma-separated server ids/names the front-door must restrict its toolset to (the project's
+ * `selectedMcpServerIds`). When unset/empty the front-door exposes every enabled server. The
+ * orchestrator injects it; `mcp-serve` reads it and forwards it on `GET /tools` + `POST /tools/call`
+ * so the server-side filter is applied where tools actually run.
+ */
+export const CLI_BRIDGE_SERVER_FILTER_ENV = "YAKSHAVER_BRIDGE_SERVER_FILTER";
+
 /** Placeholder shown instead of any secret value. */
 export const REDACTED = "***redacted***";
 
@@ -129,6 +146,61 @@ export type McpServerPatch = z.infer<typeof McpServerPatchSchema>;
 export const McpEnabledInputSchema = z.object({
   enabled: z.boolean(),
 });
+
+// ---------------------------------------------------------------------------
+// Aggregated tool endpoints (#915). The bridge exposes the app's full,
+// server-prefixed toolset (INCLUDING internal/in-memory servers) so the single
+// `yakshaver` MCP front-door can list + proxy them to the Claude orchestrator.
+// ---------------------------------------------------------------------------
+
+/** One aggregated tool as listed by `GET /tools`. */
+export interface BridgeToolSummary {
+  /** Server-prefixed name, e.g. `GitHub__create_issue`. */
+  name: string;
+  description?: string;
+  /** JSON Schema (draft-07-ish) describing the tool's input arguments. */
+  inputSchema: Record<string, unknown>;
+}
+
+/** Body accepted by `POST /tools/call`. */
+export const ToolCallInputSchema = z.object({
+  /** Server-prefixed tool name as returned by `GET /tools`. */
+  name: z.string().min(1, "tool name is required"),
+  /** Arguments object passed to the tool's execute(). Defaults to `{}`. */
+  arguments: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * Optional server ids/names to restrict resolution to (the project's selected servers). The tool
+   * must belong to one of them, mirroring the `GET /tools` filter, so a call can't reach a tool from
+   * an unselected project even if the model guesses its name.
+   */
+  serverFilter: z.array(z.string()).optional(),
+});
+export type ToolCallInput = z.infer<typeof ToolCallInputSchema>;
+
+/**
+ * Result envelope from `POST /tools/call`.
+ *
+ * A discriminated union on `ok` (matching the house pattern of {@link BridgeResponse}
+ * above) so success and failure each carry ONLY their relevant fields — illegal
+ * states (e.g. `error` on a success, `result` on a failure) are unrepresentable.
+ *
+ * `ok:false` with `notApproved:true` is a STRUCTURED refusal (the tool was not
+ * whitelisted under the current approval mode) — NOT a transport error, and the
+ * caller must surface it to the model rather than retrying or hanging.
+ */
+export type ToolCallResult =
+  | {
+      ok: true;
+      /** The tool's raw execute() return value. */
+      result?: unknown;
+    }
+  | {
+      ok: false;
+      /** A human-readable reason for the failure. */
+      error: string;
+      /** True when the failure is an approval-policy refusal, not an execution error. */
+      notApproved?: boolean;
+    };
 
 // LLM config payload (V2). Mirrors LLMConfigV2 so POST /llm/config validates at
 // the boundary instead of trusting an `as` cast, like the MCP/settings routes.
