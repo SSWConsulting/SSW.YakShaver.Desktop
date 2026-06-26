@@ -15,14 +15,20 @@ token-authenticated bridge.
 
 MCP
   yakshaver mcp list
-  yakshaver mcp add --name <name> --transport stdio --command <cmd> [--args "a b"] [--env "K=V,K2=V2"]
+  yakshaver mcp add --name <name> --transport stdio --command <cmd> [--arg <a> --arg <b>] [--env "K=V,K2=V2"]
   yakshaver mcp add --name <name> --transport http  --url <url> [--header "K=V"]
-  yakshaver mcp update <id> [--name ... --url ... --command ... --args ... --env ... --header ... --transport ...]
+  yakshaver mcp update <id> [--name ... --url ... --command ... --arg ... --env ... --header ... --transport ...]
   yakshaver mcp remove <id>
   yakshaver mcp enable <id> [--off]        # --off disables instead of enabling
 
   remove/enable/update also accept --name <name> instead of a positional <id>
   (resolved against the server list; errors if the name is missing or ambiguous).
+
+  stdio args: pass --arg once per argument (repeatable) to preserve spaces,
+  e.g. --arg "/My Documents/server.js". For an argument that itself starts with
+  "--", use the = form (--arg=--port). The legacy --args "a b c" form splits on
+  whitespace and cannot express an argument that contains a space; the two forms
+  are mutually exclusive. Built-in servers cannot be modified or removed.
 
 MCP FRONT-DOOR (internal — used by the Claude Code orchestrator)
   yakshaver mcp-serve                       # run the stdio MCP server that proxies

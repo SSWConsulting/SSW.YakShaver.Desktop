@@ -57,6 +57,54 @@ describe("buildRequest - mcp", () => {
     });
   });
 
+  it("mcp add stdio with repeatable --arg preserves a value containing spaces", () => {
+    const req = build([
+      "mcp",
+      "add",
+      "--name",
+      "Local",
+      "--transport",
+      "stdio",
+      "--command",
+      "node",
+      "--arg",
+      "/My Documents/server.js",
+      // A flag-like value must use the = form so it is not parsed as a new flag.
+      "--arg=--port",
+      "--arg",
+      "3000",
+    ]);
+    expect(req.body).toMatchObject({
+      command: "node",
+      // Each --arg is one argv entry; the spaced path is NOT shredded.
+      args: ["/My Documents/server.js", "--port", "3000"],
+    });
+  });
+
+  it("mcp add stdio rejects mixing --arg and --args", () => {
+    expect(() =>
+      build([
+        "mcp",
+        "add",
+        "--name",
+        "Local",
+        "--transport",
+        "stdio",
+        "--command",
+        "node",
+        "--args",
+        "a b",
+        "--arg",
+        "c",
+      ]),
+    ).toThrow(/either repeatable --arg/);
+  });
+
+  it("mcp update with repeatable --arg sets the args array verbatim", () => {
+    const req = build(["mcp", "update", "srv-9", "--arg", "/path with space/x.js", "--arg=--flag"]);
+    expect(req.body).toEqual({ args: ["/path with space/x.js", "--flag"] });
+  });
+
   it("mcp add http builds a POST with url + headers", () => {
     const req = build([
       "mcp",

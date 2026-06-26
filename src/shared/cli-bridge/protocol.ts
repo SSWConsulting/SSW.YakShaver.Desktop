@@ -190,6 +190,46 @@ export const OrchestratorInputSchema = z.object({
   orchestrationBackend: OrchestrationBackendSchema,
 });
 
+// ---------------------------------------------------------------------------
+// Full LLM config payload (POST /llm/config). Mirrors `LLMConfigV2` in
+// src/shared/types/llm.ts so the bridge validates the body BEFORE it is
+// encrypted and persisted (storeLLMConfig performs no validation of its own).
+// ---------------------------------------------------------------------------
+
+const ProviderNameSchema = z.enum(["openai", "azure", "deepseek"]);
+
+/** A single model config (discriminated on `provider`). Mirrors `ModelConfig`. */
+const ModelConfigSchema = z.discriminatedUnion("provider", [
+  z.object({
+    provider: z.literal("openai"),
+    model: z.string().nullable(),
+    apiKey: z.string(),
+  }),
+  z.object({
+    provider: z.literal("deepseek"),
+    model: z.string().nullable(),
+    apiKey: z.string(),
+  }),
+  z.object({
+    provider: z.literal("azure"),
+    model: z.string().nullable(),
+    apiKey: z.string(),
+    resourceName: z.string(),
+  }),
+]);
+
+/** Input accepted by POST /llm/config. Mirrors `LLMConfigV2`. */
+export const LLMConfigV2Schema = z
+  .object({
+    version: z.literal(2),
+    languageModel: ModelConfigSchema.nullable(),
+    transcriptionModel: ModelConfigSchema.nullable(),
+    providerApiKeys: z.record(ProviderNameSchema, z.string()).optional(),
+    orchestrationBackend: OrchestrationBackendSchema.optional(),
+  })
+  .strict();
+export type LLMConfigV2Input = z.infer<typeof LLMConfigV2Schema>;
+
 /**
  * Keys on an MCP server config considered secret. Redacted in any response.
  * `headers` and `env` often carry tokens/api keys so we redact their values.

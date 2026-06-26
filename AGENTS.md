@@ -51,6 +51,7 @@ YakShaver is a desktop AI agent with the following capabilities:
 
 - **AI/LLM**: `@ai-sdk/openai`, `@ai-sdk/azure`, `@ai-sdk/deepseek`, `@ai-sdk/mcp`, `ai`, `openai`
 - **MCP**: `@modelcontextprotocol/sdk`
+- **Validation**: `zod` (form schemas + the CLI bridge wire protocol in `src/shared/cli-bridge/`)
 - **Database**: `drizzle-orm`, `better-sqlite3`
 - **APIs**: `googleapis`, `@microsoft/microsoft-graph-client`, `google-auth-library`, `@azure/msal-node`
 - **Video/Media**: `@ffmpeg-installer/ffmpeg`, `youtube-dl-exec`
@@ -91,6 +92,7 @@ SSW.YakShaver.Desktop/
 │   │   │   └── channels.ts           # All IPC channel name constants
 │   │   ├── services/                  # Business logic services
 │   │   │   ├── auth/                  # YouTube & Microsoft OAuth
+│   │   │   ├── cli-bridge/            # Localhost HTTP bridge for the `yakshaver` CLI
 │   │   │   ├── ffmpeg/                # Video codec conversion
 │   │   │   ├── mcp/                   # MCP orchestration (central AI hub)
 │   │   │   ├── recording/             # Screen capture (singleton + EventEmitter)
@@ -105,9 +107,10 @@ SSW.YakShaver.Desktop/
 │   ├── shared/                        # Shared types between frontend & backend
 │   │   ├── types/                     # LLM, workflow, MCP, user-settings, telemetry types
 │   │   ├── llm/                       # Provider factory configuration
+│   │   ├── cli-bridge/                # CLI bridge wire protocol (zod) + redaction
 │   │   └── constants/                 # Shared error messages
 │   │
-│   └── ui/                            # React frontend (Vite)
+│   ├── ui/                            # React frontend (Vite)
 │       ├── vite.config.mts            # Vite build config (multi-entry)
 │       ├── tsconfig.json              # Frontend TypeScript config
 │       └── src/
@@ -129,6 +132,13 @@ SSW.YakShaver.Desktop/
 │           ├── lib/utils.ts           # cn() helper for Tailwind classes
 │           ├── types/                 # Frontend type definitions & enums
 │           └── utils/                 # formatErrorMessage, helpers
+│   │
+│   └── cli/                           # `yakshaver` CLI (plain Node, no Electron)
+│       ├── index.ts                  # CLI entry (bin: `yakshaver`)
+│       ├── commands.ts               # Arg parsing -> bridge request mapping
+│       ├── bridge-client.ts          # Talks to the localhost CLI bridge
+│       ├── resolve-name.ts           # Resolve MCP server name -> id
+│       └── user-data-path.ts         # Locate the app's userData dir (token file)
 │
 ├── docs/adr/                          # Architecture Decision Records
 ├── .github/workflows/                 # CI/CD (biome-check, release, build)
@@ -407,6 +417,29 @@ Channels are defined as constants in `src/backend/ipc/channels.ts`:
 
 All encrypted credential storage extends `BaseSecureStorage` (which uses Electron's `safeStorage` API). Each storage class is a singleton with `encryptAndStore()`/`decryptAndLoad()` methods. Classes: `LlmStorage`, `YoutubeStorage`, `GitHubTokenStorage`, `McpStorage`, `McpOAuthTokenStorage`, `CustomPromptStorage`, `UserSettingsStorage`, `ReleaseChannelStorage`.
 
+#### CLI Bridge Pattern (Localhost HTTP Control Plane)
+
+The standalone `yakshaver` CLI (`src/cli/`, exposed via the `bin.yakshaver` entry
+in `package.json`) configures a running desktop app from the terminal. Because
+the CLI is a separate plain-Node process, it cannot use IPC (which is renderer
+<-> main only). Instead the main process runs `CliBridgeServer`
+(`src/backend/services/cli-bridge/`), a localhost-only HTTP control plane:
+
+- Binds to `127.0.0.1` ONLY (never `0.0.0.0`); unreachable off-box. Opt out with
+  `YAKSHAVER_DISABLE_CLI_BRIDGE`.
+- On start it writes a handshake file (`port` + a random 256-bit bearer token) to
+  `userData/yakshaver-tokens/cli-bridge.json` (plaintext JSON, `0o600`; see the
+  Security note — it cannot be `safeStorage`-encrypted because the CLI can't
+  decrypt it). Every request must send `Authorization: Bearer <token>`.
+- Routing/validation live in `bridge-router.ts` and are Electron-free and unit
+  tested with mocked services. Every mutating endpoint validates its body with a
+  shared **zod** schema from `src/shared/cli-bridge/protocol.ts` via `safeParse`
+  and returns 400 on failure. Secrets (api keys, header/env values) are redacted
+  in every response via `src/shared/cli-bridge/redact.ts`.
+- The bridge delegates to the same backend singletons the UI uses
+  (`MCPServerManager`, `LlmStorage`, `UserSettingsStorage`) so there is one
+  source of truth for config.
+
 #### Database Service Pattern (Functions, Not Classes)
 
 Database services use plain exported functions (not classes) because better-sqlite3 is synchronous. No `async/await` in DB services. Use Drizzle ORM methods: `.get()` for single row, `.all()` for multiple rows, `.run()` for mutations. See `src/backend/db/services/shave-service.ts` for the pattern.
@@ -602,11 +635,21 @@ APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=.
 
 ### Storage Locations
 
-- **Windows**: `%APPDATA%\SSW.YakShaver\`
-- **macOS**: `~/Library/Application Support/SSW.YakShaver/`
-- **Linux**: `~/.config/SSW.YakShaver/`
+The userData directory is named after the Electron app (`YakShaver`), with a
+separate `YakShaverDev` directory for development builds (see
+`src/backend/index.ts`):
+
+- **Windows**: `%APPDATA%\YakShaver\` (dev: `%APPDATA%\YakShaverDev\`)
+- **macOS**: `~/Library/Application Support/YakShaver/`
+- **Linux**: `~/.config/YakShaver/`
 
 Encrypted tokens: `yakshaver-tokens/*.enc`
+CLI bridge token: `yakshaver-tokens/cli-bridge.json` — a plaintext JSON handshake
+file (port + bearer token) written with owner-only permissions (`0o600` where the
+OS honours it). It is intentionally NOT `safeStorage`-encrypted: the standalone
+`yakshaver` CLI is a plain Node process that cannot use Electron's `safeStorage`
+to decrypt it. The token only guards the localhost-only (`127.0.0.1`) bridge and
+is regenerated on every app start. See "CLI Bridge" under Architecture Patterns.
 Database: `database.sqlite` (dev: `./data/database.sqlite`)
 Auth browser templates: `src/backend/assets/auth/*.html` (packaged via `extraResources`)
 
@@ -661,7 +704,12 @@ npm run db:generate    # Generate Drizzle ORM migrations
 - **Never commit API keys** - use `.env` file (gitignored)
 - **Never hardcode secrets** - even placeholder values like `"sk-..."`
 - **Use Electron's `safeStorage` API** - for all token/credential encryption
-- **Encrypt all stored credentials** - via `BaseSecureStorage` subclasses
+- **Encrypt all stored credentials** - via `BaseSecureStorage` subclasses. The
+  one documented exception is the CLI bridge handshake token
+  (`yakshaver-tokens/cli-bridge.json`): the external `yakshaver` CLI is a plain
+  Node process that cannot decrypt `safeStorage` blobs, so the token is stored as
+  plaintext JSON with `0o600` permissions and only ever gates the localhost-only
+  bridge. See "CLI Bridge" under Architecture Patterns.
 - **Use HTTPS for all non-local/external API calls** (HTTP is only acceptable for `localhost` in local development)
 - **Validate and sanitize user input** before processing
 - **No telemetry without consent**

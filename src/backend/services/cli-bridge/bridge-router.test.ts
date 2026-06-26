@@ -149,6 +149,89 @@ describe("routeRequest - MCP", () => {
     );
   });
 
+  it("PUT /mcp/servers/:id HTTP->stdio strips stale url/headers and keeps the new command", async () => {
+    const res = await routeRequest(services, {
+      method: "PUT",
+      path: "/mcp/servers/srv-1",
+      body: { transport: "stdio", command: "node" },
+    });
+    expect(res.status).toBe(200);
+    const persisted = vi.mocked(services.mcp.updateServerAsync).mock
+      .calls[0][1] as unknown as Record<string, unknown>;
+    expect(persisted.transport).toBe("stdio");
+    expect(persisted.command).toBe("node");
+    // Stale HTTP-only fields must NOT survive the transport switch.
+    expect(persisted.url).toBeUndefined();
+    expect(persisted.headers).toBeUndefined();
+  });
+
+  it("PUT /mcp/servers/:id stdio->HTTP strips stale command/args and keeps the new url", async () => {
+    const stdioServer: MCPServerConfig = {
+      id: "srv-1",
+      name: "Test stdio",
+      transport: "stdio",
+      command: "node",
+      args: ["server.js"],
+      env: { TOKEN: "secret" },
+      enabled: true,
+    };
+    const svc = makeServices({
+      mcp: {
+        ...makeServices().mcp,
+        getServerByIdAsync: vi.fn().mockResolvedValue(stdioServer),
+      },
+    });
+    const res = await routeRequest(svc, {
+      method: "PUT",
+      path: "/mcp/servers/srv-1",
+      body: { transport: "streamableHttp", url: "https://new.example.com/mcp" },
+    });
+    expect(res.status).toBe(200);
+    const persisted = vi.mocked(svc.mcp.updateServerAsync).mock.calls[0][1] as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(persisted.transport).toBe("streamableHttp");
+    expect(persisted.url).toBe("https://new.example.com/mcp");
+    // Stale stdio-only fields must NOT survive the transport switch.
+    expect(persisted.command).toBeUndefined();
+    expect(persisted.args).toBeUndefined();
+    expect(persisted.env).toBeUndefined();
+  });
+
+  it("PUT /mcp/servers/:id rejects HTTP->stdio without a command", async () => {
+    const res = await routeRequest(services, {
+      method: "PUT",
+      path: "/mcp/servers/srv-1",
+      body: { transport: "stdio" },
+    });
+    expect(res.status).toBe(400);
+    expect(services.mcp.updateServerAsync).not.toHaveBeenCalled();
+  });
+
+  it("PUT /mcp/servers/:id rejects stdio->HTTP without a url", async () => {
+    const stdioServer: MCPServerConfig = {
+      id: "srv-1",
+      name: "Test stdio",
+      transport: "stdio",
+      command: "node",
+      enabled: true,
+    };
+    const svc = makeServices({
+      mcp: {
+        ...makeServices().mcp,
+        getServerByIdAsync: vi.fn().mockResolvedValue(stdioServer),
+      },
+    });
+    const res = await routeRequest(svc, {
+      method: "PUT",
+      path: "/mcp/servers/srv-1",
+      body: { transport: "streamableHttp" },
+    });
+    expect(res.status).toBe(400);
+    expect(svc.mcp.updateServerAsync).not.toHaveBeenCalled();
+  });
+
   it("PUT /mcp/servers/:id 404s when the server does not exist", async () => {
     const svc = makeServices({
       mcp: {
@@ -194,6 +277,80 @@ describe("routeRequest - MCP", () => {
       "srv-1",
       expect.objectContaining({ id: "srv-1", enabled: false }),
     );
+  });
+
+  it("POST /mcp/servers/:id/enabled rejects disabling a built-in server", async () => {
+    const builtin: MCPServerConfig = {
+      id: "yak_video_tools",
+      name: "Yak_Video_Tools",
+      transport: "inMemory",
+      builtin: true,
+      enabled: true,
+    };
+    const svc = makeServices({
+      mcp: {
+        ...makeServices().mcp,
+        getServerByIdAsync: vi.fn().mockResolvedValue(builtin),
+      },
+    });
+    const res = await routeRequest(svc, {
+      method: "POST",
+      path: "/mcp/servers/yak_video_tools/enabled",
+      body: { enabled: false },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    if (res.body.ok) throw new Error("expected error");
+    expect(res.body.error).toContain("built-in");
+    // Must NOT persist a shadow copy of the built-in server.
+    expect(svc.mcp.updateServerAsync).not.toHaveBeenCalled();
+  });
+
+  it("PUT /mcp/servers/:id rejects updating a built-in server", async () => {
+    const builtin: MCPServerConfig = {
+      id: "yak_video_tools",
+      name: "Yak_Video_Tools",
+      transport: "inMemory",
+      builtin: true,
+      enabled: true,
+    };
+    const svc = makeServices({
+      mcp: {
+        ...makeServices().mcp,
+        getServerByIdAsync: vi.fn().mockResolvedValue(builtin),
+      },
+    });
+    const res = await routeRequest(svc, {
+      method: "PUT",
+      path: "/mcp/servers/yak_video_tools",
+      body: { description: "hijacked" },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(svc.mcp.updateServerAsync).not.toHaveBeenCalled();
+  });
+
+  it("DELETE /mcp/servers/:id rejects removing a built-in server", async () => {
+    const builtin: MCPServerConfig = {
+      id: "yak_video_tools",
+      name: "Yak_Video_Tools",
+      transport: "inMemory",
+      builtin: true,
+      enabled: true,
+    };
+    const svc = makeServices({
+      mcp: {
+        ...makeServices().mcp,
+        getServerByIdAsync: vi.fn().mockResolvedValue(builtin),
+      },
+    });
+    const res = await routeRequest(svc, {
+      method: "DELETE",
+      path: "/mcp/servers/yak_video_tools",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(svc.mcp.removeServerAsync).not.toHaveBeenCalled();
   });
 
   it("POST /mcp/servers/:id/enabled 404s on unknown server", async () => {
@@ -267,12 +424,58 @@ describe("routeRequest - LLM", () => {
     expect(services.llm.storeLLMConfig).not.toHaveBeenCalled();
   });
 
+  it("POST /llm/config rejects a malformed v2 body (wrong-typed languageModel)", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, {
+      method: "POST",
+      path: "/llm/config",
+      body: {
+        version: 2,
+        // provider is not a known enum + apiKey missing -> must be rejected
+        languageModel: { provider: "bogus", model: "x" },
+        transcriptionModel: null,
+      },
+    });
+    expect(res.status).toBe(400);
+    expect(services.llm.storeLLMConfig).not.toHaveBeenCalled();
+  });
+
+  it("POST /llm/config rejects unknown top-level fields", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, {
+      method: "POST",
+      path: "/llm/config",
+      body: {
+        version: 2,
+        languageModel: null,
+        transcriptionModel: null,
+        bogus: "field",
+      },
+    });
+    expect(res.status).toBe(400);
+    expect(services.llm.storeLLMConfig).not.toHaveBeenCalled();
+  });
+
   it("GET /llm/config defaults orchestrationBackend to 'openai' when unset", async () => {
     const services = makeServices();
     const res = await routeRequest(services, { method: "GET", path: "/llm/config" });
     expect(res.status).toBe(200);
     if (!res.body.ok) throw new Error("expected ok");
     expect((res.body.data as { orchestrationBackend: string }).orchestrationBackend).toBe("openai");
+  });
+
+  it("GET /llm/config returns the default backend on a fresh install (null config)", async () => {
+    const services = makeServices({
+      llm: {
+        getLLMConfig: vi.fn().mockResolvedValue(null),
+        storeLLMConfig: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const res = await routeRequest(services, { method: "GET", path: "/llm/config" });
+    expect(res.status).toBe(200);
+    if (!res.body.ok) throw new Error("expected ok");
+    // Must surface a concrete value, never null, even when no config exists yet.
+    expect(res.body.data).toEqual({ orchestrationBackend: "openai" });
   });
 });
 

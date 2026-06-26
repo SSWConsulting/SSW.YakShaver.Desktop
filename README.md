@@ -36,9 +36,11 @@ for YouTube downloads. This avoids relying on the operating system's Python.
 
 - Keys are stored securely on your device using the operating system's encryption (Electron safeStorage) in the app's user data directory
 
-- **Windows**: `%APPDATA%\SSW.YakShaver\yakshaver-tokens\*.enc`
-- **macOS**: `~/Library/Application Support/SSW.YakShaver/yakshaver-tokens/*.enc`
-- **Linux**: `~/.config/SSW.YakShaver/yakshaver-tokens/*.enc`
+- **Windows**: `%APPDATA%\YakShaver\yakshaver-tokens\*.enc`
+- **macOS**: `~/Library/Application Support/YakShaver/yakshaver-tokens/*.enc`
+- **Linux**: `~/.config/YakShaver/yakshaver-tokens/*.enc`
+
+(Dev builds use a `YakShaverDev` folder in the same location.)
 
 
 ### OpenAI API Key (User-provided)
