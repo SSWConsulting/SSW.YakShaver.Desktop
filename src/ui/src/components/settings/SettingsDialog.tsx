@@ -184,7 +184,7 @@ export function SettingsDialog() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none h-[85vh] overflow-hidden flex flex-col [&_:is(button:not([role=switch]),select,input:not([type=checkbox]):not([type=radio]))]:min-h-11 [&_button:not([role=switch])]:min-w-11">
         {/* #879: the global "Settings" header was redundant with each panel's own
             title (SettingsPageHeader). It's now visually hidden — kept only for
             Radix Dialog accessibility (aria-labelledby/aria-describedby + screen
