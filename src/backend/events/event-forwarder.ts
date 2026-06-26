@@ -14,6 +14,10 @@ export function registerEventForwarders() {
   const service = RecordingService.getInstance();
   const controlBar = RecordingControlBarWindow.getInstance();
 
+  // Let the control bar answer the renderer's on-mount time request with the
+  // live elapsed time (#870).
+  controlBar.setElapsedProvider(() => service.getCurrentElapsedSeconds());
+
   const handlers = {
     [IPC_CHANNELS.RECORDING_TIME_UPDATE]: (time: number) => controlBar.updateTime(time),
   };

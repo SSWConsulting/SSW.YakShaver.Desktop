@@ -366,7 +366,14 @@ export function PromptForm({
                         field.onChange(newValue);
                       };
                       return (
-                        <div key={server.id} className="flex items-center gap-3 p-1 rounded">
+                        // min-h-11 gives the whole row a 44px-tall click target
+                        // (WCAG 2.5.5). The label spans the row via htmlFor, so
+                        // the row — not an overflowing checkbox overlay — is the
+                        // hit area, avoiding mis-toggling a stacked neighbour.
+                        <div
+                          key={server.id}
+                          className="flex items-center gap-3 min-h-11 px-1 rounded"
+                        >
                           <Checkbox
                             id={`server-${server.id}`}
                             checked={isChecked}
@@ -375,7 +382,7 @@ export function PromptForm({
                           />
                           <label
                             htmlFor={`server-${server.id}`}
-                            className={`text-sm flex-1 select-none ${
+                            className={`text-sm flex-1 self-stretch flex items-center select-none ${
                               isCheckboxDisabled ? "cursor-not-allowed" : "cursor-pointer"
                             }`}
                           >

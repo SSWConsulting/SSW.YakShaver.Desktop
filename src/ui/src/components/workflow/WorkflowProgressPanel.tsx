@@ -18,30 +18,53 @@ const STEP_LABELS: Record<keyof WorkflowState, string> = {
   updating_metadata: "Updating Metadata",
 };
 
-export function WorkflowProgressPanel() {
-  const [state, setState] = useState<WorkflowState | null>(null);
-  const [shaveId, setShaveId] = useState<string | undefined>();
+interface WorkflowProgressPanelProps {
+  /**
+   * #821: a pre-loaded state to render (when reached by navigation from a past shave) instead
+   * of subscribing to live progress events. When omitted, the panel keeps its original live
+   * behaviour for an in-flight run.
+   */
+  hydratedState?: WorkflowState | null;
+  /** The shave being viewed (read-only mode); omitted for the live run. */
+  hydratedShaveId?: string;
+}
+
+export function WorkflowProgressPanel({
+  hydratedState,
+  hydratedShaveId,
+}: WorkflowProgressPanelProps = {}) {
+  const [liveState, setLiveState] = useState<WorkflowState | null>(null);
+  const [liveShaveId, setLiveShaveId] = useState<string | undefined>();
+
+  const isHydrated = hydratedState != null;
 
   useEffect(() => {
+    // In hydrated (navigated) mode we render a persisted snapshot — don't subscribe to live events.
+    if (isHydrated) {
+      return;
+    }
     const cleanup = window.electronAPI.workflow.onProgressNeo((payload: unknown) => {
       const progress = parseWorkflowProgressNeoPayload(payload);
       if (progress.state) {
-        setState(progress.state);
+        setLiveState(progress.state);
       }
       if (progress.shaveId) {
-        setShaveId(progress.shaveId);
+        setLiveShaveId(progress.shaveId);
       }
     });
     return cleanup;
-  }, []);
+  }, [isHydrated]);
+
+  const state = hydratedState ?? liveState;
+  const shaveId = isHydrated ? hydratedShaveId : liveShaveId;
 
   // Dismiss a finished/failed run and return the processing screen to its ready
   // state so the user can start fresh without restarting the app (#733). The
   // sibling FinalResultPanel holds its own state, so broadcast a clear event to
   // reset both panels together rather than orphaning the Final Result card.
   const handleClear = () => {
-    setState(null);
-    setShaveId(undefined);
+    setLiveState(null);
+    setLiveShaveId(undefined);
     window.dispatchEvent(new CustomEvent(WORKFLOW_CLEAR_EVENT_CHANNEL));
   };
 

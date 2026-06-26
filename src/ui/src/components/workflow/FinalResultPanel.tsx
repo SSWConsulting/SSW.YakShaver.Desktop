@@ -657,15 +657,28 @@ export function FinalResultPanel() {
       const currentStage = getActiveStage(state);
       const previousStage = stageRef.current;
 
+      // A fresh run begins by ingesting the video: recordings start at
+      // UPLOADING_VIDEO and YouTube/external links start at DOWNLOADING_VIDEO
+      // (issue #754 — the download path never cleared the previous run's
+      // output, so it lingered until CONVERTING_AUDIO began after the download
+      // finished). Clearing on the ingest stage wipes stale output the moment a
+      // new run starts, before any new output arrives.
+      const isNewIngestStage =
+        (currentStage === WorkflowProgressStage.UPLOADING_VIDEO ||
+          currentStage === WorkflowProgressStage.DOWNLOADING_VIDEO) &&
+        previousStage !== WorkflowProgressStage.UPLOADING_VIDEO &&
+        previousStage !== WorkflowProgressStage.DOWNLOADING_VIDEO;
+
       const isNewRecordingStage =
         currentStage === WorkflowProgressStage.CONVERTING_AUDIO &&
         previousStage !== WorkflowProgressStage.CONVERTING_AUDIO;
 
+      // Retry reruns start mid-pipeline at EXECUTING_TASK and skip ingest.
       const isRetryStage =
         currentStage === WorkflowProgressStage.EXECUTING_TASK &&
         previousStage !== WorkflowProgressStage.EXECUTING_TASK;
 
-      if (isNewRecordingStage || isRetryStage) {
+      if (isNewIngestStage || isNewRecordingStage || isRetryStage) {
         resetForNewRun();
       }
 

@@ -2,7 +2,8 @@ import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-s
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatAndReportError } from "../../utils/error-utils";
-import { authorizeWithBackend, refreshTokenWithBackend } from "./mcp-oauth";
+import { authorizeWithBackend } from "./mcp-oauth";
+import { getFreshAccessTokenAsync } from "./mcp-token-refresh";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
@@ -52,30 +53,14 @@ export class MCPServerClient {
       const serverId = mcpConfig.id;
       const tokenStorage = McpOAuthTokenStorage.getInstance();
 
-      // Check if we already have tokens
+      // Refresh the access token if it has expired (shared with the local-Claude orchestrator so
+      // both backends inject the same freshness guarantee), then re-read what's in storage.
+      await getFreshAccessTokenAsync(tokenStorage, serverId, serverUrl);
       let tokens = await tokenStorage.getTokensAsync(serverId);
       console.log(
         `[MCPServerClient] Tokens for ${mcpConfig.name}:`,
         tokens ? "Present" : "Missing",
       );
-
-      // Handle refresh token logic if the token is stale
-      if (tokens?.refresh_token && tokenStorage.isTokenExpired(tokens)) {
-        try {
-          console.log(`[MCPServerClient] Token expired for ${mcpConfig.name}, refreshing...`);
-          const newTokens = await refreshTokenWithBackend(serverUrl, tokens.refresh_token);
-          await tokenStorage.saveTokensAsync(serverId, newTokens);
-          tokens = await tokenStorage.getTokensAsync(serverId);
-        } catch (refreshError) {
-          console.error(
-            `[MCPServerClient] Failed to refresh token for ${mcpConfig.name}:`,
-            refreshError,
-          );
-          // If refresh fails, we clear the tokens to trigger re-auth.
-          await tokenStorage.clearTokensAsync(serverId);
-          tokens = undefined;
-        }
-      }
 
       // If no valid tokens, trigger backend OAuth flow
       if (!tokens?.access_token) {

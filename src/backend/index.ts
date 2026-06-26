@@ -27,6 +27,7 @@ import { UserSettingsIPCHandlers } from "./ipc/user-settings-handlers";
 import { handleProtocolUrl } from "./protocol/protocol-router";
 import { IdentityServerAuthService } from "./services/auth/identity-server-auth";
 import { MicrosoftAuthService } from "./services/auth/microsoft-auth";
+import { CliBridgeServer } from "./services/cli-bridge/cli-bridge-server";
 import { registerAllInternalMcpServers } from "./services/mcp/internal/register-internal-servers";
 import { MCPOrchestrator } from "./services/mcp/mcp-orchestrator";
 import { MCPServerManager } from "./services/mcp/mcp-server-manager";
@@ -447,6 +448,13 @@ app.whenReady().then(async () => {
 
   const mcpServerManager = await MCPServerManager.getInstanceAsync();
   _mcpHandlers = new McpIPCHandlers(mcpServerManager);
+
+  // Start the localhost-only CLI config bridge (best-effort; never blocks startup).
+  try {
+    await CliBridgeServer.getInstance().start();
+  } catch (err) {
+    console.error("Failed to start CLI bridge:", err);
+  }
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
   _appControlHandlers = new AppControlIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
@@ -504,6 +512,11 @@ const cleanup = async () => {
   trayManager.destroy();
 
   unregisterEventForwarders?.();
+  try {
+    await CliBridgeServer.getInstance().stop();
+  } catch (err) {
+    console.error("CLI bridge shutdown error:", err);
+  }
   try {
     await RecordingService.getInstance().cleanupAllTempFiles();
   } catch (err) {

@@ -169,6 +169,48 @@ export function formatKeyAsTitle(key: string): string {
 }
 
 /**
+ * Splits a raw MCP tool name into its raw (unformatted) server-prefix and tool-id
+ * segments. Handles both the "__" (MCP system) and "." (AI output) separators and
+ * is the single source of truth for the separator precedence and slice offsets that
+ * {@link parseToolName} formats and consumers such as the approval dialog key off.
+ *
+ * @param rawToolName - The raw prefixed tool name from the MCP layer.
+ * @returns An object with the raw `server` prefix (null if no prefix) and the raw
+ *          `tool` id, both left exactly as they appear in the source string.
+ *
+ * @example
+ * splitToolName("Jira__getAccessibleAtlassianResources")
+ * // { server: "Jira", tool: "getAccessibleAtlassianResources" }
+ *
+ * splitToolName("Yak_Video_Tools.capture_video_frame")
+ * // { server: "Yak_Video_Tools", tool: "capture_video_frame" }
+ *
+ * splitToolName("issue_write")
+ * // { server: null, tool: "issue_write" }
+ */
+export function splitToolName(rawToolName: string): { server: string | null; tool: string } {
+  // Handle "__" separator (MCP system format: "Jira__getAccessibleAtlassianResources")
+  const dunderIndex = rawToolName.indexOf("__");
+  if (dunderIndex !== -1) {
+    return {
+      server: rawToolName.slice(0, dunderIndex),
+      tool: rawToolName.slice(dunderIndex + 2),
+    };
+  }
+
+  // Handle "." separator (AI output format: "Yak_Video_Tools.capture_video_frame")
+  const dotIndex = rawToolName.indexOf(".");
+  if (dotIndex !== -1) {
+    return {
+      server: rawToolName.slice(0, dotIndex),
+      tool: rawToolName.slice(dotIndex + 1),
+    };
+  }
+
+  return { server: null, tool: rawToolName };
+}
+
+/**
  * Parses a raw MCP tool name (e.g. "Jira__getAccessibleAtlassianResources") into its
  * human-readable server and tool components.
  *
@@ -186,25 +228,11 @@ export function parseToolName(rawToolName: string): { server: string | null; too
   const formatTool = (s: string) => s.split("_").map(formatKeyAsTitle).join(" ");
   const formatServer = (s: string) => s.replace(/_/g, " ");
 
-  // Handle "__" separator (MCP system format: "Jira__getAccessibleAtlassianResources")
-  const dunderIndex = rawToolName.indexOf("__");
-  if (dunderIndex !== -1) {
-    return {
-      server: formatServer(rawToolName.slice(0, dunderIndex)),
-      tool: formatTool(rawToolName.slice(dunderIndex + 2)),
-    };
-  }
-
-  // Handle "." separator (AI output format: "Yak_Video_Tools.capture_video_frame")
-  const dotIndex = rawToolName.indexOf(".");
-  if (dotIndex !== -1) {
-    return {
-      server: formatServer(rawToolName.slice(0, dotIndex)),
-      tool: formatTool(rawToolName.slice(dotIndex + 1)),
-    };
-  }
-
-  return { server: null, tool: formatTool(rawToolName) };
+  const { server, tool } = splitToolName(rawToolName);
+  return {
+    server: server === null ? null : formatServer(server),
+    tool: formatTool(tool),
+  };
 }
 
 /**
