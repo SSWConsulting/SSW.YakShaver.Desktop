@@ -3,12 +3,12 @@ import { CheckCircle2, ChevronDown, ChevronRight, Loader2, RefreshCw, XCircle } 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { formatErrorMessage } from "@/utils";
+import { formatErrorMessage, isErrorStep } from "@/utils";
 import { ipcClient } from "../../services/ipc-client";
 import type { MCPStep } from "../../types";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
-import { isErrorStep, StageWithContent } from "./StageWithContent";
+import { StageWithContent } from "./StageWithContent";
 
 const STATUS_CONFIG = {
   in_progress: {

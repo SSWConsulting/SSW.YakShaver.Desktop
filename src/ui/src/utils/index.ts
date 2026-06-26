@@ -4,6 +4,7 @@ import {
   type WorkflowState,
   type WorkflowStep,
 } from "@shared/types/workflow";
+import { type MCPStep, MCPStepType } from "@/types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -91,6 +92,51 @@ export function requiredPostCreationStageFailure(
     }
   }
   return null;
+}
+
+/**
+ * A single MCP step represents a failure when a tool result carried an error or a
+ * tool call was denied. This is the canonical "did this step error" signal shared
+ * by the per-step rendering and the panel-level failure predicate.
+ */
+export function isErrorStep(step: MCPStep): boolean {
+  return (
+    (step.type === MCPStepType.TOOL_RESULT && Boolean(step.error)) ||
+    step.type === MCPStepType.TOOL_DENIED
+  );
+}
+
+/**
+ * The executing_task stage can report a raw status of "completed" while its payload
+ * still contains error/denied steps (the backend completes the run whenever the
+ * backlog item was created, regardless of mid-run tool errors). In that case the
+ * run is effectively failed — WorkflowStepCard already renders it red. This helper
+ * reads the parsed executing_task payload and reports whether it holds any error
+ * steps so every consumer agrees on the same "effective failure" contract.
+ */
+export function hasExecutingTaskErrors(state: WorkflowState): boolean {
+  const parsed = parseWorkflowStepPayload(state.executing_task);
+  if (!isRecord(parsed) || !Array.isArray(parsed.steps)) {
+    return false;
+  }
+  return (parsed.steps as MCPStep[]).some(isErrorStep);
+}
+
+/**
+ * A workflow run has failed when any of its stages reports a raw "failed" status,
+ * OR when the executing_task stage completed but its payload contains error/denied
+ * steps (the effective-failure case WorkflowStepCard already surfaces as red).
+ *
+ * Used to surface a clear/recover action on the processing screen so a stuck or
+ * errored run can be dismissed instead of leaving the panel hung indefinitely.
+ * Keeping this in lock-step with the per-step effective-failure logic ensures the
+ * Clear action appears for every failure mode the user can actually see (#733).
+ */
+export function isWorkflowFailed(state: WorkflowState): boolean {
+  return (
+    WORKFLOW_STAGE_ORDER.some((stage) => state[stage].status === "failed") ||
+    (state.executing_task.status === "completed" && hasExecutingTaskErrors(state))
+  );
 }
 
 /**

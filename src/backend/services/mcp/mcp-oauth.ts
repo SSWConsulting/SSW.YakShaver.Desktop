@@ -1,7 +1,90 @@
 import type { OAuthTokens } from "@ai-sdk/mcp";
 import { shell } from "electron";
 import { config } from "../../config/env";
+import { delay } from "../../utils/async-utils";
 import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
+
+/**
+ * Error thrown when an MCP OAuth token refresh fails.
+ *
+ * `isInvalidGrant` distinguishes the two cases that #836 hinged on:
+ *  - `true`  — the backend rejected the refresh token itself (revoked / expired /
+ *              `invalid_grant`). The credential is genuinely dead, so clearing the
+ *              stored tokens and asking the user to reconnect is correct.
+ *  - `false` — a *transient* failure (network/SSL drop, 5xx, 429, timeout). The
+ *              refresh token is probably still valid, so the caller MUST preserve it
+ *              and retry later rather than signing the user out.
+ */
+export class McpTokenRefreshError extends Error {
+  readonly status?: number;
+  readonly isInvalidGrant: boolean;
+
+  constructor(
+    message: string,
+    options: { status?: number; isInvalidGrant?: boolean; cause?: unknown } = {},
+  ) {
+    super(message);
+    this.name = "McpTokenRefreshError";
+    this.status = options.status;
+    this.isInvalidGrant = options.isInvalidGrant ?? false;
+    if (options.cause !== undefined) {
+      (this as { cause?: unknown }).cause = options.cause;
+    }
+  }
+
+  /** True for transient failures where the refresh token should be preserved and retried. */
+  get isTransient(): boolean {
+    return !this.isInvalidGrant;
+  }
+}
+
+/**
+ * Whether an error represents a refresh token the backend has positively rejected
+ * (so it is safe to clear and re-authenticate). Anything else — including unknown
+ * error shapes — is treated as transient, so we default to preserving credentials.
+ */
+export function isInvalidRefreshTokenError(error: unknown): boolean {
+  return error instanceof McpTokenRefreshError && error.isInvalidGrant;
+}
+
+/**
+ * The single OAuth error code (RFC 6749 §5.2) that means a refresh grant was rejected — the
+ * refresh token is revoked/expired and re-authentication is required. Deliberately narrow:
+ * `invalid_client` / `unauthorized_client` indicate a *client/registration* fault (often a
+ * backend config blip, not the user's token) and `invalid_token` is an RFC 6750 resource-server
+ * code — none mean the user's refresh token is dead, so clearing on them would sign the user
+ * out over a non-token fault.
+ */
+const INVALID_GRANT_CODE = "invalid_grant";
+
+/**
+ * Extracts the upstream OAuth `error` code from a backend refresh error.
+ *
+ * The MCP refresh backend (`POST /mcp/auth/refresh`) does NOT forward the upstream OAuth error
+ * verbatim. On any failure it returns HTTP 400 with `{ error: ex.Message }`, where `ex.Message`
+ * is `"Token exchange failed with status <UpstreamStatus>: <raw upstream body>"` (see
+ * SSWConsulting/SSW.YakShaver: `McpOAuthService.RequestAccessTokenAsync` throws it,
+ * `McpEndpoints.RefreshMcpToken` wraps it as `{ error }`). So the genuine "refresh token is
+ * dead" signal is the upstream `invalid_grant` code embedded inside that wrapped string — this
+ * pulls it out (handling a cleanly-forwarded code, an embedded JSON body, or a form-encoded
+ * body). Anything unrecognised returns undefined and is treated as transient by the caller.
+ *
+ * NOTE: the robust long-term fix is a backend change to forward the structured upstream OAuth
+ * error (e.g. `{ error: "invalid_grant" }`) so the desktop need not parse a wrapped message.
+ */
+export function extractUpstreamOAuthErrorCode(rawError: string | undefined): string | undefined {
+  if (!rawError) return undefined;
+  // A backend that forwards the code cleanly: the whole value IS the code.
+  if (/^[a-zA-Z_]+$/.test(rawError)) return rawError;
+  // Embedded JSON upstream body: {"error":"invalid_grant", ...}
+  const jsonMatch = rawError.match(/"error"\s*:\s*"([^"]+)"/);
+  if (jsonMatch) return jsonMatch[1];
+  // Embedded form-encoded upstream body: error=invalid_grant&... (may be preceded by the
+  // backend's "...: " prefix, so allow whitespace as a boundary too).
+  const formMatch = rawError.match(/(?:^|[\s?&])error=([a-zA-Z_]+)/);
+  if (formMatch) return formMatch[1];
+  return undefined;
+}
 
 /**
  * Gets the authorization URL from the .NET backend for an MCP server.
@@ -107,6 +190,10 @@ export async function authorizeWithBackend(
 
 /**
  * Refreshes the OAuth tokens using the .NET backend.
+ *
+ * On failure this throws a {@link McpTokenRefreshError} that classifies whether the
+ * refresh token was genuinely rejected (`isInvalidGrant`) or the call failed
+ * transiently — so callers can decide whether to clear credentials or retry (#836).
  */
 export async function refreshTokenWithBackend(
   serverUrl: string,
@@ -118,28 +205,90 @@ export async function refreshTokenWithBackend(
 
   console.log(`[McpOAuth] Refreshing tokens for ${serverUrl}`);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      serverUrl,
-      refreshToken,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        serverUrl,
+        refreshToken,
+      }),
+    });
+  } catch (fetchError) {
+    // Network / SSL / DNS failure — transient by definition. Preserve the refresh token.
+    throw new McpTokenRefreshError(`Network error refreshing tokens for ${serverUrl}`, {
+      isInvalidGrant: false,
+      cause: fetchError,
+    });
+  }
 
   if (!response.ok) {
     let errorMessage = "Failed to refresh tokens from backend";
+    let errorCode: string | undefined;
     try {
       const errorData = await response.json();
-      errorMessage = errorData.error || errorMessage;
+      errorCode = typeof errorData?.error === "string" ? errorData.error : undefined;
+      errorMessage = errorData?.error_description || errorData?.error || errorMessage;
     } catch {
       errorMessage = `${errorMessage} (Status: ${response.status})`;
     }
-    throw new Error(errorMessage);
+
+    // The refresh token is only "dead" when the upstream provider rejected the grant with
+    // `invalid_grant` (RFC 6749 §5.2). The backend wraps that upstream error inside its own
+    // 400 `{ error }` message, so we extract the embedded upstream code rather than trusting
+    // the status (the backend returns 400 for EVERYTHING — dead grants, missing server config,
+    // upstream 5xx/timeouts wrapped as exceptions). Anything that isn't positively `invalid_grant`
+    // — config errors, wrapped 5xx, rate limits, unparseable bodies — is transient, so we
+    // preserve the credential and retry rather than signing the user out (#836).
+    const isInvalidGrant = extractUpstreamOAuthErrorCode(errorCode) === INVALID_GRANT_CODE;
+
+    throw new McpTokenRefreshError(errorMessage, {
+      status: response.status,
+      isInvalidGrant,
+    });
   }
 
   return await response.json();
+}
+
+/**
+ * Refreshes tokens with a bounded retry on *transient* failures, so a single network
+ * blip or backend hiccup coinciding with token expiry no longer signs the user out
+ * (#836). A genuine `invalid_grant` is not retried — it is rethrown immediately so the
+ * caller can clear the dead credential.
+ */
+export async function refreshTokenWithBackendWithRetry(
+  serverUrl: string,
+  refreshToken: string,
+  options: { retries?: number; baseDelayMs?: number; sleep?: (ms: number) => Promise<void> } = {},
+): Promise<OAuthTokens> {
+  const retries = options.retries ?? 3;
+  const baseDelayMs = options.baseDelayMs ?? 500;
+  const sleep = options.sleep ?? delay;
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await refreshTokenWithBackend(serverUrl, refreshToken);
+    } catch (error) {
+      lastError = error;
+      // Do not retry a positively-rejected refresh token — retrying cannot help.
+      if (isInvalidRefreshTokenError(error)) {
+        throw error;
+      }
+      if (attempt < retries) {
+        const backoffMs = baseDelayMs * 2 ** (attempt - 1);
+        console.warn(
+          `[McpOAuth] Transient token refresh failure for ${serverUrl} (attempt ${attempt}/${retries}); retrying in ${backoffMs}ms.`,
+        );
+        await sleep(backoffMs);
+      }
+    }
+  }
+
+  throw lastError;
 }

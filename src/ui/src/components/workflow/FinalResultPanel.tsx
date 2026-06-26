@@ -13,7 +13,11 @@ import {
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
 import { type MCPStep, MCPStepType, ShaveStatus, type VideoUploadResult } from "../../types";
-import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
+import {
+  UNDO_EVENT_CHANNEL,
+  type UndoEventDetail,
+  WORKFLOW_CLEAR_EVENT_CHANNEL,
+} from "../../types/index";
 import { LoadingState } from "../common/LoadingState";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -667,6 +671,23 @@ export function FinalResultPanel() {
     setWorkflowState(null);
     emitUndoEvent("reset");
   }, []);
+
+  // The user cleared the run from the processing screen (#733). Fully reset the
+  // panel — including the run-scoped upload/intermediate/shave state that a normal
+  // new-recording transition would otherwise repopulate — so the Final Result card
+  // does not linger orphaned after the progress panel is dismissed.
+  const handleWorkflowCleared = useCallback(() => {
+    resetForNewRun();
+    setIntermediateOutput(undefined);
+    setUploadResult(undefined);
+    setShaveId(undefined);
+    stageRef.current = null;
+  }, [resetForNewRun]);
+
+  useEffect(() => {
+    window.addEventListener(WORKFLOW_CLEAR_EVENT_CHANNEL, handleWorkflowCleared);
+    return () => window.removeEventListener(WORKFLOW_CLEAR_EVENT_CHANNEL, handleWorkflowCleared);
+  }, [handleWorkflowCleared]);
 
   useEffect(() => {
     return ipcClient.workflow.onProgressNeo((data: unknown) => {

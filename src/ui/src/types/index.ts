@@ -133,6 +133,14 @@ export type UndoEventDetail = {
   type: "start" | "complete" | "error" | "reset";
 };
 
+/**
+ * Dispatched when the user clears a failed/finished run from the processing screen
+ * (#733). The progress panel and the final-result panel hold independent state, so
+ * the panel that owns the Clear button broadcasts this event to let the sibling
+ * panels reset together rather than leaving an orphaned Final Result card behind.
+ */
+export const WORKFLOW_CLEAR_EVENT_CHANNEL = "yakshaver:workflow-clear";
+
 export enum MCPStepType {
   START = "start",
   REASONING = "reasoning",

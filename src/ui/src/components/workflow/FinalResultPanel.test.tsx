@@ -1,6 +1,7 @@
 import { ProgressStage, type WorkflowState, type WorkflowStatus } from "@shared/types/workflow";
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WORKFLOW_CLEAR_EVENT_CHANNEL } from "../../types/index";
 import { FinalResultPanel } from "./FinalResultPanel";
 
 // Capture the renderer-side workflow progress callback so the test can drive
@@ -153,5 +154,55 @@ describe("FinalResultPanel — clears previous output on a new run (#754)", () =
 
     emit(completedYouTubeRun(JSON.stringify({ Status: "success", Title: "Second run result" })));
     expect(screen.getByText(/Second run result/)).toBeInTheDocument();
+  });
+});
+
+// A run that produced a final output AND then had its metadata stage fail — the
+// reachable state where the progress panel shows the failure banner/Clear while
+// the Final Result card is also on screen (#733, #904 orphan finding).
+function makeFinalOutputWithMetadataFailureState(): WorkflowState {
+  const state = buildState({
+    [ProgressStage.UPLOADING_VIDEO]: "completed",
+    [ProgressStage.CONVERTING_AUDIO]: "completed",
+    [ProgressStage.TRANSCRIBING]: "completed",
+    [ProgressStage.ANALYZING_TRANSCRIPT]: "completed",
+    [ProgressStage.SELECTING_PROMPT]: "completed",
+    [ProgressStage.EXECUTING_TASK]: "completed",
+    [ProgressStage.UPDATING_METADATA]: "failed",
+  });
+  return withExecutingPayload(state, "All done — backlog item created.");
+}
+
+describe("FinalResultPanel — clear coexistence (#733/#904)", () => {
+  beforeEach(() => {
+    progressCallbacks.length = 0;
+    onProgressNeo.mockClear();
+    onStepUpdate.mockClear();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("renders the Final Result card once a final output is produced", () => {
+    render(<FinalResultPanel />);
+
+    expect(screen.queryByText("Final Result")).not.toBeInTheDocument();
+
+    emit(makeFinalOutputWithMetadataFailureState());
+
+    expect(screen.getByText("Final Result")).toBeInTheDocument();
+  });
+
+  it("clears the orphaned Final Result card when the workflow-clear event fires", () => {
+    render(<FinalResultPanel />);
+
+    emit(makeFinalOutputWithMetadataFailureState());
+    expect(screen.getByText("Final Result")).toBeInTheDocument();
+
+    // The progress panel's Clear button broadcasts this event; the Final Result
+    // card must reset too instead of lingering orphaned on the page.
+    act(() => {
+      window.dispatchEvent(new CustomEvent(WORKFLOW_CLEAR_EVENT_CHANNEL));
+    });
+
+    expect(screen.queryByText("Final Result")).not.toBeInTheDocument();
   });
 });

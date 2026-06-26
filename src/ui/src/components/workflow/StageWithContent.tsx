@@ -1,7 +1,7 @@
 import { AlertTriangle, Check, ChevronRight, Play, Wrench, X } from "lucide-react";
 import type React from "react";
 import { type MCPStep, MCPStepType, type MetadataPreview, type VideoChapter } from "../../types";
-import { deepParseJson, formatToolName } from "../../utils";
+import { deepParseJson, formatToolName, isErrorStep } from "../../utils";
 import { ReasoningStep } from "./ReasoningStep";
 
 interface StageWithContentProps {
@@ -88,13 +88,6 @@ function ToolResultSuccess({ result }: { result: unknown }) {
         </details>
       )}
     </div>
-  );
-}
-
-export function isErrorStep(step: MCPStep): boolean {
-  return (
-    (step.type === MCPStepType.TOOL_RESULT && Boolean(step.error)) ||
-    step.type === MCPStepType.TOOL_DENIED
   );
 }
 

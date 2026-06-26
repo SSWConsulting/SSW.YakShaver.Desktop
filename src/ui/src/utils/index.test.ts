@@ -5,8 +5,10 @@ import {
   type WorkflowStatus,
 } from "@shared/types/workflow";
 import { describe, expect, it } from "vitest";
+import { MCPStepType } from "@/types";
 import {
   formatKeyAsTitle,
+  isWorkflowFailed,
   parseToolName,
   requiredPostCreationStageFailure,
   splitToolName,
@@ -25,6 +27,27 @@ function makeWorkflowState(
     };
   }
   return state;
+}
+
+function makeStep(status: WorkflowStatus) {
+  return { stage: ProgressStage.UPLOADING_VIDEO, status };
+}
+
+function makeState(overrides: Partial<Record<keyof WorkflowState, WorkflowStatus>>): WorkflowState {
+  const base: WorkflowState = {
+    uploading_video: makeStep("not_started"),
+    downloading_video: makeStep("not_started"),
+    converting_audio: makeStep("not_started"),
+    transcribing: makeStep("not_started"),
+    analyzing_transcript: makeStep("not_started"),
+    selecting_prompt: makeStep("not_started"),
+    executing_task: makeStep("not_started"),
+    updating_metadata: makeStep("not_started"),
+  };
+  for (const [key, status] of Object.entries(overrides)) {
+    base[key as keyof WorkflowState] = makeStep(status as WorkflowStatus);
+  }
+  return base;
 }
 
 describe("formatKeyAsTitle", () => {
@@ -109,6 +132,52 @@ describe("requiredPostCreationStageFailure", () => {
       }),
     );
     expect(result?.stage).toBe(ProgressStage.UPLOADING_VIDEO);
+  });
+});
+
+describe("isWorkflowFailed", () => {
+  it("returns true when any stage has failed", () => {
+    expect(isWorkflowFailed(makeState({ executing_task: "failed" }))).toBe(true);
+  });
+
+  it("returns true when the first stage fails early", () => {
+    expect(isWorkflowFailed(makeState({ uploading_video: "failed" }))).toBe(true);
+  });
+
+  it("returns false while a run is still in progress", () => {
+    expect(isWorkflowFailed(makeState({ uploading_video: "in_progress" }))).toBe(false);
+  });
+
+  it("returns false for a fully completed run", () => {
+    const completed = makeState({});
+    for (const key of Object.keys(completed) as (keyof WorkflowState)[]) {
+      completed[key] = makeStep("completed");
+    }
+    expect(isWorkflowFailed(completed)).toBe(false);
+  });
+
+  it("returns true when executing_task completed but its payload has a tool-error step", () => {
+    const state = makeState({ executing_task: "completed" });
+    state.executing_task.payload = JSON.stringify({
+      steps: [{ type: MCPStepType.TOOL_RESULT, error: "boom" }],
+    });
+    expect(isWorkflowFailed(state)).toBe(true);
+  });
+
+  it("returns true when executing_task completed but its payload has a tool-denied step", () => {
+    const state = makeState({ executing_task: "completed" });
+    state.executing_task.payload = JSON.stringify({
+      steps: [{ type: MCPStepType.TOOL_DENIED, message: "denied" }],
+    });
+    expect(isWorkflowFailed(state)).toBe(true);
+  });
+
+  it("returns false when executing_task completed with only successful steps", () => {
+    const state = makeState({ executing_task: "completed" });
+    state.executing_task.payload = JSON.stringify({
+      steps: [{ type: MCPStepType.TOOL_RESULT, result: "ok" }],
+    });
+    expect(isWorkflowFailed(state)).toBe(false);
   });
 });
 

@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../ui/alert-dialog";
+import { buttonVariants } from "../../ui/button";
 import { SettingsPageHeader } from "../SettingsPageHeader";
 import { McpAzureDevOpsCard } from "./devops/mcp-devops-card";
 import { McpGitHubCard } from "./github/mcp-github-card";
@@ -415,7 +416,12 @@ export function McpSettingsPanel({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm}>Delete Server</AlertDialogAction>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className={buttonVariants({ variant: "destructiveOutline" })}
+            >
+              Delete Server
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -536,7 +536,7 @@ export function McpServerFormWrapper({
         <div className="flex w-full items-center">
           {onDelete && !hideDeleteServerButton && (
             <div className="flex flex-1 justify-start">
-              <Button variant="destructive" onClick={onDelete}>
+              <Button variant="destructiveOutline" onClick={onDelete}>
                 Delete Server
               </Button>
             </div>
