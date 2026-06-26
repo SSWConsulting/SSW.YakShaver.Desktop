@@ -45,7 +45,7 @@
   --secondary: oklch(0.968 0.005 39.026);
   --secondary-foreground: oklch(0.215 0.029 49.263);
   --muted: oklch(0.968 0.005 39.026);
-  --muted-foreground: oklch(0.555 0.027 43.046);
+  --muted-foreground: oklch(1 0 0 / 0.75);
   --accent: oklch(0.968 0.005 39.026);
   --accent-foreground: oklch(0.215 0.029 49.263);
   --destructive: oklch(0.577 0.245 27.325);
@@ -67,6 +67,8 @@
   --sidebar-ring: oklch(0.704 0.027 43.046);
   --ssw-red: #cc4141;
   --ssw-red-foreground: oklch(0.984 0.004 36.02);
+  /* SSW hot-red — reserved for irreversible / destructive actions */
+  --danger: #ff453a;
 }
 
 @theme {
@@ -107,6 +109,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-ssw-red: var(--ssw-red);
   --color-ssw-red-foreground: var(--ssw-red-foreground);
+  --color-danger: var(--danger);
 }
 
 .dark {
@@ -121,7 +124,7 @@
   --secondary: oklch(0.284 0.027 43.046);
   --secondary-foreground: oklch(0.984 0.004 36.02);
   --muted: oklch(0.284 0.027 43.046);
-  --muted-foreground: oklch(0.704 0.027 43.046);
+  --muted-foreground: oklch(1 0 0 / 0.75);
   --accent: oklch(0.284 0.027 43.046);
   --accent-foreground: oklch(0.984 0.004 36.02);
   --destructive: oklch(0.704 0.191 22.216);
@@ -143,6 +146,8 @@
   --sidebar-ring: oklch(0.555 0.027 43.046);
   --ssw-red: #cc4141;
   --ssw-red-foreground: oklch(0.929 0.008 39.026);
+  /* SSW hot-red — reserved for irreversible / destructive actions */
+  --danger: #ff453a;
 }
 
 @layer base {
@@ -161,4 +166,20 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@keyframes tick-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-tick-pop {
+  animation: tick-pop 0.4s ease-out forwards;
 }

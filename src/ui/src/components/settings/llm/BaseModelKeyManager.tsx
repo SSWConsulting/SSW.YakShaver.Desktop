@@ -1,4 +1,4 @@
-import type { LLMConfigV2, ModelConfig, ProviderName } from "@shared/types/llm";
+import type { ModelConfig, ProviderName } from "@shared/types/llm";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -7,7 +7,9 @@ import { formatErrorMessage } from "@/utils";
 import { LLM_PROVIDER_CONFIGS } from "../../../../../shared/llm/llm-providers";
 import { ipcClient } from "../../../services/ipc-client";
 import type { HealthStatusInfo } from "../../../types";
+import { SettingsSection } from "../SettingsSection";
 import { type LLMProvider, LLMProviderForm } from "./LLMProviderForm";
+import { buildConfigWithClearedModel, buildConfigWithSavedModel } from "./llm-config-utils";
 
 interface BaseModelKeyManagerProps {
   isActive: boolean;
@@ -35,7 +37,6 @@ export function BaseModelKeyManager({
   const [hasConfig, setHasConfig] = useState(false);
   const [healthStatus, setHealthStatus] = useState<HealthStatusInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentLLMConfig, setCurrentLLMConfig] = useState<LLMConfigV2 | null>(null);
 
   const form = useForm<ModelConfig>({
     defaultValues: {
@@ -50,7 +51,6 @@ export function BaseModelKeyManager({
       const cfg = await ipcClient.llm.getConfig();
       const processCfg = cfg?.[modelType];
       setHasConfig(!!processCfg);
-      setCurrentLLMConfig(cfg);
       form.reset(
         processCfg ?? {
           provider: "openai",
@@ -101,16 +101,8 @@ export function BaseModelKeyManager({
     async (values: ModelConfig) => {
       setIsLoading(true);
       try {
-        const configToSave: LLMConfigV2 = {
-          version: 2,
-          languageModel: currentLLMConfig?.languageModel ?? null,
-          transcriptionModel: currentLLMConfig?.transcriptionModel ?? null,
-          providerApiKeys: {
-            ...currentLLMConfig?.providerApiKeys,
-            [values.provider]: values.apiKey,
-          },
-          [modelType]: values,
-        };
+        const freshConfig = await ipcClient.llm.getConfig();
+        const configToSave = buildConfigWithSavedModel(freshConfig, modelType, values);
         await ipcClient.llm.setConfig(configToSave);
         const providerName =
           values.provider === "openai"
@@ -132,27 +124,30 @@ export function BaseModelKeyManager({
         setIsLoading(false);
       }
     },
-    [checkHealth, refreshStatus, currentLLMConfig, modelType],
+    [checkHealth, refreshStatus, modelType],
   );
 
   const onClear = useCallback(async () => {
     setIsLoading(true);
     try {
-      await ipcClient.llm.setConfig({
-        ...(currentLLMConfig as LLMConfigV2),
-        providerApiKeys: {},
-        [modelType]: null,
-      });
+      const freshConfig = await ipcClient.llm.getConfig();
+      const configToSave = buildConfigWithClearedModel(freshConfig, modelType);
+      await ipcClient.llm.setConfig(configToSave);
 
       toast.success("LLM configuration cleared");
       setHealthStatus(null);
+      setHasConfig(false);
+      form.reset({
+        provider: "openai",
+        apiKey: "",
+      });
       await refreshStatus();
     } catch (e) {
       toast.error(`Failed to clear configuration: ${formatErrorMessage(e)}`);
     } finally {
       setIsLoading(false);
     }
-  }, [refreshStatus, currentLLMConfig, modelType]);
+  }, [form, refreshStatus, modelType]);
 
   const handleProviderChange = async (value: LLMProvider) => {
     // Clear health status for the new provider
@@ -162,7 +157,6 @@ export function BaseModelKeyManager({
     let savedKey = "";
     try {
       const freshConfig = await ipcClient.llm.getConfig();
-      setCurrentLLMConfig(freshConfig);
       savedKey = freshConfig?.providerApiKeys?.[value as ProviderName] ?? "";
     } catch (_e) {
       // fall through with empty key
@@ -176,12 +170,7 @@ export function BaseModelKeyManager({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold">{title}</h2>
-        <p className="text-muted-foreground text-sm">{description}</p>
-      </header>
-
+    <SettingsSection title={title} description={description}>
       <LLMProviderForm
         form={form}
         onSubmit={onSubmit}
@@ -194,6 +183,6 @@ export function BaseModelKeyManager({
         }
         healthStatus={modelType === "languageModel" ? healthStatus : undefined}
       />
-    </div>
+    </SettingsSection>
   );
 }

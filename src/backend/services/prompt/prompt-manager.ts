@@ -1,7 +1,8 @@
 import https from "node:https";
 import { config } from "../../config/env";
 import { formatErrorMessage } from "../../utils/error-utils";
-import { MicrosoftAuthService } from "../auth/microsoft-auth";
+import { IdentityServerAuthService } from "../auth/identity-server-auth";
+import { fetchProjectSummaries, type ProjectSummaryDto } from "../portal/portal-projects";
 import { CustomPromptStorage } from "../storage/custom-prompt-storage";
 
 // Define the Prompt interface that consolidates local and remote prompts
@@ -9,15 +10,7 @@ export interface PromptSummary {
   id: string;
   name: string;
   description?: string;
-  isActive: boolean;
   source: "local" | "remote";
-}
-
-// Define the ProjectSummaryDto interface based on the API response
-interface ProjectSummaryDto {
-  id: string;
-  title: string;
-  description?: string;
 }
 
 // Define the ProjectDto interface based on the C# class
@@ -36,14 +29,15 @@ export interface ProjectDto {
   gitHubProjectId?: string;
   placeItemOnTopOfProductBacklog: boolean;
   desktopAgentProjectPrompt?: string;
+  selectedMcpServerIds?: string[];
 }
 
 export class PromptManager {
   private static instance: PromptManager;
-  private microsoftAuthService: MicrosoftAuthService;
+  private identityServerAuthService: IdentityServerAuthService;
 
   private constructor() {
-    this.microsoftAuthService = MicrosoftAuthService.getInstance();
+    this.identityServerAuthService = IdentityServerAuthService.getInstance();
   }
 
   public static getInstance(): PromptManager {
@@ -79,8 +73,7 @@ export class PromptManager {
         id: p.id,
         name: p.name,
         description: p.description,
-        isActive: true,
-        source: "local",
+        source: "local" as const,
       }));
     } catch (error) {
       console.error("Failed to fetch local prompts:", error);
@@ -95,73 +88,30 @@ export class PromptManager {
    */
   async getRemotePrompts(): Promise<PromptSummary[]> {
     try {
-      if (!(await this.microsoftAuthService.isAuthenticated())) {
+      if (!(await this.identityServerAuthService.isAuthenticated())) {
         return [];
       }
 
-      const tokenResult = await this.microsoftAuthService.getToken();
-      if (!tokenResult || !tokenResult.accessToken) {
+      const accessToken = await this.identityServerAuthService.getAccessToken();
+
+      if (!accessToken) {
         console.warn("No access token available for remote prompts.");
         return [];
       }
 
-      const apiUrl = config.portalApiUrl();
-      const url = new URL(apiUrl);
-      const hostname = url.hostname;
-      const port = url.port ? Number.parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
-      // Append /projects/summaries to the base API path
-      const path = `${url.pathname.replace(/\/$/, "")}/projects/summaries`;
-
-      const data = await new Promise<ProjectSummaryDto[]>((resolve, reject) => {
-        const options = {
-          hostname: hostname,
-          port: port,
-          path: path,
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${tokenResult.accessToken}`,
-            "Content-Type": "application/json",
-          },
-        };
-
-        const req = https.request(options, (res) => {
-          let responseData = "";
-
-          res.on("data", (chunk) => {
-            responseData += chunk;
-          });
-
-          res.on("end", () => {
-            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-              try {
-                const parsedData = JSON.parse(responseData);
-                // The API might return { data: [...] } or just [...]
-                // Adjust based on actual API response structure.
-                // Assuming it returns an array of project summaries which act as prompts.
-                resolve(Array.isArray(parsedData) ? parsedData : []);
-              } catch (error) {
-                reject(new Error(`Failed to parse JSON response: ${formatErrorMessage(error)}`));
-              }
-            } else {
-              reject(new Error(`API call failed: ${res.statusCode} ${res.statusMessage}`));
-            }
-          });
-        });
-
-        req.on("error", (error) => {
-          reject(error);
-        });
-
-        req.end();
-      });
+      // Shared portal-projects fetch — single owner of the /projects/summaries contract.
+      const parsed = await fetchProjectSummaries(accessToken);
+      // This consumer treats an unexpected body as "no remote prompts" rather than an error.
+      const data: ProjectSummaryDto[] = Array.isArray(parsed)
+        ? (parsed as ProjectSummaryDto[])
+        : [];
 
       // Map remote data to Prompt interface
       return data.map((item: ProjectSummaryDto) => ({
         id: item.id,
         name: item.title,
         description: item.description,
-        isActive: true,
-        source: "remote",
+        source: "remote" as const,
       }));
     } catch (error) {
       console.error("Failed to fetch remote prompts:", error);
@@ -185,6 +135,7 @@ export class PromptManager {
         description: localPrompt.description,
         // Map local prompt content to desktopAgentProjectPrompt
         desktopAgentProjectPrompt: localPrompt.content,
+        selectedMcpServerIds: localPrompt.selectedMcpServerIds,
         // Set defaults for other required fields
         videoHostType: "SharePoint", // Default
         recentWorkItemsCount: 0,
@@ -196,8 +147,8 @@ export class PromptManager {
     }
 
     try {
-      const tokenResult = await this.microsoftAuthService.getToken();
-      if (!tokenResult || !tokenResult.accessToken) {
+      const accessToken = await this.identityServerAuthService.getAccessToken();
+      if (!accessToken) {
         throw new Error("No access token available for fetching project details.");
       }
 
@@ -215,7 +166,7 @@ export class PromptManager {
           path: path,
           method: "GET",
           headers: {
-            Authorization: `Bearer ${tokenResult.accessToken}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
         };

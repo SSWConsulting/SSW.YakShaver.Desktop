@@ -1,3 +1,4 @@
+import type { ToolApprovalMode } from "@shared/types/user-settings";
 import { ArrowRight, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -11,6 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -18,15 +20,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useWorkflowNavigation } from "@/hooks/useWorkflowNavigation";
 import { VideoPlayer } from "./VideoPlayer";
 
 interface VideoPreviewModalProps {
   open: boolean;
   videoBlob: Blob;
   videoFilePath: string;
+  approvalMode: ToolApprovalMode;
   onClose: () => void;
   onRetry: () => void;
-  onContinue: () => void;
+  onContinue: (shaveAutoApprove: boolean) => void;
   onDurationLoad?: (duration: number) => void;
 }
 
@@ -34,13 +39,16 @@ export function VideoPreviewModal({
   open,
   videoBlob,
   videoFilePath,
+  approvalMode,
   onClose,
   onRetry,
   onContinue,
   onDurationLoad,
 }: VideoPreviewModalProps) {
+  const navigateToWorkflow = useWorkflowNavigation({ listen: false });
   const [videoUrl, setVideoUrl] = useState("");
   const [showConfirmExit, setShowConfirmExit] = useState(false);
+  const [autoApproveChecked, setAutoApproveChecked] = useState(false);
   const [audioCheck, setAudioCheck] = useState<
     | { status: "idle" }
     | { status: "checking" }
@@ -59,6 +67,7 @@ export function VideoPreviewModal({
   useEffect(() => {
     if (!open) {
       setAudioCheck({ status: "idle" });
+      setAutoApproveChecked(false);
       return;
     }
 
@@ -121,19 +130,41 @@ export function VideoPreviewModal({
             </div>
           )}
 
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={handleRetry}>
-              <RotateCcw className="w-4 h-4" />
-              Re-record
-            </Button>
-            <Button
-              variant="default"
-              onClick={onContinue}
-              disabled={audioCheck.status === "checking" || audioCheck.status === "no_audio"}
-            >
-              <ArrowRight className="w-4 h-4" />
-              Continue
-            </Button>
+          <DialogFooter className="flex-col items-start gap-3 sm:flex-col">
+            {approvalMode !== "yolo" && (
+              // min-h-11 gives the row a 44px-tall click target (WCAG 2.5.5);
+              // the label spans the row via htmlFor so the row is the hit area.
+              <div className="flex items-center gap-2 min-h-11">
+                <Checkbox
+                  id="auto-approve"
+                  checked={autoApproveChecked}
+                  onCheckedChange={(checked) => setAutoApproveChecked(checked === true)}
+                />
+                <Label
+                  htmlFor="auto-approve"
+                  className="text-sm font-normal text-muted-foreground self-stretch flex items-center cursor-pointer"
+                >
+                  Auto-approve all confirmations
+                </Label>
+              </div>
+            )}
+            <div className="flex w-full justify-end gap-2">
+              <Button variant="outline" onClick={handleRetry}>
+                <RotateCcw className="w-4 h-4" />
+                Re-record
+              </Button>
+              <Button
+                variant="default"
+                onClick={() => {
+                  navigateToWorkflow();
+                  onContinue(autoApproveChecked);
+                }}
+                disabled={audioCheck.status === "checking" || audioCheck.status === "no_audio"}
+              >
+                <ArrowRight className="w-4 h-4" />
+                Shave it
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

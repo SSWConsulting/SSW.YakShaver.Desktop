@@ -1,15 +1,37 @@
 import { randomUUID } from "node:crypto";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import type { ZodType } from "zod";
-import type { MCPStep } from "../../../shared/types/mcp";
 import { getDurationParts } from "../../utils/duration-utils";
 import { formatAndReportError } from "../../utils/error-utils";
+import {
+  isBacklogItemMutationTool,
+  normalizeIssueScreenshots,
+} from "../../utils/screenshot-markdown";
 import type { VideoUploadResult } from "../auth/types";
 import { TelemetryService } from "../telemetry/telemetry-service";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
+import {
+  type BacklogArtifact,
+  type IBacklogOrchestrator,
+  judgeBacklogOutcome,
+  type ManualLoopOptions,
+  type MCPLoopResult,
+  type MCPTerminationReason,
+  type ToolActivity,
+} from "./backlog-orchestrator";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 import { orchestratorSystemPrompt } from "./prompts";
+
+// Re-export the shared backlog-orchestrator contract from here so existing importers
+// (and tests) that reference these symbols on the orchestrator module keep working.
+export {
+  type BacklogArtifact,
+  BacklogOutcomeSchema,
+  type IBacklogOrchestrator,
+  type MCPLoopResult,
+  type MCPTerminationReason,
+} from "./backlog-orchestrator";
 
 /**
  * Tool Output Buffer for host-level tool chaining.
@@ -79,7 +101,7 @@ export class ToolOutputBuffer {
   }
 }
 
-export class MCPOrchestrator {
+export class MCPOrchestrator implements IBacklogOrchestrator {
   private static instance: MCPOrchestrator;
 
   private static languageModelProvider: LanguageModelProvider | null = null;
@@ -109,6 +131,43 @@ export class MCPOrchestrator {
     return resolved;
   }
 
+  /**
+   * #834 — Deterministic guard applied to backlog create/update tool arguments before execution.
+   * The issue/work-item body markdown is authored freely by the LLM, which intermittently embeds
+   * the same screenshot twice (top of body + "### Screenshots" section) and omits the bold
+   * `**Figure: ...**` caption. We normalise the body-bearing string fields here so the rendered
+   * issue always has exactly one captioned screenshot, regardless of model phrasing.
+   */
+  private normalizeScreenshotMarkdownInArgs(
+    toolName: string,
+    input: Record<string, unknown>,
+  ): Record<string, unknown> {
+    // Only touch tools that create/update a backlog item (issue / work item / PBI / ticket).
+    // Decided by an anchored allow-list that explicitly excludes comment/reply/cache/read-only
+    // tools (e.g. `add_issue_comment`, `update_issue_cache`) — see isBacklogItemMutationTool.
+    if (!isBacklogItemMutationTool(toolName)) {
+      return input;
+    }
+
+    // Body-like fields used across GitHub / Azure DevOps / Jira MCP servers.
+    const bodyFieldNames = new Set(["body", "description", "content", "markdown", "text"]);
+    let changed = false;
+    const resolved: Record<string, unknown> = { ...input };
+    for (const [key, value] of Object.entries(input)) {
+      if (bodyFieldNames.has(key.toLowerCase()) && typeof value === "string") {
+        const normalized = normalizeIssueScreenshots(value);
+        if (normalized !== value) {
+          resolved[key] = normalized;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      console.log(`[MCPOrchestrator] Normalized screenshot markdown for tool '${toolName}' (#834)`);
+    }
+    return resolved;
+  }
+
   public static async getInstanceAsync(): Promise<MCPOrchestrator> {
     if (MCPOrchestrator.instance) {
       return MCPOrchestrator.instance;
@@ -127,15 +186,8 @@ export class MCPOrchestrator {
   public async manualLoopAsync(
     videoTranscription: string,
     videoUploadResult?: VideoUploadResult,
-    options: {
-      projectMetaData?: string;
-      desktopAgentProjectPrompt?: string;
-      maxToolIterations?: number; // safety cap to avoid infinite loops
-      videoFilePath?: string; // local video file path for screenshot capture
-      serverFilter?: string[]; // if provided, only include tools from these server IDs
-      onStep?: (step: MCPStep) => void;
-    } = {},
-  ): Promise<string | undefined> {
+    options: ManualLoopOptions = {},
+  ): Promise<MCPLoopResult> {
     // Ensure LLM has been initialized
     if (!MCPOrchestrator.languageModelProvider) {
       throw new Error("[MCPOrchestrator]: LLM client not initialized");
@@ -181,6 +233,31 @@ export class MCPOrchestrator {
       { role: "user", content: `video transcription: ${videoTranscription}` },
     ];
 
+    // Records every executed tool call + its result. At the end we judge — from these
+    // RESULTS, not the model's narration — whether a backlog item was actually filed (#833).
+    const toolActivity: ToolActivity[] = [];
+
+    // Every loop exit funnels through here so the outcome is judged from the tool RESULTS
+    // regardless of WHY the loop ended — an item filed before a cap/limit is still honoured.
+    const finalize = async (
+      text: string,
+      terminationReason: MCPTerminationReason,
+      judgeFinalText: string,
+    ): Promise<MCPLoopResult> => {
+      const outcome = await this.judgeBacklogOutcome(
+        options.desktopAgentProjectPrompt,
+        videoTranscription,
+        toolActivity,
+        judgeFinalText,
+      );
+      return {
+        text,
+        backlogActionSucceeded: outcome.achieved,
+        artifacts: outcome.artifacts,
+        terminationReason,
+      };
+    };
+
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
       const llmResponse = await MCPOrchestrator.languageModelProvider
@@ -209,10 +286,10 @@ export class MCPOrchestrator {
       // Handle llmResponse based on finishReason
       if (llmResponse.finishReason === "tool-calls") {
         const telemetryService = TelemetryService.getInstance();
+        const toolWhiteList = new Set(
+          (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
+        );
         for (const toolCall of llmResponse.toolCalls) {
-          const toolWhiteList = new Set(
-            (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
-          );
           const isWhitelisted = toolWhiteList.has(toolCall.toolName);
           const toolStartTime = Date.now();
 
@@ -222,7 +299,10 @@ export class MCPOrchestrator {
             const decision = await UserInteractionService.getInstance().requestToolApproval(
               toolCall.toolName,
               toolCall.input,
-              { message: `Approval required to run ${toolCall.toolName}` },
+              {
+                message: `Approval required to run ${toolCall.toolName}`,
+                shaveId: options.shaveId,
+              },
             );
 
             if (decision.kind === "deny_stop") {
@@ -252,7 +332,7 @@ export class MCPOrchestrator {
                 type: "final_result",
                 message: "Tool execution cancelled by user",
               });
-              return "Tool execution cancelled by user";
+              return finalize("Tool execution cancelled by user", "cancelled", "");
             }
 
             if (decision.kind === "request_changes") {
@@ -343,7 +423,10 @@ export class MCPOrchestrator {
               });
 
               // Resolve any toolOutputRef parameters before executing the tool
-              const resolvedInput = this.resolveToolOutputReferences(toolCall.input);
+              const resolvedInput = this.normalizeScreenshotMarkdownInArgs(
+                toolCall.toolName,
+                this.resolveToolOutputReferences(toolCall.input),
+              );
 
               const toolOutput = await toolToCall.execute(resolvedInput, {
                 toolCallId: toolCall.toolCallId,
@@ -360,6 +443,17 @@ export class MCPOrchestrator {
                   })
                   .filter(Boolean)
                   .join("\n\n") || "(no text output)";
+
+              // Record the call + its result for the end-of-loop outcome judge. `ok` reflects
+              // whether the tool itself errored (MCP sets isError on a failed/auth-denied call).
+              const toolErrored = (toolOutput as { isError?: boolean }).isError === true;
+              toolActivity.push({
+                toolName: toolCall.toolName,
+                ok: !toolErrored,
+                // Keep enough of the result that a created-item id/URL near the end is still
+                // visible to the outcome judge (a verbose tool body shouldn't hide the artifact).
+                resultText: rawOutputText.slice(0, 8000),
+              });
 
               // Store complete raw output in buffer for tool chaining
               const contentToStore = JSON.stringify(toolOutput.content);
@@ -455,22 +549,52 @@ export class MCPOrchestrator {
           type: "final_result",
           message: llmResponse.finishReason,
         });
-        return llmResponse.text;
+        // Clean finish: judge from the tool RESULTS whether a backlog item was actually filed.
+        return finalize(llmResponse.text, "stop", llmResponse.text);
       } else if (llmResponse.finishReason === "content-filter") {
         console.log("[MCPOrchestrator] Session ended: Content filter triggered");
         ToolOutputBuffer.getInstance().clear();
-        return "Conversation ended due to content filter.";
+        return finalize(
+          "Conversation ended due to content filter.",
+          "content-filter",
+          llmResponse.text,
+        );
       } else if (llmResponse.finishReason === "length") {
         console.log("[MCPOrchestrator] Session ended: Maximum length reached");
         ToolOutputBuffer.getInstance().clear();
-        return "Conversation ended due to length limit.";
+        return finalize("Conversation ended due to length limit.", "length", llmResponse.text);
       } else {
         console.log("[MCPOrchestrator] Session ended with unknown reason:");
         console.log(llmResponse.finishReason);
         ToolOutputBuffer.getInstance().clear();
-        break;
+        return finalize("", "unknown", llmResponse.text);
       }
     }
+
+    // The loop exhausted its iteration cap. An item may already have been filed before the cap,
+    // so judge from the tool results rather than assuming failure.
+    ToolOutputBuffer.getInstance().clear();
+    return finalize("", "max-iterations", "");
+  }
+
+  /**
+   * Decides whether the run ACTUALLY created/updated a backlog item (#833). Delegates to the
+   * shared `judgeBacklogOutcome`, which is also used by the local Claude Code backend so success
+   * is judged identically regardless of who drove the tools.
+   */
+  private async judgeBacklogOutcome(
+    goal: string | undefined,
+    transcript: string,
+    toolActivity: ToolActivity[],
+    finalText: string,
+  ): Promise<{ achieved: boolean; artifacts: BacklogArtifact[] }> {
+    return judgeBacklogOutcome(
+      MCPOrchestrator.languageModelProvider,
+      goal,
+      transcript,
+      toolActivity,
+      finalText,
+    );
   }
 
   public async convertToObjectAsync(prompt: string, schema: ZodType): Promise<unknown> {

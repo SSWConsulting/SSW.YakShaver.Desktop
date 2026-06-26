@@ -1,18 +1,22 @@
+import { ProgressStage as WorkflowProgressStage, type WorkflowState } from "@shared/types/workflow";
 import { Copy, ExternalLink, RotateCcw, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { formatErrorMessage } from "@/utils";
+import {
+  formatErrorMessage,
+  formatKeyAsTitle,
+  isWorkflowReadyForFinalOutput,
+  parseWorkflowProgressNeoPayload,
+  parseWorkflowStepPayload,
+} from "@/utils";
 import { useClipboard } from "../../hooks/useClipboard";
 import { ipcClient } from "../../services/ipc-client";
+import { type MCPStep, MCPStepType, ShaveStatus, type VideoUploadResult } from "../../types";
 import {
-  type MCPStep,
-  MCPStepType,
-  ProgressStage,
-  ShaveStatus,
-  type WorkflowProgress,
-  type WorkflowStage,
-} from "../../types";
-import { UNDO_EVENT_CHANNEL, type UndoEventDetail } from "../../types/index";
+  UNDO_EVENT_CHANNEL,
+  type UndoEventDetail,
+  WORKFLOW_CLEAR_EVENT_CHANNEL,
+} from "../../types/index";
 import { LoadingState } from "../common/LoadingState";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -72,7 +76,7 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
   const processedData: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(data)) {
-    if (key === "Status" || key === "IssueNumber") continue;
+    if (key === "Status" || key === "IssueNumber" || key === "ToolsUsed") continue;
 
     // Special handling for Labels array
     if (key === "Labels" && Array.isArray(value)) {
@@ -94,6 +98,9 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
       if (regularLabels.length > 0) {
         processedData.Labels = regularLabels;
       }
+    } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      // Flatten nested objects into individual fields under a group heading
+      processedData[key] = value;
     } else {
       processedData[key] = value;
     }
@@ -103,12 +110,35 @@ function JsonResultDisplay({ data }: { data: ParsedResult }) {
 
   return (
     <div className="space-y-4">
-      {entries.map(([key, value]) => (
-        <div key={key}>
-          <SectionHeader title={key} />
-          <ValueRenderer value={value} onCopy={copyToClipboard} />
-        </div>
-      ))}
+      {entries.map(([key, value]) => {
+        // Render nested plain objects as a compact key-value card
+        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+          const nested = value as Record<string, unknown>;
+          return (
+            <div key={key}>
+              <SectionHeader title={key} />
+              <div className="rounded-md border border-white/10 bg-white/5 divide-y divide-white/10">
+                {Object.entries(nested).map(([nestedKey, nestedValue]) => (
+                  <div key={nestedKey} className="flex gap-4 px-3 py-2">
+                    <span className="text-xs text-white/50 min-w-[100px] shrink-0 pt-0.5">
+                      {formatKeyAsTitle(nestedKey)}
+                    </span>
+                    <div className="flex-1 text-sm text-white/90 min-w-0">
+                      <ValueRenderer value={nestedValue} onCopy={copyToClipboard} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div key={key}>
+            <SectionHeader title={key} />
+            <ValueRenderer value={value} onCopy={copyToClipboard} />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -211,7 +241,7 @@ function SectionHeader({ title }: SectionHeaderProps) {
   return (
     <div className="flex items-baseline gap-3 mb-2">
       <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wide min-w-fit">
-        {title}
+        {formatKeyAsTitle(title)}
       </h3>
       <div className="h-px flex-1 bg-white/10 self-center" />
     </div>
@@ -511,11 +541,42 @@ const emitUndoEvent = (type: UndoEventDetail["type"]) => {
   window.dispatchEvent(new CustomEvent(UNDO_EVENT_CHANNEL, { detail: { type } }));
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getStringValue(payload: unknown, key: string): string | undefined {
+  return isRecord(payload) && typeof payload[key] === "string" ? payload[key] : undefined;
+}
+
+function isVideoUploadResult(value: unknown): value is VideoUploadResult {
+  return isRecord(value) && typeof value.success === "boolean";
+}
+
+function getUploadResult(payload: unknown): VideoUploadResult | undefined {
+  return isRecord(payload) && isVideoUploadResult(payload.uploadResult)
+    ? payload.uploadResult
+    : undefined;
+}
+
+function getMcpSteps(payload: unknown): MCPStep[] | undefined {
+  return isRecord(payload) && Array.isArray(payload.steps)
+    ? (payload.steps as MCPStep[])
+    : undefined;
+}
+
+function getActiveStage(state: WorkflowState): keyof WorkflowState | null {
+  const activeStage = Object.values(WorkflowProgressStage).find(
+    (stage) => state[stage].status === "in_progress",
+  );
+  return activeStage ?? null;
+}
+
 export function FinalResultPanel() {
   const [finalOutput, setFinalOutput] = useState<string | undefined>();
   const [intermediateOutput, setIntermediateOutput] = useState<string | undefined>();
   const [shaveId, setShaveId] = useState<string | undefined>(undefined);
-  const [uploadResult, setUploadResult] = useState<WorkflowProgress["uploadResult"]>();
+  const [uploadResult, setUploadResult] = useState<VideoUploadResult>();
   const [mcpSteps, setMcpSteps] = useState<MCPStep[]>([]);
   const [reprocessDialogOpen, setReprocessDialogOpen] = useState(false);
   const [reprocessMode, setReprocessMode] = useState<ReprocessMode>("original");
@@ -527,7 +588,7 @@ export function FinalResultPanel() {
   const [hasUndoCompleted, setHasUndoCompleted] = useState(false);
   const [lastUndoPrompt, setLastUndoPrompt] = useState<string | null>(null);
 
-  const stageRef = useRef<WorkflowStage>(ProgressStage.IDLE);
+  const stageRef = useRef<keyof WorkflowState | null>(null);
 
   const markCancelled = useCallback(async () => {
     if (!shaveId) return;
@@ -564,40 +625,94 @@ export function FinalResultPanel() {
     emitUndoEvent("reset");
   }, []);
 
+  // The user cleared the run from the processing screen (#733). Fully reset the
+  // panel — including the run-scoped upload/intermediate/shave state that a normal
+  // new-recording transition would otherwise repopulate — so the Final Result card
+  // does not linger orphaned after the progress panel is dismissed.
+  const handleWorkflowCleared = useCallback(() => {
+    resetForNewRun();
+    setIntermediateOutput(undefined);
+    setUploadResult(undefined);
+    setShaveId(undefined);
+    stageRef.current = null;
+  }, [resetForNewRun]);
+
   useEffect(() => {
-    return ipcClient.workflow.onProgress((data: unknown) => {
-      const progressData = data as WorkflowProgress;
+    window.addEventListener(WORKFLOW_CLEAR_EVENT_CHANNEL, handleWorkflowCleared);
+    return () => window.removeEventListener(WORKFLOW_CLEAR_EVENT_CHANNEL, handleWorkflowCleared);
+  }, [handleWorkflowCleared]);
+
+  useEffect(() => {
+    return ipcClient.workflow.onProgressNeo((data: unknown) => {
+      const neoProgress = parseWorkflowProgressNeoPayload(data);
+      if (neoProgress.shaveId) {
+        setShaveId(neoProgress.shaveId);
+      }
+
+      if (!neoProgress.state) {
+        return;
+      }
+
+      const { state } = neoProgress;
+      const currentStage = getActiveStage(state);
       const previousStage = stageRef.current;
 
+      // A fresh run begins by ingesting the video: recordings start at
+      // UPLOADING_VIDEO and YouTube/external links start at DOWNLOADING_VIDEO
+      // (issue #754 — the download path never cleared the previous run's
+      // output, so it lingered until CONVERTING_AUDIO began after the download
+      // finished). Clearing on the ingest stage wipes stale output the moment a
+      // new run starts, before any new output arrives.
+      const isNewIngestStage =
+        (currentStage === WorkflowProgressStage.UPLOADING_VIDEO ||
+          currentStage === WorkflowProgressStage.DOWNLOADING_VIDEO) &&
+        previousStage !== WorkflowProgressStage.UPLOADING_VIDEO &&
+        previousStage !== WorkflowProgressStage.DOWNLOADING_VIDEO;
+
       const isNewRecordingStage =
-        progressData.stage === ProgressStage.CONVERTING_AUDIO &&
-        previousStage !== ProgressStage.CONVERTING_AUDIO;
+        currentStage === WorkflowProgressStage.CONVERTING_AUDIO &&
+        previousStage !== WorkflowProgressStage.CONVERTING_AUDIO;
 
+      // Retry reruns start mid-pipeline at EXECUTING_TASK and skip ingest.
       const isRetryStage =
-        progressData.stage === ProgressStage.EXECUTING_TASK &&
-        previousStage !== ProgressStage.EXECUTING_TASK;
+        currentStage === WorkflowProgressStage.EXECUTING_TASK &&
+        previousStage !== WorkflowProgressStage.EXECUTING_TASK;
 
-      if (isNewRecordingStage || isRetryStage) {
+      if (isNewIngestStage || isNewRecordingStage || isRetryStage) {
         resetForNewRun();
       }
 
-      if (progressData.shaveId) {
-        setShaveId(progressData.shaveId);
+      const uploadPayload = parseWorkflowStepPayload(state.uploading_video);
+      const downloadPayload = parseWorkflowStepPayload(state.downloading_video);
+      const nextUploadResult = getUploadResult(uploadPayload) ?? getUploadResult(downloadPayload);
+      if (nextUploadResult) {
+        setUploadResult(nextUploadResult);
       }
 
-      if (progressData.intermediateOutput) {
-        setIntermediateOutput(progressData.intermediateOutput);
+      const analyzingPayload = parseWorkflowStepPayload(state.analyzing_transcript);
+      if (typeof analyzingPayload === "string") {
+        setIntermediateOutput(analyzingPayload);
       }
 
-      if (progressData.uploadResult) {
-        setUploadResult(progressData.uploadResult);
+      const executingPayload = parseWorkflowStepPayload(state.executing_task);
+      const executingIntermediateOutput = getStringValue(executingPayload, "intermediateOutput");
+      if (executingIntermediateOutput) {
+        setIntermediateOutput(executingIntermediateOutput);
       }
 
-      if (typeof progressData.finalOutput !== "undefined") {
-        setFinalOutput(progressData.finalOutput ?? undefined);
+      const steps = getMcpSteps(executingPayload);
+      if (steps) {
+        setMcpSteps(steps);
       }
 
-      stageRef.current = progressData.stage;
+      if (isWorkflowReadyForFinalOutput(state)) {
+        const nextFinalOutput = getStringValue(executingPayload, "finalOutput");
+        if (typeof nextFinalOutput !== "undefined") {
+          setFinalOutput(nextFinalOutput);
+        }
+      }
+
+      stageRef.current = currentStage;
     });
   }, [resetForNewRun]);
 
@@ -628,7 +743,7 @@ export function FinalResultPanel() {
 
     try {
       const mergedOutput = mergeReprocessInstructions(intermediateOutput, reprocessInstructions);
-      const result = await ipcClient.pipelines.retryVideo(mergedOutput, uploadResult, shaveId);
+      const result = await ipcClient.pipelines.rerunTask(mergedOutput, uploadResult, shaveId);
 
       if (!result?.success) {
         throw new Error(result?.error ?? "Reprocess failed");

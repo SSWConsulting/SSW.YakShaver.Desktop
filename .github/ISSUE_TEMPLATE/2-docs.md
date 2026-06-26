@@ -13,8 +13,8 @@ Cc:
 <!-- add intended user next to **Hi** -->
 Hi 
 
-<!-- duration in the format of xx min xx sec -->
-[▶️ Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
+<!-- duration in the format of xx min xx sec (if 0 min, use xx sec) -->
+[🟥 Watch the video ({{ DURATION }})]({{ VIDEO_LINK }})
 
 ### Pain
 <!-- Explain the pain you are experiencing -->

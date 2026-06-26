@@ -1,5 +1,3 @@
-import type { TranscriptSegment } from "@shared/types/transcript";
-
 export interface UserInfo {
   id: string;
   name: string;
@@ -104,55 +102,22 @@ export interface MetadataPreview {
   chapters?: VideoChapter[];
 }
 
-export type WorkflowStage =
-  | "idle"
-  | "uploading_source"
-  | "downloading_source"
-  | "upload_completed"
-  | "converting_audio"
-  | "transcribing"
-  | "generating_task"
-  | "executing_task"
-  | "updating_metadata"
-  | "completed"
-  | "error";
-
-export const STAGE_CONFIG: Record<WorkflowStage, string> = {
-  idle: "Waiting for recording...",
-  uploading_source: "Uploading video",
-  downloading_source: "Downloading source video",
-  upload_completed: "Video upload completed",
-  converting_audio: "Converting audio",
-  transcribing: "Transcribing audio",
-  generating_task: "Analyzing transcript",
-  executing_task: "Executing task",
-  updating_metadata: "Updating YouTube metadata",
-  completed: "Completed",
-  error: "Error occurred",
-};
-
-export interface WorkflowProgress {
-  shaveId?: string;
-  stage: WorkflowStage;
-  transcript?: TranscriptSegment[];
-  intermediateOutput?: string;
-  finalOutput?: string;
-  uploadResult?: VideoUploadResult;
-  metadataPreview?: MetadataPreview;
-  metadataUpdateError?: string;
-  error?: string;
-  sourceOrigin?: VideoUploadOrigin;
-}
-
 export interface CustomPrompt {
   id: string;
   name: string;
   description?: string;
   content: string;
-  isDefault?: boolean;
+  isTemplate?: boolean;
   selectedMcpServerIds?: string[];
   createdAt: number;
   updatedAt: number;
+}
+
+export interface PromptFormData {
+  name: string;
+  description?: string;
+  content: string;
+  selectedMcpServerIds?: string[];
 }
 
 export interface HealthStatusInfo {
@@ -162,26 +127,19 @@ export interface HealthStatusInfo {
   isChecking: boolean;
 }
 
-export enum ProgressStage {
-  IDLE = "idle",
-  UPLOADING_SOURCE = "uploading_source",
-  DOWNLOADING_SOURCE = "downloading_source",
-  UPLOAD_COMPLETED = "upload_completed",
-  CONVERTING_AUDIO = "converting_audio",
-  TRANSCRIBING = "transcribing",
-  TRANSCRIPTION_COMPLETED = "transcription_completed",
-  GENERATING_TASK = "generating_task",
-  EXECUTING_TASK = "executing_task",
-  UPDATING_METADATA = "updating_metadata",
-  ERROR = "error",
-  COMPLETED = "completed",
-}
-
 export const UNDO_EVENT_CHANNEL = "yakshaver:undo-event";
 
 export type UndoEventDetail = {
   type: "start" | "complete" | "error" | "reset";
 };
+
+/**
+ * Dispatched when the user clears a failed/finished run from the processing screen
+ * (#733). The progress panel and the final-result panel hold independent state, so
+ * the panel that owns the Clear button broadcasts this event to let the sibling
+ * panels reset together rather than leaving an orphaned Final Result card behind.
+ */
+export const WORKFLOW_CLEAR_EVENT_CHANNEL = "yakshaver:workflow-clear";
 
 export enum MCPStepType {
   START = "start",
@@ -241,6 +199,11 @@ export interface GetMyShavesResponse {
   items: ShaveItem[];
 }
 
+// Portal-projects types (#816) are shared between the backend and the UI, so per
+// AGENTS.md Rule 9 they live in `@shared/types/portal`. Re-exported here for the
+// UI's existing `../types` import sites.
+export type { GetMyProjectsErrorCode, GetMyProjectsResponse, Project } from "@shared/types/portal";
+
 export type VideoFileMetadata = {
   fileName: string;
   filePath?: string;
@@ -268,6 +231,11 @@ export type Shave = {
   portalWorkItemId: string | null;
   createdAt: string;
   updatedAt: string | null;
+  // #821: persisted outcome detail returned by getShaveById (used to rehydrate the Workflow
+  // Progress page when reached by navigation rather than from a live run). Absent on list rows.
+  finalOutput?: string | null;
+  errorMessage?: string | null;
+  errorCode?: string | null;
 };
 
 export type VersionInfo = {

@@ -1,10 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ToolSet } from "ai";
+import { PRESET_MCP_SERVERS } from "../../../shared/mcp/preset-servers";
 import type { HealthStatusInfo } from "../../types/index.js";
 import { McpStorage } from "../storage/mcp-storage";
 import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
 import type { MCPServerConfig } from "./types";
+
+/** Fields valid ONLY on an HTTP (streamableHttp) server config. */
+const HTTP_ONLY_FIELDS = ["url", "headers", "version", "timeoutMs"] as const;
+/** Fields valid ONLY on a stdio server config. */
+const STDIO_ONLY_FIELDS = ["command", "args", "env", "cwd", "stderr"] as const;
 
 export class MCPServerManager {
   private static instance: MCPServerManager;
@@ -223,9 +229,17 @@ export class MCPServerManager {
       }
     }
     for (const s of externalServers) {
+      if (s.builtin) continue;
       if (!seen.has(s.id)) {
         seen.add(s.id);
         result.push(s);
+      }
+    }
+    // Add preset servers not yet stored by the user (they appear with enabled: false)
+    for (const preset of PRESET_MCP_SERVERS) {
+      if (preset.id && !seen.has(preset.id)) {
+        seen.add(preset.id);
+        result.push({ ...preset });
       }
     }
     return result;
@@ -287,11 +301,24 @@ export class MCPServerManager {
 
     const existing = storedConfigs[index];
 
-    const merged: MCPServerConfig = {
-      ...existing,
+    const mergedRecord: Record<string, unknown> = {
+      ...(existing as unknown as Record<string, unknown>),
       ...(config as unknown as Record<string, unknown>),
       id: existing.id,
-    } as MCPServerConfig;
+    };
+
+    // On a transport change, strip ONLY the old transport's transport-specific
+    // fields (e.g. a stale url + secret-bearing headers on a now-stdio server).
+    // Common fields like `enabled`/`toolWhitelist` are preserved from `existing`
+    // even when the incoming config omits them.
+    if (existing.transport !== config.transport) {
+      const staleFields = config.transport === "stdio" ? HTTP_ONLY_FIELDS : STDIO_ONLY_FIELDS;
+      for (const field of staleFields) {
+        delete mergedRecord[field];
+      }
+    }
+
+    const merged = mergedRecord as unknown as MCPServerConfig;
 
     MCPServerManager.validateServerConfig(merged);
 
@@ -309,7 +336,7 @@ export class MCPServerManager {
   async removeServerAsync(serverId: string): Promise<void> {
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
     const index = storedConfigs.findIndex((s) => s.id === serverId);
-    if (index === -1) throw new Error(`Server '${serverId}' not found`);
+    if (index === -1) return; // Server was never persisted (e.g. an unconnected preset) — nothing to remove
     const existing = storedConfigs[index];
     storedConfigs.splice(index, 1);
 
@@ -441,10 +468,21 @@ export class MCPServerManager {
     const storage = McpStorage.getInstance();
     const serverConfigs = await storage.getMcpServerConfigsAsync();
 
-    return serverConfigs.flatMap((config) => {
+    const whitelist = serverConfigs.flatMap((config) => {
       const sanitizedServerName = config.name.replace(/\s+/g, "_");
       return (config.toolWhitelist ?? []).map((toolName) => `${sanitizedServerName}__${toolName}`);
     });
+
+    // Built-in server tools are always whitelisted regardless of Approval Mode.
+    // Uses cached tool names to avoid repeated RPC calls during the orchestrator loop.
+    for (const client of MCPServerManager.mcpClients.values()) {
+      if (client.builtin) {
+        const toolNames = await client.getPrefixedToolNamesAsync();
+        whitelist.push(...toolNames);
+      }
+    }
+
+    return whitelist;
   }
 
   public async addToolToServerWhitelistAsync(serverName: string, toolName: string): Promise<void> {

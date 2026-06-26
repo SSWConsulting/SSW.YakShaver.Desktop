@@ -45,6 +45,7 @@ export class ReleaseChannelIPCHandlers {
   } | null = null;
   private updateCheckInterval: NodeJS.Timeout | null = null;
   private readonly UPDATE_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
+  private updateDialogDismissedInSession = false; // Track if user dismissed update dialog this session
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.RELEASE_CHANNEL_GET, () => this.getChannel());
@@ -81,6 +82,11 @@ export class ReleaseChannelIPCHandlers {
     });
 
     autoUpdater.on("update-downloaded", () => {
+      // Skip showing dialog if user already dismissed it this session
+      if (this.updateDialogDismissedInSession) {
+        return;
+      }
+
       dialog
         .showMessageBox({
           type: "info",
@@ -99,6 +105,9 @@ export class ReleaseChannelIPCHandlers {
               // isSilent: false, isForceRunAfter: true, check docs: https://www.jsdocs.io/package/electron-updater#AppUpdater.quitAndInstall
               autoUpdater.quitAndInstall(false, true);
             });
+          } else {
+            // User chose "Later" - remember this for the current session
+            this.updateDialogDismissedInSession = true;
           }
         })
         .catch((err) => {

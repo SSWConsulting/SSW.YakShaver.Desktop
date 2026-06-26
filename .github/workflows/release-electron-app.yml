@@ -68,19 +68,29 @@ jobs:
           MCP_CALLBACK_PORT: 8090
           MCP_AUTH_TIMEOUT_MS: 60000
           PORTAL_API_URL: https://api.yakshaver.ai/api
+          PORTAL_TENANTS_URL: https://api.yakshaver.ai/tenants
           AZURE_ENTRA_APP_CLIENT_ID: ${{ secrets.AZURE_ENTRA_APP_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_AUTH_SCOPE: ${{ secrets.AZURE_AUTH_SCOPE }}
           AZURE_AUTH_CUSTOM_PROTOCOL: yakshaver-desktop
+          IDENTITY_SERVER_URL: https://identity.ssw.com.au/
+          IDENTITY_SERVER_CLIENT_ID: ${{ secrets.IDENTITY_SERVER_CLIENT_ID }}
+          IDENTITY_SERVER_SCOPE: ${{ secrets.IDENTITY_SERVER_SCOPE }}
+          IDENTITY_SERVER_CUSTOM_PROTOCOL: yakshaver-desktop
           APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         run: |
           Add-Content -Path ".env" -Value "`nMCP_CALLBACK_PORT=$env:MCP_CALLBACK_PORT"
           Add-Content -Path ".env" -Value "`nMCP_AUTH_TIMEOUT_MS=$env:MCP_AUTH_TIMEOUT_MS"
           Add-Content -Path ".env" -Value "`nPORTAL_API_URL=$env:PORTAL_API_URL"
+          Add-Content -Path ".env" -Value "`nPORTAL_TENANTS_URL=$env:PORTAL_TENANTS_URL"
           Add-Content -Path ".env" -Value "`nAZURE_ENTRA_APP_CLIENT_ID=$env:AZURE_ENTRA_APP_CLIENT_ID"
           Add-Content -Path ".env" -Value "`nAZURE_TENANT_ID=$env:AZURE_TENANT_ID"
           Add-Content -Path ".env" -Value "`nAZURE_AUTH_SCOPE=$env:AZURE_AUTH_SCOPE"
           Add-Content -Path ".env" -Value "`nAZURE_AUTH_CUSTOM_PROTOCOL=$env:AZURE_AUTH_CUSTOM_PROTOCOL"
+          Add-Content -Path ".env" -Value "`nIDENTITY_SERVER_URL=$env:IDENTITY_SERVER_URL"
+          Add-Content -Path ".env" -Value "`nIDENTITY_SERVER_CLIENT_ID=$env:IDENTITY_SERVER_CLIENT_ID"
+          Add-Content -Path ".env" -Value "`nIDENTITY_SERVER_SCOPE=$env:IDENTITY_SERVER_SCOPE"
+          Add-Content -Path ".env" -Value "`nIDENTITY_SERVER_CUSTOM_PROTOCOL=$env:IDENTITY_SERVER_CUSTOM_PROTOCOL"
           Add-Content -Path ".env" -Value "`nAPPLICATIONINSIGHTS_CONNECTION_STRING=$env:APPLICATIONINSIGHTS_CONNECTION_STRING"
           $COMMIT_HASH = git rev-parse HEAD
           Add-Content -Path ".env" -Value "`nCOMMIT_HASH=$COMMIT_HASH"
@@ -138,37 +148,37 @@ jobs:
           if (-not $VERSION) {
             throw "Missing version output from 'check-release' job"
           }
-          
+
           cd build
           # Find the generated installer - look for any exe file with "Setup" in the name
           $installer = Get-ChildItem -Filter "*Setup*.exe" | 
                        Sort-Object LastWriteTime -Descending | 
                        Select-Object -First 1
-          
+
           if (-not $installer) {
             Write-Host "All .exe files in build directory:"
             Get-ChildItem -Filter "*.exe" | ForEach-Object { Write-Host "  $($_.Name)" }
             Write-Error "No installer file found with 'Setup' in the name"
             exit 1
           }
-          
+
           Write-Host "Found installer: $($installer.Name)"
-          
+
           # Create a copy with fixed name
           $fixedName = "YakShaver-latest-Setup.exe"
           Copy-Item $installer.FullName $fixedName
-          
+
           # Upload to release
           gh release upload "$VERSION" $fixedName --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to upload $fixedName"
           }
-          
+
           Write-Host "Successfully uploaded $fixedName for stable download link"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-macos:
+  build-macos-arm64:
     needs: check-release
     runs-on: macos-latest
     env:
@@ -190,19 +200,29 @@ jobs:
           MCP_CALLBACK_PORT: 8090
           MCP_AUTH_TIMEOUT_MS: 60000
           PORTAL_API_URL: https://api.yakshaver.ai/api
+          PORTAL_TENANTS_URL: https://api.yakshaver.ai/tenants
           AZURE_ENTRA_APP_CLIENT_ID: ${{ secrets.AZURE_ENTRA_APP_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_AUTH_SCOPE: ${{ secrets.AZURE_AUTH_SCOPE }}
           AZURE_AUTH_CUSTOM_PROTOCOL: yakshaver-desktop
+          IDENTITY_SERVER_URL: https://identity.ssw.com.au/
+          IDENTITY_SERVER_CLIENT_ID: ${{ secrets.IDENTITY_SERVER_CLIENT_ID }}
+          IDENTITY_SERVER_SCOPE: ${{ secrets.IDENTITY_SERVER_SCOPE }}
+          IDENTITY_SERVER_CUSTOM_PROTOCOL: yakshaver-desktop
           APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         run: |
           printf "MCP_CALLBACK_PORT=%s\n" "$MCP_CALLBACK_PORT" >> .env
           printf "MCP_AUTH_TIMEOUT_MS=%s\n" "$MCP_AUTH_TIMEOUT_MS" >> .env
           printf "PORTAL_API_URL=%s\n" "$PORTAL_API_URL" >> .env
+          printf "PORTAL_TENANTS_URL=%s\n" "$PORTAL_TENANTS_URL" >> .env
           printf "AZURE_ENTRA_APP_CLIENT_ID=%s\n" "$AZURE_ENTRA_APP_CLIENT_ID" >> .env
           printf "AZURE_TENANT_ID=%s\n" "$AZURE_TENANT_ID" >> .env
           printf "AZURE_AUTH_SCOPE=%s\n" "$AZURE_AUTH_SCOPE" >> .env
           printf "AZURE_AUTH_CUSTOM_PROTOCOL=%s\n" "$AZURE_AUTH_CUSTOM_PROTOCOL" >> .env
+          printf "IDENTITY_SERVER_URL=%s\n" "$IDENTITY_SERVER_URL" >> .env
+          printf "IDENTITY_SERVER_CLIENT_ID=%s\n" "$IDENTITY_SERVER_CLIENT_ID" >> .env
+          printf "IDENTITY_SERVER_SCOPE=%s\n" "$IDENTITY_SERVER_SCOPE" >> .env
+          printf "IDENTITY_SERVER_CUSTOM_PROTOCOL=%s\n" "$IDENTITY_SERVER_CUSTOM_PROTOCOL" >> .env
           printf "APPLICATIONINSIGHTS_CONNECTION_STRING=%s\n" "$APPLICATIONINSIGHTS_CONNECTION_STRING" >> .env
           COMMIT_HASH=$(git rev-parse HEAD)
           printf "COMMIT_HASH=%s\n" "$COMMIT_HASH" >> .env
@@ -258,8 +278,8 @@ jobs:
           npm version "$VERSION" --no-git-tag-version
           echo "Updated package.json version to $VERSION"
 
-      - name: Publish macOS app
-        run: npm run publish -- --mac
+      - name: Publish macOS arm64 app
+        run: npm run publish -- --mac --arm64 -c.mac.target.arch=arm64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
         env:
           NODE_ENV: production
           CI: true
@@ -270,30 +290,301 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-      - name: Create fixed-name artifacts for stable download links
+      - name: Create fixed-name artifact for stable download link
         run: |
           set -e
-          
+
           VERSION="${{ needs.check-release.outputs.version }}"
           if [[ -z "$VERSION" ]]; then
-            echo "Error: Missing version output from 'check-release' job (needs.check-release.outputs.version). Ensure the 'check-release' job completed successfully and produced a 'version' output." >&2
+            echo "Error: Missing version output from 'check-release' job." >&2
             exit 1
           fi
-          
+
           cd build
-          
-          # Find DMG file with specific pattern
-          DMG_FILE=$(find . -name "YakShaver-*-arm64.dmg" -type f | head -n 1)
-          if [[ -z "$DMG_FILE" ]]; then
-            echo "Error: No DMG file found matching pattern 'YakShaver-*-arm64.dmg'" >&2
+
+          DMG_ARM64=$(find . -name "YakShaver-*-arm64-mac.dmg" -type f | head -n 1)
+          if [[ -z "$DMG_ARM64" ]]; then
+            echo "Error: No DMG file found matching pattern 'YakShaver-*-arm64-mac.dmg'" >&2
             echo "Available files:" >&2
             ls -la >&2
             exit 1
           fi
-          
-          echo "Found DMG: $DMG_FILE"
-          cp "$DMG_FILE" "YakShaver-latest-arm64.dmg"
+          echo "Found arm64 DMG: $DMG_ARM64"
+          cp "$DMG_ARM64" "YakShaver-latest-arm64.dmg"
+          gh release upload "$VERSION" \
+            YakShaver-*-arm64-mac.dmg \
+            YakShaver-*-arm64-mac.zip \
+            YakShaver-*-arm64-mac.zip.blockmap \
+            --clobber \
+            --repo SSWConsulting/SSW.YakShaver.Desktop
           gh release upload "$VERSION" "YakShaver-latest-arm64.dmg" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
           echo "Successfully uploaded YakShaver-latest-arm64.dmg for stable download link"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS (arm64) update manifest artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-arm64-update-manifest
+          path: build/*-mac.yml
+          retention-days: 1
+
+  build-macos-x64:
+    needs: check-release
+    # Use an Intel (x64) runner so native modules are compiled for x64 without cross-compilation issues
+    # Reason for using macos-15-intel: https://github.com/actions/runner-images/issues/13046
+    runs-on: macos-15-intel
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.check-release.outputs.target }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
+      - name: Create .env from secrets
+        env:
+          MCP_CALLBACK_PORT: 8090
+          MCP_AUTH_TIMEOUT_MS: 60000
+          PORTAL_API_URL: https://api.yakshaver.ai/api
+          PORTAL_TENANTS_URL: https://api.yakshaver.ai/tenants
+          AZURE_ENTRA_APP_CLIENT_ID: ${{ secrets.AZURE_ENTRA_APP_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_AUTH_SCOPE: ${{ secrets.AZURE_AUTH_SCOPE }}
+          AZURE_AUTH_CUSTOM_PROTOCOL: yakshaver-desktop
+          IDENTITY_SERVER_URL: https://identity.ssw.com.au/
+          IDENTITY_SERVER_CLIENT_ID: ${{ secrets.IDENTITY_SERVER_CLIENT_ID }}
+          IDENTITY_SERVER_SCOPE: ${{ secrets.IDENTITY_SERVER_SCOPE }}
+          IDENTITY_SERVER_CUSTOM_PROTOCOL: yakshaver-desktop
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        run: |
+          printf "MCP_CALLBACK_PORT=%s\n" "$MCP_CALLBACK_PORT" >> .env
+          printf "MCP_AUTH_TIMEOUT_MS=%s\n" "$MCP_AUTH_TIMEOUT_MS" >> .env
+          printf "PORTAL_API_URL=%s\n" "$PORTAL_API_URL" >> .env
+          printf "PORTAL_TENANTS_URL=%s\n" "$PORTAL_TENANTS_URL" >> .env
+          printf "AZURE_ENTRA_APP_CLIENT_ID=%s\n" "$AZURE_ENTRA_APP_CLIENT_ID" >> .env
+          printf "AZURE_TENANT_ID=%s\n" "$AZURE_TENANT_ID" >> .env
+          printf "AZURE_AUTH_SCOPE=%s\n" "$AZURE_AUTH_SCOPE" >> .env
+          printf "AZURE_AUTH_CUSTOM_PROTOCOL=%s\n" "$AZURE_AUTH_CUSTOM_PROTOCOL" >> .env
+          printf "IDENTITY_SERVER_URL=%s\n" "$IDENTITY_SERVER_URL" >> .env
+          printf "IDENTITY_SERVER_CLIENT_ID=%s\n" "$IDENTITY_SERVER_CLIENT_ID" >> .env
+          printf "IDENTITY_SERVER_SCOPE=%s\n" "$IDENTITY_SERVER_SCOPE" >> .env
+          printf "IDENTITY_SERVER_CUSTOM_PROTOCOL=%s\n" "$IDENTITY_SERVER_CUSTOM_PROTOCOL" >> .env
+          printf "APPLICATIONINSIGHTS_CONNECTION_STRING=%s\n" "$APPLICATIONINSIGHTS_CONNECTION_STRING" >> .env
+          COMMIT_HASH=$(git rev-parse HEAD)
+          printf "COMMIT_HASH=%s\n" "$COMMIT_HASH" >> .env
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: true
+          # Explicitly set arch to x64 to ensure all optional dependencies install x64 binaries
+          npm_config_arch: x64
+
+      # Explicitly rebuild better-sqlite3 for x64 Electron to guarantee correct native module architecture
+      - name: Rebuild native modules for x64
+        run: npx electron-rebuild -f -w better-sqlite3 --arch x64
+
+      # Manual download is needed because the youtube-dl-exec script hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find the yt-dlp binary.
+      - name: Install yt-dlp binary manually
+        run: |
+          mkdir -p node_modules/youtube-dl-exec/bin
+
+          PATTERN="yt-dlp_macos"
+          OUTPUT_FILE="node_modules/youtube-dl-exec/bin/yt-dlp"
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+
+          until gh release download \
+            --repo yt-dlp/yt-dlp \
+            --pattern "$PATTERN" \
+            --clobber \
+            --output "$OUTPUT_FILE"; do
+
+            echo "Attempt $ATTEMPT to download yt-dlp binary failed." >&2
+
+            if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+              echo "Failed to download yt-dlp binary after $MAX_ATTEMPTS attempts." >&2
+              exit 1
+            fi
+
+            ATTEMPT=$((ATTEMPT+1))
+            sleep 5
+          done
+
+          # Make the binary executable
+          chmod +x "$OUTPUT_FILE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install UI dependencies
+        run: npm ci --prefer-offline
+        working-directory: src/ui
+
+      - name: Update version for release
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Missing version output"
+            exit 1
+          fi
+          npm version "$VERSION" --no-git-tag-version
+          echo "Updated package.json version to $VERSION"
+
+      - name: Publish macOS x64 app
+        run: npm run publish -- --mac --x64 -c.mac.target.arch=x64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
+        env:
+          NODE_ENV: production
+          CI: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Verify x64 architecture of built app
+        run: |
+          set -e
+          echo "Verifying built app architecture..."
+
+          # Find the .app bundle
+          APP_PATH=$(find build/mac-x64 build/mac -name "YakShaver.app" -type d 2>/dev/null | head -n 1)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "Warning: Could not find .app bundle to verify architecture"
+            echo "Build directory contents:"
+            ls -la build/ 2>/dev/null || echo "No build directory"
+          else
+            BINARY="$APP_PATH/Contents/MacOS/YakShaver"
+            if [[ -f "$BINARY" ]]; then
+              ARCH_INFO=$(file "$BINARY")
+              echo "Binary architecture: $ARCH_INFO"
+              if echo "$ARCH_INFO" | grep -q "x86_64"; then
+                echo "✅ Confirmed: Binary is x86_64 (Intel)"
+              else
+                echo "❌ ERROR: Binary is NOT x86_64!"
+                echo "$ARCH_INFO"
+                exit 1
+              fi
+            fi
+          fi
+
+          # Also verify better-sqlite3 native module if accessible
+          SQLITE_NODE=$(find build -name "better_sqlite3.node" -type f 2>/dev/null | head -n 1)
+          if [[ -n "$SQLITE_NODE" ]]; then
+            SQLITE_ARCH=$(file "$SQLITE_NODE")
+            echo "better-sqlite3 native module: $SQLITE_ARCH"
+            if echo "$SQLITE_ARCH" | grep -q "x86_64"; then
+              echo "✅ Confirmed: better-sqlite3 native module is x86_64"
+            else
+              echo "❌ ERROR: better-sqlite3 native module is NOT x86_64!"
+              echo "$SQLITE_ARCH"
+              exit 1
+            fi
+          fi
+
+      - name: Create fixed-name artifact for stable download link
+        run: |
+          set -e
+
+          VERSION="${{ needs.check-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Error: Missing version output from 'check-release' job." >&2
+            exit 1
+          fi
+
+          cd build
+
+          DMG_X64=$(find . -name "YakShaver-*-x64-mac.dmg" -type f | head -n 1)
+          if [[ -z "$DMG_X64" ]]; then
+            echo "Error: No DMG file found matching pattern 'YakShaver-*-x64-mac.dmg'" >&2
+            echo "Available files:" >&2
+            ls -la >&2
+            exit 1
+          fi
+          echo "Found x64 DMG: $DMG_X64"
+          cp "$DMG_X64" "YakShaver-latest-x64.dmg"
+          gh release upload "$VERSION" \
+            YakShaver-*-x64-mac.dmg \
+            YakShaver-*-x64-mac.zip \
+            YakShaver-*-x64-mac.zip.blockmap \
+            --clobber \
+            --repo SSWConsulting/SSW.YakShaver.Desktop
+          gh release upload "$VERSION" "YakShaver-latest-x64.dmg" --clobber --repo SSWConsulting/SSW.YakShaver.Desktop
+          echo "Successfully uploaded YakShaver-latest-x64.dmg for stable download link"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS (x64) update manifest artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-x64-update-manifest
+          path: build/*-mac.yml
+          retention-days: 1
+
+  publish-macos-update-manifest:
+    needs:
+      - check-release
+      - build-macos-arm64
+      - build-macos-x64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.target || github.event.release.target_commitish }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install manifest merge dependencies
+        run: npm ci --ignore-scripts --prefer-offline
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: true
+
+      - name: Download macOS (arm64) update manifest
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-arm64-update-manifest
+          path: artifacts/macos-arm64/
+
+      - name: Download macOS (x64) update manifest
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-x64-update-manifest
+          path: artifacts/macos-x64/
+
+      - name: Merge and publish macOS update manifest
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ needs.check-release.outputs.version }}"
+          ARM64_MANIFEST=$(find artifacts/macos-arm64 -name "*-mac.yml" -type f | head -n 1)
+          X64_MANIFEST=$(find artifacts/macos-x64 -name "*-mac.yml" -type f | head -n 1)
+
+          if [[ -z "$ARM64_MANIFEST" || -z "$X64_MANIFEST" ]]; then
+            echo "Missing macOS update manifest artifacts" >&2
+            find artifacts -type f -name "*.yml" -print >&2
+            exit 1
+          fi
+
+          mkdir -p release-artifacts
+          node scripts/merge-mac-update-manifests.js \
+            --arm64 "$ARM64_MANIFEST" \
+            --x64 "$X64_MANIFEST" \
+            --output "release-artifacts/latest-mac.yml"
+
+          gh release upload "$VERSION" \
+            release-artifacts/latest-mac.yml \
+            --clobber \
+            --repo SSWConsulting/SSW.YakShaver.Desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

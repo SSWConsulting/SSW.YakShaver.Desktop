@@ -2,7 +2,12 @@ import { experimental_createMCPClient, type experimental_MCPClient } from "@ai-s
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatAndReportError } from "../../utils/error-utils";
-import { authorizeWithBackend, refreshTokenWithBackend } from "./mcp-oauth";
+import {
+  authorizeWithBackend,
+  isInvalidRefreshTokenError,
+  McpTokenRefreshError,
+  refreshTokenWithBackendWithRetry,
+} from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
@@ -17,13 +22,16 @@ export interface CreateClientOptions {
 export class MCPServerClient {
   public mcpClientName: string;
   public mcpClientId: string;
+  public readonly builtin: boolean;
 
   private mcpClient: experimental_MCPClient;
+  private cachedPrefixedToolNames: string[] | null = null;
 
-  private constructor(id: string, name: string, client: experimental_MCPClient) {
+  private constructor(id: string, name: string, client: experimental_MCPClient, builtin: boolean) {
     this.mcpClientId = id;
     this.mcpClientName = name;
     this.mcpClient = client;
+    this.builtin = builtin;
   }
 
   public static async createClientAsync(
@@ -43,7 +51,7 @@ export class MCPServerClient {
             headers: mcpConfig.headers,
           },
         });
-        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, true);
       }
 
       const serverId = mcpConfig.id;
@@ -60,17 +68,51 @@ export class MCPServerClient {
       if (tokens?.refresh_token && tokenStorage.isTokenExpired(tokens)) {
         try {
           console.log(`[MCPServerClient] Token expired for ${mcpConfig.name}, refreshing...`);
-          const newTokens = await refreshTokenWithBackend(serverUrl, tokens.refresh_token);
+          const newTokens = await refreshTokenWithBackendWithRetry(serverUrl, tokens.refresh_token);
           await tokenStorage.saveTokensAsync(serverId, newTokens);
           tokens = await tokenStorage.getTokensAsync(serverId);
         } catch (refreshError) {
-          console.error(
-            `[MCPServerClient] Failed to refresh token for ${mcpConfig.name}:`,
-            refreshError,
-          );
-          // If refresh fails, we clear the tokens to trigger re-auth.
-          await tokenStorage.clearTokensAsync(serverId);
-          tokens = undefined;
+          // Status, if the backend classified the failure. Never log token values (#836 AC #4
+          // asks for diagnosable sign-outs, not secrets).
+          const refreshStatus =
+            refreshError instanceof McpTokenRefreshError ? refreshError.status : undefined;
+
+          if (isInvalidRefreshTokenError(refreshError)) {
+            // The backend positively rejected the refresh token (revoked / expired). The
+            // credential is genuinely dead, so clear it and let the user reconnect.
+            console.warn(
+              `[MCPServerClient] Refresh token for ${mcpConfig.name} (server ${serverId}) was rejected as invalid; clearing stored tokens so the user can re-authenticate.`,
+              refreshError,
+            );
+            // Route to Application Insights so an unexpected sign-out is diagnosable centrally
+            // for this intermittent, in-the-field bug (#836 AC #4), not only in local console
+            // logs that never leave the user's machine.
+            formatAndReportError(refreshError, "mcp_token_refresh", {
+              serverId,
+              reason: "invalid_grant_cleared",
+              ...(refreshStatus !== undefined ? { status: refreshStatus } : {}),
+            });
+            await tokenStorage.clearTokensAsync(serverId);
+            tokens = undefined;
+          } else {
+            // Transient failure (network/SSL/5xx/timeout). Do NOT clear the refresh token —
+            // wiping it on a temporary blip is what intermittently signed users out (#836).
+            // Preserve it and surface the error; getMcpClientAsync turns this into a null
+            // client for this attempt, and the next attempt refreshes automatically with no
+            // manual "Connect" required.
+            console.warn(
+              `[MCPServerClient] Transient failure refreshing token for ${mcpConfig.name} (server ${serverId}); preserving stored tokens for automatic retry.`,
+              refreshError,
+            );
+            // Also report transient refresh failures centrally so a recurring transient cause
+            // (e.g. a backend/SSL issue silently retrying forever) is diagnosable in App Insights.
+            formatAndReportError(refreshError, "mcp_token_refresh", {
+              serverId,
+              reason: "transient_preserved",
+              ...(refreshStatus !== undefined ? { status: refreshStatus } : {}),
+            });
+            throw refreshError;
+          }
         }
       }
 
@@ -124,7 +166,7 @@ export class MCPServerClient {
           headers,
         },
       });
-      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, false);
     }
 
     // create stdio transport MCP client
@@ -148,7 +190,12 @@ export class MCPServerClient {
           cwd,
         }),
       });
-      return new MCPServerClient(mcpConfig.id, mcpConfig.name, mcpClient);
+      return new MCPServerClient(
+        mcpConfig.id,
+        mcpConfig.name,
+        mcpClient,
+        mcpConfig.builtin === true,
+      );
     }
 
     // create inMemory transport MCP client
@@ -162,7 +209,7 @@ export class MCPServerClient {
       const client = await experimental_createMCPClient({
         transport: clientTransport,
       });
-      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client);
+      return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, mcpConfig.builtin === true);
     }
 
     throw new Error(`Unsupported transport type: ${mcpConfig}`);
@@ -184,6 +231,18 @@ export class MCPServerClient {
       prefixedTools[prefixedName] = data;
     }
     return prefixedTools;
+  }
+
+  /**
+   * Returns cached prefixed tool names. Fetches once, then reuses.
+   * Used by getWhitelistWithServerPrefixAsync to avoid repeated RPC calls for built-in clients.
+   */
+  public async getPrefixedToolNamesAsync(): Promise<string[]> {
+    if (!this.cachedPrefixedToolNames) {
+      const tools = await this.listToolsWithServerPrefixAsync();
+      this.cachedPrefixedToolNames = Object.keys(tools);
+    }
+    return this.cachedPrefixedToolNames;
   }
 
   public async toolCountAsync(): Promise<number> {

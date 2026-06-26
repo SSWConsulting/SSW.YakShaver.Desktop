@@ -8,7 +8,7 @@ export class CustomPromptSettingsIPCHandlers {
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS, () => this.store.getAllPrompts());
-    ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_ACTIVE_PROMPT, () => this.store.getActivePrompt());
+    ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_TEMPLATES, () => this.store.getTemplates());
     ipcMain.handle(
       IPC_CHANNELS.SETTINGS_ADD_PROMPT,
       (_, prompt: Omit<CustomPrompt, "id" | "createdAt" | "updatedAt">) =>
@@ -21,9 +21,6 @@ export class CustomPromptSettingsIPCHandlers {
     );
     ipcMain.handle(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, (_, id: string) =>
       this.store.deletePrompt(id),
-    );
-    ipcMain.handle(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, (_, id: string) =>
-      this.store.setActivePrompt(id),
     );
     ipcMain.handle(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS, () =>
       this.store.clearCustomPrompts(),

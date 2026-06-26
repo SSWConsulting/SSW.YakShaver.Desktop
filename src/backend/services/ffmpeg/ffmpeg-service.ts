@@ -1,8 +1,8 @@
-import { spawn } from "node:child_process";
 import { dirname } from "node:path";
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
 import { FileService, type IFileService } from "../file/file-service";
-import type { ConversionProgress, IProcessSpawner } from "./types";
+import { defaultProcessSpawner, type IProcessSpawner } from "../process/process-spawner";
+import type { ConversionProgress } from "./types";
 
 function getDefaultFfmpegPath(): string {
   let ffmpegPath = ffmpeg.path;
@@ -11,10 +11,6 @@ function getDefaultFfmpegPath(): string {
   }
   return ffmpegPath;
 }
-
-const defaultProcessSpawner: IProcessSpawner = {
-  spawn: (command, args) => spawn(command, args),
-};
 
 export class FFmpegService {
   private static instance: FFmpegService;

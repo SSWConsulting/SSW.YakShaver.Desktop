@@ -1,12 +1,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import { parseWorkflowProgressNeoPayload, parseWorkflowStepPayload } from "@/utils";
 import { ipcClient } from "../services/ipc-client";
-import {
-  type AuthState,
-  AuthStatus,
-  ProgressStage,
-  UploadStatus,
-  type VideoUploadResult,
-} from "../types";
+import { type AuthState, AuthStatus, UploadStatus, type VideoUploadResult } from "../types";
 
 interface YouTubeAuthContextType {
   authState: AuthState;
@@ -22,6 +17,20 @@ interface YouTubeAuthContextType {
 }
 
 const YouTubeAuthContext = createContext<YouTubeAuthContextType | undefined>(undefined);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isVideoUploadResult(value: unknown): value is VideoUploadResult {
+  return isRecord(value) && typeof value.success === "boolean";
+}
+
+function getUploadResult(payload: unknown): VideoUploadResult | undefined {
+  return isRecord(payload) && isVideoUploadResult(payload.uploadResult)
+    ? payload.uploadResult
+    : undefined;
+}
 
 export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
   const [authState, setAuthState] = useState<AuthState>({
@@ -107,26 +116,19 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Listen to workflow progress for upload results
   useEffect(() => {
-    return ipcClient.workflow.onProgress((data: unknown) => {
-      const progressData = data as {
-        stage: string;
-        uploadResult?: VideoUploadResult;
-      };
-      const shouldUpdateUploadResult =
-        progressData.stage === ProgressStage.UPLOAD_COMPLETED ||
-        progressData.stage === ProgressStage.COMPLETED;
-
-      if (shouldUpdateUploadResult && progressData.uploadResult) {
-        setUploadResult(progressData.uploadResult);
-        setUploadStatus(
-          progressData.uploadResult.success ? UploadStatus.SUCCESS : UploadStatus.ERROR,
-        );
+    return ipcClient.workflow.onProgressNeo((data: unknown) => {
+      const progress = parseWorkflowProgressNeoPayload(data);
+      if (!progress.state) {
+        return;
       }
 
-      // Reset on idle
-      if (progressData.stage === ProgressStage.IDLE) {
-        setUploadResult(null);
-        setUploadStatus(UploadStatus.IDLE);
+      const uploadPayload = parseWorkflowStepPayload(progress.state.uploading_video);
+      const downloadPayload = parseWorkflowStepPayload(progress.state.downloading_video);
+      const nextUploadResult = getUploadResult(uploadPayload) ?? getUploadResult(downloadPayload);
+
+      if (nextUploadResult) {
+        setUploadResult(nextUploadResult);
+        setUploadStatus(nextUploadResult.success ? UploadStatus.SUCCESS : UploadStatus.ERROR);
       }
     });
   }, []);

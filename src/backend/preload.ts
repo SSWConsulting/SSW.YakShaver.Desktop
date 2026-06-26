@@ -1,4 +1,5 @@
 import type { Hotkeys, UserSettings } from "@shared/types/user-settings";
+import type { WorkflowState } from "@shared/types/workflow";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { TelemetrySettings } from "../shared/types/telemetry";
 import type {
@@ -30,6 +31,12 @@ const IPC_CHANNELS = {
   MS_AUTH_STATUS: "msauth:status",
   MS_AUTH_ACCOUNT_INFO: "msgraph:get-me",
 
+  // IdentityServer auth
+  IS_AUTH_LOGIN: "identityserver:login",
+  IS_AUTH_LOGOUT: "identityserver:logout",
+  IS_AUTH_STATUS: "identityserver:status",
+  IS_AUTH_ACCOUNT_INFO: "identityserver:account-info",
+
   // Screen recording
   START_SCREEN_RECORDING: "start-screen-recording",
   START_RECORDING_TIMER: "start-recording-timer",
@@ -39,6 +46,7 @@ const IPC_CHANNELS = {
   CLEANUP_TEMP_FILE: "cleanup-temp-file",
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
+  GET_RECORDING_TIME: "get-recording-time",
   HIGHLIGHT_SCREEN_SOURCE_SELECTION: "highlight-screen-source-selection",
   ENABLE_LOOPBACK_AUDIO: "enable-loopback-audio",
   DISABLE_LOOPBACK_AUDIO: "disable-loopback-audio",
@@ -68,8 +76,12 @@ const IPC_CHANNELS = {
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
 
   // Automated workflow
-  WORKFLOW_PROGRESS: "workflow:progress",
   WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
+  // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
+  // Different from RERUN_TASK which is a user-initiated re-execution after success.
+  WORKFLOW_RETRY_FROM_STAGE: "workflow:retry-from-stage",
+  WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
+  WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
@@ -77,15 +89,16 @@ const IPC_CHANNELS = {
   // Video processing - the main process pipeline
   PROCESS_VIDEO_FILE: "process-video:file",
   PROCESS_VIDEO_URL: "process-video:url",
-  RETRY_VIDEO: "retry-video",
+  // Re-execute: user-initiated re-run from SELECTING_PROMPT with modified input after a successful workflow.
+  // Different from WORKFLOW_RETRY_FROM_STAGE which resumes from a failed checkpoint.
+  RERUN_TASK: "rerun-task",
 
   // Settings
   SETTINGS_GET_ALL_PROMPTS: "settings:get-all-prompts",
-  SETTINGS_GET_ACTIVE_PROMPT: "settings:get-active-prompt",
+  SETTINGS_GET_TEMPLATES: "settings:get-templates",
   SETTINGS_ADD_PROMPT: "settings:add-prompt",
   SETTINGS_UPDATE_PROMPT: "settings:update-prompt",
   SETTINGS_DELETE_PROMPT: "settings:delete-prompt",
-  SETTINGS_SET_ACTIVE_PROMPT: "settings:set-active-prompt",
   SETTINGS_CLEAR_CUSTOM_PROMPTS: "settings:clear-custom-prompts",
 
   // General User Settings
@@ -117,6 +130,7 @@ const IPC_CHANNELS = {
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
+  PORTAL_GET_MY_PROJECTS: "portal:get-my-projects",
   PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 
   // Shave Management
@@ -148,16 +162,16 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideoFile: (filePath: string, shaveId?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId),
+    processVideoFile: (filePath: string, shaveId?: string, shaveAutoApprove?: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId, shaveAutoApprove),
     processVideoUrl: (url: string, shaveId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url, shaveId),
-    retryVideo: (
+    rerunTask: (
       intermediateOutput: string,
       videoUploadResult: VideoUploadResult,
       shaveId?: string,
     ) =>
-      ipcRenderer.invoke(IPC_CHANNELS.RETRY_VIDEO, intermediateOutput, videoUploadResult, shaveId),
+      ipcRenderer.invoke(IPC_CHANNELS.RERUN_TASK, intermediateOutput, videoUploadResult, shaveId),
   },
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),
@@ -175,6 +189,12 @@ const electronAPI = {
       logout: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_LOGOUT),
       status: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_STATUS),
       accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.MS_AUTH_ACCOUNT_INFO),
+    },
+    identityServer: {
+      login: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_LOGIN),
+      logout: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_LOGOUT),
+      status: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_STATUS),
+      accountInfo: () => ipcRenderer.invoke(IPC_CHANNELS.IS_AUTH_ACCOUNT_INFO),
     },
   },
   screenRecording: {
@@ -215,12 +235,20 @@ const electronAPI = {
       ipcRenderer.on("update-recording-time", listener);
       return () => ipcRenderer.removeListener("update-recording-time", listener);
     },
+    // Pull the current recording time once the renderer has mounted and
+    // subscribed, so a late-loading control bar isn't stuck on 00:00 (#870).
+    getCurrentTime: (): Promise<string | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GET_RECORDING_TIME),
   },
   workflow: {
-    onProgress: (callback: (progress: unknown) => void) =>
-      onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS, callback),
     onProgressNeo: (callback: (progress: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, callback),
+    retryFromStage: (stage: keyof WorkflowState, shaveId?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId),
+    getRetryStatus: (shaveId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
+    cancelRetry: (shaveId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_CANCEL_RETRY, shaveId),
   },
   llm: {
     setConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),
@@ -269,14 +297,23 @@ const electronAPI = {
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
-    getActivePrompt: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ACTIVE_PROMPT),
-    addPrompt: (prompt: { name: string; content: string }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
-    updatePrompt: (id: string, updates: { name?: string; content?: string }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_PROMPT, id, updates),
+    getTemplates: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_TEMPLATES),
+    addPrompt: (prompt: {
+      name: string;
+      content: string;
+      description?: string;
+      selectedMcpServerIds?: string[];
+    }) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_ADD_PROMPT, prompt),
+    updatePrompt: (
+      id: string,
+      updates: {
+        name?: string;
+        content?: string;
+        description?: string;
+        selectedMcpServerIds?: string[];
+      },
+    ) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_PROMPT, id, updates),
     deletePrompt: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_DELETE_PROMPT, id),
-    setActivePrompt: (id: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_ACTIVE_PROMPT, id),
     clearCustomPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_CLEAR_CUSTOM_PROMPTS),
   },
   userInteraction: {
@@ -324,6 +361,7 @@ const electronAPI = {
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
+    getMyProjects: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_PROJECTS),
     cancelWorkItem: (workItemId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PORTAL_CANCEL_WORK_ITEM, workItemId),
   },

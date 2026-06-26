@@ -10,12 +10,36 @@ import type {
 import { UserSettingsStorage } from "../storage/user-settings-storage";
 
 const WAIT_MODE_AUTO_APPROVE_DELAY_MS = 15_000;
+const MAX_SHAVE_AUTO_APPROVE_ENTRIES = 1_000;
 
 export class UserInteractionService {
   private static instance: UserInteractionService;
   private pendingInteractions = new Map<string, (response: unknown) => void>();
+  /** Per-shave auto-approve flags, keyed by shave ID. Persists across retries for the same shave. */
+  private shaveAutoApproveMap = new Map<string, boolean>();
 
   private constructor() {}
+
+  /**
+   * Enable auto-approve for a specific shave.
+   * Called at the start of initial processing (processVideoSource).
+   * Persists across retries for the same shave ID.
+   * Evicts the oldest entry when the map exceeds MAX_SHAVE_AUTO_APPROVE_ENTRIES.
+   */
+  public setShaveAutoApprove(shaveId: string): void {
+    this.shaveAutoApproveMap.set(shaveId, true);
+    if (this.shaveAutoApproveMap.size > MAX_SHAVE_AUTO_APPROVE_ENTRIES) {
+      // Map iterates in insertion order — delete the oldest entry
+      const oldest = this.shaveAutoApproveMap.keys().next().value;
+      if (oldest !== undefined) {
+        this.shaveAutoApproveMap.delete(oldest);
+      }
+    }
+  }
+
+  private isAutoApproveActive(shaveId?: string): boolean {
+    return shaveId !== undefined && (this.shaveAutoApproveMap.get(shaveId) ?? false);
+  }
 
   public static getInstance(): UserInteractionService {
     if (!UserInteractionService.instance) {
@@ -30,12 +54,12 @@ export class UserInteractionService {
   public async requestToolApproval(
     toolName: string,
     args: unknown,
-    options?: { message?: string },
+    options?: { message?: string; shaveId?: string },
   ): Promise<ToolApprovalDecision> {
     const settings = await UserSettingsStorage.getInstance().getSettingsAsync();
     const mode = settings?.toolApprovalMode || "ask";
 
-    if (mode === "yolo") {
+    if (mode === "yolo" || this.isAutoApproveActive(options?.shaveId)) {
       return { kind: "approve" };
     }
 
@@ -58,12 +82,12 @@ export class UserInteractionService {
    */
   public async requestProjectSelection(
     payload: ProjectSelectionPayload,
-    options?: { message?: string },
+    options?: { message?: string; shaveId?: string },
   ): Promise<ProjectSelectionResponse> {
     const settings = await UserSettingsStorage.getInstance().getSettingsAsync();
     const mode = settings?.toolApprovalMode || "ask";
 
-    if (mode === "yolo") {
+    if (mode === "yolo" || this.isAutoApproveActive(options?.shaveId)) {
       return {
         projectId: payload.selectedProject.id,
       };

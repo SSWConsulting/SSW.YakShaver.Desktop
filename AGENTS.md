@@ -51,10 +51,20 @@ YakShaver is a desktop AI agent with the following capabilities:
 
 - **AI/LLM**: `@ai-sdk/openai`, `@ai-sdk/azure`, `@ai-sdk/deepseek`, `@ai-sdk/mcp`, `ai`, `openai`
 - **MCP**: `@modelcontextprotocol/sdk`
+- **Schema validation**: `zod` (root dependency — used for the CLI bridge wire-format/protocol schemas and elsewhere)
 - **Database**: `drizzle-orm`, `better-sqlite3`
 - **APIs**: `googleapis`, `@microsoft/microsoft-graph-client`, `google-auth-library`, `@azure/msal-node`
 - **Video/Media**: `@ffmpeg-installer/ffmpeg`, `youtube-dl-exec`
 - **Telemetry**: `applicationinsights`
+- **CI/Release tooling**: `js-yaml` for update manifest merge validation
+- **Windows/macOS YouTube downloads**: `scripts/install-yt-dlp.mjs` installs standalone
+  `yt-dlp` binaries into `node_modules/youtube-dl-exec/bin/` during setup so local
+  development does not depend on the operating system's Python.
+- **Optional Claude Code CLI runtime**: the `local-claude` orchestration backend spawns a
+  headless `claude` (`@anthropic-ai/claude-code`) subprocess from PATH. It is NOT a bundled
+  dependency — the user installs it separately, and the feature is only active when the user
+  selects it in Settings. (Spawned through the shell on Windows so an npm `claude.cmd`/`.ps1`
+  shim still launches.)
 
 ## Project Structure
 
@@ -68,6 +78,8 @@ Frontend (React/Vite)  <-->  IPC Bridge  <-->  Backend (Electron/Node.js)
 
 The frontend communicates **exclusively through IPC** channels. All backend functionality is exposed through 40+ typed IPC channels organized by feature.
 
+There is one additional, deliberately narrow backend access path: the **CLI bridge** (`src/backend/services/cli-bridge/`). It is a localhost-only HTTP server, started in `app.whenReady` and torn down on cleanup, that lets the standalone `yakshaver` CLI (`src/cli/`) read and mutate MCP/LLM/settings config by calling the SAME service singletons (`MCPServerManager`, `LlmStorage`, `UserSettingsStorage`) the IPC handlers use. Its security model: binds to `127.0.0.1` only (never `0.0.0.0`), requires a per-startup 256-bit `Authorization: Bearer` token, redacts all secrets in responses, and can be disabled via `YAKSHAVER_DISABLE_CLI_BRIDGE`. See "Security & Privacy" for the token-file exception to the encrypt-all-credentials rule. Built-in MCP servers are NOT mutable through the bridge (mirrors the desktop UI).
+
 ### Directory Tree
 
 ```
@@ -76,6 +88,7 @@ SSW.YakShaver.Desktop/
 │   ├── backend/                       # Electron main process
 │   │   ├── index.ts                   # Main entry point (app.whenReady)
 │   │   ├── preload.ts                 # Security boundary (contextBridge)
+│   │   ├── assets/                    # Backend-owned static assets (e.g. auth HTML templates)
 │   │   ├── config/                    # Environment configuration
 │   │   ├── constants/                 # Error messages, AI prompt templates
 │   │   ├── db/                        # SQLite + Drizzle ORM layer
@@ -86,6 +99,7 @@ SSW.YakShaver.Desktop/
 │   │   │   └── channels.ts           # All IPC channel name constants
 │   │   ├── services/                  # Business logic services
 │   │   │   ├── auth/                  # YouTube & Microsoft OAuth
+│   │   │   ├── cli-bridge/            # Localhost HTTP bridge for the yakshaver CLI
 │   │   │   ├── ffmpeg/                # Video codec conversion
 │   │   │   ├── mcp/                   # MCP orchestration (central AI hub)
 │   │   │   ├── recording/             # Screen capture (singleton + EventEmitter)
@@ -100,7 +114,10 @@ SSW.YakShaver.Desktop/
 │   ├── shared/                        # Shared types between frontend & backend
 │   │   ├── types/                     # LLM, workflow, MCP, user-settings, telemetry types
 │   │   ├── llm/                       # Provider factory configuration
+│   │   ├── cli-bridge/                # CLI bridge protocol/schemas + secret redaction
 │   │   └── constants/                 # Shared error messages
+│   │
+│   ├── cli/                           # `yakshaver` CLI (emits dist/cli/index.js, bin: yakshaver)
 │   │
 │   └── ui/                            # React frontend (Vite)
 │       ├── vite.config.mts            # Vite build config (multi-entry)
@@ -111,6 +128,7 @@ SSW.YakShaver.Desktop/
 │           ├── components/            # Feature-based components
 │           │   ├── ui/                # Radix UI primitives (shadcn/ui)
 │           │   ├── auth/              # Authentication UI
+│           │   ├── onboarding/        # Onboarding wizard (multi-step setup)
 │           │   ├── recording/         # Screen recording feature
 │           │   ├── workflow/          # AI workflow visualization
 │           │   ├── settings/          # Settings panels (llm/, mcp/, custom-prompt/, etc.)
@@ -180,7 +198,34 @@ Before adding new IPC channels, handlers, services, or utility functions, check 
 
 Prefer extending existing code over creating new files. Duplicated logic is harder to maintain than a slightly larger existing module.
 
-### Rule 8: DRY and KISS
+### Rule 8: Focused and Maintainable Components
+
+Keep components **focused**, not necessarily small. The trigger for splitting is **multiple distinct responsibilities**, not line count. A well-structured 400-line orchestrator is better than four poorly-named 100-line files.
+
+As a rough signal: when a component file grows beyond ~300–400 lines, ask whether it is doing more than one thing. If yes, break it down:
+
+1. **Extract sub-components** into the same feature directory (e.g., `OnboardingSidebar.tsx`, `LLMStep.tsx`, `StepFooter.tsx` inside `components/onboarding/`)
+2. **Extract business logic into custom hooks** in `src/ui/src/hooks/` (e.g., `useOnboardingLLM.ts`, `useOnboardingWizard.ts`)
+3. **Extract cross-layer feature types** (used by both hooks and components) to `src/ui/src/types/{feature}.ts` (e.g., `src/ui/src/types/onboarding.ts`)
+4. **Keep the main component as a thin orchestrator** that composes sub-components and hooks
+
+Split when a section is reusable, has its own independent state/side effects, or makes the file hard to follow. Do not split just to hit a line-count target.
+
+Reference implementation: `src/ui/src/components/onboarding/` demonstrates this pattern with `OnboardingWizard.tsx` composing `OnboardingSidebar`, `VideoHostingStep`, `LLMStep`, `MCPStep`, and `StepFooter`, with logic extracted into `useOnboardingLLM` and `useOnboardingWizard` hooks.
+
+### Rule 9: Type Placement
+
+Place types in the correct location based on their scope:
+
+| Scope | Location | Path Alias | Example |
+| --- | --- | --- | --- |
+| Shared between frontend & backend | `src/shared/types/` | `@shared/types/*` | LLM configs, workflow payloads, MCP types |
+| Frontend-only or cross-layer within a feature (used by hooks + components) | `src/ui/src/types/` | `@/types` | `AuthStatus`, `HealthStatusInfo`, `WorkflowProgress`, `OnboardingLLMState`, `LLM_STEP_ID` |
+| Component-internal (used only within a single component file) | `src/ui/src/components/{feature}/types.ts` | Relative import | Form-specific prop types used in one component |
+
+Never put frontend-only types in `src/shared/types/`. Never put types shared with the backend in `src/ui/src/types/`. When a type or constant is consumed by both a hook (in `src/ui/src/hooks/`) and a component, place it in `src/ui/src/types/` — not in `components/{feature}/types.ts`.
+
+### Rule 10: DRY and KISS
 
 - **DRY (Don't Repeat Yourself)**: If the same logic appears in more than one place, extract it into a shared function, hook, or utility. Duplicated code leads to bugs when one copy is updated but the other is forgotten.
 - **KISS (Keep It Simple, Stupid)**: Choose the simplest solution that works. Don't over-abstract, over-engineer, or add layers of indirection for hypothetical future needs. A few lines of straightforward code is better than a clever abstraction that's hard to follow.
@@ -192,7 +237,7 @@ Prefer extending existing code over creating new files. Duplicated logic is hard
 - **Single Responsibility**: Each file, function, and class should do one thing well. If a function exceeds ~50 lines, consider extracting logic into helper functions.
 - **Early Returns**: Use guard clauses to reduce nesting. Return early for error/edge cases instead of deep if-else chains.
 - **Descriptive Names**: Variable and function names should describe their purpose. Avoid abbreviations (`btn` -> `button`, `msg` -> `message`) except for well-known acronyms (URL, API, IPC).
-- **Constants Over Literals**: Extract string/number literals into named constants. Use `IPC_CHANNELS.YOUTUBE_START_AUTH` not `"youtube:start-auth"` directly.
+- **Constants Over Literals**: Extract string/number literals into named constants. Use `IPC_CHANNELS.YOUTUBE_START_AUTH` not `"youtube:start-auth"` directly. For multi-step flows, define every step as a named constant (e.g. `VIDEO_STEP_ID`, `LLM_STEP_ID`) in the shared types file — never compare against raw numbers like `currentStep === 2`.
 - **Fail Explicitly**: Throw meaningful error messages with context. `throw new Error(\`Failed to load config for provider ${name}: ${formatErrorMessage(error)}\`)` is better than `throw error`.
 - **Clean Imports**: Remove unused imports. Use `import type { X }` for type-only imports to avoid bundling unnecessary code.
 
@@ -229,7 +274,7 @@ Prefer extending existing code over creating new files. Duplicated logic is hard
 
 ### React
 
-- **Keep components small and focused**. If a component file exceeds ~200 lines, extract sub-components or move logic to custom hooks.
+- **Keep components focused, not necessarily small**. Line count alone is not a reason to split. Extract sub-components or move logic to custom hooks when a component takes on multiple distinct responsibilities or becomes hard to follow.
 - **Extract business logic into custom hooks**. Components should focus on rendering; hooks should handle state, side effects, and IPC calls.
 - **Use `useCallback` for callbacks passed to child components** to avoid unnecessary re-renders. Don't memoize inline handlers that aren't passed down.
 - **Always provide cleanup in `useEffect`**. Every subscription, timer, or listener must be cleaned up:
@@ -255,6 +300,7 @@ Prefer extending existing code over creating new files. Duplicated logic is hard
   ```
 - **Use `useId()` for form element IDs**, not `Math.random()` or hardcoded strings.
 - **Co-locate related code**: Keep Zod schemas (`schema.ts`), local types (`types.ts`), and sub-components in the same feature directory.
+- **Each step/section component owns its validation state**. Never centralize validation logic for multiple steps in a parent/orchestrator component. Instead, each step component accepts an `onValidationChange` callback and calls it (via `useEffect`) whenever its own validity changes. The parent simply holds a single `isNextEnabled` boolean state and reacts to it — it has no knowledge of what makes each step valid. This keeps steps self-contained and eliminates complex boolean expressions in the parent as the number of steps grows.
 
 ### Error Handling
 
@@ -357,6 +403,24 @@ APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=.
 #### Singleton Pattern (Services)
 
 Most backend services use the singleton pattern. Use `getInstanceAsync()` for async initialization (e.g., `MCPServerManager`, `MCPOrchestrator`), or `getInstance()` with nullish coalescing for sync (e.g., `RecordingService`, all `*Storage` classes). See any storage class for the sync pattern.
+
+#### Backlog Orchestration Backends (Pluggable Seam)
+
+The EXECUTING_TASK stage drives backlog creation through the `IBacklogOrchestrator` seam
+(`src/backend/services/mcp/backlog-orchestrator.ts`). Two interchangeable backends implement it:
+
+- **`openai`** (default): the in-process `MCPOrchestrator` OpenAI tool loop.
+- **`local-claude`**: `LocalClaudeOrchestrator`, which spawns a headless `claude -p` subprocess,
+  serializes the enabled MCP servers to a temp `--mcp-config` (with OAuth bearer headers; the
+  config file is written `0600` because it carries a live token), maps the tool-approval mode to
+  Claude's `--permission-mode`/`--allowedTools`, and reuses the shared `judgeBacklogOutcome`
+  verifier. The verifier still runs on the configured OpenAI/Azure model, so `local-claude` is
+  "no API key for orchestration" but still needs a language model configured to confirm success.
+
+The backend is selected per run by `getBacklogOrchestrator()` from the `orchestrationBackend`
+field on `LLMConfigV2` (`src/shared/types/llm.ts`, default `openai`), surfaced in Settings via
+`OrchestratorBackendSetting`. Both backends return the same `MCPLoopResult`, whose
+`backlogActionSucceeded` gates COMPLETE vs FAIL.
 
 #### IPC Handler Pattern (Class-based)
 
@@ -505,6 +569,14 @@ Button variants: `default`, `destructive`, `outline`, `secondary`, `ghost`, `lin
 - **External**: Configure via Settings UI (persisted to `mcp-servers.json`)
 - **Internal**: Add to `src/backend/services/mcp/internal/` and register in MCP orchestrator
 
+### Updating Release Workflows
+
+- macOS arm64 and x64 builds generate separate ZIPs but must publish a single update manifest
+  (`latest-mac.yml` for stable releases or `beta.{PR}-mac.yml` for PR releases). Use
+  `scripts/merge-mac-update-manifests.js` to merge and validate the two generated mac manifests.
+- Windows update manifests are separate (`latest.yml` or `beta.{PR}.yml`) and must not be merged with
+  macOS manifests.
+
 ## Configuration
 
 ### Environment Setup
@@ -517,12 +589,17 @@ Button variants: `default`, `destructive`, `outline`, `secondary`, `ghost`, `lin
 
 ```
 PORTAL_API_URL=http://localhost:7009/api
+PORTAL_TENANTS_URL=http://localhost:7009/tenants
 MCP_CALLBACK_PORT=8090
 MCP_AUTH_TIMEOUT_MS=60000
 AZURE_ENTRA_APP_CLIENT_ID=...
 AZURE_TENANT_ID=...
 AZURE_AUTH_SCOPE=User.Read
 AZURE_AUTH_CUSTOM_PROTOCOL=yakshaver-desktop-dev
+IDENTITY_SERVER_URL=...
+IDENTITY_SERVER_CLIENT_ID=...
+IDENTITY_SERVER_SCOPE=openid profile email ssw-yakshaver-api offline_access
+IDENTITY_SERVER_CUSTOM_PROTOCOL=yakshaver-desktop-dev
 APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=...
 ```
 
@@ -533,7 +610,9 @@ APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=.
 - **Linux**: `~/.config/SSW.YakShaver/`
 
 Encrypted tokens: `yakshaver-tokens/*.enc`
+CLI bridge handshake (PLAINTEXT, deliberate exception): `yakshaver-tokens/cli-bridge.json` — see "Security & Privacy"
 Database: `database.sqlite` (dev: `./data/database.sqlite`)
+Auth browser templates: `src/backend/assets/auth/*.html` (packaged via `extraResources`)
 
 ### Development Commands
 
@@ -587,6 +666,7 @@ npm run db:generate    # Generate Drizzle ORM migrations
 - **Never hardcode secrets** - even placeholder values like `"sk-..."`
 - **Use Electron's `safeStorage` API** - for all token/credential encryption
 - **Encrypt all stored credentials** - via `BaseSecureStorage` subclasses
+  - **Documented exception — CLI bridge handshake file** (`yakshaver-tokens/cli-bridge.json`): written as PLAINTEXT JSON, not `*.enc`, even though it sits in the encrypted-credentials directory. The standalone `yakshaver` CLI is a non-Electron process and cannot decrypt `safeStorage`, so the bridge port + bearer token must be plaintext-readable by the same OS user. This is mitigated by: the bridge binding to `127.0.0.1` only, a fresh random 256-bit token per app start (deleted on shutdown), owner-only file permissions (`mode 0o600`, a no-op on Windows), and secret redaction on every bridge response. This is the only credential intentionally not encrypted at rest.
 - **Use HTTPS for all non-local/external API calls** (HTTP is only acceptable for `localhost` in local development)
 - **Validate and sanitize user input** before processing
 - **No telemetry without consent**
