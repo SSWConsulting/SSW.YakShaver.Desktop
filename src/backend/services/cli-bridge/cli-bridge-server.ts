@@ -12,6 +12,7 @@ import {
   type CliBridgeTokenFile,
 } from "../../../shared/cli-bridge/protocol";
 import { MCPServerManager } from "../mcp/mcp-server-manager";
+import { McpToolBridge } from "../mcp/mcp-tool-bridge";
 import { applyOpenAtLoginSetting } from "../settings/login-item";
 import { LlmStorage } from "../storage/llm-storage";
 import { UserSettingsStorage } from "../storage/user-settings-storage";
@@ -241,6 +242,15 @@ export class CliBridgeServer {
   getPort(): number | null {
     return this.port;
   }
+
+  /**
+   * The current bearer token, or null if not started. Used by the orchestrator to hand the
+   * `yakshaver mcp-serve` front-door a deterministic token (rather than relying on the token-file
+   * read racing app startup). NOT exposed over HTTP.
+   */
+  getToken(): string | null {
+    return this.token;
+  }
 }
 
 function safeStringEquals(a: string, b: string): boolean {
@@ -298,5 +308,21 @@ export function createDefaultServices(): BridgeServices {
         }
       },
     },
+    tools: {
+      async listTools() {
+        return (await getToolBridge()).listTools();
+      },
+      async callTool(name, args) {
+        return (await getToolBridge()).callTool(name, args);
+      },
+    },
   };
+}
+
+/** Build a {@link McpToolBridge} wired to the live singletons. */
+async function getToolBridge(): Promise<McpToolBridge> {
+  const manager = await MCPServerManager.getInstanceAsync();
+  return new McpToolBridge(manager, {
+    getSettingsAsync: () => UserSettingsStorage.getInstance().getSettingsAsync(),
+  });
 }

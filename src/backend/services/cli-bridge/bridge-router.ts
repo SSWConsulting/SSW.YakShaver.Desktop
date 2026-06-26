@@ -1,11 +1,14 @@
 import {
   type BridgeResponse,
+  type BridgeToolSummary,
   LlmConfigInputSchema,
   McpEnabledInputSchema,
   McpServerInputSchema,
   type McpServerPatch,
   McpServerPatchSchema,
   OrchestratorInputSchema,
+  ToolCallInputSchema,
+  type ToolCallResult,
 } from "../../../shared/cli-bridge/protocol";
 import {
   redactLlmConfig,
@@ -37,6 +40,15 @@ export interface BridgeServices {
   settings: {
     getSettingsAsync(): Promise<UserSettings>;
     updateSettingsAsync(patch: PartialUserSettings): Promise<void>;
+  };
+  /**
+   * Aggregated MCP toolset front-door (#915). Exposes the app's full,
+   * server-prefixed toolset (incl. internal/in-memory servers) and proxies
+   * tool execution through the app's approval policy.
+   */
+  tools: {
+    listTools(): Promise<BridgeToolSummary[]>;
+    callTool(name: string, args?: Record<string, unknown>): Promise<ToolCallResult>;
   };
 }
 
@@ -96,6 +108,11 @@ export async function routeRequest(
     // /settings
     if (segments[0] === "settings" && segments.length === 1) {
       return await routeSettings(services, req);
+    }
+
+    // /tools and /tools/call
+    if (segments[0] === "tools") {
+      return await routeTools(services, req, segments.slice(1));
     }
 
     return fail(`Unknown route: ${req.method} ${req.path}`, 404);
@@ -262,6 +279,49 @@ async function routeSettings(services: BridgeServices, req: BridgeRequest): Prom
     return ok(await services.settings.getSettingsAsync());
   }
   return fail(`Method not allowed: ${req.method} ${req.path}`, 405);
+}
+
+/**
+ * Aggregated toolset front-door (#915).
+ *
+ *  - `GET  /tools`       → the full server-prefixed tool list (incl. internal/
+ *    in-memory servers), names + descriptions + JSON-Schema only.
+ *  - `POST /tools/call`  → execute one tool by name; the approval policy is
+ *    enforced inside the tools service so a refusal is a structured result, not
+ *    an HTTP error (the caller must surface it, not retry).
+ */
+async function routeTools(
+  services: BridgeServices,
+  req: BridgeRequest,
+  rest: string[],
+): Promise<BridgeResult> {
+  // /tools
+  if (rest.length === 0) {
+    if (req.method !== "GET") {
+      return fail(`Method not allowed: ${req.method} ${req.path}`, 405);
+    }
+    const tools = await services.tools.listTools();
+    return ok(tools);
+  }
+
+  // /tools/call
+  if (rest.length === 1 && rest[0] === "call") {
+    if (req.method !== "POST") {
+      return fail(`Method not allowed: ${req.method} ${req.path}`, 405);
+    }
+    const parsed = ToolCallInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return fail(`Invalid tool call: ${formatZodError(parsed.error)}`);
+    }
+    const result = await services.tools.callTool(parsed.data.name, parsed.data.arguments ?? {});
+    // A tool-level failure (incl. a structured "not approved") is still a
+    // successful BRIDGE response — the envelope carries {ok:false,...} so the
+    // MCP front-door can relay it to the model verbatim. Only transport/route
+    // problems use a non-200 status.
+    return ok(result);
+  }
+
+  return fail(`Unknown route: ${req.method} ${req.path}`, 404);
 }
 
 /** Fields that belong ONLY to an HTTP (streamableHttp) server config. */
