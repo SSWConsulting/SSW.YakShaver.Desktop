@@ -7,6 +7,7 @@ const EMPTY_LLM_CONFIG: LLMConfigV2 = {
   languageModel: null,
   transcriptionModel: null,
   providerApiKeys: {},
+  orchestrationBackend: undefined,
 };
 
 function getBaseConfig(config: LLMConfigV2 | null): LLMConfigV2 {
@@ -28,6 +29,7 @@ export function buildConfigWithSavedModel(
       ...baseConfig.providerApiKeys,
       [values.provider]: values.apiKey,
     },
+    orchestrationBackend: baseConfig.orchestrationBackend,
     [modelType]: values,
   };
 }
@@ -54,6 +56,7 @@ export function buildConfigWithClearedModel(
     languageModel: baseConfig.languageModel,
     transcriptionModel: baseConfig.transcriptionModel,
     providerApiKeys,
+    orchestrationBackend: baseConfig.orchestrationBackend,
     [modelType]: null,
   };
 }

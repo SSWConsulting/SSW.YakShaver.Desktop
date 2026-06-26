@@ -74,11 +74,8 @@ export function ResetAccountSetting() {
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4">
-          <Button
-            onClick={() => setIsResetDialogOpen(true)}
-            variant="destructive"
-            className="w-full"
-          >
+          {/* #880 AC17: no longer full-width — a single confirmation-gated action doesn't warrant it on desktop. */}
+          <Button onClick={() => setIsResetDialogOpen(true)} variant="destructive">
             <RotateCcw className="h-4 w-4" />
             Reset Account to Default
           </Button>

@@ -1,3 +1,4 @@
+import { MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CustomPrompt } from "@/types";
 import { usePromptManager } from "../../../hooks/usePromptManager";
@@ -6,6 +7,7 @@ import { DeleteConfirmDialog } from "../../dialogs/DeleteConfirmDialog";
 import { UnsavedChangesDialog } from "../../dialogs/UnsavedChangesDialog";
 import { Button } from "../../ui/button";
 import { Separator } from "../../ui/separator";
+import { SettingsPageHeader } from "../SettingsPageHeader";
 import { PromptForm } from "./PromptForm";
 import { PromptListView } from "./PromptListView";
 import type { PromptFormValues } from "./schema";
@@ -364,13 +366,11 @@ export function CustomPromptSettingsPanel({
     <>
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
         {viewMode === "list" && (
-          <header className="flex flex-col gap-1">
-            <h2 className="text-xl font-semibold">Custom Prompt Manager</h2>
-            <p className="text-muted-foreground text-sm">
-              Manage your custom prompts. Use a template to get started quickly, or create your own
-              prompt.
-            </p>
-          </header>
+          <SettingsPageHeader
+            icon={MessageSquareText}
+            title="Custom Prompts"
+            description="Manage your custom prompts. Use a template to get started quickly, or create your own prompt."
+          />
         )}
         <div className="flex-1">
           <div className="w-full overflow-x-hidden">{renderContent()}</div>

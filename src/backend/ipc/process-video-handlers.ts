@@ -13,18 +13,25 @@ import { IdentityServerAuthService } from "../services/auth/identity-server-auth
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
+import type { IBacklogOrchestrator } from "../services/mcp/backlog-orchestrator";
 import { LanguageModelProvider } from "../services/mcp/language-model-provider";
+import { LocalClaudeOrchestrator } from "../services/mcp/local-claude-orchestrator";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
 import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
+import { LlmStorage } from "../services/storage/llm-storage";
 import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
+import {
+  applyPortalVideoFields,
+  applyVideoMetadataPersistence,
+} from "../services/workflow/video-metadata-persistence";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
 import {
   type RetryResult,
@@ -136,7 +143,7 @@ export class ProcessVideoIPCHandlers {
 
           const mcpAdapter = new McpWorkflowAdapter(workflowManager);
 
-          const orchestrator = await MCPOrchestrator.getInstanceAsync();
+          const orchestrator = await this.getBacklogOrchestrator();
           const loopResult = await orchestrator.manualLoopAsync(
             intermediateOutput,
             videoUploadResult,
@@ -437,6 +444,15 @@ export class ProcessVideoIPCHandlers {
     try {
       this.lastVideoFilePath = filePath;
 
+      // #808: Persist the video embed URL / source onto the shave record directly from the
+      // authoritative upload result. The UI normally writes this in response to a workflow
+      // progress event, but that event can be missed or coalesced (e.g. the workflow advances
+      // past `uploading_video` before the renderer subscribes, or the renderer's in-memory
+      // dedup set drops it), leaving the saved shave without `videoEmbedUrl`/`videoFile` and so
+      // with no preview in the Tenant view. Writing it here from the backend guarantees the
+      // field is persisted whenever the upload/download succeeded, regardless of UI timing.
+      this.persistVideoMetadataToShave(shaveId, youtubeResult);
+
       // -- CONVERTING_AUDIO --
       if (shouldRunStage(WorkflowProgressStage.CONVERTING_AUDIO)) {
         currentStage = WorkflowProgressStage.CONVERTING_AUDIO;
@@ -564,7 +580,7 @@ export class ProcessVideoIPCHandlers {
           intermediateOutput,
         });
 
-        const orchestrator = await MCPOrchestrator.getInstanceAsync();
+        const orchestrator = await this.getBacklogOrchestrator();
 
         // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
         const loopResult = await orchestrator.manualLoopAsync(
@@ -587,7 +603,9 @@ export class ProcessVideoIPCHandlers {
         // created/updated a backlog item, the run did nothing — fail the stage so the user
         // isn't told an issue exists when none does. Temp files are kept for retry.
         if (!loopResult.backlogActionSucceeded) {
-          const failureMessage = formatNoWorkItemError(loopResult.terminationReason);
+          const failureMessage = formatNoWorkItemError(loopResult.terminationReason, {
+            verificationUnavailable: loopResult.verificationUnavailable,
+          });
           mcpAdapter.fail(mcpResult, finalOutput, failureMessage);
           workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
             mcpResult,
@@ -616,13 +634,27 @@ export class ProcessVideoIPCHandlers {
           (await IdentityServerAuthService.getInstance().isAuthenticated())
         ) {
           try {
-            const objectResult = await orchestrator.convertToObjectAsync(
+            // Portal serialization uses the OpenAI orchestrator's structured-output helper
+            // regardless of which backend drove the loop (the local Claude backend has no
+            // convertToObjectAsync). This is a separate LLM call from the orchestration step.
+            const portalOrchestrator = await MCPOrchestrator.getInstanceAsync();
+            const objectResult = await portalOrchestrator.convertToObjectAsync(
               mcpResult,
               WorkItemDtoSchema,
             );
             const workItemDto = WorkItemDtoSchema.parse(objectResult);
             workItemDto.projectId = projectDetails.id;
             workItemDto.projectName = projectDetails.name;
+
+            // #808: The Tenant view renders its preview from the portal payload's video fields.
+            // These were previously left to the LLM to copy out of the system prompt during
+            // structured extraction, which intermittently dropped them — the exact "missing
+            // embedUrl/videoFile" symptom #808 reports. Override them deterministically from the
+            // same authoritative upload result the local backstop uses, so a successful
+            // recording ALWAYS carries the embed URL to the portal regardless of model output.
+            // The override + its skip-on-null behaviour lives in applyPortalVideoFields so the
+            // wiring (and that it fires BEFORE the portal POST) is unit-testable.
+            applyPortalVideoFields(workItemDto, youtubeResult);
 
             const portalResult = await SendWorkItemDetailsToPortal(workItemDto);
             if (!portalResult.success) {
@@ -717,10 +749,69 @@ export class ProcessVideoIPCHandlers {
     }
   }
 
+  /**
+   * #808: Backstop that persists the authoritative video metadata from the upload/download
+   * result onto the shave record, independent of the UI workflow-progress listener.
+   *
+   * - For uploads (origin !== "external"), the embed URL is `youtubeResult.data.url`; it is
+   *   written to `videoEmbedUrl` only when the shave doesn't already have one, so it never
+   *   clobbers a value the UI (or metadata-update) already set.
+   * - For external sources, a video source row is attached via the idempotent
+   *   `attachVideoSourceToShave` (which is a no-op if a source is already linked).
+   *
+   * Best-effort and fully non-fatal: any failure here must not abort the workflow, since the
+   * UI listener remains a second path to the same write.
+   */
+  private persistVideoMetadataToShave(
+    shaveId: string | undefined,
+    youtubeResult: VideoUploadResult,
+  ): void {
+    if (!shaveId) {
+      return;
+    }
+
+    try {
+      // The decision + ShaveService wiring lives in applyVideoMetadataPersistence so it can be
+      // unit-tested against an in-memory store (proving the no-clobber and write branches).
+      applyVideoMetadataPersistence(ShaveService.getInstance(), shaveId, youtubeResult);
+    } catch (err) {
+      // Non-fatal — the UI progress listener is the other path to this write.
+      console.warn(
+        "[ProcessVideo] Failed to persist video metadata to shave (non-fatal):",
+        formatAndReportError(err, "persist_video_metadata"),
+      );
+    }
+  }
+
   private async convertVideoToMp3(inputPath: string): Promise<string> {
     const outputFilePath = tmp.tmpNameSync({ postfix: ".mp3" });
     const result = await this.ffmpegService.ConvertVideoToMp3(inputPath, outputFilePath);
     return result;
+  }
+
+  /**
+   * Selects the orchestrator backend for the backlog-creation step from the persisted LLM config.
+   * `local-claude` drives the step with a headless `claude -p`; anything else (including a config
+   * with no `orchestrationBackend` field) uses the in-process OpenAI loop. Falls back to OpenAI if
+   * the config can't be read so the stage never hard-fails on a config hiccup.
+   */
+  private async getBacklogOrchestrator(): Promise<IBacklogOrchestrator> {
+    let backend: string | undefined;
+    try {
+      backend = (await LlmStorage.getInstance().getLLMConfig())?.orchestrationBackend;
+    } catch (error) {
+      console.warn(
+        "[ProcessVideo] Failed to read orchestration backend, defaulting to OpenAI",
+        error,
+      );
+    }
+
+    if (backend === "local-claude") {
+      console.log("[ProcessVideo] Using local Claude Code orchestrator");
+      return new LocalClaudeOrchestrator();
+    }
+
+    return await MCPOrchestrator.getInstanceAsync();
   }
 
   private async formatFinalResult(mcpResult: string | undefined): Promise<string | undefined> {

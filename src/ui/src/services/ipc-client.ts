@@ -18,6 +18,8 @@ import type {
   AuthState,
   ConvertVideoToMp3Result,
   CustomPrompt,
+  GetMyProjectsErrorCode,
+  GetMyProjectsResponse,
   GetMyShavesResponse,
   HealthStatusInfo,
   MCPStep,
@@ -112,6 +114,7 @@ declare global {
       };
       controlBar: {
         onTimeUpdate: (callback: (time: string) => void) => () => void;
+        getCurrentTime: () => Promise<string | null>;
       };
       workflow: {
         onProgressNeo: (callback: (progress: unknown) => void) => () => void;
@@ -236,6 +239,12 @@ declare global {
         getMyShaves: () => Promise<{
           success: boolean;
           data?: GetMyShavesResponse;
+          error?: string;
+        }>;
+        getMyProjects: () => Promise<{
+          success: boolean;
+          data?: GetMyProjectsResponse;
+          code?: GetMyProjectsErrorCode;
           error?: string;
         }>;
         cancelWorkItem: (workItemId: string) => Promise<{
