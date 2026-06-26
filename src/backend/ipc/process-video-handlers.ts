@@ -1,14 +1,20 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import { type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
+import type { LLMConfigV2 } from "../../shared/types/llm";
 import type { TranscriptSegment } from "../../shared/types/transcript";
 import {
   WORKFLOW_STAGE_ORDER,
   ProgressStage as WorkflowProgressStage,
   type WorkflowState,
 } from "../../shared/types/workflow";
-import { INITIAL_SUMMARY_PROMPT, TASK_EXECUTION_PROMPT } from "../constants/prompts";
+import {
+  INITIAL_SUMMARY_PROMPT,
+  TASK_EXECUTION_PROMPT,
+  VIDEO_FRAME_SUMMARY_PROMPT,
+} from "../constants/prompts";
 import { IdentityServerAuthService } from "../services/auth/identity-server-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
@@ -453,8 +459,44 @@ export class ProcessVideoIPCHandlers {
       // field is persisted whenever the upload/download succeeded, regardless of UI timing.
       this.persistVideoMetadataToShave(shaveId, youtubeResult);
 
+      // When the BytePlus provider is selected we analyze sampled video frames directly
+      // instead of converting audio, transcribing, and analyzing a transcript. The
+      // CONVERTING_AUDIO / TRANSCRIBING / ANALYZING_TRANSCRIPT stages are guarded off below.
+      const useBytePlusVideoPipeline = await this.isBytePlusLanguageProviderSelected();
+
+      if (useBytePlusVideoPipeline && shouldRunStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT)) {
+        workflowManager.skipStage(WorkflowProgressStage.CONVERTING_AUDIO);
+        workflowManager.skipStage(WorkflowProgressStage.TRANSCRIBING);
+
+        currentStage = WorkflowProgressStage.ANALYZING_TRANSCRIPT;
+        workflowManager.startStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
+
+        intermediateOutput = await this.analyzeVideoWithBytePlus(
+          filePath,
+          youtubeResult.data?.duration,
+        );
+        transcriptText = this.extractTranscriptTextFromIntermediateOutput(intermediateOutput);
+        transcript = [
+          {
+            text: transcriptText || "Visual summary generated from sampled video frames.",
+            startSecond: 0,
+            endSecond: youtubeResult.data?.duration ?? 0,
+          },
+        ];
+
+        workflowManager.completeStage(
+          WorkflowProgressStage.ANALYZING_TRANSCRIPT,
+          intermediateOutput,
+        );
+        workflowManager.createCheckpoint(WorkflowProgressStage.ANALYZING_TRANSCRIPT, {
+          transcript,
+          transcriptText,
+          intermediateOutput,
+        });
+      }
+
       // -- CONVERTING_AUDIO --
-      if (shouldRunStage(WorkflowProgressStage.CONVERTING_AUDIO)) {
+      if (!useBytePlusVideoPipeline && shouldRunStage(WorkflowProgressStage.CONVERTING_AUDIO)) {
         currentStage = WorkflowProgressStage.CONVERTING_AUDIO;
         workflowManager.startStage(WorkflowProgressStage.CONVERTING_AUDIO);
 
@@ -481,7 +523,7 @@ export class ProcessVideoIPCHandlers {
       }
 
       // -- TRANSCRIBING --
-      if (shouldRunStage(WorkflowProgressStage.TRANSCRIBING)) {
+      if (!useBytePlusVideoPipeline && shouldRunStage(WorkflowProgressStage.TRANSCRIBING)) {
         currentStage = WorkflowProgressStage.TRANSCRIBING;
         workflowManager.startStage(WorkflowProgressStage.TRANSCRIBING);
 
@@ -509,7 +551,7 @@ export class ProcessVideoIPCHandlers {
       }
 
       // -- ANALYZING_TRANSCRIPT --
-      if (shouldRunStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT)) {
+      if (!useBytePlusVideoPipeline && shouldRunStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT)) {
         currentStage = WorkflowProgressStage.ANALYZING_TRANSCRIPT;
         workflowManager.startStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT);
 
@@ -781,6 +823,108 @@ export class ProcessVideoIPCHandlers {
         formatAndReportError(err, "persist_video_metadata"),
       );
     }
+  }
+
+  private async isBytePlusLanguageProviderSelected(): Promise<boolean> {
+    const llmConfig = (await LlmStorage.getInstance().getLLMConfig()) as LLMConfigV2 | null;
+    return llmConfig?.languageModel?.provider === "byteplus";
+  }
+
+  private extractTranscriptTextFromIntermediateOutput(intermediateOutput: string): string {
+    try {
+      const parsed = TranscriptSummarySchema.parse(JSON.parse(intermediateOutput));
+      return parsed.formattedContent;
+    } catch {
+      return intermediateOutput;
+    }
+  }
+
+  private async analyzeVideoWithBytePlus(
+    filePath: string,
+    durationSeconds?: number,
+  ): Promise<string> {
+    const timestamps = this.getFrameTimestamps(durationSeconds);
+    const capturedFrames: Array<{ timestamp: number; path: string }> = [];
+
+    for (const timestamp of timestamps) {
+      try {
+        const outputPath = tmp.tmpNameSync({
+          postfix: `-yakshaver-byteplus-frame-${randomUUID().slice(0, 8)}.png`,
+        });
+        await this.ffmpegService.captureNthFrame(filePath, outputPath, timestamp);
+        capturedFrames.push({ timestamp, path: outputPath });
+      } catch (error) {
+        console.warn(`[ProcessVideo] Failed to capture frame at ${timestamp}s`, error);
+      }
+    }
+
+    if (!capturedFrames.length) {
+      throw new Error("Failed to capture any video frames for BytePlus analysis.");
+    }
+
+    try {
+      const languageModelProvider = await LanguageModelProvider.getInstance();
+      const content: Array<
+        { type: "text"; text: string } | { type: "image"; image: string; mediaType: string }
+      > = [
+        {
+          type: "text",
+          text: `${VIDEO_FRAME_SUMMARY_PROMPT}`,
+        },
+      ];
+
+      for (const frame of capturedFrames) {
+        const imageBuffer = await fs.promises.readFile(frame.path);
+        content.push({ type: "text", text: `Frame timestamp: ${frame.timestamp.toFixed(2)}s` });
+        content.push({
+          type: "image",
+          image: `data:image/png;base64,${imageBuffer.toString("base64")}`,
+          mediaType: "image/png",
+        });
+      }
+
+      const rawResponse = await languageModelProvider.generateText([{ role: "user", content }]);
+      const parsed = this.parseTranscriptSummary(rawResponse);
+      return JSON.stringify(parsed);
+    } finally {
+      for (const frame of capturedFrames) {
+        try {
+          if (fs.existsSync(frame.path)) {
+            fs.unlinkSync(frame.path);
+          }
+        } catch (cleanupError) {
+          console.warn("[ProcessVideo] Failed to clean up temporary frame", cleanupError);
+        }
+      }
+    }
+  }
+
+  private parseTranscriptSummary(rawResponse: string): z.infer<typeof TranscriptSummarySchema> {
+    const cleaned = rawResponse.trim();
+    try {
+      return TranscriptSummarySchema.parse(JSON.parse(cleaned));
+    } catch {
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (!match) {
+        throw new Error("BytePlus response did not include valid JSON.");
+      }
+      return TranscriptSummarySchema.parse(JSON.parse(match[0]));
+    }
+  }
+
+  private getFrameTimestamps(durationSeconds?: number): number[] {
+    if (!durationSeconds || durationSeconds <= 0) {
+      return [2, 10, 20];
+    }
+
+    const safeDuration = Math.max(durationSeconds, 1);
+    const first = Math.min(2, Math.max(safeDuration - 0.2, 0));
+    const middle = safeDuration * 0.5;
+    const end = Math.max(safeDuration - 1, 0);
+
+    return Array.from(new Set([first, middle, end].map((t) => Number(t.toFixed(3))))).sort(
+      (a, b) => a - b,
+    );
   }
 
   private async convertVideoToMp3(inputPath: string): Promise<string> {
