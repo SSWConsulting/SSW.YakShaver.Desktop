@@ -2,7 +2,7 @@ import type { InteractionRequest, ToolApprovalPayload } from "@shared/types/user
 import { Terminal } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
-import { formatErrorMessage, parseToolName } from "../../utils";
+import { formatErrorMessage, parseToolName, splitToolName } from "../../utils";
 import { LoadingState } from "../common/LoadingState";
 import { AzureDevOpsIcon } from "../settings/mcp/devops/devops-icon";
 import { GitHubIcon } from "../settings/mcp/github/github-icon";
@@ -38,6 +38,23 @@ function getServiceIcon(serverName: string | null): ReactElement {
     return <AtlassianIcon className="w-5 h-5" />;
   }
   return <Terminal className="w-5 h-5 text-white/70" />;
+}
+
+/**
+ * Plain-language explanations of why specific tools are needed, so non-technical
+ * users can make an informed choice (issue #783 AC2). Returns null for tools
+ * without a bespoke explanation, in which case the generic description is used.
+ *
+ * Keyed on the raw, unformatted tool id (the segment after any server prefix) via
+ * the shared {@link splitToolName} so it survives both MCP separators ("__" and ".").
+ */
+function getToolPurpose(rawToolName: string): string | null {
+  switch (splitToolName(rawToolName).tool) {
+    case "capture_video_frame":
+      return "YakShaver wants to capture a still frame from your screen recording so it can see what you're pointing at and keep working on your task accurately. It only runs when you say it's OK.";
+    default:
+      return null;
+  }
 }
 
 export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDialogProps) {
@@ -137,12 +154,20 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
   const isOpen = true;
 
   const readableToolInfo = toolName ? parseToolName(toolName) : null;
+  const toolLabel = readableToolInfo?.tool ?? "an action";
   const dialogTitle = readableToolInfo
-    ? `Allow "${readableToolInfo.tool}" to run?`
-    : "Allow tool to run?";
-  const dialogDescription = readableToolInfo?.server
-    ? `The AI wants to run the "${readableToolInfo.tool}" tool from the ${readableToolInfo.server} server. Do you want to allow this?`
-    : `The AI wants to run a tool. Do you want to allow this?`;
+    ? `Can YakShaver use "${readableToolInfo.tool}"?`
+    : "Can YakShaver perform this action?";
+
+  // Some tools have a clear, user-facing purpose that non-technical users benefit
+  // from understanding (issue #783 AC2). Keyed on the raw, unformatted tool id so it
+  // survives both MCP separators ("__" and ".") and any display-label changes.
+  const toolPurpose = toolName ? getToolPurpose(toolName) : null;
+  const dialogDescription =
+    toolPurpose ??
+    (readableToolInfo?.server
+      ? `To keep working on your task, YakShaver needs to use the "${readableToolInfo.tool}" tool (from ${readableToolInfo.server}). It only runs when you say it's OK.`
+      : `To keep working on your task, YakShaver needs to perform an action. It only runs when you say it's OK.`);
 
   return (
     <AlertDialog open={isOpen}>
@@ -156,6 +181,23 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
           </div>
           <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
         </AlertDialogHeader>
+        {!showCorrectionForm && (
+          <ul className="space-y-1.5 text-sm text-white/70">
+            <li>
+              <span className="font-medium text-white/90">Allow</span> &mdash; let YakShaver use{" "}
+              {`"${toolLabel}"`} this one time.
+            </li>
+            <li>
+              <span className="font-medium text-white/90">Allow Always</span> &mdash; let YakShaver
+              use {`"${toolLabel}"`} now and skip this prompt next time.
+            </li>
+            <li>
+              <span className="font-medium text-white/90">Review / Correct&hellip;</span> &mdash;
+              don't run {`"${toolLabel}"`} as-is. You can leave a note telling YakShaver what to
+              change and try again, or stop the step entirely.
+            </li>
+          </ul>
+        )}
         {autoApprovalCountdown !== null && (
           <p className="text-xs text-yellow-300">
             Auto-approving in {autoApprovalCountdown}s if no action is taken.
@@ -247,7 +289,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                   setShowCorrectionForm(true);
                 }}
               >
-                Don't Allow
+                Review / Correct&hellip;
               </AlertDialogCancel>
               <Button
                 type="button"

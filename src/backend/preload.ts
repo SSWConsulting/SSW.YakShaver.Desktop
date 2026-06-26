@@ -46,6 +46,7 @@ const IPC_CHANNELS = {
   CLEANUP_TEMP_FILE: "cleanup-temp-file",
   TRIGGER_TRANSCRIPTION: "trigger-transcription",
   SHOW_CONTROL_BAR: "show-control-bar",
+  GET_RECORDING_TIME: "get-recording-time",
   HIGHLIGHT_SCREEN_SOURCE_SELECTION: "highlight-screen-source-selection",
   ENABLE_LOOPBACK_AUDIO: "enable-loopback-audio",
   DISABLE_LOOPBACK_AUDIO: "disable-loopback-audio",
@@ -129,6 +130,7 @@ const IPC_CHANNELS = {
 
   // Portal API
   PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
+  PORTAL_GET_MY_PROJECTS: "portal:get-my-projects",
   PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 
   // Shave Management
@@ -233,6 +235,10 @@ const electronAPI = {
       ipcRenderer.on("update-recording-time", listener);
       return () => ipcRenderer.removeListener("update-recording-time", listener);
     },
+    // Pull the current recording time once the renderer has mounted and
+    // subscribed, so a late-loading control bar isn't stuck on 00:00 (#870).
+    getCurrentTime: (): Promise<string | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.GET_RECORDING_TIME),
   },
   workflow: {
     onProgressNeo: (callback: (progress: unknown) => void) =>
@@ -355,6 +361,7 @@ const electronAPI = {
   },
   portal: {
     getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
+    getMyProjects: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_PROJECTS),
     cancelWorkItem: (workItemId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PORTAL_CANCEL_WORK_ITEM, workItemId),
   },

@@ -1,10 +1,11 @@
-import { app, BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
+import { BrowserWindow, type IpcMainInvokeEvent, ipcMain } from "electron";
 import {
   type Hotkeys,
   type PartialUserSettings,
   PartialUserSettingsSchema,
 } from "../../shared/types/user-settings";
 import { HotkeyManager } from "../services/settings/hotkey-manager";
+import { applyOpenAtLoginSetting } from "../services/settings/login-item";
 import { UserSettingsStorage } from "../services/storage/user-settings-storage";
 import type { TrayManager } from "../services/tray/tray-manager";
 import { IPC_CHANNELS } from "./channels";
@@ -29,10 +30,7 @@ export class UserSettingsIPCHandlers {
   private async syncLoginItemSettings(): Promise<void> {
     try {
       const settings = await this.storage.getSettingsAsync();
-      app.setLoginItemSettings({
-        openAtLogin: settings.openAtLogin,
-        openAsHidden: false,
-      });
+      applyOpenAtLoginSetting(settings.openAtLogin);
     } catch (error) {
       console.error("Failed to sync login item settings on startup", error);
     }
@@ -95,10 +93,7 @@ export class UserSettingsIPCHandlers {
   }
 
   private async handleOpenAtLoginUpdate(openAtLogin: boolean): Promise<void> {
-    app.setLoginItemSettings({
-      openAtLogin,
-      openAsHidden: false,
-    });
+    applyOpenAtLoginSetting(openAtLogin);
   }
 
   private registerHandlers(): void {

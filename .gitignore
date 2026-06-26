@@ -110,3 +110,9 @@ data/
 # Claude temp files
 tmpclaude*
 .claude/
+# Keep shared, version-controlled Claude Code skills
+!.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/yakshaver-config/

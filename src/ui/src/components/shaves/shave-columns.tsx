@@ -1,4 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
+import { Link } from "react-router-dom";
 import { getStatusVariant } from "@/lib/shave-utils";
 import { timeAgo } from "@/lib/utils";
 import type { Shave } from "../../types";
@@ -21,12 +22,14 @@ export function createShaveColumns(): ColumnDef<Shave>[] {
       accessorKey: "title",
       header: ({ column }) => <SortableHeader column={column} label="Title" />,
       cell: ({ row }) => (
-        <span
-          className={`max-w-[400px] truncate block ${row.original.title ? "font-medium" : "font-medium text-muted-foreground italic"}`}
-          title={row.original.title || "Unnamed shave"}
+        // #821: open this shave's Workflow Progress page (status / result / error) by id.
+        <Link
+          to={`/workflow/${row.original.id}`}
+          className={`max-w-[400px] truncate block hover:underline ${row.original.title ? "font-medium" : "font-medium text-muted-foreground italic"}`}
+          title={`Open workflow progress for ${row.original.title || "this shave"}`}
         >
           {row.original.title || "Unnamed shave"}
-        </span>
+        </Link>
       ),
     },
     {

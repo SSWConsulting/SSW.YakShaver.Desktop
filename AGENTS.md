@@ -51,6 +51,7 @@ YakShaver is a desktop AI agent with the following capabilities:
 
 - **AI/LLM**: `@ai-sdk/openai`, `@ai-sdk/azure`, `@ai-sdk/deepseek`, `@ai-sdk/mcp`, `ai`, `openai`
 - **MCP**: `@modelcontextprotocol/sdk`
+- **Schema validation**: `zod` (root dependency — used for the CLI bridge wire-format/protocol schemas and elsewhere)
 - **Database**: `drizzle-orm`, `better-sqlite3`
 - **APIs**: `googleapis`, `@microsoft/microsoft-graph-client`, `google-auth-library`, `@azure/msal-node`
 - **Video/Media**: `@ffmpeg-installer/ffmpeg`, `youtube-dl-exec`
@@ -59,6 +60,11 @@ YakShaver is a desktop AI agent with the following capabilities:
 - **Windows/macOS YouTube downloads**: `scripts/install-yt-dlp.mjs` installs standalone
   `yt-dlp` binaries into `node_modules/youtube-dl-exec/bin/` during setup so local
   development does not depend on the operating system's Python.
+- **Optional Claude Code CLI runtime**: the `local-claude` orchestration backend spawns a
+  headless `claude` (`@anthropic-ai/claude-code`) subprocess from PATH. It is NOT a bundled
+  dependency — the user installs it separately, and the feature is only active when the user
+  selects it in Settings. (Spawned through the shell on Windows so an npm `claude.cmd`/`.ps1`
+  shim still launches.)
 
 ## Project Structure
 
@@ -71,6 +77,8 @@ Frontend (React/Vite)  <-->  IPC Bridge  <-->  Backend (Electron/Node.js)
 ```
 
 The frontend communicates **exclusively through IPC** channels. All backend functionality is exposed through 40+ typed IPC channels organized by feature.
+
+There is one additional, deliberately narrow backend access path: the **CLI bridge** (`src/backend/services/cli-bridge/`). It is a localhost-only HTTP server, started in `app.whenReady` and torn down on cleanup, that lets the standalone `yakshaver` CLI (`src/cli/`) read and mutate MCP/LLM/settings config by calling the SAME service singletons (`MCPServerManager`, `LlmStorage`, `UserSettingsStorage`) the IPC handlers use. Its security model: binds to `127.0.0.1` only (never `0.0.0.0`), requires a per-startup 256-bit `Authorization: Bearer` token, redacts all secrets in responses, and can be disabled via `YAKSHAVER_DISABLE_CLI_BRIDGE`. See "Security & Privacy" for the token-file exception to the encrypt-all-credentials rule. Built-in MCP servers are NOT mutable through the bridge (mirrors the desktop UI).
 
 ### Directory Tree
 
@@ -91,6 +99,7 @@ SSW.YakShaver.Desktop/
 │   │   │   └── channels.ts           # All IPC channel name constants
 │   │   ├── services/                  # Business logic services
 │   │   │   ├── auth/                  # YouTube & Microsoft OAuth
+│   │   │   ├── cli-bridge/            # Localhost HTTP bridge for the yakshaver CLI
 │   │   │   ├── ffmpeg/                # Video codec conversion
 │   │   │   ├── mcp/                   # MCP orchestration (central AI hub)
 │   │   │   ├── recording/             # Screen capture (singleton + EventEmitter)
@@ -105,7 +114,10 @@ SSW.YakShaver.Desktop/
 │   ├── shared/                        # Shared types between frontend & backend
 │   │   ├── types/                     # LLM, workflow, MCP, user-settings, telemetry types
 │   │   ├── llm/                       # Provider factory configuration
+│   │   ├── cli-bridge/                # CLI bridge protocol/schemas + secret redaction
 │   │   └── constants/                 # Shared error messages
+│   │
+│   ├── cli/                           # `yakshaver` CLI (emits dist/cli/index.js, bin: yakshaver)
 │   │
 │   └── ui/                            # React frontend (Vite)
 │       ├── vite.config.mts            # Vite build config (multi-entry)
@@ -392,6 +404,24 @@ APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=.
 
 Most backend services use the singleton pattern. Use `getInstanceAsync()` for async initialization (e.g., `MCPServerManager`, `MCPOrchestrator`), or `getInstance()` with nullish coalescing for sync (e.g., `RecordingService`, all `*Storage` classes). See any storage class for the sync pattern.
 
+#### Backlog Orchestration Backends (Pluggable Seam)
+
+The EXECUTING_TASK stage drives backlog creation through the `IBacklogOrchestrator` seam
+(`src/backend/services/mcp/backlog-orchestrator.ts`). Two interchangeable backends implement it:
+
+- **`openai`** (default): the in-process `MCPOrchestrator` OpenAI tool loop.
+- **`local-claude`**: `LocalClaudeOrchestrator`, which spawns a headless `claude -p` subprocess,
+  serializes the enabled MCP servers to a temp `--mcp-config` (with OAuth bearer headers; the
+  config file is written `0600` because it carries a live token), maps the tool-approval mode to
+  Claude's `--permission-mode`/`--allowedTools`, and reuses the shared `judgeBacklogOutcome`
+  verifier. The verifier still runs on the configured OpenAI/Azure model, so `local-claude` is
+  "no API key for orchestration" but still needs a language model configured to confirm success.
+
+The backend is selected per run by `getBacklogOrchestrator()` from the `orchestrationBackend`
+field on `LLMConfigV2` (`src/shared/types/llm.ts`, default `openai`), surfaced in Settings via
+`OrchestratorBackendSetting`. Both backends return the same `MCPLoopResult`, whose
+`backlogActionSucceeded` gates COMPLETE vs FAIL.
+
 #### IPC Handler Pattern (Class-based)
 
 All IPC handlers are one class per domain. Each class registers handlers in the constructor via `Object.entries().forEach()` with `ipcMain.handle()`. Handler methods are private and return structured `{ success, data?, error? }` results. See `src/backend/ipc/auth-handlers.ts` for a reference implementation.
@@ -580,6 +610,7 @@ APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=.
 - **Linux**: `~/.config/SSW.YakShaver/`
 
 Encrypted tokens: `yakshaver-tokens/*.enc`
+CLI bridge handshake (PLAINTEXT, deliberate exception): `yakshaver-tokens/cli-bridge.json` — see "Security & Privacy"
 Database: `database.sqlite` (dev: `./data/database.sqlite`)
 Auth browser templates: `src/backend/assets/auth/*.html` (packaged via `extraResources`)
 
@@ -635,6 +666,7 @@ npm run db:generate    # Generate Drizzle ORM migrations
 - **Never hardcode secrets** - even placeholder values like `"sk-..."`
 - **Use Electron's `safeStorage` API** - for all token/credential encryption
 - **Encrypt all stored credentials** - via `BaseSecureStorage` subclasses
+  - **Documented exception — CLI bridge handshake file** (`yakshaver-tokens/cli-bridge.json`): written as PLAINTEXT JSON, not `*.enc`, even though it sits in the encrypted-credentials directory. The standalone `yakshaver` CLI is a non-Electron process and cannot decrypt `safeStorage`, so the bridge port + bearer token must be plaintext-readable by the same OS user. This is mitigated by: the bridge binding to `127.0.0.1` only, a fresh random 256-bit token per app start (deleted on shutdown), owner-only file permissions (`mode 0o600`, a no-op on Windows), and secret redaction on every bridge response. This is the only credential intentionally not encrypted at rest.
 - **Use HTTPS for all non-local/external API calls** (HTTP is only acceptable for `localhost` in local development)
 - **Validate and sanitize user input** before processing
 - **No telemetry without consent**

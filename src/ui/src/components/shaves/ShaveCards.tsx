@@ -1,4 +1,5 @@
 import { Video } from "lucide-react";
+import { Link } from "react-router-dom";
 import { getStatusVariant } from "@/lib/shave-utils";
 import { getYouTubeThumbnail, timeAgo } from "@/lib/utils";
 import type { Shave } from "../../types";
@@ -45,12 +46,14 @@ function ShaveCard({ shave }: { shave: Shave }) {
       )}
 
       <div className="flex flex-col gap-2 px-4 pt-4 pb-3">
-        <h3
-          className={`font-medium text-sm line-clamp-2 ${!shave.title ? "text-muted-foreground italic" : ""}`}
-          title={shave.title || "Unnamed shave"}
+        {/* #821: open this shave's Workflow Progress page by id. */}
+        <Link
+          to={`/workflow/${shave.id}`}
+          className={`font-medium text-sm line-clamp-2 hover:underline ${!shave.title ? "text-muted-foreground italic" : ""}`}
+          title={`Open workflow progress for ${shave.title || "this shave"}`}
         >
           {shave.title || "Unnamed shave"}
-        </h3>
+        </Link>
       </div>
       <div className="px-4 pb-3 mt-auto">
         <ShaveCardFooter shave={shave} />

@@ -5,7 +5,12 @@ import {
   type WorkflowStatus,
 } from "@shared/types/workflow";
 import { describe, expect, it } from "vitest";
-import { formatKeyAsTitle, requiredPostCreationStageFailure } from "./";
+import {
+  formatKeyAsTitle,
+  parseToolName,
+  requiredPostCreationStageFailure,
+  splitToolName,
+} from "./";
 
 function makeWorkflowState(
   overrides: Partial<Record<ProgressStage, { status: WorkflowStatus; payload?: string }>> = {},
@@ -104,5 +109,52 @@ describe("requiredPostCreationStageFailure", () => {
       }),
     );
     expect(result?.stage).toBe(ProgressStage.UPLOADING_VIDEO);
+  });
+});
+
+describe("splitToolName", () => {
+  it("splits on the '__' MCP system separator", () => {
+    expect(splitToolName("Jira__getAccessibleAtlassianResources")).toEqual({
+      server: "Jira",
+      tool: "getAccessibleAtlassianResources",
+    });
+  });
+
+  it("splits on the '.' AI-output separator", () => {
+    expect(splitToolName("Yak_Video_Tools.capture_video_frame")).toEqual({
+      server: "Yak_Video_Tools",
+      tool: "capture_video_frame",
+    });
+  });
+
+  it("prefers the '__' separator over '.' when both are present", () => {
+    expect(splitToolName("Yak_Video_Tools__capture_video_frame")).toEqual({
+      server: "Yak_Video_Tools",
+      tool: "capture_video_frame",
+    });
+  });
+
+  it("returns a null server when there is no prefix", () => {
+    expect(splitToolName("issue_write")).toEqual({ server: null, tool: "issue_write" });
+  });
+});
+
+describe("parseToolName", () => {
+  it("formats a '__'-separated tool name", () => {
+    expect(parseToolName("Jira__getAccessibleAtlassianResources")).toEqual({
+      server: "Jira",
+      tool: "Get Accessible Atlassian Resources",
+    });
+  });
+
+  it("formats a '.'-separated tool name and de-underscores the server", () => {
+    expect(parseToolName("Yak_Video_Tools.capture_video_frame")).toEqual({
+      server: "Yak Video Tools",
+      tool: "Capture Video Frame",
+    });
+  });
+
+  it("returns a null server for an unprefixed tool name", () => {
+    expect(parseToolName("issue_write")).toEqual({ server: null, tool: "Issue Write" });
   });
 });

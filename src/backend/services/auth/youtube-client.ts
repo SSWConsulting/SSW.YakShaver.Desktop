@@ -13,6 +13,7 @@ import type {
   VideoUploadResult,
   YouTubeSnippetUpdate,
 } from "./types";
+import { classifyYouTubeAuthError, describeYouTubeAuthError } from "./youtube-auth-error";
 import {
   authorizeYouTubeWithBackend,
   convertToTokenData,
@@ -81,10 +82,16 @@ export class YouTubeClient {
 
       return { success: true, userInfo };
     } catch (error) {
-      console.error("[YouTubeClient] Authentication failed:", error);
+      const reason = classifyYouTubeAuthError(error);
+      // Report to telemetry under the auth context (was mislabelled "youtube_upload"),
+      // tagged with the structured reason so sign-out/timeout events are diagnosable (#596).
+      formatAndReportError(error, "youtube_auth", { reason });
+      console.error(`[YouTubeClient] Authentication failed (${reason}):`, error);
       return {
         success: false,
-        error: formatAndReportError(error, "youtube_upload"),
+        // Honest, actionable copy mapped from the structured reason — not a raw
+        // internal message and never a false "success".
+        error: describeYouTubeAuthError(reason),
       };
     }
   }
