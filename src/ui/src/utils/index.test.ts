@@ -1,7 +1,33 @@
-import { ProgressStage, type WorkflowState, type WorkflowStatus } from "@shared/types/workflow";
+import {
+  ProgressStage,
+  WORKFLOW_STAGE_ORDER,
+  type WorkflowState,
+  type WorkflowStatus,
+} from "@shared/types/workflow";
 import { describe, expect, it } from "vitest";
 import { MCPStepType } from "@/types";
-import { formatKeyAsTitle, isWorkflowFailed, parseToolName, splitToolName } from "./";
+import {
+  formatKeyAsTitle,
+  isWorkflowFailed,
+  parseToolName,
+  requiredPostCreationStageFailure,
+  splitToolName,
+} from "./";
+
+function makeWorkflowState(
+  overrides: Partial<Record<ProgressStage, { status: WorkflowStatus; payload?: string }>> = {},
+): WorkflowState {
+  const state = {} as WorkflowState;
+  for (const stage of WORKFLOW_STAGE_ORDER) {
+    const override = overrides[stage as ProgressStage];
+    state[stage] = {
+      stage: stage as ProgressStage,
+      status: override?.status ?? "completed",
+      payload: override?.payload,
+    };
+  }
+  return state;
+}
 
 function makeStep(status: WorkflowStatus) {
   return { stage: ProgressStage.UPLOADING_VIDEO, status };
@@ -55,6 +81,57 @@ describe("formatKeyAsTitle", () => {
 
   it("handles consecutive uppercase acronyms separated by words", () => {
     expect(formatKeyAsTitle("parseHTMLContent")).toBe("Parse HTML Content");
+  });
+});
+
+describe("requiredPostCreationStageFailure", () => {
+  it("returns null when no required post-creation stage failed", () => {
+    expect(requiredPostCreationStageFailure(makeWorkflowState())).toBeNull();
+  });
+
+  it("flags a failed video upload with a default message", () => {
+    const result = requiredPostCreationStageFailure(
+      makeWorkflowState({ [ProgressStage.UPLOADING_VIDEO]: { status: "failed" } }),
+    );
+    expect(result).toEqual({
+      stage: ProgressStage.UPLOADING_VIDEO,
+      error: "The work item was created, but uploading the video to YouTube failed.",
+    });
+  });
+
+  it("flags a failed metadata update with a default message", () => {
+    const result = requiredPostCreationStageFailure(
+      makeWorkflowState({ [ProgressStage.UPDATING_METADATA]: { status: "failed" } }),
+    );
+    expect(result).toEqual({
+      stage: ProgressStage.UPDATING_METADATA,
+      error: "The work item was created, but updating the YouTube video metadata failed.",
+    });
+  });
+
+  it("prefers the stage's own payload error message when present", () => {
+    const result = requiredPostCreationStageFailure(
+      makeWorkflowState({
+        [ProgressStage.UPDATING_METADATA]: {
+          status: "failed",
+          payload: JSON.stringify({ error: "quota exceeded" }),
+        },
+      }),
+    );
+    expect(result).toEqual({
+      stage: ProgressStage.UPDATING_METADATA,
+      error: "quota exceeded",
+    });
+  });
+
+  it("gives upload failure precedence over a metadata failure", () => {
+    const result = requiredPostCreationStageFailure(
+      makeWorkflowState({
+        [ProgressStage.UPLOADING_VIDEO]: { status: "failed" },
+        [ProgressStage.UPDATING_METADATA]: { status: "failed" },
+      }),
+    );
+    expect(result?.stage).toBe(ProgressStage.UPLOADING_VIDEO);
   });
 });
 

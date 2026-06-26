@@ -13,6 +13,7 @@ import {
   isWorkflowReadyForFinalOutput,
   parseWorkflowProgressNeoPayload,
   parseWorkflowStepPayload,
+  requiredPostCreationStageFailure,
 } from "../utils";
 
 interface FinalOutput {
@@ -219,7 +220,12 @@ export function useShaveManager() {
       return;
     }
 
-    const finalUpdatedKey = `${shaveId}:${finalOutput}`;
+    // #861 AC#5: include the required post-creation stage failure in the dedupe key so a
+    // successful retry of a previously-failed required stage (e.g. metadata-only retry, which
+    // reuses the identical finalOutput) is NOT skipped — it must re-run to upgrade the persisted
+    // status from Failed to the AI's reported success once all required stages complete.
+    const postCreationFailure = requiredPostCreationStageFailure(state);
+    const finalUpdatedKey = `${shaveId}:${finalOutput}:${postCreationFailure?.stage ?? "none"}`;
     if (finalUpdatedKeysRef.current.has(finalUpdatedKey)) {
       return;
     }
@@ -231,9 +237,18 @@ export function useShaveManager() {
       if (parsedOutput) {
         const finalTitle = parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
 
+        // #861 AC#3/#5: a failed required post-creation stage overrides the AI's "success"
+        // so the persisted shave status doesn't claim a clean completion. This shares the
+        // single source of truth with FinalResultPanel's warning badge, so the persisted
+        // status and the on-screen badge can never disagree.
+        const shaveStatus =
+          parsedOutput.status === ShaveStatus.Completed && postCreationFailure
+            ? ShaveStatus.Failed
+            : parsedOutput.status;
+
         await ipcClient.shave.update(shaveId, {
           title: finalTitle,
-          shaveStatus: parsedOutput.status,
+          shaveStatus,
           workItemUrl: parsedOutput.workItemUrl,
         });
       }

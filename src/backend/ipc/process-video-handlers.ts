@@ -41,6 +41,10 @@ import {
   WorkflowRetryService,
 } from "../services/workflow/workflow-retry-service";
 import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
+import {
+  applyUploadStageOutcome,
+  resolveMetadataStage,
+} from "../services/workflow/youtube-stage-decisions";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
@@ -296,11 +300,11 @@ export class ProcessVideoIPCHandlers {
           youtubeResult.data.duration = duration;
         }
 
-        workflowManager.completeStage(WorkflowProgressStage.UPLOADING_VIDEO, {
-          filePath,
-          sourceOrigin: youtubeResult.origin,
-          uploadResult: youtubeResult,
-        });
+        // #672: only show a green tick when the upload actually succeeded. uploadVideo returns
+        // { success:false } (without throwing) when e.g. the Google account has no YouTube
+        // channel — previously that still completed the stage, leaving a green tick and no link.
+        // Mark it failed (so the user sees why) but keep going: the work item is still worth creating.
+        applyUploadStageOutcome(youtubeResult, filePath, workflowManager);
 
         // Update checkpoint with upload result
         workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
@@ -678,12 +682,8 @@ export class ProcessVideoIPCHandlers {
         }
       }
 
-      if (
-        shouldRunStage(WorkflowProgressStage.UPDATING_METADATA) &&
-        youtubeResult.origin !== "external" &&
-        youtubeResult.success
-      ) {
-        const videoId = youtubeResult.data?.videoId;
+      if (shouldRunStage(WorkflowProgressStage.UPDATING_METADATA)) {
+        const videoId = resolveMetadataStage(youtubeResult, workflowManager);
         if (videoId) {
           try {
             workflowManager.updateStagePayload(
