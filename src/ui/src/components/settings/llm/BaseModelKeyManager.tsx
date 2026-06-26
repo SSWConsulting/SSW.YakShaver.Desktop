@@ -3,11 +3,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import type { ProviderOption } from "@/components/llm/LLMProviderFields";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatErrorMessage } from "@/utils";
 import { LLM_PROVIDER_CONFIGS } from "../../../../../shared/llm/llm-providers";
 import { ipcClient } from "../../../services/ipc-client";
 import type { HealthStatusInfo } from "../../../types";
+import { SettingsSection } from "../SettingsSection";
 import { type LLMProvider, LLMProviderForm } from "./LLMProviderForm";
 import { buildConfigWithClearedModel, buildConfigWithSavedModel } from "./llm-config-utils";
 
@@ -170,25 +170,19 @@ export function BaseModelKeyManager({
   };
 
   return (
-    <Card className="w-full gap-4 border-white/10 py-4">
-      <CardHeader className="px-4">
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="px-4">
-        <LLMProviderForm
-          form={form}
-          onSubmit={onSubmit}
-          onClear={onClear}
-          isLoading={isLoading}
-          hasConfig={hasConfig}
-          handleProviderChange={handleProviderChange}
-          providerOptions={
-            modelType === "languageModel" ? LANGUAGE_PROVIDER_NAMES : TRANSCRIPTION_PROVIDER_NAMES
-          }
-          healthStatus={modelType === "languageModel" ? healthStatus : undefined}
-        />
-      </CardContent>
-    </Card>
+    <SettingsSection title={title} description={description}>
+      <LLMProviderForm
+        form={form}
+        onSubmit={onSubmit}
+        onClear={onClear}
+        isLoading={isLoading}
+        hasConfig={hasConfig}
+        handleProviderChange={handleProviderChange}
+        providerOptions={
+          modelType === "languageModel" ? LANGUAGE_PROVIDER_NAMES : TRANSCRIPTION_PROVIDER_NAMES
+        }
+        healthStatus={modelType === "languageModel" ? healthStatus : undefined}
+      />
+    </SettingsSection>
   );
 }

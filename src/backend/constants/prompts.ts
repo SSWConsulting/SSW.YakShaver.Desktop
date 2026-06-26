@@ -1,3 +1,41 @@
+/**
+ * Duplicate-detection guidance shared by every issue-creation prompt.
+ *
+ * Bug #862: when YakShaver searched the backlog for an existing/duplicate item, a previously
+ * created work item that had since been DELETED (Azure DevOps `System.State = 'Removed'`, or a
+ * GitHub/Jira deleted/closed-as-not-planned item) was still being treated as a live duplicate.
+ * The agent then tried to UPDATE the deleted item — which the platform rejects — and fell back to
+ * creating a new, incomplete item carrying only a title plus a "duplicate" comment, dropping the
+ * steps-to-reproduce and acceptance criteria. Deleted items must NEVER count as a match: exclude
+ * them from the search, never update them, and never add a duplicate comment when the only match
+ * is deleted.
+ */
+export const DUPLICATE_DETECTION_RULES = `10) **Duplicate Detection (CRITICAL)**:
+- Before creating an item you may check the backlog for an existing duplicate. Only items that are DELETED or REMOVED are excluded from this check — every other matching item still counts.
+- A deleted/removed item DOES NOT count as a duplicate. Treat the following as deleted and exclude them: Azure DevOps work items in the "Removed" state or returned as deleted/in the recycle bin (\`System.State\` = "Removed", or \`isDeleted\` true); GitHub issues that are deleted or closed as "not planned"; Jira issues that are deleted; and any item a tool reports as deleted, removed, archived, or not found.
+- A LIVE, active item is STILL a duplicate. Do NOT use this rule to skip legitimate matches: an item that is merely open, closed/completed normally, in progress, or in any non-removed state is NOT deleted, so if it matches you MUST treat it as the existing duplicate and update it as usual — never create a second copy of a live item.
+- When querying Azure DevOps with WIQL, exclude removed items, e.g. add \`AND [System.State] <> 'Removed'\` to the query. This filter must exclude ONLY removed items; do not let it drop live items in other states.
+- NEVER attempt to update an item that is deleted or removed — the platform will reject the update.
+- If the ONLY matching item is deleted/removed, treat it as if no duplicate exists: create a brand-new, fully-populated item (title, steps to reproduce, acceptance criteria, etc.) and DO NOT add a "duplicate" comment.`;
+
+/**
+ * Guarantees the #862 duplicate-detection guidance is present in whatever issue-creation prompt
+ * is finally handed to the agent — defaults, stored local custom prompts, or remote portal prompts.
+ *
+ * The rules are baked into the two default-prompt constants, but the runtime only falls back to a
+ * default when the selected project has NO stored prompt. A project (local or portal) that ships
+ * its own `desktopAgentProjectPrompt` would otherwise bypass the guidance entirely, leaving those
+ * users exposed to bug #862. Appending here at composition time closes that gap for every source,
+ * including prompts saved before this fix existed. It is idempotent: if the rules are already
+ * present (e.g. a default prompt or a template-derived custom prompt), the prompt is returned
+ * unchanged.
+ */
+export function ensureDuplicateDetectionRules(prompt: string | undefined): string | undefined {
+  if (!prompt) return prompt;
+  if (prompt.includes(DUPLICATE_DETECTION_RULES)) return prompt;
+  return `${prompt}\n\n${DUPLICATE_DETECTION_RULES}`;
+}
+
 export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If the target repository has an issue template, you MUST follow it exactly. Use the available tools to verify if a template exists. **If there is NO template available**, fall back to a sensible default: a clear, concise, descriptive title that summarises the issue or feature from the video (plain words — do NOT invent template emojis or fixed prefixes), and a well-structured body with the key details.
 
 4) **Issue Creation Guidelines**:
@@ -32,13 +70,21 @@ If no template is found, create a well-structured issue body that includes:
 - ALWAYS capture exactly one screenshot from the video using \`capture_video_frame\`.
 - Select a timestamp where key UI elements, errors, or context are clearly visible.
 - Upload the captured image using \`upload_screenshot\` to generate a public URL.
-- If \`upload_screenshot\` returns a valid URL, embed it in the issue body:
+- If \`upload_screenshot\` returns a valid URL, embed it in the issue body EXACTLY ONCE,
+  immediately followed by a bold caption on the next line:
   \`![Screenshot description](screenshotUrl)\`
+  \`**Figure: <concise description of what the screenshot shows>**\`
+- **CRITICAL**: Embed the screenshot in only ONE place. If the template has a "### Screenshots"
+  section, put the single captioned screenshot there; otherwise embed it once near the top.
+  NEVER insert the same screenshot in more than one location.
+- **CRITICAL**: The caption MUST be bold and MUST start with \`Figure:\`.
 - **CRITICAL**: Preserve the complete \`screenshotUrl\`, including all query parameters.
 - **CRITICAL**: If \`upload_screenshot\` returns an empty URL, omit the screenshot entirely.
 
 9) **Privacy & Local Paths (CRITICAL)**:
 - NEVER include local file paths (video or screenshot) in the issue description.
+
+${DUPLICATE_DETECTION_RULES}
 `;
 
 export const INITIAL_SUMMARY_PROMPT = `You are a precise information structuring AI. Process the raw transcript into a structured JSON object without adding, inferring, or embellishing information.

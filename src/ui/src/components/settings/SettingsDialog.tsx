@@ -2,7 +2,14 @@ import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MCP_HEALTH_REFRESH_EVENT } from "../home/mcp-status";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog";
 import { ScrollArea } from "../ui/scroll-area";
 import { AccountSettingsPanel } from "./account/AccountSettingsPanel";
 import { AdvancedSettingsPanel } from "./advanced/AdvancedSettingsPanel";
@@ -11,6 +18,8 @@ import { GeneralSettingsPanel } from "./general/GeneralSettingsPanel";
 import { LLMSettingsPanel } from "./llm/LLMSettingsPanel";
 import { McpSettingsPanel } from "./mcp/McpServerManager";
 import { ReleaseChannelSettingsPanel } from "./release-channels/ReleaseChannelSettingsPanel";
+import { SettingsNavHealthIndicator } from "./SettingsNavHealthIndicator";
+import { useSettingsTabHealth } from "./settings-health";
 import { VideoHostSettingsPanel } from "./video-host/VideoHostSettingsPanel";
 
 type LeaveHandler = () => Promise<boolean>;
@@ -159,6 +168,9 @@ export function SettingsDialog() {
     [activeTabId],
   );
 
+  // #878 — per-tab critical configuration state for the side-nav indicators.
+  const tabHealth = useSettingsTabHealth(open);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -173,32 +185,33 @@ export function SettingsDialog() {
       </DialogTrigger>
 
       <DialogContent className="w-[min(800px,72vw)] max-w-none sm:max-w-none h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader className="mb-2 flex-shrink-0">
-          <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Settings
-          </DialogTitle>
-          <p className="text-muted-foreground text-sm">
-            Configure YakShaver preferences and integrations.
-          </p>
+        {/* #879: the global "Settings" header was redundant with each panel's own
+            title (SettingsPageHeader). It's now visually hidden — kept only for
+            Radix Dialog accessibility (aria-labelledby/aria-describedby + screen
+            readers). The active tab name makes the accessible title specific. */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{activeTab ? `Settings — ${activeTab.label}` : "Settings"}</DialogTitle>
+          <DialogDescription>Configure YakShaver preferences and integrations.</DialogDescription>
         </DialogHeader>
 
         <div className="flex gap-6 flex-1 min-h-0 overflow-hidden">
           <nav className="w-48 flex flex-col gap-1 flex-shrink-0 overflow-y-auto pr-1">
             {TABS.map((tab) => {
               const isActive = tab.id === activeTabId;
+              const health = tabHealth[tab.id];
               return (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => attemptTabChange(tab.id)}
-                  className={`text-left px-3 py-2.5 rounded-md transition-colors border border-transparent ${
+                  className={`group relative flex items-center justify-between gap-2 text-left px-3 py-2.5 rounded-md transition-colors border border-transparent ${
                     isActive
                       ? "bg-white/10 border-white/20 text-white"
                       : "text-white/80 hover:bg-white/5 hover:text-white"
                   }`}
                 >
                   <div className="text-sm font-medium">{tab.label}</div>
+                  {health ? <SettingsNavHealthIndicator health={health} /> : null}
                 </button>
               );
             })}

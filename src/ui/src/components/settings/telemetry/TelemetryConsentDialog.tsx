@@ -62,13 +62,16 @@ export function TelemetryConsentDialog({
             <div className="flex items-start space-x-3">
               <Bug className="h-4 w-4 mt-0.5 text-muted-foreground" />
               <div className="flex-1">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 min-h-11">
                   <Checkbox
                     id="error-reporting"
                     checked={allowErrorReporting}
                     onCheckedChange={(checked) => setAllowErrorReporting(checked as boolean)}
                   />
-                  <Label htmlFor="error-reporting" className="text-sm">
+                  <Label
+                    htmlFor="error-reporting"
+                    className="text-sm self-stretch flex items-center cursor-pointer"
+                  >
                     Error reports
                   </Label>
                 </div>
@@ -81,13 +84,16 @@ export function TelemetryConsentDialog({
             <div className="flex items-start space-x-3">
               <Activity className="h-4 w-4 mt-0.5 text-muted-foreground" />
               <div className="flex-1">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 min-h-11">
                   <Checkbox
                     id="workflow-tracking"
                     checked={allowWorkflowTracking}
                     onCheckedChange={(checked) => setAllowWorkflowTracking(checked as boolean)}
                   />
-                  <Label htmlFor="workflow-tracking" className="text-sm">
+                  <Label
+                    htmlFor="workflow-tracking"
+                    className="text-sm self-stretch flex items-center cursor-pointer"
+                  >
                     Workflow performance
                   </Label>
                 </div>
@@ -100,13 +106,16 @@ export function TelemetryConsentDialog({
             <div className="flex items-start space-x-3">
               <BarChart3 className="h-4 w-4 mt-0.5 text-muted-foreground" />
               <div className="flex-1">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 min-h-11">
                   <Checkbox
                     id="usage-metrics"
                     checked={allowUsageMetrics}
                     onCheckedChange={(checked) => setAllowUsageMetrics(checked as boolean)}
                   />
-                  <Label htmlFor="usage-metrics" className="text-sm">
+                  <Label
+                    htmlFor="usage-metrics"
+                    className="text-sm self-stretch flex items-center cursor-pointer"
+                  >
                     Usage metrics
                   </Label>
                 </div>
