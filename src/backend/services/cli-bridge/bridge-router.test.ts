@@ -119,6 +119,51 @@ describe("routeRequest - MCP", () => {
     );
   });
 
+  it("PUT /mcp/servers/:id merges ONLY provided fields onto existing", async () => {
+    // Patch only the url; the existing name + headers must be preserved.
+    const res = await routeRequest(services, {
+      method: "PUT",
+      path: "/mcp/servers/srv-1",
+      body: { url: "https://patched.example.com/mcp" },
+    });
+    expect(res.status).toBe(200);
+    expect(services.mcp.updateServerAsync).toHaveBeenCalledWith(
+      "srv-1",
+      expect.objectContaining({
+        id: "srv-1",
+        name: "Test HTTP", // preserved from existing
+        transport: "streamableHttp", // preserved
+        url: "https://patched.example.com/mcp", // updated
+      }),
+    );
+  });
+
+  it("PUT /mcp/servers/:id 404s when the server does not exist", async () => {
+    const svc = makeServices({
+      mcp: {
+        ...makeServices().mcp,
+        getServerByIdAsync: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const res = await routeRequest(svc, {
+      method: "PUT",
+      path: "/mcp/servers/nope",
+      body: { name: "X" },
+    });
+    expect(res.status).toBe(404);
+    expect(svc.mcp.updateServerAsync).not.toHaveBeenCalled();
+  });
+
+  it("PUT /mcp/servers/:id rejects unknown fields via the patch schema", async () => {
+    const res = await routeRequest(services, {
+      method: "PUT",
+      path: "/mcp/servers/srv-1",
+      body: { bogus: "field" },
+    });
+    expect(res.status).toBe(400);
+    expect(services.mcp.updateServerAsync).not.toHaveBeenCalled();
+  });
+
   it("DELETE /mcp/servers/:id removes the server", async () => {
     const res = await routeRequest(services, { method: "DELETE", path: "/mcp/servers/srv-1" });
     expect(res.status).toBe(200);
@@ -261,6 +306,115 @@ describe("routeRequest - LLM", () => {
     });
     expect(res.status).toBe(400);
     expect(services.llm.storeLLMConfig).not.toHaveBeenCalled();
+  });
+
+  it("GET /llm/config defaults orchestrationBackend to 'openai' when unset", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, { method: "GET", path: "/llm/config" });
+    expect(res.status).toBe(200);
+    if (!res.body.ok) throw new Error("expected ok");
+    expect((res.body.data as { orchestrationBackend: string }).orchestrationBackend).toBe("openai");
+  });
+
+  it("GET /llm/config returns the default backend on a fresh install (null config)", async () => {
+    const services = makeServices({
+      llm: {
+        getLLMConfig: vi.fn().mockResolvedValue(null),
+        storeLLMConfig: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const res = await routeRequest(services, { method: "GET", path: "/llm/config" });
+    expect(res.status).toBe(200);
+    if (!res.body.ok) throw new Error("expected ok");
+    // Must surface a concrete value, never null, even when no config exists yet.
+    expect(res.body.data).toEqual({ orchestrationBackend: "openai" });
+  });
+});
+
+describe("routeRequest - LLM orchestrator", () => {
+  it("POST /llm/config/orchestrator sets the backend, preserving models + keys", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, {
+      method: "POST",
+      path: "/llm/config/orchestrator",
+      body: { orchestrationBackend: "local-claude" },
+    });
+    expect(res.status).toBe(200);
+    // Persisted config merges the backend onto the existing config (keys intact).
+    expect(services.llm.storeLLMConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 2,
+        orchestrationBackend: "local-claude",
+        languageModel: expect.objectContaining({ provider: "openai" }),
+        providerApiKeys: { openai: "sk-secret-123" },
+      }),
+    );
+    // The response never echoes the raw key.
+    if (!res.body.ok) throw new Error("expected ok");
+    expect(JSON.stringify(res.body.data)).not.toContain("sk-secret-123");
+  });
+
+  it("POST /llm/config/orchestrator creates a minimal v2 config when none exists", async () => {
+    const services = makeServices({
+      llm: {
+        getLLMConfig: vi
+          .fn()
+          // first call: none; second call (after store): the stored value
+          .mockResolvedValueOnce(null)
+          .mockResolvedValue({
+            version: 2,
+            languageModel: null,
+            transcriptionModel: null,
+            orchestrationBackend: "openai",
+          }),
+        storeLLMConfig: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const res = await routeRequest(services, {
+      method: "POST",
+      path: "/llm/config/orchestrator",
+      body: { orchestrationBackend: "openai" },
+    });
+    expect(res.status).toBe(200);
+    expect(services.llm.storeLLMConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 2,
+        languageModel: null,
+        transcriptionModel: null,
+        orchestrationBackend: "openai",
+      }),
+    );
+  });
+
+  it("POST /llm/config/orchestrator rejects an invalid backend via zod", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, {
+      method: "POST",
+      path: "/llm/config/orchestrator",
+      body: { orchestrationBackend: "gpt5" },
+    });
+    expect(res.status).toBe(400);
+    expect(services.llm.storeLLMConfig).not.toHaveBeenCalled();
+  });
+
+  it("POST /llm/config/orchestrator rejects a missing backend", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, {
+      method: "POST",
+      path: "/llm/config/orchestrator",
+      body: {},
+    });
+    expect(res.status).toBe(400);
+    expect(services.llm.storeLLMConfig).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-POST methods on /llm/config/orchestrator", async () => {
+    const services = makeServices();
+    const res = await routeRequest(services, {
+      method: "GET",
+      path: "/llm/config/orchestrator",
+    });
+    expect(res.status).toBe(405);
   });
 });
 
