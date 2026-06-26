@@ -3,11 +3,11 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { CLI_BRIDGE_PORT_ENV, CLI_BRIDGE_TOKEN_ENV } from "../../../shared/cli-bridge/protocol";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
 import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
 import type { IProcessSpawner } from "../process/process-spawner";
-import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 import { UserSettingsStorage } from "../storage/user-settings-storage";
 import {
   type IBacklogOrchestrator,
@@ -20,9 +20,7 @@ import {
 } from "./backlog-orchestrator";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
-import { getFreshAccessTokenAsync, type RefreshableTokenStorage } from "./mcp-token-refresh";
 import { orchestratorSystemPrompt } from "./prompts";
-import type { MCPServerConfig } from "./types";
 
 /** Default safety cap on tool iterations when the caller doesn't supply one (mirrors the OpenAI loop). */
 const DEFAULT_MAX_TOOL_ITERATIONS = 20;
@@ -69,41 +67,74 @@ export interface ClaudeMcpConfigFile {
   mcpServers: Record<string, ClaudeMcpServer>;
 }
 
-/**
- * Token lookup the orchestrator needs. A bare `getTokensAsync` is enough for tests; the real
- * `McpOAuthTokenStorage` also provides the optional refresh hooks (`isTokenExpired` /
- * `saveTokensAsync` / `clearTokensAsync`) so expired tokens are refreshed before use — see
- * `getFreshAccessTokenAsync`.
- */
-export type TokenLookup = RefreshableTokenStorage;
+/** Fixed MCP server key for the single front-door. Tools appear as `mcp__yakshaver__<Server__tool>`. */
+export const YAKSHAVER_MCP_SERVER_KEY = "yakshaver";
 
-/** Claude Code's tool name format is `mcp__<server>__<tool>`. Server names are sanitized to match. */
-function sanitizeServerName(name: string): string {
-  return name.replace(/\s+/g, "_");
+/** The prefix Claude Code prepends to every front-door tool, e.g. `mcp__yakshaver__GitHub__issue`. */
+const FRONT_DOOR_TOOL_PREFIX = `mcp__${YAKSHAVER_MCP_SERVER_KEY}__`;
+
+/**
+ * Strip the `mcp__yakshaver__` front-door prefix so the real server-prefixed name (`Server__tool`)
+ * is what the judge, tool activity, and UI see — Claude reports tools by their front-door name, but
+ * everything downstream expects the same `Server__tool` names the OpenAI loop uses. Non-front-door
+ * names (Claude built-ins like `Read`) are returned unchanged.
+ */
+export function stripFrontDoorPrefix(toolName: string): string {
+  return toolName.startsWith(FRONT_DOOR_TOOL_PREFIX)
+    ? toolName.slice(FRONT_DOOR_TOOL_PREFIX.length)
+    : toolName;
 }
 
 /**
+ * How to spawn the single `yakshaver mcp-serve` front-door (#915), and how the spawned process
+ * reaches the running app's bridge.
+ *
+ * Injectable so the argv/config unit tests stay pure (no Electron `app`, no `process.execPath`, no
+ * live bridge). The real value is resolved from the Electron app + the running `CliBridgeServer` at
+ * call time.
+ */
+export interface YakshaverFrontDoorConfig {
+  /** Executable that runs the CLI (Electron-as-node in prod, or `node` in tests). */
+  command: string;
+  /** Path to the built CLI entry (`dist/cli/index.js`). The `mcp-serve` arg is appended. */
+  cliEntryPath: string;
+  /** Extra env to pass to the front-door process (bridge port/token, ELECTRON_RUN_AS_NODE). */
+  env?: Record<string, string>;
+}
+
+/**
+ * The MCPServerManager surface the orchestrator now needs: the prefixed whitelist (authoritative
+ * client-side gate) plus an optional tool-collection call to warm the internal clients so built-in
+ * tools are reflected in the whitelist.
+ */
+export type OrchestratorServerManager = Pick<
+  MCPServerManager,
+  "getWhitelistWithServerPrefixAsync"
+> &
+  Partial<Pick<MCPServerManager, "collectToolsWithServerPrefixAsync">>;
+
+/**
  * Drives the backlog-creation step with a local headless `claude -p` process instead of the
- * in-process OpenAI loop. Serializes the enabled MCP servers to a temp `--mcp-config`, maps the
- * tool-approval mode to Claude's permission flags, streams `stream-json` events to `onStep`, and
- * reuses the shared `judgeBacklogOutcome` on the collected tool results.
+ * in-process OpenAI loop.
+ *
+ * As of #915 it no longer serializes each MCP server (and skips internal ones); instead it writes
+ * a SINGLE `--mcp-config` entry — the `yakshaver` MCP front-door — which proxies the app's full
+ * aggregated toolset (including internal/in-memory servers) over the localhost bridge. It still
+ * maps the tool-approval mode to Claude's permission flags, streams `stream-json` events to
+ * `onStep`, and reuses the shared `judgeBacklogOutcome` on the collected tool results.
  */
 export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
   // Storage deps are resolved lazily — only when actually needed — so constructing the orchestrator
-  // (and the argv/serialization unit tests that do) never touches the electron-backed singletons.
+  // (and the argv/config unit tests that do) never touches the electron-backed singletons.
   constructor(
     private readonly claudeCommand: string = "claude",
     private readonly spawner: IProcessSpawner = defaultClaudeSpawner,
-    private readonly serverManager: Pick<MCPServerManager, "listAvailableServers"> | null = null,
-    private readonly tokenStorage: TokenLookup | null = null,
+    private readonly serverManager: OrchestratorServerManager | null = null,
+    private readonly frontDoor: YakshaverFrontDoorConfig | null = null,
     private readonly settingsStorage: Pick<UserSettingsStorage, "getSettingsAsync"> | null = null,
     private readonly judgeProvider: OutcomeJudgeProvider | null = null,
     private readonly runTimeoutMs: number = DEFAULT_RUN_TIMEOUT_MS,
   ) {}
-
-  private getTokenStorage(): TokenLookup {
-    return this.tokenStorage ?? McpOAuthTokenStorage.getInstance();
-  }
 
   private getSettingsStorage(): Pick<UserSettingsStorage, "getSettingsAsync"> {
     return this.settingsStorage ?? UserSettingsStorage.getInstance();
@@ -152,6 +183,7 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
     await this.ensureClaudeAvailable();
 
     const manager = this.serverManager ?? (await MCPServerManager.getInstanceAsync());
+    const frontDoor = this.frontDoor ?? (await resolveFrontDoorConfig());
     const approvalMode = (await this.getSettingsStorage().getSettingsAsync()).toolApprovalMode;
 
     const systemPrompt = this.buildSystemPrompt(
@@ -161,15 +193,14 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
       options.videoFilePath,
     );
 
-    const { mcpConfig, allowedTools, skippedNonWhitelistedServers, droppedInMemoryServers } =
-      await this.serializeMcpServers(manager, options.serverFilter);
+    // #915: one front-door entry proxies the app's full aggregated toolset (incl. internal/in-memory
+    // servers), so there is no per-server serialization, skip, or in-memory drop anymore.
+    // NOTE: `options.serverFilter` does NOT apply to this backend — the front-door always exposes the
+    // app's whole toolset; per-tool gating happens via the approval whitelist below, not a server filter.
+    const mcpConfig = this.buildMcpConfig(frontDoor);
+    const allowedTools = await this.buildAllowedTools(manager);
 
-    this.surfaceServerNotices(
-      approvalMode,
-      skippedNonWhitelistedServers,
-      droppedInMemoryServers,
-      options.onStep,
-    );
+    this.surfaceServerNotices(approvalMode, allowedTools, options.onStep);
 
     const tmpConfigPath = join(tmpdir(), `yakshaver-mcp-${randomUUID()}.json`);
     const tmpPromptPath = join(tmpdir(), `yakshaver-sysprompt-${randomUUID()}.txt`);
@@ -204,20 +235,27 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
   }
 
   /**
-   * Surfaces server-selection caveats to both the log and the UI (via an onStep notice) so the
-   * user understands why a tool/server may be unavailable under the local backend — rather than
-   * seeing a silent run that quietly does less than the OpenAI path would.
+   * Surfaces approval-mode caveats to both the log and the UI (via an onStep notice) so the user
+   * understands why tools may be unavailable under the local backend — rather than seeing a silent
+   * run that quietly does less than the OpenAI path would.
+   *
+   * As of #915 the front-door proxies ALL servers (incl. internal/in-memory ones), so there is no
+   * per-server skip or in-memory-drop notice anymore — only the approval-mode caveats remain.
    */
   private surfaceServerNotices(
     approvalMode: ToolApprovalMode,
-    skippedNonWhitelistedServers: string[],
-    droppedInMemoryServers: string[],
+    allowedTools: string[],
     onStep?: ManualLoopOptions["onStep"],
   ): void {
     const notices: string[] = [];
 
-    if (skippedNonWhitelistedServers.length > 0 && approvalMode === "ask") {
-      const msg = `Claude Code (local) only runs whitelisted tools under "ask" approval mode (no runtime approval prompt). These server(s) have no whitelisted tools, so their tools were not made available: ${skippedNonWhitelistedServers.join(", ")}.`;
+    // Under "ask" only whitelisted tools auto-approve and nothing prompts; an empty whitelist means
+    // no MCP tools can run at all, so warn rather than letting the run silently do nothing.
+    if (approvalMode === "ask" && allowedTools.length === 0) {
+      const msg =
+        'Claude Code (local) only runs whitelisted tools under "ask" approval mode (no runtime ' +
+        "approval prompt), and no tools are currently whitelisted — so no MCP tools will run. " +
+        'Whitelist tools in YakShaver, or switch the approval mode to "yolo".';
       notices.push(msg);
       console.warn(`[LocalClaudeOrchestrator] ${msg}`);
     }
@@ -231,12 +269,6 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
         'Claude Code (local) cannot show the "wait" approval dialog because it runs headlessly, ' +
         "so under this backend every tool runs immediately without a chance to deny (the same as " +
         '"YOLO"). Switch to "ask" to restrict the run to whitelisted tools only.';
-      notices.push(msg);
-      console.warn(`[LocalClaudeOrchestrator] ${msg}`);
-    }
-
-    if (droppedInMemoryServers.length > 0) {
-      const msg = `Claude Code (local) cannot reach YakShaver's built-in in-memory tools, so these are unavailable under this backend (e.g. screenshot capture): ${droppedInMemoryServers.join(", ")}.`;
       notices.push(msg);
       console.warn(`[LocalClaudeOrchestrator] ${msg}`);
     }
@@ -290,98 +322,40 @@ Embed this URL in the task content that you create. Follow user requirements STR
   }
 
   /**
-   * Serializes the enabled MCP servers (respecting `serverFilter`) into Claude Code's
-   * `--mcp-config` format. stdio → {command,args,env}; streamableHttp → {url, headers} with the
-   * OAuth bearer token injected from token storage when present. Also returns the `--allowedTools`
-   * derived from each server's whitelist (used under ask/wait approval modes).
+   * Builds the SINGLE-entry `--mcp-config` (#915): one `yakshaver` MCP server that proxies the
+   * app's full aggregated toolset over the localhost bridge. No per-server serialization and no
+   * OAuth-token injection here — the front-door reaches the app, which applies its own auth.
+   *
+   * The resulting tools appear to Claude as `mcp__yakshaver__<Server__tool>`.
    */
-  public async serializeMcpServers(
-    manager: Pick<MCPServerManager, "listAvailableServers">,
-    serverFilter?: string[],
-  ): Promise<{
-    mcpConfig: ClaudeMcpConfigFile;
-    allowedTools: string[];
-    skippedNonWhitelistedServers: string[];
-    droppedInMemoryServers: string[];
-  }> {
-    const all = await manager.listAvailableServers();
-    const filterSet = serverFilter && serverFilter.length > 0 ? new Set(serverFilter) : null;
-
-    const selected = all.filter((c) => {
-      if (c.enabled === false) return false;
-      if (!filterSet) return true;
-      return filterSet.has(c.id) || filterSet.has(c.name);
-    });
-
-    const mcpServers: Record<string, ClaudeMcpServer> = {};
-    const allowedTools: string[] = [];
-    const skippedNonWhitelistedServers: string[] = [];
-    const droppedInMemoryServers: string[] = [];
-
-    for (const config of selected) {
-      // inMemory servers are YakShaver-internal (e.g. Yak_Video_Tools' screenshot capture); Claude
-      // Code can't reach them over its own transports, so they're dropped for the local backend.
-      // Surface them so the caller can warn the user that the local backend lacks those tools.
-      if (config.transport === "inMemory") {
-        droppedInMemoryServers.push(config.name);
-        continue;
-      }
-
-      const serverKey = sanitizeServerName(config.name);
-      const entry = await this.toClaudeServerEntry(config);
-      if (!entry) continue;
-      mcpServers[serverKey] = entry;
-
-      const whitelist = config.toolWhitelist ?? [];
-      if (whitelist.length === 0) {
-        skippedNonWhitelistedServers.push(config.name);
-      }
-      for (const toolName of whitelist) {
-        allowedTools.push(`mcp__${serverKey}__${toolName}`);
-      }
-    }
-
-    return {
-      mcpConfig: { mcpServers },
-      allowedTools,
-      skippedNonWhitelistedServers,
-      droppedInMemoryServers,
+  public buildMcpConfig(frontDoor: YakshaverFrontDoorConfig): ClaudeMcpConfigFile {
+    const entry: ClaudeStdioServer = {
+      type: "stdio",
+      command: frontDoor.command,
+      args: [frontDoor.cliEntryPath, "mcp-serve"],
     };
+    if (frontDoor.env && Object.keys(frontDoor.env).length > 0) {
+      entry.env = frontDoor.env;
+    }
+    return { mcpServers: { [YAKSHAVER_MCP_SERVER_KEY]: entry } };
   }
 
-  private async toClaudeServerEntry(config: MCPServerConfig): Promise<ClaudeMcpServer | null> {
-    if (config.transport === "stdio") {
-      const entry: ClaudeStdioServer = {
-        type: "stdio",
-        command: config.command,
-      };
-      if (config.args && config.args.length > 0) entry.args = config.args;
-      if (config.env && Object.keys(config.env).length > 0) entry.env = config.env;
-      return entry;
+  /**
+   * Builds the `--allowedTools` list for ask/wait modes: the app's whitelisted, server-prefixed
+   * tool names (`Server__tool`), each re-prefixed for the single front-door so Claude sees them as
+   * `mcp__yakshaver__<Server__tool>`. (Built-in/internal tools are always whitelisted by the
+   * manager, so they flow through here too.) Under yolo this is unused.
+   */
+  public async buildAllowedTools(manager: OrchestratorServerManager): Promise<string[]> {
+    // Warm the MCP clients first (best-effort) so built-in/internal tools — which are only
+    // reflected in the whitelist once their client is connected — are included.
+    if (manager.collectToolsWithServerPrefixAsync) {
+      await manager.collectToolsWithServerPrefixAsync().catch(() => {
+        /* no enabled servers / nothing to warm — the stored whitelist still applies */
+      });
     }
-
-    if (config.transport === "streamableHttp") {
-      const headers: Record<string, string> = { ...config.headers };
-      // Inject the OAuth bearer token so Claude Code authenticates the same way the in-process
-      // client does (built-in servers don't use OAuth). Refresh an expired token first — the same
-      // freshness guarantee MCPServerClient applies — so the local backend doesn't hand Claude a
-      // stale token that an HTTP MCP server would 401.
-      if (!config.builtin) {
-        const accessToken = await getFreshAccessTokenAsync(
-          this.getTokenStorage(),
-          config.id,
-          config.url,
-        );
-        if (accessToken) {
-          headers.Authorization = `Bearer ${accessToken}`;
-        }
-      }
-      const entry: ClaudeHttpServer = { type: "http", url: config.url };
-      if (Object.keys(headers).length > 0) entry.headers = headers;
-      return entry;
-    }
-
-    return null;
+    const prefixedWhitelist = await manager.getWhitelistWithServerPrefixAsync();
+    return prefixedWhitelist.map((name) => `mcp__${YAKSHAVER_MCP_SERVER_KEY}__${name}`);
   }
 
   /**
@@ -636,7 +610,10 @@ Embed this URL in the task content that you create. Follow user requirements STR
             reasoning: JSON.stringify({ type: "text", text: block.text }),
           });
         } else if (block.type === "tool_use") {
-          const toolName = block.name ?? "unknown";
+          // Claude reports the front-door tool name (`mcp__yakshaver__Server__tool`); strip the
+          // prefix once here so both the id->name map (used by the judge) and the UI step carry the
+          // real `Server__tool` name.
+          const toolName = stripFrontDoorPrefix(block.name ?? "unknown");
           // Remember which tool this opaque id belongs to so the matching tool_result (which only
           // carries the id) can be recorded under the real tool name.
           if (block.id) toolNameById.set(block.id, toolName);
@@ -696,6 +673,35 @@ Embed this URL in the task content that you create. Follow user requirements STR
       return null;
     }
   }
+}
+
+/**
+ * Resolve how to spawn the `yakshaver mcp-serve` front-door from the live Electron app + bridge.
+ *
+ * - command: the current binary run as plain Node (`ELECTRON_RUN_AS_NODE=1` + `process.execPath`),
+ *   so we don't depend on a separately-installed node.
+ * - cliEntryPath: the packaged CLI entry, `<appPath>/dist/cli/index.js`.
+ * - env: bridge port + token (so the front-door connects without racing the token file) plus
+ *   `ELECTRON_RUN_AS_NODE`.
+ *
+ * Lazily imports electron + the bridge server so the pure argv/config unit tests (which always
+ * inject a `frontDoor`) never touch these singletons.
+ */
+async function resolveFrontDoorConfig(): Promise<YakshaverFrontDoorConfig> {
+  const { app } = await import("electron");
+  const { CliBridgeServer } = await import("../cli-bridge/cli-bridge-server");
+
+  const cliEntryPath = join(app.getAppPath(), "dist", "cli", "index.js");
+  const env: Record<string, string> = { ELECTRON_RUN_AS_NODE: "1" };
+
+  // Hand the front-door the live bridge port+token so it connects deterministically.
+  const bridge = CliBridgeServer.getInstance();
+  const port = bridge.getPort();
+  const token = bridge.getToken();
+  if (port != null) env[CLI_BRIDGE_PORT_ENV] = String(port);
+  if (token) env[CLI_BRIDGE_TOKEN_ENV] = token;
+
+  return { command: process.execPath, cliEntryPath, env };
 }
 
 /** A loose view of the Claude Code stream-json events we care about. */
