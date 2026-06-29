@@ -91,6 +91,11 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     // The window focus is handled by the main process event listener
   },
 
+  // Generic "launch the app" deep link, to Launch app on a web page.
+  "/launch": async () => {
+    console.log("[ProtocolRouter] Handling launch app request");
+  },
+
   // IdentityServer OAuth 2.0 PKCE callback handler
   "/identity-server/callback": async (url) => {
     console.log("[ProtocolRouter] Handling IdentityServer OAuth callback");
