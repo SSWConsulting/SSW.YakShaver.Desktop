@@ -29,7 +29,7 @@ jobs:
       version: ${{ steps.pr_info.outputs.version }}
       pr_sha: ${{ steps.pr_info.outputs.pr_sha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
@@ -95,7 +95,7 @@ jobs:
       github.event.action != 'closed'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
@@ -216,7 +216,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
@@ -353,7 +353,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
@@ -521,7 +521,7 @@ jobs:
       github.event.action != 'closed' &&
       needs.cleanup-release.outputs.pr_number != ''
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
