@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import { config } from "../config/env";
 import { setIsQuitting } from "../index";
+import { verifyGitHubToken } from "../services/github/github-token-verifier";
 import { GitHubTokenStorage } from "../services/storage/github-token-storage";
 import type { ReleaseChannel } from "../services/storage/release-channel-storage";
 import { ReleaseChannelStorage } from "../services/storage/release-channel-storage";
@@ -34,6 +35,12 @@ const GITHUB_API_BASE = "https://api.github.com";
 const REPO_OWNER = "SSWConsulting";
 const REPO_NAME = "SSW.YakShaver.Desktop";
 const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+// PR releases are gated on the configured GitHub token being valid (#919): an invalid/expired
+// token must not be usable to list, select, or download PR builds. Cache the verification briefly
+// so every list/select/download call doesn't re-hit the GitHub /user endpoint.
+const TOKEN_HEALTH_CACHE_TTL = 60 * 1000; // 1 minute
+const INVALID_TOKEN_ERROR =
+  "GitHub token is invalid or expired. Update it in Settings | GitHub Token to use PR releases.";
 
 export class ReleaseChannelIPCHandlers {
   private store = ReleaseChannelStorage.getInstance();
@@ -43,6 +50,7 @@ export class ReleaseChannelIPCHandlers {
     fetchedAt: number;
     etag?: string;
   } | null = null;
+  private tokenHealthCache: { isValid: boolean; checkedAt: number; token: string } | null = null;
   private updateCheckInterval: NodeJS.Timeout | null = null;
   private readonly UPDATE_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
   private updateDialogDismissedInSession = false; // Track if user dismissed update dialog this session
@@ -126,8 +134,39 @@ export class ReleaseChannelIPCHandlers {
     this.startPeriodicUpdateChecks();
   }
 
+  /**
+   * PR release channels require a healthy (valid, non-expired) GitHub token (#919) — invalid
+   * tokens must not be usable to list/select/download PR builds. The "latest" stable channel is
+   * unaffected: it doesn't need a token at all.
+   *
+   * Cached briefly per-token so repeated list/select/download calls in quick succession don't each
+   * re-verify against the GitHub API.
+   */
+  private async isGitHubTokenHealthy(): Promise<boolean> {
+    const token = await this.tokenStore.getToken();
+    if (!token) {
+      return false;
+    }
+
+    if (
+      this.tokenHealthCache &&
+      this.tokenHealthCache.token === token &&
+      Date.now() - this.tokenHealthCache.checkedAt < TOKEN_HEALTH_CACHE_TTL
+    ) {
+      return this.tokenHealthCache.isValid;
+    }
+
+    const verification = await verifyGitHubToken(token);
+    this.tokenHealthCache = { isValid: verification.isValid, checkedAt: Date.now(), token };
+    return verification.isValid;
+  }
+
   private async listReleases(forceRefresh = false): Promise<GitHubReleaseResponse> {
     try {
+      if (!(await this.isGitHubTokenHealthy())) {
+        return { releases: [], error: INVALID_TOKEN_ERROR };
+      }
+
       if (
         !forceRefresh &&
         this.releasesCache &&
@@ -281,6 +320,13 @@ export class ReleaseChannelIPCHandlers {
 
       // For PR channels
       if (channel.type === "pr" && channel.channel) {
+        // PR releases require a healthy GitHub token (#919) — block before touching the releases
+        // cache, the GitHub API, or the autoUpdater so an invalid token can never trigger a
+        // download.
+        if (!(await this.isGitHubTokenHealthy())) {
+          return { available: false, error: INVALID_TOKEN_ERROR };
+        }
+
         // Get raw releases for update checking (not processed)
         if (!this.releasesCache || Date.now() - this.releasesCache.fetchedAt > RELEASES_CACHE_TTL) {
           await this.listReleases(true);
@@ -440,6 +486,13 @@ export class ReleaseChannelIPCHandlers {
         }, 2000);
       }
     } else if (channel.type === "pr" && channel.channel) {
+      // PR channels are token-gated (#919) — don't configure the autoUpdater feed (and never
+      // trigger a background download) unless the token is currently valid.
+      if (!(await this.isGitHubTokenHealthy())) {
+        console.warn("Skipping PR release channel configuration: GitHub token is invalid.");
+        return;
+      }
+
       // For PR channels, we need to find the latest release tag first
       const prNumber = this.extractPRNumberFromChannel(channel.channel);
       if (prNumber) {

@@ -37,6 +37,9 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
   const [isLoadingReleases, setIsLoadingReleases] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<string>("");
   const [hasGitHubToken, setHasGitHubToken] = useState<boolean>(false);
+  // #919 — PR releases require a *valid* (healthy) token, not merely a saved one. An invalid or
+  // expired token must not allow listing/selecting/downloading PR builds.
+  const [isTokenHealthy, setIsTokenHealthy] = useState<boolean>(false);
   const [isCheckingToken, setIsCheckingToken] = useState<boolean>(true);
 
   const getChannelDisplay = useCallback((currentChannel: ReleaseChannel) => {
@@ -91,9 +94,20 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     try {
       const tokenExists = await ipcClient.githubToken.has();
       setHasGitHubToken(tokenExists);
+
+      if (!tokenExists) {
+        setIsTokenHealthy(false);
+        return;
+      }
+
+      // A saved token isn't necessarily a *valid* one (#919) — verify it against GitHub before
+      // treating PR releases as usable.
+      const verification = await ipcClient.githubToken.verify();
+      setIsTokenHealthy(verification.isValid);
     } catch (error) {
       console.error("Failed to check GitHub token:", error);
       setHasGitHubToken(false);
+      setIsTokenHealthy(false);
     } finally {
       setIsCheckingToken(false);
     }
@@ -125,6 +139,13 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
   }, [isActive, checkGitHubToken, loadReleases]);
 
   const handleCheckUpdates = useCallback(async () => {
+    if (channel.type === "pr" && !isTokenHealthy) {
+      // Belt-and-braces: the button is already disabled in this state, but guard the handler too
+      // in case it's ever reachable another way (#919).
+      toast.error("A valid GitHub token is required to check for PR releases.");
+      return;
+    }
+
     setIsLoading(true);
     setUpdateStatus("Checking for updates...");
 
@@ -157,7 +178,7 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     } finally {
       setIsLoading(false);
     }
-  }, [channel, currentVersion, getChannelDisplay]);
+  }, [channel, currentVersion, getChannelDisplay, isTokenHealthy]);
 
   const selectValue = useMemo(() => {
     if (channel.type === "latest") {
@@ -172,18 +193,28 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     return "";
   }, [channel]);
 
-  const handleSelectionChange = useCallback((value: string) => {
-    if (value === "__loading" || value === "__empty") {
-      return;
-    }
+  const handleSelectionChange = useCallback(
+    (value: string) => {
+      if (value === "__loading" || value === "__empty") {
+        return;
+      }
 
-    if (value === SELECT_LATEST) {
-      setChannel({ type: "latest" });
-      return;
-    }
+      if (value === SELECT_LATEST) {
+        setChannel({ type: "latest" });
+        return;
+      }
 
-    setChannel({ type: "pr", channel: `beta.${value}` });
-  }, []);
+      // PR channels require a healthy token (#919) — refuse the selection rather than letting the
+      // user pick a channel that can't actually be checked/downloaded.
+      if (!isTokenHealthy) {
+        toast.error("A valid GitHub token is required to select a PR release.");
+        return;
+      }
+
+      setChannel({ type: "pr", channel: `beta.${value}` });
+    },
+    [isTokenHealthy],
+  );
 
   const dropdownOptions = useMemo<DropdownOption[]>(() => {
     return releases.map((release) => ({
@@ -194,6 +225,11 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     }));
   }, [releases]);
 
+  const showInvalidTokenBanner = !isCheckingToken && hasGitHubToken && !isTokenHealthy;
+  const showNoTokenBanner = !isCheckingToken && !hasGitHubToken;
+  // Only "Latest Stable" is selectable without a healthy token; PR entries are disabled below.
+  const prSelectionDisabled = !isCheckingToken && !isTokenHealthy;
+
   return (
     <Card className="w-full gap-4 border-white/10 py-4">
       <CardHeader className="px-4">
@@ -203,11 +239,21 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-4">
-        {!isCheckingToken && !hasGitHubToken && (
+        {showNoTokenBanner && (
           <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
             <h3 className="mb-1 font-medium text-yellow-200">GitHub Token Required</h3>
             <p className="text-sm text-yellow-100">
               A GitHub token is required to view and download PR releases. Add one below.
+            </p>
+          </div>
+        )}
+
+        {showInvalidTokenBanner && (
+          <div className="rounded-md border border-ssw-red/30 bg-ssw-red/10 p-3">
+            <h3 className="mb-1 font-medium text-red-200">GitHub Token Invalid</h3>
+            <p className="text-sm text-red-100">
+              Your GitHub token is invalid or expired, so PR releases can&apos;t be listed,
+              selected, or downloaded. Update it below.
             </p>
           </div>
         )}
@@ -239,29 +285,35 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
                     No PR releases available
                   </SelectItem>
                 )}
-                {dropdownOptions.map((option) => (
-                  <SelectItem
-                    key={option.value}
-                    value={option.value}
-                    className="text-white"
-                    textValue={option.label}
-                  >
-                    <div className="flex flex-col">
-                      <span>{option.label}</span>
-                      <span className="text-xs">{option.version}</span>
-                      <span className="text-xs">
-                        {new Date(option.publishedAt).toLocaleString()}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
+                {!isLoadingReleases &&
+                  dropdownOptions.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      className="text-white"
+                      textValue={option.label}
+                      disabled={prSelectionDisabled}
+                    >
+                      <div className="flex flex-col">
+                        <span>{option.label}</span>
+                        <span className="text-xs">{option.version}</span>
+                        <span className="text-xs">
+                          {new Date(option.publishedAt).toLocaleString()}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
 
           <Button
             onClick={handleCheckUpdates}
-            disabled={isLoading || !hasGitHubToken || !selectValue}
+            disabled={
+              isLoading ||
+              !selectValue ||
+              (channel.type === "pr" ? !isTokenHealthy : !hasGitHubToken)
+            }
           >
             Check for Updates
           </Button>
