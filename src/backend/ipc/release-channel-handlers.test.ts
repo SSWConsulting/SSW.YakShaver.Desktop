@@ -226,6 +226,104 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
     }
   });
 
+  it("listReleases distinguishes 'no token configured' from 'invalid token' — no misleading invalid-token error", async () => {
+    // Regression coverage (review on #939): a user who has never configured a GitHub token must
+    // not see the same "invalid or expired" wording as someone whose saved token failed
+    // verification — isGitHubTokenHealthy() must never even reach verifyGitHubToken() in this case.
+    getTokenMock.mockResolvedValue(undefined);
+
+    const { ipcMain } = await import("electron");
+    new ReleaseChannelIPCHandlers();
+    const listReleases = getRegisteredHandler(
+      ipcMain.handle as Mock,
+      "release-channel:list-releases",
+    );
+
+    const result = await listReleases();
+
+    expect(verifyGitHubTokenMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      releases: [],
+      error: expect.not.stringMatching(/invalid or expired/i),
+    });
+  });
+
+  it("checkForUpdates on a PR channel distinguishes 'no token configured' from 'invalid token'", async () => {
+    getTokenMock.mockResolvedValue(undefined);
+
+    const { ipcMain } = await import("electron");
+    new ReleaseChannelIPCHandlers();
+    const checkForUpdates = getRegisteredHandler(
+      ipcMain.handle as Mock,
+      "release-channel:check-updates",
+    );
+
+    const result = await checkForUpdates();
+
+    expect(verifyGitHubTokenMock).not.toHaveBeenCalled();
+    expect(checkForUpdatesMock).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      available: false,
+      error: expect.not.stringMatching(/invalid or expired/i),
+    });
+  });
+
+  it("does not report a rate-limited token as invalid — distinguishes 403 rate-limit from 401 invalid", async () => {
+    // Regression coverage (review on #939): verifyGitHubToken() already distinguishes a rate-limit
+    // (403) from an actually-invalid token (401) in its `error` field; isGitHubTokenHealthy() must
+    // propagate that distinction rather than reporting both as "invalid or expired".
+    verifyGitHubTokenMock.mockResolvedValue({ isValid: false, error: "Rate limit exceeded" });
+
+    const { ipcMain } = await import("electron");
+    new ReleaseChannelIPCHandlers();
+    const listReleases = getRegisteredHandler(
+      ipcMain.handle as Mock,
+      "release-channel:list-releases",
+    );
+
+    const result = await listReleases();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      releases: [],
+      error: expect.stringMatching(/rate limit/i),
+    });
+    expect((result as { error?: string }).error).toEqual(
+      expect.not.stringMatching(/invalid or expired/i),
+    );
+  });
+
+  it("configureAutoUpdater still (re)starts periodic checks on the unhealthy-token early-return path", async () => {
+    // Regression coverage (review on #939): configureAutoUpdater() used to return early on an
+    // unhealthy token without reaching the startPeriodicUpdateChecks() call at the end of the
+    // method — meaning periodic checks would never (re)start later if the token became healthy
+    // again without another explicit reconfigure call. Assert the timer gets armed even on this
+    // early-return path by advancing past one interval and observing a checkForUpdates-driven call.
+    vi.useFakeTimers();
+    try {
+      verifyGitHubTokenMock.mockResolvedValue({
+        isValid: false,
+        error: "Invalid or expired token",
+      });
+      getChannelMock.mockResolvedValue({ type: "pr", channel: "beta.42" });
+
+      const handlers = new ReleaseChannelIPCHandlers();
+      await handlers.configureAutoUpdater({ type: "pr", channel: "beta.42" });
+
+      // The unhealthy token blocked configuration itself (no feed URL set)...
+      expect(setFeedURLMock).not.toHaveBeenCalled();
+
+      // ...but the periodic timer must still be armed: advancing past one interval should invoke
+      // the gated checkForUpdates() path, which re-verifies the token via verifyGitHubToken().
+      const callsBefore = verifyGitHubTokenMock.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 1000);
+      expect(verifyGitHubTokenMock.mock.calls.length).toBeGreaterThan(callsBefore);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not require a token at all for the latest stable channel", async () => {
     getChannelMock.mockResolvedValue({ type: "latest" });
     getTokenMock.mockResolvedValue(undefined);

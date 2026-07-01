@@ -68,7 +68,18 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     }
   }, []);
 
-  const loadReleases = useCallback(async () => {
+  const loadReleases = useCallback(async (hasToken: boolean) => {
+    // listReleases() always requires a healthy GitHub token on the backend (#919) — a user who
+    // has never configured one will always get a "token required" error here, which the
+    // dedicated no-token banner below already communicates. Skip the network call (and the
+    // redundant toast) entirely in that case rather than spending rate-limit budget and noise on
+    // every Settings-tab mount (review on #919); still call it once a token exists so PR release
+    // data loads normally.
+    if (!hasToken) {
+      setReleases([]);
+      return;
+    }
+
     setIsLoadingReleases(true);
     try {
       const response = await ipcClient.releaseChannel.listReleases();
@@ -93,7 +104,10 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     }
   }, []);
 
-  const checkGitHubToken = useCallback(async () => {
+  // Returns whether a token exists so callers can decide whether it's worth calling
+  // loadReleases() at all (review on #919) — the caller awaits this before loadReleases() rather
+  // than firing both in parallel, so the no-token skip in loadReleases() has an answer to check.
+  const checkGitHubToken = useCallback(async (): Promise<boolean> => {
     setIsCheckingToken(true);
     try {
       const tokenExists = await ipcClient.githubToken.has();
@@ -102,7 +116,7 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
       if (!tokenExists) {
         setIsTokenHealthy(false);
         setTokenHealthError(undefined);
-        return;
+        return false;
       }
 
       // A saved token isn't necessarily a *valid* one (#919) — verify it against GitHub before
@@ -110,11 +124,13 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
       const verification = await ipcClient.githubToken.verify();
       setIsTokenHealthy(verification.isValid);
       setTokenHealthError(verification.isValid ? undefined : verification.error);
+      return true;
     } catch (error) {
       console.error("Failed to check GitHub token:", error);
       setHasGitHubToken(false);
       setIsTokenHealthy(false);
       setTokenHealthError(undefined);
+      return false;
     } finally {
       setIsCheckingToken(false);
     }
@@ -126,9 +142,11 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     }
 
     void loadChannel();
-    void loadReleases();
     void loadCurrentVersion();
-    void checkGitHubToken();
+    // Resolve token state first so loadReleases() knows whether it's worth calling at all —
+    // avoids spending rate-limit budget and a redundant error toast for a never-configured token
+    // (review on #919).
+    void checkGitHubToken().then((hasToken) => loadReleases(hasToken));
   }, [isActive, loadChannel, loadReleases, loadCurrentVersion, checkGitHubToken]);
 
   useEffect(() => {
@@ -137,8 +155,7 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     }
 
     const handleGitHubTokenUpdate = () => {
-      void checkGitHubToken();
-      void loadReleases();
+      void checkGitHubToken().then((hasToken) => loadReleases(hasToken));
     };
 
     window.addEventListener(GITHUB_TOKEN_UPDATED_EVENT, handleGitHubTokenUpdate);

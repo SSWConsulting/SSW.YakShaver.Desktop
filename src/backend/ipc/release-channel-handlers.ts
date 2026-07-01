@@ -41,6 +41,13 @@ const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const TOKEN_HEALTH_CACHE_TTL = 60 * 1000; // 1 minute
 const INVALID_TOKEN_ERROR =
   "GitHub token is invalid or expired. Update it in Settings | GitHub Token to use PR releases.";
+// Distinct from INVALID_TOKEN_ERROR (review on #919) — "no token saved" and "saved but invalid"
+// are different states and must not share the same "invalid or expired" wording, otherwise a user
+// who never configured a token gets a misleading "invalid" error on every Settings load.
+const NO_TOKEN_ERROR =
+  "A GitHub token is required to list, select, or download PR releases. Add one in Settings | GitHub Token.";
+const RATE_LIMITED_ERROR =
+  "GitHub API rate limit exceeded while verifying your token. Your token is fine — try again shortly.";
 
 export class ReleaseChannelIPCHandlers {
   private store = ReleaseChannelStorage.getInstance();
@@ -50,7 +57,13 @@ export class ReleaseChannelIPCHandlers {
     fetchedAt: number;
     etag?: string;
   } | null = null;
-  private tokenHealthCache: { isValid: boolean; checkedAt: number; token: string } | null = null;
+  private tokenHealthCache: {
+    isValid: boolean;
+    checkedAt: number;
+    token: string;
+    isRateLimited: boolean;
+    error?: string;
+  } | null = null;
   private updateCheckInterval: NodeJS.Timeout | null = null;
   private readonly UPDATE_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
   private updateDialogDismissedInSession = false; // Track if user dismissed update dialog this session
@@ -141,11 +154,20 @@ export class ReleaseChannelIPCHandlers {
    *
    * Cached briefly per-token so repeated list/select/download calls in quick succession don't each
    * re-verify against the GitHub API.
+   *
+   * Returns a small status object rather than a bare boolean (review on #919) so callers can tell
+   * apart three distinct states that all render as "not healthy" but need different treatment:
+   *   - no token saved at all — not an error, just an unconfigured feature (NO_TOKEN_ERROR)
+   *   - a rate-limited check — the token itself may be fine, GitHub is just throttling us
+   *     (RATE_LIMITED_ERROR)
+   *   - an actually invalid/expired token (INVALID_TOKEN_ERROR)
    */
-  private async isGitHubTokenHealthy(forceRefresh = false): Promise<boolean> {
+  private async isGitHubTokenHealthy(
+    forceRefresh = false,
+  ): Promise<{ healthy: boolean; noToken: boolean; isRateLimited: boolean; error?: string }> {
     const token = await this.tokenStore.getToken();
     if (!token) {
-      return false;
+      return { healthy: false, noToken: true, isRateLimited: false };
     }
 
     if (
@@ -154,18 +176,54 @@ export class ReleaseChannelIPCHandlers {
       this.tokenHealthCache.token === token &&
       Date.now() - this.tokenHealthCache.checkedAt < TOKEN_HEALTH_CACHE_TTL
     ) {
-      return this.tokenHealthCache.isValid;
+      return {
+        healthy: this.tokenHealthCache.isValid,
+        noToken: false,
+        isRateLimited: this.tokenHealthCache.isRateLimited,
+        error: this.tokenHealthCache.error,
+      };
     }
 
     const verification = await verifyGitHubToken(token);
-    this.tokenHealthCache = { isValid: verification.isValid, checkedAt: Date.now(), token };
-    return verification.isValid;
+    // verifyGitHubToken() already distinguishes a 401 ("Invalid or expired token") from a 403
+    // rate-limit ("Rate limit exceeded") in its `error` field — key off that same text rather than
+    // re-deriving it, so this stays in sync with the shared helper without duplicating its logic.
+    const isRateLimited = !verification.isValid && verification.error === "Rate limit exceeded";
+    this.tokenHealthCache = {
+      isValid: verification.isValid,
+      checkedAt: Date.now(),
+      token,
+      isRateLimited,
+      error: verification.error,
+    };
+    return {
+      healthy: verification.isValid,
+      noToken: false,
+      isRateLimited,
+      error: verification.error,
+    };
+  }
+
+  /**
+   * Map an isGitHubTokenHealthy() result to the user-facing error string for the three unhealthy
+   * states (review on #919) — kept in one place so listReleases/checkForUpdates/configureAutoUpdater
+   * all report the same distinction consistently.
+   */
+  private tokenHealthErrorMessage(health: { noToken: boolean; isRateLimited: boolean }): string {
+    if (health.noToken) {
+      return NO_TOKEN_ERROR;
+    }
+    if (health.isRateLimited) {
+      return RATE_LIMITED_ERROR;
+    }
+    return INVALID_TOKEN_ERROR;
   }
 
   private async listReleases(forceRefresh = false): Promise<GitHubReleaseResponse> {
     try {
-      if (!(await this.isGitHubTokenHealthy())) {
-        return { releases: [], error: INVALID_TOKEN_ERROR };
+      const tokenHealth = await this.isGitHubTokenHealthy();
+      if (!tokenHealth.healthy) {
+        return { releases: [], error: this.tokenHealthErrorMessage(tokenHealth) };
       }
 
       if (
@@ -326,8 +384,9 @@ export class ReleaseChannelIPCHandlers {
         // download. This is the explicit, user-initiated "Check for Updates" action, so bypass the
         // 60s token-health cache: a user who just fixed their token shouldn't be stuck seeing
         // "invalid" for up to a minute after retrying.
-        if (!(await this.isGitHubTokenHealthy(true))) {
-          return { available: false, error: INVALID_TOKEN_ERROR };
+        const tokenHealth = await this.isGitHubTokenHealthy(true);
+        if (!tokenHealth.healthy) {
+          return { available: false, error: this.tokenHealthErrorMessage(tokenHealth) };
         }
 
         // Get raw releases for update checking (not processed)
@@ -495,8 +554,18 @@ export class ReleaseChannelIPCHandlers {
     } else if (channel.type === "pr" && channel.channel) {
       // PR channels are token-gated (#919) — don't configure the autoUpdater feed (and never
       // trigger a background download) unless the token is currently valid.
-      if (!(await this.isGitHubTokenHealthy())) {
-        console.warn("Skipping PR release channel configuration: GitHub token is invalid.");
+      const tokenHealth = await this.isGitHubTokenHealthy();
+      if (!tokenHealth.healthy) {
+        console.warn(
+          tokenHealth.noToken
+            ? "Skipping PR release channel configuration: no GitHub token configured."
+            : "Skipping PR release channel configuration: GitHub token is invalid.",
+        );
+        // Still (re)start the periodic timer (review on #919): the timer itself re-checks token
+        // health via checkForUpdates() every tick, so if the token becomes healthy later without
+        // another explicit reconfigure call, periodic checks are already running to pick it up
+        // rather than staying stopped forever.
+        this.startPeriodicUpdateChecks();
         return;
       }
 
