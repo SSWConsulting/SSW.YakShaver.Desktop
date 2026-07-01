@@ -6,7 +6,7 @@ describe("reconstructWorkflowState (#821)", () => {
     const state = reconstructWorkflowState("Completed");
     expect(state).not.toBeNull();
     const steps = Object.values(state ?? {});
-    expect(steps).toHaveLength(8);
+    expect(steps).toHaveLength(9);
     for (const step of steps) {
       expect(step.status).toBe("completed");
     }

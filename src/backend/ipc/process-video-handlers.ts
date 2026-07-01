@@ -23,6 +23,7 @@ import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/port
 import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
 import { LlmStorage } from "../services/storage/llm-storage";
+import { optimizeTranscript } from "../services/transcript/optimize-transcript-service";
 import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
@@ -435,6 +436,7 @@ export class ProcessVideoIPCHandlers {
     let mp3FilePath: string | undefined = checkpoint.mp3FilePath;
     let transcript: TranscriptSegment[] | undefined = checkpoint.transcript;
     let transcriptText: string | undefined = checkpoint.transcriptText;
+    let optimizedTranscriptText: string | undefined = checkpoint.optimizedTranscriptText;
     let intermediateOutput: string | undefined = checkpoint.intermediateOutput;
     let projectDetails:
       | (ProjectDto & { selectionReason: string; projectSource: "local" | "remote" })
@@ -516,6 +518,36 @@ export class ProcessVideoIPCHandlers {
         });
       }
 
+      // -- OPTIMIZING_TRANSCRIPT --
+      if (shouldRunStage(WorkflowProgressStage.OPTIMIZING_TRANSCRIPT)) {
+        currentStage = WorkflowProgressStage.OPTIMIZING_TRANSCRIPT;
+        workflowManager.startStage(WorkflowProgressStage.OPTIMIZING_TRANSCRIPT);
+
+        try {
+          const languageModelProvider = await LanguageModelProvider.getInstance();
+          // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+          optimizedTranscriptText = await optimizeTranscript(
+            transcriptText as string,
+            languageModelProvider,
+          );
+        } catch (optimizeError) {
+          // Non-fatal: if optimization fails, fall back to the raw transcript so the workflow can continue
+          console.warn(
+            "[ProcessVideo] Transcript optimization failed, using raw transcript:",
+            optimizeError,
+          );
+          optimizedTranscriptText = transcriptText as string;
+        }
+
+        workflowManager.completeStage(
+          WorkflowProgressStage.OPTIMIZING_TRANSCRIPT,
+          optimizedTranscriptText,
+        );
+        workflowManager.createCheckpoint(WorkflowProgressStage.OPTIMIZING_TRANSCRIPT, {
+          optimizedTranscriptText,
+        });
+      }
+
       // -- ANALYZING_TRANSCRIPT --
       if (shouldRunStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT)) {
         currentStage = WorkflowProgressStage.ANALYZING_TRANSCRIPT;
@@ -523,10 +555,13 @@ export class ProcessVideoIPCHandlers {
 
         const languageModelProvider = await LanguageModelProvider.getInstance();
 
-        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+        // Use optimized transcript if available; fall back to raw transcriptText.
+        // optimizedTranscriptText is guaranteed by: normal flow sets it in OPTIMIZING_TRANSCRIPT;
+        // retry falls back to raw transcriptText which is validated at entry.
+        const effectiveTranscript = (optimizedTranscriptText ?? transcriptText) as string;
         const userPrompt = `Process the following transcript into a structured JSON object:
 
-      ${transcriptText as string}`;
+      ${effectiveTranscript}`;
 
         intermediateOutput = await languageModelProvider.generateJson(
           userPrompt,
@@ -549,11 +584,11 @@ export class ProcessVideoIPCHandlers {
 
         const languageModelProvider = await LanguageModelProvider.getInstance();
 
-        // Select project prompt based on transcript
+        // Select project prompt based on transcript (use optimized if available)
         // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
         projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
           languageModelProvider,
-          transcriptText as string,
+          (optimizedTranscriptText ?? transcriptText) as string,
           shaveId,
         );
 
@@ -585,15 +620,19 @@ export class ProcessVideoIPCHandlers {
 
         const { orchestrator, backend } = await this.getBacklogOrchestrator();
 
+        // Use optimized transcript if available for the task execution loop; keep the adapter's
+        // audit/UI payload consistent with what actually drives execution below.
+        const effectiveExecutionTranscript = (optimizedTranscriptText ?? transcriptText) as string;
+
         const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
-          transcriptText,
+          transcriptText: effectiveExecutionTranscript,
           intermediateOutput,
           orchestrator: backend,
         });
 
         // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
         const loopResult = await orchestrator.manualLoopAsync(
-          transcriptText as string,
+          effectiveExecutionTranscript,
           youtubeResult,
           {
             projectMetaData,

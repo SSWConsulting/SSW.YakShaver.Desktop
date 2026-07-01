@@ -71,6 +71,7 @@ export function resolveCheckpointData(
  */
 const STAGE_REQUIRED_INPUTS: Partial<Record<keyof WorkflowState, (keyof CheckpointData)[]>> = {
   [WorkflowProgressStage.TRANSCRIBING]: ["mp3FilePath"],
+  [WorkflowProgressStage.OPTIMIZING_TRANSCRIPT]: ["transcript", "transcriptText"],
   [WorkflowProgressStage.ANALYZING_TRANSCRIPT]: ["transcript", "transcriptText"],
   [WorkflowProgressStage.SELECTING_PROMPT]: ["transcriptText", "intermediateOutput"],
   [WorkflowProgressStage.EXECUTING_TASK]: ["transcriptText", "projectDetails"],

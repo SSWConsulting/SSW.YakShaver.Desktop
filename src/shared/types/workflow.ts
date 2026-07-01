@@ -3,6 +3,7 @@ export enum ProgressStage {
   DOWNLOADING_VIDEO = "downloading_video",
   CONVERTING_AUDIO = "converting_audio",
   TRANSCRIBING = "transcribing",
+  OPTIMIZING_TRANSCRIPT = "optimizing_transcript",
   ANALYZING_TRANSCRIPT = "analyzing_transcript",
   SELECTING_PROMPT = "selecting_prompt",
   EXECUTING_TASK = "executing_task",
@@ -30,6 +31,7 @@ export const WORKFLOW_STAGE_ORDER: (keyof WorkflowState)[] = [
   ProgressStage.DOWNLOADING_VIDEO,
   ProgressStage.CONVERTING_AUDIO,
   ProgressStage.TRANSCRIBING,
+  ProgressStage.OPTIMIZING_TRANSCRIPT,
   ProgressStage.ANALYZING_TRANSCRIPT,
   ProgressStage.SELECTING_PROMPT,
   ProgressStage.EXECUTING_TASK,
@@ -42,6 +44,7 @@ export interface WorkflowState {
   downloading_video: WorkflowStep;
   converting_audio: WorkflowStep;
   transcribing: WorkflowStep;
+  optimizing_transcript: WorkflowStep;
   analyzing_transcript: WorkflowStep;
   selecting_prompt: WorkflowStep;
   executing_task: WorkflowStep;

@@ -36,6 +36,7 @@ export class WorkflowStateManager {
       [ProgressStage.DOWNLOADING_VIDEO]: createStep(ProgressStage.DOWNLOADING_VIDEO),
       [ProgressStage.CONVERTING_AUDIO]: createStep(ProgressStage.CONVERTING_AUDIO),
       [ProgressStage.TRANSCRIBING]: createStep(ProgressStage.TRANSCRIBING),
+      [ProgressStage.OPTIMIZING_TRANSCRIPT]: createStep(ProgressStage.OPTIMIZING_TRANSCRIPT),
       [ProgressStage.ANALYZING_TRANSCRIPT]: createStep(ProgressStage.ANALYZING_TRANSCRIPT),
       [ProgressStage.SELECTING_PROMPT]: createStep(ProgressStage.SELECTING_PROMPT),
       [ProgressStage.EXECUTING_TASK]: createStep(ProgressStage.EXECUTING_TASK),
