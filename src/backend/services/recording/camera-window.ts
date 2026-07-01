@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { BrowserWindow, ipcMain, screen } from "electron";
+import { app, BrowserWindow, ipcMain, screen } from "electron";
+import { applyDevToolsGuard } from "../../utils/devtools-guard";
 
 const WINDOW_SIZE = { width: 400, height: 225 }; // 16:9 aspect ratio
 const MARGIN = 20;
@@ -44,8 +45,11 @@ export class CameraWindow {
         preload: join(__dirname, "../../preload.js"),
         contextIsolation: true,
         nodeIntegration: false,
+        devTools: !app.isPackaged,
       },
     });
+
+    applyDevToolsGuard(this.window);
 
     this.window.on("closed", () => {
       this.window = null;

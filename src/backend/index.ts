@@ -39,6 +39,7 @@ import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
 import { TelemetryService } from "./services/telemetry/telemetry-service";
 import { TrayManager } from "./services/tray/tray-manager";
+import { applyDevToolsGuard } from "./utils/devtools-guard";
 import { getIconPath } from "./utils/path-utils";
 
 const isDev = process.env.NODE_ENV === "development" || process.argv.includes("--dev-protocol");
@@ -188,10 +189,12 @@ const createWindow = (): BrowserWindow | null => {
       nodeIntegration: false,
       contextIsolation: true,
       preload: join(__dirname, "preload.js"),
+      devTools: !app.isPackaged,
     },
   });
 
   mainWindow = window;
+  applyDevToolsGuard(window);
 
   // URLs - by default, open in default browser
   window.webContents.setWindowOpenHandler(({ url }) => {
