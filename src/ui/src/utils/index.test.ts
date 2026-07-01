@@ -255,4 +255,34 @@ describe("getVersionBumpType", () => {
     expect(getVersionBumpType("1.2.3", undefined)).toBe("unknown");
     expect(getVersionBumpType("not-a-version", "1.2.3")).toBe("unknown");
   });
+
+  it("returns 'unknown' for a version with a trailing extra numeric component (not strict major.minor.patch)", () => {
+    expect(getVersionBumpType("1.2.3", "1.2.3.4")).toBe("unknown");
+  });
+
+  it("returns 'unknown' for a version with unrecognised trailing characters (no '-'/'+' boundary)", () => {
+    expect(getVersionBumpType("1.2.3", "1.2.3junk")).toBe("unknown");
+  });
+
+  it("detects a 'major' downgrade as 'downgrade'", () => {
+    expect(getVersionBumpType("2.0.0", "1.9.0")).toBe("downgrade");
+  });
+
+  it("detects a 'minor' downgrade as 'downgrade'", () => {
+    expect(getVersionBumpType("1.5.0", "1.2.0")).toBe("downgrade");
+  });
+
+  it("detects a 'patch' downgrade as 'downgrade'", () => {
+    expect(getVersionBumpType("1.2.5", "1.2.1")).toBe("downgrade");
+  });
+
+  it("labels a pre-release/build-only difference as 'prerelease' rather than 'unknown' (PR/beta channel, AC3)", () => {
+    expect(getVersionBumpType("0.6.0-beta.940.1700000000000", "0.6.0-beta.941.1700000001000")).toBe(
+      "prerelease",
+    );
+  });
+
+  it("labels a bare-to-prerelease suffix difference as 'prerelease' when major.minor.patch match", () => {
+    expect(getVersionBumpType("1.2.3", "1.2.3-beta.1")).toBe("prerelease");
+  });
 });

@@ -317,21 +317,35 @@ export const getInitials = (name: string | undefined): string => {
     .slice(0, 2);
 };
 
-export type VersionBumpType = "major" | "minor" | "patch" | "unknown";
+export type VersionBumpType = "major" | "minor" | "patch" | "prerelease" | "downgrade" | "unknown";
+
+interface ParsedVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  /** The raw pre-release/build suffix (e.g. "-beta.941.123"), or "" if none. */
+  suffix: string;
+}
 
 /**
  * Parses a `major.minor.patch` semver-style version string into its numeric
- * components. Tolerates a leading "v" and pre-release/build suffixes
- * (e.g. "v1.2.3-beta.1" or "1.2.3+build5"), which are ignored for comparison
- * purposes.
+ * components plus its raw pre-release/build suffix. Tolerates a leading "v".
+ * Requires a boundary (end-of-string, "-", or "+") immediately after the
+ * patch digits, so strings like "1.2.3.4" or "1.2.3junk" — which aren't a
+ * strict `major.minor.patch` (+ optional pre-release/build) — don't parse.
  *
  * @param version - The version string to parse.
- * @returns The `[major, minor, patch]` tuple, or `null` if it doesn't match.
+ * @returns The parsed version, or `null` if it doesn't match.
  */
-function parseVersion(version: string): [number, number, number] | null {
-  const match = version.trim().match(/^v?(\d+)\.(\d+)\.(\d+)/i);
+function parseVersion(version: string): ParsedVersion | null {
+  const match = version.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?=$|[-+])(.*)$/i);
   if (!match) return null;
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    suffix: match[4] ?? "",
+  };
 }
 
 /**
@@ -341,14 +355,23 @@ function parseVersion(version: string): [number, number, number] | null {
  *
  * @param currentVersion - The currently installed version string.
  * @param newVersion - The newly available version string.
- * @returns "major" | "minor" | "patch" when both versions parse as
- * `major.minor.patch`; "unknown" if either string can't be parsed or there's
- * no difference at the major/minor/patch level.
+ * @returns
+ * - "major" | "minor" | "patch" when `newVersion` is a strictly higher
+ *   major/minor/patch than `currentVersion`.
+ * - "downgrade" when `newVersion`'s major/minor/patch is strictly lower than
+ *   `currentVersion`'s (relevant for channels with `allowDowngrade: true`).
+ * - "prerelease" when major/minor/patch are identical but the pre-release/
+ *   build suffix differs (e.g. two PR-channel builds sharing the same base
+ *   version, such as "0.6.0-beta.940.1" → "0.6.0-beta.941.1").
+ * - "unknown" if either string can't be parsed, or the two versions are
+ *   identical in full.
  *
  * @example
  * getVersionBumpType("1.2.3", "2.0.0") // "major"
  * getVersionBumpType("1.2.3", "1.3.0") // "minor"
  * getVersionBumpType("1.2.3", "1.2.4") // "patch"
+ * getVersionBumpType("2.0.0", "1.9.0") // "downgrade"
+ * getVersionBumpType("0.6.0-beta.940.1", "0.6.0-beta.941.1") // "prerelease"
  */
 export function getVersionBumpType(
   currentVersion: string | undefined,
@@ -360,8 +383,16 @@ export function getVersionBumpType(
   const next = parseVersion(newVersion);
   if (!current || !next) return "unknown";
 
-  if (next[0] !== current[0]) return "major";
-  if (next[1] !== current[1]) return "minor";
-  if (next[2] !== current[2]) return "patch";
+  if (
+    next.major !== current.major ||
+    next.minor !== current.minor ||
+    next.patch !== current.patch
+  ) {
+    if (next.major !== current.major) return next.major > current.major ? "major" : "downgrade";
+    if (next.minor !== current.minor) return next.minor > current.minor ? "minor" : "downgrade";
+    return next.patch > current.patch ? "patch" : "downgrade";
+  }
+
+  if (next.suffix !== current.suffix) return "prerelease";
   return "unknown";
 }
