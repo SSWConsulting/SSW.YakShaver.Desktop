@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { app, BrowserWindow, screen } from "electron";
-import { applyDevToolsGuard } from "../../utils/devtools-guard";
+import { BrowserWindow, screen } from "electron";
+import { applyDevToolsGuard, isProductionBuild } from "../../utils/devtools-guard";
 
 export class CountdownWindow {
   private static instance: CountdownWindow;
@@ -43,7 +43,7 @@ export class CountdownWindow {
         preload: join(__dirname, "../../preload.js"),
         contextIsolation: true,
         nodeIntegration: false,
-        devTools: !app.isPackaged,
+        devTools: !isProductionBuild(),
       },
     });
 

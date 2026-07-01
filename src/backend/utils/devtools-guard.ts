@@ -39,12 +39,14 @@ function isDevToolsShortcut(input: Input): boolean {
 /**
  * Locks a window's DevTools access down for production builds.
  *
- * Defense in depth: `webPreferences.devTools: false` (set at window creation)
- * already prevents `webContents.openDevTools()` from doing anything, but this
- * adds a belt-and-suspenders guard against DevTools being reachable through
- * accelerators or being opened by other means (e.g. a future regression that
- * drops the webPreferences flag) — it intercepts the shortcut before Chromium
- * acts on it, and force-closes DevTools if it ever ends up open regardless.
+ * `webPreferences.devTools: false` (set at window creation) disables the
+ * `webContents.openDevTools()` API surface, but Chromium wires its DevTools
+ * keyboard accelerators (F12, Ctrl/Cmd+Shift+I/J/C) independently of that
+ * flag — so for the shortcut vector this `before-input-event` interception is
+ * the actual mechanism that blocks it, not a redundant second layer. The
+ * `devtools-opened` force-close is the true belt-and-suspenders half: a
+ * fallback in case DevTools ever ends up open through some other path (e.g. a
+ * future regression that drops the webPreferences flag).
  *
  * No-op outside production so development workflows are unaffected.
  */

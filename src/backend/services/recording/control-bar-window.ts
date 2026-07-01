@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { app, BrowserWindow, screen } from "electron";
-import { applyDevToolsGuard } from "../../utils/devtools-guard";
+import { BrowserWindow, screen } from "electron";
+import { applyDevToolsGuard, isProductionBuild } from "../../utils/devtools-guard";
 import { formatRecordingTime } from "./format-recording-time";
 
 const WINDOW_SIZE = { width: 300, height: 80 };
@@ -63,7 +63,7 @@ export class RecordingControlBarWindow {
         preload: join(__dirname, "../../preload.js"),
         contextIsolation: true,
         nodeIntegration: false,
-        devTools: !app.isPackaged,
+        devTools: !isProductionBuild(),
       },
     });
 

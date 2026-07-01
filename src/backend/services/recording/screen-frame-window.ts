@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { app, BrowserWindow, desktopCapturer, screen } from "electron";
-import { applyDevToolsGuard } from "../../utils/devtools-guard";
+import { BrowserWindow, desktopCapturer, screen } from "electron";
+import { applyDevToolsGuard, isProductionBuild } from "../../utils/devtools-guard";
 
 export class ScreenFrameWindow {
   private static instance: ScreenFrameWindow;
@@ -54,7 +54,7 @@ export class ScreenFrameWindow {
         preload: join(__dirname, "../../preload.js"),
         contextIsolation: true,
         nodeIntegration: false,
-        devTools: !app.isPackaged,
+        devTools: !isProductionBuild(),
       },
     });
 
