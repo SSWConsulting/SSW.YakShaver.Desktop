@@ -316,3 +316,52 @@ export const getInitials = (name: string | undefined): string => {
     .toUpperCase()
     .slice(0, 2);
 };
+
+export type VersionBumpType = "major" | "minor" | "patch" | "unknown";
+
+/**
+ * Parses a `major.minor.patch` semver-style version string into its numeric
+ * components. Tolerates a leading "v" and pre-release/build suffixes
+ * (e.g. "v1.2.3-beta.1" or "1.2.3+build5"), which are ignored for comparison
+ * purposes.
+ *
+ * @param version - The version string to parse.
+ * @returns The `[major, minor, patch]` tuple, or `null` if it doesn't match.
+ */
+function parseVersion(version: string): [number, number, number] | null {
+  const match = version.trim().match(/^v?(\d+)\.(\d+)\.(\d+)/i);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+/**
+ * Determines whether upgrading from `currentVersion` to `newVersion` is a
+ * major, minor, or patch bump, so the UI can communicate the nature of an
+ * available update.
+ *
+ * @param currentVersion - The currently installed version string.
+ * @param newVersion - The newly available version string.
+ * @returns "major" | "minor" | "patch" when both versions parse as
+ * `major.minor.patch`; "unknown" if either string can't be parsed or there's
+ * no difference at the major/minor/patch level.
+ *
+ * @example
+ * getVersionBumpType("1.2.3", "2.0.0") // "major"
+ * getVersionBumpType("1.2.3", "1.3.0") // "minor"
+ * getVersionBumpType("1.2.3", "1.2.4") // "patch"
+ */
+export function getVersionBumpType(
+  currentVersion: string | undefined,
+  newVersion: string | undefined,
+): VersionBumpType {
+  if (!currentVersion || !newVersion) return "unknown";
+
+  const current = parseVersion(currentVersion);
+  const next = parseVersion(newVersion);
+  if (!current || !next) return "unknown";
+
+  if (next[0] !== current[0]) return "major";
+  if (next[1] !== current[1]) return "minor";
+  if (next[2] !== current[2]) return "patch";
+  return "unknown";
+}

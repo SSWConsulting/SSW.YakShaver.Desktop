@@ -266,18 +266,21 @@ export class ReleaseChannelIPCHandlers {
     available: boolean;
     error?: string;
     version?: string;
+    currentVersion?: string;
   }> {
     // Skip update checks in development/unpackaged mode
     if (!app.isPackaged) {
       return {
         available: false,
         error: "Update checks are only available in packaged applications",
+        currentVersion: this.getCurrentVersion(),
       };
     }
 
+    const currentVersion = this.getCurrentVersion();
+
     try {
       const channel = await this.getChannel();
-      const currentVersion = this.getCurrentVersion();
 
       // For PR channels
       if (channel.type === "pr" && channel.channel) {
@@ -287,16 +290,24 @@ export class ReleaseChannelIPCHandlers {
         }
 
         if (!this.releasesCache) {
-          return { available: false, error: "Failed to fetch releases" };
+          return { available: false, error: "Failed to fetch releases", currentVersion };
         }
 
         const prNumber = this.extractPRNumberFromChannel(channel.channel);
         if (!prNumber) {
-          return { available: false, error: `Invalid channel format: ${channel.channel}` };
+          return {
+            available: false,
+            error: `Invalid channel format: ${channel.channel}`,
+            currentVersion,
+          };
         }
         const prReleases = this.getPRReleases(prNumber);
         if (prReleases.length === 0) {
-          return { available: false, error: `No releases found for PR #${prNumber}` };
+          return {
+            available: false,
+            error: `No releases found for PR #${prNumber}`,
+            currentVersion,
+          };
         }
 
         const latestRelease = prReleases[0];
@@ -321,12 +332,14 @@ export class ReleaseChannelIPCHandlers {
               return {
                 available: true,
                 version: targetVersion,
+                currentVersion,
               };
             } else {
               return {
                 available: false,
                 error:
                   "No update found. Ensure the PR release includes the correct beta.{PR}.yml manifest.",
+                currentVersion,
               };
             }
           } catch (error) {
@@ -334,6 +347,7 @@ export class ReleaseChannelIPCHandlers {
             return {
               available: false,
               error: errMsg,
+              currentVersion,
             };
           }
         }
@@ -341,6 +355,7 @@ export class ReleaseChannelIPCHandlers {
         return {
           available: false,
           version: currentVersion,
+          currentVersion,
         };
       }
 
@@ -353,14 +368,16 @@ export class ReleaseChannelIPCHandlers {
         return {
           available: updateVersion !== currentVersion,
           version: updateVersion,
+          currentVersion,
         };
       }
-      return { available: false };
+      return { available: false, currentVersion };
     } catch (error) {
       const errMsg = formatAndReportError(error, "check_update");
       return {
         available: false,
         error: errMsg,
+        currentVersion,
       };
     }
   }

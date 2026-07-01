@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { MCPStepType } from "@/types";
 import {
   formatKeyAsTitle,
+  getVersionBumpType,
   isWorkflowFailed,
   parseToolName,
   requiredPostCreationStageFailure,
@@ -225,5 +226,33 @@ describe("parseToolName", () => {
 
   it("returns a null server for an unprefixed tool name", () => {
     expect(parseToolName("issue_write")).toEqual({ server: null, tool: "Issue Write" });
+  });
+});
+
+describe("getVersionBumpType", () => {
+  it("detects a major bump", () => {
+    expect(getVersionBumpType("1.2.3", "2.0.0")).toBe("major");
+  });
+
+  it("detects a minor bump", () => {
+    expect(getVersionBumpType("1.2.3", "1.3.0")).toBe("minor");
+  });
+
+  it("detects a patch bump", () => {
+    expect(getVersionBumpType("1.2.3", "1.2.4")).toBe("patch");
+  });
+
+  it("tolerates a leading 'v' and pre-release/build suffixes", () => {
+    expect(getVersionBumpType("v1.2.3", "v1.2.4-beta.1")).toBe("patch");
+  });
+
+  it("returns 'unknown' for identical versions", () => {
+    expect(getVersionBumpType("1.2.3", "1.2.3")).toBe("unknown");
+  });
+
+  it("returns 'unknown' when either version is missing or unparsable", () => {
+    expect(getVersionBumpType(undefined, "1.2.3")).toBe("unknown");
+    expect(getVersionBumpType("1.2.3", undefined)).toBe("unknown");
+    expect(getVersionBumpType("not-a-version", "1.2.3")).toBe("unknown");
   });
 });
