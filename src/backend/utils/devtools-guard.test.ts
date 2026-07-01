@@ -56,17 +56,21 @@ describe("applyDevToolsGuard", () => {
   });
 
   it.each([
-    { key: "F12", control: false, meta: false, shift: false },
-    { key: "i", control: true, meta: false, shift: true },
-    { key: "I", control: true, meta: false, shift: true },
-    { key: "j", control: true, meta: false, shift: true },
-    { key: "c", control: true, meta: false, shift: true },
-    { key: "i", control: false, meta: true, shift: true }, // macOS Cmd+Shift+I
+    { key: "F12", control: false, meta: false, shift: false, alt: false },
+    { key: "i", control: true, meta: false, shift: true, alt: false },
+    { key: "I", control: true, meta: false, shift: true, alt: false },
+    { key: "j", control: true, meta: false, shift: true, alt: false },
+    { key: "c", control: true, meta: false, shift: true, alt: false },
+    { key: "i", control: false, meta: true, shift: true, alt: false }, // Cmd+Shift+I alias
+    { key: "i", control: false, meta: true, shift: false, alt: true }, // macOS Cmd+Option+I (Chromium's real default)
+    { key: "j", control: false, meta: true, shift: false, alt: true }, // macOS Cmd+Option+J
+    { key: "c", control: false, meta: true, shift: false, alt: true }, // macOS Cmd+Option+C
   ])("blocks the $key devtools shortcut in production regardless of the app Menu", ({
     key,
     control,
     meta,
     shift,
+    alt,
   }) => {
     mockApp.isPackaged = true;
     const { window, handlers } = createMockWindow();
@@ -77,10 +81,7 @@ describe("applyDevToolsGuard", () => {
     expect(beforeInputEvent).toBeDefined();
 
     const preventDefault = vi.fn();
-    beforeInputEvent?.(
-      { preventDefault },
-      { type: "keyDown", key, control, meta, shift, alt: false },
-    );
+    beforeInputEvent?.({ preventDefault }, { type: "keyDown", key, control, meta, shift, alt });
 
     // This is the crux of #455: the app's Menu can omit "Toggle DevTools"
     // entirely, but Chromium's default accelerators still fire unless

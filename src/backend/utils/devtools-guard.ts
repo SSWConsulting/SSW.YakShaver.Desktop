@@ -26,8 +26,12 @@ function isDevToolsShortcut(input: Input): boolean {
   const key = input.key.toLowerCase();
   if (key === "f12") return true;
 
-  const modifier = input.control || input.meta;
-  if (!modifier || !input.shift) return false;
+  // Windows/Linux: Ctrl+Shift+I/J/C. macOS: Cmd+Option+I/J/C (Chromium's
+  // actual default accelerators there use Option/Alt, not Shift) — also
+  // accept Cmd+Shift as a belt-and-suspenders alias.
+  const ctrlShift = input.control && input.shift;
+  const metaAltOrShift = input.meta && (input.alt || input.shift);
+  if (!ctrlShift && !metaAltOrShift) return false;
 
   return key === "i" || key === "j" || key === "c";
 }
