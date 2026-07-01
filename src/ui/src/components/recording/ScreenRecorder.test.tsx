@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthStatus, UploadStatus } from "../../types";
 import { ScreenRecorder } from "./ScreenRecorder";
@@ -73,9 +74,11 @@ vi.mock("./VideoPreviewModal", () => ({
     onContinue: (auto: boolean) => void;
     onDurationLoad: (duration: number) => void;
   }) => {
-    // The real modal loads the duration before Continue is enabled; mirror that
-    // so handleContinue does not bail on its duration guard.
-    onDurationLoad(42);
+    useEffect(() => {
+      // The real modal loads duration before Continue can run.
+      onDurationLoad(42);
+    }, [onDurationLoad]);
+
     return (
       <button type="button" data-testid="continue-recording" onClick={() => onContinue(false)}>
         Continue
