@@ -178,6 +178,54 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
     expect(result).toEqual({ available: true, version: "beta.42.1" });
   });
 
+  it("caches a healthy token-health result within the 60s TTL — a second call within the window does not re-verify", async () => {
+    vi.useFakeTimers();
+    try {
+      verifyGitHubTokenMock.mockResolvedValue({ isValid: true, username: "octocat" });
+
+      const { ipcMain } = await import("electron");
+      new ReleaseChannelIPCHandlers();
+      const listReleases = getRegisteredHandler(
+        ipcMain.handle as Mock,
+        "release-channel:list-releases",
+      );
+
+      await listReleases();
+      expect(verifyGitHubTokenMock).toHaveBeenCalledTimes(1);
+
+      // Still within the 60s cache TTL — must reuse the cached result, not re-verify.
+      vi.advanceTimersByTime(30 * 1000);
+      await listReleases();
+      expect(verifyGitHubTokenMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("re-verifies the token after the 60s cache TTL expires", async () => {
+    vi.useFakeTimers();
+    try {
+      verifyGitHubTokenMock.mockResolvedValue({ isValid: true, username: "octocat" });
+
+      const { ipcMain } = await import("electron");
+      new ReleaseChannelIPCHandlers();
+      const listReleases = getRegisteredHandler(
+        ipcMain.handle as Mock,
+        "release-channel:list-releases",
+      );
+
+      await listReleases();
+      expect(verifyGitHubTokenMock).toHaveBeenCalledTimes(1);
+
+      // Past the 60s cache TTL — must re-verify against GitHub rather than serve a stale result.
+      vi.advanceTimersByTime(61 * 1000);
+      await listReleases();
+      expect(verifyGitHubTokenMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not require a token at all for the latest stable channel", async () => {
     getChannelMock.mockResolvedValue({ type: "latest" });
     getTokenMock.mockResolvedValue(undefined);

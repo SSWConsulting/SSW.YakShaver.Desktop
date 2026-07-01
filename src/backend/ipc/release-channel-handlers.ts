@@ -142,13 +142,14 @@ export class ReleaseChannelIPCHandlers {
    * Cached briefly per-token so repeated list/select/download calls in quick succession don't each
    * re-verify against the GitHub API.
    */
-  private async isGitHubTokenHealthy(): Promise<boolean> {
+  private async isGitHubTokenHealthy(forceRefresh = false): Promise<boolean> {
     const token = await this.tokenStore.getToken();
     if (!token) {
       return false;
     }
 
     if (
+      !forceRefresh &&
       this.tokenHealthCache &&
       this.tokenHealthCache.token === token &&
       Date.now() - this.tokenHealthCache.checkedAt < TOKEN_HEALTH_CACHE_TTL
@@ -322,8 +323,10 @@ export class ReleaseChannelIPCHandlers {
       if (channel.type === "pr" && channel.channel) {
         // PR releases require a healthy GitHub token (#919) — block before touching the releases
         // cache, the GitHub API, or the autoUpdater so an invalid token can never trigger a
-        // download.
-        if (!(await this.isGitHubTokenHealthy())) {
+        // download. This is the explicit, user-initiated "Check for Updates" action, so bypass the
+        // 60s token-health cache: a user who just fixed their token shouldn't be stuck seeing
+        // "invalid" for up to a minute after retrying.
+        if (!(await this.isGitHubTokenHealthy(true))) {
           return { available: false, error: INVALID_TOKEN_ERROR };
         }
 
@@ -429,9 +432,13 @@ export class ReleaseChannelIPCHandlers {
       return;
     }
 
-    // Set up periodic checks
+    // Set up periodic checks — routed through this.checkForUpdates() (not the autoUpdater
+    // directly) so the same token-health gate that guards the manual "Check for Updates" button
+    // and listReleases() also covers this background timer (#919). Without this, a PR channel
+    // configured while the token was healthy would keep polling the PR feed unguarded every 10
+    // minutes after the token later expired or was revoked.
     this.updateCheckInterval = setInterval(() => {
-      autoUpdater.checkForUpdates().catch((err) => {
+      this.checkForUpdates().catch((err) => {
         console.error("Periodic update check failed:", err);
       });
     }, this.UPDATE_CHECK_INTERVAL);

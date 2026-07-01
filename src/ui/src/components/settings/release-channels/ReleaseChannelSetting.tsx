@@ -41,6 +41,10 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
   // expired token must not allow listing/selecting/downloading PR builds.
   const [isTokenHealthy, setIsTokenHealthy] = useState<boolean>(false);
   const [isCheckingToken, setIsCheckingToken] = useState<boolean>(true);
+  // Reason the last verification failed (e.g. "Invalid or expired token", a network error message,
+  // "Rate limit exceeded") — used so the banner doesn't always say "invalid or expired" even when
+  // the real cause was a network/offline failure.
+  const [tokenHealthError, setTokenHealthError] = useState<string | undefined>(undefined);
 
   const getChannelDisplay = useCallback((currentChannel: ReleaseChannel) => {
     if (currentChannel.type === "latest") {
@@ -97,6 +101,7 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
 
       if (!tokenExists) {
         setIsTokenHealthy(false);
+        setTokenHealthError(undefined);
         return;
       }
 
@@ -104,10 +109,12 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
       // treating PR releases as usable.
       const verification = await ipcClient.githubToken.verify();
       setIsTokenHealthy(verification.isValid);
+      setTokenHealthError(verification.isValid ? undefined : verification.error);
     } catch (error) {
       console.error("Failed to check GitHub token:", error);
       setHasGitHubToken(false);
       setIsTokenHealthy(false);
+      setTokenHealthError(undefined);
     } finally {
       setIsCheckingToken(false);
     }
@@ -228,7 +235,9 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
   const showInvalidTokenBanner = !isCheckingToken && hasGitHubToken && !isTokenHealthy;
   const showNoTokenBanner = !isCheckingToken && !hasGitHubToken;
   // Only "Latest Stable" is selectable without a healthy token; PR entries are disabled below.
-  const prSelectionDisabled = !isCheckingToken && !isTokenHealthy;
+  // Fail closed while the check is in flight (isTokenHealthy starts false) rather than fail open —
+  // otherwise PR entries would briefly render enabled before the first verification completes.
+  const prSelectionDisabled = isCheckingToken || !isTokenHealthy;
 
   return (
     <Card className="w-full gap-4 border-white/10 py-4">
@@ -252,8 +261,9 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
           <div className="rounded-md border border-ssw-red/30 bg-ssw-red/10 p-3">
             <h3 className="mb-1 font-medium text-red-200">GitHub Token Invalid</h3>
             <p className="text-sm text-red-100">
-              Your GitHub token is invalid or expired, so PR releases can&apos;t be listed,
-              selected, or downloaded. Update it below.
+              {tokenHealthError
+                ? `GitHub token verification failed: ${tokenHealthError}. PR releases can't be listed, selected, or downloaded until this is resolved.`
+                : "Your GitHub token is invalid or expired, so PR releases can't be listed, selected, or downloaded. Update it below."}
             </p>
           </div>
         )}
