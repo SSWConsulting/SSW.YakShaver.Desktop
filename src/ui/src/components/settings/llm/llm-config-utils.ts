@@ -34,7 +34,12 @@ export function buildConfigWithSavedModel(
     providerApiKeys[otherModel.provider] = otherModel.apiKey;
   }
 
-  providerApiKeys[values.provider] = values.apiKey;
+  // Only overwrite the cache when this save actually carries a key. An empty submission must
+  // never clobber a key already cached for this provider — including one just backfilled above
+  // from the other model slot sharing the same provider.
+  if (values.apiKey) {
+    providerApiKeys[values.provider] = values.apiKey;
+  }
 
   return {
     version: 2,
@@ -69,6 +74,15 @@ export function getSavedApiKeyForProvider(
   const savedModel = baseConfig[modelType];
   if (savedModel && savedModel.provider === provider && savedModel.apiKey) {
     return savedModel.apiKey;
+  }
+
+  // Fall back to the *other* model slot too — mirrors buildConfigWithSavedModel's backfill so
+  // a key saved only via the other panel is never reported as absent here.
+  const otherModelType: ModelConfigType =
+    modelType === "languageModel" ? "transcriptionModel" : "languageModel";
+  const otherModel = baseConfig[otherModelType];
+  if (otherModel && otherModel.provider === provider && otherModel.apiKey) {
+    return otherModel.apiKey;
   }
 
   return "";

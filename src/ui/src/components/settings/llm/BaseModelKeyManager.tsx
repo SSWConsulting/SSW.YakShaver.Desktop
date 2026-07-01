@@ -170,9 +170,9 @@ export function BaseModelKeyManager({
     }
 
     // The checkmark/health indicator must reflect the provider now shown in the dropdown, not
-    // whichever provider happened to be saved before the switch.
-    const savedModelForType = freshConfig?.[modelType];
-    setHasConfig(savedModelForType?.provider === value && !!savedModelForType.apiKey);
+    // whichever provider happened to be saved before the switch. Derive it from the same
+    // savedKey lookup above so it stays consistent with the field it's describing.
+    setHasConfig(!!savedKey);
 
     form.reset({
       provider: value,

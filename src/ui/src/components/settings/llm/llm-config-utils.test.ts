@@ -141,6 +141,26 @@ describe("LLM settings config utilities", () => {
         deepseek: "transcription-key",
       });
     });
+
+    it("does not clobber a just-backfilled key when saving the other slot with an empty key for the same provider", () => {
+      // Both slots use openai, but the cache is missing/stale for it. Submitting the
+      // transcription panel with an empty apiKey (reachable — the form has no required
+      // validation on apiKey) must not wipe out the language model's key from the cache.
+      const sharedProviderNoCache: LLMConfigV2 = {
+        version: 2,
+        languageModel: { provider: "openai", model: "gpt-4", apiKey: "sk-real" },
+        transcriptionModel: { provider: "openai", model: "whisper-1", apiKey: "sk-real" },
+        providerApiKeys: {},
+      };
+
+      const result = buildConfigWithSavedModel(sharedProviderNoCache, "transcriptionModel", {
+        provider: "openai",
+        model: "whisper-1",
+        apiKey: "",
+      });
+
+      expect(result.providerApiKeys).toEqual({ openai: "sk-real" });
+    });
   });
 
   describe("getSavedApiKeyForProvider — provider switch round-trip (#513)", () => {
@@ -188,6 +208,21 @@ describe("LLM settings config utilities", () => {
       // Switching to deepseek, which has never been configured, must not return openai's key.
       const key = getSavedApiKeyForProvider(legacyConfig, "languageModel", "deepseek");
       expect(key).toBe("");
+    });
+
+    it("falls back to the *other* model slot when this slot and the cache have no entry", () => {
+      // Legacy config: only languageModel has ever been saved, providerApiKeys was never
+      // populated. Opening the transcription panel and selecting the same provider must still
+      // find the key that's sitting on the language model slot.
+      const legacyConfig: LLMConfigV2 = {
+        version: 2,
+        languageModel: { provider: "openai", model: "gpt-4", apiKey: "sk-legacy-openai-key" },
+        transcriptionModel: null,
+        providerApiKeys: undefined,
+      };
+
+      const key = getSavedApiKeyForProvider(legacyConfig, "transcriptionModel", "openai");
+      expect(key).toBe("sk-legacy-openai-key");
     });
 
     it("round-trips: switch OpenAI -> DeepSeek -> OpenAI restores the original key", () => {
