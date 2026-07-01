@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { BrowserWindow, screen } from "electron";
+import { applyDevToolsGuard, isProductionBuild } from "../../utils/devtools-guard";
 
 export class CountdownWindow {
   private static instance: CountdownWindow;
@@ -42,8 +43,11 @@ export class CountdownWindow {
         preload: join(__dirname, "../../preload.js"),
         contextIsolation: true,
         nodeIntegration: false,
+        devTools: !isProductionBuild(),
       },
     });
+
+    applyDevToolsGuard(this.window);
 
     // NOTE: there is a bug where the above code doesn't set the correct size and it always ends up
     //       with the size of the primary display, even if a different display is selected.

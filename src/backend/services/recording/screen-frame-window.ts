@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { BrowserWindow, desktopCapturer, screen } from "electron";
+import { applyDevToolsGuard, isProductionBuild } from "../../utils/devtools-guard";
 
 export class ScreenFrameWindow {
   private static instance: ScreenFrameWindow;
@@ -53,8 +54,11 @@ export class ScreenFrameWindow {
         preload: join(__dirname, "../../preload.js"),
         contextIsolation: true,
         nodeIntegration: false,
+        devTools: !isProductionBuild(),
       },
     });
+
+    applyDevToolsGuard(this.window);
 
     // Don't include this window in the recording
     this.window.setContentProtection(true);

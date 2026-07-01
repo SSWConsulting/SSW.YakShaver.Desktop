@@ -39,6 +39,7 @@ import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
 import { TelemetryService } from "./services/telemetry/telemetry-service";
 import { TrayManager } from "./services/tray/tray-manager";
+import { applyDevToolsGuard, isProductionBuild } from "./utils/devtools-guard";
 import { getIconPath } from "./utils/path-utils";
 
 const isDev = process.env.NODE_ENV === "development" || process.argv.includes("--dev-protocol");
@@ -188,18 +189,21 @@ const createWindow = (): BrowserWindow | null => {
       nodeIntegration: false,
       contextIsolation: true,
       preload: join(__dirname, "preload.js"),
+      devTools: !isProductionBuild(),
     },
   });
 
   mainWindow = window;
+  applyDevToolsGuard(window);
 
-  // URLs - by default, open in default browser
+  // URLs - by default, open in default browser. Deny everything else outright
+  // (rather than falling through to `allow`) so no popup window can ever be
+  // spawned without the DevTools guard applied above (#942 review thread).
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
       shell.openExternal(url);
-      return { action: "deny" };
     }
-    return { action: "allow" };
+    return { action: "deny" };
   });
 
   window.once("ready-to-show", () => {
