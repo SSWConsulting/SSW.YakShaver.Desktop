@@ -42,7 +42,7 @@
   },
   "commands": {
     "build": "npm run build",
-    "test": "npm rebuild better-sqlite3 --build-from-source && npx vitest run",
+    "test": "npm rebuild better-sqlite3 --build-from-source && npx vitest run --reporter=verbose --exclude 'src/ui/**' && npm --prefix src/ui test",
     "lint": "npm run lint",
     "format": "npm run format",
     "run": "npm run start"
