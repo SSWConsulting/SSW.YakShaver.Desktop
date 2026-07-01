@@ -55,6 +55,33 @@ function exceedsLengthDelta(original: string, optimized: string): boolean {
 }
 
 /**
+ * How far back from `MAX_OPTIMIZE_INPUT_LENGTH` we're willing to look for a whitespace
+ * boundary to truncate on, instead of cutting at a hard character offset. Keeps the
+ * truncation point word-aware without materially changing how much text is sent to the
+ * LLM. If no whitespace is found within this window (e.g. one giant unbroken token), we
+ * fall back to the hard cut rather than searching the whole string.
+ */
+const TRUNCATION_BOUNDARY_SEARCH_WINDOW = 200;
+
+/**
+ * Finds a safe split point at or before `maxLength` that falls on a whitespace boundary,
+ * so truncation never cuts a word in half. Searches backwards from `maxLength` for the
+ * nearest whitespace within `TRUNCATION_BOUNDARY_SEARCH_WINDOW` characters; if none is
+ * found (no word boundary nearby), falls back to the hard `maxLength` offset.
+ */
+function findTruncationBoundary(text: string, maxLength: number): number {
+  const searchStart = Math.max(0, maxLength - TRUNCATION_BOUNDARY_SEARCH_WINDOW);
+  const window = text.slice(searchStart, maxLength);
+  const lastWhitespaceInWindow = window.search(/\s(?!.*\s)/s);
+
+  if (lastWhitespaceInWindow === -1) {
+    return maxLength;
+  }
+
+  return searchStart + lastWhitespaceInWindow + 1;
+}
+
+/**
  * Optimizes a raw STT transcript by correcting spelling errors and minor
  * grammar issues (e.g. missing articles, misheard words) using an LLM.
  *
@@ -83,10 +110,14 @@ export async function optimizeTranscript(
   }
 
   const isTruncated = rawTranscript.length > MAX_OPTIMIZE_INPUT_LENGTH;
-  const inputTranscript = isTruncated
-    ? rawTranscript.slice(0, MAX_OPTIMIZE_INPUT_LENGTH)
-    : rawTranscript;
-  const remainder = isTruncated ? rawTranscript.slice(MAX_OPTIMIZE_INPUT_LENGTH) : "";
+  // Split on a whitespace boundary at/before the cap rather than a hard character offset,
+  // so a word straddling the MAX_OPTIMIZE_INPUT_LENGTH seam is never split/fused when the
+  // LLM-corrected prefix is later concatenated with the untouched remainder.
+  const truncationBoundary = isTruncated
+    ? findTruncationBoundary(rawTranscript, MAX_OPTIMIZE_INPUT_LENGTH)
+    : rawTranscript.length;
+  const inputTranscript = isTruncated ? rawTranscript.slice(0, truncationBoundary) : rawTranscript;
+  const remainder = isTruncated ? rawTranscript.slice(truncationBoundary) : "";
 
   const userPrompt = `Please correct the following auto-generated transcript:\n\n${inputTranscript}`;
 
@@ -115,7 +146,12 @@ export async function optimizeTranscript(
         `${MAX_OPTIMIZE_INPUT_LENGTH} chars were sent for optimization. Appending the ` +
         "untouched remainder unmodified so no content is lost (partial optimization).",
     );
-    return trimmed + remainder;
+    // `trimmed` had leading/trailing whitespace stripped from the LLM's raw response, so the
+    // whitespace boundary findTruncationBoundary() split on may no longer be present at the
+    // seam. Re-insert a single space when neither side already has boundary whitespace, so the
+    // last word of the optimized prefix is never fused directly onto the first word of remainder.
+    const needsSeparator = remainder.length > 0 && !/\s$/.test(trimmed) && !/^\s/.test(remainder);
+    return needsSeparator ? `${trimmed} ${remainder}` : trimmed + remainder;
   }
 
   return trimmed;

@@ -157,18 +157,24 @@ describe("optimizeTranscript (#693)", () => {
   });
 
   it("does NOT drop content beyond the max input length — the untouched remainder is appended to the result", async () => {
-    const optimizedPrefix = "b".repeat(MAX_OPTIMIZE_INPUT_LENGTH);
-    const remainder = "c".repeat(5_000);
-    const rawTranscript = "a".repeat(MAX_OPTIMIZE_INPUT_LENGTH) + remainder;
+    // Word-like content (with whitespace near the cap) rather than one giant unbroken run of
+    // a single character, so this exercises the normal whitespace-boundary truncation path
+    // rather than the rare no-boundary-found fallback (covered separately above).
+    const optimizedPrefix = "bbb ".repeat(Math.ceil(MAX_OPTIMIZE_INPUT_LENGTH / 4));
+    const remainder = "ccc ".repeat(1_250);
+    const rawTranscript = "aaa ".repeat(Math.ceil(MAX_OPTIMIZE_INPUT_LENGTH / 4)) + remainder;
     // The mocked LLM "corrects" the (truncated) prefix it was sent, keeping length identical
     // so the length-delta guard doesn't reject it.
-    const provider = makeMockProvider(optimizedPrefix);
+    const provider = makeMockProvider("");
+    const generateText = provider.generateText as ReturnType<typeof vi.fn>;
+    generateText.mockImplementation(async () =>
+      optimizedPrefix.slice(0, MAX_OPTIMIZE_INPUT_LENGTH),
+    );
 
     const result = await optimizeTranscript(rawTranscript, provider);
 
     // Full original length must be represented in the output — nothing silently dropped.
     expect(result.length).toBe(rawTranscript.length);
-    expect(result).toBe(optimizedPrefix + remainder);
     expect(result.endsWith(remainder)).toBe(true);
   });
 
@@ -207,5 +213,70 @@ describe("optimizeTranscript (#693)", () => {
     const result = await optimizeTranscript(rawTranscript, provider);
 
     expect(result).toBe(corrected);
+  });
+
+  it("truncates on a whitespace boundary instead of splitting a word at the cap", async () => {
+    // Build a transcript where a long word straddles MAX_OPTIMIZE_INPUT_LENGTH: if truncation
+    // were a hard character-index slice, this word would be split in half.
+    const straddlingWord = "supercalifragilisticexpialidocious";
+    const prefix = "word ".repeat(
+      Math.ceil((MAX_OPTIMIZE_INPUT_LENGTH - straddlingWord.length / 2) / "word ".length),
+    );
+    const rawTranscript = `${prefix}${straddlingWord} more words after the boundary ${"tail ".repeat(200)}`;
+    // Sanity check: the straddling word does actually straddle the hard cutoff.
+    const hardCutIndex = MAX_OPTIMIZE_INPUT_LENGTH;
+    expect(hardCutIndex).toBeGreaterThan(prefix.length);
+    expect(hardCutIndex).toBeLessThan(prefix.length + straddlingWord.length);
+
+    const provider = makeMockProvider("");
+    const generateText = provider.generateText as ReturnType<typeof vi.fn>;
+    generateText.mockImplementation(async (messages: { role: string; content: string }[]) => {
+      const userMessage = messages.find((m) => m.role === "user");
+      const sentTranscript = userMessage?.content.split("\n\n")[1] ?? "";
+      // Echo back unchanged so we can inspect exactly what was sent to the LLM.
+      return sentTranscript;
+    });
+
+    const result = await optimizeTranscript(rawTranscript, provider);
+
+    // The straddling word must appear intact and exactly once in the final result — never
+    // split into two fragments and never duplicated/fused with an adjacent word.
+    const occurrences = result.split(straddlingWord).length - 1;
+    expect(occurrences).toBe(1);
+    expect(result).toContain(` ${straddlingWord} `);
+  });
+
+  it("falls back to a hard cut when no whitespace boundary exists near the cap", async () => {
+    // One giant unbroken token with no whitespace anywhere near MAX_OPTIMIZE_INPUT_LENGTH.
+    const rawTranscript = "a".repeat(MAX_OPTIMIZE_INPUT_LENGTH + 5_000);
+    const provider = makeMockProvider("corrected.");
+
+    await optimizeTranscript(rawTranscript, provider);
+
+    const generateText = provider.generateText as ReturnType<typeof vi.fn>;
+    const messages = generateText.mock.calls[0][0] as { role: string; content: string }[];
+    const userMessage = messages.find((m) => m.role === "user");
+    const sentTranscript = userMessage?.content.split("\n\n")[1] ?? "";
+    expect(sentTranscript.length).toBe(MAX_OPTIMIZE_INPUT_LENGTH);
+  });
+
+  it("inserts a separator at the seam when the optimized prefix and remainder would otherwise fuse", async () => {
+    const rawTranscript = `${"word ".repeat(4000)}tail-remainder-content`;
+    const provider = makeMockProvider("");
+    const generateText = provider.generateText as ReturnType<typeof vi.fn>;
+    generateText.mockImplementation(async (messages: { role: string; content: string }[]) => {
+      const userMessage = messages.find((m) => m.role === "user");
+      const sentTranscript = userMessage?.content.split("\n\n")[1] ?? "";
+      // Simulate an LLM response that has been trimmed of trailing whitespace.
+      return sentTranscript.trim();
+    });
+
+    const result = await optimizeTranscript(rawTranscript, provider);
+
+    // The last word of the (trimmed) optimized prefix ("word") must not be glued directly onto
+    // the remainder's first word ("tail-remainder-content") with no separator between them.
+    expect(result).not.toMatch(/wordtail-remainder-content/);
+    expect(result).toContain(" tail-remainder-content");
+    expect(result.endsWith("tail-remainder-content")).toBe(true);
   });
 });
