@@ -84,11 +84,16 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     try {
       const response = await ipcClient.releaseChannel.listReleases();
       if (response.error) {
+        // Clear any previously-loaded releases (review on #939) — otherwise a token that was
+        // healthy earlier and later becomes invalid/unreachable leaves stale, now-unselectable PR
+        // entries lingering in the dropdown instead of an empty list matching the error state.
+        setReleases([]);
         toast.error(`Failed to load releases: ${response.error}`);
       } else {
         setReleases(response.releases || []);
       }
     } catch (error) {
+      setReleases([]);
       toast.error(`Failed to load releases: ${formatErrorMessage(error)}`);
     } finally {
       setIsLoadingReleases(false);
