@@ -66,6 +66,10 @@ async function makeServices(): Promise<BridgeServices> {
       getSettingsAsync: async () => ({ toolApprovalMode: "ask" }) as never,
       updateSettingsAsync: async () => {},
     },
+    tools: {
+      listTools: async () => [],
+      callTool: async () => ({ ok: false, error: "not used in this test" }),
+    },
   };
 }
 

@@ -569,6 +569,33 @@ Button variants: `default`, `destructive`, `outline`, `secondary`, `ghost`, `lin
 - **External**: Configure via Settings UI (persisted to `mcp-servers.json`)
 - **Internal**: Add to `src/backend/services/mcp/internal/` and register in MCP orchestrator
 
+Both external and internal/in-memory servers are aggregated by `MCPServerManager`
+(`collectToolsWithServerPrefixAsync()` → a single server-prefixed `ToolSet`) and are
+reachable by every orchestration backend through the **MCP front-door** (see below) —
+there is no longer any server kind that the Claude Code orchestrator cannot reach.
+
+### The MCP Front-Door (single `yakshaver` proxy)
+
+The app exposes its **entire aggregated toolset** — external AND internal/in-memory
+servers, server-prefixed — to the Claude Code orchestrator through one proxy MCP
+server instead of re-declaring each upstream server to Claude:
+
+- **CLI subcommand**: `yakshaver mcp-serve` (`src/cli/mcp-serve.ts`) runs a stdio MCP
+  server named `yakshaver`. The orchestrator spawns it via a one-entry `--mcp-config`;
+  to Claude the tools appear as `mcp__yakshaver__<Server__tool>`. It owns no tools of
+  its own — every `tools/list` / `tools/call` is proxied to the running desktop app
+  over the localhost CLI bridge.
+- **Bridge endpoints** (`src/backend/services/cli-bridge/bridge-router.ts`):
+  - `GET /tools` → the full server-prefixed tool list (names + descriptions + JSON
+    Schema). Returns `[]` (never an error) when no enabled servers are healthy.
+  - `POST /tools/call` → executes one tool by name through the app's tool-approval
+    policy SERVER-SIDE, so a headless run never hangs on an interactive prompt
+    (`yolo` runs everything; `ask`/`wait` run only whitelisted tools, otherwise return
+    a structured "not approved" envelope, never a transport error).
+- **Wiring**: `McpToolBridge` (`src/backend/services/mcp/mcp-tool-bridge.ts`) flattens
+  the AI-SDK `ToolSet` into wire summaries and enforces the approval policy; the front
+  door (`mcp-serve.ts`) maps a `{ok:false}` envelope to an MCP `isError` result.
+
 ### Updating Release Workflows
 
 - macOS arm64 and x64 builds generate separate ZIPs but must publish a single update manifest
