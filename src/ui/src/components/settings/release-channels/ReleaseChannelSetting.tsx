@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ipcClient } from "@/services/ipc-client";
-import { formatErrorMessage, getVersionBumpType } from "@/utils";
+import { formatErrorMessage, getVersionBumpType, type VersionBumpType } from "@/utils";
 import { GITHUB_TOKEN_UPDATED_EVENT } from "./GitHubTokenSetting";
 import type { ProcessedRelease, ReleaseChannel } from "./types";
 
@@ -28,10 +28,12 @@ interface DropdownOption {
 
 const SELECT_LATEST = "channel:latest";
 
-const BUMP_TYPE_LABEL: Record<string, string> = {
+const BUMP_TYPE_LABEL: Record<VersionBumpType, string> = {
   major: "Major update",
   minor: "Minor update",
   patch: "Patch update",
+  prerelease: "Pre-release update",
+  downgrade: "Downgrade",
   unknown: "Update",
 };
 
@@ -149,7 +151,13 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
       setUpdateStatus(`Checking ${channelDisplay}...`);
 
       const result = await ipcClient.releaseChannel.checkUpdates();
+      // Sync `currentVersion` state from the authoritative result so the version
+      // card's bump label (which reads `currentVersion` state) and this toast/status
+      // label always agree, even if `loadCurrentVersion()` hadn't resolved yet.
       const effectiveCurrentVersion = result.currentVersion || currentVersion;
+      if (result.currentVersion && result.currentVersion !== currentVersion) {
+        setCurrentVersion(result.currentVersion);
+      }
 
       if (result.error) {
         setUpdateStatus(`Error: ${result.error}`);

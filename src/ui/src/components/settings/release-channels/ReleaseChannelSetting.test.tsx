@@ -117,4 +117,49 @@ describe("ReleaseChannelSetting (#423)", () => {
     });
     expect(screen.queryByText("New Version Available")).not.toBeInTheDocument();
   });
+
+  it("labels a pre-release-only bump distinctly, matching the PR/beta channel's own version scheme (AC3)", async () => {
+    getCurrentVersion.mockResolvedValue({
+      version: "0.6.0-beta.940.1700000000000",
+      commitHash: "abc123",
+    });
+    checkUpdates.mockResolvedValue({
+      available: true,
+      version: "0.6.0-beta.941.1700000001000",
+      currentVersion: "0.6.0-beta.940.1700000000000",
+    });
+
+    render(<ReleaseChannelSetting isActive={true} />);
+    await screen.findByText("0.6.0-beta.940.1700000000000");
+
+    await userEvent.click(screen.getByRole("button", { name: /check for updates/i }));
+
+    const versionCard = await screen.findByText("New Version Available");
+    await waitFor(() => {
+      expect(versionCard.parentElement).toHaveTextContent(/Pre-release update/i);
+    });
+  });
+
+  it("keeps the version card's bump label consistent with the toast when the update check resolves before loadCurrentVersion", async () => {
+    // loadCurrentVersion() never resolves (simulates it not having finished yet), so
+    // `currentVersion` state starts empty; the version card's label must still match
+    // the toast/status label, both driven by the authoritative `result.currentVersion`.
+    getCurrentVersion.mockReturnValue(new Promise(() => {}));
+    checkUpdates.mockResolvedValue({
+      available: true,
+      version: "2.0.0",
+      currentVersion: "1.2.3",
+    });
+
+    render(<ReleaseChannelSetting isActive={true} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /check for updates/i }));
+
+    const versionCard = await screen.findByText("New Version Available");
+    await waitFor(() => {
+      expect(versionCard.parentElement).toHaveTextContent(/Major update/i);
+    });
+    // Toast/status label agrees with the version card.
+    expect(screen.getAllByText(/Major update/i).length).toBeGreaterThan(0);
+  });
 });
