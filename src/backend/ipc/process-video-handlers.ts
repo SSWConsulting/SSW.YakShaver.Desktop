@@ -531,10 +531,13 @@ export class ProcessVideoIPCHandlers {
             languageModelProvider,
           );
         } catch (optimizeError) {
-          // Non-fatal: if optimization fails, fall back to the raw transcript so the workflow can continue
+          // Non-fatal: if optimization fails, fall back to the raw transcript so the workflow can continue.
+          // Still report to telemetry (like every other non-fatal catch in this file) so failures are
+          // observable instead of silently swallowed.
+          const optimizeErrorMessage = formatAndReportError(optimizeError, "transcript_optimization");
           console.warn(
             "[ProcessVideo] Transcript optimization failed, using raw transcript:",
-            optimizeError,
+            optimizeErrorMessage,
           );
           optimizedTranscriptText = transcriptText as string;
         }
@@ -555,10 +558,12 @@ export class ProcessVideoIPCHandlers {
 
         const languageModelProvider = await LanguageModelProvider.getInstance();
 
-        // Use optimized transcript if available; fall back to raw transcriptText.
-        // optimizedTranscriptText is guaranteed by: normal flow sets it in OPTIMIZING_TRANSCRIPT;
-        // retry falls back to raw transcriptText which is validated at entry.
-        const effectiveTranscript = (optimizedTranscriptText ?? transcriptText) as string;
+        // Use optimized transcript if available; fall back to raw transcriptText (logged).
+        const effectiveTranscript = this.resolveEffectiveTranscript(
+          optimizedTranscriptText,
+          transcriptText,
+          "ANALYZING_TRANSCRIPT",
+        );
         const userPrompt = `Process the following transcript into a structured JSON object:
 
       ${effectiveTranscript}`;
@@ -584,11 +589,10 @@ export class ProcessVideoIPCHandlers {
 
         const languageModelProvider = await LanguageModelProvider.getInstance();
 
-        // Select project prompt based on transcript (use optimized if available)
-        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+        // Select project prompt based on transcript (use optimized if available, logged on fallback)
         projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
           languageModelProvider,
-          (optimizedTranscriptText ?? transcriptText) as string,
+          this.resolveEffectiveTranscript(optimizedTranscriptText, transcriptText, "SELECTING_PROMPT"),
           shaveId,
         );
 
@@ -620,9 +624,13 @@ export class ProcessVideoIPCHandlers {
 
         const { orchestrator, backend } = await this.getBacklogOrchestrator();
 
-        // Use optimized transcript if available for the task execution loop; keep the adapter's
-        // audit/UI payload consistent with what actually drives execution below.
-        const effectiveExecutionTranscript = (optimizedTranscriptText ?? transcriptText) as string;
+        // Use optimized transcript if available for the task execution loop (logged on fallback);
+        // keep the adapter's audit/UI payload consistent with what actually drives execution below.
+        const effectiveExecutionTranscript = this.resolveEffectiveTranscript(
+          optimizedTranscriptText,
+          transcriptText,
+          "EXECUTING_TASK",
+        );
 
         const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
           transcriptText: effectiveExecutionTranscript,
@@ -630,7 +638,6 @@ export class ProcessVideoIPCHandlers {
           orchestrator: backend,
         });
 
-        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
         const loopResult = await orchestrator.manualLoopAsync(
           effectiveExecutionTranscript,
           youtubeResult,
@@ -862,6 +869,28 @@ export class ProcessVideoIPCHandlers {
     }
 
     return { orchestrator: await MCPOrchestrator.getInstanceAsync(), backend: "openai" };
+  }
+
+  /**
+   * Resolves the effective transcript to use downstream of OPTIMIZING_TRANSCRIPT: prefers the
+   * optimized transcript, falling back to the raw transcript when it's unavailable (e.g. a retry
+   * resumed without an OPTIMIZING_TRANSCRIPT checkpoint). Logs when the fallback path is taken so
+   * a retry silently regressing to un-optimized text isn't invisible (see workflow-retry-service's
+   * STAGE_REQUIRED_INPUTS, which doesn't yet require optimizedTranscriptText downstream).
+   */
+  private resolveEffectiveTranscript(
+    optimizedTranscriptText: string | undefined,
+    transcriptText: string | undefined,
+    stage: string,
+  ): string {
+    if (optimizedTranscriptText !== undefined) {
+      return optimizedTranscriptText;
+    }
+    console.warn(
+      `[ProcessVideo] optimizedTranscriptText unavailable at ${stage}; falling back to raw transcriptText`,
+    );
+    // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+    return transcriptText as string;
   }
 
   private async formatFinalResult(mcpResult: string | undefined): Promise<string | undefined> {
