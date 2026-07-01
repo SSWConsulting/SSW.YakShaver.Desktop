@@ -1,19 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LanguageModelProvider } from "../mcp/language-model-provider";
 import {
+  MAX_OPTIMIZE_INPUT_LENGTH,
   OPTIMIZE_TRANSCRIPT_SYSTEM_PROMPT,
   optimizeTranscript,
 } from "./optimize-transcript-service";
 
 /**
- * Integration test for the transcript optimization step (#693).
+ * Unit tests for the transcript optimization step (#693).
  *
- * The acceptance criterion requires that the optimized transcript contains the
- * phrase "an error" where the STT engine returned "narrow" (or another
- * homophone). These tests verify that:
+ * These tests cover plumbing and safety-guard behaviour with a mocked LLM — they do
+ * NOT verify that a real LLM call actually performs the "narrow" -> "an error" style
+ * correction described in the acceptance criterion (that quality depends on the live
+ * model and prompt, which isn't something a unit test with a mocked provider can prove).
+ * What is verified here:
  *  1. The system prompt instructs the LLM to fix common STT artefacts.
- *  2. The service passes the raw transcript to the LLM and returns the corrected text.
- *  3. Fallback behaviour works correctly (empty input, LLM failure).
+ *  2. The service passes the raw transcript to the LLM and returns whatever corrected
+ *     text the (mocked) LLM returns.
+ *  3. Fallback and safety-guard behaviour: empty input, LLM failure, oversized input
+ *     truncation, and rejecting outputs that deviate too far in length from the input.
  */
 
 describe("OPTIMIZE_TRANSCRIPT_SYSTEM_PROMPT (#693)", () => {
@@ -54,8 +59,10 @@ describe("optimizeTranscript (#693)", () => {
     expect(result).toBe(corrected);
   });
 
-  it('corrects "narrow" to "an error" as described in acceptance criterion #693', async () => {
-    // The canonical example: STT misheard "an error" as "narrow"
+  it('passes through a "narrow" -> "an error" style correction from the (mocked) LLM (#693 plumbing check)', async () => {
+    // Plumbing-only: this proves optimizeTranscript() returns whatever the LLM returns
+    // verbatim (subject to the length-delta guard below); it does NOT prove a real LLM
+    // performs this correction — that depends on the live model, not this mock.
     const rawTranscript = "There is narrow in the transcription returned narrow instead.";
     const corrected = "There is an error in the transcription returned an error instead.";
     const provider = makeMockProvider(corrected);
@@ -124,5 +131,46 @@ describe("optimizeTranscript (#693)", () => {
     await expect(optimizeTranscript("some transcript", provider)).rejects.toThrow(
       "LLM unavailable",
     );
+  });
+
+  it("truncates the input sent to the LLM when it exceeds the max input length", async () => {
+    const rawTranscript = "a".repeat(MAX_OPTIMIZE_INPUT_LENGTH + 5_000);
+    const provider = makeMockProvider("corrected.");
+
+    await optimizeTranscript(rawTranscript, provider);
+
+    const generateText = provider.generateText as ReturnType<typeof vi.fn>;
+    const messages = generateText.mock.calls[0][0] as { role: string; content: string }[];
+    const userMessage = messages.find((m) => m.role === "user");
+    // The prompt prefix text plus at most MAX_OPTIMIZE_INPUT_LENGTH characters of transcript.
+    expect(userMessage?.content.length).toBeLessThan(rawTranscript.length);
+  });
+
+  it("falls back to the raw transcript when the optimized output is drastically shorter (possible over-summarisation)", async () => {
+    const rawTranscript = "word ".repeat(200).trim();
+    const provider = makeMockProvider("short.");
+
+    const result = await optimizeTranscript(rawTranscript, provider);
+
+    expect(result).toBe(rawTranscript);
+  });
+
+  it("falls back to the raw transcript when the optimized output is drastically longer (possible hallucinated expansion)", async () => {
+    const rawTranscript = "Short transcript.";
+    const provider = makeMockProvider("word ".repeat(200).trim());
+
+    const result = await optimizeTranscript(rawTranscript, provider);
+
+    expect(result).toBe(rawTranscript);
+  });
+
+  it("accepts an optimized output whose length is close to the input (normal spelling/grammar fix)", async () => {
+    const rawTranscript = "I found narrow in the code.";
+    const corrected = "I found an error in the code.";
+    const provider = makeMockProvider(corrected);
+
+    const result = await optimizeTranscript(rawTranscript, provider);
+
+    expect(result).toBe(corrected);
   });
 });
