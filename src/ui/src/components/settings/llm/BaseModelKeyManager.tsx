@@ -1,4 +1,4 @@
-import type { ModelConfig, ProviderName } from "@shared/types/llm";
+import type { LLMConfigV2, ModelConfig, ProviderName } from "@shared/types/llm";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -9,7 +9,11 @@ import { ipcClient } from "../../../services/ipc-client";
 import type { HealthStatusInfo } from "../../../types";
 import { SettingsSection } from "../SettingsSection";
 import { type LLMProvider, LLMProviderForm } from "./LLMProviderForm";
-import { buildConfigWithClearedModel, buildConfigWithSavedModel } from "./llm-config-utils";
+import {
+  buildConfigWithClearedModel,
+  buildConfigWithSavedModel,
+  getSavedApiKeyForProvider,
+} from "./llm-config-utils";
 
 interface BaseModelKeyManagerProps {
   isActive: boolean;
@@ -150,17 +154,25 @@ export function BaseModelKeyManager({
   }, [form, refreshStatus, modelType]);
 
   const handleProviderChange = async (value: LLMProvider) => {
-    // Clear health status for the new provider
+    // Clear health status until we know whether the newly-selected provider is the saved one.
     setHealthStatus(null);
 
-    // Fetch fresh config to restore saved API key for this provider
+    // Fetch fresh config to restore the saved API key for this provider without losing any
+    // other provider's key — providerApiKeys is the durable per-provider cache, but falls back
+    // to the currently-saved model config below for configs that predate that cache.
     let savedKey = "";
+    let freshConfig: LLMConfigV2 | null = null;
     try {
-      const freshConfig = await ipcClient.llm.getConfig();
-      savedKey = freshConfig?.providerApiKeys?.[value as ProviderName] ?? "";
+      freshConfig = await ipcClient.llm.getConfig();
+      savedKey = getSavedApiKeyForProvider(freshConfig, modelType, value as ProviderName);
     } catch (_e) {
       // fall through with empty key
     }
+
+    // The checkmark/health indicator must reflect the provider now shown in the dropdown, not
+    // whichever provider happened to be saved before the switch.
+    const savedModelForType = freshConfig?.[modelType];
+    setHasConfig(savedModelForType?.provider === value && !!savedModelForType.apiKey);
 
     form.reset({
       provider: value,
