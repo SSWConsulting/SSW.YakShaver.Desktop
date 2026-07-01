@@ -534,7 +534,10 @@ export class ProcessVideoIPCHandlers {
           // Non-fatal: if optimization fails, fall back to the raw transcript so the workflow can continue.
           // Still report to telemetry (like every other non-fatal catch in this file) so failures are
           // observable instead of silently swallowed.
-          const optimizeErrorMessage = formatAndReportError(optimizeError, "transcript_optimization");
+          const optimizeErrorMessage = formatAndReportError(
+            optimizeError,
+            "transcript_optimization",
+          );
           console.warn(
             "[ProcessVideo] Transcript optimization failed, using raw transcript:",
             optimizeErrorMessage,
@@ -592,7 +595,11 @@ export class ProcessVideoIPCHandlers {
         // Select project prompt based on transcript (use optimized if available, logged on fallback)
         projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
           languageModelProvider,
-          this.resolveEffectiveTranscript(optimizedTranscriptText, transcriptText, "SELECTING_PROMPT"),
+          this.resolveEffectiveTranscript(
+            optimizedTranscriptText,
+            transcriptText,
+            "SELECTING_PROMPT",
+          ),
           shaveId,
         );
 
