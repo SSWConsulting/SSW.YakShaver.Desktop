@@ -61,6 +61,7 @@ const IPC_CHANNELS = {
   LLM_GET_CONFIG: "llm:get-config",
   LLM_CLEAR_CONFIG: "llm:clear-config",
   LLM_CHECK_HEALTH: "llm:check-health",
+  LLM_CHECK_ORCHESTRATOR_READINESS: "llm:check-orchestrator-readiness",
 
   // MCP
   MCP_PROCESS_MESSAGE: "mcp:process-message",
@@ -255,6 +256,8 @@ const electronAPI = {
     getConfig: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_GET_CONFIG),
     clearConfig: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_CLEAR_CONFIG),
     checkHealth: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_CHECK_HEALTH),
+    checkOrchestratorReadiness: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.LLM_CHECK_ORCHESTRATOR_READINESS),
   },
   mcp: {
     processMessage: (

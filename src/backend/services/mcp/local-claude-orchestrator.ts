@@ -438,6 +438,13 @@ Embed this URL in the task content that you create. Follow user requirements STR
 
     const child = this.spawner.spawn(this.claudeCommand, argv);
 
+    // Always emit a first line so the Executing Task box is never empty, even before Claude
+    // streams anything (and even when its narration ends up terse).
+    options.onStep?.({
+      type: "start",
+      message: "Orchestrating with Claude Code…",
+    });
+
     // The orchestrator role is delivered via `--system-prompt` (in argv), so only the transcript
     // goes on stdin as the user turn. Passing it over stdin avoids argv length limits.
     const userPrompt = `video transcription: ${videoTranscription}`;
@@ -547,9 +554,14 @@ Embed this URL in the task content that you create. Follow user requirements STR
         if (stdoutBuffer.trim()) handleLine(stdoutBuffer);
 
         if (code !== 0 && terminationReason === "unknown") {
+          // A non-zero exit with no result event is most commonly an auth failure (the headless
+          // `claude -p` can't prompt for login, so it exits with an auth error on stderr). Append
+          // actionable guidance so the user isn't left with a bare exit code.
+          const guidance =
+            " Claude Code may not be signed in — run `claude` in a terminal to log in, or switch the Orchestrator to OpenAI in Settings.";
           reject(
             new Error(
-              `Claude Code process exited with code ${code ?? "unknown"}.${stderr ? ` Error: ${stderr}` : ""}`,
+              `Claude Code process exited with code ${code ?? "unknown"}.${stderr ? ` Error: ${stderr}` : ""}${guidance}`,
             ),
           );
           return;
@@ -608,8 +620,10 @@ Embed this URL in the task content that you create. Follow user requirements STR
     if (event.type === "assistant" && event.message?.content) {
       for (const block of event.message.content) {
         if (block.type === "text" && block.text) {
-          // Match the OpenAI loop's payload shape so ReasoningStep's JSON.parse path renders it
-          // (it reads `parsed.text`). Emitting raw text here would render blank in the UI.
+          // The UI's <ReasoningStep> JSON.parses `reasoning` and renders `parsed.text` — matching
+          // how the OpenAI loop emits it. Wrap Claude's raw text the same way; emitting a bare
+          // string would fail that parse and render a BLANK reasoning box (the root cause of the
+          // sparse Executing Task box under the local-claude backend).
           onStep?.({
             type: "reasoning",
             reasoning: JSON.stringify({ type: "text", text: block.text }),

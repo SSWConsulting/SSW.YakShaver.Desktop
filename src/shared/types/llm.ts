@@ -32,6 +32,25 @@ export type OrchestrationBackend = "openai" | "local-claude";
 
 export const DEFAULT_ORCHESTRATION_BACKEND: OrchestrationBackend = "openai";
 
+/**
+ * Readiness of the local Claude Code (`local-claude`) orchestration backend, surfaced to the
+ * settings UI so the user learns BEFORE a run that Claude Code can't be driven.
+ *
+ * - `not-installed`     — the `claude` CLI isn't on PATH.
+ * - `not-authenticated` — the CLI is installed but no credentials were detected.
+ * - `ready`             — installed and (best-effort) authenticated.
+ */
+export type OrchestratorReadinessState = "ready" | "not-installed" | "not-authenticated";
+
+export interface OrchestratorReadiness {
+  installed: boolean;
+  authenticated: boolean;
+  ready: boolean;
+  state: OrchestratorReadinessState;
+  /** Short, user-facing guidance. Empty when ready. */
+  message: string;
+}
+
 export type LLMConfigV1 = ModelConfig & {
   version?: 1;
 };
