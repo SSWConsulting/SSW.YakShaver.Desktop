@@ -294,6 +294,32 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
     );
   });
 
+  it("does not report a network/transport failure as an invalid token — distinguishes offline/DNS/TLS errors from 401 invalid", async () => {
+    // Regression coverage (muster review on #939): verifyGitHubToken()'s catch block surfaces the
+    // raw fetch/DNS/TLS error text (e.g. "fetch failed") rather than "Invalid or expired token" —
+    // isGitHubTokenHealthy() must not collapse that into the generic invalid-token message, since a
+    // user who is simply offline has no evidence their token is actually bad.
+    verifyGitHubTokenMock.mockResolvedValue({ isValid: false, error: "fetch failed" });
+
+    const { ipcMain } = await import("electron");
+    new ReleaseChannelIPCHandlers();
+    const listReleases = getRegisteredHandler(
+      ipcMain.handle as Mock,
+      "release-channel:list-releases",
+    );
+
+    const result = await listReleases();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      releases: [],
+      error: expect.stringMatching(/couldn't verify|network/i),
+    });
+    expect((result as { error?: string }).error).toEqual(
+      expect.not.stringMatching(/invalid or expired/i),
+    );
+  });
+
   it("configureAutoUpdater still (re)starts periodic checks on the unhealthy-token early-return path", async () => {
     // Regression coverage (review on #939): configureAutoUpdater() used to return early on an
     // unhealthy token without reaching the startPeriodicUpdateChecks() call at the end of the

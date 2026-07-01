@@ -48,6 +48,13 @@ const NO_TOKEN_ERROR =
   "A GitHub token is required to list, select, or download PR releases. Add one in Settings | GitHub Token.";
 const RATE_LIMITED_ERROR =
   "GitHub API rate limit exceeded while verifying your token. Your token is fine — try again shortly.";
+// Distinct from INVALID_TOKEN_ERROR (review on #939) — a transport failure (offline, DNS, TLS,
+// timeout, GitHub outage) while calling the GitHub API is not evidence the token itself is bad, so
+// it must not be reported as "invalid or expired" either. verifyGitHubToken()'s catch block is the
+// only path that produces an error string other than "Invalid or expired token" / "Rate limit
+// exceeded", so that's what isNetworkError below keys off.
+const VERIFICATION_UNAVAILABLE_ERROR =
+  "Couldn't verify your GitHub token right now (network error). Check your connection and try again.";
 
 export class ReleaseChannelIPCHandlers {
   private store = ReleaseChannelStorage.getInstance();
@@ -62,6 +69,7 @@ export class ReleaseChannelIPCHandlers {
     checkedAt: number;
     token: string;
     isRateLimited: boolean;
+    isNetworkError: boolean;
     error?: string;
   } | null = null;
   private updateCheckInterval: NodeJS.Timeout | null = null;
@@ -156,18 +164,25 @@ export class ReleaseChannelIPCHandlers {
    * re-verify against the GitHub API.
    *
    * Returns a small status object rather than a bare boolean (review on #919) so callers can tell
-   * apart three distinct states that all render as "not healthy" but need different treatment:
+   * apart four distinct states that all render as "not healthy" but need different treatment:
    *   - no token saved at all — not an error, just an unconfigured feature (NO_TOKEN_ERROR)
    *   - a rate-limited check — the token itself may be fine, GitHub is just throttling us
    *     (RATE_LIMITED_ERROR)
+   *   - a transport failure (offline/DNS/TLS/timeout/GitHub outage) verifying the token — the token
+   *     itself was never actually checked, so this must not read as "invalid" either
+   *     (VERIFICATION_UNAVAILABLE_ERROR, review on #939)
    *   - an actually invalid/expired token (INVALID_TOKEN_ERROR)
    */
-  private async isGitHubTokenHealthy(
-    forceRefresh = false,
-  ): Promise<{ healthy: boolean; noToken: boolean; isRateLimited: boolean; error?: string }> {
+  private async isGitHubTokenHealthy(forceRefresh = false): Promise<{
+    healthy: boolean;
+    noToken: boolean;
+    isRateLimited: boolean;
+    isNetworkError: boolean;
+    error?: string;
+  }> {
     const token = await this.tokenStore.getToken();
     if (!token) {
-      return { healthy: false, noToken: true, isRateLimited: false };
+      return { healthy: false, noToken: true, isRateLimited: false, isNetworkError: false };
     }
 
     if (
@@ -180,41 +195,58 @@ export class ReleaseChannelIPCHandlers {
         healthy: this.tokenHealthCache.isValid,
         noToken: false,
         isRateLimited: this.tokenHealthCache.isRateLimited,
+        isNetworkError: this.tokenHealthCache.isNetworkError,
         error: this.tokenHealthCache.error,
       };
     }
 
     const verification = await verifyGitHubToken(token);
-    // verifyGitHubToken() already distinguishes a 401 ("Invalid or expired token") from a 403
-    // rate-limit ("Rate limit exceeded") in its `error` field — key off that same text rather than
-    // re-deriving it, so this stays in sync with the shared helper without duplicating its logic.
+    // verifyGitHubToken() distinguishes a 401 ("Invalid or expired token") and a 403 rate-limit
+    // ("Rate limit exceeded") from a transport failure — its catch block is the only path that
+    // produces any other error string (the raw fetch/DNS/TLS error text) — key off that same text
+    // rather than re-deriving it, so this stays in sync with the shared helper without duplicating
+    // its logic.
     const isRateLimited = !verification.isValid && verification.error === "Rate limit exceeded";
+    const isNetworkError =
+      !verification.isValid &&
+      !isRateLimited &&
+      verification.error !== undefined &&
+      verification.error !== "Invalid or expired token";
     this.tokenHealthCache = {
       isValid: verification.isValid,
       checkedAt: Date.now(),
       token,
       isRateLimited,
+      isNetworkError,
       error: verification.error,
     };
     return {
       healthy: verification.isValid,
       noToken: false,
       isRateLimited,
+      isNetworkError,
       error: verification.error,
     };
   }
 
   /**
-   * Map an isGitHubTokenHealthy() result to the user-facing error string for the three unhealthy
-   * states (review on #919) — kept in one place so listReleases/checkForUpdates/configureAutoUpdater
-   * all report the same distinction consistently.
+   * Map an isGitHubTokenHealthy() result to the user-facing error string for the four unhealthy
+   * states (review on #919, #939) — kept in one place so listReleases/checkForUpdates/
+   * configureAutoUpdater all report the same distinction consistently.
    */
-  private tokenHealthErrorMessage(health: { noToken: boolean; isRateLimited: boolean }): string {
+  private tokenHealthErrorMessage(health: {
+    noToken: boolean;
+    isRateLimited: boolean;
+    isNetworkError: boolean;
+  }): string {
     if (health.noToken) {
       return NO_TOKEN_ERROR;
     }
     if (health.isRateLimited) {
       return RATE_LIMITED_ERROR;
+    }
+    if (health.isNetworkError) {
+      return VERIFICATION_UNAVAILABLE_ERROR;
     }
     return INVALID_TOKEN_ERROR;
   }
