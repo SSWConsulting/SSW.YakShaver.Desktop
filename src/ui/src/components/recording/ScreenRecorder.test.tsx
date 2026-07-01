@@ -73,11 +73,17 @@ vi.mock("./VideoPreviewModal", () => ({
     onContinue: (auto: boolean) => void;
     onDurationLoad: (duration: number) => void;
   }) => {
-    // The real modal loads the duration before Continue is enabled; mirror that
-    // so handleContinue does not bail on its duration guard.
-    onDurationLoad(42);
     return (
-      <button type="button" data-testid="continue-recording" onClick={() => onContinue(false)}>
+      <button
+        type="button"
+        data-testid="continue-recording"
+        onClick={() => {
+          // The real modal loads duration before Continue can run; mirror that
+          // timing here without updating parent state during render.
+          onDurationLoad(42);
+          onContinue(false);
+        }}
+      >
         Continue
       </button>
     );
