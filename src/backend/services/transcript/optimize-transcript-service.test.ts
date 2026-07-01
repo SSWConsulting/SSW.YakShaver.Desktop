@@ -10,15 +10,19 @@ import {
  * Unit tests for the transcript optimization step (#693).
  *
  * These tests cover plumbing and safety-guard behaviour with a mocked LLM — they do
- * NOT verify that a real LLM call actually performs the "narrow" -> "an error" style
- * correction described in the acceptance criterion (that quality depends on the live
- * model and prompt, which isn't something a unit test with a mocked provider can prove).
- * What is verified here:
- *  1. The system prompt instructs the LLM to fix common STT artefacts.
+ * NOT verify that a real LLM call actually performs STT homophone/mishearing-style
+ * corrections (e.g. "narrow" -> "an error") described in the acceptance criterion
+ * (that quality depends on the live model and prompt, which isn't something a unit
+ * test with a mocked provider can prove). What is verified here:
+ *  1. The system prompt instructs the LLM to fix common STT artefacts, described as
+ *     an abstract error class (not a literal word-pair, to avoid the LLM pattern-matching
+ *     on a specific real word and over-correcting legitimate uses of it elsewhere).
  *  2. The service passes the raw transcript to the LLM and returns whatever corrected
  *     text the (mocked) LLM returns.
  *  3. Fallback and safety-guard behaviour: empty input, LLM failure, oversized input
- *     truncation, and rejecting outputs that deviate too far in length from the input.
+ *     truncation (including that the untouched remainder beyond the cap is preserved
+ *     in full, not dropped), and rejecting outputs that deviate too far in length from
+ *     the (possibly truncated) input.
  */
 
 describe("OPTIMIZE_TRANSCRIPT_SYSTEM_PROMPT (#693)", () => {
@@ -32,9 +36,15 @@ describe("OPTIMIZE_TRANSCRIPT_SYSTEM_PROMPT (#693)", () => {
     expect(OPTIMIZE_TRANSCRIPT_SYSTEM_PROMPT.toLowerCase()).toMatch(/meaning/);
   });
 
-  it("explicitly calls out word confusions as an STT artefact to fix", () => {
-    // The canonical example from the issue: STT returns "narrow" instead of "an error"
-    expect(OPTIMIZE_TRANSCRIPT_SYSTEM_PROMPT).toMatch(/narrow.*an error|an error.*narrow/i);
+  it("describes homophone/mishearing confusion as an STT artefact to fix, without a literal word-pair example", () => {
+    // The error class from the issue (STT substituting a similar-sounding real word, e.g.
+    // "narrow" for "an error") should be described abstractly, not as a literal example pair —
+    // a verbatim example risks the LLM pattern-matching on that specific word and over-correcting
+    // legitimate uses of it elsewhere in the transcript.
+    expect(OPTIMIZE_TRANSCRIPT_SYSTEM_PROMPT.toLowerCase()).toMatch(
+      /similar-sounding|homophone|mishear/,
+    );
+    expect(OPTIMIZE_TRANSCRIPT_SYSTEM_PROMPT).not.toMatch(/narrow.*an error|an error.*narrow/i);
   });
 
   it("instructs the LLM to output ONLY the corrected transcript text", () => {
@@ -144,6 +154,31 @@ describe("optimizeTranscript (#693)", () => {
     const userMessage = messages.find((m) => m.role === "user");
     // The prompt prefix text plus at most MAX_OPTIMIZE_INPUT_LENGTH characters of transcript.
     expect(userMessage?.content.length).toBeLessThan(rawTranscript.length);
+  });
+
+  it("does NOT drop content beyond the max input length — the untouched remainder is appended to the result", async () => {
+    const optimizedPrefix = "b".repeat(MAX_OPTIMIZE_INPUT_LENGTH);
+    const remainder = "c".repeat(5_000);
+    const rawTranscript = "a".repeat(MAX_OPTIMIZE_INPUT_LENGTH) + remainder;
+    // The mocked LLM "corrects" the (truncated) prefix it was sent, keeping length identical
+    // so the length-delta guard doesn't reject it.
+    const provider = makeMockProvider(optimizedPrefix);
+
+    const result = await optimizeTranscript(rawTranscript, provider);
+
+    // Full original length must be represented in the output — nothing silently dropped.
+    expect(result.length).toBe(rawTranscript.length);
+    expect(result).toBe(optimizedPrefix + remainder);
+    expect(result.endsWith(remainder)).toBe(true);
+  });
+
+  it("does not append a remainder when the transcript is within the max input length", async () => {
+    const rawTranscript = "Short transcript within the limit.";
+    const provider = makeMockProvider(rawTranscript);
+
+    const result = await optimizeTranscript(rawTranscript, provider);
+
+    expect(result).toBe(rawTranscript);
   });
 
   it("falls back to the raw transcript when the optimized output is drastically shorter (possible over-summarisation)", async () => {
