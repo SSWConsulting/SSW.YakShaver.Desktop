@@ -8,6 +8,7 @@ import {
   ProgressStage as WorkflowProgressStage,
   type WorkflowState,
 } from "../../shared/types/workflow";
+import type { OrchestratorBackend } from "../../shared/types/workflow-payloads";
 import { INITIAL_SUMMARY_PROMPT, TASK_EXECUTION_PROMPT } from "../constants/prompts";
 import { IdentityServerAuthService } from "../services/auth/identity-server-auth";
 import type { VideoUploadResult } from "../services/auth/types";
@@ -48,7 +49,7 @@ import {
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
-export type { VideoProcessingContext, RetryResult };
+export type { RetryResult, VideoProcessingContext };
 
 export const TranscriptSummarySchema = z.object({
   taskType: z.string(),
@@ -145,9 +146,12 @@ export class ProcessVideoIPCHandlers {
               ? this.lastVideoFilePath
               : undefined;
 
-          const mcpAdapter = new McpWorkflowAdapter(workflowManager);
+          const { orchestrator, backend } = await this.getBacklogOrchestrator();
 
-          const orchestrator = await this.getBacklogOrchestrator();
+          const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
+            orchestrator: backend,
+          });
+
           const loopResult = await orchestrator.manualLoopAsync(
             intermediateOutput,
             videoUploadResult,
@@ -579,12 +583,13 @@ export class ProcessVideoIPCHandlers {
 
         const serverFilter = projectDetails?.selectedMcpServerIds;
 
+        const { orchestrator, backend } = await this.getBacklogOrchestrator();
+
         const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
           transcriptText,
           intermediateOutput,
+          orchestrator: backend,
         });
-
-        const orchestrator = await this.getBacklogOrchestrator();
 
         // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
         const loopResult = await orchestrator.manualLoopAsync(
@@ -794,11 +799,17 @@ export class ProcessVideoIPCHandlers {
    * `local-claude` drives the step with a headless `claude -p`; anything else (including a config
    * with no `orchestrationBackend` field) uses the in-process OpenAI loop. Falls back to OpenAI if
    * the config can't be read so the stage never hard-fails on a config hiccup.
+   *
+   * Returns the chosen orchestrator alongside a UI-facing `backend` label (stamped into the
+   * Executing Task payload so the stage card can badge which orchestrator is active).
    */
-  private async getBacklogOrchestrator(): Promise<IBacklogOrchestrator> {
-    let backend: string | undefined;
+  private async getBacklogOrchestrator(): Promise<{
+    orchestrator: IBacklogOrchestrator;
+    backend: OrchestratorBackend;
+  }> {
+    let configuredBackend: string | undefined;
     try {
-      backend = (await LlmStorage.getInstance().getLLMConfig())?.orchestrationBackend;
+      configuredBackend = (await LlmStorage.getInstance().getLLMConfig())?.orchestrationBackend;
     } catch (error) {
       console.warn(
         "[ProcessVideo] Failed to read orchestration backend, defaulting to OpenAI",
@@ -806,12 +817,12 @@ export class ProcessVideoIPCHandlers {
       );
     }
 
-    if (backend === "local-claude") {
+    if (configuredBackend === "local-claude") {
       console.log("[ProcessVideo] Using local Claude Code orchestrator");
-      return new LocalClaudeOrchestrator();
+      return { orchestrator: new LocalClaudeOrchestrator(), backend: "claude-code" };
     }
 
-    return await MCPOrchestrator.getInstanceAsync();
+    return { orchestrator: await MCPOrchestrator.getInstanceAsync(), backend: "openai" };
   }
 
   private async formatFinalResult(mcpResult: string | undefined): Promise<string | undefined> {

@@ -298,12 +298,14 @@ describe("LocalClaudeOrchestrator", () => {
         onStep: (s) => steps.push(s),
       });
 
-      // stdin received the system prompt + transcript
+      // stdin received the transcript as the user turn (the system prompt goes via argv)
       expect(runChild.stdin.write).toHaveBeenCalled();
       const written = (runChild.stdin.write as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
       expect(written).toContain("video transcription: a bug report");
 
       const types = steps.map((s) => s.type);
+      // A `start` step is always emitted first so the Executing Task box is never empty.
+      expect(types[0]).toBe("start");
       expect(types).toContain("reasoning");
       expect(types).toContain("tool_call");
       expect(types).toContain("tool_result");
