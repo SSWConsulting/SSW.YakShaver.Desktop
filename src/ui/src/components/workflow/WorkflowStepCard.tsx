@@ -40,7 +40,7 @@ function OrchestratorBadge({ backend }: { backend: OrchestratorBackend }) {
       <Badge
         variant="outline"
         className="border-amber-400/40 bg-amber-400/10 text-amber-300"
-        title="Orchestrated by the Claude Code CLI on this machine — uses your Claude Code sign-in, no API key"
+        title="Orchestrated by the Claude Code CLI on this machine — uses your Claude Code sign-in instead of an Anthropic API key"
       >
         <Sparkles className="size-3" />
         Claude Code

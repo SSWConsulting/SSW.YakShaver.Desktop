@@ -44,6 +44,11 @@ const BACKEND_LABELS: Record<OrchestrationBackend, string> = {
   "local-claude": "Claude Code",
 };
 
+/** Narrows a raw Select value to a known backend, so `onValueChange` doesn't rely on a bare cast. */
+function isOrchestrationBackend(value: string): value is OrchestrationBackend {
+  return BACKEND_OPTIONS.some((option) => option.id === value);
+}
+
 export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSettingProps) {
   const [currentBackend, setCurrentBackend] = useState<OrchestrationBackend>(
     DEFAULT_ORCHESTRATION_BACKEND,
@@ -54,7 +59,9 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
   const [isCheckingReadiness, setIsCheckingReadiness] = useState<boolean>(false);
 
   // Probe whether the Claude Code backend is actually usable (CLI installed + signed in). Cheap and
-  // non-blocking; the result drives the warning + instructions below.
+  // non-blocking; the result drives the warning + instructions below. Only relevant for the
+  // local-claude backend — it spawns `claude --version`, so skip (and clear) it for OpenAI to
+  // avoid spawning the CLI when Claude Code isn't in use.
   const checkReadiness = useCallback(async () => {
     setIsCheckingReadiness(true);
     try {
@@ -79,7 +86,15 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
       try {
         const cfg = await ipcClient.llm.getConfig();
         if (!cancelled) {
-          setCurrentBackend(cfg?.orchestrationBackend ?? DEFAULT_ORCHESTRATION_BACKEND);
+          const backend = cfg?.orchestrationBackend ?? DEFAULT_ORCHESTRATION_BACKEND;
+          setCurrentBackend(backend);
+          // Only probe Claude Code readiness when it's the selected backend; otherwise clear any
+          // stale result so a prior local-claude warning doesn't linger under OpenAI.
+          if (backend === "local-claude") {
+            void checkReadiness();
+          } else {
+            setReadiness(null);
+          }
         }
       } catch (error) {
         console.error("Failed to load orchestrator backend setting", error);
@@ -92,7 +107,6 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
     };
 
     void load();
-    void checkReadiness();
     return () => {
       cancelled = true;
     };
@@ -143,14 +157,16 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
         <CardDescription>
           Choose which backend drives backlog creation. Claude Code requires the{" "}
           <code className="rounded bg-white/10 px-1 py-0.5 text-xs">claude</code> CLI installed, and
-          uses your Claude Code sign-in (no API key).
+          uses your Claude Code sign-in instead of an Anthropic API key.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-2 px-4">
         <Select
           value={currentBackend}
-          onValueChange={(value) => void handleSelect(value as OrchestrationBackend)}
+          onValueChange={(value) => {
+            if (isOrchestrationBackend(value)) void handleSelect(value);
+          }}
           disabled={isLoading || pendingBackend !== null}
         >
           <SelectTrigger className="w-full md:w-72" aria-label="Orchestrator backend">
