@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
+import type { GitHubTokenVerification } from "../services/github/github-token-verifier";
+import { verifyGitHubToken } from "../services/github/github-token-verifier";
 import { GitHubTokenStorage } from "../services/storage/github-token-storage";
-import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export class GitHubTokenIPCHandlers {
@@ -30,66 +31,8 @@ export class GitHubTokenIPCHandlers {
     return await this.store.hasToken();
   }
 
-  private async verifyToken(): Promise<{
-    isValid: boolean;
-    username?: string;
-    scopes?: string[];
-    rateLimitRemaining?: number;
-    error?: string;
-  }> {
-    try {
-      const token = await this.store.getToken();
-      if (!token) {
-        return { isValid: false, error: "No token configured" };
-      }
-
-      const response = await fetch("https://api.github.com/user", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-          "User-Agent": "SSW-YakShaver-Desktop",
-        },
-      });
-
-      // Extract scopes and rate limit info from headers even on non-200
-      const scopesHeader = response.headers.get("x-oauth-scopes") || "";
-      const scopes = scopesHeader
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      const rateLimitRemainingHeader = response.headers.get("x-ratelimit-remaining");
-      const rateLimitRemaining = rateLimitRemainingHeader
-        ? Number.parseInt(rateLimitRemainingHeader, 10)
-        : undefined;
-
-      if (!response.ok) {
-        let errorMessage = response.statusText;
-        if (response.status === 401) {
-          errorMessage = "Invalid or expired token";
-        } else if (response.status === 403) {
-          if (rateLimitRemaining === 0) {
-            errorMessage = "Rate limit exceeded";
-          }
-        }
-        return {
-          isValid: false,
-          scopes,
-          rateLimitRemaining,
-          error: errorMessage,
-        };
-      }
-
-      const userData = await response.json();
-      const username: string | undefined = userData?.login;
-
-      return {
-        isValid: true,
-        username,
-        scopes,
-        rateLimitRemaining,
-      };
-    } catch (error) {
-      return { isValid: false, error: formatAndReportError(error, "github_token") };
-    }
+  private async verifyToken(): Promise<GitHubTokenVerification> {
+    const token = await this.store.getToken();
+    return verifyGitHubToken(token);
   }
 }
