@@ -85,10 +85,25 @@ vi.mock("./VideoPreviewModal", () => ({
   },
 }));
 
-// The upload sub-button's title changes when it's disabled (see
+// The upload sub-button's title changes depending on why it's disabled (see
 // RecordButton's uploadTitle in ScreenRecorder.tsx), so match on the
 // invariant "Process YouTube URL" prefix rather than the exact string.
-const processYoutubeLink = () => screen.queryByTitle(/^Process YouTube URL/);
+//
+// The tooltip `title` lives on the non-disabled wrapper <span>, not on the
+// <button> itself — a disabled native <button> never receives hover events
+// in a real browser (Chromium's `disabled:pointer-events-none`), so the
+// title has to sit on an element that stays interactive (#947 follow-up).
+// The <button> keeps a matching `aria-label` for its accessible name and is
+// still the element callers need for `toBeDisabled()`/click assertions, so
+// resolve from the title-bearing wrapper down to its inner <button>.
+const processYoutubeLink = () => {
+  const wrapper = screen.queryByTitle(/^Process YouTube URL/);
+  return wrapper?.querySelector("button") ?? null;
+};
+// Reads the hover-tooltip text itself, which lives on the wrapper span (see
+// processYoutubeLink above) rather than on the <button>.
+const processYoutubeLinkTooltip = () =>
+  screen.queryByTitle(/^Process YouTube URL/)?.getAttribute("title") ?? null;
 
 describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => {
   beforeEach(() => {
@@ -148,23 +163,26 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
     expect(processYoutubeLink()).toBeDisabled();
+    // #947 follow-up: the isRecording branch has its own tooltip copy,
+    // distinct from the isDisabled and post-commit branches — assert it
+    // explicitly rather than only checking toBeDisabled().
+    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable while recording)");
   });
 
-  it("disables the Process YouTube link with an 'unavailable right now' title when disabled solely via isDisabled (#947)", async () => {
+  it("disables the Process YouTube link with a sign-in-specific title when disabled via !isAuthenticated (#947)", async () => {
     // isDisabled (auth/processing/transcribing) is a distinct disable cause
     // from uploadActionDisabled (recording/video-committed). Drive it via
-    // "not authenticated" — no recording made, no video committed — so
-    // uploadActionDisabled is false and only isDisabled applies. Before
-    // #947's follow-up fix this left the tooltip reading the plain,
-    // unqualified "Process YouTube URL" with no explanation.
-    state.authStatus = "unauthenticated";
+    // AuthStatus.NOT_AUTHENTICATED (the real enum member — not an ad hoc
+    // string) — no recording made, no video committed — so
+    // uploadActionDisabled is false and only the !isAuthenticated sub-cause
+    // of isDisabled applies. Unlike the transient processing/transcribing
+    // sub-causes, signing in requires user action, so it gets its own copy
+    // rather than the generic "unavailable right now".
+    state.authStatus = AuthStatus.NOT_AUTHENTICATED;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
     expect(processYoutubeLink()).toBeDisabled();
-    expect(processYoutubeLink()).toHaveAttribute(
-      "title",
-      "Process YouTube URL (unavailable right now)",
-    );
+    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable until you sign in)");
   });
 
   it("gives the post-commit disabled title an accurate, permanent-for-session explanation (#947)", async () => {
@@ -177,9 +195,8 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
     fireEvent.click(await screen.findByTestId("continue-recording"));
 
     await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
-    expect(processYoutubeLink()).toHaveAttribute(
-      "title",
-      "Process YouTube URL (unavailable — only one video per session is supported)",
+    expect(processYoutubeLinkTooltip()).toBe(
+      "Process YouTube URL (unavailable because only one video per session is supported)",
     );
   });
 
