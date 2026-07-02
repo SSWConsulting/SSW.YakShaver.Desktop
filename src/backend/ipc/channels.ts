@@ -137,4 +137,7 @@ export const IPC_CHANNELS = {
   TELEMETRY_UPDATE_SETTINGS: "telemetry:update-settings",
   TELEMETRY_GET_CONSENT_STATUS: "telemetry:get-consent-status",
   TELEMETRY_REQUEST_CONSENT: "telemetry:request-consent",
+
+  // Cloud 360 orchestration
+  CLOUD360_EVENT: "cloud-360:event",
 } as const;
