@@ -140,4 +140,5 @@ export const IPC_CHANNELS = {
 
   // Cloud 360 orchestration
   CLOUD360_EVENT: "cloud-360:event",
+  CLOUD360_LIST_PROJECTS: "cloud-360:list-projects",
 } as const;

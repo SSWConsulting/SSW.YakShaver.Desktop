@@ -10,6 +10,7 @@ import { registerEventForwarders } from "./events/event-forwarder";
 import { AppControlIPCHandlers } from "./ipc/app-control-handlers";
 import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { IPC_CHANNELS } from "./ipc/channels";
+import { Cloud360IPCHandlers } from "./ipc/cloud-360-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
 import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { IdentityServerAuthIPCHandlers } from "./ipc/identity-server-auth-handlers";
@@ -434,6 +435,7 @@ app.whenReady().then(async () => {
     console.error("Failed to initialize IdentityServer Auth:", error);
   }
   _processVideoHandlers = new ProcessVideoIPCHandlers();
+  new Cloud360IPCHandlers();
 
   try {
     _llmSettingsHandlers = new LLMSettingsIPCHandlers();
