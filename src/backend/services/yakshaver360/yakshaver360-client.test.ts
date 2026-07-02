@@ -16,6 +16,11 @@ vi.mock("../../config/env", () => ({
   },
 }));
 
+vi.mock("node:fs/promises", () => ({
+  readFile: vi.fn(async () => Buffer.from("fake-video-bytes")),
+}));
+
+import { readFile } from "node:fs/promises";
 import { config } from "../../config/env";
 import { IdentityServerAuthService } from "../auth/identity-server-auth";
 import type { SandboxEvent } from "./types";
@@ -78,6 +83,7 @@ function freshClient(): YakShaver360Client {
 describe("YakShaver360Client", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    (readFile as ReturnType<typeof vi.fn>).mockClear();
     (config.yakshaver360BaseUrl as ReturnType<typeof vi.fn>).mockReturnValue("https://360.test");
   });
 
@@ -230,6 +236,99 @@ describe("YakShaver360Client", () => {
       vi.spyOn(IdentityServerAuthService.prototype, "getAccessToken").mockResolvedValue(null);
       vi.stubGlobal("fetch", vi.fn());
       await expect(client.listRecordings("p1")).rejects.toThrow(/not signed in/i);
+    });
+  });
+
+  describe("uploadRecordingFromFile (blob upload)", () => {
+    const target = {
+      blobName: "blob-1",
+      uploadUrl: "https://sa.blob.core.windows.net/c/blob-1?sig=xyz",
+      expiresAt: "2099-01-01T00:00:00Z",
+      uploadTicket: "signed-ticket",
+    };
+
+    it("runs upload-target -> Azure PUT -> create recording and returns the id", async () => {
+      const client = freshClient();
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(target)) // createUploadTarget
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 201,
+          text: async () => "",
+        } as unknown as Response) // Azure PUT
+        .mockResolvedValueOnce(jsonResponse({ id: "rec-9" })); // createRecording
+      vi.stubGlobal("fetch", fetchMock);
+
+      const id = await client.uploadRecordingFromFile({
+        projectId: "p1",
+        filePath: "C:/tmp/clip.webm",
+        durationSeconds: 42,
+        notes: "hi",
+      });
+
+      expect(id).toBe("rec-9");
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+
+      const [uploadUrl, uploadOpts] = fetchMock.mock.calls[0];
+      expect(uploadUrl).toBe("https://360.test/api/360/recordings/upload");
+      expect(JSON.parse(uploadOpts.body)).toEqual({
+        projectId: "p1",
+        contentType: "video/webm",
+        durationSeconds: 42,
+        fileExtension: "webm",
+      });
+
+      // Azure PUT: SAS url, blob headers, and crucially NO Authorization.
+      const [azureUrl, azureOpts] = fetchMock.mock.calls[1];
+      expect(azureUrl).toBe(target.uploadUrl);
+      expect(azureOpts.method).toBe("PUT");
+      expect(azureOpts.headers["x-ms-blob-type"]).toBe("BlockBlob");
+      expect(azureOpts.headers.Authorization).toBeUndefined();
+
+      const [createUrl, createOpts] = fetchMock.mock.calls[2];
+      expect(createUrl).toBe("https://360.test/api/360/recordings");
+      expect(JSON.parse(createOpts.body)).toEqual({
+        projectId: "p1",
+        uploadTicket: "signed-ticket",
+        durationSeconds: 42,
+        notes: "hi",
+      });
+    });
+
+    it("rejects an unsupported file type before making any request", async () => {
+      const client = freshClient();
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        client.uploadRecordingFromFile({
+          projectId: "p1",
+          filePath: "note.txt",
+          durationSeconds: 5,
+        }),
+      ).rejects.toThrow(/unsupported video type/i);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(readFile).not.toHaveBeenCalled();
+    });
+
+    it("surfaces the route error when the upload target is rejected", async () => {
+      const client = freshClient();
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse({ error: "Project not found" }, { ok: false, status: 404 }),
+          ),
+      );
+      await expect(
+        client.uploadRecordingFromFile({
+          projectId: "p1",
+          filePath: "clip.mp4",
+          durationSeconds: 5,
+        }),
+      ).rejects.toThrow(/project not found/i);
     });
   });
 });

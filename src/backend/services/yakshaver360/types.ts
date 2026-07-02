@@ -31,3 +31,11 @@ export interface ProcessRecordingOptions {
   videoAnalysis?: boolean;
   autoExecute?: boolean;
 }
+
+/** Response of POST /api/360/recordings/upload: a signed Azure target plus the ticket to claim it. */
+export interface RecordingUploadTarget {
+  blobName: string;
+  uploadUrl: string;
+  expiresAt: string;
+  uploadTicket: string;
+}

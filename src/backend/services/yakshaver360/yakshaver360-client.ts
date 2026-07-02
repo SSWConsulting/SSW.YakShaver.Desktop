@@ -1,11 +1,14 @@
+import { readFile } from "node:fs/promises";
 import { config } from "../../config/env";
 import { IdentityServerAuthService } from "../auth/identity-server-auth";
 import type {
   ProcessRecordingOptions,
+  RecordingUploadTarget,
   SandboxEvent,
   YakShaver360Project,
   YakShaver360Recording,
 } from "./types";
+import { contentTypeForFile, extensionForContentType } from "./upload-content-type";
 
 export type RecordingDetail = {
   recording: YakShaver360Recording;
@@ -81,6 +84,78 @@ export class YakShaver360Client {
     }
     const { id } = (await response.json()) as { id: string };
     return id;
+  }
+
+  /** Request a signed Azure upload target (POST /api/360/recordings/upload). */
+  async createUploadTarget(params: {
+    projectId: string;
+    contentType: string;
+    durationSeconds: number;
+    fileExtension: string;
+  }): Promise<RecordingUploadTarget> {
+    const headers = await this.authHeader();
+    const url = `${this.baseUrl()}/api/360/recordings/upload`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error ?? `Failed to prepare upload (${response.status})`);
+    }
+    return (await response.json()) as RecordingUploadTarget;
+  }
+
+  /** PUT the video bytes straight to Azure Blob Storage using the signed SAS url (no bearer). */
+  async uploadToAzureBlob(uploadUrl: string, data: Buffer, contentType: string): Promise<void> {
+    const response = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": contentType,
+        "x-ms-blob-content-type": contentType,
+        "x-ms-blob-type": "BlockBlob",
+      },
+      body: new Uint8Array(data),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(detail || `Blob upload failed (${response.status})`);
+    }
+  }
+
+  /**
+   * Upload a local video file and create its recording, returning the recording id.
+   * Runs the same three steps as the 360 web app: upload target -> Azure PUT -> create recording.
+   */
+  async uploadRecordingFromFile(params: {
+    projectId: string;
+    filePath: string;
+    durationSeconds: number;
+    notes?: string;
+  }): Promise<string> {
+    const contentType = contentTypeForFile(params.filePath);
+    if (!contentType) {
+      throw new Error(`Unsupported video type for ${params.filePath} (expected webm/mp4/mov/mkv).`);
+    }
+    const fileExtension = extensionForContentType(contentType) ?? "webm";
+
+    const target = await this.createUploadTarget({
+      projectId: params.projectId,
+      contentType,
+      durationSeconds: params.durationSeconds,
+      fileExtension,
+    });
+
+    const data = await readFile(params.filePath);
+    await this.uploadToAzureBlob(target.uploadUrl, data, contentType);
+
+    return this.createRecording({
+      projectId: params.projectId,
+      uploadTicket: target.uploadTicket,
+      durationSeconds: params.durationSeconds,
+      notes: params.notes,
+    });
   }
 
   /** Start processing a recording, yielding each SandboxEvent as the SSE stream produces it. */
