@@ -91,9 +91,26 @@ function RecordButton({
     );
   }
 
-  const uploadTitle = uploadActionDisabled
-    ? "Process YouTube URL (unavailable until this video finishes processing)"
-    : "Process YouTube URL";
+  // The upload sub-button can be disabled for two independent reasons, and
+  // the tooltip must explain whichever one actually applies (#947 follow-up:
+  // an unqualified "Process YouTube URL" title on a disabled control is the
+  // same "looks broken" problem #946 set out to fix, just for a different
+  // cause):
+  //  - `isDisabled` (auth/processing/transcribing) — a transient, app-wide
+  //    gate that also disables the primary record button.
+  //  - `uploadActionDisabled` (isRecording || videoCommitted) — the
+  //    single-video-per-session gate (#775). Once a video is committed this
+  //    is permanent for the rest of the session (there is no reset), so the
+  //    copy says so rather than implying it clears when processing finishes.
+  const uploadDisabled = isDisabled || uploadActionDisabled;
+  let uploadTitle = "Process YouTube URL";
+  if (isDisabled) {
+    uploadTitle = "Process YouTube URL (unavailable right now)";
+  } else if (isRecording) {
+    uploadTitle = "Process YouTube URL (unavailable while recording)";
+  } else if (uploadActionDisabled) {
+    uploadTitle = "Process YouTube URL (unavailable — only one video per session is supported)";
+  }
 
   return (
     <div className={cn("flex w-full rounded-md overflow-hidden", className)}>
@@ -111,7 +128,7 @@ function RecordButton({
         className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
         size="chunky"
         onClick={onUploadClick}
-        disabled={isDisabled || uploadActionDisabled}
+        disabled={uploadDisabled}
         title={uploadTitle}
       >
         <Upload className="h-4 w-4" />

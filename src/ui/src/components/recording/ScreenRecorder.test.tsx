@@ -8,6 +8,7 @@ import { ScreenRecorder } from "./ScreenRecorder";
 const state = vi.hoisted(() => ({
   isYoutubeUrlWorkflowEnabled: true,
   isRecording: false,
+  authStatus: "authenticated" as string,
   uploadStatus: "idle" as UploadStatus,
   // The recorded video returned by stop(); when set, "Continue" drives the
   // real handleContinue path that marks a recording as made.
@@ -27,7 +28,7 @@ vi.mock("../../contexts/AdvancedSettingsContext", () => ({
 
 vi.mock("../../contexts/YouTubeAuthContext", () => ({
   useYouTubeAuth: () => ({
-    authState: { status: AuthStatus.AUTHENTICATED, userInfo: { name: "Tester" } },
+    authState: { status: state.authStatus, userInfo: { name: "Tester" } },
     uploadStatus: state.uploadStatus,
     setUploadResult: vi.fn(),
     setUploadStatus: vi.fn(),
@@ -93,6 +94,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
   beforeEach(() => {
     state.isYoutubeUrlWorkflowEnabled = true;
     state.isRecording = false;
+    state.authStatus = AuthStatus.AUTHENTICATED;
     state.uploadStatus = UploadStatus.IDLE;
     state.recordedVideo = { blob: new Blob(), filePath: "/tmp/rec.webm", fileName: "rec.webm" };
     state.saveRecording = vi.fn().mockResolvedValue({ data: { id: "shave-1" } });
@@ -146,6 +148,39 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
     expect(processYoutubeLink()).toBeDisabled();
+  });
+
+  it("disables the Process YouTube link with an 'unavailable right now' title when disabled solely via isDisabled (#947)", async () => {
+    // isDisabled (auth/processing/transcribing) is a distinct disable cause
+    // from uploadActionDisabled (recording/video-committed). Drive it via
+    // "not authenticated" — no recording made, no video committed — so
+    // uploadActionDisabled is false and only isDisabled applies. Before
+    // #947's follow-up fix this left the tooltip reading the plain,
+    // unqualified "Process YouTube URL" with no explanation.
+    state.authStatus = "unauthenticated";
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+    expect(processYoutubeLink()).toBeDisabled();
+    expect(processYoutubeLink()).toHaveAttribute(
+      "title",
+      "Process YouTube URL (unavailable right now)",
+    );
+  });
+
+  it("gives the post-commit disabled title an accurate, permanent-for-session explanation (#947)", async () => {
+    // videoCommitted is never reset once set, so the disabled title must not
+    // imply the wait is transient ("until this video finishes processing").
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+
+    await act(async () => state.stopRequestHandler?.());
+    fireEvent.click(await screen.findByTestId("continue-recording"));
+
+    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
+    expect(processYoutubeLink()).toHaveAttribute(
+      "title",
+      "Process YouTube URL (unavailable — only one video per session is supported)",
+    );
   });
 
   it("does not show the Process YouTube link when the workflow is disabled", async () => {
