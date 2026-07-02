@@ -84,9 +84,12 @@ vi.mock("./VideoPreviewModal", () => ({
   },
 }));
 
-const processYoutubeLink = () => screen.queryByTitle("Process YouTube URL");
+// The upload sub-button's title changes when it's disabled (see
+// RecordButton's uploadTitle in ScreenRecorder.tsx), so match on the
+// invariant "Process YouTube URL" prefix rather than the exact string.
+const processYoutubeLink = () => screen.queryByTitle(/^Process YouTube URL/);
 
-describe("ScreenRecorder - Process YouTube link visibility (#775)", () => {
+describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => {
   beforeEach(() => {
     state.isYoutubeUrlWorkflowEnabled = true;
     state.isRecording = false;
@@ -120,9 +123,10 @@ describe("ScreenRecorder - Process YouTube link visibility (#775)", () => {
   it("shows the Process YouTube link before any recording is made (AC2)", async () => {
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+    expect(processYoutubeLink()).toBeEnabled();
   });
 
-  it("hides the Process YouTube link once a recording has been made (AC1)", async () => {
+  it("disables (but keeps visible) the Process YouTube link once a recording has been made (AC1, #946)", async () => {
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
 
@@ -130,13 +134,18 @@ describe("ScreenRecorder - Process YouTube link visibility (#775)", () => {
     await act(async () => state.stopRequestHandler?.());
     fireEvent.click(await screen.findByTestId("continue-recording"));
 
-    await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
+    // #946: the control must stay visible (not vanish) once it becomes
+    // unavailable — a control that disappears the moment its feature toggle
+    // is enabled reads as "missing/broken", not "unavailable right now".
+    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
+    expect(processYoutubeLink()).toBeInTheDocument();
   });
 
-  it("hides the Process YouTube link while a recording is in progress", async () => {
+  it("disables (but keeps visible) the Process YouTube link while a recording is in progress (#946)", async () => {
     state.isRecording = true;
     render(<ScreenRecorder showButtonOnly />);
-    await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+    expect(processYoutubeLink()).toBeDisabled();
   });
 
   it("does not show the Process YouTube link when the workflow is disabled", async () => {
@@ -145,20 +154,22 @@ describe("ScreenRecorder - Process YouTube link visibility (#775)", () => {
     await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
   });
 
-  it("keeps the Process YouTube link after a URL submit fails on a fresh session", async () => {
+  it("keeps the Process YouTube link enabled after a URL submit fails on a fresh session", async () => {
     // Regression for the one-way latch: a failed Process-YouTube-URL submit
     // drives session-global uploadStatus to ERROR. The affordance must NOT be
     // gated on that signal, otherwise the upload button — the only entry point
-    // to the URL dialog — would vanish and the user could never retry (#775).
+    // to the URL dialog — would become permanently unusable and the user could
+    // never retry (#775).
     state.uploadStatus = UploadStatus.ERROR;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+    expect(processYoutubeLink()).toBeEnabled();
   });
 
-  it("hides the Process YouTube link after a successful URL submit", async () => {
+  it("disables the Process YouTube link after a successful URL submit", async () => {
     // A submitted URL consumes the same single-video slot as a recording, so
-    // the gate must be symmetric: a *successful* URL submit hides the link too,
-    // not just a recording (#775 AC2 — only available when multi-video is
+    // the gate must be symmetric: a *successful* URL submit disables the link
+    // too, not just a recording (#775 AC2 — only available when multi-video is
     // supported). The recording path is covered above; this covers the URL
     // branch that previously left the gate open.
     render(<ScreenRecorder showButtonOnly />);
@@ -176,24 +187,27 @@ describe("ScreenRecorder - Process YouTube link visibility (#775)", () => {
     });
 
     await waitFor(() => expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalled());
-    await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
+    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
+    expect(processYoutubeLink()).toBeInTheDocument();
   });
 
   it("keeps the primary record button labelled 'Record' after a recording is made", async () => {
-    // Regression for the overloaded prop: hiding the upload sub-button after a
-    // video is committed must NOT relabel/reshape the primary record button.
-    // While the YouTube-URL workflow is enabled the button keeps its split
-    // "Record" affordance even after the upload action is hidden (#775 only
-    // asked to hide the upload control, not to restyle the record button).
+    // Regression for the overloaded prop: disabling the upload sub-button
+    // after a video is committed must NOT relabel/reshape the primary record
+    // button. While the YouTube-URL workflow is enabled the button keeps its
+    // split "Record" affordance even after the upload action is disabled
+    // (#775 only asked to gate the upload control, not to restyle the record
+    // button).
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(screen.getByText("Record")).toBeInTheDocument());
 
     await act(async () => state.stopRequestHandler?.());
     fireEvent.click(await screen.findByTestId("continue-recording"));
 
-    // Upload sub-button is gone, but the record button must still read "Record"
-    // (not revert to the single-button "Start Recording" affordance).
-    await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
+    // Upload sub-button is now disabled but still visible, and the record
+    // button must still read "Record" (not revert to the single-button
+    // "Start Recording" affordance).
+    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
     expect(screen.getByText("Record")).toBeInTheDocument();
     expect(screen.queryByText("Start Recording")).not.toBeInTheDocument();
   });

@@ -44,13 +44,17 @@ interface RecordButtonProps {
   isTranscribing: boolean;
   isDisabled: boolean;
   // Renders the split-button shell (and its "Record"/"Stop" label/layout)
-  // whenever the YouTube-URL workflow is enabled. This is intentionally
-  // decoupled from `showUploadAction` so hiding the upload sub-button after a
-  // video is committed does NOT relabel/reshape the primary record button.
+  // whenever the YouTube-URL workflow is enabled.
   showSplitLayout: boolean;
-  // Renders the right-hand Upload sub-button. Only meaningful when
-  // `showSplitLayout` is true (the single-button shell has no slot for it).
-  showUploadAction: boolean;
+  // Disables (rather than removes) the right-hand Upload sub-button once a
+  // video has already been committed for processing (#775 — the app does not
+  // yet support queueing a second video) or while a recording is in progress.
+  // The control stays visible with an explanatory tooltip instead of
+  // vanishing outright (#946 — a control that disappears the moment its
+  // feature toggle is enabled reads as "missing/broken", not "unavailable
+  // right now"). Only meaningful when `showSplitLayout` is true (the
+  // single-button shell has no slot for it).
+  uploadActionDisabled: boolean;
   onToggleRecording: () => void;
   onUploadClick: () => void;
   className?: string;
@@ -61,7 +65,7 @@ function RecordButton({
   isTranscribing,
   isDisabled,
   showSplitLayout,
-  showUploadAction,
+  uploadActionDisabled,
   onToggleRecording,
   onUploadClick,
   className = "",
@@ -87,15 +91,14 @@ function RecordButton({
     );
   }
 
+  const uploadTitle = uploadActionDisabled
+    ? "Process YouTube URL (unavailable until this video finishes processing)"
+    : "Process YouTube URL";
+
   return (
     <div className={cn("flex w-full rounded-md overflow-hidden", className)}>
       <Button
-        className={cn(
-          "flex-1 bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md",
-          // When the upload sub-button is hidden, the primary button owns the
-          // full pill, so round its right edge too.
-          !showUploadAction && "rounded-r-md",
-        )}
+        className="flex-1 bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
         onClick={onToggleRecording}
         size="chunky"
         disabled={isDisabled}
@@ -103,20 +106,16 @@ function RecordButton({
         <CircleStopIcon />
         {label}
       </Button>
-      {showUploadAction && (
-        <>
-          <div className="w-px bg-ssw-red-foreground/20" />
-          <Button
-            className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
-            size="chunky"
-            onClick={onUploadClick}
-            disabled={isDisabled}
-            title="Process YouTube URL"
-          >
-            <Upload className="h-4 w-4" />
-          </Button>
-        </>
-      )}
+      <div className="w-px bg-ssw-red-foreground/20" />
+      <Button
+        className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
+        size="chunky"
+        onClick={onUploadClick}
+        disabled={isDisabled || uploadActionDisabled}
+        title={uploadTitle}
+      >
+        <Upload className="h-4 w-4" />
+      </Button>
     </div>
   );
 }
@@ -143,13 +142,14 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
 
-  // The "Process YouTube link" affordance is only relevant before any video has
-  // been committed for processing. Once a video is committed — via EITHER the
-  // recording path (handleContinue) or a successful URL submit
-  // (handleProcessYoutubeUrl) — or a recording is in progress, we hide it,
-  // because the app does not yet support processing multiple videos in parallel
-  // (#775). Both commit paths consume the same single-video slot, so the gate is
-  // symmetric across them.
+  // The "Process YouTube link" affordance is only actionable before any video
+  // has been committed for processing. Once a video is committed — via EITHER
+  // the recording path (handleContinue) or a successful URL submit
+  // (handleProcessYoutubeUrl) — or a recording is in progress, we disable it
+  // (but keep it visible — see uploadActionDisabled below), because the app
+  // does not yet support processing multiple videos in parallel (#775). Both
+  // commit paths consume the same single-video slot, so the gate is symmetric
+  // across them.
   //
   // We track this with a dedicated session flag (`videoCommitted`) rather than
   // reusing the session-global `uploadStatus`, which is ALSO driven to ERROR by
@@ -157,11 +157,16 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   // submit must not latch this affordance off and strip the user's only way to
   // retry the URL workflow.
   const hasVideoBeenCommitted = isRecording || videoCommitted;
-  // Show the upload sub-button (the entry to the URL dialog) only before a video
-  // is committed. This is decoupled from the split-button shell below so hiding
-  // it does not relabel/reshape the primary record button (#775 asked only to
-  // hide this control, not to restyle the record button).
-  const showProcessYoutubeLink = isYoutubeUrlWorkflowEnabled && !hasVideoBeenCommitted;
+  // Whether the upload sub-button (the entry to the URL dialog) should be
+  // disabled — a video is already committed for this session. The button
+  // itself always renders whenever the split layout does (#946: a control
+  // that disappears the instant its feature toggle is enabled reads as
+  // "missing/broken" to a user, not "temporarily unavailable" — see the
+  // tooltip text in RecordButton for the visible explanation). This is
+  // decoupled from the split-button shell below so disabling it does not
+  // relabel/reshape the primary record button (#775 asked only to gate this
+  // control, not to restyle the record button).
+  const uploadActionDisabled = hasVideoBeenCommitted;
 
   const handleStopRecording = useCallback(async () => {
     const result = await stop();
@@ -391,7 +396,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             isTranscribing={isTranscribing}
             isDisabled={isProcessing || isTranscribing || !isAuthenticated}
             showSplitLayout={isYoutubeUrlWorkflowEnabled}
-            showUploadAction={showProcessYoutubeLink}
+            uploadActionDisabled={uploadActionDisabled}
             onToggleRecording={toggleRecording}
             onUploadClick={() => setYoutubeDialogOpen(true)}
             className={className}
