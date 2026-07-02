@@ -57,6 +57,10 @@ vi.mock("@/hooks/useWorkflowNavigation", () => ({
 vi.mock("@/services/ipc-client", () => ({
   ipcClient: {
     userSettings: { get: vi.fn().mockResolvedValue({ hotkeys: {}, toolApprovalMode: "ask" }) },
+    // Non-360 / unauthenticated stubs: this suite covers the existing local
+    // recording flow, which must remain unaffected by cloud-360 mode.
+    llm: { getConfig: vi.fn().mockResolvedValue({ orchestrationBackend: "openai" }) },
+    auth: { identityServer: { status: vi.fn().mockResolvedValue({ status: "unauthenticated" }) } },
   },
 }));
 

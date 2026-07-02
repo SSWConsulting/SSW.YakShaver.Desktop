@@ -25,7 +25,10 @@ import {
 import { Input } from "../ui/input";
 import { Kbd } from "../ui/kbd";
 import { Label } from "../ui/label";
+import { Cloud360Panel } from "../cloud360/Cloud360Panel";
+import { Cloud360ProjectPicker } from "../cloud360/Cloud360ProjectPicker";
 import { SourcePickerDialog } from "./SourcePickerDialog";
+import { useCloud360Mode } from "./useCloud360Mode";
 import { VideoPreviewModal } from "./VideoPreviewModal";
 
 interface RecordedVideo {
@@ -140,8 +143,14 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const [duration, setDuration] = useState<number>(0);
   const [approvalMode, setApprovalMode] = useState<ToolApprovalMode>("ask");
   const { saveRecording, checkExistingShave } = useShaveManager();
+  const { is360Mode, isSignedIn } = useCloud360Mode();
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
+  const canRecord360 = isSignedIn && !!selectedProjectId;
+  const recordDisabled = is360Mode
+    ? isProcessing || isTranscribing || !canRecord360
+    : isProcessing || isTranscribing || !isAuthenticated;
 
   // The "Process YouTube link" affordance is only relevant before any video has
   // been committed for processing. Once a video is committed — via EITHER the
@@ -306,7 +315,12 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
         );
       }
       //Process video even if Shave creation failed, do not block user
-      await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id, shaveAutoApprove);
+      await window.electronAPI.pipelines.processVideoFile(
+        filePath,
+        newShave?.id,
+        shaveAutoApprove,
+        is360Mode ? (selectedProjectId ?? undefined) : undefined,
+      );
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = formatErrorMessage(error);
@@ -389,7 +403,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
           <RecordButton
             isRecording={isRecording}
             isTranscribing={isTranscribing}
-            isDisabled={isProcessing || isTranscribing || !isAuthenticated}
+            isDisabled={recordDisabled}
             showSplitLayout={isYoutubeUrlWorkflowEnabled}
             showUploadAction={showProcessYoutubeLink}
             onToggleRecording={toggleRecording}
@@ -409,7 +423,12 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             </p>
           )}
         </div>
-        {!isAuthenticated && !showButtonOnly && (
+        {is360Mode && (
+          <div className="my-2">
+            <Cloud360ProjectPicker value={selectedProjectId} onChange={setSelectedProjectId} />
+          </div>
+        )}
+        {!is360Mode && !isAuthenticated && !showButtonOnly && (
           <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
           </p>
@@ -420,6 +439,8 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
           onSelect={handleStartRecording}
         />
       </section>
+
+      {is360Mode && <Cloud360Panel />}
 
       <Dialog open={youtubeDialogOpen} onOpenChange={setYoutubeDialogOpen}>
         <DialogContent>
