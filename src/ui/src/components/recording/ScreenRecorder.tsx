@@ -43,6 +43,12 @@ interface RecordButtonProps {
   isRecording: boolean;
   isTranscribing: boolean;
   isDisabled: boolean;
+  // Distinguishes the "sign in" sub-cause of `isDisabled` from the transient
+  // isProcessing/isTranscribing sub-causes (#947 follow-up): unlike a busy
+  // wait, "not authenticated" requires the user to take an action, so it gets
+  // its own tooltip copy rather than sharing the generic "unavailable right
+  // now" message.
+  isAuthenticated: boolean;
   // Renders the split-button shell (and its "Record"/"Stop" label/layout)
   // whenever the YouTube-URL workflow is enabled.
   showSplitLayout: boolean;
@@ -64,6 +70,7 @@ function RecordButton({
   isRecording,
   isTranscribing,
   isDisabled,
+  isAuthenticated,
   showSplitLayout,
   uploadActionDisabled,
   onToggleRecording,
@@ -91,25 +98,38 @@ function RecordButton({
     );
   }
 
-  // The upload sub-button can be disabled for two independent reasons, and
-  // the tooltip must explain whichever one actually applies (#947 follow-up:
-  // an unqualified "Process YouTube URL" title on a disabled control is the
-  // same "looks broken" problem #946 set out to fix, just for a different
-  // cause):
-  //  - `isDisabled` (auth/processing/transcribing) — a transient, app-wide
-  //    gate that also disables the primary record button.
+  // The upload sub-button can be disabled for several independent reasons,
+  // and the tooltip must explain whichever one actually applies (#947
+  // follow-up: an unqualified "Process YouTube URL" title on a disabled
+  // control is the same "looks broken" problem #946 set out to fix, just for
+  // a different cause). Priority order matters here — `isRecording` is
+  // checked *before* the generic `isDisabled` bucket because `stop()`
+  // (useScreenRecording.ts) sets isProcessing true immediately and only
+  // clears isRecording/isProcessing together once the async save finishes,
+  // so both are simultaneously true for the whole save window. Without this
+  // ordering the tooltip would read the generic "unavailable right now"
+  // during that window instead of the more accurate "unavailable while
+  // recording".
+  //  - `isRecording` — actively recording (or saving just after Stop).
+  //  - `isDisabled` (processing/transcribing/auth) — a transient, app-wide
+  //    gate that also disables the primary record button. The
+  //    `!isAuthenticated` sub-cause gets its own copy: unlike a busy wait,
+  //    signing in requires the user to take an action.
   //  - `uploadActionDisabled` (isRecording || videoCommitted) — the
   //    single-video-per-session gate (#775). Once a video is committed this
   //    is permanent for the rest of the session (there is no reset), so the
   //    copy says so rather than implying it clears when processing finishes.
   const uploadDisabled = isDisabled || uploadActionDisabled;
   let uploadTitle = "Process YouTube URL";
-  if (isDisabled) {
-    uploadTitle = "Process YouTube URL (unavailable right now)";
-  } else if (isRecording) {
+  if (isRecording) {
     uploadTitle = "Process YouTube URL (unavailable while recording)";
+  } else if (!isAuthenticated) {
+    uploadTitle = "Process YouTube URL (unavailable until you sign in)";
+  } else if (isDisabled) {
+    uploadTitle = "Process YouTube URL (unavailable right now)";
   } else if (uploadActionDisabled) {
-    uploadTitle = "Process YouTube URL (unavailable — only one video per session is supported)";
+    uploadTitle =
+      "Process YouTube URL (unavailable because only one video per session is supported)";
   }
 
   return (
@@ -124,15 +144,27 @@ function RecordButton({
         {label}
       </Button>
       <div className="w-px bg-ssw-red-foreground/20" />
-      <Button
-        className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
-        size="chunky"
-        onClick={onUploadClick}
-        disabled={uploadDisabled}
-        title={uploadTitle}
-      >
-        <Upload className="h-4 w-4" />
-      </Button>
+      {/* A disabled native <button> never receives pointer/hover events in
+          Chromium (the base Button component's `disabled:pointer-events-none`
+          class makes this explicit — see button.tsx), so a `title` tooltip on
+          the <button> itself never renders to a real user hovering it once
+          disabled — only jsdom's attribute-based assertions were passing
+          (#947 follow-up). The wrapping <span> is never disabled, so it keeps
+          receiving hover events and carries the `title` that actually renders
+          the native tooltip; the inner <button> stays `disabled` for
+          interaction-blocking and keeps a matching `aria-label` so the
+          control's accessible name is unaffected by where `title` lives. */}
+      <span className="bg-ssw-red rounded-none rounded-r-md" title={uploadTitle}>
+        <Button
+          className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
+          size="chunky"
+          onClick={onUploadClick}
+          disabled={uploadDisabled}
+          aria-label={uploadTitle}
+        >
+          <Upload className="h-4 w-4" />
+        </Button>
+      </span>
     </div>
   );
 }
@@ -412,6 +444,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             isRecording={isRecording}
             isTranscribing={isTranscribing}
             isDisabled={isProcessing || isTranscribing || !isAuthenticated}
+            isAuthenticated={isAuthenticated}
             showSplitLayout={isYoutubeUrlWorkflowEnabled}
             uploadActionDisabled={uploadActionDisabled}
             onToggleRecording={toggleRecording}
