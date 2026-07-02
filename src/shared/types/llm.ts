@@ -28,7 +28,7 @@ export type ProviderApiKeys = Readonly<Partial<Record<ProviderName, string>>>;
  * - `openai`: the in-process MCPOrchestrator loop (default, original behaviour).
  * - `local-claude`: drive the step with a local `claude -p` (headless) process.
  */
-export type OrchestrationBackend = "openai" | "local-claude";
+export type OrchestrationBackend = "openai" | "local-claude" | "cloud-360";
 
 export const DEFAULT_ORCHESTRATION_BACKEND: OrchestrationBackend = "openai";
 
