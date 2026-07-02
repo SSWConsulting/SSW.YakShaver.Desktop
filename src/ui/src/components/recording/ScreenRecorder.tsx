@@ -149,12 +149,12 @@ function RecordButton({
           class makes this explicit — see button.tsx), so a `title` tooltip on
           the <button> itself never renders to a real user hovering it once
           disabled — only jsdom's attribute-based assertions were passing
-          (#947 follow-up). The wrapping <span> is never disabled, so it keeps
+          (#947 follow-up). The wrapping <div> is never disabled, so it keeps
           receiving hover events and carries the `title` that actually renders
           the native tooltip; the inner <button> stays `disabled` for
           interaction-blocking and keeps a matching `aria-label` so the
           control's accessible name is unaffected by where `title` lives. */}
-      <span className="bg-ssw-red rounded-none rounded-r-md" title={uploadTitle}>
+      <div className="bg-ssw-red rounded-none rounded-r-md" title={uploadTitle}>
         <Button
           className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
           size="chunky"
@@ -164,7 +164,7 @@ function RecordButton({
         >
           <Upload className="h-4 w-4" />
         </Button>
-      </span>
+      </div>
     </div>
   );
 }

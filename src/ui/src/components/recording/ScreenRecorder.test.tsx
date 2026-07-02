@@ -8,6 +8,10 @@ import { ScreenRecorder } from "./ScreenRecorder";
 const state = vi.hoisted(() => ({
   isYoutubeUrlWorkflowEnabled: true,
   isRecording: false,
+  // Drives the `isDisabled` sub-cause distinct from `isRecording` and
+  // `!isAuthenticated` (see the "isDisabled branch" tooltip coverage test
+  // below) — mirrors the real useScreenRecording() processing signal.
+  isProcessing: false,
   authStatus: "authenticated" as string,
   uploadStatus: "idle" as UploadStatus,
   // The recorded video returned by stop(); when set, "Continue" drives the
@@ -38,7 +42,7 @@ vi.mock("../../contexts/YouTubeAuthContext", () => ({
 vi.mock("../../hooks/useScreenRecording", () => ({
   useScreenRecording: () => ({
     isRecording: state.isRecording,
-    isProcessing: false,
+    isProcessing: state.isProcessing,
     start: vi.fn(),
     stop: vi.fn(async () => state.recordedVideo),
   }),
@@ -97,18 +101,25 @@ vi.mock("./VideoPreviewModal", () => ({
 // still the element callers need for `toBeDisabled()`/click assertions, so
 // resolve from the title-bearing wrapper down to its inner <button>.
 const processYoutubeLink = () => {
-  const wrapper = screen.queryByTitle(/^Process YouTube URL/);
+  const wrapper = screen.queryByTitle(
+    /^Process YouTube URL($| \(unavailable (while recording|until you sign in|right now|because only one video per session is supported)\))/,
+  );
   return wrapper?.querySelector("button") ?? null;
 };
 // Reads the hover-tooltip text itself, which lives on the wrapper span (see
 // processYoutubeLink above) rather than on the <button>.
 const processYoutubeLinkTooltip = () =>
-  screen.queryByTitle(/^Process YouTube URL/)?.getAttribute("title") ?? null;
+  screen
+    .queryByTitle(
+      /^Process YouTube URL($| \(unavailable (while recording|until you sign in|right now|because only one video per session is supported)\))/,
+    )
+    ?.getAttribute("title") ?? null;
 
 describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => {
   beforeEach(() => {
     state.isYoutubeUrlWorkflowEnabled = true;
     state.isRecording = false;
+    state.isProcessing = false;
     state.authStatus = AuthStatus.AUTHENTICATED;
     state.uploadStatus = UploadStatus.IDLE;
     state.recordedVideo = { blob: new Blob(), filePath: "/tmp/rec.webm", fileName: "rec.webm" };
@@ -182,6 +193,44 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
     expect(processYoutubeLink()).toBeDisabled();
+    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable until you sign in)");
+  });
+
+  it("disables the Process YouTube link with the generic title when disabled via the plain isDisabled cause (#947)", async () => {
+    // isProcessing (a transient app-wide gate distinct from isRecording and
+    // !isAuthenticated) is the one isDisabled sub-cause with no dedicated
+    // tooltip copy — it falls through to the generic "unavailable right now"
+    // message. No recording made, no video committed, authenticated, so
+    // uploadActionDisabled is false and only this sub-cause applies.
+    state.isProcessing = true;
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+    expect(processYoutubeLink()).toBeDisabled();
+    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable right now)");
+  });
+
+  it("prioritises the sign-in title over the post-commit title when both disable causes apply (#947)", async () => {
+    // Confirms the documented priority order (isRecording > !isAuthenticated
+    // > isDisabled > uploadActionDisabled) actually holds when two
+    // independent disable causes are true at once: a video was already
+    // committed for this session AND the user has since become
+    // unauthenticated. !isAuthenticated must win the tooltip text, per the
+    // priority chain in RecordButton. `rerender` (same component instance)
+    // is used rather than a second `render` so the already-committed video's
+    // local state is preserved while the auth context flips.
+    const { rerender } = render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+
+    await act(async () => state.stopRequestHandler?.());
+    fireEvent.click(await screen.findByTestId("continue-recording"));
+    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
+    expect(processYoutubeLinkTooltip()).toBe(
+      "Process YouTube URL (unavailable because only one video per session is supported)",
+    );
+
+    state.authStatus = AuthStatus.NOT_AUTHENTICATED;
+    rerender(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
     expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable until you sign in)");
   });
 
