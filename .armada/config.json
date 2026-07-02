@@ -31,7 +31,7 @@
       "maxFindings": 20
     }
   },
-  "logbook": "off",
+  "logbook": "all",
   "publicIntake": {
     "enabled": false,
     "authors": "",
