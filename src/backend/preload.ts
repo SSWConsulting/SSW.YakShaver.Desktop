@@ -167,8 +167,19 @@ const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
 
 const electronAPI = {
   pipelines: {
-    processVideoFile: (filePath: string, shaveId?: string, shaveAutoApprove?: boolean) =>
-      ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_FILE, filePath, shaveId, shaveAutoApprove),
+    processVideoFile: (
+      filePath: string,
+      shaveId?: string,
+      shaveAutoApprove?: boolean,
+      projectId?: string,
+    ) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.PROCESS_VIDEO_FILE,
+        filePath,
+        shaveId,
+        shaveAutoApprove,
+        projectId,
+      ),
     processVideoUrl: (url: string, shaveId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url, shaveId),
     rerunTask: (
@@ -177,6 +188,8 @@ const electronAPI = {
       shaveId?: string,
     ) =>
       ipcRenderer.invoke(IPC_CHANNELS.RERUN_TASK, intermediateOutput, videoUploadResult, shaveId),
+    onCloud360Event: (callback: (payload: unknown) => void) =>
+      onIpcEvent(IPC_CHANNELS.CLOUD360_EVENT, callback),
   },
   youtube: {
     startAuth: () => ipcRenderer.invoke(IPC_CHANNELS.YOUTUBE_START_AUTH),
@@ -254,6 +267,9 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
     cancelRetry: (shaveId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_CANCEL_RETRY, shaveId),
+  },
+  cloud360: {
+    listProjects: () => ipcRenderer.invoke(IPC_CHANNELS.CLOUD360_LIST_PROJECTS),
   },
   llm: {
     setConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),
