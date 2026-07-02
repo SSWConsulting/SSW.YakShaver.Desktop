@@ -30,6 +30,14 @@ const getPortalTenantsUrl = () => {
   return baseUrl.replace(/\/+$/, "");
 };
 
+const getYakShaver360BaseUrl = () => {
+  const { YAKSHAVER_360_BASE_URL: url } = env;
+  // The YakShaver 360 cloud front-end (Next.js) that exposes /api/360/*. Defaults to the
+  // locally-running dev front-end; point it at a public deployment to reach the sandbox executor.
+  const baseUrl = url || "http://localhost:3000";
+  return baseUrl.replace(/\/+$/, "");
+};
+
 const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;
 
 const getIsDev = () => env.NODE_ENV === "development";
@@ -63,6 +71,7 @@ export const config = {
   azure: getAzure,
   portalApiUrl: getPortalApiUrl,
   portalTenantsUrl: getPortalTenantsUrl,
+  yakshaver360BaseUrl: getYakShaver360BaseUrl,
   commitHash: getCommitHash,
   isDev: getIsDev,
   appInsightsConnectionString: getAppInsightsConnectionString,
