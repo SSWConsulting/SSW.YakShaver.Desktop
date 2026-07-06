@@ -13,6 +13,14 @@ const TEXT_CLASSES: Record<StatusLevel, string> = {
   red: "text-red-300",
 };
 
+/** Semantic (not just colour-name) status word for screen readers — "yellow"/"red" convey
+ * nothing meaningful to a screen-reader user, so announce what the colour means instead. */
+const SR_STATUS_WORD: Record<StatusLevel, string> = {
+  green: "OK",
+  yellow: "Warning",
+  red: "Problem",
+};
+
 interface StatusRowProps {
   label: string;
   item: StatusItem;
@@ -29,12 +37,13 @@ function StatusRow({ label, item }: StatusRowProps) {
         />
         <span className="text-xs font-medium text-white/80">
           {label}
-          <span className="sr-only">: {item.level}</span>
+          <span className="sr-only">: {SR_STATUS_WORD[item.level]}</span>
         </span>
       </div>
       {isWarning && (
         <div className="flex items-start gap-1.5 pl-4">
           <AlertTriangle
+            aria-hidden="true"
             className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${item.level === "red" ? "text-red-400" : "text-yellow-400"}`}
           />
           <span className={`text-[11px] leading-tight ${TEXT_CLASSES[item.level]}`}>
