@@ -1,6 +1,6 @@
+import type { Cloud360EventPayload } from "@shared/types/cloud360";
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Cloud360EventPayload } from "@shared/types/cloud360";
 
 const { onCloud360Event } = vi.hoisted(() => ({ onCloud360Event: vi.fn() }));
 let emit: (p: Cloud360EventPayload) => void = () => {};

@@ -12,7 +12,10 @@ export type DisplayItem =
 export function redactSecrets(text: string): string {
   return text
     .replace(/x-yakshaver-proxy-token:\s*[^\s"'}\]]+/gi, "x-yakshaver-proxy-token: [REDACTED]")
-    .replace(/-H\s+"x-yakshaver-proxy-token:\s*[^"]+"/gi, '-H "x-yakshaver-proxy-token: [REDACTED]"')
+    .replace(
+      /-H\s+"x-yakshaver-proxy-token:\s*[^"]+"/gi,
+      '-H "x-yakshaver-proxy-token: [REDACTED]"',
+    )
     .replace(/[a-f0-9-]{36}\|[^|]+\|\d+\|[a-f0-9]{64}/gi, "[PROXY_TOKEN]")
     .replace(/oauth2:[^@]+@/gi, "oauth2:[REDACTED]@")
     .replace(/"temp_clone_token":"[^"]+"/g, '"temp_clone_token":"[REDACTED]"');
@@ -36,7 +39,10 @@ export function parseLogData(data: string, stream: string): DisplayItem[] {
       if (parsed.type === "text" && parsed.file) {
         const path = parsed.file?.filePath ?? "";
         const name = path.split("/").pop() ?? path;
-        items.push({ kind: "tool-result", text: `Read ${name} (${parsed.file?.totalLines ?? "?"} lines)` });
+        items.push({
+          kind: "tool-result",
+          text: `Read ${name} (${parsed.file?.totalLines ?? "?"} lines)`,
+        });
         continue;
       }
       if (parsed.stdout !== undefined) {
@@ -79,14 +85,17 @@ export function parseLogData(data: string, stream: string): DisplayItem[] {
           for (const block of content) {
             if (block.type === "tool_result") {
               if (Array.isArray(block.content)) {
-                const hasImage = block.content.some((c: Record<string, unknown>) => c.type === "image");
+                const hasImage = block.content.some(
+                  (c: Record<string, unknown>) => c.type === "image",
+                );
                 if (hasImage) {
                   items.push({ kind: "tool-result", text: "[Image frame viewed by agent]" });
                   continue;
                 }
               }
               if (block.content) {
-                const text = typeof block.content === "string" ? block.content : JSON.stringify(block.content);
+                const text =
+                  typeof block.content === "string" ? block.content : JSON.stringify(block.content);
                 if (text) items.push({ kind: "tool-result", text: redactSecrets(text) });
               }
             }
