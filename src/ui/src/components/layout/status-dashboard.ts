@@ -37,6 +37,13 @@ export interface StatusDashboard {
 export interface StatusDashboardInputs {
   /** Whether the user is signed in (`ipcClient.auth.identityServer.status()`). */
   isAuthenticated: boolean;
+  /**
+   * The raw auth status, when known — lets the login row distinguish a brief
+   * in-progress sign-in (AUTHENTICATING) from a settled NOT_AUTHENTICATED/ERROR, so
+   * it doesn't show the "not synced" warning while a sign-in is actively underway.
+   * Optional/omitted falls back to the same two-state (`isAuthenticated`) behaviour.
+   */
+  authStatus?: AuthStatus;
   /** Configured MCP servers (`ipcClient.mcp.listServers()`). */
   mcpServers: ReadonlyArray<Pick<MCPServerConfig, "id" | "name" | "enabled">>;
   /** Health by server id; only an explicit `isHealthy === true` counts as connected
@@ -61,10 +68,12 @@ export interface StatusDashboardInputs {
 export function deriveStatusDashboard(inputs: StatusDashboardInputs): StatusDashboard {
   const login: StatusItem = inputs.isAuthenticated
     ? { level: "green", message: "Signed in." }
-    : {
-        level: "yellow",
-        message: "Your shave will not be synced with the portal, etc.",
-      };
+    : inputs.authStatus === AuthStatus.AUTHENTICATING
+      ? { level: "yellow", message: "Signing in…" }
+      : {
+          level: "yellow",
+          message: "Your shave will not be synced with the portal, etc.",
+        };
 
   // Filter to backlog providers explicitly (mirrors mcp-status.ts's own
   // isBacklogProvider/enabled check) rather than relying on mcpHealthById only ever
@@ -170,6 +179,7 @@ export function useStatusDashboard(): StatusDashboard {
       setDashboard(
         deriveStatusDashboard({
           isAuthenticated: authState.status === AuthStatus.AUTHENTICATED,
+          authStatus: authState.status,
           mcpServers,
           mcpHealthById,
           llmConfig,

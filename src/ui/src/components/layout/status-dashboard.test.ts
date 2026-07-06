@@ -1,5 +1,6 @@
 import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
 import { describe, expect, it } from "vitest";
+import { AuthStatus } from "@/types";
 import { deriveStatusDashboard, type StatusDashboardInputs } from "./status-dashboard";
 
 const GITHUB = PRESET_SERVER_IDS.GITHUB;
@@ -28,6 +29,15 @@ describe("deriveStatusDashboard (#948)", () => {
       const result = deriveStatusDashboard(inputs({ isAuthenticated: false }));
       expect(result.login.level).toBe("yellow");
       expect(result.login.message).toMatch(/not be synced with the portal/i);
+    });
+
+    it("shows a distinct signing-in message (not the portal-sync warning) while AUTHENTICATING", () => {
+      const result = deriveStatusDashboard(
+        inputs({ isAuthenticated: false, authStatus: AuthStatus.AUTHENTICATING }),
+      );
+      expect(result.login.level).toBe("yellow");
+      expect(result.login.message).not.toMatch(/not be synced with the portal/i);
+      expect(result.login.message).toMatch(/signing in/i);
     });
   });
 
