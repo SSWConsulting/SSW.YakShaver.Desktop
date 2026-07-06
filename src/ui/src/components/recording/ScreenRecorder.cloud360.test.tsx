@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LLM_CONFIG_CHANGED_EVENT } from "../../types";
+import { IS_AUTH_CHANGED_EVENT, LLM_CONFIG_CHANGED_EVENT } from "../../types";
 
 const { getConfig, status } = vi.hoisted(() => ({
   getConfig: vi.fn(),
@@ -49,5 +49,23 @@ describe("useCloud360Mode", () => {
     });
 
     await waitFor(() => expect(result.current.is360Mode).toBe(true));
+  });
+
+  // Sign-in happens in the sidebar, which does not remount the recording page.
+  // The hook must re-read auth status on IS_AUTH_CHANGED_EVENT, otherwise a user
+  // who signs in after opening the recording page stays gated (Record disabled).
+  it("re-reads sign-in on IS_AUTH_CHANGED_EVENT so signing in enables recording without remount", async () => {
+    getConfig.mockResolvedValue({ orchestrationBackend: "cloud-360" });
+    status.mockReset();
+    status.mockResolvedValue({ status: "unauthenticated" });
+    const { result } = renderHook(() => useCloud360Mode());
+    await waitFor(() => expect(result.current.isSignedIn).toBe(false));
+
+    status.mockResolvedValue({ status: "authenticated" });
+    act(() => {
+      window.dispatchEvent(new CustomEvent(IS_AUTH_CHANGED_EVENT));
+    });
+
+    await waitFor(() => expect(result.current.isSignedIn).toBe(true));
   });
 });

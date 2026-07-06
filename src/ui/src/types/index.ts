@@ -148,6 +148,13 @@ export const WORKFLOW_CLEAR_EVENT_CHANNEL = "yakshaver:workflow-clear";
  */
 export const LLM_CONFIG_CHANGED_EVENT = "yakshaver:llm-config-changed";
 
+/**
+ * Dispatched after the IdentityServer auth state is refreshed (sign in / out). Auth is
+ * managed in the sidebar, which doesn't remount the recording page, so views that gate on
+ * sign-in (e.g. useCloud360Mode) listen for this to re-read status without a restart.
+ */
+export const IS_AUTH_CHANGED_EVENT = "yakshaver:is-auth-changed";
+
 export enum MCPStepType {
   START = "start",
   REASONING = "reasoning",

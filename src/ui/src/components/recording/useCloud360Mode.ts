@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ipcClient } from "@/services/ipc-client";
-import { LLM_CONFIG_CHANGED_EVENT } from "../../types";
+import { IS_AUTH_CHANGED_EVENT, LLM_CONFIG_CHANGED_EVENT } from "../../types";
 
 /** Detects whether the app is in YakShaver 360 mode and whether the user is signed in to IS. */
 export function useCloud360Mode() {
@@ -26,10 +26,12 @@ export function useCloud360Mode() {
     // page; re-read on the config-changed event (and on window focus) so switching
     // to 360 takes effect immediately instead of only after an app restart.
     window.addEventListener(LLM_CONFIG_CHANGED_EVENT, read);
+    window.addEventListener(IS_AUTH_CHANGED_EVENT, read);
     window.addEventListener("focus", read);
     return () => {
       cancelled = true;
       window.removeEventListener(LLM_CONFIG_CHANGED_EVENT, read);
+      window.removeEventListener(IS_AUTH_CHANGED_EVENT, read);
       window.removeEventListener("focus", read);
     };
   }, []);
