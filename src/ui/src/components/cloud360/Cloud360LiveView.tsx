@@ -1,0 +1,183 @@
+import type { Cloud360EventPayload } from "@shared/types/cloud360";
+import { Brain } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
+import { ipcClient } from "@/services/ipc-client";
+import type { SandboxEvent } from "../../../../backend/services/yakshaver360/types";
+import { parseLogData, type DisplayItem } from "./parse-log-data";
+import { ScissorsConfetti } from "./ScissorsConfetti";
+
+type Phase = "streaming" | "done" | "error";
+
+function ToolResultBlock({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  let cleaned = text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
+    .replace(/"base64":"[A-Za-z0-9+/=]{100,}"/g, '"base64":"[image data]"')
+    .replace(/"data":"[A-Za-z0-9+/=]{100,}"/g, '"data":"[image data]"')
+    .trim();
+  if (cleaned.includes('"type":"image"') || cleaned.includes('"media_type":"image/')) {
+    cleaned = "[Image frame viewed by agent]";
+  }
+  if (!cleaned || cleaned.length < 3) return null;
+  const preview = cleaned.split("\n")[0]?.slice(0, 80) ?? "";
+  const hasMore = cleaned.length > 80 || cleaned.includes("\n");
+  return (
+    <div className="my-0.5 ml-6">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-1.5 text-left text-[11px] text-gray-600 hover:text-gray-400"
+      >
+        <span className={`transition-transform ${expanded ? "rotate-90" : ""}`}>›</span>
+        <span className="truncate font-mono">{hasMore ? preview + "..." : preview}</span>
+      </button>
+      {expanded && (
+        <pre className="mt-1 ml-5 max-h-60 overflow-y-auto border-l-2 border-gray-800 pl-3 text-[11px] leading-relaxed whitespace-pre-wrap text-gray-500">
+          {cleaned}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function ThinkingBlock({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const trimmed = text.trimStart();
+  const preview = trimmed.slice(0, 160) + (trimmed.length > 160 ? "..." : "");
+  return (
+    <div className="my-1">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="group flex w-full items-start gap-2 text-left"
+      >
+        <Brain className="mt-1 h-3.5 w-3.5 shrink-0 text-white/30 group-hover:text-white/60" />
+        <span className="text-sm leading-relaxed whitespace-pre-wrap text-white/30 italic group-hover:text-white/60">
+          {expanded ? trimmed : preview}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+export function Cloud360LiveView() {
+  const [items, setItems] = useState<DisplayItem[]>([]);
+  const [phase, setPhase] = useState<Phase>("streaming");
+  const [result, setResult] = useState<{ summary: string; artifacts: string[] } | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const cleanup = ipcClient.pipelines.onCloud360Event((payload: Cloud360EventPayload) => {
+      const event: SandboxEvent = payload.event;
+      switch (event.type) {
+        case "status":
+          setItems((prev) => [...prev, { kind: "status", text: event.message }]);
+          break;
+        case "log": {
+          const parsed = parseLogData(event.data, event.stream ?? "stdout");
+          if (parsed.length > 0) setItems((prev) => [...prev, ...parsed]);
+          break;
+        }
+        case "result":
+          setResult({ summary: event.summary, artifacts: event.artifacts });
+          if (event.artifacts.length > 0) setShowConfetti(true);
+          setPhase("done");
+          break;
+        case "error":
+          setItems((prev) => [...prev, { kind: "error", text: event.message }]);
+          setPhase("error");
+          break;
+        // "named" / "approval-required" unused in v1.
+      }
+    });
+    return cleanup;
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [items]);
+
+  const lastStatusIdx = items.findLastIndex((item) => item.kind === "status");
+  const isStreaming = phase === "streaming";
+
+  return (
+    <div className="mx-auto my-4 flex h-[500px] w-[600px] flex-col rounded-lg border border-white/10 bg-black/20 p-4">
+      <ScissorsConfetti trigger={showConfetti} />
+      <h2 className="mb-2 shrink-0 text-xl">YakShaver 360 Progress</h2>
+      <div ref={scrollRef} className="min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-2">
+        {items.map((item, i) => {
+          switch (item.kind) {
+            case "status": {
+              const isDone = !(i === lastStatusIdx && isStreaming);
+              return (
+                <div key={i} className="flex items-center gap-2 py-2">
+                  <div className="h-px flex-1 bg-gray-800" />
+                  <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-blue-400">
+                    {isDone && <span className="text-green-400">✓</span>}
+                    {item.text}
+                  </span>
+                  <div className="h-px flex-1 bg-gray-800" />
+                </div>
+              );
+            }
+            case "thinking":
+              return <ThinkingBlock key={i} text={item.text} />;
+            case "text":
+              return (
+                <div key={i} className="prose prose-invert prose-sm max-w-none py-1 text-sm text-neutral-400">
+                  <Markdown>{item.text}</Markdown>
+                </div>
+              );
+            case "tool":
+              return (
+                <div key={i} className="flex items-center gap-2 py-1">
+                  <span className="rounded bg-cyan-900/40 px-1.5 py-0.5 font-mono text-[10px] text-cyan-400">
+                    {item.name}
+                  </span>
+                  <span className="truncate font-mono text-xs text-neutral-400">{item.detail}</span>
+                </div>
+              );
+            case "tool-result":
+              return <ToolResultBlock key={i} text={item.text} />;
+            case "error":
+              return (
+                <pre
+                  key={i}
+                  className="py-1.5 font-mono text-xs break-all whitespace-pre-wrap text-red-400"
+                >
+                  {item.text}
+                </pre>
+              );
+            default:
+              return null;
+          }
+        })}
+      </div>
+
+      {result && (
+        <div className="mt-2 shrink-0 space-y-2 rounded-xl border border-green-800/50 bg-green-950/30 p-4">
+          <h3 className="font-semibold text-green-300">Processing complete</h3>
+          {result.artifacts.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-sm text-green-400/70">Created:</p>
+              {result.artifacts.map((url) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-sm break-all text-blue-400 hover:underline"
+                >
+                  {url}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
