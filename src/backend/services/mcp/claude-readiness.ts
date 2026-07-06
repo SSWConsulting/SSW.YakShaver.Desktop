@@ -75,7 +75,11 @@ export function detectClaudeAuth(env: NodeJS.ProcessEnv, deps: ClaudeReadinessDe
   return deps.fileExists(resolveCredentialsPath(env, deps.homeDir));
 }
 
-/** Spawn `claude --version` and resolve true iff it exits 0. Never rejects. */
+/** Bound on how long `claude --version` may run before we give up and report not-installed
+ * (address review #949: a hung/wedged CLI must not freeze readiness checks forever). */
+const VERSION_CHECK_TIMEOUT_MS = 5000;
+
+/** Spawn `claude --version` and resolve true iff it exits 0 within the timeout. Never rejects. */
 function detectClaudeInstalled(deps: ClaudeReadinessDeps): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     let child: ChildProcess;
@@ -85,8 +89,31 @@ function detectClaudeInstalled(deps: ClaudeReadinessDeps): Promise<boolean> {
       resolve(false);
       return;
     }
-    child.on("error", () => resolve(false));
-    child.on("close", (code) => resolve(code === 0));
+
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try {
+        child.kill?.();
+      } catch {
+        // best-effort — resolving false is what matters
+      }
+      resolve(false);
+    }, VERSION_CHECK_TIMEOUT_MS);
+
+    child.on("error", () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(false);
+    });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(code === 0);
+    });
   });
 }
 

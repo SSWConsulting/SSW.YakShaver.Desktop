@@ -66,6 +66,39 @@ let inFlightHealthFetch: Promise<{
   healthById: Record<string, HealthStatusInfo | undefined>;
 }> | null = null;
 
+/** Bound on a single server's health probe (address review #949): a wedged MCP server must
+ * resolve to a confirmed "disconnected" row rather than freezing the dashboard on stale state
+ * forever — the same "unconfirmed = not connected" policy already applied to a thrown probe. */
+const HEALTH_CHECK_TIMEOUT_MS = 8000;
+
+function checkServerHealthWithTimeout(serverId: string): Promise<HealthStatusInfo> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ isHealthy: false, isChecking: false });
+    }, HEALTH_CHECK_TIMEOUT_MS);
+
+    ipcClient.mcp
+      .checkServerHealthAsync(serverId)
+      .then((result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(result);
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        // A failed probe is a confirmed-disconnected, not "connected" (mirrors the
+        // convention already used here for a `false`-health server).
+        resolve({ isHealthy: false, isChecking: false });
+      });
+  });
+}
+
 export function fetchBacklogProviderHealth(): Promise<{
   servers: MCPServerConfig[];
   healthById: Record<string, HealthStatusInfo | undefined>;
@@ -79,13 +112,7 @@ export function fetchBacklogProviderHealth(): Promise<{
       const healthById: Record<string, HealthStatusInfo | undefined> = {};
       await Promise.all(
         backlog.map(async (server) => {
-          try {
-            healthById[server.id] = await ipcClient.mcp.checkServerHealthAsync(server.id);
-          } catch {
-            // A failed probe is a confirmed-disconnected, not "connected" (mirrors the
-            // convention already used here for a `false`-health server).
-            healthById[server.id] = { isHealthy: false, isChecking: false };
-          }
+          healthById[server.id] = await checkServerHealthWithTimeout(server.id);
         }),
       );
       return { servers, healthById };

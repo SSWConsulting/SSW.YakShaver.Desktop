@@ -72,7 +72,7 @@ export function deriveStatusDashboard(inputs: StatusDashboardInputs): StatusDash
       ? { level: "yellow", message: "Signing in…" }
       : {
           level: "yellow",
-          message: "Your shave will not be synced with the portal, etc.",
+          message: "Your shave will not be synced with the portal.",
         };
 
   // Filter to backlog providers explicitly (mirrors mcp-status.ts's own
