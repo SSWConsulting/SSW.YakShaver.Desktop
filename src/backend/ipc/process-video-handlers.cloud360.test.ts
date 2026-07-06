@@ -50,7 +50,7 @@ describe("cloud-360 fork decision", () => {
     const result = await runCloud360Path("/tmp/v.mp4", undefined, undefined);
     expect(result).toEqual({
       success: false,
-      error: "No project selected for Cloud 360 processing.",
+      error: "No project selected for YakShaver 360 processing.",
     });
     expect(run).not.toHaveBeenCalled();
   });

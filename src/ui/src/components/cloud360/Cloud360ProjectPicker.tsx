@@ -36,7 +36,7 @@ export function Cloud360ProjectPicker({ value, onChange }: Props) {
   if (projects.length === 0) {
     return (
       <p className="text-sm text-white/60">
-        No GitHub project found. Cloud 360 needs a GitHub-backed project.
+        No GitHub project found. YakShaver 360 needs a GitHub-backed project.
       </p>
     );
   }

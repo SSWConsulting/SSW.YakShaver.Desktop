@@ -39,7 +39,7 @@ const BACKEND_OPTIONS: readonly BackendOption[] = [
   },
   {
     id: "cloud-360",
-    title: "Cloud 360",
+    title: "YakShaver 360",
     description:
       "Process recordings in a cloud sandbox (no local Claude CLI needed). Requires sign-in and a GitHub project selected before recording.",
   },
@@ -48,7 +48,7 @@ const BACKEND_OPTIONS: readonly BackendOption[] = [
 const BACKEND_LABELS: Record<OrchestrationBackend, string> = {
   openai: "OpenAI",
   "local-claude": "Claude Code",
-  "cloud-360": "Cloud 360",
+  "cloud-360": "YakShaver 360",
 };
 
 /** Narrows a raw Select value to a known backend, so `onValueChange` doesn't rely on a bare cast. */

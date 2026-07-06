@@ -38,7 +38,7 @@ export function Cloud360Panel() {
 
   return (
     <div className="w-[500px] mx-auto my-4 rounded-lg border border-white/10 bg-black/20 p-4">
-      <h2 className="text-xl mb-2">Cloud 360 Progress</h2>
+      <h2 className="text-xl mb-2">YakShaver 360 Progress</h2>
 
       {phase === "running" && <p className="text-sm text-white/80">{status}</p>}
 

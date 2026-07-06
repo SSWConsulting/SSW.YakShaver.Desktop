@@ -19,7 +19,7 @@ export async function runCloud360Path(
   projectId: string | undefined,
 ): Promise<{ success: boolean; error?: string }> {
   if (!projectId) {
-    return { success: false, error: "No project selected for Cloud 360 processing." };
+    return { success: false, error: "No project selected for YakShaver 360 processing." };
   }
   const durationSeconds = shaveId
     ? (ShaveService.getInstance().getShaveVideoSourceInfo(shaveId)?.durationSeconds ?? 0)
