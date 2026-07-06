@@ -6,6 +6,7 @@ import { IdentityServerAuthManager } from "../auth/IdentityServerAuthManager";
 import { ScreenRecorder } from "../recording/ScreenRecorder";
 import { SettingsDialog } from "../settings/SettingsDialog";
 import { SidebarLink } from "../ui/sidebar-link";
+import { StatusDashboard } from "./StatusDashboard";
 
 export default function Sidebar() {
   const [appVersion, setAppVersion] = useState<string>("");
@@ -40,6 +41,7 @@ export default function Sidebar() {
           Projects
         </SidebarLink>
       </nav>
+      <StatusDashboard />
       <div className="relative bottom-0 mt-auto flex flex-col gap-3 left-0">
         <SettingsDialog />
         <IdentityServerAuthManager />
