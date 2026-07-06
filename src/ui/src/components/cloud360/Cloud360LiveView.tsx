@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { ipcClient } from "@/services/ipc-client";
 import type { SandboxEvent } from "../../../../backend/services/yakshaver360/types";
-import { parseLogData, type DisplayItem } from "./parse-log-data";
+import { type DisplayItem, parseLogData } from "./parse-log-data";
 import { ScissorsConfetti } from "./ScissorsConfetti";
 
 type Phase = "streaming" | "done" | "error";
@@ -95,10 +95,11 @@ export function Cloud360LiveView() {
     return cleanup;
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: effect only reads ref, no deps needed
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [items]);
+  }, [items.length]);
 
   let lastStatusIdx = -1;
   for (let i = 0; i < items.length; i++) {
@@ -116,6 +117,7 @@ export function Cloud360LiveView() {
             case "status": {
               const isDone = !(i === lastStatusIdx && isStreaming);
               return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
                 <div key={i} className="flex items-center gap-2 py-2">
                   <div className="h-px flex-1 bg-gray-800" />
                   <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-blue-400">
@@ -127,15 +129,21 @@ export function Cloud360LiveView() {
               );
             }
             case "thinking":
+              // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
               return <ThinkingBlock key={i} text={item.text} />;
             case "text":
               return (
-                <div key={i} className="prose prose-invert prose-sm max-w-none py-1 text-sm text-neutral-400">
+                <div
+                  // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
+                  key={i}
+                  className="prose prose-invert prose-sm max-w-none py-1 text-sm text-neutral-400"
+                >
                   <Markdown>{item.text}</Markdown>
                 </div>
               );
             case "tool":
               return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
                 <div key={i} className="flex items-center gap-2 py-1">
                   <span className="rounded bg-cyan-900/40 px-1.5 py-0.5 font-mono text-[10px] text-cyan-400">
                     {item.name}
@@ -144,10 +152,12 @@ export function Cloud360LiveView() {
                 </div>
               );
             case "tool-result":
+              // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
               return <ToolResultBlock key={i} text={item.text} />;
             case "error":
               return (
                 <pre
+                  // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
                   key={i}
                   className="py-1.5 font-mono text-xs break-all whitespace-pre-wrap text-red-400"
                 >
