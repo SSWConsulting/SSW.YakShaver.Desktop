@@ -100,7 +100,10 @@ export function Cloud360LiveView() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [items]);
 
-  const lastStatusIdx = items.findLastIndex((item) => item.kind === "status");
+  let lastStatusIdx = -1;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].kind === "status") lastStatusIdx = i;
+  }
   const isStreaming = phase === "streaming";
 
   return (
