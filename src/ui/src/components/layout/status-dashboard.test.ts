@@ -10,7 +10,9 @@ function inputs(overrides: Partial<StatusDashboardInputs> = {}): StatusDashboard
     isAuthenticated: true,
     mcpServers: [],
     mcpHealthById: {},
-    llmConfig: { languageModel: { provider: "openai", model: "gpt-5.2", apiKey: "sk-live-123" } },
+    llmConfig: {
+      languageModel: { provider: "openai", model: "gpt-5.2", apiKey: "test-api-key-123" },
+    },
     ...overrides,
   };
 }
@@ -110,6 +112,76 @@ describe("deriveStatusDashboard (#948)", () => {
     it("is red when llmConfig itself is null (never configured)", () => {
       const result = deriveStatusDashboard(inputs({ llmConfig: null }));
       expect(result.languageModel.level).toBe("red");
+    });
+
+    it("is green on local-claude backend when an api key is set and readiness wasn't checked", () => {
+      const result = deriveStatusDashboard(
+        inputs({
+          llmConfig: {
+            languageModel: { provider: "openai", model: "gpt-5.2", apiKey: "test-api-key-123" },
+            orchestrationBackend: "local-claude",
+          },
+          orchestratorReadiness: null,
+        }),
+      );
+      expect(result.languageModel.level).toBe("green");
+    });
+
+    it("is red on local-claude backend when the CLI isn't ready, even with an api key set (#948 gap)", () => {
+      const result = deriveStatusDashboard(
+        inputs({
+          llmConfig: {
+            languageModel: { provider: "openai", model: "gpt-5.2", apiKey: "test-api-key-123" },
+            orchestrationBackend: "local-claude",
+          },
+          orchestratorReadiness: {
+            installed: false,
+            authenticated: false,
+            ready: false,
+            state: "not-installed",
+            message: "Claude Code CLI not found.",
+          },
+        }),
+      );
+      expect(result.languageModel.level).toBe("red");
+      expect(result.languageModel.message).toMatch(/claude code cli not found/i);
+    });
+
+    it("is green on local-claude backend when the CLI is ready", () => {
+      const result = deriveStatusDashboard(
+        inputs({
+          llmConfig: {
+            languageModel: { provider: "openai", model: "gpt-5.2", apiKey: "test-api-key-123" },
+            orchestrationBackend: "local-claude",
+          },
+          orchestratorReadiness: {
+            installed: true,
+            authenticated: true,
+            ready: true,
+            state: "ready",
+            message: "",
+          },
+        }),
+      );
+      expect(result.languageModel.level).toBe("green");
+    });
+
+    it("ignores orchestrator readiness when the backend isn't local-claude", () => {
+      const result = deriveStatusDashboard(
+        inputs({
+          llmConfig: {
+            languageModel: { provider: "openai", model: "gpt-5.2", apiKey: "test-api-key-123" },
+          },
+          orchestratorReadiness: {
+            installed: false,
+            authenticated: false,
+            ready: false,
+            state: "not-installed",
+            message: "",
+          },
+        }),
+      );
+      expect(result.languageModel.level).toBe("green");
     });
   });
 

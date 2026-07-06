@@ -5,23 +5,27 @@ import { StatusDashboard } from "./StatusDashboard";
 import { STATUS_DASHBOARD_REFRESH_EVENT } from "./status-dashboard";
 
 // vi.hoisted so the mock factory (hoisted above the imports) can reference these.
-const { status, listServers, checkServerHealthAsync, getConfig } = vi.hoisted(() => ({
-  status: vi.fn(),
-  listServers: vi.fn(),
-  checkServerHealthAsync: vi.fn(),
-  getConfig: vi.fn(),
-}));
+const { status, listServers, checkServerHealthAsync, getConfig, checkOrchestratorReadiness } =
+  vi.hoisted(() => ({
+    status: vi.fn(),
+    listServers: vi.fn(),
+    checkServerHealthAsync: vi.fn(),
+    getConfig: vi.fn(),
+    checkOrchestratorReadiness: vi.fn(),
+  }));
 
 vi.mock("@/services/ipc-client", () => ({
   ipcClient: {
     auth: { identityServer: { status } },
     mcp: { listServers, checkServerHealthAsync },
-    llm: { getConfig },
+    llm: { getConfig, checkOrchestratorReadiness },
   },
 }));
 
 const GITHUB = { id: PRESET_SERVER_IDS.GITHUB, name: "GitHub", builtin: false, enabled: true };
-const healthyLlm = { languageModel: { provider: "openai", model: "gpt-5.2", apiKey: "sk-live" } };
+const healthyLlm = {
+  languageModel: { provider: "openai", model: "gpt-5.2", apiKey: "test-api-key" },
+};
 
 describe("StatusDashboard (#948)", () => {
   beforeEach(() => {
@@ -29,10 +33,11 @@ describe("StatusDashboard (#948)", () => {
     listServers.mockReset();
     checkServerHealthAsync.mockReset();
     getConfig.mockReset();
+    checkOrchestratorReadiness.mockReset();
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("shows green login, red MCP and red language-model rows with the exact warning copy when nothing is configured", async () => {
+  it("shows a yellow login warning, red MCP and red language-model rows with the exact warning copy when nothing is configured", async () => {
     status.mockResolvedValue({ status: "not_authenticated" });
     listServers.mockResolvedValue([]);
     getConfig.mockResolvedValue(null);
@@ -83,5 +88,26 @@ describe("StatusDashboard (#948)", () => {
 
     await waitFor(() => expect(listServers).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByText(/not be synced with the portal/i)).toBeNull());
+  });
+
+  it("shows a red language-model row when the local-claude backend is configured but not ready", async () => {
+    status.mockResolvedValue({ status: "authenticated" });
+    listServers.mockResolvedValue([]);
+    getConfig.mockResolvedValue({
+      languageModel: { provider: "openai", model: "gpt-5.2", apiKey: "test-api-key" },
+      orchestrationBackend: "local-claude",
+    });
+    checkOrchestratorReadiness.mockResolvedValue({
+      installed: false,
+      authenticated: false,
+      ready: false,
+      state: "not-installed",
+      message: "Claude Code CLI not found.",
+    });
+
+    render(<StatusDashboard />);
+
+    await waitFor(() => expect(checkOrchestratorReadiness).toHaveBeenCalled());
+    expect(screen.getByText(/claude code cli not found/i)).toBeTruthy();
   });
 });

@@ -1,9 +1,9 @@
-import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
-import type { LLMConfigV2 } from "@shared/types/llm";
+import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { MCPServerConfig } from "@shared/types/mcp";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchBacklogProviderHealth } from "@/components/home/mcp-status";
 import { ipcClient } from "@/services/ipc-client";
-import type { HealthStatusInfo } from "@/types";
+import { AuthStatus, type HealthStatusInfo } from "@/types";
 
 /**
  * #948 — a sidebar status dashboard (between "Projects" and "Settings") that
@@ -20,10 +20,6 @@ import type { HealthStatusInfo } from "@/types";
  * Settings dialog closes, mirroring MCP_HEALTH_REFRESH_EVENT / SETTINGS_HEALTH_REFRESH_EVENT). */
 export const STATUS_DASHBOARD_REFRESH_EVENT = "yakshaver:status-dashboard-refresh";
 
-/** The known backlog-provider MCP server ids (GitHub / Azure DevOps / Jira). Only
- * these count toward "at least one MCP server connected" — mirrors #869/#878. */
-const BACKLOG_PROVIDER_IDS = new Set<string>(Object.values(PRESET_SERVER_IDS));
-
 export type StatusLevel = "green" | "yellow" | "red";
 
 export interface StatusItem {
@@ -37,10 +33,6 @@ export interface StatusDashboard {
   languageModel: StatusItem;
 }
 
-function isEnabledBacklogProvider(server: Pick<MCPServerConfig, "id" | "enabled">) {
-  return server.enabled !== false && BACKLOG_PROVIDER_IDS.has(server.id);
-}
-
 export interface StatusDashboardInputs {
   /** Whether the user is signed in (`ipcClient.auth.identityServer.status()`). */
   isAuthenticated: boolean;
@@ -51,7 +43,13 @@ export interface StatusDashboardInputs {
    * green flash while checks are in flight). */
   mcpHealthById: Readonly<Record<string, Pick<HealthStatusInfo, "isHealthy"> | undefined>>;
   /** The persisted LLM config (`ipcClient.llm.getConfig()`), or null if unset. */
-  llmConfig: Pick<LLMConfigV2, "languageModel"> | null;
+  llmConfig: Pick<LLMConfigV2, "languageModel" | "orchestrationBackend"> | null;
+  /**
+   * Readiness of the Claude Code orchestration backend (`ipcClient.llm.checkOrchestratorReadiness()`).
+   * Only meaningful when `orchestrationBackend === "local-claude"`; null/undefined means "not
+   * checked / inconclusive" and never raises a warning — mirrors settings-health.ts (#878/#936).
+   */
+  orchestratorReadiness?: OrchestratorReadiness | null;
 }
 
 /**
@@ -68,7 +66,7 @@ export function deriveStatusDashboard(inputs: StatusDashboardInputs): StatusDash
       };
 
   const connectedProviders = inputs.mcpServers
-    .filter(isEnabledBacklogProvider)
+    .filter((server) => server.enabled !== false)
     .filter((server) => inputs.mcpHealthById[server.id]?.isHealthy === true);
   const mcp: StatusItem =
     connectedProviders.length > 0
@@ -82,16 +80,46 @@ export function deriveStatusDashboard(inputs: StatusDashboardInputs): StatusDash
         };
 
   const languageModel = inputs.llmConfig?.languageModel;
-  const hasLanguageModel = Boolean(languageModel && languageModel.apiKey.trim() !== "");
-  const languageModelItem: StatusItem = hasLanguageModel
-    ? { level: "green", message: `Connected: ${languageModel?.model ?? languageModel?.provider}.` }
-    : {
-        level: "red",
-        message: "You don't have any language model connected, so probably the shave will fail",
-      };
+  const hasApiKey = Boolean(languageModel && languageModel.apiKey.trim() !== "");
+  // The local-claude orchestration backend drives the backlog-creation step
+  // separately from the transcription/analysis `languageModel` above — a
+  // configured apiKey doesn't mean that backend is actually ready (CLI missing
+  // or not signed in), and settings-health.ts (#878/#936) already treats that as
+  // a distinct critical state. Reusing the same readiness signal here means this
+  // row can't silently report green while the orchestrator can't actually run.
+  const usesLocalClaude = inputs.llmConfig?.orchestrationBackend === "local-claude";
+  const readiness = inputs.orchestratorReadiness;
+  const orchestratorNotReady = usesLocalClaude && !!readiness && !readiness.ready;
+
+  const languageModelItem: StatusItem =
+    hasApiKey && !orchestratorNotReady
+      ? {
+          level: "green",
+          message: `Connected: ${languageModel?.model ?? languageModel?.provider}.`,
+        }
+      : orchestratorNotReady
+        ? {
+            level: "red",
+            message:
+              readiness?.state === "not-installed"
+                ? "Claude Code CLI not found, so probably the shave will fail"
+                : "Claude Code isn't signed in, so probably the shave will fail",
+          }
+        : {
+            level: "red",
+            message: "You don't have any language model connected, so probably the shave will fail",
+          };
 
   return { login, mcp, languageModel: languageModelItem };
 }
+
+const DEFAULT_INPUTS: StatusDashboardInputs = {
+  isAuthenticated: false,
+  mcpServers: [],
+  mcpHealthById: {},
+  llmConfig: null,
+  orchestratorReadiness: null,
+};
 
 /**
  * Reads the live auth/MCP/LLM state and returns the dashboard status. Re-checks on
@@ -100,57 +128,52 @@ export function deriveStatusDashboard(inputs: StatusDashboardInputs): StatusDash
  */
 export function useStatusDashboard(): StatusDashboard {
   const [dashboard, setDashboard] = useState<StatusDashboard>(() =>
-    deriveStatusDashboard({
-      isAuthenticated: false,
-      mcpServers: [],
-      mcpHealthById: {},
-      llmConfig: null,
-    }),
+    deriveStatusDashboard(DEFAULT_INPUTS),
   );
 
-  const check = useCallback(async () => {
-    try {
-      const [authState, mcpServers, llmConfig] = await Promise.all([
-        ipcClient.auth.identityServer
-          .status()
-          .catch(() => ({ status: "unauthenticated" as const })),
-        ipcClient.mcp.listServers().catch(() => [] as MCPServerConfig[]),
-        ipcClient.llm.getConfig().catch(() => null),
-      ]);
+  // Bumped on every check() call and on unmount, so a check() that resolves after a
+  // newer one started (or after unmount) is recognised as stale and its result is
+  // dropped instead of overwriting fresher state / setting state on an unmounted
+  // component.
+  const requestIdRef = useRef(0);
 
-      const backlog = mcpServers.filter(isEnabledBacklogProvider);
-      const mcpHealthById: Record<string, HealthStatusInfo | undefined> = {};
-      await Promise.all(
-        backlog.map(async (server) => {
-          try {
-            mcpHealthById[server.id] = await ipcClient.mcp.checkServerHealthAsync(server.id);
-          } catch {
-            // A failed probe is inconclusive, not "connected" — leave undefined so
-            // deriveStatusDashboard doesn't raise a false green.
-            mcpHealthById[server.id] = undefined;
-          }
-        }),
-      );
+  const check = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+
+    try {
+      const [authState, { servers: mcpServers, healthById: mcpHealthById }, llmConfig] =
+        await Promise.all([
+          ipcClient.auth.identityServer
+            .status()
+            .catch(() => ({ status: AuthStatus.NOT_AUTHENTICATED })),
+          fetchBacklogProviderHealth(),
+          ipcClient.llm.getConfig().catch(() => null),
+        ]);
+
+      // Only probe Claude Code readiness when it's the selected backend — otherwise
+      // it's irrelevant and we skip the spawn entirely (mirrors settings-health.ts).
+      const orchestratorReadiness =
+        llmConfig?.orchestrationBackend === "local-claude"
+          ? await ipcClient.llm.checkOrchestratorReadiness().catch(() => null)
+          : null;
+
+      if (requestIdRef.current !== requestId) return; // superseded or unmounted
 
       setDashboard(
         deriveStatusDashboard({
-          isAuthenticated: authState.status === "authenticated",
+          isAuthenticated: authState.status === AuthStatus.AUTHENTICATED,
           mcpServers,
           mcpHealthById,
           llmConfig,
+          orchestratorReadiness,
         }),
       );
     } catch {
+      if (requestIdRef.current !== requestId) return; // superseded or unmounted
+
       // Couldn't read state — fall back to the conservative all-warning defaults
       // rather than showing a misleading green.
-      setDashboard(
-        deriveStatusDashboard({
-          isAuthenticated: false,
-          mcpServers: [],
-          mcpHealthById: {},
-          llmConfig: null,
-        }),
-      );
+      setDashboard(deriveStatusDashboard(DEFAULT_INPUTS));
     }
   }, []);
 
@@ -160,6 +183,7 @@ export function useStatusDashboard(): StatusDashboard {
     window.addEventListener("focus", onRefresh);
     window.addEventListener(STATUS_DASHBOARD_REFRESH_EVENT, onRefresh);
     return () => {
+      requestIdRef.current++; // invalidate any in-flight check() so it can't setState post-unmount
       window.removeEventListener("focus", onRefresh);
       window.removeEventListener(STATUS_DASHBOARD_REFRESH_EVENT, onRefresh);
     };
