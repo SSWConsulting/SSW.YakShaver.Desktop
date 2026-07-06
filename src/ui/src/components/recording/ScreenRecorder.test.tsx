@@ -67,6 +67,11 @@ vi.mock("@/services/ipc-client", () => ({
 // Stub SourcePickerDialog; it reaches into electronAPI channels not under test.
 vi.mock("./SourcePickerDialog", () => ({ SourcePickerDialog: () => null }));
 
+// Stub the 360 project dialog; this suite covers the non-360 default path.
+vi.mock("../cloud360/Cloud360ProjectDialog", () => ({
+  Cloud360ProjectDialog: () => null,
+}));
+
 // Surface the preview modal's onContinue as a button so tests can drive the
 // real "a recording was made" path without a full media-capture pipeline.
 vi.mock("./VideoPreviewModal", () => ({

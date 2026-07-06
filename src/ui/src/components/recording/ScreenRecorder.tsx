@@ -13,8 +13,7 @@ import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
-import { Cloud360Panel } from "../cloud360/Cloud360Panel";
-import { Cloud360ProjectPicker } from "../cloud360/Cloud360ProjectPicker";
+import { Cloud360ProjectDialog } from "../cloud360/Cloud360ProjectDialog";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -145,6 +144,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const { saveRecording, checkExistingShave } = useShaveManager();
   const { is360Mode, isSignedIn } = useCloud360Mode();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
   const canRecord360 = isSignedIn && !!selectedProjectId;
@@ -220,7 +220,16 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   }, [previewOpen]);
 
   const toggleRecording = () => {
-    isRecording ? handleStopRecording() : setPickerOpen(true);
+    if (isRecording) {
+      handleStopRecording();
+      return;
+    }
+    // In 360 mode, pick a project first; confirming opens the source picker.
+    if (is360Mode) {
+      setProjectDialogOpen(true);
+      return;
+    }
+    setPickerOpen(true);
   };
 
   useEffect(() => {
@@ -423,11 +432,6 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             </p>
           )}
         </div>
-        {is360Mode && (
-          <div className="my-2">
-            <Cloud360ProjectPicker value={selectedProjectId} onChange={setSelectedProjectId} />
-          </div>
-        )}
         {!is360Mode && !isAuthenticated && !showButtonOnly && (
           <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
@@ -439,8 +443,6 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
           onSelect={handleStartRecording}
         />
       </section>
-
-      {is360Mode && <Cloud360Panel />}
 
       <Dialog open={youtubeDialogOpen} onOpenChange={setYoutubeDialogOpen}>
         <DialogContent>
@@ -482,12 +484,22 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
         </DialogContent>
       </Dialog>
 
+      <Cloud360ProjectDialog
+        open={projectDialogOpen}
+        onOpenChange={setProjectDialogOpen}
+        onConfirm={(projectId) => {
+          setSelectedProjectId(projectId);
+          setPickerOpen(true);
+        }}
+      />
+
       {recordedVideo && (
         <VideoPreviewModal
           open={previewOpen}
           videoBlob={recordedVideo.blob}
           videoFilePath={recordedVideo.filePath}
           approvalMode={approvalMode}
+          is360Mode={is360Mode}
           onClose={resetPreview}
           onRetry={handleRetry}
           onContinue={handleContinue}
