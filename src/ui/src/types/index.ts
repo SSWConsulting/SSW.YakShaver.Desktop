@@ -141,6 +141,13 @@ export type UndoEventDetail = {
  */
 export const WORKFLOW_CLEAR_EVENT_CHANNEL = "yakshaver:workflow-clear";
 
+/**
+ * Dispatched after the LLM/orchestrator settings are saved. The settings live in a
+ * dialog that doesn't remount the recording page, so views that derive state from
+ * the config (e.g. useCloud360Mode) listen for this to re-read it without a restart.
+ */
+export const LLM_CONFIG_CHANGED_EVENT = "yakshaver:llm-config-changed";
+
 export enum MCPStepType {
   START = "start",
   REASONING = "reasoning",

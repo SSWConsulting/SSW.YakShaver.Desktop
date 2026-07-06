@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
+import { LLM_CONFIG_CHANGED_EVENT } from "../../../types";
 
 interface OrchestratorBackendSettingProps {
   isActive: boolean;
@@ -141,6 +142,9 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
           throw new Error("Failed to update orchestrator backend");
         }
         setCurrentBackend(backend);
+        // The recording page derives 360 mode from this config but isn't remounted when
+        // the settings dialog closes; notify it so the switch takes effect immediately.
+        window.dispatchEvent(new CustomEvent(LLM_CONFIG_CHANGED_EVENT));
         toast.success(`Orchestrator set to ${BACKEND_LABELS[backend]}`);
         // Surface readiness right after choosing Claude Code so the user learns immediately if the
         // CLI is missing or not signed in.
