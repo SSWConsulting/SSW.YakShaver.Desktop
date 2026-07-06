@@ -1,7 +1,7 @@
 import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { MCPServerConfig } from "@shared/types/mcp";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchBacklogProviderHealth } from "@/components/home/mcp-status";
+import { fetchBacklogProviderHealth, isBacklogProvider } from "@/components/home/mcp-status";
 import { fetchOrchestratorReadiness } from "@/components/settings/settings-health";
 import { ipcClient } from "@/services/ipc-client";
 import { AuthStatus, type HealthStatusInfo } from "@/types";
@@ -66,8 +66,12 @@ export function deriveStatusDashboard(inputs: StatusDashboardInputs): StatusDash
         message: "Your shave will not be synced with the portal, etc.",
       };
 
+  // Filter to backlog providers explicitly (mirrors mcp-status.ts's own
+  // isBacklogProvider/enabled check) rather than relying on mcpHealthById only ever
+  // containing entries for backlog providers — an implicit invariant that would
+  // silently break if a caller ever passed health for non-backlog servers too.
   const connectedProviders = inputs.mcpServers
-    .filter((server) => server.enabled !== false)
+    .filter(isBacklogProvider)
     .filter((server) => inputs.mcpHealthById[server.id]?.isHealthy === true);
   const mcp: StatusItem =
     connectedProviders.length > 0

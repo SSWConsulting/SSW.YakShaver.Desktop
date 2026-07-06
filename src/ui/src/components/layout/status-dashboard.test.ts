@@ -82,6 +82,16 @@ describe("deriveStatusDashboard (#948)", () => {
       );
       expect(result.mcp.level).toBe("red");
     });
+
+    it("does NOT count a healthy non-backlog (custom) server as connected", () => {
+      const result = deriveStatusDashboard(
+        inputs({
+          mcpServers: [{ id: "custom-xyz", name: "Docs", enabled: true }],
+          mcpHealthById: { "custom-xyz": { isHealthy: true } },
+        }),
+      );
+      expect(result.mcp.level).toBe("red");
+    });
   });
 
   describe("language model status", () => {
