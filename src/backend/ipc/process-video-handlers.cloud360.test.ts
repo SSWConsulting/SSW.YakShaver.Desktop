@@ -26,7 +26,7 @@ vi.mock("../services/shave/shave-service", () => ({
 
 // The class under test decides the fork purely from getLLMConfig + projectId,
 // so we test the decision helper directly to avoid Electron/ffmpeg imports.
-import { shouldUseCloud360, runCloud360Path } from "./process-video-cloud360";
+import { runCloud360Path, shouldUseCloud360 } from "./process-video-cloud360";
 
 beforeEach(() => {
   run.mockReset();
@@ -48,7 +48,10 @@ describe("cloud-360 fork decision", () => {
 
   it("errors when no project is selected", async () => {
     const result = await runCloud360Path("/tmp/v.mp4", undefined, undefined);
-    expect(result).toEqual({ success: false, error: "No project selected for Cloud 360 processing." });
+    expect(result).toEqual({
+      success: false,
+      error: "No project selected for Cloud 360 processing.",
+    });
     expect(run).not.toHaveBeenCalled();
   });
 

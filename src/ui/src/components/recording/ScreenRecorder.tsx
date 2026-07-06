@@ -13,6 +13,8 @@ import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
+import { Cloud360Panel } from "../cloud360/Cloud360Panel";
+import { Cloud360ProjectPicker } from "../cloud360/Cloud360ProjectPicker";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -25,8 +27,6 @@ import {
 import { Input } from "../ui/input";
 import { Kbd } from "../ui/kbd";
 import { Label } from "../ui/label";
-import { Cloud360Panel } from "../cloud360/Cloud360Panel";
-import { Cloud360ProjectPicker } from "../cloud360/Cloud360ProjectPicker";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { useCloud360Mode } from "./useCloud360Mode";
 import { VideoPreviewModal } from "./VideoPreviewModal";

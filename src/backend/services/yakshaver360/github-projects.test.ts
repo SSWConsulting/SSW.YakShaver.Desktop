@@ -6,8 +6,7 @@ vi.mock("../../config/env", () => ({
 
 import { fetchGitHubProjects } from "./github-projects";
 
-const okJson = (body: unknown) =>
-  ({ ok: true, status: 200, json: async () => body }) as Response;
+const okJson = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
 
 afterEach(() => vi.restoreAllMocks());
 

@@ -16,8 +16,8 @@ vi.mock("../services/auth/identity-server-auth", () => ({
 
 vi.mock("../services/yakshaver360/github-projects", () => ({ fetchGitHubProjects }));
 
-import { Cloud360IPCHandlers } from "./cloud-360-handlers";
 import { IPC_CHANNELS } from "./channels";
+import { Cloud360IPCHandlers } from "./cloud-360-handlers";
 
 beforeEach(() => {
   handlers.clear();
@@ -31,7 +31,8 @@ describe("Cloud360IPCHandlers list-projects", () => {
     getAccessToken.mockResolvedValue("tok");
     fetchGitHubProjects.mockResolvedValue([{ id: "1", name: "GH", githubRepo: "a/b" }]);
 
-    const handler = handlers.get(IPC_CHANNELS.CLOUD360_LIST_PROJECTS)!;
+    const handler = handlers.get(IPC_CHANNELS.CLOUD360_LIST_PROJECTS);
+    if (!handler) throw new Error("handler not registered");
     const result = await handler({});
 
     expect(fetchGitHubProjects).toHaveBeenCalledWith("tok");
@@ -40,7 +41,8 @@ describe("Cloud360IPCHandlers list-projects", () => {
 
   it("throws when not signed in", async () => {
     getAccessToken.mockResolvedValue(null);
-    const handler = handlers.get(IPC_CHANNELS.CLOUD360_LIST_PROJECTS)!;
+    const handler = handlers.get(IPC_CHANNELS.CLOUD360_LIST_PROJECTS);
+    if (!handler) throw new Error("handler not registered");
     await expect(handler({})).rejects.toThrow("Not signed in");
   });
 });

@@ -1,6 +1,6 @@
-import { render, screen, act } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Cloud360EventPayload } from "@shared/types/cloud360";
+import { act, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let emit: (p: Cloud360EventPayload) => void = () => {};
 vi.mock("@/services/ipc-client", () => ({
@@ -31,7 +31,11 @@ describe("Cloud360Panel", () => {
     render(<Cloud360Panel />);
     act(() =>
       emit({
-        event: { type: "result", summary: "Created issue", artifacts: ["https://github.com/a/b/issues/7"] },
+        event: {
+          type: "result",
+          summary: "Created issue",
+          artifacts: ["https://github.com/a/b/issues/7"],
+        },
       }),
     );
     expect(screen.getByText("Created issue")).toBeInTheDocument();

@@ -1,7 +1,7 @@
 import type { Cloud360EventPayload } from "@shared/types/cloud360";
-import type { SandboxEvent } from "../../../../backend/services/yakshaver360/types";
 import { useEffect, useState } from "react";
 import { ipcClient } from "@/services/ipc-client";
+import type { SandboxEvent } from "../../../../backend/services/yakshaver360/types";
 
 type Phase = "running" | "done" | "failed";
 

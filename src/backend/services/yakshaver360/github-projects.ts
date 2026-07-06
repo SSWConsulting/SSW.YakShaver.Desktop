@@ -1,5 +1,5 @@
-import { config } from "../../config/env";
 import type { Cloud360Project } from "../../../shared/types/cloud360";
+import { config } from "../../config/env";
 
 interface PortalProjectDto {
   id: string;

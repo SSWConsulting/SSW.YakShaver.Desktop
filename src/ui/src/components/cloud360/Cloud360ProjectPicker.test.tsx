@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { listProjects } = vi.hoisted(() => ({ listProjects: vi.fn() }));
@@ -35,9 +35,7 @@ describe("Cloud360ProjectPicker", () => {
   it("shows an empty-state message when there are no GitHub projects", async () => {
     listProjects.mockResolvedValueOnce([]);
     render(<Cloud360ProjectPicker value={null} onChange={vi.fn()} />);
-    await waitFor(() =>
-      expect(screen.getByText(/no github project/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/no github project/i)).toBeInTheDocument());
   });
 
   it("shows an error state when loading fails", async () => {
