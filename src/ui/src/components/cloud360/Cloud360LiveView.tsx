@@ -154,6 +154,16 @@ export function Cloud360LiveView() {
             case "tool-result":
               // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
               return <ToolResultBlock key={i} text={item.text} />;
+            case "result":
+              return (
+                <div
+                  // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
+                  key={i}
+                  className="prose prose-invert prose-sm max-w-none py-2 text-sm font-medium text-neutral-400"
+                >
+                  <Markdown>{item.summary}</Markdown>
+                </div>
+              );
             case "error":
               return (
                 <pre

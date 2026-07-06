@@ -147,9 +147,12 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
   const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
-  const canRecord360 = isSignedIn && !!selectedProjectId;
+  // Project selection happens *after* Record is clicked (Cloud360ProjectDialog),
+  // so gating on selectedProjectId here would make the button permanently
+  // disabled and the dialog unreachable. The dialog's own "Start recording"
+  // button enforces project selection downstream.
   const recordDisabled = is360Mode
-    ? isProcessing || isTranscribing || !canRecord360
+    ? isProcessing || isTranscribing || !isSignedIn
     : isProcessing || isTranscribing || !isAuthenticated;
 
   // The "Process YouTube link" affordance is only relevant before any video has

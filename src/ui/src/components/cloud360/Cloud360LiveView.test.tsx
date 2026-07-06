@@ -58,6 +58,20 @@ describe("Cloud360LiveView", () => {
     expect(link).toHaveAttribute("href", "https://github.com/a/b/issues/7");
   });
 
+  it("renders an inline result item parsed from a log event", () => {
+    render(<Cloud360LiveView />);
+    act(() =>
+      emit({
+        event: {
+          type: "log",
+          stream: "stdout",
+          data: JSON.stringify({ type: "result", result: "All done here" }),
+        },
+      }),
+    );
+    expect(screen.getByText("All done here")).toBeInTheDocument();
+  });
+
   it("renders an error row", () => {
     render(<Cloud360LiveView />);
     act(() => emit({ event: { type: "error", message: "Sandbox failed" } }));
