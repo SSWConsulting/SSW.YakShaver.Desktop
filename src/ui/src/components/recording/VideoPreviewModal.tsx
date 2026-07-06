@@ -33,6 +33,8 @@ interface VideoPreviewModalProps {
   onRetry: () => void;
   onContinue: (shaveAutoApprove: boolean) => void;
   onDurationLoad?: (duration: number) => void;
+  /** True when the current run uses the YakShaver 360 backend; snapshots the backend for /workflow. */
+  is360Mode?: boolean;
 }
 
 export function VideoPreviewModal({
@@ -44,6 +46,7 @@ export function VideoPreviewModal({
   onRetry,
   onContinue,
   onDurationLoad,
+  is360Mode = false,
 }: VideoPreviewModalProps) {
   const navigateToWorkflow = useWorkflowNavigation({ listen: false });
   const [videoUrl, setVideoUrl] = useState("");
@@ -156,7 +159,7 @@ export function VideoPreviewModal({
               <Button
                 variant="default"
                 onClick={() => {
-                  navigateToWorkflow();
+                  navigateToWorkflow(is360Mode ? { backend: "cloud-360" } : undefined);
                   onContinue(autoApproveChecked);
                 }}
                 disabled={audioCheck.status === "checking" || audioCheck.status === "no_audio"}
