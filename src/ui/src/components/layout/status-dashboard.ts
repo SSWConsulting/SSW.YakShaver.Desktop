@@ -2,6 +2,7 @@ import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { MCPServerConfig } from "@shared/types/mcp";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchBacklogProviderHealth } from "@/components/home/mcp-status";
+import { fetchOrchestratorReadiness } from "@/components/settings/settings-health";
 import { ipcClient } from "@/services/ipc-client";
 import { AuthStatus, type HealthStatusInfo } from "@/types";
 
@@ -151,10 +152,13 @@ export function useStatusDashboard(): StatusDashboard {
         ]);
 
       // Only probe Claude Code readiness when it's the selected backend — otherwise
-      // it's irrelevant and we skip the spawn entirely (mirrors settings-health.ts).
+      // it's irrelevant and we skip the spawn entirely. Shared/de-duped with
+      // settings-health.ts's useSettingsTabHealth via fetchOrchestratorReadiness (see its
+      // docstring) so a single window-focus event doesn't spawn the `claude --version`
+      // subprocess twice when Settings is also open.
       const orchestratorReadiness =
         llmConfig?.orchestrationBackend === "local-claude"
-          ? await ipcClient.llm.checkOrchestratorReadiness().catch(() => null)
+          ? await fetchOrchestratorReadiness()
           : null;
 
       if (requestIdRef.current !== requestId) return; // superseded or unmounted
