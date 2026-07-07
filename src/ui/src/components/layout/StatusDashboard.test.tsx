@@ -110,4 +110,17 @@ describe("StatusDashboard (#948)", () => {
     await waitFor(() => expect(checkOrchestratorReadiness).toHaveBeenCalled());
     expect(screen.getByText(/claude code cli not found/i)).toBeTruthy();
   });
+
+  it("address review #949: exposes the status row container as an aria-live region", async () => {
+    status.mockResolvedValue({ status: "authenticated" });
+    listServers.mockResolvedValue([]);
+    getConfig.mockResolvedValue(healthyLlm);
+
+    render(<StatusDashboard />);
+
+    await waitFor(() => expect(listServers).toHaveBeenCalled());
+
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-live", "polite");
+  });
 });

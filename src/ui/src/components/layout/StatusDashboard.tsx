@@ -61,6 +61,13 @@ function StatusRow({ label, item }: StatusRowProps) {
  * silently until a shave breaks: login status, MCP server connection status, and
  * language model connection status. Updates automatically (mount, window focus,
  * and STATUS_DASHBOARD_REFRESH_EVENT) so it reflects changes made in Settings.
+ *
+ * Address review #949 follow-up — the container is an `<output>` element (implicit
+ * `role="status"`) with `aria-live="polite"` so a row flipping after mount (e.g. an MCP server
+ * drops) is announced to screen readers even when focus isn't inside the sidebar. `polite` (not
+ * `HomeMcpStatusBanner`'s `role="alert"`) is deliberate: this container can update repeatedly in
+ * the background (every focus/refresh event), and `alert`'s assertive interrupt is meant for a
+ * one-shot, attention-demanding message, not a recurring background status card.
  */
 export function StatusDashboard() {
   const dashboard = useStatusDashboard();
@@ -70,7 +77,10 @@ export function StatusDashboard() {
     dashboard.languageModel.level === "green";
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2.5">
+    <output
+      aria-live="polite"
+      className="flex flex-col gap-2 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2.5"
+    >
       <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/50">
         {allHealthy ? (
           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
@@ -82,6 +92,6 @@ export function StatusDashboard() {
       <StatusRow label="Login" item={dashboard.login} />
       <StatusRow label="MCP servers" item={dashboard.mcp} />
       <StatusRow label="Language model" item={dashboard.languageModel} />
-    </div>
+    </output>
   );
 }
