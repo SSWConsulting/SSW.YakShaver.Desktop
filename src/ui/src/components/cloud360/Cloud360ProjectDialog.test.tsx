@@ -9,7 +9,7 @@ import { Cloud360ProjectDialog } from "./Cloud360ProjectDialog";
 beforeEach(() => listProjects.mockClear());
 
 describe("Cloud360ProjectDialog", () => {
-  it("lists projects and confirms a selection", async () => {
+  it("lists projects (name + repo) and confirms on selecting one", async () => {
     listProjects.mockResolvedValueOnce([
       { id: "1", name: "Widgets", githubRepo: "acme/widgets" },
       { id: "2", name: "Gadgets", githubRepo: "acme/gadgets" },
@@ -18,8 +18,9 @@ describe("Cloud360ProjectDialog", () => {
     render(<Cloud360ProjectDialog open onOpenChange={vi.fn()} onConfirm={onConfirm} />);
 
     await waitFor(() => expect(screen.getByText("Widgets")).toBeInTheDocument());
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
-    fireEvent.click(screen.getByRole("button", { name: /start recording/i }));
+    // Selecting a project immediately proceeds — no separate confirm button (mirrors web).
+    expect(screen.getByText("acme/gadgets")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Gadgets"));
     expect(onConfirm).toHaveBeenCalledWith("2");
   });
 

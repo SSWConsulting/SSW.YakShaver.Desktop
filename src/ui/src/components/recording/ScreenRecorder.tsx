@@ -305,6 +305,19 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     try {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
+
+      // 360 is self-contained; skip the local shave record and pass duration through.
+      if (is360Mode) {
+        await window.electronAPI.pipelines.processVideoFile(
+          filePath,
+          undefined,
+          shaveAutoApprove,
+          selectedProjectId ?? undefined,
+          duration,
+        );
+        return;
+      }
+
       const result = await saveRecording(
         {
           clientOrigin: "YakShaver Desktop",
@@ -327,12 +340,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
         );
       }
       //Process video even if Shave creation failed, do not block user
-      await window.electronAPI.pipelines.processVideoFile(
-        filePath,
-        newShave?.id,
-        shaveAutoApprove,
-        is360Mode ? (selectedProjectId ?? undefined) : undefined,
-      );
+      await window.electronAPI.pipelines.processVideoFile(filePath, newShave?.id, shaveAutoApprove);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = formatErrorMessage(error);

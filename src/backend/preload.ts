@@ -172,6 +172,7 @@ const electronAPI = {
       shaveId?: string,
       shaveAutoApprove?: boolean,
       projectId?: string,
+      durationSeconds?: number,
     ) =>
       ipcRenderer.invoke(
         IPC_CHANNELS.PROCESS_VIDEO_FILE,
@@ -179,6 +180,7 @@ const electronAPI = {
         shaveId,
         shaveAutoApprove,
         projectId,
+        durationSeconds,
       ),
     processVideoUrl: (url: string, shaveId?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PROCESS_VIDEO_URL, url, shaveId),

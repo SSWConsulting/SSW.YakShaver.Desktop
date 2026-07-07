@@ -97,12 +97,13 @@ export class ProcessVideoIPCHandlers {
         shaveId?: string,
         shaveAutoApprove?: boolean,
         projectId?: string,
+        durationSeconds?: number,
       ) => {
         if (!filePath) {
           throw new Error("video-process-handler: Video file path is required");
         }
         if (await shouldUseCloud360()) {
-          return await runCloud360Path(filePath, shaveId, projectId);
+          return await runCloud360Path(filePath, shaveId, projectId, durationSeconds);
         }
         return await this.processFileVideo(filePath, shaveId, shaveAutoApprove);
       },

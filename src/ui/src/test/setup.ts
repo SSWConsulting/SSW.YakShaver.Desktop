@@ -5,6 +5,17 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
+// jsdom doesn't implement ResizeObserver, which cmdk (the Command primitive used by
+// Cloud360ProjectDialog) constructs on mount. Provide a no-op polyfill so those
+// component tests can render.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 afterEach(() => {
   cleanup();
 });

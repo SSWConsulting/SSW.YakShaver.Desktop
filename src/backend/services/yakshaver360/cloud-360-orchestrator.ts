@@ -23,8 +23,16 @@ export class Cloud360Orchestrator {
         notes: params.notes,
       });
 
-      for await (const event of this.client.processRecording(recordingId, { autoExecute: true })) {
-        broadcastCloud360Event({ shaveId, event });
+      // videoAnalysis:false mirrors the web Reprocess button (the vision path is
+      // hard-coded to Moonshot and 401s under a non-Moonshot AGENT_API_KEY).
+      let firstEvent = true;
+      for await (const event of this.client.processRecording(recordingId, {
+        videoAnalysis: false,
+        autoExecute: true,
+      })) {
+        // runStart on the first event tells the live view to clear the previous run.
+        broadcastCloud360Event({ shaveId, event, runStart: firstEvent });
+        firstEvent = false;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

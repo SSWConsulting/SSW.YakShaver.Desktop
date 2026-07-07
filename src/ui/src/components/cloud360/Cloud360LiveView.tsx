@@ -2,6 +2,7 @@ import type { Cloud360EventPayload } from "@shared/types/cloud360";
 import { Brain } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ipcClient } from "@/services/ipc-client";
 import type { SandboxEvent } from "../../../../backend/services/yakshaver360/types";
 import { type DisplayItem, parseLogData } from "./parse-log-data";
@@ -71,6 +72,17 @@ export function Cloud360LiveView() {
   useEffect(() => {
     const cleanup = ipcClient.pipelines.onCloud360Event((payload: Cloud360EventPayload) => {
       const event: SandboxEvent = payload.event;
+
+      // A new run starts its own event stream: clear the previous run's feed
+      // before appending. The backend broadcasts runStart at the top of each
+      // run() so this works even when the component is not remounted.
+      if (payload.runStart) {
+        setItems([]);
+        setResult(null);
+        setShowConfetti(false);
+        setPhase("streaming");
+      }
+
       switch (event.type) {
         case "status":
           setItems((prev) => [...prev, { kind: "status", text: event.message }]);
@@ -97,8 +109,10 @@ export function Cloud360LiveView() {
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: effect only reads ref, no deps needed
   useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    const viewport = scrollRef.current?.querySelector<HTMLDivElement>(
+      "[data-radix-scroll-area-viewport]",
+    );
+    if (viewport) viewport.scrollTop = viewport.scrollHeight;
   }, [items.length]);
 
   let lastStatusIdx = -1;
@@ -108,77 +122,101 @@ export function Cloud360LiveView() {
   const isStreaming = phase === "streaming";
 
   return (
-    <div className="mx-auto my-4 flex h-[500px] w-[600px] flex-col rounded-lg border border-white/10 bg-black/20 p-4">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-lg border border-white/10 bg-black/20 p-4">
       <ScissorsConfetti trigger={showConfetti} />
       <h2 className="mb-2 shrink-0 text-xl">YakShaver 360 Progress</h2>
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-2">
-        {items.map((item, i) => {
-          switch (item.kind) {
-            case "status": {
-              const isDone = !(i === lastStatusIdx && isStreaming);
-              return (
+      {/* Radix ScrollArea wraps children in a display:table element that grows to
+          content width, which lets non-wrapping rows (e.g. status dividers) push
+          the box wider than max-w. Force that wrapper to the viewport width so
+          min-w-0 / truncate below actually take effect. */}
+      <ScrollArea
+        ref={scrollRef}
+        className="min-h-0 w-full min-w-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block [&>[data-radix-scroll-area-viewport]>div]:!min-w-0"
+      >
+        <div className="min-w-0 space-y-0.5 pr-3">
+          {items.map((item, i) => {
+            switch (item.kind) {
+              case "status": {
+                const isDone = !(i === lastStatusIdx && isStreaming);
+                return (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
+                  <div key={i} className="flex min-w-0 items-center gap-2 py-2">
+                    <div className="h-px flex-1 bg-gray-800" />
+                    <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-blue-400">
+                      {isDone && <span className="shrink-0 text-green-400">✓</span>}
+                      <span className="truncate">{item.text}</span>
+                    </span>
+                    <div className="h-px flex-1 bg-gray-800" />
+                  </div>
+                );
+              }
+              case "thinking":
                 // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
-                <div key={i} className="flex items-center gap-2 py-2">
-                  <div className="h-px flex-1 bg-gray-800" />
-                  <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-blue-400">
-                    {isDone && <span className="text-green-400">✓</span>}
-                    {item.text}
-                  </span>
-                  <div className="h-px flex-1 bg-gray-800" />
-                </div>
-              );
+                return <ThinkingBlock key={i} text={item.text} />;
+              case "text":
+                return (
+                  <div
+                    // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
+                    key={i}
+                    className="min-w-0 py-1 text-sm leading-relaxed break-words text-neutral-400"
+                  >
+                    <Markdown>{item.text}</Markdown>
+                  </div>
+                );
+              case "tool":
+                return (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
+                  <div key={i} className="flex min-w-0 items-center gap-2 py-1">
+                    <span className="shrink-0 rounded bg-cyan-900/40 px-1.5 py-0.5 font-mono text-[10px] text-cyan-400">
+                      {item.name}
+                    </span>
+                    <span className="truncate font-mono text-xs text-neutral-400">
+                      {item.detail}
+                    </span>
+                  </div>
+                );
+              case "tool-result":
+                // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
+                return <ToolResultBlock key={i} text={item.text} />;
+              case "result":
+                return (
+                  <div
+                    // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
+                    key={i}
+                    className="min-w-0 py-2 text-sm font-medium break-words text-neutral-400"
+                  >
+                    <Markdown>{item.summary}</Markdown>
+                  </div>
+                );
+              case "error":
+                return (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
+                  <div key={i} className="flex items-center gap-2 py-1.5 text-red-400">
+                    <svg
+                      className="h-4 w-4 shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <pre className="font-mono text-xs leading-relaxed break-all whitespace-pre-wrap">
+                      {item.text}
+                    </pre>
+                  </div>
+                );
+              default:
+                return null;
             }
-            case "thinking":
-              // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
-              return <ThinkingBlock key={i} text={item.text} />;
-            case "text":
-              return (
-                <div
-                  // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
-                  key={i}
-                  className="prose prose-invert prose-sm max-w-none py-1 text-sm text-neutral-400"
-                >
-                  <Markdown>{item.text}</Markdown>
-                </div>
-              );
-            case "tool":
-              return (
-                // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
-                <div key={i} className="flex items-center gap-2 py-1">
-                  <span className="rounded bg-cyan-900/40 px-1.5 py-0.5 font-mono text-[10px] text-cyan-400">
-                    {item.name}
-                  </span>
-                  <span className="truncate font-mono text-xs text-neutral-400">{item.detail}</span>
-                </div>
-              );
-            case "tool-result":
-              // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
-              return <ToolResultBlock key={i} text={item.text} />;
-            case "result":
-              return (
-                <div
-                  // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
-                  key={i}
-                  className="prose prose-invert prose-sm max-w-none py-2 text-sm font-medium text-neutral-400"
-                >
-                  <Markdown>{item.summary}</Markdown>
-                </div>
-              );
-            case "error":
-              return (
-                <pre
-                  // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
-                  key={i}
-                  className="py-1.5 font-mono text-xs break-all whitespace-pre-wrap text-red-400"
-                >
-                  {item.text}
-                </pre>
-              );
-            default:
-              return null;
-          }
-        })}
-      </div>
+          })}
+        </div>
+      </ScrollArea>
 
       {result && (
         <div className="mt-2 shrink-0 space-y-2 rounded-xl border border-green-800/50 bg-green-950/30 p-4">

@@ -44,6 +44,7 @@ declare global {
           shaveId?: string,
           shaveAutoApprove?: boolean,
           projectId?: string,
+          durationSeconds?: number,
         ) => Promise<void>;
         processVideoUrl: (url: string, shaveId?: string) => Promise<void>;
         rerunTask: (

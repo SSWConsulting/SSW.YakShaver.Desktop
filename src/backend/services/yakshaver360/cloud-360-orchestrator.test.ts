@@ -50,13 +50,19 @@ describe("Cloud360Orchestrator", () => {
       durationSeconds: 42,
       notes: undefined,
     });
-    expect(processRecording).toHaveBeenCalledWith("rec-1", { autoExecute: true });
+    expect(processRecording).toHaveBeenCalledWith("rec-1", {
+      videoAnalysis: false,
+      autoExecute: true,
+    });
     expect(broadcast).toHaveBeenCalledTimes(2);
+    // The first event of a run is tagged runStart so the live view clears the previous run.
     expect(broadcast).toHaveBeenNthCalledWith(1, {
       shaveId: "s1",
       event: { type: "status", message: "Creating sandbox..." },
+      runStart: true,
     });
     expect(broadcast.mock.calls[1][0].event.type).toBe("result");
+    expect(broadcast.mock.calls[1][0].runStart).toBe(false);
   });
 
   it("broadcasts an error event (does not throw) when upload fails", async () => {

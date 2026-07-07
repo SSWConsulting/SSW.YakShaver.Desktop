@@ -11,4 +11,6 @@ export interface Cloud360Project {
 export interface Cloud360EventPayload {
   shaveId?: string;
   event: SandboxEvent;
+  /** True on the first event of a new run so the live view can clear the previous run's feed. */
+  runStart?: boolean;
 }

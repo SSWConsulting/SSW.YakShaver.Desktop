@@ -17,14 +17,23 @@ export async function runCloud360Path(
   filePath: string,
   shaveId: string | undefined,
   projectId: string | undefined,
+  durationSeconds?: number,
 ): Promise<{ success: boolean; error?: string }> {
   if (!projectId) {
     return { success: false, error: "No project selected for YakShaver 360 processing." };
   }
-  const durationSeconds = shaveId
-    ? (ShaveService.getInstance().getShaveVideoSourceInfo(shaveId)?.durationSeconds ?? 0)
-    : 0;
+  // Duration comes from the caller; fall back to a shave lookup, then 0.
+  const resolvedDuration =
+    durationSeconds ??
+    (shaveId
+      ? (ShaveService.getInstance().getShaveVideoSourceInfo(shaveId)?.durationSeconds ?? 0)
+      : 0);
 
-  await new Cloud360Orchestrator().run({ filePath, projectId, shaveId, durationSeconds });
+  await new Cloud360Orchestrator().run({
+    filePath,
+    projectId,
+    shaveId,
+    durationSeconds: resolvedDuration,
+  });
   return { success: true };
 }

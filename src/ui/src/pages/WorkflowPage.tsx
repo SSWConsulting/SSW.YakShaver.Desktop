@@ -18,7 +18,12 @@ export function WorkflowPage() {
       {shaveId ? (
         <ShaveOutcomeView shaveId={shaveId} />
       ) : is360 ? (
-        <Cloud360LiveView />
+        // Constrain the width and centre the live view (the parent is a
+        // full-width flex column). The view clears itself between recordings, so
+        // it does not need a remount key here.
+        <div className="flex min-h-0 w-full min-w-0 max-w-3xl flex-1 self-center">
+          <Cloud360LiveView />
+        </div>
       ) : (
         <>
           <WorkflowProgressPanel />
