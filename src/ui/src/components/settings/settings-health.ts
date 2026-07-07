@@ -2,6 +2,7 @@ import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
 import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { MCPServerConfig } from "@shared/types/mcp";
 import { useCallback, useEffect, useState } from "react";
+import { checkServerHealthWithTimeout } from "@/components/home/mcp-status";
 import { ipcClient } from "@/services/ipc-client";
 import type { HealthStatusInfo } from "@/types";
 
@@ -184,7 +185,11 @@ export function useSettingsTabHealth(open: boolean): SettingsHealthMap {
       await Promise.all(
         backlog.map(async (server) => {
           try {
-            mcpHealthById[server.id] = await ipcClient.mcp.checkServerHealthAsync(server.id);
+            // Bounded by the shared timeout helper (address review #949 follow-up): without it, a
+            // wedged (hung, not crashed) MCP server would leave this Promise.all branch pending
+            // forever, freezing the Settings-nav health indicator on stale data — the same failure
+            // mode mcp-status.ts's fetchBacklogProviderHealth already guards against.
+            mcpHealthById[server.id] = await checkServerHealthWithTimeout(server.id);
           } catch {
             // A failed probe is inconclusive, not "disconnected" — leave undefined
             // so deriveSettingsHealth doesn't raise a false critical state.
