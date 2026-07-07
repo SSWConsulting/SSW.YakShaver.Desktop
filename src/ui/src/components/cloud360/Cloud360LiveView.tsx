@@ -115,10 +115,7 @@ export function Cloud360LiveView() {
     if (viewport) viewport.scrollTop = viewport.scrollHeight;
   }, [items.length]);
 
-  let lastStatusIdx = -1;
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].kind === "status") lastStatusIdx = i;
-  }
+  const lastStatusIdx = items.map((it) => it.kind).lastIndexOf("status");
   const isStreaming = phase === "streaming";
 
   return (
@@ -137,7 +134,7 @@ export function Cloud360LiveView() {
           {items.map((item, i) => {
             switch (item.kind) {
               case "status": {
-                const isDone = !(i === lastStatusIdx && isStreaming);
+                const isDone = i !== lastStatusIdx || !isStreaming;
                 return (
                   // biome-ignore lint/suspicious/noArrayIndexKey: live-view items are append-only, never reordered
                   <div key={i} className="flex min-w-0 items-center gap-2 py-2">

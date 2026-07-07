@@ -195,47 +195,14 @@ describe("YakShaver360Client", () => {
     });
   });
 
-  describe("listRecordings / getRecording (JSON endpoints)", () => {
-    it("returns recordings on 200 with the projectId query and bearer header", async () => {
-      const client = freshClient();
-      const rows = [{ id: "r1", projectId: "p1", filePath: "u", notes: "", status: "uploaded" }];
-      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(rows));
-      vi.stubGlobal("fetch", fetchMock);
-
-      const result = await client.listRecordings("p1");
-      expect(result).toEqual(rows);
-      const [url, options] = fetchMock.mock.calls[0];
-      expect(url).toBe("https://360.test/api/360/recordings?projectId=p1");
-      expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
-    });
-
-    it("throws on a non-ok list response (mirrors route 401)", async () => {
-      const client = freshClient();
-      vi.stubGlobal(
-        "fetch",
-        vi
-          .fn()
-          .mockResolvedValue(jsonResponse({ error: "Unauthorized" }, { ok: false, status: 401 })),
-      );
-      await expect(client.listRecordings("p1")).rejects.toThrow(/401/);
-    });
-
-    it("returns null when getRecording gets a 404", async () => {
-      const client = freshClient();
-      vi.stubGlobal(
-        "fetch",
-        vi.fn().mockResolvedValue(jsonResponse({ error: "Not found" }, { ok: false, status: 404 })),
-      );
-      expect(await client.getRecording("missing")).toBeNull();
-    });
-
+  describe("auth guard", () => {
     it("throws when no access token is available", async () => {
       // biome-ignore lint/suspicious/noExplicitAny: reset singleton for test isolation
       (YakShaver360Client as any).instance = null;
       const client = YakShaver360Client.getInstance();
       vi.spyOn(IdentityServerAuthService.prototype, "getAccessToken").mockResolvedValue(null);
       vi.stubGlobal("fetch", vi.fn());
-      await expect(client.listRecordings("p1")).rejects.toThrow(/not signed in/i);
+      await expect(collect(client.processRecording("rec-1"))).rejects.toThrow(/not signed in/i);
     });
   });
 

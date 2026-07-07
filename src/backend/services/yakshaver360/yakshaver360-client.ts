@@ -1,20 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { config } from "../../config/env";
 import { IdentityServerAuthService } from "../auth/identity-server-auth";
-import type {
-  ProcessRecordingOptions,
-  RecordingUploadTarget,
-  SandboxEvent,
-  YakShaver360Project,
-  YakShaver360Recording,
-} from "./types";
+import type { ProcessRecordingOptions, RecordingUploadTarget, SandboxEvent } from "./types";
 import { contentTypeForFile, extensionForContentType } from "./upload-content-type";
-
-export type RecordingDetail = {
-  recording: YakShaver360Recording;
-  project: YakShaver360Project;
-  logs: unknown[];
-};
 
 /** Client for the YakShaver 360 front-end (/api/360/*), authed with the user's IDS bearer token. */
 export class YakShaver360Client {
@@ -38,28 +26,6 @@ export class YakShaver360Client {
       throw new Error("Not signed in: no YakShaver Identity Server access token available.");
     }
     return { Authorization: `Bearer ${token}` };
-  }
-
-  async listRecordings(projectId: string): Promise<YakShaver360Recording[]> {
-    const headers = await this.authHeader();
-    const url = `${this.baseUrl()}/api/360/recordings?projectId=${encodeURIComponent(projectId)}`;
-    const response = await fetch(url, { headers });
-    if (!response.ok) {
-      throw new Error(`Failed to list recordings (${response.status})`);
-    }
-    return (await response.json()) as YakShaver360Recording[];
-  }
-
-  /** Null on 404. */
-  async getRecording(id: string): Promise<RecordingDetail | null> {
-    const headers = await this.authHeader();
-    const url = `${this.baseUrl()}/api/360/recordings/${encodeURIComponent(id)}`;
-    const response = await fetch(url, { headers });
-    if (response.status === 404) return null;
-    if (!response.ok) {
-      throw new Error(`Failed to get recording (${response.status})`);
-    }
-    return (await response.json()) as RecordingDetail;
   }
 
   /** Create a recording from an already-uploaded video (ticket from the upload route); returns its id. */
@@ -158,37 +124,21 @@ export class YakShaver360Client {
     });
   }
 
-  /** Start processing a recording, yielding each SandboxEvent as the SSE stream produces it. */
+  /**
+   * Start processing a recording, yielding each SandboxEvent as the SSE stream produces it.
+   * POSTs the options as JSON and parses the `text/event-stream` response.
+   */
   async *processRecording(
     id: string,
     options: ProcessRecordingOptions = {},
     signal?: AbortSignal,
   ): AsyncGenerator<SandboxEvent> {
     const url = `${this.baseUrl()}/api/360/recordings/${encodeURIComponent(id)}/process`;
-    yield* this.streamPost(url, options, signal);
-  }
-
-  /** Resume a paused (approval-required) run with an approve/reject decision. */
-  async *executeApproval(
-    id: string,
-    body: { action: "approve" | "reject"; feedback?: string },
-    signal?: AbortSignal,
-  ): AsyncGenerator<SandboxEvent> {
-    const url = `${this.baseUrl()}/api/360/recordings/${encodeURIComponent(id)}/execute`;
-    yield* this.streamPost(url, body, signal);
-  }
-
-  /** POST a JSON body and parse the `text/event-stream` response into SandboxEvents. */
-  private async *streamPost(
-    url: string,
-    body: unknown,
-    signal?: AbortSignal,
-  ): AsyncGenerator<SandboxEvent> {
     const headers = await this.authHeader();
     const response = await fetch(url, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(options),
       signal,
     });
 
