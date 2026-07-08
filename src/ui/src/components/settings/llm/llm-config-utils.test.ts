@@ -161,6 +161,20 @@ describe("LLM settings config utilities", () => {
 
       expect(result.providerApiKeys).toEqual({ openai: "sk-real" });
     });
+
+    it("removes a stale providerApiKeys entry when saving an empty key and no other slot uses it", () => {
+      const result = buildConfigWithSavedModel(baseConfig, "languageModel", {
+        provider: "openai",
+        model: "gpt-4",
+        apiKey: "",
+      });
+
+      expect(result.providerApiKeys).toEqual({
+        deepseek: "transcription-key",
+        azure: "azure-key",
+      });
+      expect(getSavedApiKeyForProvider(result, "languageModel", "openai")).toBe("");
+    });
   });
 
   describe("getSavedApiKeyForProvider — provider switch round-trip (#513)", () => {

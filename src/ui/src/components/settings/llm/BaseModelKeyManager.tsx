@@ -169,10 +169,9 @@ export function BaseModelKeyManager({
       // fall through with empty key
     }
 
-    // The checkmark/health indicator must reflect the provider now shown in the dropdown, not
-    // whichever provider happened to be saved before the switch. Derive it from the same
-    // savedKey lookup above so it stays consistent with the field it's describing.
-    setHasConfig(!!savedKey);
+    // Keep hasConfig tied to the persisted model slot so selecting a cached, unsaved provider
+    // does not trigger a health check against the still-persisted provider.
+    setHasConfig(freshConfig?.[modelType]?.provider === value);
 
     form.reset({
       provider: value,

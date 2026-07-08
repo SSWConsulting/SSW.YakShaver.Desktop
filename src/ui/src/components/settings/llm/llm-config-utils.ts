@@ -34,11 +34,10 @@ export function buildConfigWithSavedModel(
     providerApiKeys[otherModel.provider] = otherModel.apiKey;
   }
 
-  // Only overwrite the cache when this save actually carries a key. An empty submission must
-  // never clobber a key already cached for this provider — including one just backfilled above
-  // from the other model slot sharing the same provider.
   if (values.apiKey) {
     providerApiKeys[values.provider] = values.apiKey;
+  } else if (otherModel?.provider !== values.provider || !otherModel.apiKey) {
+    delete providerApiKeys[values.provider];
   }
 
   return {
