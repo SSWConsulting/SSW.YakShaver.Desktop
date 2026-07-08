@@ -77,7 +77,9 @@ function getRecorderControlAvailability(
   showSplitLayout: boolean,
 ): RecorderControlAvailability {
   const recordDisabled =
-    controlState.isProcessing || controlState.isTranscribing || !controlState.isVideoHostConnected;
+    controlState.isProcessing ||
+    controlState.isTranscribing ||
+    (!controlState.isRecording && !controlState.isVideoHostConnected);
   const uploadDisabled = recordDisabled || controlState.isRecording || controlState.isProcessingUrl;
 
   let uploadTitle = PROCESS_YOUTUBE_URL_LABEL;
@@ -197,9 +199,10 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     isProcessingUrl,
     isVideoHostConnected,
   } satisfies RecorderControlState;
+  const showYoutubeUrlSplitLayout = isYoutubeUrlWorkflowEnabled && !isRecording;
   const controlAvailability = getRecorderControlAvailability(
     controlState,
-    isYoutubeUrlWorkflowEnabled,
+    showYoutubeUrlSplitLayout,
   );
 
   const handleStopRecording = useCallback(async () => {
@@ -431,7 +434,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
         <div className="flex flex-col items-center gap-1 w-full">
           <RecordButton
             controlAvailability={controlAvailability}
-            showSplitLayout={isYoutubeUrlWorkflowEnabled}
+            showSplitLayout={showYoutubeUrlSplitLayout}
             onToggleRecording={toggleRecording}
             onUploadClick={() => setYoutubeDialogOpen(true)}
             className={className}

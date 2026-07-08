@@ -181,15 +181,11 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     expect(processYoutubeLink()).toBeInTheDocument();
   });
 
-  it("disables (but keeps visible) the Process YouTube link while a recording is in progress (#946)", async () => {
+  it("hides the Process YouTube link and keeps Stop Recording available while recording", async () => {
     state.isRecording = true;
     render(<ScreenRecorder showButtonOnly />);
-    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
-    expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable while recording)");
-    // #947 follow-up: the isRecording branch has its own tooltip copy,
-    // distinct from the isDisabled branch — assert it
-    // explicitly rather than only checking toBeDisabled().
-    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable while recording)");
+    await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /Stop Recording/i })).toBeEnabled();
   });
 
   it("disables the Process YouTube link with a video-host-specific title when no host is connected (#947)", async () => {
@@ -221,27 +217,23 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable right now)");
   });
 
-  it("prioritises the recording title over the video-host title when both disable causes apply (#947)", async () => {
-    // Confirms the documented priority order (recording > video-host auth
-    // > processing/transcribing) actually holds when two
-    // independent disable causes are true at once: a recording is active AND
-    // the video host is disconnected. The active-recording copy is more
-    // specific to the immediate interaction, so it should win.
+  it("hides the Process YouTube link while recording even if the video host disconnects", async () => {
     state.isRecording = true;
     state.authStatus = AuthStatus.NOT_AUTHENTICATED;
     render(<ScreenRecorder showButtonOnly />);
-    await waitFor(() =>
-      expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable while recording)"),
-    );
+    await waitFor(() => expect(processYoutubeLink()).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /Stop Recording/i })).toBeEnabled();
   });
 
   it("keeps the unavailable Process YouTube link focusable but blocks activation", async () => {
-    state.isRecording = true;
+    state.authStatus = AuthStatus.NOT_AUTHENTICATED;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
     const button = processYoutubeLink();
 
-    expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable while recording)");
+    expectProcessYoutubeLinkUnavailable(
+      "Process YouTube URL (unavailable until a video host is connected)",
+    );
     fireEvent.click(button as HTMLElement);
 
     expect(screen.queryByLabelText("YouTube URL")).not.toBeInTheDocument();
