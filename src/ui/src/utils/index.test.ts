@@ -39,6 +39,7 @@ function makeState(overrides: Partial<Record<keyof WorkflowState, WorkflowStatus
     downloading_video: makeStep("not_started"),
     converting_audio: makeStep("not_started"),
     transcribing: makeStep("not_started"),
+    optimizing_transcript: makeStep("not_started"),
     analyzing_transcript: makeStep("not_started"),
     selecting_prompt: makeStep("not_started"),
     executing_task: makeStep("not_started"),
