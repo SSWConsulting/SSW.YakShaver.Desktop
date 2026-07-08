@@ -175,7 +175,11 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
 
     expect(setFeedURLMock).toHaveBeenCalled();
     expect(checkForUpdatesMock).toHaveBeenCalled();
-    expect(result).toEqual({ available: true, version: "beta.42.1" });
+    expect(result).toEqual({
+      available: true,
+      version: "beta.42.1",
+      currentVersion: "1.2.3",
+    });
   });
 
   it("caches a healthy token-health result within the 60s TTL — a second call within the window does not re-verify", async () => {
@@ -366,6 +370,6 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
 
     // verifyGitHubToken is never even consulted for the stable channel.
     expect(verifyGitHubTokenMock).not.toHaveBeenCalled();
-    expect(result).toEqual({ available: false });
+    expect(result).toEqual({ available: false, currentVersion: "1.2.3" });
   });
 });
