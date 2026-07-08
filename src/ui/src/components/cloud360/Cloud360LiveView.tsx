@@ -73,9 +73,8 @@ export function Cloud360LiveView() {
     const cleanup = ipcClient.pipelines.onCloud360Event((payload: Cloud360EventPayload) => {
       const event: SandboxEvent = payload.event;
 
-      // A new run starts its own event stream: clear the previous run's feed
-      // before appending. The backend broadcasts runStart at the top of each
-      // run() so this works even when the component is not remounted.
+      // runStart (broadcast at the top of each run) clears the previous run's feed,
+      // even when the component is not remounted.
       if (payload.runStart) {
         setItems([]);
         setResult(null);
@@ -122,10 +121,8 @@ export function Cloud360LiveView() {
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-lg border border-white/10 bg-black/20 p-4">
       <ScissorsConfetti trigger={showConfetti} />
       <h2 className="mb-2 shrink-0 text-xl">YakShaver 360 Progress</h2>
-      {/* Radix ScrollArea wraps children in a display:table element that grows to
-          content width, which lets non-wrapping rows (e.g. status dividers) push
-          the box wider than max-w. Force that wrapper to the viewport width so
-          min-w-0 / truncate below actually take effect. */}
+      {/* Radix ScrollArea's display:table wrapper grows to content width, defeating
+          min-w-0/truncate below; force it to block so it stays at viewport width. */}
       <ScrollArea
         ref={scrollRef}
         className="min-h-0 w-full min-w-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block [&>[data-radix-scroll-area-viewport]>div]:!min-w-0"

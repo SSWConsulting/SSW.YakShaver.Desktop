@@ -141,18 +141,10 @@ export type UndoEventDetail = {
  */
 export const WORKFLOW_CLEAR_EVENT_CHANNEL = "yakshaver:workflow-clear";
 
-/**
- * Dispatched after the LLM/orchestrator settings are saved. The settings live in a
- * dialog that doesn't remount the recording page, so views that derive state from
- * the config (e.g. useCloud360Mode) listen for this to re-read it without a restart.
- */
+/** Fired after LLM/orchestrator settings save so config-derived views re-read without a remount. */
 export const LLM_CONFIG_CHANGED_EVENT = "yakshaver:llm-config-changed";
 
-/**
- * Dispatched after the IdentityServer auth state is refreshed (sign in / out). Auth is
- * managed in the sidebar, which doesn't remount the recording page, so views that gate on
- * sign-in (e.g. useCloud360Mode) listen for this to re-read status without a restart.
- */
+/** Fired after IdentityServer sign in/out so sign-in-gated views re-read status without a remount. */
 export const IS_AUTH_CHANGED_EVENT = "yakshaver:is-auth-changed";
 
 export enum MCPStepType {

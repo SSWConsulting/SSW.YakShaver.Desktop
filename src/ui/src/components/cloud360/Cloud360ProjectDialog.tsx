@@ -11,11 +11,7 @@ interface Props {
   onConfirm: (projectId: string) => void;
 }
 
-/**
- * Project picker for YakShaver 360, mirroring the web frontend's
- * ShaveProjectPickerDialog: a searchable list where selecting a project
- * immediately proceeds (here: fires onConfirm + closes; web navigates to /record).
- */
+/** Searchable 360 project picker (mirrors the web ShaveProjectPickerDialog); selecting one proceeds immediately. */
 export function Cloud360ProjectDialog({ open, onOpenChange, onConfirm }: Props) {
   const [projects, setProjects] = useState<Cloud360Project[] | null>(null);
   const [error, setError] = useState<string | null>(null);

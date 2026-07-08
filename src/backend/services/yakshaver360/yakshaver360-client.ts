@@ -90,10 +90,7 @@ export class YakShaver360Client {
     }
   }
 
-  /**
-   * Upload a local video file and create its recording, returning the recording id.
-   * Runs the same three steps as the 360 web app: upload target -> Azure PUT -> create recording.
-   */
+  /** Upload a local video and create its recording (upload target -> Azure PUT -> create); returns the id. */
   async uploadRecordingFromFile(params: {
     projectId: string;
     filePath: string;
@@ -124,10 +121,7 @@ export class YakShaver360Client {
     });
   }
 
-  /**
-   * Start processing a recording, yielding each SandboxEvent as the SSE stream produces it.
-   * POSTs the options as JSON and parses the `text/event-stream` response.
-   */
+  /** Start processing a recording, yielding each SandboxEvent from the SSE stream. */
   async *processRecording(
     id: string,
     options: ProcessRecordingOptions = {},

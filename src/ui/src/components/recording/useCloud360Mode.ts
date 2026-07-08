@@ -19,8 +19,7 @@ export function useCloud360Mode() {
         .catch(() => {
           if (!cancelled) setIs360Mode(false);
         });
-      // Matches the real shape read in IdentityServerAuthManager.tsx:28 —
-      // `result.status === "authenticated"` (NOT `result.data.status`).
+      // Auth shape is `result.status === "authenticated"`, not `result.data.status`.
       ipcClient.auth.identityServer
         .status()
         .then((res) => {
@@ -32,9 +31,8 @@ export function useCloud360Mode() {
     };
 
     read();
-    // The backend is changed in the Settings dialog, which doesn't remount this
-    // page; re-read on the config-changed event (and on window focus) so switching
-    // to 360 takes effect immediately instead of only after an app restart.
+    // Settings/sign-in change without remounting this page, so re-read on those
+    // events (and focus) — otherwise 360 mode stays stale until an app restart.
     window.addEventListener(LLM_CONFIG_CHANGED_EVENT, read);
     window.addEventListener(IS_AUTH_CHANGED_EVENT, read);
     window.addEventListener("focus", read);

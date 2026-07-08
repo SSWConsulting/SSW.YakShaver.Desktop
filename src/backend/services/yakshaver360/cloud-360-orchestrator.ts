@@ -23,8 +23,7 @@ export class Cloud360Orchestrator {
         notes: params.notes,
       });
 
-      // videoAnalysis:false mirrors the web Reprocess button (the vision path is
-      // hard-coded to Moonshot and 401s under a non-Moonshot AGENT_API_KEY).
+      // videoAnalysis:false mirrors the web Reprocess button (vision path is Moonshot-only, 401s otherwise).
       let firstEvent = true;
       for await (const event of this.client.processRecording(recordingId, {
         videoAnalysis: false,
