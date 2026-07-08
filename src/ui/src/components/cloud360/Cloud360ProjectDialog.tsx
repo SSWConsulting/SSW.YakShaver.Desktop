@@ -1,8 +1,8 @@
 import type { Cloud360Project } from "@shared/types/cloud360";
-import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "../ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 
 interface Props {
@@ -13,18 +13,20 @@ interface Props {
 
 /**
  * Project picker for YakShaver 360, mirroring the web frontend's
- * ShaveProjectPickerDialog: a searchable command list where selecting a project
+ * ShaveProjectPickerDialog: a searchable list where selecting a project
  * immediately proceeds (here: fires onConfirm + closes; web navigates to /record).
  */
 export function Cloud360ProjectDialog({ open, onOpenChange, onConfirm }: Props) {
   const [projects, setProjects] = useState<Cloud360Project[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setProjects(null);
     setError(null);
+    setQuery("");
     ipcClient.cloud360
       .listProjects()
       .then((list) => {
@@ -38,6 +40,13 @@ export function Cloud360ProjectDialog({ open, onOpenChange, onConfirm }: Props) 
     };
   }, [open]);
 
+  const filtered = useMemo(() => {
+    if (!projects) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter((p) => p.name.toLowerCase().includes(q));
+  }, [projects, query]);
+
   const handleSelect = (projectId: string) => {
     onOpenChange(false);
     onConfirm(projectId);
@@ -49,42 +58,44 @@ export function Cloud360ProjectDialog({ open, onOpenChange, onConfirm }: Props) 
         <DialogHeader className="sr-only">
           <DialogTitle>Select a project</DialogTitle>
         </DialogHeader>
-        {/* Transparent so the DialogContent's blurred-black surface shows through
-            (Command defaults to an opaque bg-popover). */}
-        <Command className="bg-transparent [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-3 [&_[cmdk-item]]:py-3">
-          <CommandInput placeholder="Search projects..." />
-          <CommandList className="cloud360-project-scroll max-h-[60vh] min-h-[420px]">
-            {error ? (
-              <div className="text-destructive py-6 text-center text-sm">{error}</div>
-            ) : projects === null ? (
-              <div className="text-muted-foreground py-6 text-center text-sm">
-                Loading projects...
-              </div>
-            ) : (
-              <>
-                <CommandEmpty>
-                  No GitHub project found. YakShaver 360 needs a GitHub-backed project.
-                </CommandEmpty>
-                {projects.map((project) => (
-                  <CommandItem
-                    key={project.id}
-                    value={project.name}
-                    onSelect={() => handleSelect(project.id)}
-                    // Override the default bg-accent highlight (Desktop's --accent is a
-                    // warm brown) with a neutral translucent-white hover, matching the
-                    // rest of the Desktop dark UI.
-                    className="flex cursor-pointer flex-col items-start gap-0.5 data-[selected=true]:bg-white/10 data-[selected=true]:text-white"
-                  >
-                    <span className="font-medium">{project.name}</span>
-                    {project.githubRepo ? (
-                      <span className="text-muted-foreground text-xs">{project.githubRepo}</span>
-                    ) : null}
-                  </CommandItem>
-                ))}
-              </>
-            )}
-          </CommandList>
-        </Command>
+        <div className="flex items-center gap-2 border-white/10 border-b px-3">
+          <Search className="h-4 w-4 shrink-0 opacity-50" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search projects..."
+            autoFocus
+            className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <div className="cloud360-project-scroll max-h-[60vh] min-h-105 overflow-y-auto p-1">
+          {error ? (
+            <div className="text-destructive py-6 text-center text-sm">{error}</div>
+          ) : projects === null ? (
+            <div className="text-muted-foreground py-6 text-center text-sm">
+              Loading projects...
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-muted-foreground py-6 text-center text-sm">
+              No GitHub project found. YakShaver 360 needs a GitHub-backed project.
+            </div>
+          ) : (
+            filtered.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                onClick={() => handleSelect(project.id)}
+                // Neutral translucent-white hover, matching the rest of the Desktop dark UI.
+                className="flex w-full cursor-pointer flex-col items-start gap-0.5 rounded px-3 py-3 text-left hover:bg-white/10 hover:text-white"
+              >
+                <span className="font-medium">{project.name}</span>
+                {project.githubRepo ? (
+                  <span className="text-muted-foreground text-xs">{project.githubRepo}</span>
+                ) : null}
+              </button>
+            ))
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
