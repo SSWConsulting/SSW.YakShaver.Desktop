@@ -247,6 +247,27 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     expect(screen.queryByLabelText("YouTube URL")).not.toBeInTheDocument();
   });
 
+  it("disables an already-open YouTube URL submit when upload becomes unavailable", async () => {
+    const { rerender } = render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+
+    fireEvent.click(processYoutubeLink() as HTMLElement);
+    const input = await screen.findByLabelText("YouTube URL");
+    fireEvent.change(input, {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+
+    state.isRecording = true;
+    rerender(<ScreenRecorder showButtonOnly />);
+
+    const submitButton = screen.getByRole("button", { name: "Process Link" });
+    expect(submitButton).toBeDisabled();
+    fireEvent.click(submitButton);
+
+    expect(window.electronAPI.pipelines.processVideoUrl).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("YouTube URL")).toBeInTheDocument();
+  });
+
   it("does not show the Process YouTube link when the workflow is disabled", async () => {
     state.isYoutubeUrlWorkflowEnabled = false;
     render(<ScreenRecorder showButtonOnly />);
@@ -286,6 +307,37 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     await waitFor(() => expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalled());
     await waitFor(() => expect(processYoutubeLink()).toBeEnabled());
     expect(processYoutubeLink()).toBeInTheDocument();
+  });
+
+  it("disables the Process YouTube link while a URL submit is still pending", async () => {
+    let resolveProcessVideoUrl: (() => void) | undefined;
+    window.electronAPI.pipelines.processVideoUrl = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveProcessVideoUrl = resolve;
+        }),
+    );
+
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+
+    fireEvent.click(processYoutubeLink() as HTMLElement);
+    const input = await screen.findByLabelText("YouTube URL");
+    fireEvent.change(input, {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Process Link" }));
+    });
+
+    await waitFor(() => expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalled());
+    await waitFor(() =>
+      expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable right now)"),
+    );
+    fireEvent.click(processYoutubeLink() as HTMLElement);
+    expect(screen.queryByLabelText("YouTube URL")).not.toBeInTheDocument();
+
+    await act(async () => resolveProcessVideoUrl?.());
   });
 
   it("keeps the primary record button labelled 'Record' after a recording is made", async () => {

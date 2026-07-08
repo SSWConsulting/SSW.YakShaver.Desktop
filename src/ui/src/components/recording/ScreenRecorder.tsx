@@ -43,6 +43,7 @@ interface RecorderControlState {
   isRecording: boolean;
   isTranscribing: boolean;
   isProcessing: boolean;
+  isProcessingUrl: boolean;
   isVideoHostConnected: boolean;
 }
 
@@ -54,7 +55,7 @@ interface RecorderControlAvailability {
 }
 
 interface RecordButtonProps {
-  controlState: RecorderControlState;
+  controlAvailability: RecorderControlAvailability;
   // Renders the split-button shell (and its "Record"/"Stop" label/layout)
   // whenever the YouTube-URL workflow is enabled.
   showSplitLayout: boolean;
@@ -77,14 +78,14 @@ function getRecorderControlAvailability(
 ): RecorderControlAvailability {
   const recordDisabled =
     controlState.isProcessing || controlState.isTranscribing || !controlState.isVideoHostConnected;
-  const uploadDisabled = recordDisabled || controlState.isRecording;
+  const uploadDisabled = recordDisabled || controlState.isRecording || controlState.isProcessingUrl;
 
   let uploadTitle = PROCESS_YOUTUBE_URL_LABEL;
   if (controlState.isRecording) {
     uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable while recording)`;
   } else if (!controlState.isVideoHostConnected) {
     uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable until a video host is connected)`;
-  } else if (recordDisabled) {
+  } else if (recordDisabled || controlState.isProcessingUrl) {
     uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable right now)`;
   }
 
@@ -97,14 +98,13 @@ function getRecorderControlAvailability(
 }
 
 function RecordButton({
-  controlState,
+  controlAvailability,
   showSplitLayout,
   onToggleRecording,
   onUploadClick,
   className = "",
 }: RecordButtonProps) {
-  const { recordDisabled, uploadDisabled, uploadTitle, recordLabel } =
-    getRecorderControlAvailability(controlState, showSplitLayout);
+  const { recordDisabled, uploadDisabled, uploadTitle, recordLabel } = controlAvailability;
   const uploadDescriptionId = useId();
   const handleUploadClick = useCallback(() => {
     if (uploadDisabled) {
@@ -194,8 +194,13 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     isRecording,
     isTranscribing,
     isProcessing,
+    isProcessingUrl,
     isVideoHostConnected,
   } satisfies RecorderControlState;
+  const controlAvailability = getRecorderControlAvailability(
+    controlState,
+    isYoutubeUrlWorkflowEnabled,
+  );
 
   const handleStopRecording = useCallback(async () => {
     const result = await stop();
@@ -350,6 +355,10 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   };
 
   const handleProcessYoutubeUrl = async () => {
+    if (controlAvailability.uploadDisabled) {
+      return;
+    }
+
     const trimmedUrl = youtubeUrl.trim();
 
     if (!trimmedUrl) {
@@ -391,6 +400,16 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     }
   };
 
+  const handleSubmitYoutubeUrl = () => {
+    if (controlAvailability.uploadDisabled) {
+      return;
+    }
+
+    navigateToWorkflow();
+    handleProcessYoutubeUrl();
+    setYoutubeDialogOpen(false);
+  };
+
   const isValidYouTubeUrl = (url: string): boolean => {
     try {
       const { hostname } = new URL(url);
@@ -411,7 +430,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
       <section className="flex flex-col gap-4 items-center w-full">
         <div className="flex flex-col items-center gap-1 w-full">
           <RecordButton
-            controlState={controlState}
+            controlAvailability={controlAvailability}
             showSplitLayout={isYoutubeUrlWorkflowEnabled}
             onToggleRecording={toggleRecording}
             onUploadClick={() => setYoutubeDialogOpen(true)}
@@ -469,12 +488,8 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                navigateToWorkflow();
-                handleProcessYoutubeUrl();
-                setYoutubeDialogOpen(false);
-              }}
-              disabled={!youtubeUrl.trim() || isProcessingUrl}
+              onClick={handleSubmitYoutubeUrl}
+              disabled={!youtubeUrl.trim() || isProcessingUrl || controlAvailability.uploadDisabled}
             >
               {isProcessingUrl ? "Processing..." : "Process Link"}
             </Button>
