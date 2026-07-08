@@ -39,47 +39,74 @@ interface ScreenRecorderProps {
   className?: string;
 }
 
-interface RecordButtonProps {
+interface RecorderControlState {
   isRecording: boolean;
   isTranscribing: boolean;
-  isDisabled: boolean;
-  // Distinguishes the "sign in" sub-cause of `isDisabled` from the transient
-  // isProcessing/isTranscribing sub-causes (#947 follow-up): unlike a busy
-  // wait, "not authenticated" requires the user to take an action, so it gets
-  // its own tooltip copy rather than sharing the generic "unavailable right
-  // now" message.
-  isAuthenticated: boolean;
+  isProcessing: boolean;
+  isVideoHostConnected: boolean;
+}
+
+interface RecorderControlAvailability {
+  recordDisabled: boolean;
+  uploadDisabled: boolean;
+  uploadTitle: string;
+  recordLabel: string;
+}
+
+interface RecordButtonProps {
+  controlState: RecorderControlState;
   // Renders the split-button shell (and its "Record"/"Stop" label/layout)
   // whenever the YouTube-URL workflow is enabled.
   showSplitLayout: boolean;
-  // Disables (rather than removes) the right-hand Upload sub-button once a
-  // video has already been committed for processing (#775 — the app does not
-  // yet support queueing a second video) or while a recording is in progress.
-  // The control stays visible with an explanatory tooltip instead of
-  // vanishing outright (#946 — a control that disappears the moment its
-  // feature toggle is enabled reads as "missing/broken", not "unavailable
-  // right now"). Only meaningful when `showSplitLayout` is true (the
-  // single-button shell has no slot for it).
-  uploadActionDisabled: boolean;
   onToggleRecording: () => void;
   onUploadClick: () => void;
   className?: string;
 }
 
+const PROCESS_YOUTUBE_URL_LABEL = "Process YouTube URL";
+
+function getRecordLabel(controlState: RecorderControlState, showSplitLayout: boolean) {
+  if (controlState.isRecording) return showSplitLayout ? "Stop" : "Stop Recording";
+  if (controlState.isTranscribing) return "Transcribing...";
+  return showSplitLayout ? "Record" : "Start Recording";
+}
+
+function getRecorderControlAvailability(
+  controlState: RecorderControlState,
+  showSplitLayout: boolean,
+): RecorderControlAvailability {
+  const recordDisabled =
+    controlState.isProcessing ||
+    controlState.isTranscribing ||
+    !controlState.isVideoHostConnected;
+  const uploadDisabled = recordDisabled || controlState.isRecording;
+
+  let uploadTitle = PROCESS_YOUTUBE_URL_LABEL;
+  if (controlState.isRecording) {
+    uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable while recording)`;
+  } else if (!controlState.isVideoHostConnected) {
+    uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable until a video host is connected)`;
+  } else if (recordDisabled) {
+    uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable right now)`;
+  }
+
+  return {
+    recordDisabled,
+    uploadDisabled,
+    uploadTitle,
+    recordLabel: getRecordLabel(controlState, showSplitLayout),
+  };
+}
+
 function RecordButton({
-  isRecording,
-  isTranscribing,
-  isDisabled,
-  isAuthenticated,
+  controlState,
   showSplitLayout,
-  uploadActionDisabled,
   onToggleRecording,
   onUploadClick,
   className = "",
 }: RecordButtonProps) {
-  let label = showSplitLayout ? "Record" : "Start Recording";
-  if (isRecording) label = showSplitLayout ? "Stop" : "Stop Recording";
-  else if (isTranscribing) label = "Transcribing...";
+  const { recordDisabled, uploadDisabled, uploadTitle, recordLabel } =
+    getRecorderControlAvailability(controlState, showSplitLayout);
 
   if (!showSplitLayout) {
     return (
@@ -90,46 +117,12 @@ function RecordButton({
         )}
         onClick={onToggleRecording}
         size="chunky"
-        disabled={isDisabled}
+        disabled={recordDisabled}
       >
         <CircleStopIcon className="w-5 h-5" />
-        {label}
+        {recordLabel}
       </Button>
     );
-  }
-
-  // The upload sub-button can be disabled for several independent reasons,
-  // and the tooltip must explain whichever one actually applies (#947
-  // follow-up: an unqualified "Process YouTube URL" title on a disabled
-  // control is the same "looks broken" problem #946 set out to fix, just for
-  // a different cause). Priority order matters here — `isRecording` is
-  // checked *before* the generic `isDisabled` bucket because `stop()`
-  // (useScreenRecording.ts) sets isProcessing true immediately and only
-  // clears isRecording/isProcessing together once the async save finishes,
-  // so both are simultaneously true for the whole save window. Without this
-  // ordering the tooltip would read the generic "unavailable right now"
-  // during that window instead of the more accurate "unavailable while
-  // recording".
-  //  - `isRecording` — actively recording (or saving just after Stop).
-  //  - `isDisabled` (processing/transcribing/auth) — a transient, app-wide
-  //    gate that also disables the primary record button. The
-  //    `!isAuthenticated` sub-cause gets its own copy: unlike a busy wait,
-  //    signing in requires the user to take an action.
-  //  - `uploadActionDisabled` (isRecording || videoCommitted) — the
-  //    single-video-per-session gate (#775). Once a video is committed this
-  //    is permanent for the rest of the session (there is no reset), so the
-  //    copy says so rather than implying it clears when processing finishes.
-  const uploadDisabled = isDisabled || uploadActionDisabled;
-  let uploadTitle = "Process YouTube URL";
-  if (isRecording) {
-    uploadTitle = "Process YouTube URL (unavailable while recording)";
-  } else if (!isAuthenticated) {
-    uploadTitle = "Process YouTube URL (unavailable until you sign in)";
-  } else if (isDisabled) {
-    uploadTitle = "Process YouTube URL (unavailable right now)";
-  } else if (uploadActionDisabled) {
-    uploadTitle =
-      "Process YouTube URL (unavailable because only one video per session is supported)";
   }
 
   return (
@@ -138,10 +131,10 @@ function RecordButton({
         className="flex-1 bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
         onClick={onToggleRecording}
         size="chunky"
-        disabled={isDisabled}
+        disabled={recordDisabled}
       >
         <CircleStopIcon />
-        {label}
+        {recordLabel}
       </Button>
       <div className="w-px bg-ssw-red-foreground/20" />
       {/* A disabled native <button> never receives pointer/hover events in
@@ -154,7 +147,7 @@ function RecordButton({
           the native tooltip; the inner <button> stays `disabled` for
           interaction-blocking and keeps a matching `aria-label` so the
           control's accessible name is unaffected by where `title` lives. */}
-      <div className="bg-ssw-red rounded-none rounded-r-md" title={uploadTitle}>
+      <div className="rounded-none rounded-r-md" title={uploadTitle}>
         <Button
           className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
           size="chunky"
@@ -181,7 +174,6 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const [recordHotkey, setRecordHotkey] = useState("");
 
   const [youtubeDialogOpen, setYoutubeDialogOpen] = useState(false);
-  const [videoCommitted, setVideoCommitted] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
@@ -189,33 +181,13 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const [approvalMode, setApprovalMode] = useState<ToolApprovalMode>("ask");
   const { saveRecording, checkExistingShave } = useShaveManager();
 
-  const isAuthenticated = authState.status === AuthStatus.AUTHENTICATED;
-
-  // The "Process YouTube link" affordance is only actionable before any video
-  // has been committed for processing. Once a video is committed — via EITHER
-  // the recording path (handleContinue) or a successful URL submit
-  // (handleProcessYoutubeUrl) — or a recording is in progress, we disable it
-  // (but keep it visible — see uploadActionDisabled below), because the app
-  // does not yet support processing multiple videos in parallel (#775). Both
-  // commit paths consume the same single-video slot, so the gate is symmetric
-  // across them.
-  //
-  // We track this with a dedicated session flag (`videoCommitted`) rather than
-  // reusing the session-global `uploadStatus`, which is ALSO driven to ERROR by
-  // a *failed* URL submit and the workflow-progress listener — so a failed URL
-  // submit must not latch this affordance off and strip the user's only way to
-  // retry the URL workflow.
-  const hasVideoBeenCommitted = isRecording || videoCommitted;
-  // Whether the upload sub-button (the entry to the URL dialog) should be
-  // disabled — a video is already committed for this session. The button
-  // itself always renders whenever the split layout does (#946: a control
-  // that disappears the instant its feature toggle is enabled reads as
-  // "missing/broken" to a user, not "temporarily unavailable" — see the
-  // tooltip text in RecordButton for the visible explanation). This is
-  // decoupled from the split-button shell below so disabling it does not
-  // relabel/reshape the primary record button (#775 asked only to gate this
-  // control, not to restyle the record button).
-  const uploadActionDisabled = hasVideoBeenCommitted;
+  const isVideoHostConnected = authState.status === AuthStatus.AUTHENTICATED;
+  const controlState = {
+    isRecording,
+    isTranscribing,
+    isProcessing,
+    isVideoHostConnected,
+  } satisfies RecorderControlState;
 
   const handleStopRecording = useCallback(async () => {
     const result = await stop();
@@ -331,10 +303,6 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     }
 
     resetPreview();
-    // A recording has now been committed for processing; hide the
-    // Process-YouTube-link affordance for the rest of the session (#775).
-    setVideoCommitted(true);
-
     try {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
@@ -405,12 +373,6 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
       }
       await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, shaveId);
       setYoutubeUrl("");
-      // A URL has now been committed for processing; it consumes the same
-      // single-video slot as a recording, so hide the Process-YouTube-link
-      // affordance for the rest of the session — symmetric with the recording
-      // path in handleContinue (#775). Set only on success so a failed submit
-      // leaves the user able to retry.
-      setVideoCommitted(true);
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
       const message = formatErrorMessage(error);
@@ -441,12 +403,8 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
       <section className="flex flex-col gap-4 items-center w-full">
         <div className="flex flex-col items-center gap-1 w-full">
           <RecordButton
-            isRecording={isRecording}
-            isTranscribing={isTranscribing}
-            isDisabled={isProcessing || isTranscribing || !isAuthenticated}
-            isAuthenticated={isAuthenticated}
+            controlState={controlState}
             showSplitLayout={isYoutubeUrlWorkflowEnabled}
-            uploadActionDisabled={uploadActionDisabled}
             onToggleRecording={toggleRecording}
             onUploadClick={() => setYoutubeDialogOpen(true)}
             className={className}
@@ -464,7 +422,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             </p>
           )}
         </div>
-        {!isAuthenticated && !showButtonOnly && (
+        {!isVideoHostConnected && !showButtonOnly && (
           <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
           </p>

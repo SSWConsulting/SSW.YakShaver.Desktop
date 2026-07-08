@@ -9,8 +9,8 @@ const state = vi.hoisted(() => ({
   isYoutubeUrlWorkflowEnabled: true,
   isRecording: false,
   // Drives the `isDisabled` sub-cause distinct from `isRecording` and
-  // `!isAuthenticated` (see the "isDisabled branch" tooltip coverage test
-  // below) — mirrors the real useScreenRecording() processing signal.
+  // the video-host auth gate (see the "isDisabled branch" tooltip coverage
+  // test below) — mirrors the real useScreenRecording() processing signal.
   isProcessing: false,
   authStatus: "authenticated" as string,
   uploadStatus: "idle" as UploadStatus,
@@ -102,7 +102,7 @@ vi.mock("./VideoPreviewModal", () => ({
 // resolve from the title-bearing wrapper down to its inner <button>.
 const processYoutubeLink = () => {
   const wrapper = screen.queryByTitle(
-    /^Process YouTube URL($| \(unavailable (while recording|until you sign in|right now|because only one video per session is supported)\))/,
+    /^Process YouTube URL($| \(unavailable (while recording|until a video host is connected|right now)\))/,
   );
   return wrapper?.querySelector("button") ?? null;
 };
@@ -111,11 +111,11 @@ const processYoutubeLink = () => {
 const processYoutubeLinkTooltip = () =>
   screen
     .queryByTitle(
-      /^Process YouTube URL($| \(unavailable (while recording|until you sign in|right now|because only one video per session is supported)\))/,
+      /^Process YouTube URL($| \(unavailable (while recording|until a video host is connected|right now)\))/,
     )
     ?.getAttribute("title") ?? null;
 
-describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => {
+describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
   beforeEach(() => {
     state.isYoutubeUrlWorkflowEnabled = true;
     state.isRecording = false;
@@ -148,13 +148,13 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
 
   afterEach(() => vi.clearAllMocks());
 
-  it("shows the Process YouTube link before any recording is made (AC2)", async () => {
+  it("shows the Process YouTube link before any recording is made", async () => {
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
     expect(processYoutubeLink()).toBeEnabled();
   });
 
-  it("disables (but keeps visible) the Process YouTube link once a recording has been made (AC1, #946)", async () => {
+  it("keeps the Process YouTube link enabled once a recording has been submitted", async () => {
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
 
@@ -162,10 +162,10 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
     await act(async () => state.stopRequestHandler?.());
     fireEvent.click(await screen.findByTestId("continue-recording"));
 
-    // #946: the control must stay visible (not vanish) once it becomes
-    // unavailable — a control that disappears the moment its feature toggle
-    // is enabled reads as "missing/broken", not "unavailable right now".
-    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
+    // Processing a submitted recording does not block starting another
+    // recording, so the URL entry point follows the same concurrency rule.
+    await waitFor(() => expect(window.electronAPI.pipelines.processVideoFile).toHaveBeenCalled());
+    await waitFor(() => expect(processYoutubeLink()).toBeEnabled());
     expect(processYoutubeLink()).toBeInTheDocument();
   });
 
@@ -175,33 +175,35 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
     expect(processYoutubeLink()).toBeDisabled();
     // #947 follow-up: the isRecording branch has its own tooltip copy,
-    // distinct from the isDisabled and post-commit branches — assert it
+    // distinct from the isDisabled branch — assert it
     // explicitly rather than only checking toBeDisabled().
     expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable while recording)");
   });
 
-  it("disables the Process YouTube link with a sign-in-specific title when disabled via !isAuthenticated (#947)", async () => {
-    // isDisabled (auth/processing/transcribing) is a distinct disable cause
-    // from uploadActionDisabled (recording/video-committed). Drive it via
+  it("disables the Process YouTube link with a video-host-specific title when no host is connected (#947)", async () => {
+    // The video-host auth gate is a distinct shared disable cause from
+    // active recording. Drive it via
     // AuthStatus.NOT_AUTHENTICATED (the real enum member — not an ad hoc
-    // string) — no recording made, no video committed — so
-    // uploadActionDisabled is false and only the !isAuthenticated sub-cause
-    // of isDisabled applies. Unlike the transient processing/transcribing
-    // sub-causes, signing in requires user action, so it gets its own copy
-    // rather than the generic "unavailable right now".
+    // string) — no recording in progress — so
+    // no recording in progress, so only the video-host auth sub-cause applies.
+    // Unlike transient processing/transcribing, connecting a video host
+    // requires user action, so it gets its own copy rather than the generic
+    // "unavailable right now".
     state.authStatus = AuthStatus.NOT_AUTHENTICATED;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
     expect(processYoutubeLink()).toBeDisabled();
-    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable until you sign in)");
+    expect(processYoutubeLinkTooltip()).toBe(
+      "Process YouTube URL (unavailable until a video host is connected)",
+    );
   });
 
   it("disables the Process YouTube link with the generic title when disabled via the plain isDisabled cause (#947)", async () => {
     // isProcessing (a transient app-wide gate distinct from isRecording and
-    // !isAuthenticated) is the one isDisabled sub-cause with no dedicated
+    // video-host auth) is the one isDisabled sub-cause with no dedicated
     // tooltip copy — it falls through to the generic "unavailable right now"
-    // message. No recording made, no video committed, authenticated, so
-    // uploadActionDisabled is false and only this sub-cause applies.
+    // message. No recording in progress, authenticated, so
+    // active recording is false and only this sub-cause applies.
     state.isProcessing = true;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
@@ -209,44 +211,17 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
     expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable right now)");
   });
 
-  it("prioritises the sign-in title over the post-commit title when both disable causes apply (#947)", async () => {
-    // Confirms the documented priority order (isRecording > !isAuthenticated
-    // > isDisabled > uploadActionDisabled) actually holds when two
-    // independent disable causes are true at once: a video was already
-    // committed for this session AND the user has since become
-    // unauthenticated. !isAuthenticated must win the tooltip text, per the
-    // priority chain in RecordButton. `rerender` (same component instance)
-    // is used rather than a second `render` so the already-committed video's
-    // local state is preserved while the auth context flips.
-    const { rerender } = render(<ScreenRecorder showButtonOnly />);
-    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
-
-    await act(async () => state.stopRequestHandler?.());
-    fireEvent.click(await screen.findByTestId("continue-recording"));
-    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
-    expect(processYoutubeLinkTooltip()).toBe(
-      "Process YouTube URL (unavailable because only one video per session is supported)",
-    );
-
+  it("prioritises the recording title over the video-host title when both disable causes apply (#947)", async () => {
+    // Confirms the documented priority order (recording > video-host auth
+    // > processing/transcribing) actually holds when two
+    // independent disable causes are true at once: a recording is active AND
+    // the video host is disconnected. The active-recording copy is more
+    // specific to the immediate interaction, so it should win.
+    state.isRecording = true;
     state.authStatus = AuthStatus.NOT_AUTHENTICATED;
-    rerender(<ScreenRecorder showButtonOnly />);
-    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
-    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable until you sign in)");
-  });
-
-  it("gives the post-commit disabled title an accurate, permanent-for-session explanation (#947)", async () => {
-    // videoCommitted is never reset once set, so the disabled title must not
-    // imply the wait is transient ("until this video finishes processing").
     render(<ScreenRecorder showButtonOnly />);
-    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
-
-    await act(async () => state.stopRequestHandler?.());
-    fireEvent.click(await screen.findByTestId("continue-recording"));
-
     await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
-    expect(processYoutubeLinkTooltip()).toBe(
-      "Process YouTube URL (unavailable because only one video per session is supported)",
-    );
+    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable while recording)");
   });
 
   it("does not show the Process YouTube link when the workflow is disabled", async () => {
@@ -260,19 +235,17 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
     // drives session-global uploadStatus to ERROR. The affordance must NOT be
     // gated on that signal, otherwise the upload button — the only entry point
     // to the URL dialog — would become permanently unusable and the user could
-    // never retry (#775).
+    // never retry.
     state.uploadStatus = UploadStatus.ERROR;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
     expect(processYoutubeLink()).toBeEnabled();
   });
 
-  it("disables the Process YouTube link after a successful URL submit", async () => {
-    // A submitted URL consumes the same single-video slot as a recording, so
-    // the gate must be symmetric: a *successful* URL submit disables the link
-    // too, not just a recording (#775 AC2 — only available when multi-video is
-    // supported). The recording path is covered above; this covers the URL
-    // branch that previously left the gate open.
+  it("keeps the Process YouTube link enabled after a successful URL submit", async () => {
+    // A submitted URL starts background processing, but background processing
+    // does not block starting another recording. Keep the URL entry point
+    // symmetric with the recording button and allow another submission.
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
 
@@ -288,27 +261,24 @@ describe("ScreenRecorder - Process YouTube link visibility (#775, #946)", () => 
     });
 
     await waitFor(() => expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalled());
-    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
+    await waitFor(() => expect(processYoutubeLink()).toBeEnabled());
     expect(processYoutubeLink()).toBeInTheDocument();
   });
 
   it("keeps the primary record button labelled 'Record' after a recording is made", async () => {
-    // Regression for the overloaded prop: disabling the upload sub-button
-    // after a video is committed must NOT relabel/reshape the primary record
-    // button. While the YouTube-URL workflow is enabled the button keeps its
-    // split "Record" affordance even after the upload action is disabled
-    // (#775 only asked to gate the upload control, not to restyle the record
-    // button).
+    // Regression for the overloaded prop: submitting a recording must NOT
+    // relabel/reshape the primary record button. While the YouTube-URL
+    // workflow is enabled the button keeps its split "Record" affordance.
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(screen.getByText("Record")).toBeInTheDocument());
 
     await act(async () => state.stopRequestHandler?.());
     fireEvent.click(await screen.findByTestId("continue-recording"));
 
-    // Upload sub-button is now disabled but still visible, and the record
-    // button must still read "Record" (not revert to the single-button
+    // Upload sub-button is still visible and enabled, and the record button
+    // must still read "Record" (not revert to the single-button
     // "Start Recording" affordance).
-    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
+    await waitFor(() => expect(processYoutubeLink()).toBeEnabled());
     expect(screen.getByText("Record")).toBeInTheDocument();
     expect(screen.queryByText("Start Recording")).not.toBeInTheDocument();
   });
