@@ -207,6 +207,7 @@ declare global {
           available: boolean;
           error?: string;
           version?: string;
+          currentVersion?: string;
         }>;
         getCurrentVersion: () => Promise<VersionInfo>;
         onDownloadProgress: (

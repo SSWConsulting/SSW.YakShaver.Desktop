@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ipcClient } from "@/services/ipc-client";
-import { formatErrorMessage } from "@/utils";
+import { formatErrorMessage, getVersionBumpType, type VersionBumpType } from "@/utils";
 import { GITHUB_TOKEN_UPDATED_EVENT } from "./GitHubTokenSetting";
 import type { ProcessedRelease, ReleaseChannel } from "./types";
 
@@ -28,11 +28,21 @@ interface DropdownOption {
 
 const SELECT_LATEST = "channel:latest";
 
+const BUMP_TYPE_LABEL: Record<VersionBumpType, string> = {
+  major: "Major update",
+  minor: "Minor update",
+  patch: "Patch update",
+  prerelease: "Pre-release update",
+  downgrade: "Downgrade",
+  unknown: "Update",
+};
+
 export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) {
   const selectId = useId();
   const [channel, setChannel] = useState<ReleaseChannel>({ type: "latest" });
   const [releases, setReleases] = useState<ProcessedRelease[]>([]);
   const [currentVersion, setCurrentVersion] = useState<string>("");
+  const [availableVersion, setAvailableVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingReleases, setIsLoadingReleases] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<string>("");
@@ -45,6 +55,11 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
   // "Rate limit exceeded") — used so the banner doesn't always say "invalid or expired" even when
   // the real cause was a network/offline failure.
   const [tokenHealthError, setTokenHealthError] = useState<string | undefined>(undefined);
+
+  const bumpType = useMemo(
+    () => getVersionBumpType(currentVersion, availableVersion),
+    [currentVersion, availableVersion],
+  );
 
   const getChannelDisplay = useCallback((currentChannel: ReleaseChannel) => {
     if (currentChannel.type === "latest") {
@@ -177,6 +192,7 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
 
     setIsLoading(true);
     setUpdateStatus("Checking for updates...");
+    setAvailableVersion("");
 
     try {
       await ipcClient.releaseChannel.set(channel);
@@ -185,19 +201,30 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
       setUpdateStatus(`Checking ${channelDisplay}...`);
 
       const result = await ipcClient.releaseChannel.checkUpdates();
+      // Sync `currentVersion` state from the authoritative result so the version
+      // card's bump label (which reads `currentVersion` state) and this toast/status
+      // label always agree, even if `loadCurrentVersion()` hadn't resolved yet.
+      const effectiveCurrentVersion = result.currentVersion || currentVersion;
+      if (result.currentVersion && result.currentVersion !== currentVersion) {
+        setCurrentVersion(result.currentVersion);
+      }
 
       if (result.error) {
         setUpdateStatus(`Error: ${result.error}`);
         toast.error(`Update check failed: ${result.error}`);
       } else if (result.available) {
+        const newVersion = result.version || "unknown";
+        setAvailableVersion(newVersion);
+        const bump = getVersionBumpType(effectiveCurrentVersion, newVersion);
+        const bumpLabel = BUMP_TYPE_LABEL[bump];
         setUpdateStatus(
-          `Update found: ${result.version || "unknown"} - Download will start automatically`,
+          `${bumpLabel} available: ${effectiveCurrentVersion || "current"} → ${newVersion} - Download will start automatically`,
         );
         toast.success(
-          `Update available. Version ${result.version || "unknown"} will download automatically.`,
+          `${bumpLabel} available: ${effectiveCurrentVersion || "current"} → ${newVersion}. Download will start automatically.`,
         );
       } else {
-        setUpdateStatus(`You are on the latest version (${currentVersion})`);
+        setUpdateStatus(`You are on the latest version (${effectiveCurrentVersion})`);
         toast.info("You are on the latest version");
       }
     } catch (error) {
@@ -356,6 +383,20 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
             <div className="rounded-md border border-border bg-card p-3">
               <p className="text-sm text-muted-foreground">Current Version</p>
               <p className="text-lg">{currentVersion}</p>
+            </div>
+          )}
+
+          {availableVersion && (
+            <div className="rounded-md border border-border bg-card p-3">
+              <p className="text-sm text-muted-foreground">New Version Available</p>
+              <p className="text-lg">
+                {availableVersion}{" "}
+                {bumpType !== "unknown" && (
+                  <span className="text-sm text-muted-foreground">
+                    ({BUMP_TYPE_LABEL[bumpType]})
+                  </span>
+                )}
+              </p>
             </div>
           )}
 
