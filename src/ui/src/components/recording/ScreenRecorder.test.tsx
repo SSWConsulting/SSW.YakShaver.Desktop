@@ -301,7 +301,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     expect(processYoutubeLink()).toBeInTheDocument();
   });
 
-  it("disables the Process YouTube link while a URL submit is still pending", async () => {
+  it("keeps the Process YouTube link enabled while a URL submit is still pending", async () => {
     let resolveProcessVideoUrl: (() => void) | undefined;
     window.electronAPI.pipelines.processVideoUrl = vi.fn(
       () =>
@@ -323,11 +323,9 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     });
 
     await waitFor(() => expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalled());
-    await waitFor(() =>
-      expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable right now)"),
-    );
+    await waitFor(() => expect(processYoutubeLink()).toBeEnabled());
     fireEvent.click(processYoutubeLink() as HTMLElement);
-    expect(screen.queryByLabelText("YouTube URL")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("YouTube URL")).toBeInTheDocument();
 
     await act(async () => resolveProcessVideoUrl?.());
   });

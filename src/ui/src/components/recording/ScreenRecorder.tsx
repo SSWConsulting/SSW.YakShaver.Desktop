@@ -80,14 +80,14 @@ function getRecorderControlAvailability(
     controlState.isProcessing ||
     controlState.isTranscribing ||
     (!controlState.isRecording && !controlState.isVideoHostConnected);
-  const uploadDisabled = recordDisabled || controlState.isRecording || controlState.isProcessingUrl;
+  const uploadDisabled = recordDisabled || controlState.isRecording;
 
   let uploadTitle = PROCESS_YOUTUBE_URL_LABEL;
   if (controlState.isRecording) {
     uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable while recording)`;
   } else if (!controlState.isVideoHostConnected) {
     uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable until a video host is connected)`;
-  } else if (recordDisabled || controlState.isProcessingUrl) {
+  } else if (recordDisabled) {
     uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable right now)`;
   }
 
