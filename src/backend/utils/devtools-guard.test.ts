@@ -3,15 +3,38 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Mirrors the mocking pattern used by control-bar-window.test.ts: electron
 // isn't available under vitest's node environment, so `app.isPackaged` and a
 // minimal BrowserWindow-shaped webContents are mocked directly.
-const { mockApp } = vi.hoisted(() => ({
-  mockApp: { isPackaged: false },
-}));
+const { mockApp, mockBrowserWindowConstructor, mockBrowserWindowState, MockBrowserWindow } =
+  vi.hoisted(() => {
+    const mockBrowserWindowConstructor = vi.fn();
+    const mockBrowserWindowState: { webContents: unknown } = { webContents: null };
+
+    class MockBrowserWindow {
+      webContents: unknown;
+
+      constructor(options: unknown) {
+        mockBrowserWindowConstructor(options);
+        this.webContents = mockBrowserWindowState.webContents;
+      }
+    }
+
+    return {
+      mockApp: { isPackaged: false },
+      mockBrowserWindowConstructor,
+      mockBrowserWindowState,
+      MockBrowserWindow,
+    };
+  });
 
 vi.mock("electron", () => ({
   app: mockApp,
+  BrowserWindow: MockBrowserWindow,
 }));
 
-import { applyDevToolsGuard, isProductionBuild } from "./devtools-guard";
+import {
+  applyDevToolsGuard,
+  createGuardedBrowserWindow,
+  isProductionBuild,
+} from "./devtools-guard";
 
 type Handler = (...args: unknown[]) => void;
 
@@ -133,5 +156,59 @@ describe("applyDevToolsGuard", () => {
     devtoolsOpened?.();
 
     expect(closeDevTools).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("createGuardedBrowserWindow", () => {
+  beforeEach(() => {
+    mockApp.isPackaged = false;
+    mockBrowserWindowConstructor.mockReset();
+    mockBrowserWindowState.webContents = null;
+  });
+
+  it("creates a window with DevTools enabled outside production and applies no guard", () => {
+    const { window, handlers } = createMockWindow();
+    mockBrowserWindowState.webContents = window.webContents;
+
+    const created = createGuardedBrowserWindow({
+      width: 100,
+      webPreferences: {
+        contextIsolation: true,
+      },
+    });
+
+    expect((created as unknown as { webContents: unknown }).webContents).toBe(window.webContents);
+    expect(mockBrowserWindowConstructor).toHaveBeenCalledWith({
+      width: 100,
+      webPreferences: {
+        contextIsolation: true,
+        devTools: true,
+      },
+    });
+    expect(handlers.size).toBe(0);
+  });
+
+  it("creates a window with DevTools disabled in production and applies the guard", () => {
+    mockApp.isPackaged = true;
+    const { window, handlers } = createMockWindow();
+    mockBrowserWindowState.webContents = window.webContents;
+
+    createGuardedBrowserWindow({
+      height: 100,
+      webPreferences: {
+        devTools: true,
+        nodeIntegration: false,
+      },
+    });
+
+    expect(mockBrowserWindowConstructor).toHaveBeenCalledWith({
+      height: 100,
+      webPreferences: {
+        devTools: false,
+        nodeIntegration: false,
+      },
+    });
+    expect(handlers.has("before-input-event")).toBe(true);
+    expect(handlers.has("devtools-opened")).toBe(true);
   });
 });

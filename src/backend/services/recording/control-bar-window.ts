@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { BrowserWindow, screen } from "electron";
-import { applyDevToolsGuard, isProductionBuild } from "../../utils/devtools-guard";
+import { createGuardedBrowserWindow } from "../../utils/devtools-guard";
 import { formatRecordingTime } from "./format-recording-time";
 
 const WINDOW_SIZE = { width: 300, height: 80 };
@@ -50,7 +50,7 @@ export class RecordingControlBarWindow {
       ? "http://localhost:3000/control-bar.html"
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/control-bar.html");
 
-    this.window = new BrowserWindow({
+    this.window = createGuardedBrowserWindow({
       ...WINDOW_SIZE,
       x,
       y,
@@ -63,11 +63,8 @@ export class RecordingControlBarWindow {
         preload: join(__dirname, "../../preload.js"),
         contextIsolation: true,
         nodeIntegration: false,
-        devTools: !isProductionBuild(),
       },
     });
-
-    applyDevToolsGuard(this.window);
 
     this.window.on("closed", () => {
       this.window = null;

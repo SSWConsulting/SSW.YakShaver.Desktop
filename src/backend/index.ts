@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
-import { app, BrowserWindow, dialog, Menu, session, shell } from "electron";
+import { app, type BrowserWindow, dialog, Menu, session, shell } from "electron";
 import { initMain as initAudioLoopback } from "electron-audio-loopback";
 import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
@@ -39,7 +39,7 @@ import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
 import { TelemetryService } from "./services/telemetry/telemetry-service";
 import { TrayManager } from "./services/tray/tray-manager";
-import { applyDevToolsGuard, isProductionBuild } from "./utils/devtools-guard";
+import { createGuardedBrowserWindow } from "./utils/devtools-guard";
 import { getIconPath } from "./utils/path-utils";
 
 const isDev = process.env.NODE_ENV === "development" || process.argv.includes("--dev-protocol");
@@ -179,7 +179,7 @@ const createWindow = (): BrowserWindow | null => {
 
   const title = `YakShaver`;
 
-  const window = new BrowserWindow({
+  const window = createGuardedBrowserWindow({
     width: 1200,
     height: 800,
     title,
@@ -189,12 +189,10 @@ const createWindow = (): BrowserWindow | null => {
       nodeIntegration: false,
       contextIsolation: true,
       preload: join(__dirname, "preload.js"),
-      devTools: !isProductionBuild(),
     },
   });
 
   mainWindow = window;
-  applyDevToolsGuard(window);
 
   // URLs - by default, open in default browser. Deny everything else outright
   // (rather than falling through to `allow`) so no popup window can ever be

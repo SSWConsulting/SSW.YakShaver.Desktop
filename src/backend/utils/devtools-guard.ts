@@ -1,4 +1,4 @@
-import { app, type BrowserWindow, type Input } from "electron";
+import { app, BrowserWindow, type BrowserWindowConstructorOptions, type Input } from "electron";
 
 /**
  * Whether this process is running as a packaged production build.
@@ -62,4 +62,20 @@ export function applyDevToolsGuard(window: BrowserWindow): void {
   window.webContents.on("devtools-opened", () => {
     window.webContents.closeDevTools();
   });
+}
+
+export function createGuardedBrowserWindow(
+  options: BrowserWindowConstructorOptions,
+): BrowserWindow {
+  const window = new BrowserWindow({
+    ...options,
+    webPreferences: {
+      ...options.webPreferences,
+      devTools: !isProductionBuild(),
+    },
+  });
+
+  applyDevToolsGuard(window);
+
+  return window;
 }
