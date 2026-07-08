@@ -316,3 +316,83 @@ export const getInitials = (name: string | undefined): string => {
     .toUpperCase()
     .slice(0, 2);
 };
+
+export type VersionBumpType = "major" | "minor" | "patch" | "prerelease" | "downgrade" | "unknown";
+
+interface ParsedVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  /** The raw pre-release/build suffix (e.g. "-beta.941.123"), or "" if none. */
+  suffix: string;
+}
+
+/**
+ * Parses a `major.minor.patch` semver-style version string into its numeric
+ * components plus its raw pre-release/build suffix. Tolerates a leading "v".
+ * Requires a boundary (end-of-string, "-", or "+") immediately after the
+ * patch digits, so strings like "1.2.3.4" or "1.2.3junk" — which aren't a
+ * strict `major.minor.patch` (+ optional pre-release/build) — don't parse.
+ *
+ * @param version - The version string to parse.
+ * @returns The parsed version, or `null` if it doesn't match.
+ */
+function parseVersion(version: string): ParsedVersion | null {
+  const match = version.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?=$|[-+])(.*)$/i);
+  if (!match) return null;
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    suffix: match[4] ?? "",
+  };
+}
+
+/**
+ * Determines whether upgrading from `currentVersion` to `newVersion` is a
+ * major, minor, or patch bump, so the UI can communicate the nature of an
+ * available update.
+ *
+ * @param currentVersion - The currently installed version string.
+ * @param newVersion - The newly available version string.
+ * @returns
+ * - "major" | "minor" | "patch" when `newVersion` is a strictly higher
+ *   major/minor/patch than `currentVersion`.
+ * - "downgrade" when `newVersion`'s major/minor/patch is strictly lower than
+ *   `currentVersion`'s (relevant for channels with `allowDowngrade: true`).
+ * - "prerelease" when major/minor/patch are identical but the pre-release/
+ *   build suffix differs (e.g. two PR-channel builds sharing the same base
+ *   version, such as "0.6.0-beta.940.1" → "0.6.0-beta.941.1").
+ * - "unknown" if either string can't be parsed, or the two versions are
+ *   identical in full.
+ *
+ * @example
+ * getVersionBumpType("1.2.3", "2.0.0") // "major"
+ * getVersionBumpType("1.2.3", "1.3.0") // "minor"
+ * getVersionBumpType("1.2.3", "1.2.4") // "patch"
+ * getVersionBumpType("2.0.0", "1.9.0") // "downgrade"
+ * getVersionBumpType("0.6.0-beta.940.1", "0.6.0-beta.941.1") // "prerelease"
+ */
+export function getVersionBumpType(
+  currentVersion: string | undefined,
+  newVersion: string | undefined,
+): VersionBumpType {
+  if (!currentVersion || !newVersion) return "unknown";
+
+  const current = parseVersion(currentVersion);
+  const next = parseVersion(newVersion);
+  if (!current || !next) return "unknown";
+
+  if (
+    next.major !== current.major ||
+    next.minor !== current.minor ||
+    next.patch !== current.patch
+  ) {
+    if (next.major !== current.major) return next.major > current.major ? "major" : "downgrade";
+    if (next.minor !== current.minor) return next.minor > current.minor ? "minor" : "downgrade";
+    return next.patch > current.patch ? "patch" : "downgrade";
+  }
+
+  if (next.suffix !== current.suffix) return "prerelease";
+  return "unknown";
+}

@@ -24,6 +24,9 @@ export interface CheckpointData {
   transcript?: TranscriptSegment[];
   transcriptText?: string;
 
+  // OPTIMIZING_TRANSCRIPT
+  optimizedTranscriptText?: string;
+
   // ANALYZING_TRANSCRIPT
   intermediateOutput?: string;
 

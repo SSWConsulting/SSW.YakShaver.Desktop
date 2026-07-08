@@ -1,11 +1,9 @@
 import { AlertTriangle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ipcClient } from "@/services/ipc-client";
-import type { HealthStatusInfo } from "@/types";
 import {
   type DisconnectedProvider,
-  isBacklogProvider,
+  fetchBacklogProviderHealth,
   MCP_HEALTH_REFRESH_EVENT,
   selectDisconnectedProviders,
 } from "./mcp-status";
@@ -21,18 +19,7 @@ function useDisconnectedBacklogProviders(): DisconnectedProvider[] {
 
   const check = useCallback(async () => {
     try {
-      const servers = await ipcClient.mcp.listServers();
-      const providers = servers.filter(isBacklogProvider);
-      const healthById: Record<string, HealthStatusInfo | undefined> = {};
-      await Promise.all(
-        providers.map(async (server) => {
-          try {
-            healthById[server.id] = await ipcClient.mcp.checkServerHealthAsync(server.id);
-          } catch {
-            healthById[server.id] = { isHealthy: false, isChecking: false };
-          }
-        }),
-      );
+      const { servers, healthById } = await fetchBacklogProviderHealth();
       setDisconnected(selectDisconnectedProviders(servers, healthById));
     } catch {
       // Couldn't list servers — say nothing rather than show a misleading warning.

@@ -125,4 +125,23 @@ describe("checkClaudeReadiness", () => {
     );
     expect(r.ready).toBe(true);
   });
+
+  it("reports not-installed (and kills the child) when `claude --version` never closes (address review #949)", async () => {
+    vi.useFakeTimers();
+    try {
+      const kill = vi.fn();
+      const spawn = vi.fn((_cmd: string, _args: string[]) => {
+        const child = new EventEmitter() as unknown as ChildProcess;
+        (child as unknown as { kill: typeof kill }).kill = kill;
+        return child; // never emits "close" or "error" — a wedged process
+      });
+      const promise = checkClaudeReadiness(makeDeps({ spawner: { spawn } }));
+      await vi.advanceTimersByTimeAsync(5000);
+      const r = await promise;
+      expect(r.state).toBe("not-installed");
+      expect(kill).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { MCPStepType } from "@/types";
 import {
   formatKeyAsTitle,
+  getVersionBumpType,
   isWorkflowFailed,
   parseToolName,
   requiredPostCreationStageFailure,
@@ -39,6 +40,7 @@ function makeState(overrides: Partial<Record<keyof WorkflowState, WorkflowStatus
     downloading_video: makeStep("not_started"),
     converting_audio: makeStep("not_started"),
     transcribing: makeStep("not_started"),
+    optimizing_transcript: makeStep("not_started"),
     analyzing_transcript: makeStep("not_started"),
     selecting_prompt: makeStep("not_started"),
     executing_task: makeStep("not_started"),
@@ -225,5 +227,63 @@ describe("parseToolName", () => {
 
   it("returns a null server for an unprefixed tool name", () => {
     expect(parseToolName("issue_write")).toEqual({ server: null, tool: "Issue Write" });
+  });
+});
+
+describe("getVersionBumpType", () => {
+  it("detects a major bump", () => {
+    expect(getVersionBumpType("1.2.3", "2.0.0")).toBe("major");
+  });
+
+  it("detects a minor bump", () => {
+    expect(getVersionBumpType("1.2.3", "1.3.0")).toBe("minor");
+  });
+
+  it("detects a patch bump", () => {
+    expect(getVersionBumpType("1.2.3", "1.2.4")).toBe("patch");
+  });
+
+  it("tolerates a leading 'v' and pre-release/build suffixes", () => {
+    expect(getVersionBumpType("v1.2.3", "v1.2.4-beta.1")).toBe("patch");
+  });
+
+  it("returns 'unknown' for identical versions", () => {
+    expect(getVersionBumpType("1.2.3", "1.2.3")).toBe("unknown");
+  });
+
+  it("returns 'unknown' when either version is missing or unparsable", () => {
+    expect(getVersionBumpType(undefined, "1.2.3")).toBe("unknown");
+    expect(getVersionBumpType("1.2.3", undefined)).toBe("unknown");
+    expect(getVersionBumpType("not-a-version", "1.2.3")).toBe("unknown");
+  });
+
+  it("returns 'unknown' for a version with a trailing extra numeric component (not strict major.minor.patch)", () => {
+    expect(getVersionBumpType("1.2.3", "1.2.3.4")).toBe("unknown");
+  });
+
+  it("returns 'unknown' for a version with unrecognised trailing characters (no '-'/'+' boundary)", () => {
+    expect(getVersionBumpType("1.2.3", "1.2.3junk")).toBe("unknown");
+  });
+
+  it("detects a 'major' downgrade as 'downgrade'", () => {
+    expect(getVersionBumpType("2.0.0", "1.9.0")).toBe("downgrade");
+  });
+
+  it("detects a 'minor' downgrade as 'downgrade'", () => {
+    expect(getVersionBumpType("1.5.0", "1.2.0")).toBe("downgrade");
+  });
+
+  it("detects a 'patch' downgrade as 'downgrade'", () => {
+    expect(getVersionBumpType("1.2.5", "1.2.1")).toBe("downgrade");
+  });
+
+  it("labels a pre-release/build-only difference as 'prerelease' rather than 'unknown' (PR/beta channel, AC3)", () => {
+    expect(getVersionBumpType("0.6.0-beta.940.1700000000000", "0.6.0-beta.941.1700000001000")).toBe(
+      "prerelease",
+    );
+  });
+
+  it("labels a bare-to-prerelease suffix difference as 'prerelease' when major.minor.patch match", () => {
+    expect(getVersionBumpType("1.2.3", "1.2.3-beta.1")).toBe("prerelease");
   });
 });

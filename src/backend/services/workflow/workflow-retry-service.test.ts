@@ -104,6 +104,7 @@ function setupFailedWorkflow(failStage: string, shaveId = SHAVE_ID): WorkflowSta
       transcript: [{ text: "hello" }] as CheckpointData["transcript"],
       transcriptText: "hello",
     },
+    optimizing_transcript: { optimizedTranscriptText: "hello" },
     analyzing_transcript: { intermediateOutput: '{"task":"test"}' },
     selecting_prompt: {
       projectDetails: { name: "Test" },
@@ -119,6 +120,7 @@ function setupFailedWorkflow(failStage: string, shaveId = SHAVE_ID): WorkflowSta
     ProgressStage.DOWNLOADING_VIDEO,
     ProgressStage.CONVERTING_AUDIO,
     ProgressStage.TRANSCRIBING,
+    ProgressStage.OPTIMIZING_TRANSCRIPT,
     ProgressStage.ANALYZING_TRANSCRIPT,
     ProgressStage.SELECTING_PROMPT,
     ProgressStage.EXECUTING_TASK,

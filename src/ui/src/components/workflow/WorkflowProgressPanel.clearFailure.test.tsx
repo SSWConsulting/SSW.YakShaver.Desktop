@@ -37,6 +37,7 @@ function makeIdleState(): WorkflowState {
     downloading_video: makeStep("not_started", ProgressStage.DOWNLOADING_VIDEO),
     converting_audio: makeStep("not_started", ProgressStage.CONVERTING_AUDIO),
     transcribing: makeStep("not_started", ProgressStage.TRANSCRIBING),
+    optimizing_transcript: makeStep("not_started", ProgressStage.OPTIMIZING_TRANSCRIPT),
     analyzing_transcript: makeStep("not_started", ProgressStage.ANALYZING_TRANSCRIPT),
     selecting_prompt: makeStep("not_started", ProgressStage.SELECTING_PROMPT),
     executing_task: makeStep("not_started", ProgressStage.EXECUTING_TASK),
