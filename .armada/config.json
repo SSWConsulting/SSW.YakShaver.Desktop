@@ -45,6 +45,7 @@
     "test": "npm rebuild better-sqlite3 --build-from-source && npx vitest run",
     "lint": "npm run lint",
     "format": "npm run format",
-    "run": "npm run start"
+    "run": "npm run start",
+    "web": "cd src/ui && npm run dev"
   }
 }
