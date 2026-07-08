@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ipcClient } from "@/services/ipc-client";
-import type { SandboxEvent } from "../../../../backend/services/yakshaver360/types";
 import { type DisplayItem, parseLogData } from "./parse-log-data";
 import { ScissorsConfetti } from "./ScissorsConfetti";
 
+type SandboxEvent = Cloud360EventPayload["event"];
 type Phase = "streaming" | "done" | "error";
 
 function ToolResultBlock({ text }: { text: string }) {

@@ -25,6 +25,20 @@ describe("fetchGitHubProjects", () => {
     expect(result).toEqual([{ id: "1", name: "GH", githubRepo: "acme/widgets" }]);
   });
 
+  it("rejects look-alike hosts but accepts www.github.com", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      okJson([
+        { id: "1", name: "Fake", backlogUrl: "https://notgithub.com/acme/widgets" },
+        { id: "2", name: "Sub", backlogUrl: "https://github.com.evil.com/acme/widgets" },
+        { id: "3", name: "Www", backlogUrl: "https://www.github.com/acme/widgets" },
+      ]),
+    );
+
+    const result = await fetchGitHubProjects("tok");
+
+    expect(result).toEqual([{ id: "3", name: "Www", githubRepo: "acme/widgets" }]);
+  });
+
   it("sends the bearer token to /api/projects", async () => {
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okJson([]));
 

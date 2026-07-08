@@ -11,7 +11,8 @@ function githubRepoFromBacklogUrl(backlogUrl?: string | null): string | null {
   if (!backlogUrl) return null;
   try {
     const url = new URL(backlogUrl);
-    if (!url.hostname.includes("github.com")) return null;
+    const host = url.hostname.toLowerCase();
+    if (host !== "github.com" && host !== "www.github.com") return null;
     const [owner, repo] = url.pathname.split("/").filter(Boolean);
     return owner && repo ? `${owner}/${repo}` : null;
   } catch {

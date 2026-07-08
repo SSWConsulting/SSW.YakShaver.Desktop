@@ -11,14 +11,24 @@ export function useCloud360Mode() {
     let cancelled = false;
 
     const read = () => {
-      ipcClient.llm.getConfig().then((cfg) => {
-        if (!cancelled) setIs360Mode(cfg?.orchestrationBackend === "cloud-360");
-      });
+      ipcClient.llm
+        .getConfig()
+        .then((cfg) => {
+          if (!cancelled) setIs360Mode(cfg?.orchestrationBackend === "cloud-360");
+        })
+        .catch(() => {
+          if (!cancelled) setIs360Mode(false);
+        });
       // Matches the real shape read in IdentityServerAuthManager.tsx:28 —
       // `result.status === "authenticated"` (NOT `result.data.status`).
-      ipcClient.auth.identityServer.status().then((res) => {
-        if (!cancelled) setIsSignedIn(res?.status === "authenticated");
-      });
+      ipcClient.auth.identityServer
+        .status()
+        .then((res) => {
+          if (!cancelled) setIsSignedIn(res?.status === "authenticated");
+        })
+        .catch(() => {
+          if (!cancelled) setIsSignedIn(false);
+        });
     };
 
     read();

@@ -28,11 +28,13 @@ export function ScissorsConfetti({ trigger }: { trigger: boolean }) {
       {particles.map((p) => (
         <div
           key={p.id}
-          className="absolute text-2xl"
+          className="absolute"
           style={{
             left: `${p.x}%`,
             top: `${p.y}%`,
-            transform: `scale(${p.scale})`,
+            // scale via fontSize: the confettiFall keyframes drive `transform`, so an
+            // inline transform:scale() would be overwritten and never take effect.
+            fontSize: `${p.scale * 1.5}rem`,
             animation: `confettiFall 1.5s ease-in ${p.delay}s forwards`,
           }}
         >

@@ -1,3 +1,4 @@
+import type { OrchestrationBackend } from "@shared/types/llm";
 import { useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -7,7 +8,7 @@ interface UseWorkflowNavigationOptions {
 
 /** Optional router state carried to /workflow (e.g. which orchestrator backend this run used). */
 export interface WorkflowNavState {
-  backend?: string;
+  backend?: OrchestrationBackend;
 }
 
 export function useWorkflowNavigation(options?: UseWorkflowNavigationOptions) {

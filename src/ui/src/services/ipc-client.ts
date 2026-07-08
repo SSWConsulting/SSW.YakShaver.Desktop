@@ -45,7 +45,8 @@ declare global {
           shaveAutoApprove?: boolean,
           projectId?: string,
           durationSeconds?: number,
-        ) => Promise<void>;
+          // The 360 path resolves to a { success, error? } result; the classic path resolves undefined.
+        ) => Promise<{ success: boolean; error?: string } | undefined>;
         processVideoUrl: (url: string, shaveId?: string) => Promise<void>;
         rerunTask: (
           intermediateOutput: string,
