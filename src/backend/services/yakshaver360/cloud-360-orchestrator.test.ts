@@ -54,15 +54,25 @@ describe("Cloud360Orchestrator", () => {
       videoAnalysis: false,
       autoExecute: true,
     });
-    expect(broadcast).toHaveBeenCalledTimes(2);
-    // The first event of a run is tagged runStart so the live view clears the previous run.
+    // Two synthetic status rows (upload + sandbox spin-up) bracket the silent stages,
+    // then every server event is forwarded.
+    expect(broadcast).toHaveBeenCalledTimes(4);
+    // The first synthetic status is tagged runStart so the live view clears the previous run.
     expect(broadcast).toHaveBeenNthCalledWith(1, {
       shaveId: "s1",
-      event: { type: "status", message: "Creating sandbox..." },
+      event: { type: "status", message: "Uploading recording..." },
       runStart: true,
     });
-    expect(broadcast.mock.calls[1][0].event.type).toBe("result");
-    expect(broadcast.mock.calls[1][0].runStart).toBe(false);
+    expect(broadcast).toHaveBeenNthCalledWith(2, {
+      shaveId: "s1",
+      event: { type: "status", message: "Starting cloud sandbox..." },
+    });
+    expect(broadcast).toHaveBeenNthCalledWith(3, {
+      shaveId: "s1",
+      event: { type: "status", message: "Creating sandbox..." },
+    });
+    expect(broadcast.mock.calls[3][0].event.type).toBe("result");
+    expect(broadcast.mock.calls[3][0].runStart).toBeUndefined();
   });
 
   it("broadcasts an error event (does not throw) when upload fails", async () => {

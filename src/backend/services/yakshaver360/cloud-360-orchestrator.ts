@@ -16,6 +16,14 @@ export class Cloud360Orchestrator {
   async run(params: Cloud360RunParams): Promise<void> {
     const { shaveId } = params;
     try {
+      // Upload + sandbox spin-up emit no server events; synthesize status rows so the live
+      // view shows progress instead of a blank feed during those silent stretches.
+      broadcastCloud360Event({
+        shaveId,
+        event: { type: "status", message: "Uploading recording..." },
+        runStart: true,
+      });
+
       const recordingId = await this.client.uploadRecordingFromFile({
         projectId: params.projectId,
         filePath: params.filePath,
@@ -23,15 +31,17 @@ export class Cloud360Orchestrator {
         notes: params.notes,
       });
 
+      broadcastCloud360Event({
+        shaveId,
+        event: { type: "status", message: "Starting cloud sandbox..." },
+      });
+
       // videoAnalysis:false mirrors the web Reprocess button (vision path is Moonshot-only, 401s otherwise).
-      let firstEvent = true;
       for await (const event of this.client.processRecording(recordingId, {
         videoAnalysis: false,
         autoExecute: true,
       })) {
-        // runStart on the first event tells the live view to clear the previous run.
-        broadcastCloud360Event({ shaveId, event, runStart: firstEvent });
-        firstEvent = false;
+        broadcastCloud360Event({ shaveId, event });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
