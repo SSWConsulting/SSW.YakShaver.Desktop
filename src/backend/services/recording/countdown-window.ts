@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { BrowserWindow, screen } from "electron";
+import { type BrowserWindow, screen } from "electron";
+import { createGuardedBrowserWindow } from "../../utils/devtools-guard";
 
 export class CountdownWindow {
   private static instance: CountdownWindow;
@@ -25,7 +26,7 @@ export class CountdownWindow {
       ? "http://localhost:3000/countdown.html"
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/countdown.html");
 
-    this.window = new BrowserWindow({
+    this.window = createGuardedBrowserWindow({
       x,
       y,
       width,

@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { BrowserWindow, desktopCapturer, screen } from "electron";
+import { type BrowserWindow, desktopCapturer, screen } from "electron";
+import { createGuardedBrowserWindow } from "../../utils/devtools-guard";
 
 export class ScreenFrameWindow {
   private static instance: ScreenFrameWindow;
@@ -36,7 +37,7 @@ export class ScreenFrameWindow {
       ? "http://localhost:3000/frame-overlay.html"
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/frame-overlay.html");
 
-    this.window = new BrowserWindow({
+    this.window = createGuardedBrowserWindow({
       x,
       y,
       width,
