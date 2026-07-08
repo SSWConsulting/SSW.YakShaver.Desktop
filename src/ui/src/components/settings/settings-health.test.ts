@@ -1,7 +1,19 @@
 import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
 import type { MCPServerConfig } from "@shared/types/mcp";
-import { describe, expect, it } from "vitest";
-import { deriveSettingsHealth, type SettingsHealthInputs } from "./settings-health";
+import { describe, expect, it, vi } from "vitest";
+import {
+  deriveSettingsHealth,
+  fetchOrchestratorReadiness,
+  type SettingsHealthInputs,
+} from "./settings-health";
+
+vi.mock("@/services/ipc-client", () => ({
+  ipcClient: {
+    llm: {
+      checkOrchestratorReadiness: vi.fn(),
+    },
+  },
+}));
 
 const healthyLlm = {
   languageModel: { provider: "openai" as const, model: "gpt-5.2", apiKey: "sk-live-123" },
@@ -202,5 +214,52 @@ describe("deriveSettingsHealth", () => {
       inputs({ llmConfig: { languageModel: null }, hasGithubToken: false }),
     );
     expect(Object.keys(health).sort()).toEqual(["llm", "release"]);
+  });
+});
+
+describe("fetchOrchestratorReadiness", () => {
+  it("de-dupes concurrent callers into a single underlying checkOrchestratorReadiness() call", async () => {
+    const { ipcClient } = await import("@/services/ipc-client");
+    const checkOrchestratorReadiness = vi.mocked(ipcClient.llm.checkOrchestratorReadiness);
+    let resolveCheck: (
+      value: Awaited<ReturnType<typeof ipcClient.llm.checkOrchestratorReadiness>>,
+    ) => void = () => {};
+    checkOrchestratorReadiness.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCheck = resolve;
+      }),
+    );
+
+    const first = fetchOrchestratorReadiness();
+    const second = fetchOrchestratorReadiness();
+
+    resolveCheck({
+      installed: true,
+      authenticated: true,
+      ready: true,
+      state: "ready",
+      message: "",
+    });
+    await Promise.all([first, second]);
+
+    expect(checkOrchestratorReadiness).toHaveBeenCalledTimes(1);
+  });
+
+  it("issues a fresh call on the next round once the in-flight one has settled", async () => {
+    const { ipcClient } = await import("@/services/ipc-client");
+    const checkOrchestratorReadiness = vi.mocked(ipcClient.llm.checkOrchestratorReadiness);
+    checkOrchestratorReadiness.mockReset();
+    checkOrchestratorReadiness.mockResolvedValue({
+      installed: true,
+      authenticated: true,
+      ready: true,
+      state: "ready",
+      message: "",
+    });
+
+    await fetchOrchestratorReadiness();
+    await fetchOrchestratorReadiness();
+
+    expect(checkOrchestratorReadiness).toHaveBeenCalledTimes(2);
   });
 });

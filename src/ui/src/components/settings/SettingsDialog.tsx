@@ -1,6 +1,7 @@
 import { Settings } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MCP_HEALTH_REFRESH_EVENT } from "../home/mcp-status";
+import { STATUS_DASHBOARD_REFRESH_EVENT } from "../layout/status-dashboard";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -81,11 +82,13 @@ export function SettingsDialog() {
   const leaveHandlerRef = useRef<LeaveHandler | null>(null);
   const wasOpenRef = useRef(false);
 
-  // #869 AC4: when the dialog closes (e.g. after reconnecting an MCP provider),
-  // tell the Home banner to re-check provider health so it stays accurate.
+  // #869 AC4 / #948: when the dialog closes (e.g. after reconnecting an MCP
+  // provider, signing in, or saving a language model), tell the Home banner and
+  // the sidebar status dashboard to re-check so they stay accurate.
   useEffect(() => {
     if (wasOpenRef.current && !open) {
       window.dispatchEvent(new CustomEvent(MCP_HEALTH_REFRESH_EVENT));
+      window.dispatchEvent(new CustomEvent(STATUS_DASHBOARD_REFRESH_EVENT));
     }
     wasOpenRef.current = open;
   }, [open]);
