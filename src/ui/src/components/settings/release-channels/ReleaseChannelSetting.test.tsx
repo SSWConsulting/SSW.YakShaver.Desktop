@@ -4,16 +4,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ReleaseChannelSetting } from "./ReleaseChannelSetting";
 
 // vi.hoisted so the mock factory (hoisted above the imports) can reference these.
-const { get, set, listReleases, checkUpdates, getCurrentVersion, onDownloadProgress, hasToken } =
-  vi.hoisted(() => ({
-    get: vi.fn(),
-    set: vi.fn(),
-    listReleases: vi.fn(),
-    checkUpdates: vi.fn(),
-    getCurrentVersion: vi.fn(),
-    onDownloadProgress: vi.fn(),
-    hasToken: vi.fn(),
-  }));
+const {
+  get,
+  set,
+  listReleases,
+  checkUpdates,
+  getCurrentVersion,
+  onDownloadProgress,
+  hasToken,
+  verifyToken,
+} = vi.hoisted(() => ({
+  get: vi.fn(),
+  set: vi.fn(),
+  listReleases: vi.fn(),
+  checkUpdates: vi.fn(),
+  getCurrentVersion: vi.fn(),
+  onDownloadProgress: vi.fn(),
+  hasToken: vi.fn(),
+  verifyToken: vi.fn(),
+}));
 
 vi.mock("@/services/ipc-client", () => ({
   ipcClient: {
@@ -25,7 +34,10 @@ vi.mock("@/services/ipc-client", () => ({
       getCurrentVersion,
       onDownloadProgress,
     },
-    githubToken: { has: hasToken },
+    githubToken: {
+      has: hasToken,
+      verify: verifyToken,
+    },
   },
 }));
 
@@ -38,6 +50,7 @@ describe("ReleaseChannelSetting (#423)", () => {
     getCurrentVersion.mockReset().mockResolvedValue({ version: "1.2.3", commitHash: "abc123" });
     onDownloadProgress.mockReset().mockReturnValue(() => {});
     hasToken.mockReset().mockResolvedValue(true);
+    verifyToken.mockReset().mockResolvedValue({ isValid: true });
   });
   afterEach(() => vi.restoreAllMocks());
 
