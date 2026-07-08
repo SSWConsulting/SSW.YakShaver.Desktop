@@ -32,7 +32,10 @@ vi.mock("../../contexts/AdvancedSettingsContext", () => ({
 
 vi.mock("../../contexts/YouTubeAuthContext", () => ({
   useYouTubeAuth: () => ({
-    authState: { status: state.authStatus, userInfo: { name: "Tester" } },
+    authState: {
+      status: state.authStatus,
+      userInfo: state.authStatus === AuthStatus.AUTHENTICATED ? { name: "Tester" } : null,
+    },
     uploadStatus: state.uploadStatus,
     setUploadResult: vi.fn(),
     setUploadStatus: vi.fn(),
@@ -93,13 +96,8 @@ vi.mock("./VideoPreviewModal", () => ({
 // RecordButton's uploadTitle in ScreenRecorder.tsx), so match on the
 // invariant "Process YouTube URL" prefix rather than the exact string.
 //
-// The tooltip `title` lives on the non-disabled wrapper <span>, not on the
-// <button> itself — a disabled native <button> never receives hover events
-// in a real browser (Chromium's `disabled:pointer-events-none`), so the
-// title has to sit on an element that stays interactive (#947 follow-up).
-// The <button> keeps a matching `aria-label` for its accessible name and is
-// still the element callers need for `toBeDisabled()`/click assertions, so
-// resolve from the title-bearing wrapper down to its inner <button>.
+// The tooltip `title` lives on the wrapper, while the <button> keeps a short
+// accessible name plus aria-describedby for the unavailable-state explanation.
 const processYoutubeLink = () => {
   const wrapper = screen.queryByTitle(
     /^Process YouTube URL($| \(unavailable (while recording|until a video host is connected|right now)\))/,
@@ -114,6 +112,20 @@ const processYoutubeLinkTooltip = () =>
       /^Process YouTube URL($| \(unavailable (while recording|until a video host is connected|right now)\))/,
     )
     ?.getAttribute("title") ?? null;
+const processYoutubeLinkDescription = () => {
+  const button = processYoutubeLink();
+  const descriptionId = button?.getAttribute("aria-describedby");
+  return descriptionId ? document.getElementById(descriptionId)?.textContent : null;
+};
+const expectProcessYoutubeLinkUnavailable = (title: string) => {
+  const button = processYoutubeLink();
+
+  expect(button).toBeEnabled();
+  expect(button).toHaveAttribute("aria-disabled", "true");
+  expect(button).toHaveAccessibleName("Process YouTube URL");
+  expect(processYoutubeLinkTooltip()).toBe(title);
+  expect(processYoutubeLinkDescription()).toBe(title);
+};
 
 describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
   beforeEach(() => {
@@ -173,7 +185,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     state.isRecording = true;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
-    expect(processYoutubeLink()).toBeDisabled();
+    expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable while recording)");
     // #947 follow-up: the isRecording branch has its own tooltip copy,
     // distinct from the isDisabled branch — assert it
     // explicitly rather than only checking toBeDisabled().
@@ -192,8 +204,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     state.authStatus = AuthStatus.NOT_AUTHENTICATED;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
-    expect(processYoutubeLink()).toBeDisabled();
-    expect(processYoutubeLinkTooltip()).toBe(
+    expectProcessYoutubeLinkUnavailable(
       "Process YouTube URL (unavailable until a video host is connected)",
     );
   });
@@ -207,8 +218,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     state.isProcessing = true;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
-    expect(processYoutubeLink()).toBeDisabled();
-    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable right now)");
+    expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable right now)");
   });
 
   it("prioritises the recording title over the video-host title when both disable causes apply (#947)", async () => {
@@ -220,8 +230,21 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     state.isRecording = true;
     state.authStatus = AuthStatus.NOT_AUTHENTICATED;
     render(<ScreenRecorder showButtonOnly />);
-    await waitFor(() => expect(processYoutubeLink()).toBeDisabled());
-    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL (unavailable while recording)");
+    await waitFor(() =>
+      expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable while recording)"),
+    );
+  });
+
+  it("keeps the unavailable Process YouTube link focusable but blocks activation", async () => {
+    state.isRecording = true;
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+    const button = processYoutubeLink();
+
+    expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable while recording)");
+    fireEvent.click(button as HTMLElement);
+
+    expect(screen.queryByLabelText("YouTube URL")).not.toBeInTheDocument();
   });
 
   it("does not show the Process YouTube link when the workflow is disabled", async () => {

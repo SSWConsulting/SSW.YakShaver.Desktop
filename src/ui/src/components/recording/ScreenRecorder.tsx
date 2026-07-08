@@ -76,9 +76,7 @@ function getRecorderControlAvailability(
   showSplitLayout: boolean,
 ): RecorderControlAvailability {
   const recordDisabled =
-    controlState.isProcessing ||
-    controlState.isTranscribing ||
-    !controlState.isVideoHostConnected;
+    controlState.isProcessing || controlState.isTranscribing || !controlState.isVideoHostConnected;
   const uploadDisabled = recordDisabled || controlState.isRecording;
 
   let uploadTitle = PROCESS_YOUTUBE_URL_LABEL;
@@ -107,6 +105,14 @@ function RecordButton({
 }: RecordButtonProps) {
   const { recordDisabled, uploadDisabled, uploadTitle, recordLabel } =
     getRecorderControlAvailability(controlState, showSplitLayout);
+  const uploadDescriptionId = useId();
+  const handleUploadClick = useCallback(() => {
+    if (uploadDisabled) {
+      return;
+    }
+
+    onUploadClick();
+  }, [onUploadClick, uploadDisabled]);
 
   if (!showSplitLayout) {
     return (
@@ -137,26 +143,28 @@ function RecordButton({
         {recordLabel}
       </Button>
       <div className="w-px bg-ssw-red-foreground/20" />
-      {/* A disabled native <button> never receives pointer/hover events in
-          Chromium (the base Button component's `disabled:pointer-events-none`
-          class makes this explicit — see button.tsx), so a `title` tooltip on
-          the <button> itself never renders to a real user hovering it once
-          disabled — only jsdom's attribute-based assertions were passing
-          (#947 follow-up). The wrapping <div> is never disabled, so it keeps
-          receiving hover events and carries the `title` that actually renders
-          the native tooltip; the inner <button> stays `disabled` for
-          interaction-blocking and keeps a matching `aria-label` so the
-          control's accessible name is unaffected by where `title` lives. */}
+      {/* Keep the unavailable upload action focusable: native disabled buttons
+          leave the tab order, so keyboard and screen-reader users would miss
+          the explanatory text this state exists to provide. */}
       <div className="rounded-none rounded-r-md" title={uploadTitle}>
         <Button
-          className="bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3"
+          className={cn(
+            "bg-ssw-red text-ssw-red-foreground hover:bg-ssw-red/90 rounded-none rounded-r-md px-3",
+            uploadDisabled && "opacity-50 cursor-not-allowed",
+          )}
           size="chunky"
-          onClick={onUploadClick}
-          disabled={uploadDisabled}
-          aria-label={uploadTitle}
+          onClick={handleUploadClick}
+          aria-disabled={uploadDisabled}
+          aria-label={PROCESS_YOUTUBE_URL_LABEL}
+          aria-describedby={uploadDisabled ? uploadDescriptionId : undefined}
         >
           <Upload className="h-4 w-4" />
         </Button>
+        {uploadDisabled && (
+          <span id={uploadDescriptionId} className="sr-only">
+            {uploadTitle}
+          </span>
+        )}
       </div>
     </div>
   );
