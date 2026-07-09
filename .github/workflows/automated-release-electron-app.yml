@@ -68,18 +68,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Extract PR number from squash merge format: "title (#123)"
-          PR_NUMBER=$(git log -1 --pretty=%B | head -1 | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' || echo "")
+          # Extract PR number from squash merge format: "title (#123)".
+          # A title may contain multiple "(#N)" refs (e.g. "... (rebase #917) (#936)");
+          # the squash PR number is the LAST one, so take tail -1.
+          PR_NUMBER=$(git log -1 --pretty=%B | head -1 | grep -oE '\(#[0-9]+\)' | tail -1 | grep -oE '[0-9]+' || echo "")
 
           # Fallback: use GitHub API to find PR by commit SHA
           if [ -z "$PR_NUMBER" ]; then
             PR_NUMBER=$(gh pr list --search "${{ github.sha }}" --state merged --json number --jq '.[0].number' 2>/dev/null || echo "")
           fi
 
+          # Guard: keep only a single, purely-numeric value so a malformed
+          # result can never write an invalid line to GITHUB_OUTPUT.
+          PR_NUMBER=$(printf '%s' "$PR_NUMBER" | grep -oE '^[0-9]+$' | head -1 || echo "")
+
           echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           echo "Found PR number: ${PR_NUMBER}"
 
       - name: Comment on PR
+        if: steps.pr_number.outputs.pr_number != ''
         uses: peter-evans/create-or-update-comment@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
