@@ -12,6 +12,7 @@ const STEP_LABELS: Record<keyof WorkflowState, string> = {
   downloading_video: "Downloading Video",
   converting_audio: "Converting Audio",
   transcribing: "Transcribing",
+  optimizing_transcript: "Optimizing Transcript",
   analyzing_transcript: "Analyzing Transcript",
   selecting_prompt: "Selecting Prompt",
   executing_task: "Executing Task",

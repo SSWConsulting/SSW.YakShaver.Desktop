@@ -1,5 +1,6 @@
 import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
 import type { MCPServerConfig } from "@shared/types/mcp";
+import { ipcClient } from "@/services/ipc-client";
 import type { HealthStatusInfo } from "@/types";
 
 /** Window event the Home banner listens for to re-check provider health
@@ -44,4 +45,87 @@ export function selectDisconnectedProviders(
     .filter(isBacklogProvider)
     .filter((server) => healthById[server.id]?.isHealthy === false)
     .map((server) => ({ id: server.id, name: server.name }));
+}
+
+/**
+ * Fetches the configured MCP servers plus health for the backlog-provider subset,
+ * de-duplicating concurrent callers into a single in-flight round.
+ *
+ * Both `HomeMcpStatusBanner` and the sidebar `StatusDashboard` (#948) need this same
+ * "list servers, then probe health for backlog providers" data, and both re-check on
+ * the same triggers (window focus, the health-refresh event). Before #948, only the
+ * Home banner ran this — always on a single mounted instance. #948 mounts a second,
+ * always-on consumer (the sidebar dashboard is rendered on every route via Layout),
+ * so a naive second copy of this loop would fire a second, fully independent round of
+ * live `checkServerHealthAsync` probes on every focus event whenever Home is also
+ * mounted — doubling MCP health IO for no benefit. Caching the in-flight promise here
+ * means concurrent callers within the same tick share one underlying fetch.
+ */
+let inFlightHealthFetch: Promise<{
+  servers: MCPServerConfig[];
+  healthById: Record<string, HealthStatusInfo | undefined>;
+}> | null = null;
+
+/** Bound on a single server's health probe (address review #949): a wedged MCP server must
+ * resolve to a confirmed "disconnected" row rather than freezing the dashboard on stale state
+ * forever — the same "unconfirmed = not connected" policy already applied to a thrown probe.
+ * Exported so other callers that probe backlog-provider health per-server (e.g.
+ * settings-health.ts's useSettingsTabHealth) share the same bound instead of re-implementing an
+ * unguarded `checkServerHealthAsync` call (address review #949 follow-up). */
+export const HEALTH_CHECK_TIMEOUT_MS = 8000;
+
+/** Probe a single MCP server's health, bounded by `HEALTH_CHECK_TIMEOUT_MS` so a wedged
+ * (hung, not crashed) server resolves to a confirmed-unhealthy result instead of leaving the
+ * caller's `Promise.all` — and whatever UI state it feeds — permanently pending. */
+export function checkServerHealthWithTimeout(serverId: string): Promise<HealthStatusInfo> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ isHealthy: false, isChecking: false });
+    }, HEALTH_CHECK_TIMEOUT_MS);
+
+    ipcClient.mcp
+      .checkServerHealthAsync(serverId)
+      .then((result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(result);
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        // A failed probe is a confirmed-disconnected, not "connected" (mirrors the
+        // convention already used here for a `false`-health server).
+        resolve({ isHealthy: false, isChecking: false });
+      });
+  });
+}
+
+export function fetchBacklogProviderHealth(): Promise<{
+  servers: MCPServerConfig[];
+  healthById: Record<string, HealthStatusInfo | undefined>;
+}> {
+  if (inFlightHealthFetch) return inFlightHealthFetch;
+
+  inFlightHealthFetch = (async () => {
+    try {
+      const servers = await ipcClient.mcp.listServers();
+      const backlog = servers.filter(isBacklogProvider);
+      const healthById: Record<string, HealthStatusInfo | undefined> = {};
+      await Promise.all(
+        backlog.map(async (server) => {
+          healthById[server.id] = await checkServerHealthWithTimeout(server.id);
+        }),
+      );
+      return { servers, healthById };
+    } finally {
+      inFlightHealthFetch = null;
+    }
+  })();
+
+  return inFlightHealthFetch;
 }

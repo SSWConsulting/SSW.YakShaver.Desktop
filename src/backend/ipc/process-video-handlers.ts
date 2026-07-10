@@ -23,6 +23,7 @@ import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/port
 import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
 import { LlmStorage } from "../services/storage/llm-storage";
+import { optimizeTranscript } from "../services/transcript/optimize-transcript-service";
 import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
@@ -445,6 +446,7 @@ export class ProcessVideoIPCHandlers {
     let mp3FilePath: string | undefined = checkpoint.mp3FilePath;
     let transcript: TranscriptSegment[] | undefined = checkpoint.transcript;
     let transcriptText: string | undefined = checkpoint.transcriptText;
+    let optimizedTranscriptText: string | undefined = checkpoint.optimizedTranscriptText;
     let intermediateOutput: string | undefined = checkpoint.intermediateOutput;
     let projectDetails:
       | (ProjectDto & { selectionReason: string; projectSource: "local" | "remote" })
@@ -526,6 +528,42 @@ export class ProcessVideoIPCHandlers {
         });
       }
 
+      // -- OPTIMIZING_TRANSCRIPT --
+      if (shouldRunStage(WorkflowProgressStage.OPTIMIZING_TRANSCRIPT)) {
+        currentStage = WorkflowProgressStage.OPTIMIZING_TRANSCRIPT;
+        workflowManager.startStage(WorkflowProgressStage.OPTIMIZING_TRANSCRIPT);
+
+        try {
+          const languageModelProvider = await LanguageModelProvider.getInstance();
+          // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+          optimizedTranscriptText = await optimizeTranscript(
+            transcriptText as string,
+            languageModelProvider,
+          );
+        } catch (optimizeError) {
+          // Non-fatal: if optimization fails, fall back to the raw transcript so the workflow can continue.
+          // Still report to telemetry (like every other non-fatal catch in this file) so failures are
+          // observable instead of silently swallowed.
+          const optimizeErrorMessage = formatAndReportError(
+            optimizeError,
+            "transcript_optimization",
+          );
+          console.warn(
+            "[ProcessVideo] Transcript optimization failed, using raw transcript:",
+            optimizeErrorMessage,
+          );
+          optimizedTranscriptText = transcriptText as string;
+        }
+
+        workflowManager.completeStage(
+          WorkflowProgressStage.OPTIMIZING_TRANSCRIPT,
+          optimizedTranscriptText,
+        );
+        workflowManager.createCheckpoint(WorkflowProgressStage.OPTIMIZING_TRANSCRIPT, {
+          optimizedTranscriptText,
+        });
+      }
+
       // -- ANALYZING_TRANSCRIPT --
       if (shouldRunStage(WorkflowProgressStage.ANALYZING_TRANSCRIPT)) {
         currentStage = WorkflowProgressStage.ANALYZING_TRANSCRIPT;
@@ -533,10 +571,15 @@ export class ProcessVideoIPCHandlers {
 
         const languageModelProvider = await LanguageModelProvider.getInstance();
 
-        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+        // Use optimized transcript if available; fall back to raw transcriptText (logged).
+        const effectiveTranscript = this.resolveEffectiveTranscript(
+          optimizedTranscriptText,
+          transcriptText,
+          "ANALYZING_TRANSCRIPT",
+        );
         const userPrompt = `Process the following transcript into a structured JSON object:
 
-      ${transcriptText as string}`;
+      ${effectiveTranscript}`;
 
         intermediateOutput = await languageModelProvider.generateJson(
           userPrompt,
@@ -559,11 +602,14 @@ export class ProcessVideoIPCHandlers {
 
         const languageModelProvider = await LanguageModelProvider.getInstance();
 
-        // Select project prompt based on transcript
-        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+        // Select project prompt based on transcript (use optimized if available, logged on fallback)
         projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
           languageModelProvider,
-          transcriptText as string,
+          this.resolveEffectiveTranscript(
+            optimizedTranscriptText,
+            transcriptText,
+            "SELECTING_PROMPT",
+          ),
           shaveId,
         );
 
@@ -595,15 +641,22 @@ export class ProcessVideoIPCHandlers {
 
         const { orchestrator, backend } = await this.getBacklogOrchestrator();
 
-        const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
+        // Use optimized transcript if available for the task execution loop (logged on fallback);
+        // keep the adapter's audit/UI payload consistent with what actually drives execution below.
+        const effectiveExecutionTranscript = this.resolveEffectiveTranscript(
+          optimizedTranscriptText,
           transcriptText,
+          "EXECUTING_TASK",
+        );
+
+        const mcpAdapter = new McpWorkflowAdapter(workflowManager, {
+          transcriptText: effectiveExecutionTranscript,
           intermediateOutput,
           orchestrator: backend,
         });
 
-        // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
         const loopResult = await orchestrator.manualLoopAsync(
-          transcriptText as string,
+          effectiveExecutionTranscript,
           youtubeResult,
           {
             projectMetaData,
@@ -833,6 +886,28 @@ export class ProcessVideoIPCHandlers {
     }
 
     return { orchestrator: await MCPOrchestrator.getInstanceAsync(), backend: "openai" };
+  }
+
+  /**
+   * Resolves the effective transcript to use downstream of OPTIMIZING_TRANSCRIPT: prefers the
+   * optimized transcript, falling back to the raw transcript when it's unavailable (e.g. a retry
+   * resumed without an OPTIMIZING_TRANSCRIPT checkpoint). Logs when the fallback path is taken so
+   * a retry silently regressing to un-optimized text isn't invisible (see workflow-retry-service's
+   * STAGE_REQUIRED_INPUTS, which doesn't yet require optimizedTranscriptText downstream).
+   */
+  private resolveEffectiveTranscript(
+    optimizedTranscriptText: string | undefined,
+    transcriptText: string | undefined,
+    stage: string,
+  ): string {
+    if (optimizedTranscriptText !== undefined) {
+      return optimizedTranscriptText;
+    }
+    console.warn(
+      `[ProcessVideo] optimizedTranscriptText unavailable at ${stage}; falling back to raw transcriptText`,
+    );
+    // transcriptText guaranteed by: normal flow sets it in TRANSCRIBING; retry validated at entry
+    return transcriptText as string;
   }
 
   private async formatFinalResult(mcpResult: string | undefined): Promise<string | undefined> {

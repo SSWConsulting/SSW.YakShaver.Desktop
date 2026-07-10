@@ -1,6 +1,16 @@
 import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { selectDisconnectedProviders } from "./mcp-status";
+
+// vi.hoisted so the mock factory (hoisted above the import) can reference these.
+const { listServers, checkServerHealthAsync } = vi.hoisted(() => ({
+  listServers: vi.fn(),
+  checkServerHealthAsync: vi.fn(),
+}));
+
+vi.mock("@/services/ipc-client", () => ({
+  ipcClient: { mcp: { listServers, checkServerHealthAsync } },
+}));
 
 type Server = { id: string; name: string; builtin?: boolean; enabled?: boolean };
 
@@ -63,5 +73,30 @@ describe("selectDisconnectedProviders (#869)", () => {
       [ADO]: { isHealthy: false },
     });
     expect(result.map((p) => p.name)).toEqual(["GitHub", "Azure DevOps"]);
+  });
+});
+
+describe("fetchBacklogProviderHealth (address review #949: hung-server timeout)", () => {
+  beforeEach(() => {
+    listServers.mockReset();
+    checkServerHealthAsync.mockReset();
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("resolves a wedged (never-settling) health probe to isHealthy:false instead of hanging forever", async () => {
+    vi.useFakeTimers();
+    const { fetchBacklogProviderHealth } = await import("./mcp-status");
+
+    listServers.mockResolvedValue([{ id: GITHUB, name: "GitHub", enabled: true }]);
+    checkServerHealthAsync.mockImplementation(() => new Promise(() => {})); // never resolves
+
+    const resultPromise = fetchBacklogProviderHealth();
+    await vi.advanceTimersByTimeAsync(8000);
+    const result = await resultPromise;
+
+    expect(result.healthById[GITHUB]).toEqual({ isHealthy: false, isChecking: false });
   });
 });

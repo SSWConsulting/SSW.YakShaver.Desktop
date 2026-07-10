@@ -24,6 +24,7 @@ const { mockWebContents, mockWindow } = vi.hoisted(() => {
 });
 
 vi.mock("electron", () => ({
+  app: { isPackaged: false },
   BrowserWindow: class MockBrowserWindow {
     webContents = mockWindow.webContents;
     isDestroyed = mockWindow.isDestroyed;

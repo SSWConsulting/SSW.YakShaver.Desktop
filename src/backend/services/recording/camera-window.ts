@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { BrowserWindow, ipcMain, screen } from "electron";
+import { type BrowserWindow, ipcMain, screen } from "electron";
+import { createGuardedBrowserWindow } from "../../utils/devtools-guard";
 
 const WINDOW_SIZE = { width: 400, height: 225 }; // 16:9 aspect ratio
 const MARGIN = 20;
@@ -31,7 +32,7 @@ export class CameraWindow {
       ? `http://localhost:3000/camera.html?deviceId=${encodeURIComponent(cameraDeviceId)}`
       : join(process.resourcesPath, "app.asar.unpacked/src/ui/dist/camera.html");
 
-    this.window = new BrowserWindow({
+    this.window = createGuardedBrowserWindow({
       ...WINDOW_SIZE,
       x,
       y,

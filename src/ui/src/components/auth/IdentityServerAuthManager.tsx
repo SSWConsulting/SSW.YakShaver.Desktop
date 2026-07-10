@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { STATUS_DASHBOARD_REFRESH_EVENT } from "@/components/layout/status-dashboard";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +58,8 @@ export function IdentityServerAuthManager() {
     const res = await ipcClient.auth.identityServer.login();
     if (res.success) {
       await refresh();
+      // #948 — tell the sidebar status dashboard to re-check now that sign-in succeeded.
+      window.dispatchEvent(new CustomEvent(STATUS_DASHBOARD_REFRESH_EVENT));
     } else {
       setError(res.error || "Authentication failed");
     }
@@ -68,6 +71,8 @@ export function IdentityServerAuthManager() {
     setError(null);
     await ipcClient.auth.identityServer.logout();
     await refresh();
+    // #948 — reflect the sign-out immediately in the sidebar status dashboard.
+    window.dispatchEvent(new CustomEvent(STATUS_DASHBOARD_REFRESH_EVENT));
     setLoading(false);
   };
 

@@ -21,8 +21,8 @@ export function AdvancedSettingsPanel() {
         <CardHeader className="space-y-1">
           <CardTitle>YouTube URL Workflow</CardTitle>
           <CardDescription>
-            Adds a dedicated field under the recording controls so you can paste an existing YouTube
-            link for processing without recording a new video.
+            Adds an upload button next to the recording controls that opens a dialog where you can
+            paste an existing YouTube link for processing without recording a new video.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-between gap-4">

@@ -2,6 +2,7 @@ import { PRESET_SERVER_IDS } from "@shared/mcp/preset-servers";
 import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { MCPServerConfig } from "@shared/types/mcp";
 import { useCallback, useEffect, useState } from "react";
+import { checkServerHealthWithTimeout } from "@/components/home/mcp-status";
 import { ipcClient } from "@/services/ipc-client";
 import type { HealthStatusInfo } from "@/types";
 
@@ -23,6 +24,34 @@ export const SETTINGS_HEALTH_REFRESH_EVENT = "yakshaver:settings-health-refresh"
  * these surface a critical "can't create work items" state — an unrelated custom
  * MCP server going unhealthy is not a critical Settings misconfiguration. */
 const BACKLOG_PROVIDER_IDS = new Set<string>(Object.values(PRESET_SERVER_IDS));
+
+/**
+ * De-duplicates concurrent `checkOrchestratorReadiness()` callers into a single
+ * in-flight round, mirroring `fetchBacklogProviderHealth` in mcp-status.ts.
+ *
+ * `checkOrchestratorReadiness` spawns a real `claude --version` child process
+ * (claude-readiness.ts). Both this hook and the sidebar `StatusDashboard` (#948)
+ * probe it on the same triggers (mount/focus/refresh-event), and the sidebar is
+ * now always mounted (rendered on every route via Layout) — so without sharing
+ * the in-flight promise here, a single window-focus event with Settings open
+ * would spawn that subprocess twice concurrently. A caller that wants an
+ * explicit, uncached re-check (e.g. a manual "recheck" button) should keep
+ * calling `ipcClient.llm.checkOrchestratorReadiness()` directly instead.
+ */
+let inFlightReadinessCheck: Promise<OrchestratorReadiness | null> | null = null;
+
+export function fetchOrchestratorReadiness(): Promise<OrchestratorReadiness | null> {
+  if (inFlightReadinessCheck) return inFlightReadinessCheck;
+
+  inFlightReadinessCheck = ipcClient.llm
+    .checkOrchestratorReadiness()
+    .catch(() => null)
+    .finally(() => {
+      inFlightReadinessCheck = null;
+    });
+
+  return inFlightReadinessCheck;
+}
 
 export interface SettingsTabHealth {
   tabId: string;
@@ -142,10 +171,12 @@ export function useSettingsTabHealth(open: boolean): SettingsHealthMap {
       ]);
 
       // Only probe Claude Code readiness when it's the selected backend — otherwise it's irrelevant
-      // and we skip the spawn entirely.
+      // and we skip the spawn entirely. Shared/de-duped with the sidebar StatusDashboard via
+      // fetchOrchestratorReadiness (see its docstring) so a single focus event doesn't spawn the
+      // `claude --version` subprocess twice.
       const orchestratorReadiness =
         llmConfig?.orchestrationBackend === "local-claude"
-          ? await ipcClient.llm.checkOrchestratorReadiness().catch(() => null)
+          ? await fetchOrchestratorReadiness()
           : null;
 
       // Only probe health for the enabled backlog providers we might flag.
@@ -154,7 +185,11 @@ export function useSettingsTabHealth(open: boolean): SettingsHealthMap {
       await Promise.all(
         backlog.map(async (server) => {
           try {
-            mcpHealthById[server.id] = await ipcClient.mcp.checkServerHealthAsync(server.id);
+            // Bounded by the shared timeout helper (address review #949 follow-up): without it, a
+            // wedged (hung, not crashed) MCP server would leave this Promise.all branch pending
+            // forever, freezing the Settings-nav health indicator on stale data — the same failure
+            // mode mcp-status.ts's fetchBacklogProviderHealth already guards against.
+            mcpHealthById[server.id] = await checkServerHealthWithTimeout(server.id);
           } catch {
             // A failed probe is inconclusive, not "disconnected" — leave undefined
             // so deriveSettingsHealth doesn't raise a false critical state.
