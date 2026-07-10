@@ -75,6 +75,29 @@ describe("Cloud360Orchestrator", () => {
     expect(broadcast.mock.calls[3][0].runStart).toBeUndefined();
   });
 
+  it("swallows a stream error that arrives after the result event", async () => {
+    uploadRecordingFromFile.mockResolvedValue("rec-1");
+    async function* resultThenThrow(): AsyncGenerator<SandboxEvent> {
+      yield { type: "result", summary: "done", artifacts: ["https://github.com/a/b/issues/1"] };
+      throw new Error("fetch failed");
+    }
+    processRecording.mockReturnValue(resultThenThrow());
+
+    await expect(
+      new Cloud360Orchestrator().run({
+        filePath: "/tmp/v.mp4",
+        projectId: "p1",
+        shaveId: "s1",
+        durationSeconds: 1,
+      }),
+    ).resolves.toBeUndefined();
+
+    // The result is broadcast, but the post-success "fetch failed" is not surfaced as an error.
+    const errorCalls = broadcast.mock.calls.filter((c) => c[0].event.type === "error");
+    expect(errorCalls).toHaveLength(0);
+    expect(broadcast.mock.calls.some((c) => c[0].event.type === "result")).toBe(true);
+  });
+
   it("broadcasts an error event (does not throw) when upload fails", async () => {
     uploadRecordingFromFile.mockRejectedValue(new Error("Not signed in"));
 

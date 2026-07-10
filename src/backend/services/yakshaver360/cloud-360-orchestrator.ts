@@ -15,6 +15,7 @@ export class Cloud360Orchestrator {
 
   async run(params: Cloud360RunParams): Promise<void> {
     const { shaveId } = params;
+    let succeeded = false;
     try {
       // Upload + sandbox spin-up emit no server events; synthesize status rows so the live
       // view shows progress instead of a blank feed during those silent stretches.
@@ -41,9 +42,12 @@ export class Cloud360Orchestrator {
         videoAnalysis: false,
         autoExecute: true,
       })) {
+        if (event.type === "result") succeeded = true;
         broadcastCloud360Event({ shaveId, event });
       }
     } catch (error) {
+      // A stream error after the result event is just sandbox-teardown noise, not a failure.
+      if (succeeded) return;
       const message = error instanceof Error ? error.message : String(error);
       broadcastCloud360Event({ shaveId, event: { type: "error", message } });
     }
