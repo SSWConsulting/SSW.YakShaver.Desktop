@@ -32,10 +32,13 @@ const getPortalTenantsUrl = () => {
 
 const getYakShaver360BaseUrl = () => {
   const { YAKSHAVER_360_BASE_URL: url } = env;
-  // The YakShaver 360 cloud front-end (Next.js) that exposes /api/360/*. Defaults to the
-  // locally-running dev front-end; point it at a public deployment to reach the sandbox executor.
-  const baseUrl = url || "http://localhost:3000";
-  return baseUrl.replace(/\/+$/, "");
+  // localhost default is dev-only; fail fast in production so a missing config is a clear
+  // error, not confusing fetch failures against localhost:3000.
+  if (!url) {
+    if (getIsDev()) return "http://localhost:3000";
+    throw new Error("YAKSHAVER_360_BASE_URL is not configured");
+  }
+  return url.replace(/\/+$/, "");
 };
 
 const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;

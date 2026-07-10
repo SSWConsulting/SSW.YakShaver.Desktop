@@ -29,11 +29,14 @@ export async function runCloud360Path(
       ? (ShaveService.getInstance().getShaveVideoSourceInfo(shaveId)?.durationSeconds ?? 0)
       : 0);
 
-  await new Cloud360Orchestrator().run({
+  const succeeded = await new Cloud360Orchestrator().run({
     filePath,
     projectId,
     shaveId,
     durationSeconds: resolvedDuration,
   });
-  return { success: true };
+  // Failure detail is already broadcast to the live view; report an honest boolean here.
+  return succeeded
+    ? { success: true }
+    : { success: false, error: "YakShaver 360 processing failed." };
 }

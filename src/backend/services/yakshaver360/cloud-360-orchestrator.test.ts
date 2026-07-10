@@ -37,12 +37,13 @@ describe("Cloud360Orchestrator", () => {
       ]),
     );
 
-    await new Cloud360Orchestrator().run({
+    const ok = await new Cloud360Orchestrator().run({
       filePath: "/tmp/v.mp4",
       projectId: "p1",
       shaveId: "s1",
       durationSeconds: 42,
     });
+    expect(ok).toBe(true);
 
     expect(uploadRecordingFromFile).toHaveBeenCalledWith({
       projectId: "p1",
@@ -90,7 +91,7 @@ describe("Cloud360Orchestrator", () => {
         shaveId: "s1",
         durationSeconds: 1,
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(true);
 
     // The result is broadcast, but the post-success "fetch failed" is not surfaced as an error.
     const errorCalls = broadcast.mock.calls.filter((c) => c[0].event.type === "error");
@@ -107,7 +108,7 @@ describe("Cloud360Orchestrator", () => {
         projectId: "p1",
         durationSeconds: 1,
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
 
     expect(processRecording).not.toHaveBeenCalled();
     expect(broadcast).toHaveBeenCalledWith({

@@ -56,6 +56,7 @@ describe("cloud-360 fork decision", () => {
   });
 
   it("runs the orchestrator with duration from the shave and returns success", async () => {
+    run.mockResolvedValue(true);
     const result = await runCloud360Path("/tmp/v.mp4", "s1", "p1");
     expect(run).toHaveBeenCalledWith({
       filePath: "/tmp/v.mp4",
@@ -64,5 +65,14 @@ describe("cloud-360 fork decision", () => {
       durationSeconds: 30,
     });
     expect(result).toEqual({ success: true });
+  });
+
+  it("reports failure when the orchestrator run does not succeed", async () => {
+    run.mockResolvedValue(false);
+    const result = await runCloud360Path("/tmp/v.mp4", "s1", "p1");
+    expect(result).toEqual({
+      success: false,
+      error: "YakShaver 360 processing failed.",
+    });
   });
 });

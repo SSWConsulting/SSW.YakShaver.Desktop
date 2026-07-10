@@ -13,7 +13,8 @@ export interface Cloud360RunParams {
 export class Cloud360Orchestrator {
   private client = YakShaver360Client.getInstance();
 
-  async run(params: Cloud360RunParams): Promise<void> {
+  /** Returns true if the run reached a result event, false if it failed. */
+  async run(params: Cloud360RunParams): Promise<boolean> {
     const { shaveId } = params;
     let succeeded = false;
     try {
@@ -45,11 +46,13 @@ export class Cloud360Orchestrator {
         if (event.type === "result") succeeded = true;
         broadcastCloud360Event({ shaveId, event });
       }
+      return succeeded;
     } catch (error) {
       // A stream error after the result event is just sandbox-teardown noise, not a failure.
-      if (succeeded) return;
+      if (succeeded) return true;
       const message = error instanceof Error ? error.message : String(error);
       broadcastCloud360Event({ shaveId, event: { type: "error", message } });
+      return false;
     }
   }
 }

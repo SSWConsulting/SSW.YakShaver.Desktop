@@ -347,13 +347,14 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
 
       // 360 is self-contained; skip the local shave record and pass duration through.
       if (is360Mode) {
-        await window.electronAPI.pipelines.processVideoFile(
+        const result = await window.electronAPI.pipelines.processVideoFile(
           filePath,
           undefined,
           shaveAutoApprove,
           selectedProjectId ?? undefined,
           duration,
         );
+        setUploadStatus(result?.success === false ? UploadStatus.ERROR : UploadStatus.IDLE);
         return;
       }
 
