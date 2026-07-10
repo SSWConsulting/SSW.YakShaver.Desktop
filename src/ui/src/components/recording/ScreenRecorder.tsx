@@ -211,7 +211,8 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     isProcessingUrl,
     isVideoHostConnected,
   } satisfies RecorderControlState;
-  const showYoutubeUrlSplitLayout = isYoutubeUrlWorkflowEnabled && !isRecording;
+  // 360 has no YouTube-URL path, so keep a single Record button (no split layout).
+  const showYoutubeUrlSplitLayout = !is360Mode && isYoutubeUrlWorkflowEnabled && !isRecording;
   const controlAvailability = getRecorderControlAvailability(
     controlState,
     showYoutubeUrlSplitLayout,
