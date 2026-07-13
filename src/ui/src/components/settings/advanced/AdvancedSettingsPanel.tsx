@@ -1,9 +1,9 @@
 import { FlaskConical } from "lucide-react";
 import { useId } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useAdvancedSettings } from "@/contexts/AdvancedSettingsContext";
 import { SettingsPageHeader } from "../SettingsPageHeader";
+import { SettingsSection } from "../SettingsSection";
 
 export function AdvancedSettingsPanel() {
   const { isYoutubeUrlWorkflowEnabled, setYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
@@ -17,22 +17,17 @@ export function AdvancedSettingsPanel() {
         description="Toggle experimental workflows and power-user options. These settings affect how controls appear in the main workspace."
       />
 
-      <Card>
-        <CardHeader className="space-y-1">
-          <CardTitle>YouTube URL Workflow</CardTitle>
-          <CardDescription>
-            Adds an upload button next to the recording controls that opens a dialog where you can
-            paste an existing YouTube link for processing without recording a new video.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4">
-          <Switch
-            id={inputId}
-            checked={isYoutubeUrlWorkflowEnabled}
-            onCheckedChange={setYoutubeUrlWorkflowEnabled}
-          />
-        </CardContent>
-      </Card>
+      <SettingsSection
+        title="YouTube URL Workflow"
+        description="Adds an upload button next to the recording controls that opens a dialog where you can paste an existing YouTube link for processing without recording a new video."
+        contentClassName="flex items-center justify-between gap-4"
+      >
+        <Switch
+          id={inputId}
+          checked={isYoutubeUrlWorkflowEnabled}
+          onCheckedChange={setYoutubeUrlWorkflowEnabled}
+        />
+      </SettingsSection>
     </div>
   );
 }

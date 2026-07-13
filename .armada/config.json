@@ -27,7 +27,7 @@
     "budget": {
       "maxRuntimeSec": 300,
       "maxPlaywrightSec": 120,
-      "maxIssuesPerRun": 3,
+      "maxIssuesPerRun": 1,
       "maxFindings": 20
     }
   },

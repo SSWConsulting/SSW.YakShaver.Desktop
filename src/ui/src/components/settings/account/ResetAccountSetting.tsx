@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from "../../ui/alert-dialog";
 import { Button, buttonVariants } from "../../ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card";
+import { SettingsSection } from "../SettingsSection";
 
 export function ResetAccountSetting() {
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
@@ -63,23 +63,20 @@ export function ResetAccountSetting() {
 
   return (
     <>
-      <Card className="w-full gap-4 border-white/10 py-4">
-        <CardHeader className="px-4">
-          <CardTitle className="flex items-center gap-2 text-danger">
+      <SettingsSection
+        title={
+          <span className="flex items-center gap-2 text-danger">
             <AlertTriangle className="h-5 w-5" />
             Reset Account
-          </CardTitle>
-          <CardDescription>
-            Log out of all services and clear all configurations. This action cannot be undone.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-4">
-          {/* #880 AC17: no longer full-width — a single confirmation-gated action doesn't warrant it on desktop. */}
-          <Button onClick={() => setIsResetDialogOpen(true)} variant="destructiveOutline">
-            Reset Account to Default
-          </Button>
-        </CardContent>
-      </Card>
+          </span>
+        }
+        description="Log out of all services and clear all configurations. This action cannot be undone."
+      >
+        {/* #880 AC17: no longer full-width — a single confirmation-gated action doesn't warrant it on desktop. */}
+        <Button onClick={() => setIsResetDialogOpen(true)} variant="destructiveOutline">
+          Reset Account to Default
+        </Button>
+      </SettingsSection>
 
       <AlertDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
         <AlertDialogContent>

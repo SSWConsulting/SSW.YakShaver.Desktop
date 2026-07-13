@@ -19,6 +19,7 @@ import {
 } from "../../ui/form";
 import { Input } from "../../ui/input";
 import type { MCPServerConfig } from "../mcp/McpServerForm";
+import { SettingsWarningBanner } from "../SettingsWarningBanner";
 import { HighlightedTextarea, hasPlaceholder } from "./HighlightedTextarea";
 import {
   PROMPT_DESCRIPTION_MAX,
@@ -305,7 +306,7 @@ export function PromptForm({
                   />
                 </FormControl>
                 {hasPlaceholders && !isTemplate && (
-                  <p className="text-xs text-amber-500/80 flex items-center gap-1 mt-1">
+                  <p className="text-xs text-warning flex items-center gap-1 mt-1">
                     <AlertTriangle className="w-3 h-3 shrink-0" />
                     Replace the highlighted fields before using this prompt
                   </p>
@@ -391,9 +392,7 @@ export function PromptForm({
                               <span className="ml-2 text-xs text-white/50">(Built-in)</span>
                             )}
                             {isServerDisabled && (
-                              <span className="ml-2 text-xs text-yellow-500/70">
-                                (Not connected)
-                              </span>
+                              <span className="ml-2 text-xs text-warning/80">(Not connected)</span>
                             )}
                           </label>
                         </div>
@@ -432,7 +431,7 @@ export function PromptForm({
                     )}
                   </div>
                   {hasDisconnectedSelection && (
-                    <p className="text-xs text-yellow-500/80 mt-1">
+                    <p className="text-xs text-warning/80 mt-1">
                       Some selected servers are disconnected. Connect them in MCP settings tab to
                       make their tools available.
                     </p>
@@ -445,10 +444,10 @@ export function PromptForm({
         )}
 
         {serversLoaded && serversWithIds.length === 0 && (
-          <div className="text-sm text-yellow-500/80 p-3 rounded-md border border-yellow-500/30 bg-yellow-500/10">
+          <SettingsWarningBanner>
             No external MCP servers configured. You can add additional MCP servers in the MCP
             settings tab.
-          </div>
+          </SettingsWarningBanner>
         )}
 
         <div className="flex justify-between gap-2 shrink-0">

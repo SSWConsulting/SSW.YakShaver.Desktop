@@ -34,4 +34,18 @@ describe("SettingsSection", () => {
     // The content wrapper is the child's parent; it should carry the custom class.
     expect(child.parentElement?.className).toContain("justify-between");
   });
+
+  it("renders as a lightweight divider, not an elevated Card (#872 AC2)", () => {
+    render(
+      <SettingsSection title="Key Mapping">
+        <span>content</span>
+      </SettingsSection>,
+    );
+    const section = screen.getByText("content").closest("section");
+    expect(section).not.toBeNull();
+    // No card surface (background/shadow/rounded) — just a bottom-border divider.
+    expect(section?.className).toContain("border-b");
+    expect(section?.className).not.toContain("shadow");
+    expect(section?.className).not.toContain("bg-card");
+  });
 });
