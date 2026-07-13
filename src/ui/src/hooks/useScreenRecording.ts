@@ -294,53 +294,78 @@ export function useScreenRecording() {
     [cleanup, setupRecorder, startRecorder],
   );
 
+  // Forces the recording UI back to an idle, usable state. Used both for the
+  // happy path and for the "stuck" recovery cases below (#950) — e.g. no
+  // MediaRecorder was ever created because audio/mic setup for this shave
+  // never completed, so there is nothing to call .stop() on, but the UI must
+  // not be left believing a recording is still active.
+  const resetToIdle = useCallback(async () => {
+    await window.electronAPI.screenRecording.hideControlBar().catch(() => {});
+    await cleanup();
+    setIsRecording(false);
+    setIsProcessing(false);
+  }, [cleanup]);
+
   const stop = useCallback(async (): Promise<{
     blob: Blob;
     filePath: string;
     fileName: string;
   } | null> => {
-    if (!mediaRecorderRef.current) return null;
-
     const recorder = mediaRecorderRef.current;
-    if (recorder.state === "inactive") return null;
+
+    // No recorder was ever created (e.g. audio was never opened/attached for
+    // this shave) or it's already inactive — there's nothing to stop, but we
+    // must still bring the app back to an idle state instead of silently
+    // no-oping and leaving the Stop button stuck on a dead recording.
+    if (!recorder || recorder.state === "inactive") {
+      await resetToIdle();
+      toast.error("Nothing to stop — this recording never started properly. You can try again.");
+      return null;
+    }
 
     setIsProcessing(true);
 
-    return new Promise((resolve) => {
-      recorder.onstop = async () => {
-        try {
-          await window.electronAPI.screenRecording.hideControlBar().catch(() => {});
+    try {
+      return await new Promise((resolve, reject) => {
+        recorder.onstop = async () => {
+          try {
+            await window.electronAPI.screenRecording.hideControlBar().catch(() => {});
 
-          const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
-          const result = await window.electronAPI.screenRecording.stop(
-            new Uint8Array(await blob.arrayBuffer()),
-          );
+            const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
+            const result = await window.electronAPI.screenRecording.stop(
+              new Uint8Array(await blob.arrayBuffer()),
+            );
 
-          if (!result.success || !result.filePath) {
-            throw new Error(result.error || "Failed to save recording");
+            if (!result.success || !result.filePath) {
+              throw new Error(result.error || "Failed to save recording");
+            }
+
+            toast.success("Recording completed! Review your video.");
+            resolve({
+              blob,
+              filePath: result.filePath,
+              fileName: result.fileName || result.filePath,
+            });
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error(String(error)));
           }
+        };
 
-          toast.success("Recording completed! Review your video.");
-          resolve({
-            blob,
-            filePath: result.filePath,
-            fileName: result.fileName || result.filePath,
-          });
-        } catch (error) {
-          toast.error(`Failed to save recording: ${error}`);
-          resolve(null);
-        } finally {
-          cleanup();
-          setIsRecording(false);
-          setIsProcessing(false);
-        }
-      };
+        recorder.onerror = (event) => {
+          reject(new Error(`MediaRecorder error: ${String((event as ErrorEvent).error ?? event)}`));
+        };
 
-      if (recorder.state === "recording") {
         recorder.stop();
-      }
-    });
-  }, [cleanup]);
+      });
+    } catch (error) {
+      toast.error(`Failed to save recording: ${error}`);
+      return null;
+    } finally {
+      cleanup();
+      setIsRecording(false);
+      setIsProcessing(false);
+    }
+  }, [cleanup, resetToIdle]);
 
   return {
     isRecording,
