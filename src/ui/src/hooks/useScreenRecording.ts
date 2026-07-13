@@ -352,7 +352,12 @@ export function useScreenRecording() {
     // must still bring the app back to an idle state instead of silently
     // no-oping and leaving the Stop button stuck on a dead recording.
     if (!recorder || recorder.state === "inactive") {
-      await resetToIdle();
+      isStoppingRef.current = true;
+      try {
+        await resetToIdle();
+      } finally {
+        isStoppingRef.current = false;
+      }
       toast.error("Nothing to stop — this recording never started properly. You can try again.");
       return null;
     }
