@@ -218,6 +218,36 @@ describe("useScreenRecording – stop() when the recorder went 'inactive' on its
     expect(recorder.stop).not.toHaveBeenCalled();
     expect(window.electronAPI.screenRecording.stop).toHaveBeenCalledWith(new Uint8Array());
   });
+
+  it("still resets isRecording/isProcessing to false even when a teardown step inside cleanup() throws mid-recovery (#956)", async () => {
+    const { result } = renderHook(() => useScreenRecording());
+
+    await startCameraOnlyRecording(result);
+    const recorder = env.getLastRecorder();
+
+    // A teardown step throwing synchronously (e.g. a track whose underlying
+    // device was yanked) must not prevent the rest of cleanup()/resetToIdle()
+    // from running — otherwise the isRecording/isProcessing resets below it
+    // get skipped and the UI is right back to the stuck state this PR fixes.
+    recorder.stream.getTracks().forEach((track) => {
+      (track as { stop: () => void }).stop = vi.fn(() => {
+        throw new Error("device already gone");
+      });
+    });
+
+    // The recorder went inactive on its own — no stop() was called on it.
+    recorder.state = "inactive";
+
+    let stopResult: unknown;
+    await act(async () => {
+      stopResult = await result.current.stop();
+    });
+
+    expect(stopResult).toBeNull();
+    expect(result.current.isRecording).toBe(false);
+    expect(result.current.isProcessing).toBe(false);
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Nothing to stop"));
+  });
 });
 
 describe("useScreenRecording – stop() in-progress-recording path (onstop/onerror/re-entrancy)", () => {

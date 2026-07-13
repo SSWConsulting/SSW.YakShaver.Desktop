@@ -54,44 +54,82 @@ export function useScreenRecording() {
   const gainNodeRef = useRef<GainNode | null>(null);
 
   const cleanup = useCallback(async () => {
-    mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
-      track.stop();
-    });
-    streamsRef.current.video?.getTracks().forEach((track) => {
-      track.stop();
-    });
-    streamsRef.current.audio?.getTracks().forEach((track) => {
-      track.stop();
-    });
-    streamsRef.current.systemAudio?.getTracks().forEach((track) => {
-      track.stop();
-    });
+    try {
+      mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (err) {
+          console.warn("cleanup: failed to stop media recorder track", err);
+        }
+      });
+      streamsRef.current.video?.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (err) {
+          console.warn("cleanup: failed to stop video track", err);
+        }
+      });
+      streamsRef.current.audio?.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (err) {
+          console.warn("cleanup: failed to stop audio track", err);
+        }
+      });
+      streamsRef.current.systemAudio?.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (err) {
+          console.warn("cleanup: failed to stop system audio track", err);
+        }
+      });
 
-    if (audioSourceRef.current) {
-      audioSourceRef.current.disconnect();
-      audioSourceRef.current = null;
+      if (audioSourceRef.current) {
+        try {
+          audioSourceRef.current.disconnect();
+        } catch (err) {
+          console.warn("cleanup: failed to disconnect audio source", err);
+        }
+        audioSourceRef.current = null;
+      }
+      if (systemAudioSourceRef.current) {
+        try {
+          systemAudioSourceRef.current.disconnect();
+        } catch (err) {
+          console.warn("cleanup: failed to disconnect system audio source", err);
+        }
+        systemAudioSourceRef.current = null;
+      }
+      if (gainNodeRef.current) {
+        try {
+          gainNodeRef.current.disconnect();
+        } catch (err) {
+          console.warn("cleanup: failed to disconnect gain node", err);
+        }
+        gainNodeRef.current = null;
+      }
+      // Disconnect and clean up the MediaStreamAudioDestinationNode to free resources
+      if (mixedAudioDestinationRef.current) {
+        try {
+          mixedAudioDestinationRef.current.disconnect();
+        } catch (err) {
+          console.warn("cleanup: failed to disconnect mixed audio destination", err);
+        }
+        mixedAudioDestinationRef.current = null;
+      }
+      if (audioContextRef.current) {
+        await audioContextRef.current.close().catch((err) => {
+          console.warn("cleanup: failed to close audio context", err);
+        });
+        audioContextRef.current = null;
+      }
+    } finally {
+      // Guaranteed to run even if something unexpected throws above, so the
+      // recording state can never be left stuck on a stale recorder/stream.
+      mediaRecorderRef.current = null;
+      chunksRef.current = [];
+      streamsRef.current = {};
     }
-    if (systemAudioSourceRef.current) {
-      systemAudioSourceRef.current.disconnect();
-      systemAudioSourceRef.current = null;
-    }
-    if (gainNodeRef.current) {
-      gainNodeRef.current.disconnect();
-      gainNodeRef.current = null;
-    }
-    // Disconnect and clean up the MediaStreamAudioDestinationNode to free resources
-    if (mixedAudioDestinationRef.current) {
-      mixedAudioDestinationRef.current.disconnect();
-      mixedAudioDestinationRef.current = null;
-    }
-    if (audioContextRef.current) {
-      await audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-
-    mediaRecorderRef.current = null;
-    chunksRef.current = [];
-    streamsRef.current = {};
   }, []);
 
   const setupRecorder = useCallback(
