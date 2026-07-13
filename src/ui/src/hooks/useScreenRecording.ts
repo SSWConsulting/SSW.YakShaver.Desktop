@@ -410,10 +410,22 @@ export function useScreenRecording() {
 
     try {
       return await new Promise((resolve, reject) => {
+        // Detaches the handlers below on every settlement path (timeout,
+        // success, error) so a late-firing onstop/onerror after this Promise
+        // has already settled is a no-op instead of running stale side
+        // effects — building a Blob from chunks cleanup() already cleared,
+        // calling the stop IPC a second time, or showing a contradictory
+        // success/error toast after the timeout toast has already fired.
+        const detachHandlers = () => {
+          recorder.onstop = null;
+          recorder.onerror = null;
+        };
+
         // Bounds this Promise so it can never hang forever if onstop/onerror
         // never fire (e.g. the recording device was revoked, or the browser
         // drops the event) — cleared on every settlement path below.
         const timeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {
+          detachHandlers();
           reject(
             new Error("Timed out waiting for the recorder to stop (no onstop/onerror event fired)"),
           );
@@ -431,6 +443,7 @@ export function useScreenRecording() {
             }
 
             clearTimeout(timeoutId);
+            detachHandlers();
             toast.success("Recording completed! Review your video.");
             resolve({
               blob,
@@ -439,12 +452,14 @@ export function useScreenRecording() {
             });
           } catch (error) {
             clearTimeout(timeoutId);
+            detachHandlers();
             reject(error instanceof Error ? error : new Error(String(error)));
           }
         };
 
         recorder.onerror = (event) => {
           clearTimeout(timeoutId);
+          detachHandlers();
           const error = (event as MediaRecorderErrorEventLike).error ?? event;
           reject(new Error(`MediaRecorder error: ${String(error)}`));
         };
@@ -460,6 +475,7 @@ export function useScreenRecording() {
           recorder.stop();
         } else {
           clearTimeout(timeoutId);
+          detachHandlers();
           reject(new Error(`Cannot stop recorder in unexpected state: ${recorder.state}`));
         }
       });
