@@ -30,6 +30,17 @@ const getPortalTenantsUrl = () => {
   return baseUrl.replace(/\/+$/, "");
 };
 
+const getYakShaver360BaseUrl = () => {
+  const { YAKSHAVER_360_BASE_URL: url } = env;
+  // localhost default is dev-only; fail fast in production so a missing config is a clear
+  // error, not confusing fetch failures against localhost:3000.
+  if (!url) {
+    if (getIsDev()) return "http://localhost:3000";
+    throw new Error("YAKSHAVER_360_BASE_URL is not configured");
+  }
+  return url.replace(/\/+$/, "");
+};
+
 const getCommitHash: () => string | null = () => env.COMMIT_HASH || null;
 
 const getIsDev = () => env.NODE_ENV === "development";
@@ -63,6 +74,7 @@ export const config = {
   azure: getAzure,
   portalApiUrl: getPortalApiUrl,
   portalTenantsUrl: getPortalTenantsUrl,
+  yakshaver360BaseUrl: getYakShaver360BaseUrl,
   commitHash: getCommitHash,
   isDev: getIsDev,
   appInsightsConnectionString: getAppInsightsConnectionString,

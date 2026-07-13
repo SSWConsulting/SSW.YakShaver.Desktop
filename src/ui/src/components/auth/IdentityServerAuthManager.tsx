@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ipcClient } from "@/services/ipc-client";
+import { IS_AUTH_CHANGED_EVENT } from "@/types";
 import { getInitials } from "@/utils";
 
 export function IdentityServerAuthManager() {
@@ -42,6 +43,8 @@ export function IdentityServerAuthManager() {
       setError(String(e));
     } finally {
       setLoading(false);
+      // Let sign-in-gated views (e.g. useCloud360Mode) re-read status without a remount.
+      window.dispatchEvent(new CustomEvent(IS_AUTH_CHANGED_EVENT));
     }
   }, []);
 

@@ -1,0 +1,182 @@
+import { readFile } from "node:fs/promises";
+import { config } from "../../config/env";
+import { IdentityServerAuthService } from "../auth/identity-server-auth";
+import type { ProcessRecordingOptions, RecordingUploadTarget, SandboxEvent } from "./types";
+import { contentTypeForFile, extensionForContentType } from "./upload-content-type";
+
+/** Client for the YakShaver 360 front-end (/api/360/*), authed with the user's IDS bearer token. */
+export class YakShaver360Client {
+  private static instance: YakShaver360Client | null = null;
+  private auth = IdentityServerAuthService.getInstance();
+
+  static getInstance(): YakShaver360Client {
+    if (!YakShaver360Client.instance) {
+      YakShaver360Client.instance = new YakShaver360Client();
+    }
+    return YakShaver360Client.instance;
+  }
+
+  private baseUrl(): string {
+    return config.yakshaver360BaseUrl();
+  }
+
+  private async authHeader(): Promise<{ Authorization: string }> {
+    const token = await this.auth.getAccessToken();
+    if (!token) {
+      throw new Error("Not signed in: no YakShaver Identity Server access token available.");
+    }
+    return { Authorization: `Bearer ${token}` };
+  }
+
+  /** Create a recording from an already-uploaded video (ticket from the upload route); returns its id. */
+  async createRecording(params: {
+    projectId: string;
+    uploadTicket: string;
+    notes?: string;
+    durationSeconds: number;
+  }): Promise<string> {
+    const headers = await this.authHeader();
+    const url = `${this.baseUrl()}/api/360/recordings`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(
+        `Failed to create recording (${response.status})${detail ? `: ${detail}` : ""}`,
+      );
+    }
+    const { id } = (await response.json()) as { id: string };
+    return id;
+  }
+
+  /** Request a signed Azure upload target (POST /api/360/recordings/upload). */
+  async createUploadTarget(params: {
+    projectId: string;
+    contentType: string;
+    durationSeconds: number;
+    fileExtension: string;
+  }): Promise<RecordingUploadTarget> {
+    const headers = await this.authHeader();
+    const url = `${this.baseUrl()}/api/360/recordings/upload`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error ?? `Failed to prepare upload (${response.status})`);
+    }
+    return (await response.json()) as RecordingUploadTarget;
+  }
+
+  /** PUT the video bytes straight to Azure Blob Storage using the signed SAS url (no bearer). */
+  async uploadToAzureBlob(uploadUrl: string, data: Buffer, contentType: string): Promise<void> {
+    const response = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": contentType,
+        "x-ms-blob-content-type": contentType,
+        "x-ms-blob-type": "BlockBlob",
+      },
+      body: new Uint8Array(data),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(detail || `Blob upload failed (${response.status})`);
+    }
+  }
+
+  /** Upload a local video and create its recording (upload target -> Azure PUT -> create); returns the id. */
+  async uploadRecordingFromFile(params: {
+    projectId: string;
+    filePath: string;
+    durationSeconds: number;
+    notes?: string;
+  }): Promise<string> {
+    const contentType = contentTypeForFile(params.filePath);
+    if (!contentType) {
+      throw new Error(`Unsupported video type for ${params.filePath} (expected webm/mp4/mov/mkv).`);
+    }
+    const fileExtension = extensionForContentType(contentType) ?? "webm";
+
+    const target = await this.createUploadTarget({
+      projectId: params.projectId,
+      contentType,
+      durationSeconds: params.durationSeconds,
+      fileExtension,
+    });
+
+    const data = await readFile(params.filePath);
+    await this.uploadToAzureBlob(target.uploadUrl, data, contentType);
+
+    return this.createRecording({
+      projectId: params.projectId,
+      uploadTicket: target.uploadTicket,
+      durationSeconds: params.durationSeconds,
+      notes: params.notes,
+    });
+  }
+
+  /** Start processing a recording, yielding each SandboxEvent from the SSE stream. */
+  async *processRecording(
+    id: string,
+    options: ProcessRecordingOptions = {},
+    signal?: AbortSignal,
+  ): AsyncGenerator<SandboxEvent> {
+    const url = `${this.baseUrl()}/api/360/recordings/${encodeURIComponent(id)}/process`;
+    const headers = await this.authHeader();
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify(options),
+      signal,
+    });
+
+    if (!response.ok || !response.body) {
+      throw new Error(`Failed to start stream (${response.status})`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // Frames are blank-line separated; keep the trailing (possibly partial) frame buffered.
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+        for (const frame of frames) {
+          const event = parseSseFrame(frame);
+          if (event) yield event;
+        }
+      }
+      const tail = parseSseFrame(buffer);
+      if (tail) yield tail;
+    } finally {
+      reader.releaseLock();
+    }
+  }
+}
+
+/** Parse an SSE frame's `data:` lines into a SandboxEvent; null for keep-alives/comments/non-JSON. */
+function parseSseFrame(frame: string): SandboxEvent | null {
+  const dataLines = frame
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice("data:".length).trim());
+  if (dataLines.length === 0) return null;
+  const payload = dataLines.join("\n");
+  try {
+    return JSON.parse(payload) as SandboxEvent;
+  } catch {
+    return null;
+  }
+}

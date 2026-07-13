@@ -33,6 +33,8 @@ interface VideoPreviewModalProps {
   onRetry: () => void;
   onContinue: (shaveAutoApprove: boolean) => void;
   onDurationLoad?: (duration: number) => void;
+  /** True when the current run uses the YakShaver 360 backend; snapshots the backend for /workflow. */
+  is360Mode?: boolean;
 }
 
 export function VideoPreviewModal({
@@ -44,6 +46,7 @@ export function VideoPreviewModal({
   onRetry,
   onContinue,
   onDurationLoad,
+  is360Mode = false,
 }: VideoPreviewModalProps) {
   const navigateToWorkflow = useWorkflowNavigation({ listen: false });
   const [videoUrl, setVideoUrl] = useState("");
@@ -131,7 +134,8 @@ export function VideoPreviewModal({
           )}
 
           <DialogFooter className="flex-col items-start gap-3 sm:flex-col">
-            {approvalMode !== "yolo" && (
+            {/* 360 always auto-executes, so hide the checkbox instead of showing a dead gate. */}
+            {approvalMode !== "yolo" && !is360Mode && (
               // min-h-11 gives the row a 44px-tall click target (WCAG 2.5.5);
               // the label spans the row via htmlFor so the row is the hit area.
               <div className="flex items-center gap-2 min-h-11">
@@ -156,7 +160,7 @@ export function VideoPreviewModal({
               <Button
                 variant="default"
                 onClick={() => {
-                  navigateToWorkflow();
+                  navigateToWorkflow(is360Mode ? { backend: "cloud-360" } : undefined);
                   onContinue(autoApproveChecked);
                 }}
                 disabled={audioCheck.status === "checking" || audioCheck.status === "no_audio"}

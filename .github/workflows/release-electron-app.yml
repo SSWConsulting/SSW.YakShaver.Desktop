@@ -77,6 +77,7 @@ jobs:
           IDENTITY_SERVER_CLIENT_ID: ${{ secrets.IDENTITY_SERVER_CLIENT_ID }}
           IDENTITY_SERVER_SCOPE: ${{ secrets.IDENTITY_SERVER_SCOPE }}
           IDENTITY_SERVER_CUSTOM_PROTOCOL: yakshaver-desktop
+          YAKSHAVER_360_BASE_URL: https://portal.yakshaver.ai
           APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         run: |
           Add-Content -Path ".env" -Value "`nMCP_CALLBACK_PORT=$env:MCP_CALLBACK_PORT"
@@ -91,6 +92,7 @@ jobs:
           Add-Content -Path ".env" -Value "`nIDENTITY_SERVER_CLIENT_ID=$env:IDENTITY_SERVER_CLIENT_ID"
           Add-Content -Path ".env" -Value "`nIDENTITY_SERVER_SCOPE=$env:IDENTITY_SERVER_SCOPE"
           Add-Content -Path ".env" -Value "`nIDENTITY_SERVER_CUSTOM_PROTOCOL=$env:IDENTITY_SERVER_CUSTOM_PROTOCOL"
+          Add-Content -Path ".env" -Value "`nYAKSHAVER_360_BASE_URL=$env:YAKSHAVER_360_BASE_URL"
           Add-Content -Path ".env" -Value "`nAPPLICATIONINSIGHTS_CONNECTION_STRING=$env:APPLICATIONINSIGHTS_CONNECTION_STRING"
           $COMMIT_HASH = git rev-parse HEAD
           Add-Content -Path ".env" -Value "`nCOMMIT_HASH=$COMMIT_HASH"
@@ -209,6 +211,7 @@ jobs:
           IDENTITY_SERVER_CLIENT_ID: ${{ secrets.IDENTITY_SERVER_CLIENT_ID }}
           IDENTITY_SERVER_SCOPE: ${{ secrets.IDENTITY_SERVER_SCOPE }}
           IDENTITY_SERVER_CUSTOM_PROTOCOL: yakshaver-desktop
+          YAKSHAVER_360_BASE_URL: https://portal.yakshaver.ai
           APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         run: |
           printf "MCP_CALLBACK_PORT=%s\n" "$MCP_CALLBACK_PORT" >> .env
@@ -223,6 +226,7 @@ jobs:
           printf "IDENTITY_SERVER_CLIENT_ID=%s\n" "$IDENTITY_SERVER_CLIENT_ID" >> .env
           printf "IDENTITY_SERVER_SCOPE=%s\n" "$IDENTITY_SERVER_SCOPE" >> .env
           printf "IDENTITY_SERVER_CUSTOM_PROTOCOL=%s\n" "$IDENTITY_SERVER_CUSTOM_PROTOCOL" >> .env
+          printf "YAKSHAVER_360_BASE_URL=%s\n" "$YAKSHAVER_360_BASE_URL" >> .env
           printf "APPLICATIONINSIGHTS_CONNECTION_STRING=%s\n" "$APPLICATIONINSIGHTS_CONNECTION_STRING" >> .env
           COMMIT_HASH=$(git rev-parse HEAD)
           printf "COMMIT_HASH=%s\n" "$COMMIT_HASH" >> .env
@@ -362,6 +366,7 @@ jobs:
           IDENTITY_SERVER_CLIENT_ID: ${{ secrets.IDENTITY_SERVER_CLIENT_ID }}
           IDENTITY_SERVER_SCOPE: ${{ secrets.IDENTITY_SERVER_SCOPE }}
           IDENTITY_SERVER_CUSTOM_PROTOCOL: yakshaver-desktop
+          YAKSHAVER_360_BASE_URL: https://portal.yakshaver.ai
           APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         run: |
           printf "MCP_CALLBACK_PORT=%s\n" "$MCP_CALLBACK_PORT" >> .env
@@ -376,6 +381,7 @@ jobs:
           printf "IDENTITY_SERVER_CLIENT_ID=%s\n" "$IDENTITY_SERVER_CLIENT_ID" >> .env
           printf "IDENTITY_SERVER_SCOPE=%s\n" "$IDENTITY_SERVER_SCOPE" >> .env
           printf "IDENTITY_SERVER_CUSTOM_PROTOCOL=%s\n" "$IDENTITY_SERVER_CUSTOM_PROTOCOL" >> .env
+          printf "YAKSHAVER_360_BASE_URL=%s\n" "$YAKSHAVER_360_BASE_URL" >> .env
           printf "APPLICATIONINSIGHTS_CONNECTION_STRING=%s\n" "$APPLICATIONINSIGHTS_CONNECTION_STRING" >> .env
           COMMIT_HASH=$(git rev-parse HEAD)
           printf "COMMIT_HASH=%s\n" "$COMMIT_HASH" >> .env

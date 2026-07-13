@@ -1,3 +1,4 @@
+import type { Cloud360EventPayload, Cloud360Project } from "@shared/types/cloud360";
 import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { TelemetrySettings } from "@shared/types/telemetry";
 import type { UserSettings } from "@shared/types/user-settings";
@@ -42,7 +43,10 @@ declare global {
           filePath: string,
           shaveId?: string,
           shaveAutoApprove?: boolean,
-        ) => Promise<void>;
+          projectId?: string,
+          durationSeconds?: number,
+          // The 360 path resolves to a { success, error? } result; the classic path resolves undefined.
+        ) => Promise<{ success: boolean; error?: string } | undefined>;
         processVideoUrl: (url: string, shaveId?: string) => Promise<void>;
         rerunTask: (
           intermediateOutput: string,
@@ -54,6 +58,10 @@ declare global {
           mcpResult?: string;
           error?: string;
         }>;
+        onCloud360Event: (callback: (payload: Cloud360EventPayload) => void) => () => void;
+      };
+      cloud360: {
+        listProjects: () => Promise<Cloud360Project[]>;
       };
       youtube: {
         startAuth: () => Promise<AuthResult>;

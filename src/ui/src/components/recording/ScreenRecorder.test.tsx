@@ -66,11 +66,20 @@ vi.mock("@/hooks/useWorkflowNavigation", () => ({
 vi.mock("@/services/ipc-client", () => ({
   ipcClient: {
     userSettings: { get: vi.fn().mockResolvedValue({ hotkeys: {}, toolApprovalMode: "ask" }) },
+    // Non-360 / unauthenticated stubs: this suite covers the existing local
+    // recording flow, which must remain unaffected by cloud-360 mode.
+    llm: { getConfig: vi.fn().mockResolvedValue({ orchestrationBackend: "openai" }) },
+    auth: { identityServer: { status: vi.fn().mockResolvedValue({ status: "unauthenticated" }) } },
   },
 }));
 
 // Stub SourcePickerDialog; it reaches into electronAPI channels not under test.
 vi.mock("./SourcePickerDialog", () => ({ SourcePickerDialog: () => null }));
+
+// Stub the 360 project dialog; this suite covers the non-360 default path.
+vi.mock("../cloud360/Cloud360ProjectDialog", () => ({
+  Cloud360ProjectDialog: () => null,
+}));
 
 // Surface the preview modal's onContinue as a button so tests can drive the
 // real "a recording was made" path without a full media-capture pipeline.

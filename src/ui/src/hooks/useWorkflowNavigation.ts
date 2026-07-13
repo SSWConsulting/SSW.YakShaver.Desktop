@@ -1,3 +1,4 @@
+import type { OrchestrationBackend } from "@shared/types/llm";
 import { useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -5,23 +6,31 @@ interface UseWorkflowNavigationOptions {
   listen?: boolean;
 }
 
+/** Optional router state carried to /workflow (e.g. which orchestrator backend this run used). */
+export interface WorkflowNavState {
+  backend?: OrchestrationBackend;
+}
+
 export function useWorkflowNavigation(options?: UseWorkflowNavigationOptions) {
   const navigate = useNavigate();
   const location = useLocation();
   const listen = options?.listen ?? true;
 
-  const navigateToWorkflow = useCallback(() => {
-    if (location.pathname !== "/workflow") {
-      navigate("/workflow");
-    }
-  }, [navigate, location.pathname]);
+  const navigateToWorkflow = useCallback(
+    (state?: WorkflowNavState) => {
+      if (location.pathname !== "/workflow") {
+        navigate("/workflow", state ? { state } : undefined);
+      }
+    },
+    [navigate, location.pathname],
+  );
 
   useEffect(() => {
     if (!listen) {
       return;
     }
 
-    const cleanup = window.electronAPI.workflow.onProgressNeo(navigateToWorkflow);
+    const cleanup = window.electronAPI.workflow.onProgressNeo(() => navigateToWorkflow());
     return cleanup;
   }, [listen, navigateToWorkflow]);
 

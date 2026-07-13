@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
+import { LLM_CONFIG_CHANGED_EVENT } from "../../../types";
 import { SettingsSection } from "../SettingsSection";
 import { SettingsWarningBanner } from "../SettingsWarningBanner";
 
@@ -38,11 +39,18 @@ const BACKEND_OPTIONS: readonly BackendOption[] = [
     description:
       'Drive backlog creation with a local headless `claude` process. Requires the `claude` CLI installed and on PATH, and still needs a configured OpenAI/Azure language model to verify success. Under "ask" approval mode only whitelisted tools run (no runtime approval prompt), and YakShaver\'s built-in screenshot tools are unavailable.',
   },
+  {
+    id: "cloud-360",
+    title: "YakShaver 360",
+    description:
+      "Process recordings in a cloud sandbox (no local Claude CLI needed). Requires sign-in and a GitHub project selected before recording.",
+  },
 ];
 
 const BACKEND_LABELS: Record<OrchestrationBackend, string> = {
   openai: "OpenAI",
   "local-claude": "Claude Code",
+  "cloud-360": "YakShaver 360",
 };
 
 /** Narrows a raw Select value to a known backend, so `onValueChange` doesn't rely on a bare cast. */
@@ -135,6 +143,9 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
           throw new Error("Failed to update orchestrator backend");
         }
         setCurrentBackend(backend);
+        // The recording page derives 360 mode from this config but isn't remounted when
+        // the settings dialog closes; notify it so the switch takes effect immediately.
+        window.dispatchEvent(new CustomEvent(LLM_CONFIG_CHANGED_EVENT));
         toast.success(`Orchestrator set to ${BACKEND_LABELS[backend]}`);
         // Surface readiness right after choosing Claude Code so the user learns immediately if the
         // CLI is missing or not signed in.

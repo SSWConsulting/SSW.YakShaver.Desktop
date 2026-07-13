@@ -49,6 +49,7 @@ import {
 } from "../services/workflow/youtube-stage-decisions";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
+import { runCloud360Path, shouldUseCloud360 } from "./process-video-cloud360";
 
 export type { RetryResult, VideoProcessingContext };
 
@@ -91,11 +92,20 @@ export class ProcessVideoIPCHandlers {
   private registerHandlers(): void {
     ipcMain.handle(
       IPC_CHANNELS.PROCESS_VIDEO_FILE,
-      async (_event, filePath?: string, shaveId?: string, shaveAutoApprove?: boolean) => {
+      async (
+        _event,
+        filePath?: string,
+        shaveId?: string,
+        shaveAutoApprove?: boolean,
+        projectId?: string,
+        durationSeconds?: number,
+      ) => {
         if (!filePath) {
           throw new Error("video-process-handler: Video file path is required");
         }
-
+        if (await shouldUseCloud360()) {
+          return await runCloud360Path(filePath, shaveId, projectId, durationSeconds);
+        }
         return await this.processFileVideo(filePath, shaveId, shaveAutoApprove);
       },
     );

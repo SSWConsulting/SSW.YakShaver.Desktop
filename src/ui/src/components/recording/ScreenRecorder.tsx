@@ -13,6 +13,7 @@ import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
+import { Cloud360ProjectDialog } from "../cloud360/Cloud360ProjectDialog";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -26,6 +27,7 @@ import { Input } from "../ui/input";
 import { Kbd } from "../ui/kbd";
 import { Label } from "../ui/label";
 import { SourcePickerDialog } from "./SourcePickerDialog";
+import { useCloud360Mode } from "./useCloud360Mode";
 import { VideoPreviewModal } from "./VideoPreviewModal";
 
 interface RecordedVideo {
@@ -190,8 +192,18 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const [duration, setDuration] = useState<number>(0);
   const [approvalMode, setApprovalMode] = useState<ToolApprovalMode>("ask");
   const { saveRecording, checkExistingShave } = useShaveManager();
+  const { is360Mode, isSignedIn } = useCloud360Mode();
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
-  const isVideoHostConnected = authState.status === AuthStatus.AUTHENTICATED;
+  // In 360 mode the "video host" is Identity Server sign-in (isSignedIn), not the
+  // YouTube/video-platform auth used by the standard flow. Feeding this into the
+  // shared control-availability model keeps Record enable/disable correct for both
+  // modes through one path. Project selection happens *after* Record is clicked
+  // (Cloud360ProjectDialog), so it is intentionally not part of this gate.
+  const isVideoHostConnected = is360Mode
+    ? isSignedIn
+    : authState.status === AuthStatus.AUTHENTICATED;
   const controlState = {
     isRecording,
     isTranscribing,
@@ -199,7 +211,8 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     isProcessingUrl,
     isVideoHostConnected,
   } satisfies RecorderControlState;
-  const showYoutubeUrlSplitLayout = isYoutubeUrlWorkflowEnabled && !isRecording;
+  // 360 has no YouTube-URL path, so keep a single Record button (no split layout).
+  const showYoutubeUrlSplitLayout = !is360Mode && isYoutubeUrlWorkflowEnabled && !isRecording;
   const controlAvailability = getRecorderControlAvailability(
     controlState,
     showYoutubeUrlSplitLayout,
@@ -253,7 +266,16 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   }, [previewOpen]);
 
   const toggleRecording = () => {
-    isRecording ? handleStopRecording() : setPickerOpen(true);
+    if (isRecording) {
+      handleStopRecording();
+      return;
+    }
+    // In 360 mode, pick a project first; confirming opens the source picker.
+    if (is360Mode) {
+      setProjectDialogOpen(true);
+      return;
+    }
+    setPickerOpen(true);
   };
 
   useEffect(() => {
@@ -322,6 +344,20 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     try {
       setUploadStatus(UploadStatus.UPLOADING);
       setUploadResult(null);
+
+      // 360 is self-contained; skip the local shave record and pass duration through.
+      if (is360Mode) {
+        const result = await window.electronAPI.pipelines.processVideoFile(
+          filePath,
+          undefined,
+          shaveAutoApprove,
+          selectedProjectId ?? undefined,
+          duration,
+        );
+        setUploadStatus(result?.success === false ? UploadStatus.ERROR : UploadStatus.IDLE);
+        return;
+      }
+
       const result = await saveRecording(
         {
           clientOrigin: "YakShaver Desktop",
@@ -452,7 +488,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             </p>
           )}
         </div>
-        {!isVideoHostConnected && !showButtonOnly && (
+        {!is360Mode && !isVideoHostConnected && !showButtonOnly && (
           <p className="text-sm text-muted-foreground text-center">
             Please connect a video platform below to start recording
           </p>
@@ -500,12 +536,22 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
         </DialogContent>
       </Dialog>
 
+      <Cloud360ProjectDialog
+        open={projectDialogOpen}
+        onOpenChange={setProjectDialogOpen}
+        onConfirm={(projectId) => {
+          setSelectedProjectId(projectId);
+          setPickerOpen(true);
+        }}
+      />
+
       {recordedVideo && (
         <VideoPreviewModal
           open={previewOpen}
           videoBlob={recordedVideo.blob}
           videoFilePath={recordedVideo.filePath}
           approvalMode={approvalMode}
+          is360Mode={is360Mode}
           onClose={resetPreview}
           onRetry={handleRetry}
           onContinue={handleContinue}

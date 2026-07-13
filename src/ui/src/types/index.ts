@@ -141,6 +141,12 @@ export type UndoEventDetail = {
  */
 export const WORKFLOW_CLEAR_EVENT_CHANNEL = "yakshaver:workflow-clear";
 
+/** Fired after LLM/orchestrator settings save so config-derived views re-read without a remount. */
+export const LLM_CONFIG_CHANGED_EVENT = "yakshaver:llm-config-changed";
+
+/** Fired after IdentityServer sign in/out so sign-in-gated views re-read status without a remount. */
+export const IS_AUTH_CHANGED_EVENT = "yakshaver:is-auth-changed";
+
 export enum MCPStepType {
   START = "start",
   REASONING = "reasoning",
