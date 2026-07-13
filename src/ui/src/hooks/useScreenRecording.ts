@@ -396,6 +396,10 @@ export function useScreenRecording() {
     // no-oping and leaving the Stop button stuck on a dead recording.
     if (!recorder || recorder.state === "inactive") {
       isStoppingRef.current = true;
+      // Mirror the live-recorder path below: reflect the in-flight recovery
+      // work on the button immediately rather than only after resetToIdle()
+      // resolves, so the UI doesn't look idle while it's still tearing down.
+      setIsProcessing(true);
       try {
         await resetToIdle();
       } finally {
