@@ -335,3 +335,92 @@ describe("useScreenRecording – stop() in-progress-recording path (onstop/onerr
     expect(recorder.stop).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("useScreenRecording – stop() STOP_EVENT_TIMEOUT_MS timeout path (#956)", () => {
+  let env: ReturnType<typeof stubRecordingEnvironment>;
+
+  beforeEach(() => {
+    env = stubRecordingEnvironment();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("settles to null and resets state after 15s when neither onstop nor onerror ever fires", async () => {
+    const { result } = renderHook(() => useScreenRecording());
+    await startCameraOnlyRecording(result);
+    const recorder = env.getLastRecorder();
+
+    // Mirrors a real MediaRecorder whose stop() call never results in an
+    // onstop/onerror event — e.g. the recording device was revoked, or the
+    // browser drops the event — so only the STOP_EVENT_TIMEOUT_MS bound can
+    // settle the Promise.
+    recorder.stop.mockImplementation(() => {});
+
+    vi.useFakeTimers();
+
+    // stop() sets isProcessing(true) synchronously before its first await,
+    // so the call itself (not just the later timer advance) must be wrapped
+    // in act(). Track the in-flight promise so the timeout can be advanced
+    // and awaited afterwards.
+    let stopPromise!: ReturnType<typeof result.current.stop>;
+    act(() => {
+      stopPromise = result.current.stop();
+    });
+
+    // Advance past STOP_EVENT_TIMEOUT_MS (15s) so the timeout guard rejects
+    // the stop Promise, then let the resulting state resets flush.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000);
+    });
+    const stopResult = await stopPromise;
+
+    expect(stopResult).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Failed to save recording"));
+    expect(result.current.isRecording).toBe(false);
+    expect(result.current.isProcessing).toBe(false);
+  }, 15000);
+
+  it("ignores a late onstop firing after the timeout has already settled the promise", async () => {
+    const { result } = renderHook(() => useScreenRecording());
+    await startCameraOnlyRecording(result);
+    const recorder = env.getLastRecorder();
+
+    recorder.stop.mockImplementation(() => {});
+
+    vi.useFakeTimers();
+
+    let stopPromise!: ReturnType<typeof result.current.stop>;
+    act(() => {
+      stopPromise = result.current.stop();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000);
+    });
+    const stopResult = await stopPromise;
+
+    // Sanity: the timeout already settled the promise to null, exactly like
+    // the test above.
+    expect(stopResult).toBeNull();
+    const toastSuccessCalls = (toast.success as ReturnType<typeof vi.fn>).mock.calls.length;
+    const stopIpcCalls = (window.electronAPI.screenRecording.stop as ReturnType<typeof vi.fn>).mock
+      .calls.length;
+
+    // A late-firing onstop after the timeout — e.g. the browser finally
+    // delivers the event well after we gave up waiting — must be a no-op: no
+    // new Blob built from chunks cleanup() already cleared, no second stop
+    // IPC call, and no contradictory success toast on top of the timeout's
+    // failure toast. This is only true once recorder.onstop is detached on
+    // the timeout settlement path.
+    await act(async () => {
+      recorder.onstop?.();
+      await Promise.resolve();
+    });
+
+    expect(window.electronAPI.screenRecording.stop).toHaveBeenCalledTimes(stopIpcCalls);
+    expect(toast.success).toHaveBeenCalledTimes(toastSuccessCalls);
+  }, 15000);
+});
