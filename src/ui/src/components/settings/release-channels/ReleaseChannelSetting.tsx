@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -12,6 +11,8 @@ import {
 } from "@/components/ui/select";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage, getVersionBumpType, type VersionBumpType } from "@/utils";
+import { SettingsSection } from "../SettingsSection";
+import { SettingsWarningBanner } from "../SettingsWarningBanner";
 import { GITHUB_TOKEN_UPDATED_EVENT } from "./GitHubTokenSetting";
 import type { ProcessedRelease, ReleaseChannel } from "./types";
 
@@ -289,124 +290,119 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
   const prSelectionDisabled = isCheckingToken || !isTokenHealthy;
 
   return (
-    <Card className="w-full gap-4 border-white/10 py-4">
-      <CardHeader className="px-4">
-        <CardTitle>Release Channel</CardTitle>
-        <CardDescription>
-          Choose the stable release or a PR release to test updates.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 px-4">
-        {showNoTokenBanner && (
-          <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
-            <h3 className="mb-1 font-medium text-yellow-200">GitHub Token Required</h3>
-            <p className="text-sm text-yellow-100">
-              A GitHub token is required to view and download PR releases. Add one below.
-            </p>
-          </div>
-        )}
+    <SettingsSection
+      title="Release Channel"
+      description="Choose the stable release or a PR release to test updates."
+      contentClassName="space-y-4"
+    >
+      {showNoTokenBanner && (
+        <SettingsWarningBanner>
+          <span className="font-medium">GitHub Token Required.</span> A GitHub token is required to
+          view and download PR releases. Add one below.
+        </SettingsWarningBanner>
+      )}
 
-        {showInvalidTokenBanner && (
-          <div className="rounded-md border border-ssw-red/30 bg-ssw-red/10 p-3">
-            <h3 className="mb-1 font-medium text-red-200">GitHub Token Invalid</h3>
-            <p className="text-sm text-red-100">
-              {tokenHealthError
-                ? `GitHub token verification failed: ${tokenHealthError}. PR releases can't be listed, selected, or downloaded until this is resolved.`
-                : "Your GitHub token is invalid or expired, so PR releases can't be listed, selected, or downloaded. Update it below."}
-            </p>
-          </div>
-        )}
+      {showInvalidTokenBanner && (
+        <div
+          role="alert"
+          className="rounded-md border border-danger/40 bg-danger/10 p-3 text-danger"
+        >
+          {/* Bold lead-in rather than a nested heading — SettingsSection's own title is
+           * already an <h3>; a second <h3> here would duplicate that heading level. */}
+          <p className="mb-1 text-sm font-medium">GitHub Token Invalid</p>
+          <p className="text-sm">
+            {tokenHealthError
+              ? `GitHub token verification failed: ${tokenHealthError}. PR releases can't be listed, selected, or downloaded until this is resolved.`
+              : "Your GitHub token is invalid or expired, so PR releases can't be listed, selected, or downloaded. Update it below."}
+          </p>
+        </div>
+      )}
 
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={selectId}>Select Release Channel To Test</Label>
-            <Select value={selectValue} onValueChange={handleSelectionChange}>
-              <SelectTrigger id={selectId}>
-                <SelectValue placeholder="Choose a release">
-                  {selectValue === SELECT_LATEST
-                    ? "Latest Stable (default)"
-                    : selectValue
-                      ? `PR #${selectValue}`
-                      : "Choose a release"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-80">
-                <SelectItem value={SELECT_LATEST} textValue="Latest Stable (default)">
-                  Latest Stable (default)
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={selectId}>Select Release Channel To Test</Label>
+          <Select value={selectValue} onValueChange={handleSelectionChange}>
+            <SelectTrigger id={selectId}>
+              <SelectValue placeholder="Choose a release">
+                {selectValue === SELECT_LATEST
+                  ? "Latest Stable (default)"
+                  : selectValue
+                    ? `PR #${selectValue}`
+                    : "Choose a release"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent className="max-h-80">
+              <SelectItem value={SELECT_LATEST} textValue="Latest Stable (default)">
+                Latest Stable (default)
+              </SelectItem>
+              {isLoadingReleases && (
+                <SelectItem value="__loading" disabled>
+                  Loading releases...
                 </SelectItem>
-                {isLoadingReleases && (
-                  <SelectItem value="__loading" disabled>
-                    Loading releases...
+              )}
+              {!isLoadingReleases && dropdownOptions.length === 0 && (
+                <SelectItem value="__empty" disabled>
+                  No PR releases available
+                </SelectItem>
+              )}
+              {!isLoadingReleases &&
+                dropdownOptions.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value}
+                    className="text-white"
+                    textValue={option.label}
+                    disabled={prSelectionDisabled}
+                  >
+                    <div className="flex flex-col">
+                      <span>{option.label}</span>
+                      <span className="text-xs">{option.version}</span>
+                      <span className="text-xs">
+                        {new Date(option.publishedAt).toLocaleString()}
+                      </span>
+                    </div>
                   </SelectItem>
-                )}
-                {!isLoadingReleases && dropdownOptions.length === 0 && (
-                  <SelectItem value="__empty" disabled>
-                    No PR releases available
-                  </SelectItem>
-                )}
-                {!isLoadingReleases &&
-                  dropdownOptions.map((option) => (
-                    <SelectItem
-                      key={option.value}
-                      value={option.value}
-                      className="text-white"
-                      textValue={option.label}
-                      disabled={prSelectionDisabled}
-                    >
-                      <div className="flex flex-col">
-                        <span>{option.label}</span>
-                        <span className="text-xs">{option.version}</span>
-                        <span className="text-xs">
-                          {new Date(option.publishedAt).toLocaleString()}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button
+          onClick={handleCheckUpdates}
+          disabled={
+            isLoading || !selectValue || (channel.type === "pr" ? !isTokenHealthy : !hasGitHubToken)
+          }
+        >
+          Check for Updates
+        </Button>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        {currentVersion && (
+          <div className="rounded-md border border-border bg-card p-3">
+            <p className="text-sm text-muted-foreground">Current Version</p>
+            <p className="text-lg">{currentVersion}</p>
           </div>
+        )}
 
-          <Button
-            onClick={handleCheckUpdates}
-            disabled={
-              isLoading ||
-              !selectValue ||
-              (channel.type === "pr" ? !isTokenHealthy : !hasGitHubToken)
-            }
-          >
-            Check for Updates
-          </Button>
-        </div>
+        {availableVersion && (
+          <div className="rounded-md border border-border bg-card p-3">
+            <p className="text-sm text-muted-foreground">New Version Available</p>
+            <p className="text-lg">
+              {availableVersion}{" "}
+              {bumpType !== "unknown" && (
+                <span className="text-sm text-muted-foreground">({BUMP_TYPE_LABEL[bumpType]})</span>
+              )}
+            </p>
+          </div>
+        )}
 
-        <div className="grid gap-3 md:grid-cols-2">
-          {currentVersion && (
-            <div className="rounded-md border border-border bg-card p-3">
-              <p className="text-sm text-muted-foreground">Current Version</p>
-              <p className="text-lg">{currentVersion}</p>
-            </div>
-          )}
-
-          {availableVersion && (
-            <div className="rounded-md border border-border bg-card p-3">
-              <p className="text-sm text-muted-foreground">New Version Available</p>
-              <p className="text-lg">
-                {availableVersion}{" "}
-                {bumpType !== "unknown" && (
-                  <span className="text-sm text-muted-foreground">
-                    ({BUMP_TYPE_LABEL[bumpType]})
-                  </span>
-                )}
-              </p>
-            </div>
-          )}
-
-          {updateStatus && (
-            <div className="rounded-md border border-border bg-card p-3">
-              <p className="text-sm">{updateStatus}</p>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        {updateStatus && (
+          <div className="rounded-md border border-border bg-card p-3">
+            <p className="text-sm">{updateStatus}</p>
+          </div>
+        )}
+      </div>
+    </SettingsSection>
   );
 }

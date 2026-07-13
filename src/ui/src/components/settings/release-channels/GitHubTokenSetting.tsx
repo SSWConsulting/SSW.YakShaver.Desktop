@@ -2,7 +2,6 @@ import { Eye, EyeOff } from "lucide-react";
 import { useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { DeleteConfirmDialog } from "@/components/dialogs/DeleteConfirmDialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ipcClient } from "@/services/ipc-client";
 import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
@@ -10,6 +9,7 @@ import { HealthStatus } from "../../health-status/health-status";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
+import { SettingsSection } from "../SettingsSection";
 
 interface GitHubTokenSettingProps {
   isActive: boolean;
@@ -145,82 +145,78 @@ export function GitHubTokenSetting({ isActive }: GitHubTokenSettingProps) {
 
   return (
     <>
-      <Card className="w-full gap-4 border-white/10 py-4">
-        <CardHeader className="px-4">
-          <CardTitle>GitHub Token</CardTitle>
-          <CardDescription>
-            Add a personal access token so YakShaver can list and download PR releases.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 px-4">
-          {isLoading ? (
-            <div className="text-muted-foreground text-center py-8">Loading...</div>
-          ) : (
-            <>
-              {hasToken && (
-                <div className="flex items-center gap-3">
-                  <p className="text-white/80 text-sm">Token Status:</p>
-                  <span className="text-green-400 text-sm font-mono">Saved</span>
-                  <HealthStatus
-                    isChecking={healthStatus?.isChecking ?? false}
-                    isHealthy={healthStatus?.isHealthy ?? false}
-                    successMessage={healthStatus?.successMessage}
-                    successDetails={verifyDetails ?? undefined}
-                    error={healthStatus?.error}
-                    isDisabled={!hasToken}
-                  />
-                </div>
-              )}
-              {!hasToken && (
-                <p className="text-white/80 text-sm">
-                  Status: <span className="text-ssw-red">No Token Saved</span>
-                </p>
-              )}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor={inputId}>GitHub Personal Access Token</Label>
-                <div className="relative">
-                  <Input
-                    id={inputId}
-                    type={showToken ? "text" : "password"}
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                    placeholder={hasToken ? "Token is saved (hidden)" : "ghp_xxxxxxxxxxxxxxxxxxxx"}
-                    disabled={isSaving}
-                  />
-                  {token && (
-                    <button
-                      type="button"
-                      onClick={toggleShowToken}
-                      className="absolute right-3 top-1/2 -translate-y-1/2"
-                      aria-label={showToken ? "Hide token" : "Show token"}
-                    >
-                      {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  The token is encrypted and stored locally on your device
-                </p>
+      <SettingsSection
+        title="GitHub Token"
+        description="Add a personal access token so YakShaver can list and download PR releases."
+        contentClassName="flex flex-col gap-4"
+      >
+        {isLoading ? (
+          <div className="text-muted-foreground text-center py-8">Loading...</div>
+        ) : (
+          <>
+            {hasToken && (
+              <div className="flex items-center gap-3">
+                <p className="text-white/80 text-sm">Token Status:</p>
+                <span className="text-green-400 text-sm font-mono">Saved</span>
+                <HealthStatus
+                  isChecking={healthStatus?.isChecking ?? false}
+                  isHealthy={healthStatus?.isHealthy ?? false}
+                  successMessage={healthStatus?.successMessage}
+                  successDetails={verifyDetails ?? undefined}
+                  error={healthStatus?.error}
+                  isDisabled={!hasToken}
+                />
               </div>
-
-              <div className="flex gap-3 justify-end pt-2">
-                {hasToken && (
-                  <Button
-                    variant="destructiveOutline"
-                    onClick={() => setClearConfirmOpen(true)}
-                    disabled={isSaving}
+            )}
+            {!hasToken && (
+              <p className="text-white/80 text-sm">
+                Status: <span className="text-ssw-red">No Token Saved</span>
+              </p>
+            )}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={inputId}>GitHub Personal Access Token</Label>
+              <div className="relative">
+                <Input
+                  id={inputId}
+                  type={showToken ? "text" : "password"}
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  placeholder={hasToken ? "Token is saved (hidden)" : "ghp_xxxxxxxxxxxxxxxxxxxx"}
+                  disabled={isSaving}
+                />
+                {token && (
+                  <button
+                    type="button"
+                    onClick={toggleShowToken}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    aria-label={showToken ? "Hide token" : "Show token"}
                   >
-                    Clear Token
-                  </Button>
+                    {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 )}
-                <Button onClick={handleSave} disabled={isSaving || !token.trim()}>
-                  {isSaving ? "Saving..." : "Save Token"}
-                </Button>
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              <p className="text-xs text-muted-foreground">
+                The token is encrypted and stored locally on your device
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-2">
+              {hasToken && (
+                <Button
+                  variant="destructiveOutline"
+                  onClick={() => setClearConfirmOpen(true)}
+                  disabled={isSaving}
+                >
+                  Clear Token
+                </Button>
+              )}
+              <Button onClick={handleSave} disabled={isSaving || !token.trim()}>
+                {isSaving ? "Saving..." : "Save Token"}
+              </Button>
+            </div>
+          </>
+        )}
+      </SettingsSection>
       <DeleteConfirmDialog
         open={clearConfirmOpen}
         onOpenChange={setClearConfirmOpen}
