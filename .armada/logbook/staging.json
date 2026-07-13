@@ -1,0 +1,25 @@
+{
+  "surface": "web",
+  "recordUrl": "",
+  "launch": {
+    "command": "cd src/ui && npm run dev",
+    "extraFlags": [],
+    "readySignal": { "type": "httpUrl", "value": "http://localhost:3000/" },
+    "env": ["VITE_DEBUG_BUILD"]
+  },
+  "stage": {
+    "auth": null,
+    "seed": null,
+    "entry": "http://localhost:3000/"
+  },
+  "cursor": true,
+  "reach": [
+    { "action": "goto", "target": "/" }
+  ],
+  "notes": {
+    "appClass": "Electron (web-wrapped desktop) — record the inner Vite renderer, never `npm run start` (the native shell can't render headless and can't be driven by Playwright).",
+    "entryPoints": "The renderer has multiple HTML entries: index.html (main window), control-bar.html, camera.html, countdown.html, frame-overlay.html — reach a secondary window with e.g. { \"action\": \"goto\", \"target\": \"/control-bar.html\" }.",
+    "outOfFrame": "Native-only chrome (tray icon, native menus, OS file dialogs, screen-capture pickers) lives in the Electron shell and cannot appear in headless recordings; IPC/preload-backed features may render with stub data. Name these in the handoff when a chapter depends on them.",
+    "port": "Vite dev server is strictPort 3000."
+  }
+}
