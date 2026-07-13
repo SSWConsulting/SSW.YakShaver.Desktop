@@ -1,10 +1,13 @@
 {
   "surface": "web",
-  "recordUrl": "",
+  "recordUrl": "http://localhost:3001/",
   "launch": {
     "command": "cd src/ui && npm run dev",
     "extraFlags": [],
-    "readySignal": { "type": "httpUrl", "value": "http://localhost:3000/" },
+    "readySignal": {
+      "type": "httpUrl",
+      "value": "http://localhost:3000/"
+    },
     "env": ["VITE_DEBUG_BUILD"]
   },
   "stage": {
@@ -14,7 +17,10 @@
   },
   "cursor": true,
   "reach": [
-    { "action": "goto", "target": "/" }
+    {
+      "action": "goto",
+      "target": "/"
+    }
   ],
   "notes": {
     "appClass": "Electron (web-wrapped desktop) — record the inner Vite renderer, never `npm run start` (the native shell can't render headless and can't be driven by Playwright).",
