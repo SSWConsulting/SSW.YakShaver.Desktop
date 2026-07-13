@@ -6,6 +6,11 @@ const VIDEO_MIME_TYPE = "video/mp4";
 // Audio gain boost value to ensure adequate volume levels in recordings
 // A value of 1.5 (50% boost) provides clear audio without distortion
 const AUDIO_GAIN_BOOST = 1.5;
+// Upper bound on how long we wait for the MediaRecorder's onstop/onerror
+// event after calling stop(), so the stop Promise can never hang forever if
+// neither event fires (e.g. the recording device was revoked, or the browser
+// drops the event).
+const STOP_EVENT_TIMEOUT_MS = 15000;
 
 interface RecordingStreams {
   video?: MediaStream;
@@ -367,6 +372,15 @@ export function useScreenRecording() {
 
     try {
       return await new Promise((resolve, reject) => {
+        // Bounds this Promise so it can never hang forever if onstop/onerror
+        // never fire (e.g. the recording device was revoked, or the browser
+        // drops the event) — cleared on every settlement path below.
+        const timeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {
+          reject(
+            new Error("Timed out waiting for the recorder to stop (no onstop/onerror event fired)"),
+          );
+        }, STOP_EVENT_TIMEOUT_MS);
+
         recorder.onstop = async () => {
           try {
             const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
@@ -378,6 +392,7 @@ export function useScreenRecording() {
               throw new Error(result.error || "Failed to save recording");
             }
 
+            clearTimeout(timeoutId);
             toast.success("Recording completed! Review your video.");
             resolve({
               blob,
@@ -385,11 +400,13 @@ export function useScreenRecording() {
               fileName: result.fileName || result.filePath,
             });
           } catch (error) {
+            clearTimeout(timeoutId);
             reject(error instanceof Error ? error : new Error(String(error)));
           }
         };
 
         recorder.onerror = (event) => {
+          clearTimeout(timeoutId);
           const error = (event as MediaRecorderErrorEventLike).error ?? event;
           reject(new Error(`MediaRecorder error: ${String(error)}`));
         };
@@ -404,6 +421,7 @@ export function useScreenRecording() {
         if (recorder.state === "recording") {
           recorder.stop();
         } else {
+          clearTimeout(timeoutId);
           reject(new Error(`Cannot stop recorder in unexpected state: ${recorder.state}`));
         }
       });
