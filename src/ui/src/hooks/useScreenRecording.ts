@@ -19,11 +19,27 @@ interface ElectronVideoConstraints extends MediaTrackConstraints {
   };
 }
 
+// MediaRecorder's "error" event is a MediaRecorderErrorEvent, not a generic
+// DOM ErrorEvent — it carries a `.error: DOMException`, not `.message`.
+// lib.dom doesn't ship a MediaRecorderErrorEvent type, so we model the one
+// property we read instead of mis-casting to ErrorEvent.
+interface MediaRecorderErrorEventLike extends Event {
+  error?: DOMException;
+}
+
 export function useScreenRecording() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  // Guards stop() against re-entrancy: the same closure can be invoked twice
+  // in close succession — once from the in-window Stop button and once from
+  // the recording control bar's Stop button (forwarded over IPC to this same
+  // handler) — before the first call's onstop/onerror has fired. Without this
+  // guard the second call re-registers recorder.onstop/onerror on the live
+  // MediaRecorder, silently clobbering the first call's handlers so its
+  // Promise never settles (#956).
+  const isStoppingRef = useRef(false);
   const chunksRef = useRef<Blob[]>([]);
   const streamsRef = useRef<RecordingStreams>({});
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -301,6 +317,15 @@ export function useScreenRecording() {
   // not be left believing a recording is still active.
   const resetToIdle = useCallback(async () => {
     await window.electronAPI.screenRecording.hideControlBar().catch(() => {});
+    // The backend may have already started its recording timer (e.g.
+    // startRecordingTimer() ran) even though no MediaRecorder exists on the
+    // renderer side, or the recorder went inactive mid-session on its own
+    // (its underlying stream/track ended unexpectedly). Either way, tell the
+    // backend to stop/clean up so its timer doesn't keep running until the
+    // next recording or app quit. handleStopRecording() stops the timer as
+    // its first action and safely no-ops on empty video data before writing
+    // anything, so this is safe to call even when there's nothing to save.
+    await window.electronAPI.screenRecording.stop(new Uint8Array()).catch(() => {});
     await cleanup();
     setIsRecording(false);
     setIsProcessing(false);
@@ -311,6 +336,15 @@ export function useScreenRecording() {
     filePath: string;
     fileName: string;
   } | null> => {
+    // A second concurrent invocation — e.g. the control bar's Stop button
+    // (forwarded over IPC to this same handler) firing close together with
+    // the in-window Stop button — must not re-register onstop/onerror on the
+    // live recorder, which would silently clobber the first call's handlers
+    // and leave it dangling forever. Treat a concurrent call as a no-op.
+    if (isStoppingRef.current) {
+      return null;
+    }
+
     const recorder = mediaRecorderRef.current;
 
     // No recorder was ever created (e.g. audio was never opened/attached for
@@ -323,14 +357,13 @@ export function useScreenRecording() {
       return null;
     }
 
+    isStoppingRef.current = true;
     setIsProcessing(true);
 
     try {
       return await new Promise((resolve, reject) => {
         recorder.onstop = async () => {
           try {
-            await window.electronAPI.screenRecording.hideControlBar().catch(() => {});
-
             const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
             const result = await window.electronAPI.screenRecording.stop(
               new Uint8Array(await blob.arrayBuffer()),
@@ -352,18 +385,36 @@ export function useScreenRecording() {
         };
 
         recorder.onerror = (event) => {
-          reject(new Error(`MediaRecorder error: ${String((event as ErrorEvent).error ?? event)}`));
+          const error = (event as MediaRecorderErrorEventLike).error ?? event;
+          reject(new Error(`MediaRecorder error: ${String(error)}`));
         };
 
-        recorder.stop();
+        // Only 'recording' actually has anything to stop; 'inactive' was
+        // already handled above via resetToIdle(). 'paused' is unreachable
+        // today (no pause feature exists), but guard it explicitly rather
+        // than calling .stop() unconditionally, so a future pause feature
+        // doesn't hit an unguarded call here. Since onstop/onerror won't fire
+        // without an actual stop() call, reject in that case instead of
+        // leaving the promise dangling forever.
+        if (recorder.state === "recording") {
+          recorder.stop();
+        } else {
+          reject(new Error(`Cannot stop recorder in unexpected state: ${recorder.state}`));
+        }
       });
     } catch (error) {
       toast.error(`Failed to save recording: ${error}`);
       return null;
     } finally {
-      cleanup();
+      // Always hide the control bar here too, not just on the onstop happy
+      // path — if onerror fires (or recorder.stop() throws) without onstop
+      // ever running, the control bar would otherwise stay visibly stuck even
+      // though isRecording/isProcessing have been reset below.
+      await window.electronAPI.screenRecording.hideControlBar().catch(() => {});
+      await cleanup();
       setIsRecording(false);
       setIsProcessing(false);
+      isStoppingRef.current = false;
     }
   }, [cleanup, resetToIdle]);
 
