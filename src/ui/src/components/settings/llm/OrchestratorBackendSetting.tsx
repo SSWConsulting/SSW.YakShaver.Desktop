@@ -1,10 +1,9 @@
 import type { LLMConfigV2, OrchestrationBackend, OrchestratorReadiness } from "@shared/types/llm";
 import { DEFAULT_ORCHESTRATION_BACKEND } from "@shared/types/llm";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -14,6 +13,8 @@ import {
 } from "@/components/ui/select";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage } from "@/utils";
+import { SettingsSection } from "../SettingsSection";
+import { SettingsWarningBanner } from "../SettingsWarningBanner";
 
 interface OrchestratorBackendSettingProps {
   isActive: boolean;
@@ -151,69 +152,58 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
   );
 
   return (
-    <Card className="w-full gap-4 border-white/10 py-4">
-      <CardHeader className="px-4">
-        <CardTitle>Orchestrator</CardTitle>
-        <CardDescription>
+    <SettingsSection
+      title="Orchestrator"
+      description={
+        <>
           Choose which backend drives backlog creation. Claude Code requires the{" "}
           <code className="rounded bg-white/10 px-1 py-0.5 text-xs">claude</code> CLI installed, and
           uses your Claude Code sign-in instead of an Anthropic API key.
-        </CardDescription>
-      </CardHeader>
+        </>
+      }
+      contentClassName="flex flex-col gap-2"
+    >
+      <Select
+        value={currentBackend}
+        onValueChange={(value) => {
+          if (isOrchestrationBackend(value)) void handleSelect(value);
+        }}
+        disabled={isLoading || pendingBackend !== null}
+      >
+        <SelectTrigger className="w-full md:w-72" aria-label="Orchestrator backend">
+          <SelectValue placeholder="Select an orchestrator" />
+        </SelectTrigger>
+        <SelectContent>
+          {BACKEND_OPTIONS.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {BACKEND_OPTIONS.find((o) => o.id === currentBackend)?.description}
+      </p>
 
-      <CardContent className="flex flex-col gap-2 px-4">
-        <Select
-          value={currentBackend}
-          onValueChange={(value) => {
-            if (isOrchestrationBackend(value)) void handleSelect(value);
-          }}
-          disabled={isLoading || pendingBackend !== null}
+      {/* Claude Code readiness: warn + instruct when the backend is selected but the local CLI
+          isn't installed or isn't signed in, so the user fixes it BEFORE a run fails. */}
+      {currentBackend === "local-claude" && readiness && !readiness.ready && (
+        <SettingsWarningBanner
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void checkReadiness()}
+              disabled={isCheckingReadiness}
+            >
+              {isCheckingReadiness && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+              Re-check
+            </Button>
+          }
         >
-          <SelectTrigger className="w-full md:w-72" aria-label="Orchestrator backend">
-            <SelectValue placeholder="Select an orchestrator" />
-          </SelectTrigger>
-          <SelectContent>
-            {BACKEND_OPTIONS.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          {BACKEND_OPTIONS.find((o) => o.id === currentBackend)?.description}
-        </p>
-
-        {/* Claude Code readiness: warn + instruct when the backend is selected but the local CLI
-            isn't installed or isn't signed in, so the user fixes it BEFORE a run fails. */}
-        {currentBackend === "local-claude" && readiness && !readiness.ready && (
-          <div
-            role="alert"
-            className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-950/40 px-3 py-2 text-xs leading-relaxed text-amber-100"
-          >
-            <AlertTriangle
-              className="mt-0.5 h-4 w-4 shrink-0 text-amber-400"
-              role="img"
-              aria-label="Claude Code not ready"
-            />
-            <div className="flex min-w-0 flex-col gap-2">
-              <span className="break-words">{readiness.message}</span>
-              <div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 border-amber-500/40 bg-transparent text-amber-100 hover:bg-amber-500/10"
-                  onClick={() => void checkReadiness()}
-                  disabled={isCheckingReadiness}
-                >
-                  {isCheckingReadiness && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
-                  Re-check
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          {readiness.message}
+        </SettingsWarningBanner>
+      )}
+    </SettingsSection>
   );
 }
