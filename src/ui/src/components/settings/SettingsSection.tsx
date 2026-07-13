@@ -37,7 +37,7 @@ export function SettingsSection({
 }: SettingsSectionProps) {
   return (
     <section
-      className={cn("w-full border-b border-white/10 pb-5 last:border-b-0 last:pb-0", className)}
+      className={cn("w-full border-b border-white/10 pb-3 last:border-b-0 last:pb-0", className)}
     >
       <div className="flex flex-col gap-1">
         <h3 className="flex items-center gap-2 text-sm leading-none font-semibold">{title}</h3>

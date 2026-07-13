@@ -303,8 +303,13 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
       )}
 
       {showInvalidTokenBanner && (
-        <div className="rounded-md border border-danger/40 bg-danger/10 p-3 text-danger">
-          <h3 className="mb-1 font-medium">GitHub Token Invalid</h3>
+        <div
+          role="alert"
+          className="rounded-md border border-danger/40 bg-danger/10 p-3 text-danger"
+        >
+          {/* Bold lead-in rather than a nested heading — SettingsSection's own title is
+           * already an <h3>; a second <h3> here would duplicate that heading level. */}
+          <p className="mb-1 text-sm font-medium">GitHub Token Invalid</p>
           <p className="text-sm">
             {tokenHealthError
               ? `GitHub token verification failed: ${tokenHealthError}. PR releases can't be listed, selected, or downloaded until this is resolved.`
