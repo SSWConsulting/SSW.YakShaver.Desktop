@@ -292,7 +292,8 @@ export class MCPServerManager {
 
     MCPServerManager.validateServerConfig(server);
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
-    if (hasDuplicateServerName(storedConfigs, server.name)) {
+    const allConfigs = MCPServerManager.mergeWithInternalServers(storedConfigs);
+    if (hasDuplicateServerName(allConfigs, server.name, server.id)) {
       throw new Error(`Server with name '${server.name}' already exists`);
     }
     if (storedConfigs.some((s) => s.id === server.id)) {
@@ -335,7 +336,8 @@ export class MCPServerManager {
     const merged = mergedRecord as unknown as MCPServerConfig;
 
     MCPServerManager.validateServerConfig(merged);
-    if (hasDuplicateServerName(storedConfigs, merged.name, existing.id)) {
+    const allConfigs = MCPServerManager.mergeWithInternalServers(storedConfigs);
+    if (hasDuplicateServerName(allConfigs, merged.name, existing.id)) {
       throw new Error(`Server with name '${merged.name}' already exists`);
     }
 
