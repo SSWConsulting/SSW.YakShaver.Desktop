@@ -55,65 +55,7 @@ Notes:
 
 ### MCP Server Configuration
 
-The configuration file is automatically created when you add your first MCP server through the
-Settings UI. The configuration persists across app restarts and updates.
-
-When adding a custom MCP server, select **JSON** to paste a flat server configuration or a common
-client configuration wrapper. Flat HTTP servers require `name`, `transport`, and `url`:
-
-```json
-{
-  "name": "github",
-  "description": "GitHub MCP Server",
-  "transport": "streamableHttp",
-  "url": "https://api.githubcopilot.com/mcp/",
-  "headers": {
-    "Authorization": "Bearer YOUR_TOKEN"
-  }
-}
-```
-
-Local process servers require `name`, `transport`, and `command`:
-
-```json
-{
-  "name": "filesystem",
-  "description": "Local filesystem MCP Server",
-  "transport": "stdio",
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
-  "env": {
-    "NODE_ENV": "production"
-  }
-}
-```
-
-Optional HTTP fields are `description`, `headers`, `version`, and `timeoutMs`. Optional STDIO
-fields are `description`, `args`, `env`, `cwd`, and `stderr` (`inherit`, `ignore`, or `pipe`).
-Header and environment variable values must be strings. Switching back to **Form** maps the JSON
-values to the corresponding fields without losing valid data.
-
-The JSON importer also accepts common client configuration wrappers. Server names are taken from
-the keys, and `transport` is inferred from `command` or `url` when it is omitted:
-
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
-    }
-  }
-}
-```
-
-Both `mcpServers` (Claude-style) and `servers` (VS Code-style) wrappers are supported. Every entry
-is shown in the import preview and added as a separate YakShaver MCP server. If any entry cannot
-be parsed, the whole import is rejected rather than partially importing the configuration.
+The configuration file is automatically created when you add your first MCP server through the Settings UI. The configuration persists across app restarts and updates.
 
 ## Running macOS Compiled App (`YakShaver.app`)
 

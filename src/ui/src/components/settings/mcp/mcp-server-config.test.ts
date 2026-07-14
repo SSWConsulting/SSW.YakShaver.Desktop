@@ -1,15 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatMcpServerFormDraftJson,
   formatMcpServerJson,
   formDataToMcpServerConfig,
+  type MCPServerConfigResult,
   mcpServerConfigToFormData,
-  parseMcpServerJson,
   parseMcpServersJson,
 } from "./mcp-server-config";
 
+function parseSingleServer(json: string): MCPServerConfigResult {
+  const result = parseMcpServersJson(json);
+  if (!result.success) {
+    return result;
+  }
+  if (result.configs.length !== 1) {
+    return { success: false, message: "Expected exactly one MCP server" };
+  }
+  return { success: true, config: result.configs[0] };
+}
+
 describe("MCP server JSON configuration", () => {
   it("parses and validates an HTTP server", () => {
-    const result = parseMcpServerJson(`{
+    const result = parseSingleServer(`{
       "name": "github",
       "description": "GitHub MCP Server",
       "transport": "streamableHttp",
@@ -31,7 +43,7 @@ describe("MCP server JSON configuration", () => {
   });
 
   it("reports JSON syntax errors", () => {
-    const result = parseMcpServerJson('{ "name": "github"');
+    const result = parseSingleServer('{ "name": "github"');
 
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -40,7 +52,7 @@ describe("MCP server JSON configuration", () => {
   });
 
   it("does not repeat a field name in validation messages", () => {
-    const result = parseMcpServerJson(`{
+    const result = parseSingleServer(`{
       "name": "",
       "transport": "streamableHttp",
       "url": ""
@@ -60,13 +72,13 @@ describe("MCP server JSON configuration", () => {
       '{ "name": "example", "transport": "stdio" }',
     ],
   ])("reports a clear required-field error: %s", (message, json) => {
-    const result = parseMcpServerJson(json);
+    const result = parseSingleServer(json);
 
     expect(result).toEqual({ success: false, message });
   });
 
   it("infers an HTTP transport from a URL", () => {
-    const result = parseMcpServerJson('{ "name": "example", "url": "https://example.com/mcp" }');
+    const result = parseSingleServer('{ "name": "example", "url": "https://example.com/mcp" }');
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -75,7 +87,7 @@ describe("MCP server JSON configuration", () => {
   });
 
   it("preserves stdio data through JSON and form mode synchronization", () => {
-    const parsed = parseMcpServerJson(`{
+    const parsed = parseSingleServer(`{
       "name": "filesystem",
       "description": "Local files",
       "transport": "stdio",
@@ -98,17 +110,17 @@ describe("MCP server JSON configuration", () => {
     if (!synchronized.success) {
       return;
     }
-    expect(parseMcpServerJson(formatMcpServerJson(synchronized.config))).toEqual(parsed);
+    expect(parseSingleServer(formatMcpServerJson(synchronized.config))).toEqual(parsed);
   });
 
   it("rejects non-string header and environment values", () => {
-    const httpResult = parseMcpServerJson(`{
+    const httpResult = parseSingleServer(`{
       "name": "http",
       "transport": "streamableHttp",
       "url": "https://example.com/mcp",
       "headers": { "X-Retry": 3 }
     }`);
-    const stdioResult = parseMcpServerJson(`{
+    const stdioResult = parseSingleServer(`{
       "name": "stdio",
       "transport": "stdio",
       "command": "npx",
@@ -188,6 +200,29 @@ describe("MCP server JSON configuration", () => {
     expect(result).toEqual({
       success: false,
       message: "Server 'unknown' must provide either a command or URL",
+    });
+  });
+
+  it("serializes the current form draft instead of keeping stale JSON", () => {
+    const json = formatMcpServerFormDraftJson({
+      name: "draft-server",
+      description: "",
+      transport: "streamableHttp",
+      url: "https://example.com/mcp",
+      headers: "not valid nested JSON yet",
+      version: "",
+      timeoutMs: "",
+      command: "",
+      args: "",
+      env: "",
+      cwd: "",
+      stderr: "inherit",
+    });
+
+    expect(JSON.parse(json)).toMatchObject({
+      name: "draft-server",
+      url: "https://example.com/mcp",
+      headers: "not valid nested JSON yet",
     });
   });
 });

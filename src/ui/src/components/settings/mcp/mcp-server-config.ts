@@ -233,6 +233,55 @@ export function mcpServerConfigToFormData(config?: MCPServerConfig): MCPServerFo
   };
 }
 
+function parseDraftJsonValue(value: string | undefined): unknown {
+  if (!value?.trim()) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+export function formatMcpServerFormDraftJson(data: MCPServerFormData): string {
+  const description = data.description?.trim() || undefined;
+
+  if (data.transport === "streamableHttp") {
+    return JSON.stringify(
+      {
+        name: data.name,
+        description,
+        transport: data.transport,
+        url: data.url ?? "",
+        headers: parseDraftJsonValue(data.headers),
+        version: data.version?.trim() || undefined,
+        timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
+      },
+      null,
+      2,
+    );
+  }
+
+  return JSON.stringify(
+    {
+      name: data.name,
+      description,
+      transport: data.transport,
+      command: data.command ?? "",
+      args: data.args?.trim().startsWith("[")
+        ? parseDraftJsonValue(data.args)
+        : data.args?.split(/\r?\n/).map(sanitizeSegment).filter(Boolean),
+      env: parseDraftJsonValue(data.env),
+      cwd: data.cwd?.trim() || undefined,
+      stderr: data.stderr === "inherit" ? undefined : data.stderr,
+    },
+    null,
+    2,
+  );
+}
+
 function isJsonObject(value: unknown): value is object {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -377,17 +426,6 @@ export function parseMcpServersJson(json: string): MCPServersConfigResult {
   }
 
   return { success: true, configs };
-}
-
-export function parseMcpServerJson(json: string): MCPServerConfigResult {
-  const result = parseMcpServersJson(json);
-  if (!result.success) {
-    return result;
-  }
-  if (result.configs.length !== 1) {
-    return { success: false, message: "Expected exactly one MCP server" };
-  }
-  return { success: true, config: result.configs[0] };
 }
 
 export function formatMcpServerJson(config: MCPServerConfig): string {

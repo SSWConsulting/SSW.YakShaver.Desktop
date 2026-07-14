@@ -167,7 +167,7 @@ declare global {
         addToolToWhitelist: (toolName: string) => Promise<{ success: boolean }>;
         addServerAsync: (
           config: MCPServerConfig,
-        ) => Promise<{ success: boolean; data?: MCPServerConfig }>;
+        ) => Promise<{ success: true; data: MCPServerConfig }>;
         updateServerAsync: (
           serverId: string,
           config: MCPServerConfig,

@@ -17,6 +17,7 @@ import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
 import {
+  formatMcpServerFormDraftJson,
   formatMcpServerJson,
   formDataToMcpServerConfig,
   type MCPServerFormData,
@@ -376,11 +377,7 @@ export function McpServerFormWrapper({
     }
 
     if (nextMode === "json") {
-      const result = formDataToMcpServerConfig(form.getValues(), initialData?.id);
-      if (result.success) {
-        setJsonText(formatMcpServerJson(result.config));
-      }
-
+      setJsonText(formatMcpServerFormDraftJson(form.getValues()));
       setJsonError(null);
       setMode("json");
       return;

@@ -238,7 +238,7 @@ export function McpSettingsPanel({
         toast.success(`Server '${config.name}' added`);
         setShowAddCustomMcpForm(false);
         setEditingServer(null);
-        await loadServers({ serverIdToRefresh: result.data?.id ?? undefined });
+        await loadServers({ serverIdToRefresh: result.data.id });
       }
     } catch (e) {
       toast.error(`Failed to save: ${formatErrorMessage(e)}`);
@@ -262,9 +262,7 @@ export function McpSettingsPanel({
 
       for (const config of configs) {
         const result = await ipcClient.mcp.addServerAsync(config);
-        if (result.data?.id) {
-          addedServerIds.push(result.data.id);
-        }
+        addedServerIds.push(result.data.id);
       }
 
       toast.success(`${configs.length} MCP servers added`);
