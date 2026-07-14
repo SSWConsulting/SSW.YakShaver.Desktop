@@ -23,7 +23,8 @@ describe("McpServerImportPreview", () => {
 
     const preview = screen.getByLabelText("Import preview for context7");
     expect(within(preview).getByText("Context7 MCP")).toBeInTheDocument();
-    expect(within(preview).getByText("CONTEXT7_API_KEY:", { exact: false })).toBeInTheDocument();
+    const header = within(preview).getByText("CONTEXT7_API_KEY:", { exact: false });
+    expect(header).toHaveClass("text-sm", "leading-5");
     expect(within(preview).getByText("••••••••")).toBeInTheDocument();
     expect(within(preview).getByText("value hidden")).toBeInTheDocument();
     expect(within(preview).getByText("1.0.0")).toBeInTheDocument();

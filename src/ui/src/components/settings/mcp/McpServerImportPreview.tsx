@@ -15,11 +15,11 @@ function MaskedRecord({ label, values }: MaskedRecordProps) {
 
   return (
     <>
-      <dt className="text-muted-foreground">{label}</dt>
+      <dt className="text-muted-foreground leading-5">{label}</dt>
       <dd>
         <ul className="space-y-1">
           {keys.map((key) => (
-            <li key={key} className="break-all font-mono text-xs">
+            <li key={key} className="break-all font-mono text-sm leading-5">
               {key}: <span aria-hidden="true">{MASKED_VALUE}</span>
               <span className="sr-only"> value hidden</span>
             </li>
