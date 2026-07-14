@@ -16,6 +16,7 @@ import {
 import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
+import { McpServerImportPreview } from "./McpServerImportPreview";
 import {
   formatMcpServerFormDraftJson,
   formatMcpServerJson,
@@ -478,37 +479,7 @@ export function McpServerFormWrapper({
               )}
             </div>
 
-            {parsedJson.success && (
-              <div className="rounded-md border border-border bg-card p-3">
-                <h4 className="mb-2 text-sm font-medium">
-                  Import preview ({parsedJson.configs.length} server
-                  {parsedJson.configs.length === 1 ? "" : "s"})
-                </h4>
-                <div className="flex flex-col gap-3">
-                  {parsedJson.configs.map((config) => (
-                    <dl
-                      key={config.name}
-                      className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-border pt-2 text-sm first:border-t-0 first:pt-0"
-                    >
-                      <dt className="text-muted-foreground">Name</dt>
-                      <dd>{config.name}</dd>
-                      <dt className="text-muted-foreground">Transport</dt>
-                      <dd>{config.transport}</dd>
-                      <dt className="text-muted-foreground">
-                        {config.transport === "streamableHttp" ? "URL" : "Command"}
-                      </dt>
-                      <dd>
-                        {config.transport === "streamableHttp"
-                          ? config.url
-                          : config.transport === "stdio"
-                            ? config.command
-                            : "—"}
-                      </dd>
-                    </dl>
-                  ))}
-                </div>
-              </div>
-            )}
+            {parsedJson.success && <McpServerImportPreview configs={parsedJson.configs} />}
           </div>
         )}
 
