@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "ssw-rnd-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "sswconsulting/ssw.rnd"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "ssw-rnd@ssw-rnd-marketplace": true
+  }
+}
