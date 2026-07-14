@@ -19,7 +19,8 @@ YakShaver is a desktop AI agent with the following capabilities:
 - **YouTube Integration**: Process and extract insights from YouTube videos
 - **Audio Processing**: Support for audio loopback and transcription using FFmpeg
 - **Multi-LLM Support**: Compatible with OpenAI, Azure OpenAI, and DeepSeek models
-- **MCP Server Integration**: Model Context Protocol (MCP) server configuration for extended capabilities
+- **MCP Server Integration**: Model Context Protocol (MCP) server configuration for extended
+  capabilities, including synchronized Form and JSON modes when adding custom servers
 - **Screen Recording**: Native Electron screen capture with control UI and camera overlay
 
 ### Technical Capabilities

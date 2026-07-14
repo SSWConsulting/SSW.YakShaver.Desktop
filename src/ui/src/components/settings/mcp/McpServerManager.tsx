@@ -249,6 +249,43 @@ export function McpSettingsPanel({
     return Promise.resolve();
   }
 
+  async function handleSubmitMany(configs: MCPServerConfig[]): Promise<void> {
+    setIsLoading(true);
+    const addedServerIds: string[] = [];
+
+    try {
+      const existingNames = new Set(servers.map((server) => server.name.toLowerCase()));
+      const duplicate = configs.find((config) => existingNames.has(config.name.toLowerCase()));
+      if (duplicate) {
+        throw new Error(`A server named '${duplicate.name}' already exists`);
+      }
+
+      for (const config of configs) {
+        const result = await ipcClient.mcp.addServerAsync(config);
+        if (result.data?.id) {
+          addedServerIds.push(result.data.id);
+        }
+      }
+
+      toast.success(`${configs.length} MCP servers added`);
+      setShowAddCustomMcpForm(false);
+      setEditingServer(null);
+      await loadServers({ skipHealthCheck: true });
+    } catch (error) {
+      for (const serverId of addedServerIds.reverse()) {
+        try {
+          await ipcClient.mcp.removeServerAsync(serverId);
+        } catch (rollbackError) {
+          console.error(`Failed to roll back MCP server '${serverId}':`, rollbackError);
+        }
+      }
+      toast.error(`Failed to import servers: ${formatErrorMessage(error)}`);
+      await loadServers({ skipHealthCheck: true });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   function handleCancel(): void {
     setShowAddCustomMcpForm(false);
     setEditingServer(null);
@@ -385,6 +422,7 @@ export function McpSettingsPanel({
           initialData={editingServer ?? null}
           viewMode={"add"}
           onSubmit={handleSubmit}
+          onSubmitMany={handleSubmitMany}
           onCancel={handleCancel}
           isLoading={isLoading}
           servers={servers}
