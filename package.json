@@ -80,6 +80,7 @@
     "electron-builder": "^26.0.12",
     "electron-rebuild": "^3.2.9",
     "js-yaml": "^4.1.0",
+    "playwright": "^1.61.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18",
     "wait-on": "^9.0.3"

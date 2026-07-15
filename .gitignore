@@ -117,3 +117,7 @@ tmpclaude*
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/yakshaver-config/
+
+# ARMADA logbook — machine/content-specific artifacts (config stays committed)
+.armada/logbook/bin/
+.armada/logbook/cache/
