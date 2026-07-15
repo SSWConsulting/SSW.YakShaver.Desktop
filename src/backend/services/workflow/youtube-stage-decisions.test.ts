@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ProgressStage } from "../../../shared/types/workflow";
+import { ProgressStage, type WorkflowStatus } from "../../../shared/types/workflow";
 import type { VideoUploadResult } from "../auth/types";
 import {
   applyUploadStageOutcome,
@@ -7,6 +7,7 @@ import {
   resolveMetadataStage,
   resolveUploadFailureMessage,
   type StageSink,
+  shouldFailStageOnUnexpectedError,
   uploadSucceeded,
 } from "./youtube-stage-decisions";
 
@@ -171,5 +172,39 @@ describe("resolveMetadataStage (#798 — routes the Updating Metadata stage)", (
 
     expect(videoId).toBeNull();
     expect(sink.skipStage).toHaveBeenCalledWith(ProgressStage.UPDATING_METADATA);
+  });
+});
+
+describe("shouldFailStageOnUnexpectedError (#306 — outer catch must not un-complete a finished stage)", () => {
+  it("re-fails a stage that was genuinely interrupted mid-flight (in_progress)", () => {
+    expect(shouldFailStageOnUnexpectedError("in_progress")).toBe(true);
+  });
+
+  it("fails a stage that never even started (not_started) — the error happened before it began", () => {
+    expect(shouldFailStageOnUnexpectedError("not_started")).toBe(true);
+  });
+
+  it("does NOT re-fail a stage that already completed — a later, unrelated error must not silently un-complete a real success (#306)", () => {
+    expect(shouldFailStageOnUnexpectedError("completed")).toBe(false);
+  });
+
+  it("does NOT re-fail a stage that was already skipped", () => {
+    expect(shouldFailStageOnUnexpectedError("skipped")).toBe(false);
+  });
+
+  it("does NOT re-fail a stage that already failed (fault injection / earlier failure already recorded)", () => {
+    expect(shouldFailStageOnUnexpectedError("failed")).toBe(false);
+  });
+
+  it("covers every WorkflowStatus value so a future status can't silently change behaviour unnoticed", () => {
+    const allStatuses: WorkflowStatus[] = [
+      "not_started",
+      "in_progress",
+      "completed",
+      "failed",
+      "skipped",
+    ];
+    const results = allStatuses.map((status) => shouldFailStageOnUnexpectedError(status));
+    expect(results).toEqual([true, true, false, false, false]);
   });
 });
