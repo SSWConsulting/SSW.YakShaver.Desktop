@@ -6,6 +6,11 @@ const VIDEO_MIME_TYPE = "video/mp4";
 // Audio gain boost value to ensure adequate volume levels in recordings
 // A value of 1.5 (50% boost) provides clear audio without distortion
 const AUDIO_GAIN_BOOST = 1.5;
+// Upper bound on how long we wait for the MediaRecorder's onstop/onerror
+// event after calling stop(), so the stop Promise can never hang forever if
+// neither event fires (e.g. the recording device was revoked, or the browser
+// drops the event).
+const STOP_EVENT_TIMEOUT_MS = 15000;
 
 interface RecordingStreams {
   video?: MediaStream;
@@ -19,11 +24,27 @@ interface ElectronVideoConstraints extends MediaTrackConstraints {
   };
 }
 
+// MediaRecorder's "error" event is a MediaRecorderErrorEvent, not a generic
+// DOM ErrorEvent — it carries a `.error: DOMException`, not `.message`.
+// lib.dom doesn't ship a MediaRecorderErrorEvent type, so we model the one
+// property we read instead of mis-casting to ErrorEvent.
+interface MediaRecorderErrorEventLike extends Event {
+  error?: DOMException;
+}
+
 export function useScreenRecording() {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  // Guards stop() against re-entrancy: the same closure can be invoked twice
+  // in close succession — once from the in-window Stop button and once from
+  // the recording control bar's Stop button (forwarded over IPC to this same
+  // handler) — before the first call's onstop/onerror has fired. Without this
+  // guard the second call re-registers recorder.onstop/onerror on the live
+  // MediaRecorder, silently clobbering the first call's handlers so its
+  // Promise never settles (#956).
+  const isStoppingRef = useRef(false);
   const chunksRef = useRef<Blob[]>([]);
   const streamsRef = useRef<RecordingStreams>({});
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -33,44 +54,82 @@ export function useScreenRecording() {
   const gainNodeRef = useRef<GainNode | null>(null);
 
   const cleanup = useCallback(async () => {
-    mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
-      track.stop();
-    });
-    streamsRef.current.video?.getTracks().forEach((track) => {
-      track.stop();
-    });
-    streamsRef.current.audio?.getTracks().forEach((track) => {
-      track.stop();
-    });
-    streamsRef.current.systemAudio?.getTracks().forEach((track) => {
-      track.stop();
-    });
+    try {
+      mediaRecorderRef.current?.stream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (err) {
+          console.warn("cleanup: failed to stop media recorder track", err);
+        }
+      });
+      streamsRef.current.video?.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (err) {
+          console.warn("cleanup: failed to stop video track", err);
+        }
+      });
+      streamsRef.current.audio?.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (err) {
+          console.warn("cleanup: failed to stop audio track", err);
+        }
+      });
+      streamsRef.current.systemAudio?.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (err) {
+          console.warn("cleanup: failed to stop system audio track", err);
+        }
+      });
 
-    if (audioSourceRef.current) {
-      audioSourceRef.current.disconnect();
-      audioSourceRef.current = null;
+      if (audioSourceRef.current) {
+        try {
+          audioSourceRef.current.disconnect();
+        } catch (err) {
+          console.warn("cleanup: failed to disconnect audio source", err);
+        }
+        audioSourceRef.current = null;
+      }
+      if (systemAudioSourceRef.current) {
+        try {
+          systemAudioSourceRef.current.disconnect();
+        } catch (err) {
+          console.warn("cleanup: failed to disconnect system audio source", err);
+        }
+        systemAudioSourceRef.current = null;
+      }
+      if (gainNodeRef.current) {
+        try {
+          gainNodeRef.current.disconnect();
+        } catch (err) {
+          console.warn("cleanup: failed to disconnect gain node", err);
+        }
+        gainNodeRef.current = null;
+      }
+      // Disconnect and clean up the MediaStreamAudioDestinationNode to free resources
+      if (mixedAudioDestinationRef.current) {
+        try {
+          mixedAudioDestinationRef.current.disconnect();
+        } catch (err) {
+          console.warn("cleanup: failed to disconnect mixed audio destination", err);
+        }
+        mixedAudioDestinationRef.current = null;
+      }
+      if (audioContextRef.current) {
+        await audioContextRef.current.close().catch((err) => {
+          console.warn("cleanup: failed to close audio context", err);
+        });
+        audioContextRef.current = null;
+      }
+    } finally {
+      // Guaranteed to run even if something unexpected throws above, so the
+      // recording state can never be left stuck on a stale recorder/stream.
+      mediaRecorderRef.current = null;
+      chunksRef.current = [];
+      streamsRef.current = {};
     }
-    if (systemAudioSourceRef.current) {
-      systemAudioSourceRef.current.disconnect();
-      systemAudioSourceRef.current = null;
-    }
-    if (gainNodeRef.current) {
-      gainNodeRef.current.disconnect();
-      gainNodeRef.current = null;
-    }
-    // Disconnect and clean up the MediaStreamAudioDestinationNode to free resources
-    if (mixedAudioDestinationRef.current) {
-      mixedAudioDestinationRef.current.disconnect();
-      mixedAudioDestinationRef.current = null;
-    }
-    if (audioContextRef.current) {
-      await audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-
-    mediaRecorderRef.current = null;
-    chunksRef.current = [];
-    streamsRef.current = {};
   }, []);
 
   const setupRecorder = useCallback(
@@ -294,53 +353,151 @@ export function useScreenRecording() {
     [cleanup, setupRecorder, startRecorder],
   );
 
+  // Forces the recording UI back to an idle, usable state. Used both for the
+  // happy path and for the "stuck" recovery cases below (#950) — e.g. no
+  // MediaRecorder was ever created because audio/mic setup for this shave
+  // never completed, so there is nothing to call .stop() on, but the UI must
+  // not be left believing a recording is still active.
+  const resetToIdle = useCallback(async () => {
+    await window.electronAPI.screenRecording.hideControlBar().catch(() => {});
+    // The backend may have already started its recording timer (e.g.
+    // startRecordingTimer() ran) even though no MediaRecorder exists on the
+    // renderer side, or the recorder went inactive mid-session on its own
+    // (its underlying stream/track ended unexpectedly). Either way, tell the
+    // backend to stop/clean up so its timer doesn't keep running until the
+    // next recording or app quit. handleStopRecording() stops the timer as
+    // its first action and safely no-ops on empty video data before writing
+    // anything, so this is safe to call even when there's nothing to save.
+    await window.electronAPI.screenRecording.stop(new Uint8Array()).catch(() => {});
+    await cleanup();
+    setIsRecording(false);
+    setIsProcessing(false);
+  }, [cleanup]);
+
   const stop = useCallback(async (): Promise<{
     blob: Blob;
     filePath: string;
     fileName: string;
   } | null> => {
-    if (!mediaRecorderRef.current) return null;
+    // A second concurrent invocation — e.g. the control bar's Stop button
+    // (forwarded over IPC to this same handler) firing close together with
+    // the in-window Stop button — must not re-register onstop/onerror on the
+    // live recorder, which would silently clobber the first call's handlers
+    // and leave it dangling forever. Treat a concurrent call as a no-op.
+    if (isStoppingRef.current) {
+      return null;
+    }
 
     const recorder = mediaRecorderRef.current;
-    if (recorder.state === "inactive") return null;
 
+    // No recorder was ever created (e.g. audio was never opened/attached for
+    // this shave) or it's already inactive — there's nothing to stop, but we
+    // must still bring the app back to an idle state instead of silently
+    // no-oping and leaving the Stop button stuck on a dead recording.
+    if (!recorder || recorder.state === "inactive") {
+      isStoppingRef.current = true;
+      // Mirror the live-recorder path below: reflect the in-flight recovery
+      // work on the button immediately rather than only after resetToIdle()
+      // resolves, so the UI doesn't look idle while it's still tearing down.
+      setIsProcessing(true);
+      try {
+        await resetToIdle();
+      } finally {
+        isStoppingRef.current = false;
+      }
+      toast.error("Nothing to stop — this recording never started properly. You can try again.");
+      return null;
+    }
+
+    isStoppingRef.current = true;
     setIsProcessing(true);
 
-    return new Promise((resolve) => {
-      recorder.onstop = async () => {
-        try {
-          await window.electronAPI.screenRecording.hideControlBar().catch(() => {});
+    try {
+      return await new Promise((resolve, reject) => {
+        // Detaches the handlers below on every settlement path (timeout,
+        // success, error) so a late-firing onstop/onerror after this Promise
+        // has already settled is a no-op instead of running stale side
+        // effects — building a Blob from chunks cleanup() already cleared,
+        // calling the stop IPC a second time, or showing a contradictory
+        // success/error toast after the timeout toast has already fired.
+        const detachHandlers = () => {
+          recorder.onstop = null;
+          recorder.onerror = null;
+        };
 
-          const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
-          const result = await window.electronAPI.screenRecording.stop(
-            new Uint8Array(await blob.arrayBuffer()),
+        // Bounds this Promise so it can never hang forever if onstop/onerror
+        // never fire (e.g. the recording device was revoked, or the browser
+        // drops the event) — cleared on every settlement path below.
+        const timeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {
+          detachHandlers();
+          reject(
+            new Error("Timed out waiting for the recorder to stop (no onstop/onerror event fired)"),
           );
+        }, STOP_EVENT_TIMEOUT_MS);
 
-          if (!result.success || !result.filePath) {
-            throw new Error(result.error || "Failed to save recording");
+        recorder.onstop = async () => {
+          try {
+            const blob = new Blob(chunksRef.current, { type: VIDEO_MIME_TYPE });
+            const result = await window.electronAPI.screenRecording.stop(
+              new Uint8Array(await blob.arrayBuffer()),
+            );
+
+            if (!result.success || !result.filePath) {
+              throw new Error(result.error || "Failed to save recording");
+            }
+
+            clearTimeout(timeoutId);
+            detachHandlers();
+            toast.success("Recording completed! Review your video.");
+            resolve({
+              blob,
+              filePath: result.filePath,
+              fileName: result.fileName || result.filePath,
+            });
+          } catch (error) {
+            clearTimeout(timeoutId);
+            detachHandlers();
+            reject(error instanceof Error ? error : new Error(String(error)));
           }
+        };
 
-          toast.success("Recording completed! Review your video.");
-          resolve({
-            blob,
-            filePath: result.filePath,
-            fileName: result.fileName || result.filePath,
-          });
-        } catch (error) {
-          toast.error(`Failed to save recording: ${error}`);
-          resolve(null);
-        } finally {
-          cleanup();
-          setIsRecording(false);
-          setIsProcessing(false);
+        recorder.onerror = (event) => {
+          clearTimeout(timeoutId);
+          detachHandlers();
+          const error = (event as MediaRecorderErrorEventLike).error ?? event;
+          reject(new Error(`MediaRecorder error: ${String(error)}`));
+        };
+
+        // Only 'recording' actually has anything to stop; 'inactive' was
+        // already handled above via resetToIdle(). 'paused' is unreachable
+        // today (no pause feature exists), but guard it explicitly rather
+        // than calling .stop() unconditionally, so a future pause feature
+        // doesn't hit an unguarded call here. Since onstop/onerror won't fire
+        // without an actual stop() call, reject in that case instead of
+        // leaving the promise dangling forever.
+        if (recorder.state === "recording") {
+          recorder.stop();
+        } else {
+          clearTimeout(timeoutId);
+          detachHandlers();
+          reject(new Error(`Cannot stop recorder in unexpected state: ${recorder.state}`));
         }
-      };
-
-      if (recorder.state === "recording") {
-        recorder.stop();
-      }
-    });
-  }, [cleanup]);
+      });
+    } catch (error) {
+      toast.error(`Failed to save recording: ${error}`);
+      return null;
+    } finally {
+      // Always hide the control bar here too, not just on the onstop happy
+      // path — if onerror fires (or recorder.stop() throws) without onstop
+      // ever running, the control bar would otherwise stay visibly stuck even
+      // though isRecording/isProcessing have been reset below.
+      await window.electronAPI.screenRecording.hideControlBar().catch(() => {});
+      await cleanup();
+      setIsRecording(false);
+      setIsProcessing(false);
+      isStoppingRef.current = false;
+    }
+  }, [cleanup, resetToIdle]);
 
   return {
     isRecording,
