@@ -1,7 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { McpServerFormWrapper } from "./McpServerForm";
+
+const toastWarning = vi.hoisted(() => vi.fn());
+
+vi.mock("sonner", () => ({
+  toast: { warning: toastWarning },
+}));
 
 const INITIAL_SERVER = {
   id: "",
@@ -12,6 +18,10 @@ const INITIAL_SERVER = {
 };
 
 describe("McpServerFormWrapper JSON mode", () => {
+  beforeEach(() => {
+    toastWarning.mockClear();
+  });
+
   it("switches between modes without validating required fields", async () => {
     const user = userEvent.setup();
 
@@ -33,6 +43,7 @@ describe("McpServerFormWrapper JSON mode", () => {
 
     expect(screen.getByLabelText(/Name/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(toastWarning).not.toHaveBeenCalled();
   });
 
   it("validates required JSON fields only when saving", async () => {
@@ -80,6 +91,43 @@ describe("McpServerFormWrapper JSON mode", () => {
 
     expect(screen.getByLabelText(/Name/)).toHaveValue("github-updated");
     expect(screen.getByLabelText(/URL/)).toHaveValue(INITIAL_SERVER.url);
+  });
+
+  it.each([
+    ["invalid JSON", '{ "name": "unfinished"'],
+    [
+      "multiple servers",
+      JSON.stringify({
+        mcpServers: {
+          first: { command: "npx" },
+          second: { command: "node" },
+        },
+      }),
+    ],
+  ])("preserves %s when viewing the form", async (_scenario, jsonDraft) => {
+    const user = userEvent.setup();
+
+    render(
+      <McpServerFormWrapper
+        isEditing={false}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+        isLoading={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "JSON" }));
+    fireEvent.change(screen.getByLabelText("MCP server JSON"), {
+      target: { value: jsonDraft },
+    });
+    await user.click(screen.getByRole("button", { name: "Form" }));
+
+    expect(toastWarning).toHaveBeenCalledWith(
+      "Form mode can only represent one valid server. Your JSON draft has been preserved.",
+    );
+
+    await user.click(screen.getByRole("button", { name: "JSON" }));
+    expect(screen.getByLabelText("MCP server JSON")).toHaveValue(jsonDraft);
   });
 
   it("submits the same internal configuration from JSON mode", async () => {

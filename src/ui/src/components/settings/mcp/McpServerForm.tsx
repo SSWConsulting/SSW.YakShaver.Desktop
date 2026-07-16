@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { MCPServerConfig, Transport } from "@shared/types/mcp";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useRef, useState } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../../ui/accordion";
 import { Button } from "../../ui/button";
 import {
@@ -324,7 +325,6 @@ type McpServerFormWrapperProps = {
   onDelete?: () => void;
   hideDeleteServerButton?: boolean;
   isLoading: boolean;
-  existingServerNames?: string[];
 };
 
 export function McpServerFormWrapper({
@@ -339,6 +339,8 @@ export function McpServerFormWrapper({
 }: McpServerFormWrapperProps) {
   const [mode, setMode] = useState<"form" | "json">("form");
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const preserveJsonDraftRef = useRef(false);
+  const jsonDraftEditedRef = useRef(false);
   const [jsonText, setJsonText] = useState(() =>
     initialData
       ? formatMcpServerJson(initialData)
@@ -378,7 +380,11 @@ export function McpServerFormWrapper({
     }
 
     if (nextMode === "json") {
-      setJsonText(formatMcpServerFormDraftJson(form.getValues()));
+      if (!preserveJsonDraftRef.current) {
+        setJsonText(formatMcpServerFormDraftJson(form.getValues()));
+        jsonDraftEditedRef.current = false;
+      }
+      preserveJsonDraftRef.current = false;
       setJsonError(null);
       setMode("json");
       return;
@@ -386,6 +392,13 @@ export function McpServerFormWrapper({
 
     if (parsedJson.success && parsedJson.configs.length === 1) {
       form.reset(mcpServerConfigToFormData(parsedJson.configs[0]));
+      preserveJsonDraftRef.current = false;
+      jsonDraftEditedRef.current = false;
+    } else if (jsonDraftEditedRef.current) {
+      preserveJsonDraftRef.current = true;
+      toast.warning(
+        "Form mode can only represent one valid server. Your JSON draft has been preserved.",
+      );
     }
 
     setJsonError(null);
@@ -458,6 +471,7 @@ export function McpServerFormWrapper({
                 value={jsonText}
                 onChange={(event) => {
                   setJsonText(event.target.value);
+                  jsonDraftEditedRef.current = true;
                   setJsonError(null);
                 }}
                 className="mt-2 min-h-64 font-mono text-sm"

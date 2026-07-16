@@ -22,6 +22,7 @@ import { McpJiraCard } from "./jira/mcp-jira-card";
 import type { MCPServerConfig } from "./McpServerForm";
 import { McpWhitelistDialog } from "./McpWhitelistDialog";
 import { McpCard } from "./mcp-card";
+import { findDuplicateMcpServerName } from "./mcp-server-config";
 import { McpServerFormCard } from "./mcp-server-form-card";
 
 type ServerHealthStatus<T extends string = string> = Record<T, HealthStatusInfo>;
@@ -47,6 +48,7 @@ export function McpSettingsPanel({
   viewMode = "compact",
 }: McpSettingsPanelProps) {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
+  const [allServerNames, setAllServerNames] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showAddCustomMcpForm, setShowAddCustomMcpForm] = useState(false);
   const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null);
@@ -158,6 +160,7 @@ export function McpSettingsPanel({
       setIsLoading(true);
       try {
         const list = await ipcClient.mcp.listServers();
+        setAllServerNames(list.map((server) => server.name));
         const filteredList = options?.includeBuiltin
           ? list
           : list.filter((server) => !server.builtin);
@@ -254,10 +257,9 @@ export function McpSettingsPanel({
     const addedServerIds: string[] = [];
 
     try {
-      const existingNames = new Set(servers.map((server) => server.name.toLowerCase()));
-      const duplicate = configs.find((config) => existingNames.has(config.name.toLowerCase()));
+      const duplicate = findDuplicateMcpServerName(allServerNames, configs);
       if (duplicate) {
-        throw new Error(`A server named '${duplicate.name}' already exists`);
+        throw new Error(`A server named '${duplicate}' already exists`);
       }
 
       for (const config of configs) {
@@ -423,7 +425,6 @@ export function McpSettingsPanel({
           onSubmitMany={handleSubmitMany}
           onCancel={handleCancel}
           isLoading={isLoading}
-          servers={servers}
         />
       )}
 

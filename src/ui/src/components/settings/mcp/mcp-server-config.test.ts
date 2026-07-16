@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  findDuplicateMcpServerName,
   formatMcpServerFormDraftJson,
   formatMcpServerJson,
   formDataToMcpServerConfig,
@@ -20,6 +21,34 @@ function parseSingleServer(json: string): MCPServerConfigResult {
 }
 
 describe("MCP server JSON configuration", () => {
+  it("finds names that collide with servers hidden from the Settings list", () => {
+    expect(
+      findDuplicateMcpServerName(
+        ["Internal_Tools", "GitHub"],
+        [
+          {
+            id: "",
+            name: "internal_tools",
+            transport: "stdio",
+            command: "npx",
+          },
+        ],
+      ),
+    ).toBe("internal_tools");
+  });
+
+  it("finds duplicate names within a batch import", () => {
+    expect(
+      findDuplicateMcpServerName(
+        [],
+        [
+          { id: "", name: "first", transport: "stdio", command: "npx" },
+          { id: "", name: "FIRST", transport: "stdio", command: "node" },
+        ],
+      ),
+    ).toBe("FIRST");
+  });
+
   it("parses and validates an HTTP server", () => {
     const result = parseSingleServer(`{
       "name": "github",
@@ -111,6 +140,53 @@ describe("MCP server JSON configuration", () => {
       return;
     }
     expect(parseSingleServer(formatMcpServerJson(synchronized.config))).toEqual(parsed);
+  });
+
+  it("preserves a single double-quote character as an argument", () => {
+    const result = formDataToMcpServerConfig({
+      name: "quotes",
+      description: "",
+      transport: "stdio",
+      url: "",
+      headers: "",
+      version: "",
+      timeoutMs: "",
+      command: "node",
+      args: '"',
+      env: "",
+      cwd: "",
+      stderr: "inherit",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.config.transport).toBe("stdio");
+      if (result.config.transport === "stdio") {
+        expect(result.config.args).toEqual(['"']);
+      }
+    }
+  });
+
+  it("preserves explicit empty and quoted arguments in a JSON array", () => {
+    const result = formDataToMcpServerConfig({
+      name: "exact-args",
+      description: "",
+      transport: "stdio",
+      url: "",
+      headers: "",
+      version: "",
+      timeoutMs: "",
+      command: "node",
+      args: '["", "  spaced  ", "\\""]',
+      env: "",
+      cwd: "",
+      stderr: "inherit",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success && result.config.transport === "stdio") {
+      expect(result.config.args).toEqual(["", "  spaced  ", '"']);
+    }
   });
 
   it("rejects non-string header and environment values", () => {

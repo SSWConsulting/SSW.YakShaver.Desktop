@@ -4,7 +4,6 @@ interface McpServerFormCardProps {
   initialData: MCPServerConfig | null;
   viewMode: "edit" | "add";
   isLoading: boolean;
-  servers: MCPServerConfig[];
   onSubmit: (data: MCPServerConfig) => Promise<void>;
   onSubmitMany: (data: MCPServerConfig[]) => Promise<void>;
   onCancel: () => void;
@@ -14,7 +13,6 @@ export function McpServerFormCard({
   initialData,
   viewMode,
   isLoading,
-  servers,
   onSubmit,
   onSubmitMany,
   onCancel,
@@ -28,7 +26,6 @@ export function McpServerFormCard({
         onSubmitMany={onSubmitMany}
         onCancel={onCancel}
         isLoading={isLoading}
-        existingServerNames={servers.map((s) => s.name)}
       />
     </div>
   );

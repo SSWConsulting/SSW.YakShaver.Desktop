@@ -55,6 +55,23 @@ export type MCPServersConfigResult =
   | { success: true; configs: MCPServerConfig[] }
   | { success: false; message: string };
 
+export function findDuplicateMcpServerName(
+  existingNames: readonly string[],
+  configs: readonly MCPServerConfig[],
+): string | undefined {
+  const seenNames = new Set(existingNames.map((name) => name.trim().toLowerCase()));
+
+  for (const config of configs) {
+    const normalizedName = config.name.trim().toLowerCase();
+    if (seenNames.has(normalizedName)) {
+      return config.name;
+    }
+    seenNames.add(normalizedName);
+  }
+
+  return undefined;
+}
+
 const serverNameSchema = mcpServerSchema.shape.name;
 
 const stringRecordSchema = z.record(z.string(), z.string());
@@ -89,13 +106,21 @@ function sanitizeSegment(value: string): string {
   }
 
   if (
-    (result.startsWith('"') && result.endsWith('"')) ||
-    (result.startsWith("'") && result.endsWith("'"))
+    result.length >= 2 &&
+    ((result.startsWith('"') && result.endsWith('"')) ||
+      (result.startsWith("'") && result.endsWith("'")))
   ) {
     result = result.slice(1, -1).trim();
   }
 
   return result;
+}
+
+function parseLineSeparatedArgs(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .filter((segment) => segment.trim().length > 0)
+    .map(sanitizeSegment);
 }
 
 function parseStringRecord(
@@ -141,7 +166,7 @@ function parseArgs(
   if (!rawArgs.startsWith("[")) {
     return {
       success: true,
-      value: rawArgs.split(/\r?\n/).map(sanitizeSegment).filter(Boolean),
+      value: parseLineSeparatedArgs(rawArgs),
     };
   }
 
@@ -158,7 +183,7 @@ function parseArgs(
 
   return {
     success: true,
-    value: parsed.map(sanitizeSegment).filter(Boolean),
+    value: parsed,
   };
 }
 
@@ -272,7 +297,9 @@ export function formatMcpServerFormDraftJson(data: MCPServerFormData): string {
       command: data.command ?? "",
       args: data.args?.trim().startsWith("[")
         ? parseDraftJsonValue(data.args)
-        : data.args?.split(/\r?\n/).map(sanitizeSegment).filter(Boolean),
+        : data.args
+          ? parseLineSeparatedArgs(data.args)
+          : undefined,
       env: parseDraftJsonValue(data.env),
       cwd: data.cwd?.trim() || undefined,
       stderr: data.stderr === "inherit" ? undefined : data.stderr,
