@@ -20,7 +20,7 @@ export async function runCloud360Path(
   durationSeconds?: number,
 ): Promise<{ success: boolean; error?: string }> {
   if (!projectId) {
-    return { success: false, error: "No project selected for YakShaver 360 processing." };
+    return { success: false, error: "No project selected for YakShaver Anywhere processing." };
   }
   // Duration comes from the caller; fall back to a shave lookup, then 0.
   const resolvedDuration =
@@ -38,5 +38,5 @@ export async function runCloud360Path(
   // Failure detail is already broadcast to the live view; report an honest boolean here.
   return succeeded
     ? { success: true }
-    : { success: false, error: "YakShaver 360 processing failed." };
+    : { success: false, error: "YakShaver Anywhere processing failed." };
 }
