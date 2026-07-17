@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { MCPServerConfig, Transport } from "@shared/types/mcp";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../../ui/accordion";
 import { Button } from "../../ui/button";
 import {
@@ -396,9 +395,6 @@ export function McpServerFormWrapper({
       jsonDraftEditedRef.current = false;
     } else if (jsonDraftEditedRef.current) {
       preserveJsonDraftRef.current = true;
-      toast.warning(
-        "Form mode can only represent one valid server. Your JSON draft has been preserved.",
-      );
     }
 
     setJsonError(null);

@@ -1,13 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { McpServerFormWrapper } from "./McpServerForm";
-
-const toastWarning = vi.hoisted(() => vi.fn());
-
-vi.mock("sonner", () => ({
-  toast: { warning: toastWarning },
-}));
 
 const INITIAL_SERVER = {
   id: "",
@@ -18,10 +12,6 @@ const INITIAL_SERVER = {
 };
 
 describe("McpServerFormWrapper JSON mode", () => {
-  beforeEach(() => {
-    toastWarning.mockClear();
-  });
-
   it("switches between modes without validating required fields", async () => {
     const user = userEvent.setup();
 
@@ -43,7 +33,6 @@ describe("McpServerFormWrapper JSON mode", () => {
 
     expect(screen.getByLabelText(/Name/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(toastWarning).not.toHaveBeenCalled();
   });
 
   it("validates required JSON fields only when saving", async () => {
@@ -122,9 +111,33 @@ describe("McpServerFormWrapper JSON mode", () => {
     });
     await user.click(screen.getByRole("button", { name: "Form" }));
 
-    expect(toastWarning).toHaveBeenCalledWith(
-      "Form mode can only represent one valid server. Your JSON draft has been preserved.",
+    await user.click(screen.getByRole("button", { name: "JSON" }));
+    expect(screen.getByLabelText("MCP server JSON")).toHaveValue(jsonDraft);
+  });
+
+  it("submits the active Form tab while preserving an invalid JSON draft", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    const jsonDraft = '{ "name": "unfinished"';
+
+    render(
+      <McpServerFormWrapper
+        initialData={INITIAL_SERVER}
+        isEditing={false}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+        isLoading={false}
+      />,
     );
+
+    await user.click(screen.getByRole("button", { name: "JSON" }));
+    fireEvent.change(screen.getByLabelText("MCP server JSON"), {
+      target: { value: jsonDraft },
+    });
+    await user.click(screen.getByRole("button", { name: "Form" }));
+    await user.click(screen.getByRole("button", { name: "Save Server" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(INITIAL_SERVER));
 
     await user.click(screen.getByRole("button", { name: "JSON" }));
     expect(screen.getByLabelText("MCP server JSON")).toHaveValue(jsonDraft);
