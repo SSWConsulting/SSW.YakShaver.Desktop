@@ -22,6 +22,7 @@ import { McpJiraCard } from "./jira/mcp-jira-card";
 import type { MCPServerConfig } from "./McpServerForm";
 import { McpWhitelistDialog } from "./McpWhitelistDialog";
 import { McpCard } from "./mcp-card";
+import { findDuplicateMcpServerName } from "./mcp-server-config";
 import { McpServerFormCard } from "./mcp-server-form-card";
 
 type ServerHealthStatus<T extends string = string> = Record<T, HealthStatusInfo>;
@@ -47,6 +48,7 @@ export function McpSettingsPanel({
   viewMode = "compact",
 }: McpSettingsPanelProps) {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
+  const [allServerNames, setAllServerNames] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showAddCustomMcpForm, setShowAddCustomMcpForm] = useState(false);
   const [editingServer, setEditingServer] = useState<MCPServerConfig | null>(null);
@@ -158,6 +160,7 @@ export function McpSettingsPanel({
       setIsLoading(true);
       try {
         const list = await ipcClient.mcp.listServers();
+        setAllServerNames(list.map((server) => server.name));
         const filteredList = options?.includeBuiltin
           ? list
           : list.filter((server) => !server.builtin);
@@ -238,7 +241,7 @@ export function McpSettingsPanel({
         toast.success(`Server '${config.name}' added`);
         setShowAddCustomMcpForm(false);
         setEditingServer(null);
-        await loadServers({ serverIdToRefresh: result.data?.id ?? undefined });
+        await loadServers({ serverIdToRefresh: result.data.id });
       }
     } catch (e) {
       toast.error(`Failed to save: ${formatErrorMessage(e)}`);
@@ -247,6 +250,40 @@ export function McpSettingsPanel({
     }
 
     return Promise.resolve();
+  }
+
+  async function handleSubmitMany(configs: MCPServerConfig[]): Promise<void> {
+    setIsLoading(true);
+    const addedServerIds: string[] = [];
+
+    try {
+      const duplicate = findDuplicateMcpServerName(allServerNames, configs);
+      if (duplicate) {
+        throw new Error(`A server named '${duplicate}' already exists`);
+      }
+
+      for (const config of configs) {
+        const result = await ipcClient.mcp.addServerAsync(config);
+        addedServerIds.push(result.data.id);
+      }
+
+      toast.success(`${configs.length} MCP servers added`);
+      setShowAddCustomMcpForm(false);
+      setEditingServer(null);
+      await loadServers({ skipHealthCheck: true });
+    } catch (error) {
+      for (const serverId of addedServerIds.reverse()) {
+        try {
+          await ipcClient.mcp.removeServerAsync(serverId);
+        } catch (rollbackError) {
+          console.error(`Failed to roll back MCP server '${serverId}':`, rollbackError);
+        }
+      }
+      toast.error(`Failed to import servers: ${formatErrorMessage(error)}`);
+      await loadServers({ skipHealthCheck: true });
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   function handleCancel(): void {
@@ -385,9 +422,9 @@ export function McpSettingsPanel({
           initialData={editingServer ?? null}
           viewMode={"add"}
           onSubmit={handleSubmit}
+          onSubmitMany={handleSubmitMany}
           onCancel={handleCancel}
           isLoading={isLoading}
-          servers={servers}
         />
       )}
 

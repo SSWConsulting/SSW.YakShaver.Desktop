@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { MCPServerConfig, Transport } from "@shared/types/mcp";
+import { type FormEvent, useMemo, useRef, useState } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
-import { z } from "zod";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../../ui/accordion";
 import { Button } from "../../ui/button";
 import {
@@ -16,56 +16,19 @@ import {
 import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
+import { McpServerImportPreview } from "./McpServerImportPreview";
+import {
+  formatMcpServerFormDraftJson,
+  formatMcpServerJson,
+  formDataToMcpServerConfig,
+  type MCPServerFormData,
+  mcpServerConfigToFormData,
+  mcpServerSchema,
+  parseMcpServersJson,
+} from "./mcp-server-config";
 
 export type { MCPServerConfig, Transport };
-
-export const mcpServerSchema = z
-  .object({
-    name: z
-      .string()
-      .min(1, "Name is required")
-      .regex(
-        /^[a-zA-Z0-9_.-]+$/,
-        "Only letters, numbers, underscores, hyphens, and dots allowed (no spaces)",
-      )
-      .refine((val) => !val.includes("__"), {
-        message: "Double underscores (__) are not allowed",
-      }),
-    description: z.string().optional(),
-    transport: z.enum(["streamableHttp", "stdio", "inMemory"]),
-    url: z.url("Must be a valid URL").optional().or(z.literal("")),
-    headers: z.string().optional(),
-    version: z.string().optional(),
-    timeoutMs: z.number().positive().optional().or(z.literal("")),
-    command: z.string().optional(),
-    args: z.string().optional(),
-    env: z.string().optional(),
-    cwd: z.string().optional(),
-    stderr: z.enum(["inherit", "ignore", "pipe"]).optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.transport === "streamableHttp") {
-      if (!data.url || !data.url.trim()) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["url"],
-          message: "URL is required for HTTP transports",
-        });
-      }
-    }
-
-    if (data.transport === "stdio") {
-      if (!data.command || !data.command.trim()) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["command"],
-          message: "Command is required for stdio transports",
-        });
-      }
-    }
-  });
-
-export type MCPServerFormData = z.infer<typeof mcpServerSchema>;
+export { type MCPServerFormData, mcpServerSchema } from "./mcp-server-config";
 
 const TRANSPORT_OPTIONS: Array<{ value: Transport; label: string }> = [
   { value: "streamableHttp", label: "HTTP (streamableHttp)" },
@@ -356,182 +319,179 @@ type McpServerFormWrapperProps = {
   initialData?: MCPServerConfig;
   isEditing: boolean;
   onSubmit: (data: MCPServerConfig) => Promise<void>;
+  onSubmitMany?: (data: MCPServerConfig[]) => Promise<void>;
   onCancel: () => void;
   onDelete?: () => void;
   hideDeleteServerButton?: boolean;
   isLoading: boolean;
-  existingServerNames?: string[];
 };
 
 export function McpServerFormWrapper({
   initialData,
   isEditing,
   onSubmit,
+  onSubmitMany,
   onCancel,
   onDelete,
   hideDeleteServerButton,
   isLoading,
 }: McpServerFormWrapperProps) {
+  const [mode, setMode] = useState<"form" | "json">("form");
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const preserveJsonDraftRef = useRef(false);
+  const jsonDraftEditedRef = useRef(false);
+  const [jsonText, setJsonText] = useState(() =>
+    initialData
+      ? formatMcpServerJson(initialData)
+      : JSON.stringify(
+          {
+            name: "",
+            description: "",
+            transport: "streamableHttp",
+            url: "",
+          },
+          null,
+          2,
+        ),
+  );
   const form = useForm<MCPServerFormData>({
     resolver: zodResolver(mcpServerSchema),
     mode: "onChange",
-    defaultValues: {
-      name: initialData?.name ?? "",
-      description: initialData?.description ?? "",
-      transport: initialData?.transport ?? "streamableHttp",
-      url: initialData?.transport === "streamableHttp" ? (initialData?.url ?? "") : "",
-      headers:
-        initialData?.transport === "streamableHttp" && initialData?.headers
-          ? JSON.stringify(initialData.headers, null, 2)
-          : "",
-      version: initialData?.transport === "streamableHttp" ? (initialData?.version ?? "") : "",
-      timeoutMs:
-        initialData?.transport === "streamableHttp" && typeof initialData?.timeoutMs === "number"
-          ? initialData.timeoutMs
-          : "",
-      command: initialData?.transport === "stdio" ? (initialData?.command ?? "") : "",
-      args:
-        initialData?.transport === "stdio" && initialData?.args?.length
-          ? initialData.args.join("\n")
-          : "",
-      env:
-        initialData?.transport === "stdio" && initialData?.env
-          ? JSON.stringify(initialData.env, null, 2)
-          : "",
-      cwd: initialData?.transport === "stdio" ? (initialData?.cwd ?? "") : "",
-      stderr: initialData?.transport === "stdio" ? (initialData?.stderr ?? "inherit") : "inherit",
-    },
+    defaultValues: mcpServerConfigToFormData(initialData),
   });
+  const parsedJson = useMemo(() => parseMcpServersJson(jsonText), [jsonText]);
 
   const handleFormSubmit = async (data: MCPServerFormData) => {
-    if (data.transport === "streamableHttp") {
-      let headers: Record<string, string> | undefined;
-
-      if (data.headers?.trim()) {
-        let parsedHeaders: unknown;
-        try {
-          parsedHeaders = JSON.parse(data.headers);
-        } catch {
-          form.setError("headers", { message: "Invalid JSON format" });
-          return;
-        }
-
-        if (!parsedHeaders || typeof parsedHeaders !== "object" || Array.isArray(parsedHeaders)) {
-          form.setError("headers", {
-            message: "Headers must be a JSON object",
-          });
-          return;
-        }
-
-        const headerEntries = Object.entries(parsedHeaders);
-        if (!headerEntries.every(([, value]) => typeof value === "string")) {
-          form.setError("headers", {
-            message: "Header values must be strings",
-          });
-          return;
-        }
-
-        headers = Object.fromEntries(headerEntries) as Record<string, string>;
+    const result = formDataToMcpServerConfig(data, initialData?.id);
+    if (!result.success) {
+      if (result.field) {
+        form.setError(result.field, { message: result.message });
       }
-
-      const config: MCPServerConfig = {
-        id: initialData?.id ?? "",
-        name: data.name.trim(),
-        transport: "streamableHttp",
-        url: data.url?.trim() ?? "",
-        description: data.description?.trim() || undefined,
-        headers,
-        version: data.version?.trim() || undefined,
-        timeoutMs: typeof data.timeoutMs === "number" ? data.timeoutMs : undefined,
-      };
-      await onSubmit(config);
       return;
     }
 
-    const sanitizeSegment = (value: string): string => {
-      let result = value.trim();
+    await onSubmit(result.config);
+  };
 
-      if (result.endsWith(",")) {
-        result = result.slice(0, -1).trim();
-      }
-
-      if (
-        (result.startsWith('"') && result.endsWith('"')) ||
-        (result.startsWith("'") && result.endsWith("'"))
-      ) {
-        result = result.slice(1, -1).trim();
-      }
-
-      return result;
-    };
-
-    let args: string[] | undefined;
-    if (data.args?.trim()) {
-      const rawArgs = data.args.trim();
-      if (rawArgs.startsWith("[")) {
-        try {
-          const parsed = JSON.parse(rawArgs);
-          if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === "string")) {
-            form.setError("args", {
-              message: "Args JSON must be an array of strings",
-            });
-            return;
-          }
-          args = parsed.map((segment) => sanitizeSegment(segment)).filter((segment) => segment);
-        } catch {
-          form.setError("args", { message: "Invalid JSON array" });
-          return;
-        }
-      } else {
-        args = rawArgs
-          .split(/\r?\n/)
-          .map((line) => sanitizeSegment(line))
-          .filter((line) => line.length > 0);
-      }
+  const handleModeChange = (nextMode: "form" | "json") => {
+    if (nextMode === mode) {
+      return;
     }
 
-    let env: Record<string, string> | undefined;
-    if (data.env?.trim()) {
-      try {
-        const parsedEnv = JSON.parse(data.env);
-        const entries = Object.entries(parsedEnv);
-        if (!entries.every(([, value]) => typeof value === "string")) {
-          form.setError("env", {
-            message: "Environment values must be strings",
-          });
-          return;
-        }
-        env = Object.fromEntries(entries) as Record<string, string>;
-      } catch {
-        form.setError("env", { message: "Invalid JSON object" });
-        return;
+    if (nextMode === "json") {
+      if (!preserveJsonDraftRef.current) {
+        setJsonText(formatMcpServerFormDraftJson(form.getValues()));
+        jsonDraftEditedRef.current = false;
       }
+      preserveJsonDraftRef.current = false;
+      setJsonError(null);
+      setMode("json");
+      return;
     }
 
-    const stderr = data.stderr && data.stderr !== "inherit" ? data.stderr : undefined;
-    const command = sanitizeSegment(data.command ?? "");
+    if (parsedJson.success && parsedJson.configs.length === 1) {
+      form.reset(mcpServerConfigToFormData(parsedJson.configs[0]));
+      preserveJsonDraftRef.current = false;
+      jsonDraftEditedRef.current = false;
+    } else if (jsonDraftEditedRef.current) {
+      preserveJsonDraftRef.current = true;
+    }
 
-    const config: MCPServerConfig = {
-      id: initialData?.id ?? "",
-      name: data.name.trim(),
-      transport: "stdio",
-      command,
-      description: data.description?.trim() || undefined,
-      args,
-      env,
-      cwd: data.cwd?.trim() || undefined,
-      stderr,
-    };
+    setJsonError(null);
+    setMode("form");
+  };
 
-    await onSubmit(config);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    if (mode === "form") {
+      await form.handleSubmit(handleFormSubmit)(event);
+      return;
+    }
+
+    event.preventDefault();
+    if (!parsedJson.success) {
+      setJsonError(parsedJson.message);
+      return;
+    }
+
+    setJsonError(null);
+    if (parsedJson.configs.length === 1) {
+      await onSubmit({ ...parsedJson.configs[0], id: initialData?.id ?? "" });
+      return;
+    }
+    if (!onSubmitMany) {
+      setJsonError("Multiple MCP servers can only be imported from the Add Server form");
+      return;
+    }
+    await onSubmitMany(parsedJson.configs);
   };
 
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="flex flex-col gap-4 w-full">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
         <h3 className="text-xl font-semibold">{isEditing ? "Edit Server" : "Add New Server"}</h3>
 
-        <McpServerForm form={form} />
+        {!isEditing && (
+          <fieldset className="flex w-fit rounded-md border border-border p-1">
+            <legend className="sr-only">Server configuration mode</legend>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "form" ? "secondary" : "ghost"}
+              aria-pressed={mode === "form"}
+              onClick={() => handleModeChange("form")}
+            >
+              Form
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "json" ? "secondary" : "ghost"}
+              aria-pressed={mode === "json"}
+              onClick={() => handleModeChange("json")}
+            >
+              JSON
+            </Button>
+          </fieldset>
+        )}
+
+        {mode === "form" ? (
+          <McpServerForm form={form} />
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div>
+              <label htmlFor="mcp-server-json" className="text-sm font-medium">
+                MCP server JSON
+              </label>
+              <Textarea
+                id="mcp-server-json"
+                value={jsonText}
+                onChange={(event) => {
+                  setJsonText(event.target.value);
+                  jsonDraftEditedRef.current = true;
+                  setJsonError(null);
+                }}
+                className="mt-2 min-h-64 font-mono text-sm"
+                aria-invalid={jsonError !== null}
+                aria-describedby="mcp-server-json-help mcp-server-json-error"
+                spellCheck={false}
+              />
+              <p id="mcp-server-json-help" className="mt-1 text-xs text-muted-foreground">
+                Use a flat server object with name, transport, and either url or command.
+              </p>
+              {jsonError && (
+                <p
+                  id="mcp-server-json-error"
+                  className="mt-1 text-sm text-destructive"
+                  role="alert"
+                >
+                  {jsonError}
+                </p>
+              )}
+            </div>
+
+            {parsedJson.success && <McpServerImportPreview configs={parsedJson.configs} />}
+          </div>
+        )}
 
         <div className="flex w-full items-center">
           {onDelete && !hideDeleteServerButton && (
@@ -554,7 +514,7 @@ export function McpServerFormWrapper({
             <Button
               type="submit"
               className="cursor-pointer"
-              disabled={isLoading || !form.formState.isValid}
+              disabled={isLoading || (mode === "form" && !form.formState.isValid)}
             >
               Save Server
             </Button>

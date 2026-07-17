@@ -12,6 +12,17 @@ const HTTP_ONLY_FIELDS = ["url", "headers", "version", "timeoutMs"] as const;
 /** Fields valid ONLY on a stdio server config. */
 const STDIO_ONLY_FIELDS = ["command", "args", "env", "cwd", "stderr"] as const;
 
+function hasDuplicateServerName(
+  configs: readonly MCPServerConfig[],
+  name: string,
+  excludedId?: string,
+): boolean {
+  const normalizedName = name.trim().toLowerCase();
+  return configs.some(
+    (config) => config.id !== excludedId && config.name.trim().toLowerCase() === normalizedName,
+  );
+}
+
 export class MCPServerManager {
   private static instance: MCPServerManager;
   private static internalServerConfigs: MCPServerConfig[] = [];
@@ -281,6 +292,10 @@ export class MCPServerManager {
 
     MCPServerManager.validateServerConfig(server);
     const storedConfigs = await MCPServerManager.getStoredServerConfigsAsync();
+    const allConfigs = MCPServerManager.mergeWithInternalServers(storedConfigs);
+    if (hasDuplicateServerName(allConfigs, server.name, server.id)) {
+      throw new Error(`Server with name '${server.name}' already exists`);
+    }
     if (storedConfigs.some((s) => s.id === server.id)) {
       throw new Error(`Server with id '${server.id}' already exists`);
     }
@@ -321,6 +336,10 @@ export class MCPServerManager {
     const merged = mergedRecord as unknown as MCPServerConfig;
 
     MCPServerManager.validateServerConfig(merged);
+    const allConfigs = MCPServerManager.mergeWithInternalServers(storedConfigs);
+    if (hasDuplicateServerName(allConfigs, merged.name, existing.id)) {
+      throw new Error(`Server with name '${merged.name}' already exists`);
+    }
 
     // If the name changed OR the config has changed (URL/headers/etc), recreate client
     const configChanged = JSON.stringify(existing) !== JSON.stringify(merged);
