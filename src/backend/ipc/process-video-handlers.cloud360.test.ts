@@ -50,7 +50,7 @@ describe("cloud-360 fork decision", () => {
     const result = await runCloud360Path("/tmp/v.mp4", undefined, undefined);
     expect(result).toEqual({
       success: false,
-      error: "No project selected for YakShaver 360 processing.",
+      error: "No project selected for YakShaver Anywhere processing.",
     });
     expect(run).not.toHaveBeenCalled();
   });
@@ -72,7 +72,7 @@ describe("cloud-360 fork decision", () => {
     const result = await runCloud360Path("/tmp/v.mp4", "s1", "p1");
     expect(result).toEqual({
       success: false,
-      error: "YakShaver 360 processing failed.",
+      error: "YakShaver Anywhere processing failed.",
     });
   });
 });

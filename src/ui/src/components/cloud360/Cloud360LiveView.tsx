@@ -120,7 +120,7 @@ export function Cloud360LiveView() {
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col rounded-lg border border-white/10 bg-black/20 p-4">
       <ScissorsConfetti trigger={showConfetti} />
-      <h2 className="mb-2 shrink-0 text-xl">YakShaver 360 Progress</h2>
+      <h2 className="mb-2 shrink-0 text-xl">YakShaver Anywhere Progress</h2>
       {/* Radix ScrollArea's display:table wrapper grows to content width, defeating
           min-w-0/truncate below; force it to block so it stays at viewport width. */}
       <ScrollArea

@@ -73,7 +73,7 @@ export function Cloud360ProjectDialog({ open, onOpenChange, onConfirm }: Props) 
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-muted-foreground py-6 text-center text-sm">
-              No GitHub project found. YakShaver 360 needs a GitHub-backed project.
+              No GitHub project found. YakShaver Anywhere needs a GitHub-backed project.
             </div>
           ) : (
             filtered.map((project) => (
