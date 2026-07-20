@@ -66,11 +66,25 @@ export class RecordingControlBarWindow {
       },
     });
 
+    // NOTE: there is a bug (also seen in countdown-window.ts and screen-frame-window.ts) where the
+    //       x/y passed to the BrowserWindow constructor above doesn't reliably place the window on
+    //       a non-primary display — on macOS with an external monitor connected, Electron can
+    //       silently fall back to the primary display's geometry, leaving the control bar
+    //       positioned off the display the user is actually recording/looking at (it appears to
+    //       have vanished). Re-asserting the bounds after construction fixes it.
+    this.window.setBounds({ ...WINDOW_SIZE, x, y });
+
     this.window.on("closed", () => {
       this.window = null;
     });
 
     this.window.setAlwaysOnTop(true, "screen-saver");
+
+    // Ensure the control bar stays reachable regardless of which macOS Space/desktop is active on
+    // the display it was shown on, matching how a recording session can span space switches.
+    if (process.platform === "darwin") {
+      this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    }
 
     // Don't include this window in the recording
     this.window.setContentProtection(true);
