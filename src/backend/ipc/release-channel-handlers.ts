@@ -79,6 +79,17 @@ export class ReleaseChannelIPCHandlers {
   // autoUpdater "update-downloaded" event (e.g. a periodic re-check landing while the first
   // dialog is still awaiting a response) from stacking a duplicate dialog on top of it.
   private isUpdateDialogOpen = false;
+  // Once the user picks "Restart Now" the app is on its way out (review on #456) - short-circuit
+  // any further "update-downloaded" events immediately rather than relying solely on the
+  // isUpdateDialogOpen guard, which resets in .finally() before the deferred quitAndInstall() call
+  // actually fires and would otherwise leave a narrow window where a second event could stack a
+  // dialog moments before quit.
+  private isRestartingToInstall = false;
+  // Bound how long we wait on dialog.showMessageBox() before giving up on it (review on #456) - if
+  // the promise never settles (e.g. the parent window is destroyed while the dialog is up, or a
+  // native dialog-subsystem hang), isUpdateDialogOpen must not get stuck true forever, which would
+  // silently suppress every future update-ready reminder for the rest of the session.
+  private static readonly UPDATE_DIALOG_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.RELEASE_CHANNEL_GET, () => this.getChannel());
@@ -121,6 +132,13 @@ export class ReleaseChannelIPCHandlers {
         return;
       }
 
+      // Skip if the app is already on its way out from a prior "Restart Now" (review on #456) -
+      // checked before isUpdateDialogOpen since that guard resets in .finally() slightly before
+      // the deferred quitAndInstall() call actually fires.
+      if (this.isRestartingToInstall) {
+        return;
+      }
+
       // Skip if a reminder dialog is already open (#456) - a subsequent "update-downloaded" event
       // (e.g. the periodic background check firing again) must not stack another dialog on top of
       // one the user hasn't responded to yet.
@@ -129,17 +147,39 @@ export class ReleaseChannelIPCHandlers {
       }
       this.isUpdateDialogOpen = true;
 
-      dialog
-        .showMessageBox({
-          type: "info",
-          title: "Update Ready",
-          message: "A new version has been downloaded. Restart now to install?",
-          buttons: ["Restart Now", "Later"],
-          defaultId: 0,
-          cancelId: 1,
-        })
+      // Race the dialog against a bounded timeout (review on #456) - dialog.showMessageBox() can
+      // in principle never settle (e.g. the parent window is destroyed while it's up, or a native
+      // dialog-subsystem hang), which would otherwise leave isUpdateDialogOpen stuck true forever
+      // and silently suppress every future reminder for the rest of the session.
+      const timeout = new Promise<{ response: number; timedOut: true }>((resolve) => {
+        setTimeout(
+          () => resolve({ response: -1, timedOut: true }),
+          ReleaseChannelIPCHandlers.UPDATE_DIALOG_TIMEOUT_MS,
+        );
+      });
+
+      const dialogPromise = dialog.showMessageBox({
+        type: "info",
+        title: "Update Ready",
+        message: "A new version has been downloaded. Restart now to install?",
+        buttons: ["Restart Now", "Later"],
+        defaultId: 0,
+        cancelId: 1,
+      });
+
+      Promise.race([dialogPromise, timeout])
         .then((result) => {
+          if ("timedOut" in result) {
+            // The dialog never got a response in time - leave updateDialogDismissedInSession
+            // untouched so a future update-downloaded event can still offer the reminder again.
+            console.warn("Update-ready dialog timed out waiting for a response.");
+            return;
+          }
+
           if (result.response === 0) {
+            // The app is quitting to install - short-circuit any further events immediately,
+            // ahead of the isUpdateDialogOpen reset in .finally() below.
+            this.isRestartingToInstall = true;
             // Set isQuitting to true so that the before-quit handler allows the app to quit
             setIsQuitting(true);
             // Force immediate quit and install

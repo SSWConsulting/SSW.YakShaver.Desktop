@@ -17,6 +17,7 @@ vi.mock("electron", () => ({
 
 const checkForUpdatesMock = vi.fn();
 const setFeedURLMock = vi.fn();
+const quitAndInstallMock = vi.fn();
 // Capture registered autoUpdater listeners (keyed by event name) so tests can fire events like
 // "update-downloaded" directly, the same way the real electron-updater instance would (#456).
 const autoUpdaterListeners = new Map<string, Array<(...args: unknown[]) => void>>();
@@ -41,6 +42,7 @@ vi.mock("electron-updater", () => ({
     on: (...args: [string, (...a: unknown[]) => void]) => autoUpdaterOnMock(...args),
     setFeedURL: (...args: unknown[]) => setFeedURLMock(...args),
     checkForUpdates: (...args: unknown[]) => checkForUpdatesMock(...args),
+    quitAndInstall: (...args: unknown[]) => quitAndInstallMock(...args),
   },
 }));
 
@@ -416,8 +418,38 @@ describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", ()
 
     expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
 
-    // Resolve the first dialog so the test doesn't leave a dangling promise.
+    // Resolve the first dialog and wait for the handler's .then/.finally chain to flush before
+    // the test ends, matching the sibling test's vi.waitFor pattern rather than firing-and-forgetting.
     resolveFirstDialog?.({ response: 1 });
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("releases the guard after the dialog settles so a later legitimate event is handled normally", async () => {
+    // Directly pins the .finally() reset behavior (review on #456): once the first dialog settles
+    // and releases isUpdateDialogOpen, a subsequent update-downloaded event must show its own
+    // dialog rather than being treated as a stack-on-top of a still-open one. Uses the dialog
+    // timeout fallback (rather than a "Restart Now"/"Later" response) so the guard's own release
+    // is what's under test, not short-circuited by updateDialogDismissedInSession or
+    // isRestartingToInstall — neither of which the timeout path touches.
+    vi.useFakeTimers();
+    try {
+      showMessageBoxMock.mockImplementation(() => new Promise(() => {})); // never settles
+
+      new ReleaseChannelIPCHandlers();
+
+      emitAutoUpdaterEvent("update-downloaded");
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+
+      // Let the dialog's bounded timeout fallback fire, releasing isUpdateDialogOpen.
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000);
+
+      // A later legitimate event must now be handled normally — a second dialog is shown, proving
+      // isUpdateDialogOpen was released rather than left stuck true.
+      emitAutoUpdaterEvent("update-downloaded");
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not show a reminder again this session after the user clicks Later — the originally reported bug", async () => {
@@ -435,5 +467,28 @@ describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", ()
     emitAutoUpdaterEvent("update-downloaded");
 
     expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show another reminder after the user clicks Restart Now, even before quitAndInstall fires", async () => {
+    // Regression coverage (review on #456): isUpdateDialogOpen resets in .finally() synchronously,
+    // but the real quit (autoUpdater.quitAndInstall) is deferred via setImmediate. A second
+    // "update-downloaded" event landing in that gap must not stack a dialog moments before the app
+    // quits — pinned here via the isRestartingToInstall short-circuit.
+    showMessageBoxMock.mockResolvedValue({ response: 0 }); // 0 = "Restart Now"
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+
+    // A second event landing after the dialog resolved (isUpdateDialogOpen already released) but
+    // before the deferred quitAndInstall() fires must still be suppressed.
+    emitAutoUpdaterEvent("update-downloaded");
+
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+
+    // Let the deferred quitAndInstall() flush before the test ends, so it doesn't fire during a
+    // later test.
+    await vi.waitFor(() => expect(quitAndInstallMock).toHaveBeenCalledTimes(1));
   });
 });
