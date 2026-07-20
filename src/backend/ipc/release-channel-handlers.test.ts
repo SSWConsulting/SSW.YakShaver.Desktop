@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vite
 // Keep Electron, the real autoUpdater, and encrypted storage out of this unit test — we're
 // exercising the token-health gating logic in ReleaseChannelIPCHandlers (#919), not Electron
 // itself.
+const showMessageBoxMock = vi.fn().mockResolvedValue({ response: 1 });
 vi.mock("electron", () => ({
   app: {
     getName: () => "YakShaver",
@@ -10,12 +11,25 @@ vi.mock("electron", () => ({
     isPackaged: true,
   },
   BrowserWindow: { getAllWindows: () => [] },
-  dialog: { showMessageBox: vi.fn().mockResolvedValue({ response: 1 }) },
+  dialog: { showMessageBox: (...args: unknown[]) => showMessageBoxMock(...args) },
   ipcMain: { handle: vi.fn() },
 }));
 
 const checkForUpdatesMock = vi.fn();
 const setFeedURLMock = vi.fn();
+// Capture registered autoUpdater listeners (keyed by event name) so tests can fire events like
+// "update-downloaded" directly, the same way the real electron-updater instance would (#456).
+const autoUpdaterListeners = new Map<string, Array<(...args: unknown[]) => void>>();
+const autoUpdaterOnMock = vi.fn((event: string, listener: (...args: unknown[]) => void) => {
+  const listeners = autoUpdaterListeners.get(event) ?? [];
+  listeners.push(listener);
+  autoUpdaterListeners.set(event, listeners);
+});
+function emitAutoUpdaterEvent(event: string, ...args: unknown[]) {
+  for (const listener of autoUpdaterListeners.get(event) ?? []) {
+    listener(...args);
+  }
+}
 vi.mock("electron-updater", () => ({
   autoUpdater: {
     autoDownload: false,
@@ -24,7 +38,7 @@ vi.mock("electron-updater", () => ({
     allowPrerelease: false,
     allowDowngrade: false,
     requestHeaders: {},
-    on: vi.fn(),
+    on: (...args: [string, (...a: unknown[]) => void]) => autoUpdaterOnMock(...args),
     setFeedURL: (...args: unknown[]) => setFeedURLMock(...args),
     checkForUpdates: (...args: unknown[]) => checkForUpdatesMock(...args),
   },
@@ -371,5 +385,55 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
     // verifyGitHubToken is never even consulted for the stable channel.
     expect(verifyGitHubTokenMock).not.toHaveBeenCalled();
     expect(result).toEqual({ available: false, currentVersion: "1.2.3" });
+  });
+});
+
+describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    autoUpdaterListeners.clear();
+    showMessageBoxMock.mockReset();
+  });
+
+  it("does not stack a second reminder dialog while the first is still awaiting a response", async () => {
+    // The reported bug's second half: "If the reminder dialog is open already, a subsequent
+    // update check should not open another reminder dialog on top of it." Simulate the first
+    // dialog's promise never resolving (user hasn't answered yet) and fire a second
+    // "update-downloaded" event (e.g. the periodic background check landing mid-dialog) — only one
+    // dialog must ever be shown.
+    let resolveFirstDialog: ((result: { response: number }) => void) | undefined;
+    showMessageBoxMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstDialog = resolve;
+        }),
+    );
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    emitAutoUpdaterEvent("update-downloaded");
+
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+
+    // Resolve the first dialog so the test doesn't leave a dangling promise.
+    resolveFirstDialog?.({ response: 1 });
+  });
+
+  it("does not show a reminder again this session after the user clicks Later — the originally reported bug", async () => {
+    // The reported bug's first half: clicking "Remind me later" must stop further reminders for
+    // the rest of the current session, even when the periodic ~10-minute check fires again.
+    showMessageBoxMock.mockResolvedValue({ response: 1 }); // 1 = "Later"
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+
+    // Simulate the periodic check finding the same update again later in the session.
+    emitAutoUpdaterEvent("update-downloaded");
+    emitAutoUpdaterEvent("update-downloaded");
+
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -75,6 +75,10 @@ export class ReleaseChannelIPCHandlers {
   private updateCheckInterval: NodeJS.Timeout | null = null;
   private readonly UPDATE_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
   private updateDialogDismissedInSession = false; // Track if user dismissed update dialog this session
+  // Track whether the "Update Ready" dialog is currently open (#456) - guards against a second
+  // autoUpdater "update-downloaded" event (e.g. a periodic re-check landing while the first
+  // dialog is still awaiting a response) from stacking a duplicate dialog on top of it.
+  private isUpdateDialogOpen = false;
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.RELEASE_CHANNEL_GET, () => this.getChannel());
@@ -111,10 +115,19 @@ export class ReleaseChannelIPCHandlers {
     });
 
     autoUpdater.on("update-downloaded", () => {
-      // Skip showing dialog if user already dismissed it this session
+      // Skip showing dialog if user already dismissed it this session (#456) - once "Later" is
+      // clicked, no further reminder should appear for the rest of the current session.
       if (this.updateDialogDismissedInSession) {
         return;
       }
+
+      // Skip if a reminder dialog is already open (#456) - a subsequent "update-downloaded" event
+      // (e.g. the periodic background check firing again) must not stack another dialog on top of
+      // one the user hasn't responded to yet.
+      if (this.isUpdateDialogOpen) {
+        return;
+      }
+      this.isUpdateDialogOpen = true;
 
       dialog
         .showMessageBox({
@@ -135,12 +148,16 @@ export class ReleaseChannelIPCHandlers {
               autoUpdater.quitAndInstall(false, true);
             });
           } else {
-            // User chose "Later" - remember this for the current session
+            // User chose "Later" - remember this for the current session so no further reminder
+            // is shown, whether from another "update-downloaded" event or the periodic check.
             this.updateDialogDismissedInSession = true;
           }
         })
         .catch((err) => {
           console.error("Error showing update dialog:", err);
+        })
+        .finally(() => {
+          this.isUpdateDialogOpen = false;
         });
     });
   }
