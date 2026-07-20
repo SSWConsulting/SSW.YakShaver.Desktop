@@ -83,24 +83,6 @@ export enum VideoSourceType {
   EXTERNAL_URL = "external_url",
 }
 
-export interface ShaveItem {
-  id: string;
-  title: string;
-  videoFile: VideoFile;
-  updatedAt: string;
-  createdAt: string;
-  shaveStatus: string;
-  workItemType: string;
-  projectName: string;
-  workItemUrl: string;
-  feedback: string | null;
-  videoEmbedUrl: string;
-}
-
-export interface GetMyShavesResponse {
-  items: ShaveItem[];
-}
-
 // Portal-projects types (#816) are shared between the backend and the UI, so per
 // AGENTS.md Rule 9 they live in `@shared/types/portal`. Re-exported here for the
 // backend's existing `../types` import sites.

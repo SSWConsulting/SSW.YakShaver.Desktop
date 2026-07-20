@@ -21,7 +21,6 @@ import type {
   CustomPrompt,
   GetMyProjectsErrorCode,
   GetMyProjectsResponse,
-  GetMyShavesResponse,
   HealthStatusInfo,
   MCPStep,
   ScreenRecordingStartResult,
@@ -246,11 +245,6 @@ declare global {
         onProtocolError: (callback: (message: string) => void) => () => void;
       };
       portal: {
-        getMyShaves: () => Promise<{
-          success: boolean;
-          data?: GetMyShavesResponse;
-          error?: string;
-        }>;
         getMyProjects: () => Promise<{
           success: boolean;
           data?: GetMyProjectsResponse;

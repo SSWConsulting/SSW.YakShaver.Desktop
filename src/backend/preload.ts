@@ -130,7 +130,6 @@ const IPC_CHANNELS = {
   PROTOCOL_ERROR: "protocol:error",
 
   // Portal API
-  PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
   PORTAL_GET_MY_PROJECTS: "portal:get-my-projects",
   PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 
@@ -385,7 +384,6 @@ const electronAPI = {
       onIpcEvent<string>(IPC_CHANNELS.PROTOCOL_ERROR, callback),
   },
   portal: {
-    getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
     getMyProjects: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_PROJECTS),
     cancelWorkItem: (workItemId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PORTAL_CANCEL_WORK_ITEM, workItemId),
