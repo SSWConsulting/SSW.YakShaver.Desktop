@@ -38,6 +38,41 @@ describe("SHARED_ISSUE_CREATION_RULES — issue title rules (#719)", () => {
   });
 });
 
+// Regression guard for #544: "PBIs created via the desktop app currently include both an emoji
+// (✨ for features, 🐛 for bugs) and an explicit text prefix like 'Feature -' or 'Bug -'". The
+// emoji already conveys the semantic type, so the redundant text label must be dropped while the
+// emoji itself is kept. These assertions lock in that the generation rules tell the model to keep
+// the emoji but drop the "Feature -"/"Bug -" text label, for both the feature and bug flows.
+describe("SHARED_ISSUE_CREATION_RULES — drop redundant title text prefix, keep emoji only (#544)", () => {
+  it("instructs the model to keep the emoji but drop the redundant text label", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/drop.*redundant fixed text label/i);
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/keep the emoji, remove the text label/i);
+  });
+
+  it("explicitly forbids the old 'Feature -' / 'Bug -' prefixed titles", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toContain('NEVER "🐛 Bug -" or "✨ Feature -" as a prefix');
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /still carries the redundant "Feature -"\/"Bug -" text label/i,
+    );
+  });
+
+  it("gives a worked bug example with the emoji kept and the 'Bug -' label dropped", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toContain(
+      "a correct title is `🐛 Login button does not respond to clicks`, NOT `🐛 Bug - Login button does not respond to clicks`",
+    );
+  });
+
+  it("gives a worked feature example with the emoji kept and the 'Feature -' label dropped", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toContain(
+      "NOT `✨ Feature - Dark mode - Add a dark theme toggle to settings`",
+    );
+  });
+
+  it("still requires the emoji itself to be preserved (only the text label is dropped)", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/Do not omit the emoji or substitute it/i);
+  });
+});
+
 // Bug #862: a previously created PBI that has since been DELETED in Azure DevOps was still
 // treated as a live duplicate. The agent then tried to update the deleted item (rejected by the
 // platform) and fell back to creating an incomplete item with only a title + a "duplicate"
