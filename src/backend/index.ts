@@ -2,7 +2,6 @@ import { join } from "node:path";
 import { config as dotenvConfig } from "dotenv";
 import { app, type BrowserWindow, dialog, Menu, session, shell } from "electron";
 import { initMain as initAudioLoopback } from "electron-audio-loopback";
-import { autoUpdater } from "electron-updater";
 import tmp from "tmp";
 import { config } from "./config/env";
 import { initDatabase } from "./db";
@@ -503,8 +502,14 @@ app.whenReady().then(async () => {
     const { ReleaseChannelStorage } = await import("./services/storage/release-channel-storage");
     const channelStore = ReleaseChannelStorage.getInstance();
     const channel = await channelStore.getChannel();
-    _releaseChannelHandlers.configureAutoUpdater(channel, true);
-    autoUpdater.checkForUpdatesAndNotify();
+    // configureAutoUpdater(channel, true) already performs the startup update check: it sets the
+    // correct feed URL for the active channel and, for PR channels, only fires an immediate check
+    // when the running build is NOT already the latest release for that PR (see the isOnLatest
+    // gate in ReleaseChannelIPCHandlers.configureAutoUpdater). Calling autoUpdater's own
+    // checkForUpdatesAndNotify() here as well was redundant AND bypassed that gate entirely — it
+    // ran unconditionally and showed electron-updater's native "update available" notification even
+    // when the app was already running the latest PR build (#532).
+    await _releaseChannelHandlers.configureAutoUpdater(channel, true);
   }
 });
 
