@@ -43,12 +43,8 @@ export function LLMStep({ onRegisterHandlers }: LLMStepProps) {
 
   return (
     <>
-      {/* Section title */}
-      <p className="text-sm font-medium text-white">Choose your LLM</p>
-
       {/* Language Model Section */}
       <div className="w-full">
-        <p className="mb-3 text-xs font-medium uppercase leading-4 text-white/60">LLM</p>
         <Form {...llmForm}>
           <form onSubmit={llmForm.handleSubmit(handleLLMSubmit)} className="flex flex-col gap-4">
             <LLMProviderFields

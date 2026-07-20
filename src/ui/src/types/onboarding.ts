@@ -36,8 +36,8 @@ export const STEPS: readonly OnboardingStep[] = [
     id: 2,
     icon: cpu,
     title: "Connecting an LLM",
-    description: "Connect an LLM to transcribe your meetings and take your notes.",
-    sidebarDescription: "Choose your provider and save the API details",
+    description: "Connect an LLM to transcribe your recording and process your request.",
+    sidebarDescription: "Setup your LLM provider",
     navSteps: [2],
   },
   {
@@ -45,7 +45,7 @@ export const STEPS: readonly OnboardingStep[] = [
     icon: monitorPlay,
     title: "Connecting an MCP",
     description: "Configure or Choose which MCP server YakShaver will call.",
-    sidebarDescription: "Configure or choose which MCP server YakShaver will call.",
+    sidebarDescription: "Setup MCP servers so YakShaver can utilize the tools.",
     navSteps: [3],
   },
 ] satisfies OnboardingStep[];
