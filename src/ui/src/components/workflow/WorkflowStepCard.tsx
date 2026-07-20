@@ -177,8 +177,10 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
 
   if (step.status === "skipped") return null;
 
-  // Only non-failed states get expand/collapse for payload
-  const isExpandable = !isFailed && hasPayload;
+  // #523: failed steps are expandable too (when they carry a payload) so the error
+  // detail is opt-in via the same click-to-expand affordance as other rows, instead
+  // of always rendering a prominent red block for a collapsed row.
+  const isExpandable = hasPayload;
 
   const config =
     STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
@@ -221,10 +223,16 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             className="h-auto flex-1 justify-between p-0 text-base hover:bg-transparent hover:text-current dark:hover:bg-transparent"
             aria-expanded={isExpanded}
           >
-            <div className="flex items-center gap-3 flex-1">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
               <StatusIcon status={effectiveStatus} />
-              <span className={cn("font-medium", config.textClass)}>{label}</span>
+              {/* #523: trailing ellipsis signals a dropdown row has more content to expand. */}
+              <span className={cn("font-medium shrink-0", config.textClass)}>{label}&hellip;</span>
               {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
+              {/* #523: collapsed failed rows get a subtle inline hint instead of the full
+                  error block, so an error doesn't dominate the row until expanded. */}
+              {isFailed && !isExpanded && (
+                <span className="text-xs text-red-400/60 truncate">Error — expand for details</span>
+              )}
             </div>
             <div className="text-white/50 hover:text-white/90">
               {isExpanded ? (
@@ -261,15 +269,19 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
         )}
       </div>
 
-      {/* Error content area — always visible for failed cards */}
-      {isFailed && hasStructuredSteps && hasPayload && (
+      {/* #523: error/detail content only renders once the row is expanded — a failed
+          row is no longer forced open, so its error stays subtle (see the inline hint
+          above) until the user opts in. This also removes the flicker previously caused
+          by the always-on block snapping open/closed as executing_task's live payload
+          toggled effectiveStatus between "failed" and "completed". */}
+      {isExpanded && isExpandable && isFailed && hasStructuredSteps && hasPayload && (
         <CardContent className="p-0 pt-2">
           <div className="overflow-x-auto rounded bg-black/20 p-2 text-white/80">
             <StageWithContent stage={step.stage} payload={parsedPayload} />
           </div>
         </CardContent>
       )}
-      {isFailed && !hasStructuredSteps && errorMessage && (
+      {isExpanded && isExpandable && isFailed && !hasStructuredSteps && errorMessage && (
         <CardContent className="p-0 pt-2">
           <div className="rounded bg-black/20 p-3 text-sm">
             <p className="text-red-400">An error occurred. Please check the details below.</p>
@@ -280,8 +292,8 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
         </CardContent>
       )}
 
-      {/* Expandable details — non-failed payloads only */}
-      {isExpanded && isExpandable && hasPayload && (
+      {/* Expandable details — non-failed payloads */}
+      {isExpanded && isExpandable && !isFailed && hasPayload && (
         <CardContent className="p-0 pt-2">
           <div className="overflow-x-auto rounded bg-black/20 p-2 text-white/80">
             <StageWithContent stage={step.stage} payload={parsedPayload} />
