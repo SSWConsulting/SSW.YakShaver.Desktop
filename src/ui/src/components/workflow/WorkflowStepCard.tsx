@@ -182,6 +182,20 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
   // of always rendering a prominent red block for a collapsed row.
   const isExpandable = hasPayload;
 
+  const errorMessage = isFailed ? extractErrorMessage(parsedPayload) : null;
+
+  // #974 review: a single shared condition for "there is error detail behind the
+  // expand toggle", used by both the expanded CardContent block below and the
+  // collapsed-row hint, so the two can never independently drift out of sync.
+  const hasErrorDetail =
+    isFailed && ((hasStructuredSteps && hasPayload) || (!hasStructuredSteps && !!errorMessage));
+
+  // #974 review: a failed step can still have no payload at all (it failed before any
+  // detail was captured). It has nothing to expand into, but the row must still carry
+  // a failure affordance beyond the icon/border colour alone, so the hint renders
+  // whenever the step failed — not only when there's a payload to expand.
+  const showFailedHint = isFailed && !isExpanded;
+
   const config =
     STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
 
@@ -210,30 +224,49 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
     }
   };
 
-  const errorMessage = isFailed ? extractErrorMessage(parsedPayload) : null;
-
   return (
     <Card className={cn("rounded-lg p-3 gap-0 transition-all", config.containerClass)}>
       {/* Header row */}
       <div className="flex items-center gap-3">
-        {isExpandable ? (
-          <Button
-            variant="ghost"
-            onClick={toggleExpand}
-            className="h-auto flex-1 justify-between p-0 text-base hover:bg-transparent hover:text-current dark:hover:bg-transparent"
-            aria-expanded={isExpanded}
-          >
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <StatusIcon status={effectiveStatus} />
-              {/* #523: trailing ellipsis signals a dropdown row has more content to expand. */}
-              <span className={cn("font-medium shrink-0", config.textClass)}>{label}&hellip;</span>
-              {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
-              {/* #523: collapsed failed rows get a subtle inline hint instead of the full
-                  error block, so an error doesn't dominate the row until expanded. */}
-              {isFailed && !isExpanded && (
-                <span className="text-xs text-red-400/60 truncate">Error — expand for details</span>
-              )}
-            </div>
+        {/* #974 review: the header is always a <Button>, whether or not the row is
+            currently expandable — toggling isExpandable used to swap the element type
+            between <Button> and <div> at this DOM position, which forces React to
+            unmount/remount the subtree (dropping focus/hover) every time. Disabling it
+            keeps identity stable across renders and removes that as a flicker source. */}
+        <Button
+          variant="ghost"
+          onClick={toggleExpand}
+          disabled={!isExpandable}
+          className="h-auto flex-1 justify-between p-0 text-base hover:bg-transparent hover:text-current dark:hover:bg-transparent disabled:opacity-100 disabled:pointer-events-auto disabled:cursor-default"
+          aria-expanded={isExpandable ? isExpanded : undefined}
+        >
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <StatusIcon status={effectiveStatus} />
+            <span className={cn("font-medium shrink-0", config.textClass)}>{label}</span>
+            {/* #974 review: the ellipsis is a decorative, aria-hidden marker kept out of
+                the accessible label — baking it into the label string duplicated the
+                chevron's expand/collapse affordance and got read literally ("dot dot
+                dot") by screen readers. Only shown when there's actually something to
+                expand into, so a no-payload row doesn't imply hidden content. */}
+            {isExpandable && (
+              <span aria-hidden="true" className={cn("shrink-0", config.textClass)}>
+                &hellip;
+              </span>
+            )}
+            {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
+            {/* #974 review: collapsed failed rows get a subtle inline hint instead of the
+                full error block, so an error doesn't dominate the row until expanded.
+                Shown whenever the step failed — even with no payload to expand into —
+                so a failed+no-payload row still carries a failure affordance beyond the
+                icon/border colour alone. min-w-0 + flex-1 let it actually shrink/
+                truncate instead of being squeezed to nothing by its siblings. */}
+            {showFailedHint && (
+              <span className="text-xs text-red-400/60 truncate min-w-0 flex-1 text-right">
+                {hasErrorDetail ? "Error — expand for details" : "Error"}
+              </span>
+            )}
+          </div>
+          {isExpandable && (
             <div className="text-white/50 hover:text-white/90">
               {isExpanded ? (
                 <ChevronDown className="size-4" />
@@ -241,14 +274,8 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
                 <ChevronRight className="size-4" />
               )}
             </div>
-          </Button>
-        ) : (
-          <div className="flex items-center gap-3 flex-1">
-            <StatusIcon status={effectiveStatus} />
-            <span className={cn("font-medium", config.textClass)}>{label}</span>
-            {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
-          </div>
-        )}
+          )}
+        </Button>
         {step.status === "failed" && shaveId && (
           <Button
             size="sm"
@@ -273,15 +300,17 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
           row is no longer forced open, so its error stays subtle (see the inline hint
           above) until the user opts in. This also removes the flicker previously caused
           by the always-on block snapping open/closed as executing_task's live payload
-          toggled effectiveStatus between "failed" and "completed". */}
-      {isExpanded && isExpandable && isFailed && hasStructuredSteps && hasPayload && (
+          toggled effectiveStatus between "failed" and "completed". Both branches below
+          share the hasErrorDetail condition with the collapsed hint above so the two
+          can't drift apart. */}
+      {isExpanded && hasErrorDetail && hasStructuredSteps && (
         <CardContent className="p-0 pt-2">
           <div className="overflow-x-auto rounded bg-black/20 p-2 text-white/80">
             <StageWithContent stage={step.stage} payload={parsedPayload} />
           </div>
         </CardContent>
       )}
-      {isExpanded && isExpandable && isFailed && !hasStructuredSteps && errorMessage && (
+      {isExpanded && hasErrorDetail && !hasStructuredSteps && (
         <CardContent className="p-0 pt-2">
           <div className="rounded bg-black/20 p-3 text-sm">
             <p className="text-red-400">An error occurred. Please check the details below.</p>

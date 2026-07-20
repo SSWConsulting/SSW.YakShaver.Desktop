@@ -27,8 +27,9 @@ describe("WorkflowStepCard status rendering (#645)", () => {
 
     render(<WorkflowStepCard step={step} label="Updating Metadata" shaveId="shave-1" />);
 
-    // #523: expandable rows get a trailing ellipsis to signal there's more to see.
-    expect(screen.getByText("Updating Metadata…")).toBeInTheDocument();
+    // #974: the ellipsis is now a separate aria-hidden decorative marker, not baked
+    // into the accessible label text, so the label itself matches STEP_LABELS exactly.
+    expect(screen.getByText("Updating Metadata")).toBeInTheDocument();
     expect(document.querySelector(".text-green-400")).not.toBeNull();
   });
 
@@ -61,7 +62,7 @@ describe("WorkflowStepCard status rendering (#645)", () => {
 
     render(<WorkflowStepCard step={step} label="Updating Metadata" shaveId="shave-1" />);
 
-    await user.click(screen.getByText("Updating Metadata…"));
+    await user.click(screen.getByText("Updating Metadata"));
 
     expect(screen.getByText(/quota exceeded/)).toBeInTheDocument();
   });
@@ -138,5 +139,65 @@ describe("WorkflowStepCard status rendering (#645)", () => {
     rerender(<WorkflowStepCard step={erroredStep} label="Executing Task" shaveId="shave-1" />);
     expect(document.querySelector(".text-red-400")).not.toBeNull();
     expect(screen.queryByText("boom")).not.toBeInTheDocument();
+  });
+
+  /**
+   * #974 review (major): isExpandable collapsed to `hasPayload`, so a step that failed
+   * before it ever captured a payload (no error detail was ever recorded) fell into the
+   * plain, non-interactive branch — icon/border colour was the *only* failure signal,
+   * with no textual hint at all. A failure must always be legible from the row itself,
+   * not just its colour (colour-only signals are also an accessibility gap).
+   */
+  it("still shows a textual failure hint for a failed step with no payload at all (#974)", () => {
+    const step = makeStep("failed");
+    // No payload set — this step failed before any error detail was captured.
+
+    render(<WorkflowStepCard step={step} label="Updating Metadata" shaveId="shave-1" />);
+
+    expect(document.querySelector(".text-red-400")).not.toBeNull();
+    // There's nothing to expand into, so the hint reads plainly "Error" rather than
+    // promising detail that doesn't exist — but a hint is still present.
+    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.queryByText(/expand for details/i)).not.toBeInTheDocument();
+  });
+
+  /**
+   * #974 review (major): the header used to switch element type (<Button> vs a plain
+   * <div>) at the same DOM position depending on isExpandable, which itself could flip
+   * as a step transitioned into/out of "failed". An element-type change forces React to
+   * unmount/remount the subtree, silently dropping focus/hover state — a second,
+   * previously-uncovered source of the reported flicker (independent of the always-on
+   * error block already fixed by gating content on isExpanded). The header must now
+   * always be the same <Button> element, merely enabled/disabled, so toggling isFailed
+   * or isExpandable never remounts it.
+   */
+  it("keeps the header as the same Button element across a completed/failed toggle, never remounting it (#974)", () => {
+    const completedStep: WorkflowStep = {
+      stage: ProgressStage.UPDATING_METADATA,
+      status: "completed",
+      payload: JSON.stringify({ title: "My Video" }),
+    };
+    const failedStep: WorkflowStep = {
+      stage: ProgressStage.UPDATING_METADATA,
+      status: "failed",
+      payload: JSON.stringify({ title: "My Video" }),
+    };
+
+    const { rerender } = render(
+      <WorkflowStepCard step={completedStep} label="Updating Metadata" shaveId="shave-1" />,
+    );
+
+    const button = screen.getByRole("button", { name: /Updating Metadata/i });
+    // React keeps the same DOM node across re-renders only when the element type at a
+    // given position doesn't change — capture the node identity to prove that.
+    const nodeBeforeToggle = button;
+
+    rerender(<WorkflowStepCard step={failedStep} label="Updating Metadata" shaveId="shave-1" />);
+    const nodeAfterFailed = screen.getByRole("button", { name: /Updating Metadata/i });
+    expect(nodeAfterFailed).toBe(nodeBeforeToggle);
+
+    rerender(<WorkflowStepCard step={completedStep} label="Updating Metadata" shaveId="shave-1" />);
+    const nodeAfterRecovered = screen.getByRole("button", { name: /Updating Metadata/i });
+    expect(nodeAfterRecovered).toBe(nodeBeforeToggle);
   });
 });
