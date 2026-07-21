@@ -363,8 +363,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
 
 describe("ScreenRecorder - record/stop icon (#641)", () => {
   beforeEach(() => {
-    // Single-button layout (no split), simplest surface for asserting the
-    // record/stop icon + accessible name/tooltip pairing.
+    // Single-button layout (no split), simplest surface for asserting the record/stop icon.
     state.isYoutubeUrlWorkflowEnabled = false;
     state.isRecording = false;
     state.isProcessing = false;
@@ -395,24 +394,20 @@ describe("ScreenRecorder - record/stop icon (#641)", () => {
 
   afterEach(() => vi.clearAllMocks());
 
-  it("shows a record icon with a matching accessible label and tooltip when not recording", async () => {
+  it("shows a record icon when not recording", async () => {
     render(<ScreenRecorder showButtonOnly />);
 
     const button = await screen.findByRole("button", { name: "Start Recording" });
-    expect(button).toHaveAccessibleName("Start Recording");
-    expect(button).toHaveAttribute("aria-label", "Start Recording");
-    expect(button).toHaveAttribute("title", "Start Recording");
-    expect(button.querySelector("svg")).toBeInTheDocument();
+    expect(button.querySelector("circle")).toBeInTheDocument();
+    expect(button.querySelector("rect")).not.toBeInTheDocument();
   });
 
-  it("shows a stop icon with a matching accessible label and tooltip while recording", async () => {
+  it("shows a stop icon while recording", async () => {
     state.isRecording = true;
     render(<ScreenRecorder showButtonOnly />);
 
     const button = await screen.findByRole("button", { name: "Stop Recording" });
-    expect(button).toHaveAccessibleName("Stop Recording");
-    expect(button).toHaveAttribute("aria-label", "Stop Recording");
-    expect(button).toHaveAttribute("title", "Stop Recording");
-    expect(button.querySelector("svg")).toBeInTheDocument();
+    expect(button.querySelector("rect")).toBeInTheDocument();
+    expect(button.querySelector("circle")).not.toBeInTheDocument();
   });
 });

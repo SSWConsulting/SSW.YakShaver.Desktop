@@ -142,10 +142,8 @@ function RecordButton({
           className,
         )}
         onClick={onToggleRecording}
-        size="chunkyLg"
+        size="chunky"
         disabled={recordDisabled}
-        aria-label={recordLabel}
-        title={recordLabel}
       >
         <RecordIcon isRecording={isRecording} className="w-5 h-5" />
         {recordLabel}
@@ -158,10 +156,8 @@ function RecordButton({
       <Button
         className="flex-1 bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
         onClick={onToggleRecording}
-        size="chunkyLg"
+        size="chunky"
         disabled={recordDisabled}
-        aria-label={recordLabel}
-        title={recordLabel}
       >
         <RecordIcon isRecording={isRecording} />
         {recordLabel}
