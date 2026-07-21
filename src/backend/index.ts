@@ -245,8 +245,17 @@ const createWindow = (): BrowserWindow | null => {
       })
       .catch((err) => {
         console.error("Failed to read close behavior setting; minimizing to tray:", err);
-        if (!window.isDestroyed()) {
-          window.hide();
+        if (window.isDestroyed()) {
+          return;
+        }
+
+        window.hide();
+
+        // Ensure screen frame overlay is closed
+        try {
+          ScreenFrameWindow.getInstance().hide();
+        } catch (cleanupErr) {
+          console.error("ScreenFrameWindow cleanup error:", cleanupErr);
         }
       });
   });
