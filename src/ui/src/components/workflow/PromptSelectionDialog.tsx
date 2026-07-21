@@ -1,5 +1,5 @@
 import type { InteractionRequest, ProjectSelectionPayload } from "@shared/types/user-interaction";
-import { Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { formatErrorMessage } from "../../utils";
 import { LoadingState } from "../common/LoadingState";
@@ -133,9 +133,6 @@ export function PromptSelectionDialog({
           <>
             <AlertDialogHeader>
               <AlertDialogTitle>Do you want to proceed with the project?</AlertDialogTitle>
-              <AlertDialogDescription>
-                YakShaver analysed your video and selected the most relevant project prompt below.
-              </AlertDialogDescription>
             </AlertDialogHeader>
 
             <div className="bg-secondary/20 p-4 rounded-md space-y-2 mt-2">
@@ -148,12 +145,15 @@ export function PromptSelectionDialog({
               {initialProject.description && (
                 <p className="text-sm text-muted-foreground">{initialProject.description}</p>
               )}
-              <div className="pt-2 border-t border-border/50">
-                <p className="text-xs font-semibold text-muted-foreground mb-1">
-                  WHY THIS PROJECT:
+              <details className="group pt-2 border-t border-border/50">
+                <summary className="flex items-center gap-1 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground list-none [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
+                  Why these projects?
+                </summary>
+                <p className="text-sm italic text-foreground/80 mt-1 ml-4">
+                  {initialProject.reason}
                 </p>
-                <p className="text-sm italic text-foreground/80">{initialProject.reason}</p>
-              </div>
+              </details>
             </div>
 
             {autoApprovalCountdown !== null && (
