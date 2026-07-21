@@ -3,6 +3,7 @@ export interface HealthStatusInfo {
   error?: string;
   successMessage?: string;
   isChecking: boolean;
+  authFailed?: boolean;
 }
 
 export enum ProgressStage {

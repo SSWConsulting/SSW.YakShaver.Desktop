@@ -385,24 +385,55 @@ export class MCPServerManager {
       );
     }
 
-    const client = await this.getMcpClientAsync(serverId);
-    if (!client) {
+    // inMemory/builtin servers never hit the auth path; keep them on the
+    // existing null-returning cache path so they stay green.
+    if (serverConfig.transport === "inMemory") {
+      const client = await this.getMcpClientAsync(serverId);
+      if (!client) {
+        return {
+          isHealthy: false,
+          error: `MCP server client for '${serverId}' not found`,
+          isChecking: false,
+        };
+      }
+
+      const healthResult = await client.healthCheckAsync();
+
       return {
-        isHealthy: false,
-        error: `MCP server client for '${serverId}' not found`,
+        isHealthy: healthResult.healthy,
         isChecking: false,
+        successMessage:
+          healthResult.toolCount > 0
+            ? `Healthy - ${healthResult.toolCount} tools available`
+            : "Healthy",
       };
     }
 
-    const healthResult = await client.healthCheckAsync();
+    let client: MCPServerClient;
+    try {
+      client = await MCPServerClient.createClientAsync(serverConfig);
+    } catch (err) {
+      return {
+        isHealthy: false,
+        error: String(err),
+        isChecking: false,
+        authFailed: MCPServerClient.isAuthError(err),
+      };
+    }
 
+    const probe = await client.probeHealthAsync();
+    if (probe.healthy) {
+      MCPServerManager.mcpClients.set(serverConfig.id, client);
+    }
     return {
-      isHealthy: healthResult.healthy,
+      isHealthy: probe.healthy,
       isChecking: false,
-      successMessage:
-        healthResult.toolCount > 0
-          ? `Healthy - ${healthResult.toolCount} tools available`
-          : "Healthy",
+      authFailed: probe.authFailed,
+      successMessage: probe.healthy
+        ? probe.toolCount > 0
+          ? `Healthy - ${probe.toolCount} tools available`
+          : "Healthy"
+        : undefined,
     };
   }
 

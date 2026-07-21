@@ -3,6 +3,9 @@ import { GITHUB_PRESET_CONFIG, PRESET_SERVER_IDS } from "../../../shared/mcp/pre
 import type { MCPServerConfig } from "./types";
 
 const storageState = vi.hoisted(() => ({ configs: [] as MCPServerConfig[] }));
+const mocks = vi.hoisted(() => ({
+  createClientAsync: vi.fn(),
+}));
 
 vi.mock("../storage/mcp-storage", () => ({
   McpStorage: {
@@ -14,6 +17,17 @@ vi.mock("../storage/mcp-storage", () => ({
     }),
   },
 }));
+
+vi.mock("./mcp-server-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./mcp-server-client")>();
+  return {
+    ...actual,
+    MCPServerClient: {
+      ...actual.MCPServerClient,
+      createClientAsync: mocks.createClientAsync,
+    },
+  };
+});
 
 import { MCPServerManager } from "./mcp-server-manager";
 
@@ -84,5 +98,50 @@ describe("MCPServerManager server name uniqueness", () => {
       manager.updateServerAsync(server.id, { ...server, name: "GITHUB" }),
     ).rejects.toThrow("Server with name 'GITHUB' already exists");
     expect(storageState.configs.map((config) => config.name)).toEqual(["custom"]);
+  });
+});
+
+describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
+  beforeEach(() => {
+    storageState.configs = [
+      {
+        id: "srv-1",
+        name: "auth-test-server",
+        transport: "streamableHttp",
+        url: "https://mcp.example.com/",
+        enabled: true,
+      },
+    ];
+    mocks.createClientAsync.mockReset();
+  });
+
+  it("reports authFailed when the tool probe returns 401", async () => {
+    mocks.createClientAsync.mockResolvedValue({
+      probeHealthAsync: vi.fn().mockResolvedValue({
+        healthy: false,
+        toolCount: 0,
+        authFailed: true,
+      }),
+    });
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    const result = await manager.checkServerHealthAsync("srv-1");
+    expect(result.isHealthy).toBe(false);
+    expect(result.authFailed).toBe(true);
+  });
+
+  it("does not set authFailed for a non-401 failure", async () => {
+    mocks.createClientAsync.mockResolvedValue({
+      probeHealthAsync: vi.fn().mockResolvedValue({
+        healthy: false,
+        toolCount: 0,
+        authFailed: false,
+      }),
+    });
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    const result = await manager.checkServerHealthAsync("srv-1");
+    expect(result.isHealthy).toBe(false);
+    expect(result.authFailed).toBeFalsy();
   });
 });

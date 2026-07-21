@@ -125,6 +125,7 @@ export interface HealthStatusInfo {
   error?: string;
   successMessage?: string;
   isChecking: boolean;
+  authFailed?: boolean;
 }
 
 export const UNDO_EVENT_CHANNEL = "yakshaver:undo-event";

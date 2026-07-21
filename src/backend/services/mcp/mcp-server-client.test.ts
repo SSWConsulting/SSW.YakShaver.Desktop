@@ -122,3 +122,15 @@ describe("MCPServerClient.createClientAsync — token refresh failure handling (
     expect(mocks.createMcpClient).toHaveBeenCalled();
   });
 });
+
+describe("MCPServerClient.isAuthError", () => {
+  it("classifies a 401 error as auth failure", () => {
+    expect(MCPServerClient.isAuthError(new Error("HTTP 401 Unauthorized"))).toBe(true);
+    expect(MCPServerClient.isAuthError({ status: 401 })).toBe(true);
+  });
+  it("does not classify network/5xx errors as auth failure", () => {
+    expect(MCPServerClient.isAuthError(new Error("fetch failed"))).toBe(false);
+    expect(MCPServerClient.isAuthError({ status: 503 })).toBe(false);
+    expect(MCPServerClient.isAuthError(undefined)).toBe(false);
+  });
+});
