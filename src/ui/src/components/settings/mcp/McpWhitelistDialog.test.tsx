@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ipcClient } from "../../../services/ipc-client";
 import { McpWhitelistDialog } from "./McpWhitelistDialog";
 
 vi.mock("../../../services/ipc-client", () => ({
@@ -26,5 +27,13 @@ describe("McpWhitelistDialog", () => {
   it("titles the popup 'MCP Tools'", async () => {
     render(<McpWhitelistDialog server={server} onClose={() => {}} onSaved={() => {}} />);
     expect(await screen.findByText("MCP Tools")).toBeInTheDocument();
+  });
+
+  it("renders a load error inline instead of toasting", async () => {
+    (ipcClient.mcp.listServerTools as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("boom"),
+    );
+    render(<McpWhitelistDialog server={server} onClose={() => {}} onSaved={() => {}} />);
+    expect(await screen.findByText(/Failed to load tools/i)).toBeInTheDocument();
   });
 });

@@ -29,10 +29,12 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!server) return;
     setIsLoading(true);
+    setError(null);
     setTools([]);
     setSelected(new Set(server.toolWhitelist ?? []));
     ipcClient.mcp
@@ -43,7 +45,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
         setTools(sorted);
       })
       .catch((e) => {
-        toast.error(`Failed to load tools: ${String(e)}`);
+        setError(`Failed to load tools: ${String(e)}`);
       })
       .finally(() => setIsLoading(false));
   }, [server]);
@@ -62,6 +64,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
   const handleSave = useCallback(async () => {
     if (!server || !server.id) return;
     setIsSaving(true);
+    setError(null);
     try {
       const updated: MCPServerConfig = {
         ...server,
@@ -71,7 +74,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
       toast.success(`Whitelist updated for '${server.name}'`);
       onSaved();
     } catch (e) {
-      toast.error(`Failed to save whitelist: ${String(e)}`);
+      setError(`Failed to save whitelist: ${String(e)}`);
     } finally {
       setIsSaving(false);
     }
@@ -126,6 +129,11 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
             )}
           </div>
         </ScrollArea>
+        {error && (
+          <p role="alert" className="text-sm text-ssw-red break-words whitespace-normal">
+            {error}
+          </p>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={disabled}>
             Cancel
