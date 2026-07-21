@@ -180,6 +180,7 @@ export class ProcessVideoIPCHandlers {
               onStep: mcpAdapter.onStep,
             },
             executingTaskTimeoutMs,
+            () => mcpAdapter.discard(),
           );
 
           const mcpResult = loopResult.text;
@@ -685,6 +686,7 @@ export class ProcessVideoIPCHandlers {
             onStep: mcpAdapter.onStep,
           },
           executingTaskTimeoutMs,
+          () => mcpAdapter.discard(),
         );
 
         mcpResult = loopResult.text;

@@ -19,7 +19,9 @@ import type {
  * spawned child); `MCPOrchestrator` ignores it, so its underlying HTTP call may keep running
  * detached in the background — the same accepted tradeoff `LocalClaudeOrchestrator`'s own
  * internal timeout makes, since abandoning a hung call is strictly better than never surfacing an
- * error at all.
+ * error at all. Callers should also pass `onTimeout` to detach whatever was observing the call
+ * (see the parameter doc below) so a late completion from the detached call can't corrupt state a
+ * subsequent retry is by then relying on.
  *
  * Extracted as a standalone function (rather than a private method) so the timeout/race behaviour
  * is unit-testable without standing up `ProcessVideoIPCHandlers` and its Electron dependencies.
@@ -30,6 +32,14 @@ export async function runManualLoopWithTimeout(
   videoUploadResult: VideoUploadResult | undefined,
   options: ManualLoopOptions | undefined,
   timeoutMs: number,
+  /**
+   * Called synchronously right when the timeout fires, before this function returns. Lets the
+   * caller detach/mute whatever was observing the abandoned `manualLoopAsync` call (e.g.
+   * `McpWorkflowAdapter.discard()`) so a late completion from a backend that ignores `signal`
+   * (`MCPOrchestrator`) can't write into a `WorkflowStateManager` that a subsequent retry for the
+   * same shave is by then using — see the class-level comment on `McpWorkflowAdapter`.
+   */
+  onTimeout?: () => void,
 ): Promise<MCPLoopResult> {
   const controller = new AbortController();
 
@@ -50,6 +60,7 @@ export async function runManualLoopWithTimeout(
     // spawned child; MCPOrchestrator currently ignores the signal — see the doc comment above for
     // why that's accepted).
     controller.abort();
+    onTimeout?.();
     const timeoutSeconds = Math.round(timeoutMs / 1000);
     console.warn(
       `[ProcessVideo] Executing Task timed out after ${timeoutSeconds}s — failing the stage.`,

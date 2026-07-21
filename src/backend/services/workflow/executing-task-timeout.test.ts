@@ -94,4 +94,56 @@ describe("runManualLoopWithTimeout — #698 wall-clock guard on the Executing Ta
       runManualLoopWithTimeout(orchestrator, "transcript", undefined, {}, 5_000),
     ).rejects.toThrow("LLM client not initialized");
   });
+
+  it("calls onTimeout when — and only when — the timeout actually fires (#698 stale-write guard)", async () => {
+    const onTimeout = vi.fn();
+    const orchestrator: IBacklogOrchestrator = {
+      manualLoopAsync: vi.fn().mockReturnValue(new Promise(() => {})),
+    };
+
+    const resultPromise = runManualLoopWithTimeout(
+      orchestrator,
+      "transcript",
+      undefined,
+      {},
+      2_000,
+      onTimeout,
+    );
+
+    expect(onTimeout).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    await resultPromise;
+
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call onTimeout when the loop finishes before the timeout", async () => {
+    const onTimeout = vi.fn();
+    const orchestrator: IBacklogOrchestrator = {
+      manualLoopAsync: vi.fn().mockResolvedValue({
+        text: "done",
+        backlogActionSucceeded: true,
+        artifacts: [],
+        terminationReason: "stop",
+      }),
+    };
+
+    await runManualLoopWithTimeout(orchestrator, "transcript", undefined, {}, 60_000, onTimeout);
+
+    expect(onTimeout).not.toHaveBeenCalled();
+  });
+
+  it("does not call onTimeout when the loop rejects with a non-timeout error", async () => {
+    const onTimeout = vi.fn();
+    const orchestrator: IBacklogOrchestrator = {
+      manualLoopAsync: vi.fn().mockRejectedValue(new Error("boom")),
+    };
+
+    await expect(
+      runManualLoopWithTimeout(orchestrator, "transcript", undefined, {}, 5_000, onTimeout),
+    ).rejects.toThrow("boom");
+
+    expect(onTimeout).not.toHaveBeenCalled();
+  });
 });

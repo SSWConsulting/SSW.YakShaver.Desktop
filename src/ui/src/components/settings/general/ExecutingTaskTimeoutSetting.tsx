@@ -54,7 +54,11 @@ export function ExecutingTaskTimeoutSetting({ isActive }: ExecutingTaskTimeoutSe
   }, [isActive]);
 
   const commitMinutes = async (rawMinutes: number) => {
-    const clampedMinutes = Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, Math.round(rawMinutes)));
+    // Guard against a cleared/non-numeric input: Number("") is 0 (clamps fine), but
+    // Number("abc") is NaN, which would otherwise propagate through Math.round/max/min (every
+    // comparison against NaN is false) and leave the input showing "NaN" until reload.
+    const safeMinutes = Number.isNaN(rawMinutes) ? minutes : rawMinutes;
+    const clampedMinutes = Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, Math.round(safeMinutes)));
     setMinutes(clampedMinutes);
 
     setIsSaving(true);
