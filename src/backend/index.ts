@@ -230,7 +230,6 @@ const createWindow = (): BrowserWindow | null => {
         }
 
         if (settings.closeBehavior === "quit") {
-          isQuitting = true;
           app.quit();
           return;
         }
