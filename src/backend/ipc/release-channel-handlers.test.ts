@@ -454,21 +454,23 @@ describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", ()
     }
   });
 
-  it("still honors the original dialog's real answer after the watchdog timeout releases the guard, without disturbing a newer dialog (#456 blocking fix)", async () => {
-    // Pins the blocking fix directly (review on #456): the old Promise.race implementation
-    // attached .then/.finally to the RACE, not to the real dialogPromise, so once the 5-minute
-    // timeout "won" (a) the guard reset while the original, uncancellable native dialog was still
-    // on screen — reopening the stacking bug once a third event landed — and (b) the user's
-    // eventual real click on that original dialog fired no callback at all (silently dropped).
+  it("ignores the original dialog's late answer once superseded by a newer dialog, and does not disturb the newer dialog (#456 blocking fix, review round 3)", async () => {
+    // Pins the blocking fix directly (review on #456, round 3): the .then() handler must check
+    // requestId before acting on a resolved dialog's result, exactly like .finally() already does.
+    // Without that check, dialog 1's late click could silently flip updateDialogDismissedInSession
+    // (or worse, trigger quitAndInstall on "Restart Now") out from under dialog 2, which is a
+    // different, currently-open dialog the user hasn't answered yet — reintroducing a variant of
+    // the original stacking bug at the "whose answer wins" layer instead of the "which dialog
+    // opens" layer.
     //
-    // Scenario: dialog 1 hangs past its watchdog (guard releases) -> dialog 2 opens for a new
-    // event -> dialog 1's ORIGINAL promise finally resolves with "Later". Assert dialog 1's late
-    // response is still honored (updateDialogDismissedInSession flips) AND that honoring it does
-    // not incorrectly reset the guard out from under dialog 2, which is still open and unanswered.
-    // (Resolving dialog 1 with "Later" rather than "Restart Now" keeps this test isolated from the
-    // separate isRestartingToInstall short-circuit, which would otherwise also suppress a 4th
-    // event and make the guard-not-clobbered assertion below inconclusive.)
+    // Scenario: dialog 1 hangs past its watchdog (guard releases, requestId is now stale for
+    // dialog 1) -> dialog 2 opens for a new event (claims the current requestId) -> dialog 1's
+    // ORIGINAL promise finally resolves with "Later". Assert dialog 1's late response is IGNORED
+    // (updateDialogDismissedInSession stays false) and dialog 2's guard state is undisturbed — a
+    // subsequent event is still suppressed as a stack-on-top of the still-open, still-unanswered
+    // dialog 2.
     vi.useFakeTimers();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       let resolveFirstDialog: ((result: { response: number }) => void) | undefined;
       showMessageBoxMock.mockImplementationOnce(
@@ -478,7 +480,9 @@ describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", ()
           }),
       );
 
-      new ReleaseChannelIPCHandlers();
+      const handlers = new ReleaseChannelIPCHandlers() as unknown as {
+        updateDialogDismissedInSession: boolean;
+      };
 
       // Dialog 1 opens and hangs.
       emitAutoUpdaterEvent("update-downloaded");
@@ -488,26 +492,37 @@ describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", ()
       // open on screen (native dialogs can't be cancelled) and its promise is still pending.
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000);
 
-      // A third event now lands and opens dialog 2 (never settles either, for this test).
+      // A third event now lands and opens dialog 2 (never settles either, for this test). Dialog 2
+      // now owns the current requestId.
       showMessageBoxMock.mockImplementationOnce(() => new Promise(() => {}));
       emitAutoUpdaterEvent("update-downloaded");
       expect(showMessageBoxMock).toHaveBeenCalledTimes(2);
 
       // Dialog 1's ORIGINAL promise finally resolves — the user clicked "Later" on the
-      // stale-but-still-real dialog well after the timeout warning fired. Flush dialog 1's
-      // .then/.finally microtasks under fake timers before asserting.
+      // stale-but-still-real dialog well after the timeout warning fired and after dialog 2 opened.
+      // Flush dialog 1's .then/.finally microtasks under fake timers before asserting.
       resolveFirstDialog?.({ response: 1 });
       await vi.advanceTimersByTimeAsync(0);
 
-      // The late response must still be honored — dialog 1's own "Later" branch ran even though
-      // its watchdog already fired — and it must NOT have clobbered the guard state for dialog 2,
-      // which is still legitimately open and unanswered. A fourth event landing right now must
-      // still be suppressed as a stack-on-top of dialog 2, proving dialog 1's late .finally() did
-      // not incorrectly flip isUpdateDialogOpen back to false out from under dialog 2.
+      // Dialog 1's late response must be IGNORED, not honored: it no longer owns the current
+      // requestId (dialog 2 does), so it must not flip session-wide state out from under dialog 2.
+      // Asserting this directly (rather than only inferring it from suppression below, which
+      // isUpdateDialogOpen alone could also explain) is what actually pins the requestId guard on
+      // .then() — this is the assertion the pre-fix code would fail, since it honored the late
+      // response unconditionally.
+      expect(handlers.updateDialogDismissedInSession).toBe(false);
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(2); // no third dialog was opened
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("superseded by a newer dialog"));
+
+      // Dialog 2's guard state must also be undisturbed by dialog 1's late (ignored) resolution: a
+      // fourth event landing right now must still be suppressed as a stack-on-top of dialog 2,
+      // proving dialog 1's late .then()/.finally() did not incorrectly flip isUpdateDialogOpen out
+      // from under dialog 2, which is still legitimately open and unanswered.
       showMessageBoxMock.mockClear();
       emitAutoUpdaterEvent("update-downloaded");
       expect(showMessageBoxMock).not.toHaveBeenCalled();
     } finally {
+      warnSpy.mockRestore();
       vi.useRealTimers();
     }
   });

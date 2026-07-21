@@ -183,6 +183,20 @@ export class ReleaseChannelIPCHandlers {
       // response is always honored, however late it arrives.
       dialogPromise
         .then((result) => {
+          // Guard against an *abandoned* dialog's late response (review on #456, blocking finding):
+          // once this dialog's watchdog has fired and a newer dialog has claimed requestId, this
+          // dialog's own click must not act on session-wide state (dismissing the session, or
+          // quitting to install) out from under the newer, currently-open dialog. Only the dialog
+          // that still owns the current requestId is allowed to act on its result; a stale one is
+          // logged and otherwise ignored.
+          if (this.updateDialogRequestId !== requestId) {
+            console.warn(
+              "Update-ready dialog resolved after being superseded by a newer dialog; ignoring " +
+                "its response so it doesn't affect the newer dialog's outcome.",
+            );
+            return;
+          }
+
           if (result.response === 0) {
             // The app is quitting to install - short-circuit any further events immediately,
             // ahead of the isUpdateDialogOpen reset in .finally() below.
@@ -210,6 +224,10 @@ export class ReleaseChannelIPCHandlers {
           if (this.updateDialogRequestId === requestId) {
             this.isUpdateDialogOpen = false;
           }
+          // Cancel the watchdog now that this dialog has settled on its own (review on #456,
+          // minor finding) - avoids leaving a live 5-minute timer registered for every dialog
+          // shown when it isn't needed anymore (the common case: the user responds quickly).
+          clearTimeout(watchdogTimer);
         });
 
       // Bounded watchdog, separate from the dialog's own resolution (review on #456) - if
@@ -219,15 +237,17 @@ export class ReleaseChannelIPCHandlers {
       // session. This does NOT touch dialogPromise or its .then/.finally chain above - it only
       // (a) logs a warning and (b) frees the guard so a *future* update-downloaded event can show
       // its own dialog. The original dialogPromise keeps listening in the background; if the user
-      // eventually does click it, the .then handler above still runs and is still honored - it just
-      // won't re-release an already-released (or newer) guard, per the requestId check.
-      setTimeout(() => {
+      // eventually does click it, the .then handler above still runs, but (per the requestId check
+      // added above) only acts on the result if this dialog still owns the current requestId -
+      // otherwise it's an abandoned dialog's late click and is ignored rather than honored.
+      const watchdogTimer = setTimeout(() => {
         if (this.updateDialogRequestId === requestId && this.isUpdateDialogOpen) {
           console.warn(
             "Update-ready dialog has not received a response after " +
               `${ReleaseChannelIPCHandlers.UPDATE_DIALOG_TIMEOUT_MS / 1000}s; releasing the ` +
               "dialog-open guard so future update-ready reminders are not permanently suppressed. " +
-              "The original dialog is still on screen and its eventual response will still be honored.",
+              "The original dialog is still on screen; if the user eventually responds to it, that " +
+              "response will now be ignored rather than honored, to avoid clobbering a newer dialog.",
           );
           this.isUpdateDialogOpen = false;
         }
