@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Loader2,
   RefreshCw,
   Sparkles,
   XCircle,
@@ -15,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { formatErrorMessage, isErrorStep } from "@/utils";
 import { ipcClient } from "../../services/ipc-client";
 import type { MCPStep } from "../../types";
+import { LoadingState } from "../common/LoadingState";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
@@ -60,8 +60,8 @@ function OrchestratorBadge({ backend }: { backend: OrchestratorBackend }) {
 
 const STATUS_CONFIG = {
   in_progress: {
-    icon: Loader2,
-    iconClass: "animate-spin text-zinc-300",
+    icon: null,
+    iconClass: "text-zinc-300",
     containerClass: "border-gray-500/30 bg-gray-500/5",
     textClass: "text-white/90",
   },
@@ -87,6 +87,11 @@ const STATUS_CONFIG = {
 
 function StatusIcon({ status, className }: { status: WorkflowStep["status"]; className?: string }) {
   const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
+
+  if (status === "in_progress") {
+    return <LoadingState inline className={cn("size-5", config.iconClass, className)} />;
+  }
+
   const Icon = config.icon;
 
   if (!Icon) {
@@ -271,7 +276,7 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             className="bg-white/[0.08] border border-white/[0.15] hover:bg-white/[0.12] text-white/80 shrink-0"
           >
             {isRetrying ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <LoadingState inline className="size-3.5" />
             ) : (
               <>
                 <RefreshCw className="size-3.5 mr-1.5" />

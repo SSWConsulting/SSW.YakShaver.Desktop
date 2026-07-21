@@ -1,7 +1,8 @@
-import { Check, ChevronRight, Loader2, Undo2, Wrench, X } from "lucide-react";
+import { Check, ChevronRight, Undo2, Wrench, X } from "lucide-react";
 import type React from "react";
 import { type MCPStep, MCPStepType } from "../../types";
 import { deepParseJson, formatToolName } from "../../utils";
+import { LoadingState } from "../common/LoadingState";
 import { ReasoningStep } from "./ReasoningStep";
 
 const handleDetailsToggle = (data: unknown) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
@@ -72,7 +73,7 @@ interface UndoStagePanelProps {
 
 const StatusBadge = ({ status }: { status: UndoStagePanelProps["status"] }) => {
   if (status === "in_progress") {
-    return <Loader2 className="w-4 h-4 text-purple-200 animate-spin" />;
+    return <LoadingState inline className="w-4 h-4 text-purple-200" />;
   }
   if (status === "completed") {
     return <Check className="w-4 h-4 text-green-300" />;
