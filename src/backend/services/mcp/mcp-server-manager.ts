@@ -451,13 +451,14 @@ export class MCPServerManager {
       throw new Error(`[MCPServerManager]: Reauthorize - MCP server '${serverId}' not found`);
     }
     if (config.transport !== "streamableHttp" || config.builtin || !config.url) {
-      throw new Error(
-        `[MCPServerManager]: Reauthorize - server '${serverId}' does not use OAuth`,
-      );
+      throw new Error(`[MCPServerManager]: Reauthorize - server '${serverId}' does not use OAuth`);
     }
     const tokenStorage = McpOAuthTokenStorage.getInstance();
     await tokenStorage.clearTokensAsync(serverId);
-    await MCPServerManager.mcpClients.get(config.id)?.disconnectAsync().catch(() => undefined);
+    await MCPServerManager.mcpClients
+      .get(config.id)
+      ?.disconnectAsync()
+      .catch(() => undefined);
     MCPServerManager.mcpClients.delete(config.id);
     await authorizeWithBackend(tokenStorage, expandHomePath(config.url), serverId);
   }
