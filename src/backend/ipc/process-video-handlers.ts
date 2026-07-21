@@ -23,10 +23,12 @@ import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/port
 import type { ProjectDto } from "../services/prompt/prompt-manager";
 import { ShaveService } from "../services/shave/shave-service";
 import { LlmStorage } from "../services/storage/llm-storage";
+import { UserSettingsStorage } from "../services/storage/user-settings-storage";
 import { optimizeTranscript } from "../services/transcript/optimize-transcript-service";
 import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
+import { runManualLoopWithTimeout } from "../services/workflow/executing-task-timeout";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
@@ -163,7 +165,10 @@ export class ProcessVideoIPCHandlers {
             orchestrator: backend,
           });
 
-          const loopResult = await orchestrator.manualLoopAsync(
+          const { executingTaskTimeoutMs } =
+            await UserSettingsStorage.getInstance().getSettingsAsync();
+          const loopResult = await runManualLoopWithTimeout(
+            orchestrator,
             intermediateOutput,
             videoUploadResult,
             {
@@ -174,6 +179,7 @@ export class ProcessVideoIPCHandlers {
               shaveId,
               onStep: mcpAdapter.onStep,
             },
+            executingTaskTimeoutMs,
           );
 
           const mcpResult = loopResult.text;
@@ -206,7 +212,12 @@ export class ProcessVideoIPCHandlers {
     // Different from RERUN_TASK which is a user-initiated re-execution after success.
     ipcMain.handle(
       IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE,
-      async (_event: IpcMainInvokeEvent, stage: keyof WorkflowState, shaveId?: string) => {
+      async (
+        _event: IpcMainInvokeEvent,
+        stage: keyof WorkflowState,
+        shaveId?: string,
+        customPrompt?: string,
+      ) => {
         if (!WORKFLOW_STAGE_ORDER.includes(stage)) {
           return { success: false, error: `Invalid stage: ${stage}` };
         }
@@ -222,7 +233,11 @@ export class ProcessVideoIPCHandlers {
 
         if (shaveId) this.activeRetries.add(shaveId);
         try {
-          return await this.retryService.retryFromStage(stage, shaveId);
+          return await this.retryService.retryFromStage(
+            stage,
+            shaveId,
+            customPrompt?.trim() || undefined,
+          );
         } catch (error) {
           const errorMessage = formatAndReportError(error, "retry_from_stage");
           return { success: false, error: errorMessage };
@@ -405,7 +420,7 @@ export class ProcessVideoIPCHandlers {
   }
 
   private async processVideoSource(
-    { filePath, youtubeResult, shaveId, shaveAutoApprove }: VideoProcessingContext,
+    { filePath, youtubeResult, shaveId, shaveAutoApprove, customPrompt }: VideoProcessingContext,
     workflowManager: WorkflowStateManager,
     startFromStage?: keyof WorkflowState,
   ): Promise<RetryResult> {
@@ -655,17 +670,21 @@ export class ProcessVideoIPCHandlers {
           orchestrator: backend,
         });
 
-        const loopResult = await orchestrator.manualLoopAsync(
+        const { executingTaskTimeoutMs } =
+          await UserSettingsStorage.getInstance().getSettingsAsync();
+        const loopResult = await runManualLoopWithTimeout(
+          orchestrator,
           effectiveExecutionTranscript,
           youtubeResult,
           {
             projectMetaData,
-            desktopAgentProjectPrompt,
+            desktopAgentProjectPrompt: customPrompt ?? desktopAgentProjectPrompt,
             videoFilePath: filePath,
             serverFilter,
             shaveId,
             onStep: mcpAdapter.onStep,
           },
+          executingTaskTimeoutMs,
         );
 
         mcpResult = loopResult.text;

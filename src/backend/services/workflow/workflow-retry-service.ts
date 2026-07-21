@@ -18,6 +18,12 @@ export type VideoProcessingContext = {
   youtubeResult: VideoUploadResult;
   shaveId?: string;
   shaveAutoApprove?: boolean;
+  /**
+   * Optional user-supplied override for the Executing Task prompt, used when retrying after a
+   * failure (e.g. a timeout, #698) so the user can steer the retry instead of repeating the same
+   * run that got stuck. Only consumed by the EXECUTING_TASK stage.
+   */
+  customPrompt?: string;
 };
 
 export type RetryResult = {
@@ -95,7 +101,11 @@ export function validateCheckpointData(
 export class WorkflowRetryService {
   constructor(private deps: WorkflowRetryDeps) {}
 
-  async retryFromStage(stage: keyof WorkflowState, shaveId?: string): Promise<RetryResult> {
+  async retryFromStage(
+    stage: keyof WorkflowState,
+    shaveId?: string,
+    customPrompt?: string,
+  ): Promise<RetryResult> {
     if (!shaveId) {
       return { success: false, error: "Shave ID is required for retry" };
     }
@@ -118,7 +128,7 @@ export class WorkflowRetryService {
       case "downloading_video":
         return this.retryDownloadingVideo(workflowManager, checkpoint, shaveId);
       default:
-        return this.retryFromMiddleStage(workflowManager, checkpoint, stage, shaveId);
+        return this.retryFromMiddleStage(workflowManager, checkpoint, stage, shaveId, customPrompt);
     }
   }
 
@@ -214,6 +224,7 @@ export class WorkflowRetryService {
     checkpoint: CheckpointData,
     stage: keyof WorkflowState,
     shaveId: string,
+    customPrompt?: string,
   ): Promise<RetryResult> {
     const filePath = checkpoint.filePath || this.deps.getLastVideoFilePath();
     const youtubeResult = checkpoint.youtubeResult;
@@ -226,7 +237,7 @@ export class WorkflowRetryService {
     }
 
     return this.deps.processVideoSource(
-      { filePath, youtubeResult, shaveId },
+      { filePath, youtubeResult, shaveId, customPrompt },
       workflowManager,
       stage,
     );

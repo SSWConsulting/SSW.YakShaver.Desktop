@@ -1,8 +1,16 @@
 import { ProgressStage, type WorkflowStep } from "@shared/types/workflow";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowStepCard } from "./WorkflowStepCard";
+
+const { retryFromStage } = vi.hoisted(() => ({ retryFromStage: vi.fn() }));
+
+vi.mock("@/services/ipc-client", () => ({
+  ipcClient: {
+    workflow: { retryFromStage },
+  },
+}));
 
 /**
  * #645: "Updating metadata" never showed a green tick after it actually completed.
@@ -199,5 +207,78 @@ describe("WorkflowStepCard status rendering (#645)", () => {
     rerender(<WorkflowStepCard step={completedStep} label="Updating Metadata" shaveId="shave-1" />);
     const nodeAfterRecovered = screen.getByRole("button", { name: /Updating Metadata/i });
     expect(nodeAfterRecovered).toBe(nodeBeforeToggle);
+  });
+});
+
+/**
+ * #698: a failed executing_task step (e.g. from a new Executing Task timeout) gets an extra
+ * "retry with a custom prompt" affordance alongside the plain Retry button, letting the user
+ * steer the retry instead of repeating the exact run that got stuck. Other stages only ever get
+ * the plain Retry button.
+ */
+describe("WorkflowStepCard retry-with-custom-prompt (#698)", () => {
+  beforeEach(() => {
+    retryFromStage.mockReset();
+    retryFromStage.mockResolvedValue({ success: true });
+  });
+
+  it("shows a custom-prompt toggle button only for the failed executing_task stage", () => {
+    const step: WorkflowStep = {
+      stage: ProgressStage.EXECUTING_TASK,
+      status: "failed",
+      payload: JSON.stringify({ error: "Executing Task timed out after 300s" }),
+    };
+
+    render(<WorkflowStepCard step={step} label="Executing Task" shaveId="shave-1" />);
+
+    expect(screen.getByTitle("Retry with a custom prompt")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("does not show a custom-prompt toggle for a failed non-executing_task stage", () => {
+    const step = makeStep("failed", ProgressStage.UPDATING_METADATA);
+    step.payload = JSON.stringify({ error: "boom" });
+
+    render(<WorkflowStepCard step={step} label="Updating Metadata" shaveId="shave-1" />);
+
+    expect(screen.queryByTitle("Retry with a custom prompt")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("reveals a prompt input on toggle and passes the trimmed prompt to retryFromStage", async () => {
+    const user = userEvent.setup();
+    const step: WorkflowStep = {
+      stage: ProgressStage.EXECUTING_TASK,
+      status: "failed",
+      payload: JSON.stringify({ error: "Executing Task timed out after 300s" }),
+    };
+
+    render(<WorkflowStepCard step={step} label="Executing Task" shaveId="shave-1" />);
+
+    await user.click(screen.getByTitle("Retry with a custom prompt"));
+    const input = screen.getByPlaceholderText(/optional: add instructions/i);
+    await user.type(input, "  Please file as a bug  ");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(retryFromStage).toHaveBeenCalledWith(
+      "executing_task",
+      "shave-1",
+      "Please file as a bug",
+    );
+  });
+
+  it("omits the custom prompt when the plain Retry button is used directly", async () => {
+    const user = userEvent.setup();
+    const step: WorkflowStep = {
+      stage: ProgressStage.EXECUTING_TASK,
+      status: "failed",
+      payload: JSON.stringify({ error: "Executing Task timed out after 300s" }),
+    };
+
+    render(<WorkflowStepCard step={step} label="Executing Task" shaveId="shave-1" />);
+
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(retryFromStage).toHaveBeenCalledWith("executing_task", "shave-1", undefined);
   });
 });
