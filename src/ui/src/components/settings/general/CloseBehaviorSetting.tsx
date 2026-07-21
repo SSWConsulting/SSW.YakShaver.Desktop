@@ -110,8 +110,7 @@ export function CloseBehaviorSetting({ isActive }: CloseBehaviorSettingProps) {
       <div className="grid gap-2 md:grid-cols-2">
         {CLOSE_BEHAVIOR_OPTIONS.map((option) => {
           const isSelected = option.id === currentBehavior;
-          const isDisabled = isLoading || (!!pendingBehavior && pendingBehavior !== option.id);
-
+          const isDisabled = isLoading || pendingBehavior !== null;
           return (
             <button
               key={option.id}
