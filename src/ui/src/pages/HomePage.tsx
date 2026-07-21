@@ -22,6 +22,7 @@ import { Button } from "../components/ui/button";
 import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
 import { ipcClient } from "../services/ipc-client";
 import type { Shave } from "../types";
+import { parseWorkflowProgressNeoPayload } from "../utils";
 
 export function HomePage() {
   const [shaves, setShaves] = useState<Shave[]>([]);
@@ -33,8 +34,11 @@ export function HomePage() {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
 
-  const loadShaves = useCallback(async () => {
-    setLoading(true);
+  const loadShaves = useCallback(async (options?: { showLoadingState?: boolean }) => {
+    const showLoadingState = options?.showLoadingState ?? true;
+    if (showLoadingState) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const result = await ipcClient.shave.getAll();
@@ -50,12 +54,31 @@ export function HomePage() {
       toast.error("Failed to load shaves");
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoadingState) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     loadShaves();
+  }, [loadShaves]);
+
+  // #591: MyShaves previously only fetched the shave list once on mount, so a shave
+  // that finished processing while this page was open (or already loaded) never
+  // showed its updated status/results until a manual refresh. useShaveManager
+  // (mounted once in App.tsx) persists the processing/completed/failed status to the
+  // DB as workflow.onProgressNeo events arrive, but nothing told this page's list to
+  // re-fetch. Subscribe here too and silently re-fetch (no loading skeleton) on every
+  // progress event so the list picks up the persisted change as soon as it lands.
+  useEffect(() => {
+    return ipcClient.workflow.onProgressNeo((data: unknown) => {
+      const { shaveId } = parseWorkflowProgressNeoPayload(data);
+      if (!shaveId) {
+        return;
+      }
+      void loadShaves({ showLoadingState: false });
+    });
   }, [loadShaves]);
 
   const projectNames = useMemo(() => {
