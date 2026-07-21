@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, KeyRound, Loader2, XCircle } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ interface HealthStatusProps extends React.HTMLAttributes<HTMLDivElement> {
   successMessage?: string;
   successDetails?: SuccessDetails;
   error?: string;
+  authFailed?: boolean;
 }
 
 export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
@@ -27,6 +28,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
       successMessage,
       successDetails,
       error,
+      authFailed,
       ...props
     },
     ref,
@@ -108,6 +110,19 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
               <span>{successMessage}</span>
             )}
           </div>
+        </div>
+      );
+    }
+
+    if (authFailed) {
+      return (
+        <div ref={ref} className={cn("group relative flex items-center gap-2", className)} {...props}>
+          <KeyRound className="h-5 w-5 text-ssw-red" aria-label="Authentication failed" />
+          <div className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-48 rounded bg-neutral-800 px-2 py-2 text-xs shadow-lg break-words whitespace-normal">
+            <div className="font-semibold text-ssw-red">Authentication failed</div>
+            {error ? <div className="text-white/90">{error}</div> : null}
+          </div>
+          <span className="sr-only">Authentication failed</span>
         </div>
       );
     }

@@ -102,7 +102,7 @@ export function McpSettingsPanel({
             description: `Next to configure your Custom Prompt to include ${server.name} projects.`,
             duration: 8000,
           });
-        } else {
+        } else if (!result.authFailed) {
           toast.error(`Failed to connect ${server.name}`);
         }
       }
@@ -393,6 +393,14 @@ export function McpSettingsPanel({
               onTools={() => openWhitelistDialog(server)}
               onConnect={() => handleOnConnect(String(server.id), server)}
               onDisconnect={() => handleOnDisconnect(String(server.id), server)}
+              onReauthorize={async () => {
+                try {
+                  await ipcClient.mcp.reauthorizeAsync(String(server.id));
+                  await loadServers({ serverIdToRefresh: String(server.id) });
+                } catch (e) {
+                  toast.error(`Failed to reauthorize: ${formatErrorMessage(e)}`);
+                }
+              }}
               onUpdate={async (newConfig) => {
                 setEditingServer(server);
                 await handleSubmit(newConfig);

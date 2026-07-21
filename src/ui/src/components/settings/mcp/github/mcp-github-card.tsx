@@ -25,7 +25,7 @@ export function McpGitHubCard({
 }: McpGitHubCardProps) {
   const configLocal = config ?? GITHUB_PRESET_CONFIG;
 
-  const { handleOnConnect, handleOnDisconnect } = useMcpCardActions(
+  const { handleOnConnect, handleOnDisconnect, handleOnReauthorize } = useMcpCardActions(
     McpGitHubCard.Id,
     configLocal,
     onChange,
@@ -39,6 +39,7 @@ export function McpGitHubCard({
       healthInfo={healthInfo}
       onConnect={handleOnConnect}
       onDisconnect={handleOnDisconnect}
+      onReauthorize={handleOnReauthorize}
       onTools={onTools}
       viewMode={viewMode}
     />

@@ -29,5 +29,14 @@ export function useMcpCardActions(
     await toggleSettings(false);
   }
 
-  return { toggleSettings, handleOnConnect, handleOnDisconnect };
+  async function handleOnReauthorize(): Promise<void> {
+    try {
+      await ipcClient.mcp.reauthorizeAsync(serverId);
+      onChange?.({ ...configLocal });
+    } catch (error) {
+      toast.error(`Failed to reauthorize: ${formatErrorMessage(error)}`);
+    }
+  }
+
+  return { toggleSettings, handleOnConnect, handleOnDisconnect, handleOnReauthorize };
 }

@@ -12,6 +12,7 @@ interface McpCardProps {
   healthInfo?: HealthStatusInfo | null;
   onDisconnect?: () => void;
   onConnect?: () => void;
+  onReauthorize?: () => void;
   onDelete?: () => void;
   hideDelete?: boolean;
   onUpdate?: (data: MCPServerConfig) => Promise<void>;
@@ -27,6 +28,7 @@ export function McpCard({
   config,
   onConnect,
   onDisconnect,
+  onReauthorize,
   onDelete,
   hideDelete,
   onUpdate,
@@ -58,6 +60,8 @@ export function McpCard({
                   isDisabled={!config.enabled}
                   isHealthy={healthInfo.isHealthy}
                   successMessage={healthInfo.successMessage}
+                  authFailed={healthInfo.authFailed}
+                  error={healthInfo.error}
                   className="mr-4"
                 />
               )}
@@ -89,7 +93,19 @@ export function McpCard({
                   Connect
                 </Button>
               )}
-              {config.enabled && (
+              {config.enabled && healthInfo?.authFailed && onReauthorize && (
+                <Button
+                  variant="outline"
+                  className="w-28 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReauthorize();
+                  }}
+                >
+                  Reauthorize
+                </Button>
+              )}
+              {config.enabled && !(healthInfo?.authFailed && onReauthorize) && (
                 <Button
                   variant="destructiveOutline"
                   className="w-28 cursor-pointer"
