@@ -92,16 +92,6 @@ export class ReleaseChannelIPCHandlers {
   // (soon-to-exit) session is the safer failure mode versus risking a reminder popping up while the
   // app believes it is already on its way out.
   private isRestartingToInstall = false;
-  // Bound how long we wait on dialog.showMessageBox() before giving up on it (review on #456) - if
-  // the promise never settles (e.g. the parent window is destroyed while the dialog is up, or a
-  // native dialog-subsystem hang), isUpdateDialogOpen must not get stuck true forever, which would
-  // silently suppress every future update-ready reminder for the rest of the session.
-  private static readonly UPDATE_DIALOG_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-  // Monotonically increasing id for each dialog.showMessageBox() call this session (review on #456,
-  // blocking finding). Captured per-invocation so a late resolution from an *abandoned* dialog (one
-  // whose watchdog already fired and released the guard for a newer dialog) can be told apart from
-  // the *current* dialog's resolution - see the handler below for how it's used.
-  private updateDialogRequestId = 0;
 
   constructor() {
     ipcMain.handle(IPC_CHANNELS.RELEASE_CHANNEL_GET, () => this.getChannel());
@@ -159,44 +149,16 @@ export class ReleaseChannelIPCHandlers {
       }
       this.isUpdateDialogOpen = true;
 
-      // Identify this specific dialog invocation (review on #456, blocking finding) so the
-      // watchdog below can tell "my own dialog settled" apart from "a different, newer dialog is
-      // now open" when deciding whether it's still safe to touch isUpdateDialogOpen.
-      const requestId = ++this.updateDialogRequestId;
-
-      const dialogPromise = dialog.showMessageBox({
-        type: "info",
-        title: "Update Ready",
-        message: "A new version has been downloaded. Restart now to install?",
-        buttons: ["Restart Now", "Later"],
-        defaultId: 0,
-        cancelId: 1,
-      });
-
-      // The handler below is attached directly to dialogPromise - NOT to a Promise.race with a
-      // timeout (review on #456, blocking finding). dialog.showMessageBox() is a real, uncancellable
-      // native OS-modal dialog: racing it against a timeout and wiring .then/.finally to the race
-      // meant that once the timeout "won", the guard reset while the real dialog was still on
-      // screen (re-opening the original stacking bug ~5 minutes later) AND the user's eventual real
-      // click fired no callback at all (silently dropped, per Promise.race semantics - only the
-      // winning branch's continuation ever runs). Attaching here instead means a late, real
-      // response is always honored, however late it arrives.
-      dialogPromise
+      dialog
+        .showMessageBox({
+          type: "info",
+          title: "Update Ready",
+          message: "A new version has been downloaded. Restart now to install?",
+          buttons: ["Restart Now", "Later"],
+          defaultId: 0,
+          cancelId: 1,
+        })
         .then((result) => {
-          // Guard against an *abandoned* dialog's late response (review on #456, blocking finding):
-          // once this dialog's watchdog has fired and a newer dialog has claimed requestId, this
-          // dialog's own click must not act on session-wide state (dismissing the session, or
-          // quitting to install) out from under the newer, currently-open dialog. Only the dialog
-          // that still owns the current requestId is allowed to act on its result; a stale one is
-          // logged and otherwise ignored.
-          if (this.updateDialogRequestId !== requestId) {
-            console.warn(
-              "Update-ready dialog resolved after being superseded by a newer dialog; ignoring " +
-                "its response so it doesn't affect the newer dialog's outcome.",
-            );
-            return;
-          }
-
           if (result.response === 0) {
             // The app is quitting to install - short-circuit any further events immediately,
             // ahead of the isUpdateDialogOpen reset in .finally() below.
@@ -218,40 +180,11 @@ export class ReleaseChannelIPCHandlers {
           console.error("Error showing update dialog:", err);
         })
         .finally(() => {
-          // Only release the guard if a newer dialog hasn't already claimed it (see the watchdog
-          // below) - otherwise a very-late resolution of an abandoned dialog could incorrectly
-          // clear the guard out from under a dialog that's currently open.
-          if (this.updateDialogRequestId === requestId) {
-            this.isUpdateDialogOpen = false;
-          }
-          // Cancel the watchdog now that this dialog has settled on its own (review on #456,
-          // minor finding) - avoids leaving a live 5-minute timer registered for every dialog
-          // shown when it isn't needed anymore (the common case: the user responds quickly).
-          clearTimeout(watchdogTimer);
-        });
-
-      // Bounded watchdog, separate from the dialog's own resolution (review on #456) - if
-      // dialog.showMessageBox() never settles (e.g. the parent window is destroyed while it's up,
-      // or a native dialog-subsystem hang), isUpdateDialogOpen must not stay stuck true forever,
-      // which would silently suppress every future update-ready reminder for the rest of the
-      // session. This does NOT touch dialogPromise or its .then/.finally chain above - it only
-      // (a) logs a warning and (b) frees the guard so a *future* update-downloaded event can show
-      // its own dialog. The original dialogPromise keeps listening in the background; if the user
-      // eventually does click it, the .then handler above still runs, but (per the requestId check
-      // added above) only acts on the result if this dialog still owns the current requestId -
-      // otherwise it's an abandoned dialog's late click and is ignored rather than honored.
-      const watchdogTimer = setTimeout(() => {
-        if (this.updateDialogRequestId === requestId && this.isUpdateDialogOpen) {
-          console.warn(
-            "Update-ready dialog has not received a response after " +
-              `${ReleaseChannelIPCHandlers.UPDATE_DIALOG_TIMEOUT_MS / 1000}s; releasing the ` +
-              "dialog-open guard so future update-ready reminders are not permanently suppressed. " +
-              "The original dialog is still on screen; if the user eventually responds to it, that " +
-              "response will now be ignored rather than honored, to avoid clobbering a newer dialog.",
-          );
+          // Keep the guard for the full lifetime of the native dialog. This dialog has no reliable
+          // cross-platform cancellation configured, so releasing the guard on a timeout would
+          // allow another dialog to stack on top while the original is still visible.
           this.isUpdateDialogOpen = false;
-        }
-      }, ReleaseChannelIPCHandlers.UPDATE_DIALOG_TIMEOUT_MS);
+        });
     });
   }
 
