@@ -3,8 +3,11 @@ import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ToolSet } from "ai";
 import { PRESET_MCP_SERVERS } from "../../../shared/mcp/preset-servers";
 import type { HealthStatusInfo } from "../../types/index.js";
+import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 import { McpStorage } from "../storage/mcp-storage";
+import { authorizeWithBackend } from "./mcp-oauth";
 import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
+import { expandHomePath } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 
 /** Fields valid ONLY on an HTTP (streamableHttp) server config. */
@@ -435,6 +438,28 @@ export class MCPServerManager {
           : "Healthy"
         : undefined,
     };
+  }
+
+  /**
+   * Re-authorizes an OAuth MCP server in place (#982): drop the dead credential,
+   * invalidate any cached client, and rerun the existing backend OAuth flow.
+   * Never mutates `enabled` — this is a credential refresh, not a disconnect.
+   */
+  public async reauthorizeServerAsync(serverId: string): Promise<void> {
+    const config = await MCPServerManager.resolveServerConfigAsync(serverId);
+    if (!config) {
+      throw new Error(`[MCPServerManager]: Reauthorize - MCP server '${serverId}' not found`);
+    }
+    if (config.transport !== "streamableHttp" || config.builtin || !config.url) {
+      throw new Error(
+        `[MCPServerManager]: Reauthorize - server '${serverId}' does not use OAuth`,
+      );
+    }
+    const tokenStorage = McpOAuthTokenStorage.getInstance();
+    await tokenStorage.clearTokensAsync(serverId);
+    await MCPServerManager.mcpClients.get(config.id)?.disconnectAsync().catch(() => undefined);
+    MCPServerManager.mcpClients.delete(config.id);
+    await authorizeWithBackend(tokenStorage, expandHomePath(config.url), serverId);
   }
 
   private static validateServerConfig(config: MCPServerConfig): void {

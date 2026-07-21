@@ -5,6 +5,8 @@ import type { MCPServerConfig } from "./types";
 const storageState = vi.hoisted(() => ({ configs: [] as MCPServerConfig[] }));
 const mocks = vi.hoisted(() => ({
   createClientAsync: vi.fn(),
+  clearTokensAsync: vi.fn(),
+  authorizeWithBackend: vi.fn(),
 }));
 
 vi.mock("../storage/mcp-storage", () => ({
@@ -17,6 +19,22 @@ vi.mock("../storage/mcp-storage", () => ({
     }),
   },
 }));
+
+vi.mock("../storage/mcp-oauth-token-storage", () => ({
+  McpOAuthTokenStorage: {
+    getInstance: () => ({
+      clearTokensAsync: mocks.clearTokensAsync,
+    }),
+  },
+}));
+
+vi.mock("./mcp-oauth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./mcp-oauth")>();
+  return {
+    ...actual,
+    authorizeWithBackend: mocks.authorizeWithBackend,
+  };
+});
 
 vi.mock("./mcp-server-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./mcp-server-client")>();
@@ -113,6 +131,8 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
       },
     ];
     mocks.createClientAsync.mockReset();
+    mocks.clearTokensAsync.mockReset();
+    mocks.authorizeWithBackend.mockReset();
   });
 
   it("reports authFailed when the tool probe returns 401", async () => {
@@ -143,5 +163,18 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
     const result = await manager.checkServerHealthAsync("srv-1");
     expect(result.isHealthy).toBe(false);
     expect(result.authFailed).toBeFalsy();
+  });
+
+  it("reauthorize clears tokens and reruns OAuth without changing enabled", async () => {
+    mocks.authorizeWithBackend.mockResolvedValue({ access_token: "new-token" });
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    await manager.reauthorizeServerAsync("srv-1");
+
+    expect(mocks.clearTokensAsync).toHaveBeenCalledWith("srv-1");
+    expect(mocks.authorizeWithBackend).toHaveBeenCalled();
+
+    const cfg = (await manager.listAvailableServers()).find((s) => s.id === "srv-1");
+    expect(cfg?.enabled).not.toBe(false);
   });
 });

@@ -128,6 +128,14 @@ export class McpIPCHandlers {
       },
     );
 
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_REAUTHORIZE,
+      async (_event: IpcMainInvokeEvent, serverId: string) => {
+        await this.mcpServerManager.reauthorizeServerAsync(serverId);
+        return { success: true };
+      },
+    );
+
     ipcMain.on(IPC_CHANNELS.MCP_PREFILL_PROMPT, (_event, text: string) => {
       BrowserWindow.getAllWindows().forEach((win) => {
         if (!win.isDestroyed()) {
