@@ -53,7 +53,7 @@ Install [Chocolatey](https://chocolatey.org/install) (skip this if you already h
 Python, in one PowerShell command (run PowerShell **as Administrator**):
 
 ```powershell
-powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')); choco install python -y"
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')); choco install python -y
 ```
 
 If Chocolatey is already installed:
@@ -64,14 +64,31 @@ choco install python -y
 
 ### Verify the installation
 
+**macOS** (Homebrew installs Python as `python3`/`pip3`):
+
 ```bash
+python3 --version
+pip3 --version
+```
+
+**Windows** (Chocolatey installs Python as `python`/`pip`):
+
+```powershell
 python --version
 pip --version
 ```
 
 ### Install the video downloader (yt-dlp)
 
+**macOS**:
+
 ```bash
+python3 -m pip install -U yt-dlp
+```
+
+**Windows**:
+
+```powershell
 python -m pip install -U yt-dlp
 ```
 
@@ -83,10 +100,9 @@ yt-dlp "https://www.youtube.com/watch?v=example"
 
 ### Common PATH issues
 
-- **macOS**: if `python`/`pip` aren't found after installing via Homebrew, open a new terminal
+- **macOS**: if `python3`/`pip3` aren't found after installing via Homebrew, open a new terminal
   window (or run `source ~/.zprofile` / `source ~/.bash_profile`) so your shell picks up
-  Homebrew's PATH changes. Homebrew installs Python as `python3`/`pip3` — use those names if
-  `python`/`pip` are unavailable, or confirm your Homebrew `bin` directory (`brew --prefix`) is on
+  Homebrew's PATH changes, or confirm your Homebrew `bin` directory (`brew --prefix`) is on
   `PATH`.
 - **Windows**: if `python`/`pip` aren't recognised after installing via Chocolatey, close and
   reopen your terminal so the updated `PATH` environment variable is picked up. If it's still not
