@@ -76,6 +76,18 @@ describe("PromptSelectionDialog (#967)", () => {
     expect(screen.queryByText(/YakShaver analysed your video/i)).not.toBeInTheDocument();
   });
 
+  it("keeps an accessible description wired to the confirm dialog (a11y regression guard)", () => {
+    render(<PromptSelectionDialog request={makeRequest()} onSubmit={vi.fn()} />);
+
+    const dialog = screen.getByRole("alertdialog");
+    const describedById = dialog.getAttribute("aria-describedby");
+    expect(describedById).toBeTruthy();
+
+    const description = describedById ? document.getElementById(describedById) : null;
+    expect(description).not.toBeNull();
+    expect(description?.textContent).not.toMatch(/YakShaver analysed your video/i);
+  });
+
   it("still submits the initially selected project when Continue is clicked", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn().mockResolvedValue(undefined);

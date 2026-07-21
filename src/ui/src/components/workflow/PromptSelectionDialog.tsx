@@ -133,6 +133,9 @@ export function PromptSelectionDialog({
           <>
             <AlertDialogHeader>
               <AlertDialogTitle>Do you want to proceed with the project?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Review the selected project below before continuing.
+              </AlertDialogDescription>
             </AlertDialogHeader>
 
             <div className="bg-secondary/20 p-4 rounded-md space-y-2 mt-2">
