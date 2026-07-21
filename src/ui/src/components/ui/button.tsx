@@ -50,7 +50,12 @@ const buttonVariants = cva(
         sm: `h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5 ${HIT_TARGET_44}`,
         lg: "min-h-11 min-w-11 rounded-md px-6 has-[>svg]:px-4",
         icon: `size-9 ${HIT_TARGET_44}`,
-        chunky: "h-14 px-6 py-4"
+        chunky: "h-14 px-6 py-4",
+        // Larger than `chunky` — used only for the Home page's primary
+        // record/stop control so it meets larger hit-target and visual
+        // prominence expectations without affecting other `chunky` buttons
+        // (e.g. the Settings sidebar-footer button) (issue #641).
+        chunkyLg: "h-16 px-8 py-5 text-base",
       },
     },
     defaultVariants: {

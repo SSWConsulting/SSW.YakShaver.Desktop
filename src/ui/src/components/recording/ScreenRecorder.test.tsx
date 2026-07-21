@@ -360,3 +360,59 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     expect(screen.queryByText("Start Recording")).not.toBeInTheDocument();
   });
 });
+
+describe("ScreenRecorder - record/stop icon (#641)", () => {
+  beforeEach(() => {
+    // Single-button layout (no split), simplest surface for asserting the
+    // record/stop icon + accessible name/tooltip pairing.
+    state.isYoutubeUrlWorkflowEnabled = false;
+    state.isRecording = false;
+    state.isProcessing = false;
+    state.authStatus = AuthStatus.AUTHENTICATED;
+    state.uploadStatus = UploadStatus.IDLE;
+    state.recordedVideo = null;
+    state.saveRecording = vi.fn().mockResolvedValue({ data: { id: "shave-1" } });
+    state.checkExistingShave = vi.fn().mockResolvedValue(undefined);
+
+    state.stopRequestHandler = null;
+    (window as unknown as { electronAPI: unknown }).electronAPI = {
+      screenRecording: {
+        onStopRequest: vi.fn((cb: (...args: unknown[]) => void) => {
+          state.stopRequestHandler = cb;
+          return () => {};
+        }),
+        onOpenSourcePicker: vi.fn(() => () => {}),
+        restoreMainWindow: vi.fn(),
+        hasAudio: vi.fn().mockResolvedValue({ success: true, hasAudio: true }),
+      },
+      pipelines: {
+        processVideoFile: vi.fn().mockResolvedValue(undefined),
+        processVideoUrl: vi.fn().mockResolvedValue(undefined),
+      },
+      userSettings: { onHotkeyUpdate: vi.fn(() => () => {}) },
+    };
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it("shows a record icon with a matching accessible label and tooltip when not recording", async () => {
+    render(<ScreenRecorder showButtonOnly />);
+
+    const button = await screen.findByRole("button", { name: "Start Recording" });
+    expect(button).toHaveAccessibleName("Start Recording");
+    expect(button).toHaveAttribute("aria-label", "Start Recording");
+    expect(button).toHaveAttribute("title", "Start Recording");
+    expect(button.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("shows a stop icon with a matching accessible label and tooltip while recording", async () => {
+    state.isRecording = true;
+    render(<ScreenRecorder showButtonOnly />);
+
+    const button = await screen.findByRole("button", { name: "Stop Recording" });
+    expect(button).toHaveAccessibleName("Stop Recording");
+    expect(button).toHaveAttribute("aria-label", "Stop Recording");
+    expect(button).toHaveAttribute("title", "Stop Recording");
+    expect(button.querySelector("svg")).toBeInTheDocument();
+  });
+});
