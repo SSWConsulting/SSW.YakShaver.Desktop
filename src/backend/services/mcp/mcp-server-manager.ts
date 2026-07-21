@@ -426,12 +426,17 @@ export class MCPServerManager {
 
     const probe = await client.probeHealthAsync();
     if (probe.healthy) {
+      await MCPServerManager.mcpClients
+        .get(serverConfig.id)
+        ?.disconnectAsync()
+        .catch(() => undefined);
       MCPServerManager.mcpClients.set(serverConfig.id, client);
     }
     return {
       isHealthy: probe.healthy,
       isChecking: false,
       authFailed: probe.authFailed,
+      error: probe.healthy ? undefined : probe.error,
       successMessage: probe.healthy
         ? probe.toolCount > 0
           ? `Healthy - ${probe.toolCount} tools available`

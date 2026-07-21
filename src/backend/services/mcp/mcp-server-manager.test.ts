@@ -175,6 +175,47 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
     expect(mocks.authorizeWithBackend).toHaveBeenCalled();
 
     const cfg = (await manager.listAvailableServers()).find((s) => s.id === "srv-1");
-    expect(cfg?.enabled).not.toBe(false);
+    expect(cfg?.enabled).toBe(true);
+  });
+
+  it("reauthorize disconnects and evicts a previously cached client", async () => {
+    mocks.authorizeWithBackend.mockResolvedValue({ access_token: "new-token" });
+    const disconnectAsync = vi.fn().mockResolvedValue(undefined);
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    (
+      MCPServerManager as unknown as {
+        mcpClients: Map<string, { disconnectAsync: () => Promise<void> }>;
+      }
+    ).mcpClients.set("srv-1", { disconnectAsync });
+
+    await manager.reauthorizeServerAsync("srv-1");
+
+    expect(disconnectAsync).toHaveBeenCalled();
+    expect(
+      (
+        MCPServerManager as unknown as {
+          mcpClients: Map<string, unknown>;
+        }
+      ).mcpClients.has("srv-1"),
+    ).toBe(false);
+  });
+
+  it("surfaces a non-empty error string when the probe fails with 401", async () => {
+    mocks.createClientAsync.mockResolvedValue({
+      probeHealthAsync: vi.fn().mockResolvedValue({
+        healthy: false,
+        toolCount: 0,
+        authFailed: true,
+        error: "HTTP 401 Unauthorized",
+      }),
+    });
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    const result = await manager.checkServerHealthAsync("srv-1");
+    expect(result.isHealthy).toBe(false);
+    expect(result.authFailed).toBe(true);
+    expect(typeof result.error).toBe("string");
+    expect(result.error).not.toHaveLength(0);
   });
 });

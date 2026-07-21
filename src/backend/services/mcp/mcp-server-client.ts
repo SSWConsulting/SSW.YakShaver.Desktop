@@ -295,12 +295,18 @@ export class MCPServerClient {
     healthy: boolean;
     toolCount: number;
     authFailed: boolean;
+    error?: string;
   }> {
     try {
       const toolCount = await this.toolCountAsync();
       return { healthy: true, toolCount, authFailed: false };
     } catch (err) {
-      return { healthy: false, toolCount: 0, authFailed: MCPServerClient.isAuthError(err) };
+      return {
+        healthy: false,
+        toolCount: 0,
+        authFailed: MCPServerClient.isAuthError(err),
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   }
 
