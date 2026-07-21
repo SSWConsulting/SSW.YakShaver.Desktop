@@ -2,7 +2,7 @@ import { Globe, Plug } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { HealthStatusInfo } from "@/types";
-import { formatErrorMessage } from "@/utils";
+import { formatErrorMessage, formatIpcErrorMessage } from "@/utils";
 import { ipcClient } from "../../../services/ipc-client";
 import {
   AlertDialog,
@@ -396,9 +396,11 @@ export function McpSettingsPanel({
               onReauthorize={async () => {
                 try {
                   await ipcClient.mcp.reauthorizeAsync(String(server.id));
-                  await loadServers({ serverIdToRefresh: String(server.id) });
                 } catch (e) {
-                  toast.error(`Failed to reauthorize: ${formatErrorMessage(e)}`);
+                  toast.error(`Failed to reauthorize: ${formatIpcErrorMessage(e)}`);
+                } finally {
+                  // Re-check health either way so a failed re-auth stays visible on the card (#982).
+                  await loadServers({ serverIdToRefresh: String(server.id) });
                 }
               }}
               onUpdate={async (newConfig) => {

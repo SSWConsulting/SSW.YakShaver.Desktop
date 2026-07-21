@@ -1,7 +1,8 @@
+import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../../../services/ipc-client";
-import { formatToolName } from "../../../utils";
+import { formatIpcErrorMessage, formatToolName } from "../../../utils";
 import { Button } from "../../ui/button";
 import { Checkbox } from "../../ui/checkbox";
 import {
@@ -32,7 +33,13 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!server) return;
+    // On close, clear transient state so a re-open never shows a stale
+    // tool list or error (e.g. after reauthorizing from the card) (#982).
+    if (!server) {
+      setError(null);
+      setTools([]);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     setTools([]);
@@ -45,7 +52,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
         setTools(sorted);
       })
       .catch((e) => {
-        setError(`Failed to load tools: ${String(e)}`);
+        setError(`Failed to load tools: ${formatIpcErrorMessage(e)}`);
       })
       .finally(() => setIsLoading(false));
   }, [server]);
@@ -74,7 +81,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
       toast.success(`Whitelist updated for '${server.name}'`);
       onSaved();
     } catch (e) {
-      setError(`Failed to save whitelist: ${String(e)}`);
+      setError(`Failed to save whitelist: ${formatIpcErrorMessage(e)}`);
     } finally {
       setIsSaving(false);
     }
@@ -130,9 +137,14 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
           </div>
         </ScrollArea>
         {error && (
-          <p role="alert" className="text-sm text-ssw-red break-words whitespace-normal">
-            {error}
-          </p>
+          // Persistent inline error (not a fleeting toast), styled like SettingsWarningBanner (#982).
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-ssw-red/40 bg-ssw-red/10 px-3 py-2 text-sm leading-relaxed text-ssw-red break-words whitespace-normal"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
         )}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={disabled}>

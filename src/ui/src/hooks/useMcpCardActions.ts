@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import { ipcClient } from "@/services/ipc-client";
-import { formatErrorMessage } from "@/utils";
+import { formatIpcErrorMessage } from "@/utils";
 
 export function useMcpCardActions(
   serverId: string,
@@ -20,7 +20,7 @@ export function useMcpCardActions(
     try {
       await toggleSettings(true);
     } catch (error) {
-      toast.error(`Failed to connect: ${formatErrorMessage(error)}`);
+      toast.error(`Failed to connect: ${formatIpcErrorMessage(error)}`);
     }
   }
 
@@ -32,9 +32,11 @@ export function useMcpCardActions(
   async function handleOnReauthorize(): Promise<void> {
     try {
       await ipcClient.mcp.reauthorizeAsync(serverId);
-      onChange?.({ ...configLocal });
     } catch (error) {
-      toast.error(`Failed to reauthorize: ${formatErrorMessage(error)}`);
+      toast.error(`Failed to reauthorize: ${formatIpcErrorMessage(error)}`);
+    } finally {
+      // Re-check health either way so a failed re-auth stays visible on the card (#982).
+      onChange?.({ ...configLocal });
     }
   }
 
