@@ -81,7 +81,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
     <Dialog open={open} onOpenChange={(value) => (!value ? onClose() : undefined)}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Configure Tool Whitelist</DialogTitle>
+          <DialogTitle>MCP Tools</DialogTitle>
           <DialogDescription>
             Add or remove tool from whitelist for server '{server?.name}'.
           </DialogDescription>
