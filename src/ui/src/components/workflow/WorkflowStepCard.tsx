@@ -190,12 +190,6 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
   const hasErrorDetail =
     isFailed && ((hasStructuredSteps && hasPayload) || (!hasStructuredSteps && !!errorMessage));
 
-  // #974 review: a failed step can still have no payload at all (it failed before any
-  // detail was captured). It has nothing to expand into, but the row must still carry
-  // a failure affordance beyond the icon/border colour alone, so the hint renders
-  // whenever the step failed — not only when there's a payload to expand.
-  const showFailedHint = isFailed && !isExpanded;
-
   const config =
     STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
 
@@ -242,27 +236,19 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
         >
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <StatusIcon status={effectiveStatus} />
-            <span className={cn("font-medium shrink-0", config.textClass)}>{label}</span>
-            {/* #974 review: the ellipsis is a decorative, aria-hidden marker kept out of
-                the accessible label — baking it into the label string duplicated the
-                chevron's expand/collapse affordance and got read literally ("dot dot
-                dot") by screen readers. Only shown when there's actually something to
-                expand into, so a no-payload row doesn't imply hidden content. */}
-            {isExpandable && (
-              <span aria-hidden="true" className={cn("shrink-0", config.textClass)}>
-                &hellip;
-              </span>
-            )}
+            <span className="flex shrink-0 items-center gap-1">
+              <span className={cn("font-medium", config.textClass)}>{label}</span>
+              {/* Keep the visual affordance out of the accessible label. */}
+              {isExpandable && (
+                <span aria-hidden="true" className={config.textClass}>
+                  &hellip;
+                </span>
+              )}
+            </span>
             {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
-            {/* #974 review: collapsed failed rows get a subtle inline hint instead of the
-                full error block, so an error doesn't dominate the row until expanded.
-                Shown whenever the step failed — even with no payload to expand into —
-                so a failed+no-payload row still carries a failure affordance beyond the
-                icon/border colour alone. min-w-0 + flex-1 let it actually shrink/
-                truncate instead of being squeezed to nothing by its siblings. */}
-            {showFailedHint && (
-              <span className="text-xs text-red-400/60 truncate min-w-0 flex-1 text-right">
-                {hasErrorDetail ? "Error — expand for details" : "Error"}
+            {isFailed && (
+              <span className="sr-only">
+                {hasErrorDetail ? "Error. Expand for details." : "Error."}
               </span>
             )}
           </div>

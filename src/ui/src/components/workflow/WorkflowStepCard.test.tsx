@@ -49,10 +49,10 @@ describe("WorkflowStepCard status rendering (#645)", () => {
     render(<WorkflowStepCard step={step} label="Updating Metadata" shaveId="shave-1" />);
 
     expect(document.querySelector(".text-red-400")).not.toBeNull();
-    // #523: the full error message is opt-in — a collapsed failed row shows only a
-    // subtle hint, not the prominent error block, until the user expands it.
+    // #523: the full error message is opt-in. The collapsed row communicates the
+    // failure visually and keeps an accessible instruction without crowding the header.
     expect(screen.queryByText(/quota exceeded/)).not.toBeInTheDocument();
-    expect(screen.getByText(/expand for details/i)).toBeInTheDocument();
+    expect(screen.getByText("Error. Expand for details.")).toHaveClass("sr-only");
   });
 
   it("reveals the full error detail once a collapsed failed row is expanded (#523)", async () => {
@@ -155,9 +155,9 @@ describe("WorkflowStepCard status rendering (#645)", () => {
     render(<WorkflowStepCard step={step} label="Updating Metadata" shaveId="shave-1" />);
 
     expect(document.querySelector(".text-red-400")).not.toBeNull();
-    // There's nothing to expand into, so the hint reads plainly "Error" rather than
-    // promising detail that doesn't exist — but a hint is still present.
-    expect(screen.getByText("Error")).toBeInTheDocument();
+    // There's nothing to expand into, so the accessible text reads plainly "Error"
+    // rather than promising detail that doesn't exist.
+    expect(screen.getByText("Error.")).toHaveClass("sr-only");
     expect(screen.queryByText(/expand for details/i)).not.toBeInTheDocument();
   });
 
