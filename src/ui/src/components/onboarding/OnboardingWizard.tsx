@@ -1,6 +1,13 @@
+import { HelpCircle } from "lucide-react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import type { StepHandlers } from "@/types/onboarding";
-import { LLM_STEP_ID, MCP_STEP_ID, STEPS, VIDEO_STEP_ID } from "@/types/onboarding";
+import {
+  LLM_STEP_ID,
+  MCP_STEP_HELP_TEXT,
+  MCP_STEP_ID,
+  STEPS,
+  VIDEO_STEP_ID,
+} from "@/types/onboarding";
 import { ONBOARDING_COMPLETED_KEY } from "../../constants/onboarding";
 import { useOnboardingWizard } from "../../hooks/useOnboardingWizard";
 import { ScrollArea } from "../ui/scroll-area";
@@ -92,9 +99,18 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
 
       {/* Card header */}
       <div className="flex flex-col gap-1.5 p-6 w-full">
-        <p className="text-2xl font-semibold leading-6 tracking-[-0.015em] text-white/[0.98]">
-          {currentStepData.title}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-2xl font-semibold leading-6 tracking-[-0.015em] text-white/[0.98]">
+            {currentStepData.title}
+          </p>
+          {wizard.currentStep === MCP_STEP_ID && (
+            <HelpCircle
+              className="w-4 h-4 text-white/[0.56] shrink-0"
+              aria-label="What is MCP?"
+              title={MCP_STEP_HELP_TEXT}
+            />
+          )}
+        </div>
         <p className="text-sm font-normal leading-5 text-white/[0.56]">
           {currentStepData.description}
         </p>
