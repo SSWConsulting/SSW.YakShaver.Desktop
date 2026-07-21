@@ -24,6 +24,79 @@ In the root folder, run
 On Windows and macOS, `npm run setup` also installs the standalone `yt-dlp` binary used
 for YouTube downloads. This avoids relying on the operating system's Python.
 
+## Install Python for video downloader (Mac & Windows)
+
+[▶️ Watch the video (01:02)](https://www.youtube.com/watch?v=cW9aLi-8igc)
+
+`npm run setup` installs a standalone `yt-dlp` binary automatically (see [Run](#run)), so most
+users don't need to install Python at all. If you hit an issue with the bundled binary, or you're
+running the video downloader outside the app, you can install Python and `yt-dlp` yourself with
+the commands below.
+
+### macOS
+
+Install [Homebrew](https://brew.sh/) (skip this if you already have it) and then Python, in one line:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && brew install python
+```
+
+If Homebrew is already installed:
+
+```bash
+brew install python
+```
+
+### Windows
+
+Install [Chocolatey](https://chocolatey.org/install) (skip this if you already have it) and then
+Python, in one PowerShell command (run PowerShell **as Administrator**):
+
+```powershell
+powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')); choco install python -y"
+```
+
+If Chocolatey is already installed:
+
+```powershell
+choco install python -y
+```
+
+### Verify the installation
+
+```bash
+python --version
+pip --version
+```
+
+### Install the video downloader (yt-dlp)
+
+```bash
+python -m pip install -U yt-dlp
+```
+
+Once installed, you can run the video downloader from the command line, e.g.:
+
+```bash
+yt-dlp "https://www.youtube.com/watch?v=example"
+```
+
+### Common PATH issues
+
+- **macOS**: if `python`/`pip` aren't found after installing via Homebrew, open a new terminal
+  window (or run `source ~/.zprofile` / `source ~/.bash_profile`) so your shell picks up
+  Homebrew's PATH changes. Homebrew installs Python as `python3`/`pip3` — use those names if
+  `python`/`pip` are unavailable, or confirm your Homebrew `bin` directory (`brew --prefix`) is on
+  `PATH`.
+- **Windows**: if `python`/`pip` aren't recognised after installing via Chocolatey, close and
+  reopen your terminal so the updated `PATH` environment variable is picked up. If it's still not
+  found, verify the Python install directory and its `Scripts` folder were added to `PATH` (the
+  Chocolatey package does this automatically, but a prior manual Python install without the "Add
+  Python to PATH" option can shadow it — reinstall with that option checked, or add the paths
+  manually via System Properties → Environment Variables).
+- On both OSes, restarting your terminal (or your machine, if PATH still doesn't refresh) after
+  installation resolves most "command not found" issues.
+
 ## Building
 
 1. `npm run setup` – ensure all dependencies are installed
