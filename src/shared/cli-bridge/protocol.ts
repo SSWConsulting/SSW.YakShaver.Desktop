@@ -48,6 +48,15 @@ export const CLI_BRIDGE_TOKEN_ENV = "YAKSHAVER_BRIDGE_TOKEN";
  */
 export const CLI_BRIDGE_SERVER_FILTER_ENV = "YAKSHAVER_BRIDGE_SERVER_FILTER";
 
+/**
+ * The current shave's id, injected the same way as {@link CLI_BRIDGE_SERVER_FILTER_ENV}. The
+ * front-door forwards it on `POST /tools/call` so the bridge's `wait`-mode approval prompt can key
+ * off the same per-shave "auto-approve for this shave" override the OpenAI backend supports
+ * (`UserInteractionService.setShaveAutoApprove`), and so an approval dialog raised from a headless
+ * Claude Code run is attributable to the shave that triggered it.
+ */
+export const CLI_BRIDGE_SHAVE_ID_ENV = "YAKSHAVER_BRIDGE_SHAVE_ID";
+
 /** Placeholder shown instead of any secret value. */
 export const REDACTED = "***redacted***";
 
@@ -174,6 +183,12 @@ export const ToolCallInputSchema = z.object({
    * an unselected project even if the model guesses its name.
    */
   serverFilter: z.array(z.string()).optional(),
+  /**
+   * The current shave's id, forwarded from {@link CLI_BRIDGE_SHAVE_ID_ENV} so a `wait`-mode
+   * approval prompt raised by this call can honour the same per-shave auto-approve override the
+   * OpenAI backend supports.
+   */
+  shaveId: z.string().optional(),
 });
 export type ToolCallInput = z.infer<typeof ToolCallInputSchema>;
 

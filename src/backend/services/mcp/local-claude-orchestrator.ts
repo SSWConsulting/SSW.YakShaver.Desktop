@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   CLI_BRIDGE_PORT_ENV,
   CLI_BRIDGE_SERVER_FILTER_ENV,
+  CLI_BRIDGE_SHAVE_ID_ENV,
   CLI_BRIDGE_TOKEN_ENV,
 } from "../../../shared/cli-bridge/protocol";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
@@ -187,7 +188,8 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
     await this.ensureClaudeAvailable();
 
     const manager = this.serverManager ?? (await MCPServerManager.getInstanceAsync());
-    const frontDoor = this.frontDoor ?? (await resolveFrontDoorConfig(options.serverFilter));
+    const frontDoor =
+      this.frontDoor ?? (await resolveFrontDoorConfig(options.serverFilter, options.shaveId));
     const approvalMode = (await this.getSettingsStorage().getSettingsAsync()).toolApprovalMode;
 
     const systemPrompt = this.buildSystemPrompt(
@@ -265,18 +267,10 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
       console.warn(`[LocalClaudeOrchestrator] ${msg}`);
     }
 
-    // Under "wait", the OpenAI path shows a 15s approval dialog the user can still deny within. A
-    // headless `claude -p` can't render that deferred prompt, so "wait" runs EVERY tool immediately
-    // (effectively YOLO) under the local backend. Tell the user so the safe-looking "wait" setting
-    // doesn't silently widen tool execution without any signal.
-    if (approvalMode === "wait") {
-      const msg =
-        'Claude Code (local) cannot show the "wait" approval dialog because it runs headlessly, ' +
-        "so under this backend every tool runs immediately without a chance to deny (the same as " +
-        '"YOLO"). Switch to "ask" to restrict the run to whitelisted tools only.';
-      notices.push(msg);
-      console.warn(`[LocalClaudeOrchestrator] ${msg}`);
-    }
+    // "wait" needs no caveat here (#920): a non-whitelisted MCP tool call is gated by
+    // `McpToolBridge.callTool` in the main process, which raises the same approval dialog+countdown
+    // the OpenAI backend shows and blocks the run until the user responds or the countdown
+    // auto-approves — the same behaviour as the OpenAI path, not a silent widening to YOLO.
 
     for (const text of notices) {
       onStep?.({ type: "reasoning", reasoning: JSON.stringify({ type: "text", text }) });
@@ -366,17 +360,25 @@ Embed this URL in the task content that you create. Follow user requirements STR
   /**
    * Maps the approval mode to Claude Code's permission flags.
    *
-   * - `yolo` → `--permission-mode bypassPermissions` (run every tool immediately).
-   * - `wait` → ALSO `--permission-mode bypassPermissions`. In the OpenAI backend `wait` shows the
-   *   approval prompt but AUTO-APPROVES after a delay, so a non-whitelisted tool the user doesn't
-   *   dismiss still RUNS. A headless `claude -p` can't render a deferred prompt, so the faithful
-   *   analogue of "auto-approve after a delay" is to bypass permissions — otherwise `wait` would
-   *   silently HARD-DENY non-whitelisted tools, diverging from the OpenAI behaviour for the same
-   *   setting. (See requestToolApproval's `wait` -> auto-approve path.)
+   * These flags only control Claude's OWN built-in tools (Read/Write/Bash/etc.) at the CLI layer.
+   * MCP tools (everything YakShaver actually cares about — GitHub/Jira/Azure DevOps/etc.) do NOT
+   * stop at this layer: every `tools/call` for the single `yakshaver` front-door is proxied to
+   * {@link McpToolBridge.callTool} in the main process, which enforces the REAL approval policy
+   * server-side regardless of `--permission-mode` (#920) — including, under `wait`, raising the
+   * same approval dialog+countdown the OpenAI backend shows.
+   *
+   * - `yolo` → `--permission-mode bypassPermissions` (run every built-in tool immediately; MCP
+   *   tools run immediately too, per the bridge's own `yolo` handling).
+   * - `wait` → ALSO `--permission-mode bypassPermissions`, so Claude's own built-in tools aren't
+   *   hard-denied at the CLI layer (there is no bridge in front of those to defer to). MCP tools are
+   *   NOT auto-approved here — the bridge gates them on the whitelist and prompts via the approval
+   *   dialog for anything not already whitelisted, so `wait` behaves the same as the OpenAI backend
+   *   for the tools that matter.
    * - `ask` → `--allowedTools <whitelist>` + `--permission-mode dontAsk`. `--allowedTools` only
    *   auto-approves the listed tools; on its own (default permission mode) a non-whitelisted tool
    *   would trigger an interactive prompt the headless run can't answer and the run can hang/abort.
-   *   `dontAsk` converts any such prompt into an outright denial, so the run never blocks.
+   *   `dontAsk` converts any such prompt into an outright denial, so the run never blocks. (MCP
+   *   tools are additionally gated by the bridge itself, same as always.)
    *
    * `--strict-mcp-config` ensures Claude only uses the servers we serialized into `--mcp-config`,
    * ignoring any ambient project `.mcp.json` / `~/.claude` MCP config so the embedded run is
@@ -706,7 +708,10 @@ Embed this URL in the task content that you create. Follow user requirements STR
  * Lazily imports electron + the bridge server so the pure argv/config unit tests (which always
  * inject a `frontDoor`) never touch these singletons.
  */
-async function resolveFrontDoorConfig(serverFilter?: string[]): Promise<YakshaverFrontDoorConfig> {
+async function resolveFrontDoorConfig(
+  serverFilter?: string[],
+  shaveId?: string,
+): Promise<YakshaverFrontDoorConfig> {
   const { app } = await import("electron");
   const { CliBridgeServer } = await import("../cli-bridge/cli-bridge-server");
 
@@ -722,6 +727,11 @@ async function resolveFrontDoorConfig(serverFilter?: string[]): Promise<Yakshave
   // Restrict the front-door to the project's selected servers (empty = all enabled servers).
   if (serverFilter && serverFilter.length > 0) {
     env[CLI_BRIDGE_SERVER_FILTER_ENV] = serverFilter.join(",");
+  }
+  // Forward the shave id so a `wait`-mode approval prompt raised via the bridge (#920) can honour
+  // the same per-shave auto-approve override the OpenAI backend supports.
+  if (shaveId) {
+    env[CLI_BRIDGE_SHAVE_ID_ENV] = shaveId;
   }
 
   return { command: process.execPath, cliEntryPath, env };

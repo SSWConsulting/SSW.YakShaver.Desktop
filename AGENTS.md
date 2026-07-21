@@ -589,9 +589,12 @@ server instead of re-declaring each upstream server to Claude:
   - `GET /tools` → the full server-prefixed tool list (names + descriptions + JSON
     Schema). Returns `[]` (never an error) when no enabled servers are healthy.
   - `POST /tools/call` → executes one tool by name through the app's tool-approval
-    policy SERVER-SIDE, so a headless run never hangs on an interactive prompt
-    (`yolo` runs everything; `ask`/`wait` run only whitelisted tools, otherwise return
-    a structured "not approved" envelope, never a transport error).
+    policy SERVER-SIDE: `yolo` runs everything; `ask`/`wait` gate on the whitelist —
+    `ask` returns a structured "not approved" envelope for anything not whitelisted
+    (never prompts, since a headless caller can't answer), while `wait` raises the
+    SAME approval dialog+countdown the OpenAI backend shows and blocks the call until
+    the user responds or the countdown auto-approves (never a transport error either
+    way).
 - **Wiring**: `McpToolBridge` (`src/backend/services/mcp/mcp-tool-bridge.ts`) flattens
   the AI-SDK `ToolSet` into wire summaries and enforces the approval policy; the front
   door (`mcp-serve.ts`) maps a `{ok:false}` envelope to an MCP `isError` result.

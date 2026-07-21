@@ -215,11 +215,14 @@ describe("LocalClaudeOrchestrator", () => {
       expect(argv).not.toContain("bypassPermissions");
     });
 
-    it("wait -> --permission-mode bypassPermissions (headless can't defer the prompt)", () => {
+    it("wait -> --permission-mode bypassPermissions at the CLI layer (MCP tools are gated by the bridge instead, #920)", () => {
       const orch = new LocalClaudeOrchestrator();
       const argv = orch.buildArgv("/tmp/cfg.json", "/tmp/prompt.txt", "wait", []);
-      // main maps `wait` -> bypassPermissions (headless can't show the deferred dialog), so an empty
-      // whitelist still runs every tool. There is no --allowedTools because none was passed.
+      // `wait` still bypasses Claude's OWN built-in-tool permission system at the CLI layer (there is
+      // no bridge in front of those to defer to) — there is no --allowedTools because none was
+      // passed. This does NOT mean MCP tools run unchecked: McpToolBridge.callTool enforces the real
+      // wait-mode approval dialog+countdown server-side, independent of this flag (see
+      // mcp-tool-bridge.test.ts).
       expect(argv).not.toContain("--allowedTools");
       expect(argv).toContain("bypassPermissions");
     });
