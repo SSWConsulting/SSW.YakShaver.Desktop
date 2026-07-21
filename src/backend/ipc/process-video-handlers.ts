@@ -927,7 +927,13 @@ export class ProcessVideoIPCHandlers {
   }
 
   private formatProjectDetails(
-    projectDetails: (ProjectDto & { selectionReason: string }) | undefined | null,
+    projectDetails:
+      | (ProjectDto & {
+          selectionReason: string;
+          projectSource?: "local" | "remote";
+        })
+      | undefined
+      | null,
   ): {
     desktopAgentProjectPrompt: string | undefined;
     projectMetaData: string | undefined;
@@ -936,9 +942,37 @@ export class ProcessVideoIPCHandlers {
       return { desktopAgentProjectPrompt: undefined, projectMetaData: undefined };
     }
 
-    const { desktopAgentProjectPrompt, ...metaData } = projectDetails;
+    type ProjectMetaData = Omit<
+      ProjectDto,
+      "desktopAgentProjectPrompt" | "selectedMcpServerIds"
+    > & {
+      selectionReason: string;
+      projectSource?: "local" | "remote";
+    };
+
+    // The Portal response can contain fields that are not declared on ProjectDto, including the
+    // Teams prompt (`customPromptInput`) and agent skills. Build an explicit allowlist so those
+    // instructions can never leak into the Desktop agent through Project Metadata.
+    const metaData = {
+      id: projectDetails.id,
+      name: projectDetails.name,
+      description: projectDetails.description,
+      backlogUrl: projectDetails.backlogUrl,
+      primaryContact: projectDetails.primaryContact,
+      members: projectDetails.members,
+      videoHostType: projectDetails.videoHostType,
+      recentWorkItemsCount: projectDetails.recentWorkItemsCount,
+      repoId: projectDetails.repoId,
+      allowWebhooks: projectDetails.allowWebhooks,
+      allowCreatePbi: projectDetails.allowCreatePbi,
+      gitHubProjectId: projectDetails.gitHubProjectId,
+      placeItemOnTopOfProductBacklog: projectDetails.placeItemOnTopOfProductBacklog,
+      selectionReason: projectDetails.selectionReason,
+      projectSource: projectDetails.projectSource,
+    } satisfies ProjectMetaData;
+
     return {
-      desktopAgentProjectPrompt,
+      desktopAgentProjectPrompt: projectDetails.desktopAgentProjectPrompt,
       projectMetaData: JSON.stringify(metaData),
     };
   }

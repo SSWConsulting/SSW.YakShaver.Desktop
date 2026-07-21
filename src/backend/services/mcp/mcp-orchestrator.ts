@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import type { ZodType } from "zod";
+import { VIDEO_LINK_EMBEDDING_RULES } from "../../constants/prompts";
 import { getDurationParts } from "../../utils/duration-utils";
 import { formatAndReportError } from "../../utils/error-utils";
 import {
@@ -219,6 +220,13 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
       videoUploadResult,
       options.videoFilePath,
     );
+    console.log("[MCPOrchestrator] Effective video prompt diagnostics", {
+      videoRuleLines: systemPrompt
+        .split("\n")
+        .filter((line) =>
+          /video link|video url|watch the video|uploaded video|duration|▶️|🟥/i.test(line),
+        ),
+    });
 
     const messages: ModelMessage[] = [
       {
@@ -427,6 +435,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
                 toolCall.toolName,
                 this.resolveToolOutputReferences(toolCall.input),
               );
+              this.logBacklogVideoLinkDiagnostics(toolCall.toolName, toolCall.input, resolvedInput);
 
               const toolOutput = await toolToCall.execute(resolvedInput, {
                 toolCallId: toolCall.toolCallId,
@@ -638,6 +647,48 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
     UserInteractionService.getInstance().cancelAllPending(reason);
   }
 
+  private logBacklogVideoLinkDiagnostics(
+    toolName: string,
+    modelInput: Record<string, unknown>,
+    executedInput: Record<string, unknown>,
+  ): void {
+    if (!isBacklogItemMutationTool(toolName)) {
+      return;
+    }
+
+    const bodyFieldNames = new Set(["body", "description", "content", "markdown", "text"]);
+    const summarize = (input: Record<string, unknown>) =>
+      Object.entries(input).flatMap(([field, value]) => {
+        if (!bodyFieldNames.has(field.toLowerCase()) || typeof value !== "string") {
+          return [];
+        }
+
+        const lines = value.split("\n");
+        return [
+          {
+            field,
+            openingLines: lines.slice(0, 12),
+            videoLines: lines.filter((line) =>
+              /watch the video|youtu\.be|youtube\.com|▶️|🟥/i.test(line),
+            ),
+          },
+        ];
+      });
+
+    console.log(
+      "[MCPOrchestrator] Backlog video link diagnostics",
+      JSON.stringify(
+        {
+          toolName,
+          modelAuthoredBody: summarize(modelInput),
+          executedBody: summarize(executedInput),
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
   private appendVideoInfoToSystemPrompt(
     systemPrompt: string,
     videoUploadResult?: VideoUploadResult,
@@ -647,6 +698,9 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
     const duration = videoUploadResult?.data?.duration;
     if (videoUrl) {
       const isValidDuration = typeof duration === "number" && duration > 0;
+      const videoEmbeddingRules = systemPrompt.includes(VIDEO_LINK_EMBEDDING_RULES)
+        ? ""
+        : `\n${VIDEO_LINK_EMBEDDING_RULES}`;
 
       if (isValidDuration) {
         const outputDuration = getDurationParts(duration);
@@ -656,10 +710,10 @@ Video duration:
 - hours: ${outputDuration.hours}
 - minutes: ${outputDuration.minutes}
 - seconds: ${outputDuration.seconds}
-Embed this URL and duration in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+${videoEmbeddingRules}`;
       } else {
         systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
-Embed this URL in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+${videoEmbeddingRules}`;
       }
     }
 

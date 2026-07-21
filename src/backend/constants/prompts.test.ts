@@ -5,6 +5,7 @@ import {
   DUPLICATE_DETECTION_RULES,
   ensureDuplicateDetectionRules,
   SHARED_ISSUE_CREATION_RULES,
+  VIDEO_LINK_EMBEDDING_RULES,
 } from "./prompts";
 
 // Regression guard for #719: "GitHub issue created with ✨ as title instead of
@@ -35,6 +36,109 @@ describe("SHARED_ISSUE_CREATION_RULES — issue title rules (#719)", () => {
   it("provides a sensible-default fallback when the repo has NO template", () => {
     expect(SHARED_ISSUE_CREATION_RULES).toMatch(/no template/i);
     expect(SHARED_ISSUE_CREATION_RULES).toMatch(/fall back to a sensible default/i);
+  });
+});
+
+describe("SHARED_ISSUE_CREATION_RULES — no-template body fallback", () => {
+  it("requires Cc, Hi, and the red video link in order when no template exists", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/If no template is found/i);
+
+    const ccIndex = SHARED_ISSUE_CREATION_RULES.indexOf("Cc: <project members>");
+    const hiIndex = SHARED_ISSUE_CREATION_RULES.indexOf("Hi <project-associated users>");
+    const videoIndex = SHARED_ISSUE_CREATION_RULES.indexOf("[🟥 Watch the video");
+
+    expect(ccIndex).toBeGreaterThan(-1);
+    expect(hiIndex).toBeGreaterThan(ccIndex);
+    expect(videoIndex).toBeGreaterThan(hiIndex);
+  });
+
+  it("uses project-associated users for both Cc and Hi", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /Populate both .*Cc.* and .*Hi.* selected project/i,
+    );
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/GitHub username when available/i);
+  });
+
+  it("keeps the existing bug and feature fallback sections", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/For bugs/i);
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/For features/i);
+    expect(SHARED_ISSUE_CREATION_RULES).toContain("### Pain");
+  });
+});
+
+describe("VIDEO_LINK_EMBEDDING_RULES — one template-aware video link", () => {
+  it("is included in the shared issue-creation rules", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toContain(VIDEO_LINK_EMBEDDING_RULES);
+  });
+
+  it("requires exactly one video URL and forbids a separate template-adjacent link", () => {
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/MUST appear exactly once/i);
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/fill only that location/i);
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/do NOT add any additional video link/i);
+  });
+
+  it("prevents the icon and label from becoming two links to the same URL", () => {
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Do NOT split the icon and label/i);
+  });
+
+  it("does not treat a generic video-description or links section as a video-link placeholder", () => {
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Video Description.*NOT an explicit/i);
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Public Links.*NOT an explicit/i);
+  });
+
+  it("requires the canonical red link when no explicit video-link location exists", () => {
+    expect(VIDEO_LINK_EMBEDDING_RULES).toContain("[🟥 Watch the video (<duration>)](<videoLink>)");
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Otherwise, add exactly one canonical link/i);
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Do NOT repeat.*bare link/i);
+  });
+
+  it("places a fallback canonical link after Cc/Hi and before the first section", () => {
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(
+      /after the template's Cc\/Hi greeting block and before the first section heading/i,
+    );
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(
+      /NEVER place.*More Information.*Links.*Environment.*Screenshots/i,
+    );
+  });
+
+  it("allows repository templates to control video presentation", () => {
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/follow the template/i);
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/icon, label, duration format, or placement/i);
+  });
+});
+
+describe("SHARED_ISSUE_CREATION_RULES — issue template selection follows user intent", () => {
+  it("forbids recording artifacts from influencing the issue type", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /screen recording, uploaded video URL, video transcription, screenshot.*MUST NOT influence/i,
+    );
+  });
+
+  it("selects the Video template only for an explicit video-management deliverable", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/Select a Video template ONLY/i);
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/publish, upload, prepare, or manage a video/i);
+  });
+
+  it("keeps bugs, features, docs, refactors, and generic issues in their intended type", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /report a bug, propose functionality, document work, refactor code, or create a generic\/test issue remains that issue type/i,
+    );
+  });
+});
+
+describe("SHARED_ISSUE_CREATION_RULES — body placeholders are fully resolved", () => {
+  it("forbids unresolved double-brace placeholders in the final issue body", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /Replace EVERY double-brace placeholder in the issue body/i,
+    );
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /NEVER leave an unresolved.*placeholder in the final body/i,
+    );
+  });
+
+  it("removes an unavailable placeholder without inventing a person", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/remove only the placeholder token/i);
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/do not invent a person or value/i);
   });
 });
 
