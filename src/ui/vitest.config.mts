@@ -24,6 +24,17 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "../shared"),
     },
   },
+  // #963: components under test can import public assets via root-absolute
+  // `?url` imports (e.g. "/onboarding/cpu.svg?url", resolved against Vite's
+  // publicDir at dev/build time). Vitest's own bundled transform server
+  // applies a stricter fs allow-list than the app's dev server and rejects
+  // those as "Denied ID" before a component test ever renders. Relaxing it
+  // only affects this test transform server, not the app's dev/build config.
+  server: {
+    fs: {
+      strict: false,
+    },
+  },
   test: {
     globals: true,
     environment: "jsdom",
