@@ -153,6 +153,28 @@ describe("ReleaseChannelSetting (#423)", () => {
     });
   });
 
+  it("keeps 'Check for Updates' enabled for the Latest Stable channel with no GitHub token saved (#600)", async () => {
+    hasToken.mockResolvedValue(false);
+    verifyToken.mockResolvedValue({ isValid: false });
+
+    render(<ReleaseChannelSetting isActive={true} />);
+    await screen.findByText("1.2.3");
+
+    const button = await screen.findByRole("button", { name: /check for updates/i });
+    await waitFor(() => expect(button).toBeEnabled());
+  });
+
+  it("keeps 'Check for Updates' enabled for the Latest Stable channel with an invalid/expired GitHub token saved (#600)", async () => {
+    hasToken.mockResolvedValue(true);
+    verifyToken.mockResolvedValue({ isValid: false, error: "Invalid or expired token" });
+
+    render(<ReleaseChannelSetting isActive={true} />);
+    await screen.findByText("1.2.3");
+
+    const button = await screen.findByRole("button", { name: /check for updates/i });
+    await waitFor(() => expect(button).toBeEnabled());
+  });
+
   it("keeps the version card's bump label consistent with the toast when the update check resolves before loadCurrentVersion", async () => {
     // loadCurrentVersion() never resolves (simulates it not having finished yet), so
     // `currentVersion` state starts empty; the version card's label must still match

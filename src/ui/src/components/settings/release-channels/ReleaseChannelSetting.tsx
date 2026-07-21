@@ -370,7 +370,12 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
         <Button
           onClick={handleCheckUpdates}
           disabled={
-            isLoading || !selectValue || (channel.type === "pr" ? !isTokenHealthy : !hasGitHubToken)
+            isLoading ||
+            !selectValue ||
+            // #600 — the stable ("latest") channel is a public GitHub release and never needs a
+            // token; only PR channels are token-gated (#919). A user with no token, or an
+            // invalid/expired one, must still be able to check for stable updates.
+            (channel.type === "pr" ? !isTokenHealthy : false)
           }
         >
           Check for Updates

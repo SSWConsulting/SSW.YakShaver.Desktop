@@ -571,16 +571,17 @@ export class ReleaseChannelIPCHandlers {
       return;
     }
 
-    const githubToken = await this.tokenStore.getToken();
-    if (githubToken) {
-      autoUpdater.requestHeaders = {
-        ...autoUpdater.requestHeaders,
-        Authorization: `Bearer ${githubToken}`,
-      };
-    }
-
     // Configure autoUpdater based on channel
     if (channel.type === "latest") {
+      // #600 — the stable channel is served from this repo's *public* GitHub releases, which never
+      // need authentication. Don't attach a saved token here at all: a saved-but-invalid/expired
+      // token (which this channel never gates on, unlike PR channels below) would otherwise be sent
+      // as a Bearer header on every request to the public provider, risking spurious 401s instead of
+      // the clean unauthenticated request GitHub expects for public repos. Explicitly clear any
+      // Authorization header a previous PR-channel configuration may have left behind.
+      const { Authorization: _unused, ...headersWithoutAuth } = autoUpdater.requestHeaders ?? {};
+      autoUpdater.requestHeaders = headersWithoutAuth;
+
       autoUpdater.channel = "latest";
       autoUpdater.allowPrerelease = false;
       autoUpdater.allowDowngrade = false;
@@ -616,6 +617,17 @@ export class ReleaseChannelIPCHandlers {
         // rather than staying stopped forever.
         this.startPeriodicUpdateChecks();
         return;
+      }
+
+      // Only attach the token once it's confirmed healthy above (#600) — PR release assets are
+      // downloaded via a "generic" feed pointed at this repo's own GitHub releases, which needs
+      // authentication headers to avoid anonymous rate limits during the download.
+      const githubToken = await this.tokenStore.getToken();
+      if (githubToken) {
+        autoUpdater.requestHeaders = {
+          ...autoUpdater.requestHeaders,
+          Authorization: `Bearer ${githubToken}`,
+        };
       }
 
       // For PR channels, we need to find the latest release tag first
