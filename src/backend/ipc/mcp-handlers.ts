@@ -57,7 +57,13 @@ export class McpIPCHandlers {
       async (_event: IpcMainInvokeEvent, serverId: string) => {
         const client = await this.mcpServerManager.getMcpClientAsync(serverId);
         if (!client) {
-          return [] as MCPToolSummary[];
+          // Throw the real reason (via a health check) instead of returning [],
+          // which the popup would show as a misleading "No tools available" (#982).
+          const health = await this.mcpServerManager.checkServerHealthAsync(serverId);
+          throw new Error(
+            health.error ??
+              "Unable to connect to the MCP server. Check the connection and try again.",
+          );
         }
         const raw = await client.listToolsAsync();
         if (Array.isArray(raw)) {
