@@ -9,6 +9,7 @@ import {
   CLI_BRIDGE_TOKEN_ENV,
 } from "../../../shared/cli-bridge/protocol";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
+import { VIDEO_LINK_EMBEDDING_RULES } from "../../constants/prompts";
 import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
 import type { IProcessSpawner } from "../process/process-spawner";
@@ -304,6 +305,9 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
     const duration = videoUploadResult?.data?.duration;
     if (videoUrl) {
       const isValidDuration = typeof duration === "number" && duration > 0;
+      const videoEmbeddingRules = systemPrompt.includes(VIDEO_LINK_EMBEDDING_RULES)
+        ? ""
+        : `\n${VIDEO_LINK_EMBEDDING_RULES}`;
       if (isValidDuration) {
         const outputDuration = getDurationParts(duration);
         systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
@@ -312,10 +316,10 @@ Video duration:
 - hours: ${outputDuration.hours}
 - minutes: ${outputDuration.minutes}
 - seconds: ${outputDuration.seconds}
-Embed this URL and duration in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+${videoEmbeddingRules}`;
       } else {
         systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
-Embed this URL in the task content that you create. Follow user requirements STRICTLY about the link formatting rule.`;
+${videoEmbeddingRules}`;
       }
     }
 

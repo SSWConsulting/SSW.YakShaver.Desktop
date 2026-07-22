@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 // Keep Electron, the real autoUpdater, and encrypted storage out of this unit test — we're
-// exercising the token-health gating logic in ReleaseChannelIPCHandlers (#919), not Electron
-// itself.
+// exercising both the token-health gating logic (#919) and the update-ready reminder dialog's
+// anti-stacking guard behavior (#456) in ReleaseChannelIPCHandlers, driven via mocked
+// Electron/autoUpdater listeners rather than the real Electron runtime.
+const showMessageBoxMock = vi.fn().mockResolvedValue({ response: 1 });
 vi.mock("electron", () => ({
   app: {
     getName: () => "YakShaver",
@@ -10,12 +12,26 @@ vi.mock("electron", () => ({
     isPackaged: true,
   },
   BrowserWindow: { getAllWindows: () => [] },
-  dialog: { showMessageBox: vi.fn().mockResolvedValue({ response: 1 }) },
+  dialog: { showMessageBox: (...args: unknown[]) => showMessageBoxMock(...args) },
   ipcMain: { handle: vi.fn() },
 }));
 
 const checkForUpdatesMock = vi.fn();
 const setFeedURLMock = vi.fn();
+const quitAndInstallMock = vi.fn();
+// Capture registered autoUpdater listeners (keyed by event name) so tests can fire events like
+// "update-downloaded" directly, the same way the real electron-updater instance would (#456).
+const autoUpdaterListeners = new Map<string, Array<(...args: unknown[]) => void>>();
+const autoUpdaterOnMock = vi.fn((event: string, listener: (...args: unknown[]) => void) => {
+  const listeners = autoUpdaterListeners.get(event) ?? [];
+  listeners.push(listener);
+  autoUpdaterListeners.set(event, listeners);
+});
+function emitAutoUpdaterEvent(event: string, ...args: unknown[]) {
+  for (const listener of autoUpdaterListeners.get(event) ?? []) {
+    listener(...args);
+  }
+}
 vi.mock("electron-updater", () => ({
   autoUpdater: {
     autoDownload: false,
@@ -24,9 +40,10 @@ vi.mock("electron-updater", () => ({
     allowPrerelease: false,
     allowDowngrade: false,
     requestHeaders: {},
-    on: vi.fn(),
+    on: (...args: [string, (...a: unknown[]) => void]) => autoUpdaterOnMock(...args),
     setFeedURL: (...args: unknown[]) => setFeedURLMock(...args),
     checkForUpdates: (...args: unknown[]) => checkForUpdatesMock(...args),
+    quitAndInstall: (...args: unknown[]) => quitAndInstallMock(...args),
   },
 }));
 
@@ -371,5 +388,120 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
     // verifyGitHubToken is never even consulted for the stable channel.
     expect(verifyGitHubTokenMock).not.toHaveBeenCalled();
     expect(result).toEqual({ available: false, currentVersion: "1.2.3" });
+  });
+});
+
+describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    autoUpdaterListeners.clear();
+    showMessageBoxMock.mockReset();
+  });
+
+  it("does not stack a second reminder dialog while the first is still awaiting a response", async () => {
+    // The reported bug's second half: "If the reminder dialog is open already, a subsequent
+    // update check should not open another reminder dialog on top of it." Simulate the first
+    // dialog's promise never resolving (user hasn't answered yet) and fire a second
+    // "update-downloaded" event (e.g. the periodic background check landing mid-dialog) — only one
+    // dialog must ever be shown.
+    let resolveFirstDialog: ((result: { response: number }) => void) | undefined;
+    showMessageBoxMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstDialog = resolve;
+        }),
+    );
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    emitAutoUpdaterEvent("update-downloaded");
+
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+
+    // Resolve the first dialog and wait for the handler's .then/.finally chain to flush before
+    // the test ends, matching the sibling test's vi.waitFor pattern rather than firing-and-forgetting.
+    resolveFirstDialog?.({ response: 1 });
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps suppressing duplicate reminders while a long-running dialog remains open", async () => {
+    vi.useFakeTimers();
+    try {
+      showMessageBoxMock.mockImplementation(() => new Promise(() => {})); // never settles
+
+      new ReleaseChannelIPCHandlers();
+
+      emitAutoUpdaterEvent("update-downloaded");
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+
+      // Advance beyond both the removed five-minute watchdog and the ten-minute update interval.
+      await vi.advanceTimersByTimeAsync(11 * 60 * 1000);
+
+      // The original native dialog is still visible, so another event must remain suppressed.
+      emitAutoUpdaterEvent("update-downloaded");
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("releases the guard after a dialog error so a later event can retry", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    showMessageBoxMock
+      .mockRejectedValueOnce(new Error("dialog failed"))
+      .mockImplementationOnce(() => new Promise(() => {}));
+
+    try {
+      new ReleaseChannelIPCHandlers();
+
+      emitAutoUpdaterEvent("update-downloaded");
+      await vi.waitFor(() => expect(errorSpy).toHaveBeenCalledTimes(1));
+
+      emitAutoUpdaterEvent("update-downloaded");
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(2);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("does not show a reminder again this session after the user clicks Later — the originally reported bug", async () => {
+    // The reported bug's first half: clicking "Remind me later" must stop further reminders for
+    // the rest of the current session, even when the periodic ~10-minute check fires again.
+    showMessageBoxMock.mockResolvedValue({ response: 1 }); // 1 = "Later"
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+
+    // Simulate the periodic check finding the same update again later in the session.
+    emitAutoUpdaterEvent("update-downloaded");
+    emitAutoUpdaterEvent("update-downloaded");
+
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show another reminder after the user clicks Restart Now, even before quitAndInstall fires", async () => {
+    // Regression coverage (review on #456): isUpdateDialogOpen resets in .finally() synchronously,
+    // but the real quit (autoUpdater.quitAndInstall) is deferred via setImmediate. A second
+    // "update-downloaded" event landing in that gap must not stack a dialog moments before the app
+    // quits — pinned here via the isRestartingToInstall short-circuit.
+    showMessageBoxMock.mockResolvedValue({ response: 0 }); // 0 = "Restart Now"
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+
+    // A second event landing after the dialog resolved (isUpdateDialogOpen already released) but
+    // before the deferred quitAndInstall() fires must still be suppressed.
+    emitAutoUpdaterEvent("update-downloaded");
+
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+
+    // Let the deferred quitAndInstall() flush before the test ends, so it doesn't fire during a
+    // later test.
+    await vi.waitFor(() => expect(quitAndInstallMock).toHaveBeenCalledTimes(1));
   });
 });

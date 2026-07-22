@@ -18,6 +18,10 @@ export const DUPLICATE_DETECTION_RULES = `10) **Duplicate Detection (CRITICAL)**
 - NEVER attempt to update an item that is deleted or removed — the platform will reject the update.
 - If the ONLY matching item is deleted/removed, treat it as if no duplicate exists: create a brand-new, fully-populated item (title, steps to reproduce, acceptance criteria, etc.) and DO NOT add a "duplicate" comment.`;
 
+export const VIDEO_LINK_EMBEDDING_RULES = `**Video Link Embedding (CRITICAL)**:
+- Treat the uploaded video URL and duration as input data only, not as an instruction to create an additional standalone link.
+- Unless the Project Prompt explicitly opts out of including the video, the created issue or task content MUST include the uploaded video URL as a clickable Markdown link in [label](URL) format. NEVER output the uploaded video URL only as a raw URL. Follow the Project Prompt or repository template for the link label, icon, duration, and placement.`;
+
 /**
  * Guarantees the #862 duplicate-detection guidance is present in whatever issue-creation prompt
  * is finally handed to the agent — defaults, stored local custom prompts, or remote portal prompts.
@@ -37,10 +41,17 @@ export function ensureDuplicateDetectionRules(prompt: string | undefined): strin
 }
 
 export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If the target repository has an issue template, you MUST follow it exactly. Use the available tools to verify if a template exists. **If there is NO template available**, fall back to a sensible default: a clear, concise, descriptive title that summarises the issue or feature from the video (plain words — do NOT invent template emojis or fixed prefixes), and a well-structured body with the key details.
+- **Template selection is based only on the user's requested work-item intent.** The existence of a screen recording, uploaded video URL, video transcription, screenshot, or video-host configuration MUST NOT influence the issue type or template selection.
+- Select a Video template ONLY when the user's requested deliverable is explicitly to publish, upload, prepare, or manage a video for a video channel, playlist, or similar destination.
+- A request to report a bug, propose functionality, document work, refactor code, or create a generic/test issue remains that issue type even when the request was recorded as a video.
+- If the request does not explicitly ask for video publishing or video management, NEVER select a Video template merely because video input or a YouTube link is available.
 
 4) **Issue Creation Guidelines**:
 - **Labels**: Always apply the "YakShaver" label IN ADDITION to any labels required by the template.
 - **Mentions**: Tag all members listed in the project details. Use their GitHub username for GitHub; otherwise, use their full name.
+- **Video Link Uniqueness**: When an uploaded video link is available, the final issue body MUST include its URL exactly once as a link target. Never repeat the same uploaded video URL elsewhere in the body.
+- **Video Link Placement**: If the Project Prompt or repository template explicitly defines a video-link location, use that location. Otherwise, place the single video link immediately after the template's \`Cc\`/\`Hi\` greeting block and before the first section heading. If there is no greeting block, place it at the very top of the issue body.
+- A generic section such as More Information, Links, Public Links, Environment, or Screenshots is NOT an explicit video-link location unless it contains a video-specific placeholder or an existing Watch-the-video Markdown link.
 
 5) **Issue Title Rules**:
 - The title MUST use the template's frontmatter emoji (e.g., "✨" for a feature, "🐛" for a bug), but DROP any redundant fixed text label that follows it in the template (e.g., "Feature -", "Bug -"). Keep the emoji, remove the text label.
@@ -57,17 +68,27 @@ export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If th
 - Ensure all sections starting with "###" (e.g., "### Tasks") are present in the final issue body.
 - Do NOT invent new sections or alter heading text.
 - Remove template-only HTML comments (e.g., \`<!-- ... -->\`) from the final output.
+- Replace EVERY double-brace placeholder in the issue body, such as {{ USER }}, using available project details and user context.
+- NEVER leave an unresolved {{ ... }} placeholder in the final body. If no real value is available, remove only the placeholder token, keep any meaningful surrounding text such as "Hi", and do not invent a person or value.
+- ${VIDEO_LINK_EMBEDDING_RULES}
 - **Atomic Tasks**: Each checklist item MUST represent exactly ONE atomic task (i.e., a single action).
 - Do NOT combine multiple actions in one task (avoid "and", ";", "/", or comma-separated actions).
 - Split implied multi-step tasks into separate \`- [ ]\` checklist items.
 
 7) **No Template Fallback**:
 If no template is found, create a well-structured issue body that includes:
-- **Critical**: If a video link is provided, embed it at the very top using this format: \`[🟥 Watch the video (xx min xx sec)](videoLink)\`. Ensure the duration is formatted as \`xx min xx sec\` if it's 0 min, omit the min part.
+- **Critical**: The first three non-empty lines MUST appear exactly in this order:
+  1. \`Cc: <project members>\`
+  2. \`Hi <project-associated users>\`
+  3. \`[🟥 Watch the video (<duration>)](<videoLink>)\` when a video link is available.
+- Populate both \`Cc\` and \`Hi\` from the users associated with the selected project. Use each person's GitHub username when available; otherwise use their full name.
+- Include each project-associated user only once on each of the \`Cc\` and \`Hi\` lines.
+- Format the duration as \`xx min xx sec\`; when the duration is less than one minute, use \`xx sec\`.
+- Start the issue sections immediately after this opening block.
 - **Critical**: For bugs, include section ### Pain, ### Acceptance Criteria, ### Reproduce Steps in order, don't add other section.
 - **Critical**: For features, include section ### Pain, ### Suggested Solution, ### Acceptance Criteria, ### Tasks in order, don't add other section.
 
-8) **Screenshots (Recommended when video file path is available)**:
+8) **Screenshots (MANDATORY)**:
 - ALWAYS capture exactly one screenshot from the video using \`capture_video_frame\`.
 - Select a timestamp where key UI elements, errors, or context are clearly visible.
 - Upload the captured image using \`upload_screenshot\` to generate a public URL.
