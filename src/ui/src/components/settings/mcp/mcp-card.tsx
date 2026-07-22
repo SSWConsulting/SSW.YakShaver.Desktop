@@ -1,3 +1,4 @@
+import { Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { HealthStatus } from "@/components/health-status/health-status";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ interface McpCardProps {
   healthInfo?: HealthStatusInfo | null;
   onDisconnect?: () => void;
   onConnect?: () => void;
+  onReauthorize?: () => void | Promise<void>;
   onDelete?: () => void;
   hideDelete?: boolean;
   onUpdate?: (data: MCPServerConfig) => Promise<void>;
@@ -27,6 +29,7 @@ export function McpCard({
   config,
   onConnect,
   onDisconnect,
+  onReauthorize,
   onDelete,
   hideDelete,
   onUpdate,
@@ -38,7 +41,22 @@ export function McpCard({
   renderConnectButton,
 }: McpCardProps) {
   const [showSettings, setShowSettings] = useState(false);
+  const [isReauthorizing, setIsReauthorizing] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
+  // Auth-failed servers show Reauthorize in place of Disconnect (#982).
+  const showReauthorize = Boolean(healthInfo?.authFailed && onReauthorize);
+
+  // Latch a stable button for the whole re-auth round-trip so it doesn't
+  // flicker through other states while the parent re-checks health (#982).
+  const handleReauthorizeClick = async () => {
+    if (isReauthorizing) return;
+    setIsReauthorizing(true);
+    try {
+      await onReauthorize?.();
+    } finally {
+      setIsReauthorizing(false);
+    }
+  };
   return (
     <>
       {/* biome-ignore lint : lint message can be ignored for now as we don't support fully keyboard navigation and waiting for new designs */}
@@ -58,6 +76,8 @@ export function McpCard({
                   isDisabled={!config.enabled}
                   isHealthy={healthInfo.isHealthy}
                   successMessage={healthInfo.successMessage}
+                  authFailed={healthInfo.authFailed}
+                  error={healthInfo.error}
                   className="mr-4"
                 />
               )}
@@ -76,30 +96,51 @@ export function McpCard({
                   Tools
                 </Button>
               )}
-              {!config.enabled && renderConnectButton && renderConnectButton()}
-              {!config.enabled && !renderConnectButton && (
-                <Button
-                  variant="outline"
-                  className="w-28 cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onConnect?.();
-                  }}
-                >
-                  Connect
+              {isReauthorizing ? (
+                <Button variant="warningOutline" className="min-w-28" disabled>
+                  <Loader2 className="size-4 shrink-0 animate-spin" />
+                  Reauthorizing…
                 </Button>
-              )}
-              {config.enabled && (
-                <Button
-                  variant="destructiveOutline"
-                  className="w-28 cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDisconnect?.();
-                  }}
-                >
-                  Disconnect
-                </Button>
+              ) : (
+                <>
+                  {!config.enabled && renderConnectButton && renderConnectButton()}
+                  {!config.enabled && !renderConnectButton && (
+                    <Button
+                      variant="outline"
+                      className="w-28 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onConnect?.();
+                      }}
+                    >
+                      Connect
+                    </Button>
+                  )}
+                  {config.enabled &&
+                    (showReauthorize ? (
+                      <Button
+                        variant="warningOutline"
+                        className="w-28 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleReauthorizeClick();
+                        }}
+                      >
+                        Reauthorize
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="destructiveOutline"
+                        className="w-28 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDisconnect?.();
+                        }}
+                      >
+                        Disconnect
+                      </Button>
+                    ))}
+                </>
               )}
             </div>
           </div>

@@ -57,7 +57,17 @@ export class McpIPCHandlers {
       async (_event: IpcMainInvokeEvent, serverId: string) => {
         const client = await this.mcpServerManager.getMcpClientAsync(serverId);
         if (!client) {
-          return [] as MCPToolSummary[];
+          // We're already in the failure path: getMcpClientAsync returned no client,
+          // so we WILL throw. The health check here is not a retry and its boolean
+          // result is intentionally ignored — it's run purely to recover a specific
+          // error message (e.g. the 401 text) so the popup shows the real reason
+          // instead of a misleading empty "No tool available" list. If it yields no
+          // message, we fall back to a generic connection error (#982).
+          const health = await this.mcpServerManager.checkServerHealthAsync(serverId);
+          throw new Error(
+            health.error ??
+              "Unable to connect to the MCP server. Check the connection and try again.",
+          );
         }
         const raw = await client.listToolsAsync();
         if (Array.isArray(raw)) {
@@ -124,6 +134,14 @@ export class McpIPCHandlers {
       IPC_CHANNELS.MCP_CLEAR_TOKENS,
       async (_event: IpcMainInvokeEvent, serverId: string) => {
         await McpOAuthTokenStorage.getInstance().clearTokensAsync(serverId);
+        return { success: true };
+      },
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_REAUTHORIZE,
+      async (_event: IpcMainInvokeEvent, serverId: string) => {
+        await this.mcpServerManager.reauthorizeServerAsync(serverId);
         return { success: true };
       },
     );

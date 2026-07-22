@@ -80,7 +80,7 @@ const getAppVersion = (): string => app.getVersion();
 
 const version = getAppVersion();
 const commitHash = config.commitHash();
-const appTitle = `YakShaver`;
+const appTitle = `YakShaver Desktop`;
 
 const createMenu = (): Menu => {
   const hashString = commitHash ? `${commitHash}` : "N/A";
@@ -179,7 +179,7 @@ const createWindow = (): BrowserWindow | null => {
 
   isCreatingMainWindow = true;
 
-  const title = `YakShaver`;
+  const title = appTitle;
 
   const window = createGuardedBrowserWindow({
     width: 1200,

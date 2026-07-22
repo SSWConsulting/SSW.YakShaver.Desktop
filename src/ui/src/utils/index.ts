@@ -190,6 +190,18 @@ export function formatErrorMessage(error: unknown): string {
 }
 
 /**
+ * Strips the Electron IPC wrapper (`Error invoking remote method '…':`) and
+ * leading `Error:` prefixes from an error, leaving the real reason for the
+ * user (e.g. `HTTP 401: token expired or revoked`) (#982).
+ */
+export function formatIpcErrorMessage(error: unknown): string {
+  return formatErrorMessage(error)
+    .replace(/^Error invoking remote method '[^']*':\s*/i, "")
+    .replace(/^(?:Error:\s*)+/i, "")
+    .trim();
+}
+
+/**
  * Converts a camelCase or PascalCase key into a human-readable title with spaces.
  * Acronyms (consecutive uppercase letters) are kept together.
  *
