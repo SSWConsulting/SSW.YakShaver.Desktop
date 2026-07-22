@@ -154,7 +154,9 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
           // the "error" affordance; the detail stays verbatim in a softer light
           // tone so the long transport message is legible on the dark tinted bg.
           <Alert className="border-ssw-red/40 bg-ssw-red/10">
-            <AlertCircle className="text-ssw-red" />
+            {/* text-ssw-red! overrides the Alert primitive's [&>svg]:text-current,
+                which would otherwise force the icon to the container's white. */}
+            <AlertCircle className="text-ssw-red!" />
             <AlertTitle className="font-semibold text-ssw-red">No tool available</AlertTitle>
             <AlertDescription className="wrap-break-word whitespace-normal text-foreground/80">
               {error}
