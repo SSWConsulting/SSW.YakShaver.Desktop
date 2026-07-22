@@ -44,12 +44,12 @@ function makeRequest(): InteractionRequest {
 }
 
 describe("PromptSelectionDialog (#967)", () => {
-  it("collapses the 'Why these projects?' reasoning by default", () => {
+  it("collapses the 'Why this project?' reasoning by default", () => {
     render(<PromptSelectionDialog request={makeRequest()} onSubmit={vi.fn()} />);
 
-    expect(screen.getByText("Why these projects?")).toBeInTheDocument();
+    expect(screen.getByText("Why this project?")).toBeInTheDocument();
     // The reasoning text exists in the DOM (inside <details>) but is not visible/expanded.
-    const details = screen.getByText("Why these projects?").closest("details");
+    const details = screen.getByText("Why this project?").closest("details");
     expect(details).not.toBeNull();
     expect(details).not.toHaveAttribute("open");
   });
@@ -58,7 +58,7 @@ describe("PromptSelectionDialog (#967)", () => {
     const user = userEvent.setup();
     render(<PromptSelectionDialog request={makeRequest()} onSubmit={vi.fn()} />);
 
-    const summary = screen.getByText("Why these projects?");
+    const summary = screen.getByText("Why this project?");
     await user.click(summary);
 
     const details = summary.closest("details");

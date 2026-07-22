@@ -151,7 +151,7 @@ export function PromptSelectionDialog({
               <details className="group pt-2 border-t border-border/50">
                 <summary className="flex items-center gap-1 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground list-none [&::-webkit-details-marker]:hidden">
                   <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
-                  Why these projects?
+                  Why this project?
                 </summary>
                 <p className="text-sm italic text-foreground/80 mt-1 ml-4">
                   {initialProject.reason}
