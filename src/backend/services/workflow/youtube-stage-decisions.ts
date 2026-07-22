@@ -1,6 +1,7 @@
 import {
   ProgressStage as WorkflowProgressStage,
   type WorkflowState,
+  type WorkflowStatus,
 } from "../../../shared/types/workflow";
 import type { VideoUploadResult } from "../auth/types";
 
@@ -87,4 +88,24 @@ export function resolveMetadataStage(result: VideoUploadResult, sink: StageSink)
     return null;
   }
   return videoId;
+}
+
+/**
+ * #306: whether the outer `processVideoSource` catch-all should mark `currentStage` as
+ * failed for an exception that escaped every stage's own local try/catch.
+ *
+ * `currentStage` tracks "the stage this function was last working on", but a stage can
+ * have already reached a genuinely terminal, non-error status ("completed" or "skipped")
+ * by the time an unrelated LATER exception (e.g. a network blip in a best-effort,
+ * non-fatal step that runs after the stage finished) bubbles up to the outer catch. Only
+ * a stage still "in_progress" (actively being worked on) or "not_started" (never even
+ * reached its own startStage/updateStagePayload call) represents the stage that was
+ * genuinely interrupted by the error — re-failing it is correct. Re-failing a stage that
+ * already reported "completed" or "skipped" would silently erase a real success (e.g. a
+ * work item that was genuinely created) and — since the UI's isWorkflowReadyForFinalOutput
+ * requires `executing_task` to stay "completed" — permanently hide the Final Result panel
+ * for a run that actually succeeded.
+ */
+export function shouldFailStageOnUnexpectedError(currentStatus: WorkflowStatus): boolean {
+  return currentStatus === "in_progress" || currentStatus === "not_started";
 }

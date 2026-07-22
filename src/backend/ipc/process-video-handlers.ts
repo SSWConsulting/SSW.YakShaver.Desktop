@@ -46,6 +46,7 @@ import { WorkflowStateManager } from "../services/workflow/workflow-state-manage
 import {
   applyUploadStageOutcome,
   resolveMetadataStage,
+  shouldFailStageOnUnexpectedError,
 } from "../services/workflow/youtube-stage-decisions";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
@@ -699,49 +700,56 @@ export class ProcessVideoIPCHandlers {
 
         // Send to portal if authenticated and project is remote — non-fatal, does not affect workflow stage status
         // local projects don't have portal project IDs so not sent to portal regardless of auth status
-        if (
-          mcpResult &&
-          projectDetails?.projectSource === "remote" &&
-          projectDetails?.id &&
-          (await IdentityServerAuthService.getInstance().isAuthenticated())
-        ) {
+        //
+        // #306: the authenticated-ness check itself now lives INSIDE the try below (rather than
+        // as an unguarded `await` in this `if` condition). isAuthenticated() currently swallows
+        // its own errors, but evaluating it ahead of the try meant a future change there (or any
+        // other guard added to this condition) could throw with currentStage still pinned at
+        // EXECUTING_TASK, which the outer catch would then incorrectly re-fail. Keeping every
+        // await for this block inside the try removes that class of escape hatch entirely.
+        if (mcpResult && projectDetails?.projectSource === "remote" && projectDetails?.id) {
           try {
-            // Portal serialization uses the OpenAI orchestrator's structured-output helper
-            // regardless of which backend drove the loop (the local Claude backend has no
-            // convertToObjectAsync). This is a separate LLM call from the orchestration step.
-            const portalOrchestrator = await MCPOrchestrator.getInstanceAsync();
-            const objectResult = await portalOrchestrator.convertToObjectAsync(
-              mcpResult,
-              WorkItemDtoSchema,
-            );
-            const workItemDto = WorkItemDtoSchema.parse(objectResult);
-            workItemDto.projectId = projectDetails.id;
-            workItemDto.projectName = projectDetails.name;
+            const isPortalAuthenticated =
+              await IdentityServerAuthService.getInstance().isAuthenticated();
 
-            // #808: The Tenant view renders its preview from the portal payload's video fields.
-            // These were previously left to the LLM to copy out of the system prompt during
-            // structured extraction, which intermittently dropped them — the exact "missing
-            // embedUrl/videoFile" symptom #808 reports. Override them deterministically from the
-            // same authoritative upload result the local backstop uses, so a successful
-            // recording ALWAYS carries the embed URL to the portal regardless of model output.
-            // The override + its skip-on-null behaviour lives in applyPortalVideoFields so the
-            // wiring (and that it fires BEFORE the portal POST) is unit-testable.
-            applyPortalVideoFields(workItemDto, youtubeResult);
+            if (isPortalAuthenticated) {
+              // Portal serialization uses the OpenAI orchestrator's structured-output helper
+              // regardless of which backend drove the loop (the local Claude backend has no
+              // convertToObjectAsync). This is a separate LLM call from the orchestration step.
+              const portalOrchestrator = await MCPOrchestrator.getInstanceAsync();
+              const objectResult = await portalOrchestrator.convertToObjectAsync(
+                mcpResult,
+                WorkItemDtoSchema,
+              );
+              const workItemDto = WorkItemDtoSchema.parse(objectResult);
+              workItemDto.projectId = projectDetails.id;
+              workItemDto.projectName = projectDetails.name;
 
-            const portalResult = await SendWorkItemDetailsToPortal(workItemDto);
-            if (!portalResult.success) {
-              console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
-              formatAndReportError(portalResult.error, "portal_submission");
-            } else if (shaveId) {
-              const shaveService = ShaveService.getInstance();
-              // Sync the canonical portal data back to the local record so both
-              // stores stay in sync even if the workflow fails after this point.
-              shaveService.updateShave(shaveId, {
-                portalWorkItemId: portalResult.workItemId,
-                title: workItemDto.title,
-                projectName: workItemDto.projectName,
-                workItemUrl: workItemDto.workItemUrl,
-              });
+              // #808: The Tenant view renders its preview from the portal payload's video fields.
+              // These were previously left to the LLM to copy out of the system prompt during
+              // structured extraction, which intermittently dropped them — the exact "missing
+              // embedUrl/videoFile" symptom #808 reports. Override them deterministically from the
+              // same authoritative upload result the local backstop uses, so a successful
+              // recording ALWAYS carries the embed URL to the portal regardless of model output.
+              // The override + its skip-on-null behaviour lives in applyPortalVideoFields so the
+              // wiring (and that it fires BEFORE the portal POST) is unit-testable.
+              applyPortalVideoFields(workItemDto, youtubeResult);
+
+              const portalResult = await SendWorkItemDetailsToPortal(workItemDto);
+              if (!portalResult.success) {
+                console.warn("[ProcessVideo] Portal submission failed:", portalResult.error);
+                formatAndReportError(portalResult.error, "portal_submission");
+              } else if (shaveId) {
+                const shaveService = ShaveService.getInstance();
+                // Sync the canonical portal data back to the local record so both
+                // stores stay in sync even if the workflow fails after this point.
+                shaveService.updateShave(shaveId, {
+                  portalWorkItemId: portalResult.workItemId,
+                  title: workItemDto.title,
+                  projectName: workItemDto.projectName,
+                  workItemUrl: workItemDto.workItemUrl,
+                });
+              }
             }
           } catch (portalError) {
             console.warn("[ProcessVideo] Portal submission error:", portalError);
@@ -751,6 +759,14 @@ export class ProcessVideoIPCHandlers {
       }
 
       if (shouldRunStage(WorkflowProgressStage.UPDATING_METADATA)) {
+        // #306: advance currentStage here too (like every earlier stage does) so an
+        // exception that somehow escapes this block's own try/catch is attributed to
+        // UPDATING_METADATA rather than staying pinned on the already-completed
+        // EXECUTING_TASK — which the outer catch below would otherwise silently flip
+        // back to "failed", permanently blocking isWorkflowReadyForFinalOutput (it
+        // requires executing_task to stay "completed") even though the actual task
+        // (issue creation) already succeeded.
+        currentStage = WorkflowProgressStage.UPDATING_METADATA;
         const videoId = resolveMetadataStage(youtubeResult, workflowManager);
         if (videoId) {
           try {
@@ -802,10 +818,12 @@ export class ProcessVideoIPCHandlers {
       return { success: true, youtubeResult, mcpResult, workflowId };
     } catch (error) {
       const errorMessage = formatAndReportError(error, "video_processing");
-      // Mark the current stage as failed (if not already failed by fault injection)
+      // #306: only mark currentStage as failed if it was genuinely interrupted
+      // mid-flight — see shouldFailStageOnUnexpectedError for why a stage that already
+      // reached "completed"/"skipped" must not be retroactively re-failed here.
       if (currentStage) {
         const stepState = workflowManager.getStepState(currentStage);
-        if (stepState.status !== "failed") {
+        if (shouldFailStageOnUnexpectedError(stepState.status)) {
           workflowManager.failStage(currentStage, errorMessage);
         }
       }
