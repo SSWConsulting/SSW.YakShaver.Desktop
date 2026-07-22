@@ -43,9 +43,9 @@ export const STEPS: readonly OnboardingStep[] = [
   {
     id: 3,
     icon: monitorPlay,
-    title: "Connect a Platform",
-    description: "Choose which platform or service YakShaver will connect to and use.",
-    sidebarDescription: "Connect the platforms and services YakShaver will use.",
+    title: "Connect an MCP Server",
+    description: "Choose which MCP server YakShaver will connect to and use.",
+    sidebarDescription: "Connect MCP servers so YakShaver can use their tools.",
     navSteps: [3],
   },
 ] satisfies OnboardingStep[];
@@ -55,7 +55,7 @@ export const LLM_STEP_ID = 2;
 export const MCP_STEP_ID = 3;
 
 export const MCP_STEP_HELP_TEXT =
-  "A platform or service (e.g. GitHub, Jira, Azure DevOps) that YakShaver connects to using a technology called MCP (Model Context Protocol), so it can use that platform's tools on your behalf.";
+  "YakShaver connects to MCP servers to use tools from GitHub, Jira, Azure DevOps, and other services. MCP means Model Context Protocol.";
 
 const PROVIDER_NAMES = Object.keys(LLM_PROVIDER_CONFIGS) as ProviderName[];
 
