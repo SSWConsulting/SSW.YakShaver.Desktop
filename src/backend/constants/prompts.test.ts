@@ -101,6 +101,16 @@ describe("SHARED_ISSUE_CREATION_RULES — uploaded video URL uniqueness", () => 
   });
 });
 
+describe("SHARED_ISSUE_CREATION_RULES — screenshots are mandatory", () => {
+  it("unconditionally requires exactly one screenshot", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(/Screenshots \(MANDATORY\)/);
+    expect(SHARED_ISSUE_CREATION_RULES).not.toMatch(/when video file path is available/i);
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /ALWAYS capture exactly one screenshot.*capture_video_frame/i,
+    );
+  });
+});
+
 describe("SHARED_ISSUE_CREATION_RULES — issue template selection follows user intent", () => {
   it("forbids recording artifacts from influencing the issue type", () => {
     expect(SHARED_ISSUE_CREATION_RULES).toMatch(

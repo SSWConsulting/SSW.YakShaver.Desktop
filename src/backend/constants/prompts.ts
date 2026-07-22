@@ -85,7 +85,7 @@ If no template is found, create a well-structured issue body that includes:
 - **Critical**: For bugs, include section ### Pain, ### Acceptance Criteria, ### Reproduce Steps in order, don't add other section.
 - **Critical**: For features, include section ### Pain, ### Suggested Solution, ### Acceptance Criteria, ### Tasks in order, don't add other section.
 
-8) **Screenshots (Recommended when video file path is available)**:
+8) **Screenshots (MANDATORY)**:
 - ALWAYS capture exactly one screenshot from the video using \`capture_video_frame\`.
 - Select a timestamp where key UI elements, errors, or context are clearly visible.
 - Upload the captured image using \`upload_screenshot\` to generate a public URL.
