@@ -7,7 +7,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { LayoutGrid, List, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Heading } from "@/components/typography/heading-tag";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -22,40 +22,84 @@ import { Button } from "../components/ui/button";
 import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
 import { ipcClient } from "../services/ipc-client";
 import type { Shave } from "../types";
+import { parseWorkflowProgressNeoPayload } from "../utils";
+
+interface LoadShavesOptions {
+  showLoadingState?: boolean;
+}
 
 export function HomePage() {
   const [shaves, setShaves] = useState<Shave[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">("table");
+  const nextLoadRequestIdRef = useRef(0);
+  const latestAppliedLoadRequestIdRef = useRef(0);
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "updated", desc: true }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
 
-  const loadShaves = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const loadShaves = useCallback(async (options?: LoadShavesOptions) => {
+    const showLoadingState = options?.showLoadingState ?? true;
+    const requestId = nextLoadRequestIdRef.current + 1;
+    nextLoadRequestIdRef.current = requestId;
+
+    if (showLoadingState) {
+      setLoading(true);
+      setError(null);
+    }
+
     try {
       const result = await ipcClient.shave.getAll();
+
       if (!result.success) {
-        setError(result.error || "Failed to load shaves");
-        toast.error(result.error || "Failed to load shaves");
+        if (showLoadingState && requestId >= latestAppliedLoadRequestIdRef.current) {
+          setError(result.error || "Failed to load shaves");
+          toast.error(result.error || "Failed to load shaves");
+        }
         return;
       }
+
+      if (requestId < latestAppliedLoadRequestIdRef.current) {
+        return;
+      }
+
+      latestAppliedLoadRequestIdRef.current = requestId;
       setShaves(result.data ?? []);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load shaves";
-      setError(message);
-      toast.error("Failed to load shaves");
+      if (showLoadingState && requestId >= latestAppliedLoadRequestIdRef.current) {
+        setError(message);
+        toast.error("Failed to load shaves");
+      }
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoadingState) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     loadShaves();
+  }, [loadShaves]);
+
+  // #591: MyShaves previously only fetched the shave list once on mount, so a shave
+  // that finished processing while this page was open (or already loaded) never
+  // showed its updated status/results until a manual refresh. useShaveManager
+  // (mounted once in App.tsx) persists the processing/completed/failed status to the
+  // DB as workflow.onProgressNeo events arrive, but nothing told this page's list to
+  // re-fetch. Subscribe here too and silently re-fetch (no loading skeleton) on every
+  // progress event so the list picks up the persisted change as soon as it lands.
+  useEffect(() => {
+    return ipcClient.workflow.onProgressNeo((data: unknown) => {
+      const { shaveId } = parseWorkflowProgressNeoPayload(data);
+      if (!shaveId) {
+        return;
+      }
+      void loadShaves({ showLoadingState: false });
+    });
   }, [loadShaves]);
 
   const projectNames = useMemo(() => {
@@ -152,7 +196,7 @@ export function HomePage() {
         {error ? (
           <div className="flex flex-col items-center justify-center gap-4 py-12">
             <p className="text-muted-foreground">Something went wrong loading your shaves.</p>
-            <Button variant="outline" onClick={loadShaves} className="gap-2">
+            <Button variant="outline" onClick={() => void loadShaves()} className="gap-2">
               <RefreshCw className="h-4 w-4" />
               Retry
             </Button>
