@@ -57,8 +57,12 @@ export class McpIPCHandlers {
       async (_event: IpcMainInvokeEvent, serverId: string) => {
         const client = await this.mcpServerManager.getMcpClientAsync(serverId);
         if (!client) {
-          // Throw the real reason (via a health check) instead of returning [],
-          // which the popup would show as a misleading "No tools available" (#982).
+          // We're already in the failure path: getMcpClientAsync returned no client,
+          // so we WILL throw. The health check here is not a retry and its boolean
+          // result is intentionally ignored — it's run purely to recover a specific
+          // error message (e.g. the 401 text) so the popup shows the real reason
+          // instead of a misleading empty "No tool available" list. If it yields no
+          // message, we fall back to a generic connection error (#982).
           const health = await this.mcpServerManager.checkServerHealthAsync(serverId);
           throw new Error(
             health.error ??

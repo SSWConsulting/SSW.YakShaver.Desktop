@@ -120,13 +120,8 @@ export interface PromptFormData {
   selectedMcpServerIds?: string[];
 }
 
-export interface HealthStatusInfo {
-  isHealthy: boolean;
-  error?: string;
-  successMessage?: string;
-  isChecking: boolean;
-  authFailed?: boolean;
-}
+// Single shared contract — re-exported so existing `@/types` imports keep working.
+export type { HealthStatusInfo } from "@shared/types/mcp";
 
 export const UNDO_EVENT_CHANNEL = "yakshaver:undo-event";
 

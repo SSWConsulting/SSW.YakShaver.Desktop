@@ -133,9 +133,12 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
     mocks.createClientAsync.mockReset();
     mocks.clearTokensAsync.mockReset();
     mocks.authorizeWithBackend.mockReset();
-    // Health checks now read/write the shared client cache; clear it so cases
-    // don't leak a cached client into one another (#982).
+    // Health checks now read/write the shared client cache + in-flight creation
+    // map; clear both so cases don't leak state into one another (#982).
     (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.clear();
+    (
+      MCPServerManager as unknown as { clientCreationPromises: Map<string, unknown> }
+    ).clientCreationPromises.clear();
   });
 
   it("reports authFailed when the tool probe returns 401", async () => {
@@ -298,6 +301,42 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
     expect(
       (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.get("srv-1"),
     ).toBe(cached);
+  });
+
+  it("deduplicates concurrent client creation — no leaked connection/process (#982)", async () => {
+    // Two overlapping health checks with an empty cache must share ONE client
+    // creation, not each build a client and race to overwrite the cache.
+    let resolveCreate: (client: unknown) => void = () => {};
+    const created = {
+      probeHealthAsync: vi
+        .fn()
+        .mockResolvedValue({ healthy: true, toolCount: 1, authFailed: false }),
+      disconnectAsync: vi.fn().mockResolvedValue(undefined),
+    };
+    mocks.createClientAsync.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    const first = manager.checkServerHealthAsync("srv-1");
+    const second = manager.checkServerHealthAsync("srv-1");
+    // Let both calls drain their pre-creation awaits (config resolution, etc.)
+    // and reach the shared in-flight creation before it resolves.
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    resolveCreate(created);
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(a.isHealthy).toBe(true);
+    expect(b.isHealthy).toBe(true);
+    // The client was built exactly once and cached; nothing leaked.
+    expect(mocks.createClientAsync).toHaveBeenCalledTimes(1);
+    expect(created.disconnectAsync).not.toHaveBeenCalled();
+    expect(
+      (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.get("srv-1"),
+    ).toBe(created);
   });
 
   it("surfaces a non-empty error string when the probe fails with 401", async () => {
