@@ -38,6 +38,7 @@ import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
 import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
+import { UserSettingsStorage } from "./services/storage/user-settings-storage";
 import { TelemetryService } from "./services/telemetry/telemetry-service";
 import { TrayManager } from "./services/tray/tray-manager";
 import { createGuardedBrowserWindow } from "./utils/devtools-guard";
@@ -213,19 +214,50 @@ const createWindow = (): BrowserWindow | null => {
   });
 
   window.on("close", (event) => {
-    if (!isQuitting) {
-      event.preventDefault();
-      window.hide();
-
-      // Ensure screen frame overlay is closed
-      try {
-        ScreenFrameWindow.getInstance().hide();
-      } catch (err) {
-        console.error("ScreenFrameWindow cleanup error:", err);
-      }
-
-      return false;
+    if (isQuitting) {
+      return;
     }
+
+    // Defer the close so we can check the user's preferred close behavior before
+    // deciding whether to hide (minimize to tray) or actually quit the app.
+    event.preventDefault();
+
+    UserSettingsStorage.getInstance()
+      .getSettingsAsync()
+      .then((settings) => {
+        if (window.isDestroyed()) {
+          return;
+        }
+
+        if (settings.closeBehavior === "quit") {
+          app.quit();
+          return;
+        }
+
+        window.hide();
+
+        // Ensure screen frame overlay is closed
+        try {
+          ScreenFrameWindow.getInstance().hide();
+        } catch (err) {
+          console.error("ScreenFrameWindow cleanup error:", err);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to read close behavior setting; minimizing to tray:", err);
+        if (window.isDestroyed()) {
+          return;
+        }
+
+        window.hide();
+
+        // Ensure screen frame overlay is closed
+        try {
+          ScreenFrameWindow.getInstance().hide();
+        } catch (cleanupErr) {
+          console.error("ScreenFrameWindow cleanup error:", cleanupErr);
+        }
+      });
   });
 
   window.on("closed", () => {
