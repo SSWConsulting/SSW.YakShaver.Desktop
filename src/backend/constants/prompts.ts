@@ -54,11 +54,12 @@ export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If th
 - A generic section such as More Information, Links, Public Links, Environment, or Screenshots is NOT an explicit video-link location unless it contains a video-specific placeholder or an existing Watch-the-video Markdown link.
 
 5) **Issue Title Rules**:
-- The title MUST strictly follow the template's frontmatter pattern, INCLUDING ANY EMOJIS.
-- Do not omit fixed words (e.g., "🐛 Bug -") or substitute emojis.
-- **CRITICAL — Fill in the placeholders**: The template title contains placeholders such as \`{{ FEATURE NAME }}\`, \`{{ FEATURE DESCRIPTION }}\`, or \`{{ TITLE }}\`. You MUST replace EVERY placeholder with a concise, specific summary derived from the video transcription. Keep the template's fixed words and emojis, but the rest of the title MUST describe what the video is actually about.
-- A title that is ONLY an emoji, ONLY the fixed words, or that still contains any leftover \`{{ ... }}\` placeholder is INVALID. The final title MUST contain real, descriptive words from the video — NEVER just "✨" or "🐛 Bug -" on their own.
-- Example: for a feature template \`✨ {{ FEATURE NAME }} - {{ FEATURE DESCRIPTION }}\` about adding dark mode, a correct title is \`✨ Dark mode - Add a dark theme toggle to settings\`, NOT \`✨\`.
+- The title MUST use the template's frontmatter emoji (e.g., "✨" for a feature, "🐛" for a bug), but DROP any redundant fixed text label that follows it in the template (e.g., "Feature -", "Bug -"). Keep the emoji, remove the text label.
+- Do not omit the emoji or substitute it for a different one.
+- **CRITICAL — Fill in the placeholders**: The template title contains placeholders such as \`{{ FEATURE NAME }}\`, \`{{ FEATURE DESCRIPTION }}\`, or \`{{ TITLE }}\`. You MUST replace EVERY placeholder with a concise, specific summary derived from the video transcription. Keep the template's emoji, but drop any fixed text label (e.g., "Feature -", "Bug -") and any separator that only existed to join the label to the placeholders — the rest of the title MUST describe what the video is actually about.
+- A title that is ONLY an emoji, that still carries the redundant "Feature -"/"Bug -" text label, or that still contains any leftover \`{{ ... }}\` placeholder is INVALID. The final title MUST contain real, descriptive words from the video — NEVER just "✨" or "🐛" on their own, and NEVER "🐛 Bug -" or "✨ Feature -" as a prefix.
+- Example: for a feature template \`✨ {{ FEATURE NAME }} - {{ FEATURE DESCRIPTION }}\` about adding dark mode, a correct title is \`✨ Dark mode - Add a dark theme toggle to settings\`, NOT \`✨\` and NOT \`✨ Feature - Dark mode - Add a dark theme toggle to settings\`.
+- Example: for a bug template \`🐛 Bug - {{ BUG DESCRIPTION }}\` about a broken login button, a correct title is \`🐛 Login button does not respond to clicks\`, NOT \`🐛 Bug - Login button does not respond to clicks\`.
 - The descriptive summary belongs in the TITLE field. Do NOT leave the title as a bare emoji/prefix and push the actual title text into the issue body instead.
 - **No template**: when the repository has no issue template, the title is still a real, descriptive summary of the video — a plain, concise sentence (no emoji prefix required), never empty, generic, or just a placeholder.
 
