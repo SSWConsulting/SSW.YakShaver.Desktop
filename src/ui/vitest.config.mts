@@ -19,21 +19,14 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@shared": path.resolve(__dirname, "../shared"),
-    },
-  },
-  // #963: components under test can import public assets via root-absolute
-  // `?url` imports (e.g. "/onboarding/cpu.svg?url", resolved against Vite's
-  // publicDir at dev/build time). Vitest's own bundled transform server
-  // applies a stricter fs allow-list than the app's dev server and rejects
-  // those as "Denied ID" before a component test ever renders. Relaxing it
-  // only affects this test transform server, not the app's dev/build config.
-  server: {
-    fs: {
-      strict: false,
-    },
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      { find: "@shared", replacement: path.resolve(__dirname, "../shared") },
+      {
+        find: /^\/(.+)\?url$/,
+        replacement: `${path.resolve(__dirname, "./public")}/$1?url`,
+      },
+    ],
   },
   test: {
     globals: true,

@@ -1,8 +1,10 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { OnboardingStep, StepStatus } from "@/types/onboarding";
 import { STEPS } from "@/types/onboarding";
 import { OnboardingSidebar } from "./OnboardingSidebar";
+
+vi.mock("@shared/llm/llm-providers", () => ({ LLM_PROVIDER_CONFIGS: {} }));
 
 /**
  * #963: the left-hand step list had no distinct visual treatment for the current
@@ -41,20 +43,48 @@ describe("OnboardingSidebar current step highlight (#963)", () => {
     expect(pendingTitle.closest('[aria-current="step"]')).toBeNull();
   });
 
-  it("renders the current step's title in bold, distinct from completed and pending steps", () => {
+  it("uses the brand color only for the current step icon", () => {
     renderSidebar({ 1: "completed", 2: "current", 3: "pending" });
 
-    expect(screen.getByText(STEPS[1].title)).toHaveClass("font-bold");
-    expect(screen.getByText(STEPS[0].title)).not.toHaveClass("font-bold");
-    expect(screen.getByText(STEPS[2].title)).not.toHaveClass("font-bold");
+    const currentRow = screen.getByText(STEPS[1].title).closest('[aria-current="step"]');
+    expect(currentRow?.querySelector(".bg-ssw-red")).not.toBeNull();
+    const completedRow = screen.getByText(STEPS[0].title).parentElement?.parentElement;
+    expect(completedRow?.querySelector(".bg-ssw-red")).toBeNull();
+    const pendingRow = screen.getByText(STEPS[2].title).parentElement?.parentElement;
+    expect(pendingRow?.querySelector(".bg-ssw-red")).toBeNull();
+  });
+
+  it("keeps row spacing stable as the current highlight moves", () => {
+    const { rerender } = renderSidebar({ 1: "current", 2: "pending", 3: "pending" });
+
+    for (const step of STEPS) {
+      expect(screen.getByText(step.title).closest('[class*="py-2"]')).not.toBeNull();
+    }
+
+    rerender(
+      <OnboardingSidebar
+        connectorPositions={[]}
+        stepListRef={{ current: null }}
+        stepIconRefs={{ current: [] }}
+        getSidebarStepStatus={(step) => {
+          if (step.id === 2) return "current";
+          return step.id < 2 ? "completed" : "pending";
+        }}
+      />,
+    );
+
+    for (const step of STEPS) {
+      expect(screen.getByText(step.title).closest('[class*="py-2"]')).not.toBeNull();
+    }
   });
 
   it("highlights the final step as current once the wizard reaches it", () => {
     renderSidebar({ 1: "completed", 2: "completed", 3: "current" });
 
     const lastTitle = screen.getByText(STEPS[2].title);
-    expect(lastTitle.closest('[aria-current="step"]')).not.toBeNull();
-    expect(lastTitle).toHaveClass("font-bold");
+    const lastRow = lastTitle.closest('[aria-current="step"]');
+    expect(lastRow).not.toBeNull();
+    expect(lastRow?.querySelector(".bg-ssw-red")).not.toBeNull();
   });
 
   it("keeps completed and pending steps visually distinct from each other", () => {
@@ -62,9 +92,9 @@ describe("OnboardingSidebar current step highlight (#963)", () => {
 
     // Pending remains deemphasized (existing greyed-out treatment).
     expect(screen.getByText(STEPS[2].title)).toHaveClass("text-white/[0.65]");
-    // Completed is not deemphasized, but also not bold like current.
+    // Completed is not deemphasized, but does not use the current icon color.
     const completedTitle = screen.getByText(STEPS[0].title);
     expect(completedTitle).toHaveClass("text-white/[0.98]");
-    expect(completedTitle).not.toHaveClass("font-bold");
+    expect(completedTitle.parentElement?.parentElement?.querySelector(".bg-ssw-red")).toBeNull();
   });
 });
