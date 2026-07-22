@@ -16,6 +16,8 @@ const { mockWebContents, mockWindow } = vi.hoisted(() => {
     on: vi.fn(),
     setAlwaysOnTop: vi.fn(),
     setContentProtection: vi.fn(),
+    setBounds: vi.fn(),
+    setVisibleOnAllWorkspaces: vi.fn(),
     loadURL: vi.fn().mockResolvedValue(undefined),
     loadFile: vi.fn().mockResolvedValue(undefined),
     showInactive: vi.fn(),
@@ -32,6 +34,8 @@ vi.mock("electron", () => ({
     on = mockWindow.on;
     setAlwaysOnTop = mockWindow.setAlwaysOnTop;
     setContentProtection = mockWindow.setContentProtection;
+    setBounds = mockWindow.setBounds;
+    setVisibleOnAllWorkspaces = mockWindow.setVisibleOnAllWorkspaces;
     loadURL = mockWindow.loadURL;
     loadFile = mockWindow.loadFile;
     showInactive = mockWindow.showInactive;
@@ -45,6 +49,7 @@ vi.mock("electron", () => ({
   },
 }));
 
+import { screen } from "electron";
 import { RecordingControlBarWindow } from "./control-bar-window";
 
 describe("RecordingControlBarWindow (#870)", () => {
@@ -119,6 +124,68 @@ describe("RecordingControlBarWindow (#870)", () => {
       controlBar.hide();
 
       expect(controlBar.getCurrentTime()).toBeNull();
+    });
+  });
+
+  // #508: on macOS with an external monitor connected, Electron can silently
+  // reset a newly-created BrowserWindow's geometry to the primary display's
+  // bounds instead of honouring the constructor's x/y for a non-primary
+  // display — the same class of bug countdown-window.ts and
+  // screen-frame-window.ts already work around with a post-construction
+  // setSize call. This left the control bar positioned on/for the wrong
+  // display, which looked to users like it had disappeared entirely.
+  describe("multi-display positioning (#508)", () => {
+    const secondaryDisplay = {
+      id: 2,
+      workArea: { x: 1920, y: 0, width: 1440, height: 900 },
+    };
+
+    beforeEach(() => {
+      vi.mocked(screen.getAllDisplays).mockReturnValue([
+        { id: 1, workArea: { x: 0, y: 0, width: 1920, height: 1080 } } as never,
+        secondaryDisplay as never,
+      ]);
+    });
+
+    it("re-asserts the window bounds after construction so a non-primary display's geometry sticks", async () => {
+      await controlBar.showForRecording(secondaryDisplay.id.toString());
+
+      expect(mockWindow.setBounds).toHaveBeenCalledWith(
+        expect.objectContaining({
+          width: 300,
+          height: 80,
+          x: secondaryDisplay.workArea.x + (secondaryDisplay.workArea.width - 300) / 2,
+          y: secondaryDisplay.workArea.y + secondaryDisplay.workArea.height - 80 - 20,
+        }),
+      );
+    });
+
+    it("marks the window visible on all workspaces on macOS so it isn't stranded on an inactive Space", async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, "platform", { value: "darwin" });
+
+      try {
+        await controlBar.showForRecording(secondaryDisplay.id.toString());
+
+        expect(mockWindow.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
+          visibleOnFullScreen: true,
+        });
+      } finally {
+        Object.defineProperty(process, "platform", { value: originalPlatform });
+      }
+    });
+
+    it("does not force visible-on-all-workspaces on non-macOS platforms", async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, "platform", { value: "win32" });
+
+      try {
+        await controlBar.showForRecording(secondaryDisplay.id.toString());
+
+        expect(mockWindow.setVisibleOnAllWorkspaces).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(process, "platform", { value: originalPlatform });
+      }
     });
   });
 });
