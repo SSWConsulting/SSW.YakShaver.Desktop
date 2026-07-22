@@ -199,15 +199,6 @@ export class PromptManager {
         req.end();
       });
 
-      const desktopAgentProjectPrompt = projectData.desktopAgentProjectPrompt;
-      console.log("[PromptManager] Portal project prompt diagnostics", {
-        projectId: id,
-        hasDesktopPromptValue: Boolean(desktopAgentProjectPrompt),
-        hasDesktopPromptContent: Boolean(desktopAgentProjectPrompt?.trim()),
-        desktopPromptLength: desktopAgentProjectPrompt?.length ?? 0,
-        hasLegacyVideoRule: desktopAgentProjectPrompt?.includes("[▶️ Watch the video") ?? false,
-      });
-
       return projectData;
     } catch (error) {
       console.error(`Failed to fetch project details for ${id}:`, error);

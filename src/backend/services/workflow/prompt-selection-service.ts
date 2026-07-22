@@ -49,16 +49,8 @@ export class PromptSelectionService {
     );
 
     if (projectDetails) {
-      const usesDefaultProjectPrompt = !projectDetails.desktopAgentProjectPrompt;
       // use default prompt if project doesn't have a custom one
       projectDetails.desktopAgentProjectPrompt ||= defaultProjectPrompt;
-      console.log("[PromptSelectionService] Effective project prompt diagnostics", {
-        projectId: projectDetails.id,
-        projectSource: selectedProject.source,
-        promptSource: usesDefaultProjectPrompt ? "default" : "project",
-        promptLength: projectDetails.desktopAgentProjectPrompt.length,
-        hasLegacyVideoRule: projectDetails.desktopAgentProjectPrompt.includes("[▶️ Watch the video"),
-      });
       // #862: guarantee the deleted-item duplicate-detection guidance is present regardless of the
       // prompt's source. Stored local/custom and remote portal prompts skip the default fallback,
       // so without this they would never carry the rules (idempotent — defaults already include it).

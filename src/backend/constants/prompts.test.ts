@@ -66,44 +66,25 @@ describe("SHARED_ISSUE_CREATION_RULES — no-template body fallback", () => {
   });
 });
 
-describe("VIDEO_LINK_EMBEDDING_RULES — one template-aware video link", () => {
+describe("VIDEO_LINK_EMBEDDING_RULES — uploaded video data", () => {
   it("is included in the shared issue-creation rules", () => {
     expect(SHARED_ISSUE_CREATION_RULES).toContain(VIDEO_LINK_EMBEDDING_RULES);
   });
 
-  it("requires exactly one video URL and forbids a separate template-adjacent link", () => {
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/MUST appear exactly once/i);
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/fill only that location/i);
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/do NOT add any additional video link/i);
+  it("only treats the uploaded URL and duration as input data", () => {
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/URL and duration as input data only/i);
+    expect(VIDEO_LINK_EMBEDDING_RULES).not.toMatch(/exactly once|canonical|Cc\/Hi/i);
   });
+});
 
-  it("prevents the icon and label from becoming two links to the same URL", () => {
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Do NOT split the icon and label/i);
-  });
-
-  it("does not treat a generic video-description or links section as a video-link placeholder", () => {
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Video Description.*NOT an explicit/i);
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Public Links.*NOT an explicit/i);
-  });
-
-  it("requires the canonical red link when no explicit video-link location exists", () => {
-    expect(VIDEO_LINK_EMBEDDING_RULES).toContain("[🟥 Watch the video (<duration>)](<videoLink>)");
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Otherwise, add exactly one canonical link/i);
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Do NOT repeat.*bare link/i);
-  });
-
-  it("places a fallback canonical link after Cc/Hi and before the first section", () => {
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(
-      /after the template's Cc\/Hi greeting block and before the first section heading/i,
+describe("SHARED_ISSUE_CREATION_RULES — uploaded video URL uniqueness", () => {
+  it("requires the final body to contain the uploaded URL exactly once", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /Video Link Uniqueness.*MUST include its URL exactly once as a link target/i,
     );
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(
-      /NEVER place.*More Information.*Links.*Environment.*Screenshots/i,
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /Never repeat the same uploaded video URL elsewhere/i,
     );
-  });
-
-  it("allows repository templates to control video presentation", () => {
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/follow the template/i);
-    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/icon, label, duration format, or placement/i);
   });
 });
 

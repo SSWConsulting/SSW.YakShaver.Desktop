@@ -220,13 +220,6 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
       videoUploadResult,
       options.videoFilePath,
     );
-    console.log("[MCPOrchestrator] Effective video prompt diagnostics", {
-      videoRuleLines: systemPrompt
-        .split("\n")
-        .filter((line) =>
-          /video link|video url|watch the video|uploaded video|duration|▶️|🟥/i.test(line),
-        ),
-    });
 
     const messages: ModelMessage[] = [
       {
@@ -435,7 +428,6 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
                 toolCall.toolName,
                 this.resolveToolOutputReferences(toolCall.input),
               );
-              this.logBacklogVideoLinkDiagnostics(toolCall.toolName, toolCall.input, resolvedInput);
 
               const toolOutput = await toolToCall.execute(resolvedInput, {
                 toolCallId: toolCall.toolCallId,
@@ -645,48 +637,6 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
 
   public cancelAllPendingApprovals(reason = "Session cancelled"): void {
     UserInteractionService.getInstance().cancelAllPending(reason);
-  }
-
-  private logBacklogVideoLinkDiagnostics(
-    toolName: string,
-    modelInput: Record<string, unknown>,
-    executedInput: Record<string, unknown>,
-  ): void {
-    if (!isBacklogItemMutationTool(toolName)) {
-      return;
-    }
-
-    const bodyFieldNames = new Set(["body", "description", "content", "markdown", "text"]);
-    const summarize = (input: Record<string, unknown>) =>
-      Object.entries(input).flatMap(([field, value]) => {
-        if (!bodyFieldNames.has(field.toLowerCase()) || typeof value !== "string") {
-          return [];
-        }
-
-        const lines = value.split("\n");
-        return [
-          {
-            field,
-            openingLines: lines.slice(0, 12),
-            videoLines: lines.filter((line) =>
-              /watch the video|youtu\.be|youtube\.com|▶️|🟥/i.test(line),
-            ),
-          },
-        ];
-      });
-
-    console.log(
-      "[MCPOrchestrator] Backlog video link diagnostics",
-      JSON.stringify(
-        {
-          toolName,
-          modelAuthoredBody: summarize(modelInput),
-          executedBody: summarize(executedInput),
-        },
-        null,
-        2,
-      ),
-    );
   }
 
   private appendVideoInfoToSystemPrompt(

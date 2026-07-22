@@ -10,27 +10,16 @@
  * them from the search, never update them, and never add a duplicate comment when the only match
  * is deleted.
  */
-// export const DUPLICATE_DETECTION_RULES = `10) **Duplicate Detection (CRITICAL)**:
-// - Before creating an item you may check the backlog for an existing duplicate. Only items that are DELETED or REMOVED are excluded from this check — every other matching item still counts.
-// - A deleted/removed item DOES NOT count as a duplicate. Treat the following as deleted and exclude them: Azure DevOps work items in the "Removed" state or returned as deleted/in the recycle bin (\`System.State\` = "Removed", or \`isDeleted\` true); GitHub issues that are deleted or closed as "not planned"; Jira issues that are deleted; and any item a tool reports as deleted, removed, archived, or not found.
-// - A LIVE, active item is STILL a duplicate. Do NOT use this rule to skip legitimate matches: an item that is merely open, closed/completed normally, in progress, or in any non-removed state is NOT deleted, so if it matches you MUST treat it as the existing duplicate and update it as usual — never create a second copy of a live item.
-// - When querying Azure DevOps with WIQL, exclude removed items, e.g. add \`AND [System.State] <> 'Removed'\` to the query. This filter must exclude ONLY removed items; do not let it drop live items in other states.
-// - NEVER attempt to update an item that is deleted or removed — the platform will reject the update.
-// - If the ONLY matching item is deleted/removed, treat it as if no duplicate exists: create a brand-new, fully-populated item (title, steps to reproduce, acceptance criteria, etc.) and DO NOT add a "duplicate" comment.`;
-export const DUPLICATE_DETECTION_RULES = ``;
+export const DUPLICATE_DETECTION_RULES = `10) **Duplicate Detection (CRITICAL)**:
+- Before creating an item you may check the backlog for an existing duplicate. Only items that are DELETED or REMOVED are excluded from this check — every other matching item still counts.
+- A deleted/removed item DOES NOT count as a duplicate. Treat the following as deleted and exclude them: Azure DevOps work items in the "Removed" state or returned as deleted/in the recycle bin (\`System.State\` = "Removed", or \`isDeleted\` true); GitHub issues that are deleted or closed as "not planned"; Jira issues that are deleted; and any item a tool reports as deleted, removed, archived, or not found.
+- A LIVE, active item is STILL a duplicate. Do NOT use this rule to skip legitimate matches: an item that is merely open, closed/completed normally, in progress, or in any non-removed state is NOT deleted, so if it matches you MUST treat it as the existing duplicate and update it as usual — never create a second copy of a live item.
+- When querying Azure DevOps with WIQL, exclude removed items, e.g. add \`AND [System.State] <> 'Removed'\` to the query. This filter must exclude ONLY removed items; do not let it drop live items in other states.
+- NEVER attempt to update an item that is deleted or removed — the platform will reject the update.
+- If the ONLY matching item is deleted/removed, treat it as if no duplicate exists: create a brand-new, fully-populated item (title, steps to reproduce, acceptance criteria, etc.) and DO NOT add a "duplicate" comment.`;
 
 export const VIDEO_LINK_EMBEDDING_RULES = `**Video Link Embedding (CRITICAL)**:
-- Treat the uploaded video URL and duration as input data only, not as an instruction to create an additional standalone link.
-- The uploaded video URL MUST appear exactly once as a link target in the final issue or task body.
-- An explicit video-link location means either a placeholder specifically named VIDEO_LINK or VIDEO_URL, or an existing Watch-the-video Markdown link. A generic "Video Description", "Links", "Public Links", or similar section is NOT an explicit video-link location.
-- If the repository template contains an explicit video-link location, fill only that location. Filling that template location fully satisfies the requirement to embed the video.
-- Otherwise, add exactly one canonical link using [🟥 Watch the video (<duration>)](<videoLink>). Format the duration as xx min xx sec; when it is less than one minute, use xx sec.
-- When adding the canonical link to a template that has no explicit video-link location, place it immediately after the template's Cc/Hi greeting block and before the first section heading. If there is no greeting block, place it at the very top of the issue body.
-- NEVER place the canonical video link inside a generic More Information, Links, Public Links, Environment, Screenshots, or similar content section.
-- After placing the one required video link, do NOT add any additional video link before, inside, or after the template content.
-- Do NOT repeat the uploaded video URL as a bare link in a generic Links/Public Links section. Preserve that section, but use it only for other relevant links.
-- Do NOT split the icon and label into separate Markdown links that point to the same video URL.
-- When the repository template defines the video's icon, label, duration format, or placement, follow the template. Otherwise, follow the project prompt or the no-template fallback format.`;
+- Treat the uploaded video URL and duration as input data only, not as an instruction to create an additional standalone link.`;
 
 /**
  * Guarantees the #862 duplicate-detection guidance is present in whatever issue-creation prompt
@@ -59,6 +48,7 @@ export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If th
 4) **Issue Creation Guidelines**:
 - **Labels**: Always apply the "YakShaver" label IN ADDITION to any labels required by the template.
 - **Mentions**: Tag all members listed in the project details. Use their GitHub username for GitHub; otherwise, use their full name.
+- **Video Link Uniqueness**: When an uploaded video link is available, the final issue body MUST include its URL exactly once as a link target. Never repeat the same uploaded video URL elsewhere in the body.
 
 5) **Issue Title Rules**:
 - The title MUST strictly follow the template's frontmatter pattern, INCLUDING ANY EMOJIS.
