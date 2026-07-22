@@ -197,14 +197,20 @@ describe("shouldFailStageOnUnexpectedError (#306 — outer catch must not un-com
   });
 
   it("covers every WorkflowStatus value so a future status can't silently change behaviour unnoticed", () => {
-    const allStatuses: WorkflowStatus[] = [
-      "not_started",
-      "in_progress",
-      "completed",
-      "failed",
-      "skipped",
-    ];
-    const results = allStatuses.map((status) => shouldFailStageOnUnexpectedError(status));
-    expect(results).toEqual([true, true, false, false, false]);
+    const decisions = {
+      not_started: shouldFailStageOnUnexpectedError("not_started"),
+      in_progress: shouldFailStageOnUnexpectedError("in_progress"),
+      completed: shouldFailStageOnUnexpectedError("completed"),
+      failed: shouldFailStageOnUnexpectedError("failed"),
+      skipped: shouldFailStageOnUnexpectedError("skipped"),
+    } satisfies Record<WorkflowStatus, boolean>;
+
+    expect(decisions).toEqual({
+      not_started: true,
+      in_progress: true,
+      completed: false,
+      failed: false,
+      skipped: false,
+    });
   });
 });
