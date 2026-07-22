@@ -7,7 +7,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { LayoutGrid, List, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Heading } from "@/components/typography/heading-tag";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -24,34 +24,56 @@ import { ipcClient } from "../services/ipc-client";
 import type { Shave } from "../types";
 import { parseWorkflowProgressNeoPayload } from "../utils";
 
+interface LoadShavesOptions {
+  showLoadingState?: boolean;
+}
+
 export function HomePage() {
   const [shaves, setShaves] = useState<Shave[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">("table");
+  const loadRequestIdRef = useRef(0);
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "updated", desc: true }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
 
-  const loadShaves = useCallback(async (options?: { showLoadingState?: boolean }) => {
+  const loadShaves = useCallback(async (options?: LoadShavesOptions) => {
     const showLoadingState = options?.showLoadingState ?? true;
+    const requestId = loadRequestIdRef.current + 1;
+    loadRequestIdRef.current = requestId;
+
     if (showLoadingState) {
       setLoading(true);
+      setError(null);
     }
-    setError(null);
+
     try {
       const result = await ipcClient.shave.getAll();
-      if (!result.success) {
-        setError(result.error || "Failed to load shaves");
-        toast.error(result.error || "Failed to load shaves");
+      if (requestId !== loadRequestIdRef.current) {
         return;
       }
+
+      if (!result.success) {
+        if (showLoadingState) {
+          setError(result.error || "Failed to load shaves");
+          toast.error(result.error || "Failed to load shaves");
+        }
+        return;
+      }
+
       setShaves(result.data ?? []);
     } catch (err) {
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
+
       const message = err instanceof Error ? err.message : "Failed to load shaves";
-      setError(message);
-      toast.error("Failed to load shaves");
+      if (showLoadingState) {
+        setError(message);
+        toast.error("Failed to load shaves");
+      }
       console.error(err);
     } finally {
       if (showLoadingState) {
@@ -175,7 +197,7 @@ export function HomePage() {
         {error ? (
           <div className="flex flex-col items-center justify-center gap-4 py-12">
             <p className="text-muted-foreground">Something went wrong loading your shaves.</p>
-            <Button variant="outline" onClick={loadShaves} className="gap-2">
+            <Button variant="outline" onClick={() => void loadShaves()} className="gap-2">
               <RefreshCw className="h-4 w-4" />
               Retry
             </Button>

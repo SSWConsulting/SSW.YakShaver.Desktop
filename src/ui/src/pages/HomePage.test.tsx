@@ -1,8 +1,13 @@
-import { ProgressStage, type WorkflowState, type WorkflowStatus } from "@shared/types/workflow";
+import {
+  ProgressStage,
+  WORKFLOW_STAGE_ORDER,
+  type WorkflowState,
+  type WorkflowStatus,
+} from "@shared/types/workflow";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ShaveStatus } from "../types";
+import { type Shave, ShaveStatus } from "../types";
 import { HomePage } from "./HomePage";
 
 // #591: MyShaves (HomePage) fetches the shave list once on mount but never
@@ -34,22 +39,11 @@ vi.mock("@/services/ipc-client", () => ({
   },
 }));
 
-const STAGES = [
-  ProgressStage.UPLOADING_VIDEO,
-  ProgressStage.DOWNLOADING_VIDEO,
-  ProgressStage.CONVERTING_AUDIO,
-  ProgressStage.TRANSCRIBING,
-  ProgressStage.OPTIMIZING_TRANSCRIPT,
-  ProgressStage.ANALYZING_TRANSCRIPT,
-  ProgressStage.SELECTING_PROMPT,
-  ProgressStage.EXECUTING_TASK,
-  ProgressStage.UPDATING_METADATA,
-] as const;
-
 function buildState(overrides: Partial<Record<ProgressStage, WorkflowStatus>>): WorkflowState {
   const state = {} as WorkflowState;
-  for (const stage of STAGES) {
-    state[stage] = { stage, status: overrides[stage] ?? "not_started" };
+  for (const stage of WORKFLOW_STAGE_ORDER) {
+    const progressStage = stage as ProgressStage;
+    state[stage] = { stage: progressStage, status: overrides[progressStage] ?? "not_started" };
   }
   return state;
 }
@@ -82,6 +76,34 @@ function emit(state: WorkflowState) {
   });
 }
 
+function makeShave(overrides: Partial<Shave>): Shave {
+  return {
+    id: "shave-1",
+    clientOrigin: null,
+    title: "Untitled",
+    shaveStatus: ShaveStatus.Processing,
+    projectName: null,
+    workItemUrl: null,
+    videoEmbedUrl: null,
+    portalWorkItemId: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function deferredGetAllResult(data: Shave[]) {
+  let resolve!: (value: { success: true; data: Shave[] }) => void;
+  const promise = new Promise<{ success: true; data: Shave[] }>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+
+  return {
+    promise,
+    resolve: () => resolve({ success: true, data }),
+  };
+}
+
 describe("HomePage (#591 MyShaves re-render on shave completion)", () => {
   beforeEach(() => {
     progressCallbacks.length = 0;
@@ -97,20 +119,7 @@ describe("HomePage (#591 MyShaves re-render on shave completion)", () => {
   it("re-fetches and re-renders the shave list when a shave finishes processing", async () => {
     getAll.mockResolvedValueOnce({
       success: true,
-      data: [
-        {
-          id: "shave-1",
-          clientOrigin: null,
-          title: "Untitled",
-          shaveStatus: ShaveStatus.Processing,
-          projectName: null,
-          workItemUrl: null,
-          videoEmbedUrl: null,
-          portalWorkItemId: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ],
+      data: [makeShave({})],
     });
 
     render(
@@ -128,18 +137,11 @@ describe("HomePage (#591 MyShaves re-render on shave completion)", () => {
     getAll.mockResolvedValueOnce({
       success: true,
       data: [
-        {
-          id: "shave-1",
-          clientOrigin: null,
+        makeShave({
           title: "My Finished Work Item",
           shaveStatus: ShaveStatus.Completed,
-          projectName: null,
           workItemUrl: "https://example.com/work-item/1",
-          videoEmbedUrl: null,
-          portalWorkItemId: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
+        }),
       ],
     });
 
@@ -150,5 +152,47 @@ describe("HomePage (#591 MyShaves re-render on shave completion)", () => {
     await waitFor(() => expect(getAll).toHaveBeenCalledTimes(2));
     await screen.findByText("My Finished Work Item");
     expect(screen.getByText(ShaveStatus.Completed)).toBeInTheDocument();
+  });
+
+  it("does not let an older background refresh overwrite a newer response", async () => {
+    getAll.mockResolvedValueOnce({
+      success: true,
+      data: [makeShave({ title: "Initial Shave" })],
+    });
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Initial Shave");
+
+    const staleRefresh = deferredGetAllResult([
+      makeShave({ title: "Stale Result", shaveStatus: ShaveStatus.Processing }),
+    ]);
+    const freshRefresh = deferredGetAllResult([
+      makeShave({ title: "Fresh Result", shaveStatus: ShaveStatus.Completed }),
+    ]);
+    getAll.mockReturnValueOnce(staleRefresh.promise);
+    getAll.mockReturnValueOnce(freshRefresh.promise);
+
+    emit(completedRun(JSON.stringify({ Status: "success", Title: "Stale Result" })));
+    emit(completedRun(JSON.stringify({ Status: "success", Title: "Fresh Result" })));
+
+    await waitFor(() => expect(getAll).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      freshRefresh.resolve();
+    });
+
+    await screen.findByText("Fresh Result");
+
+    await act(async () => {
+      staleRefresh.resolve();
+    });
+
+    expect(screen.getByText("Fresh Result")).toBeInTheDocument();
+    expect(screen.queryByText("Stale Result")).not.toBeInTheDocument();
   });
 });
