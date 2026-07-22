@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../../../services/ipc-client";
 import { formatIpcErrorMessage, formatToolName } from "../../../utils";
+import { Alert, AlertDescription, AlertTitle } from "../../ui/alert";
 import { Button } from "../../ui/button";
 import { Checkbox } from "../../ui/checkbox";
 import {
@@ -111,7 +112,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
           <div className="flex flex-col gap-3">
             {isLoading && <p className="text-sm text-muted-foreground">Loading tools…</p>}
             {!isLoading && tools.length === 0 && !error && (
-              <p className="text-sm text-muted-foreground">No tools available.</p>
+              <p className="text-sm text-muted-foreground">No tool available</p>
             )}
             {!isLoading && tools.length > 0 && (
               <div className="flex flex-col gap-2">
@@ -148,30 +149,35 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
           </div>
         </ScrollArea>
         {error && (
-          // Persistent inline error (not a fleeting toast), styled like SettingsWarningBanner (#982).
-          <div
-            role="alert"
-            className="flex flex-col gap-1.5 rounded-md border border-ssw-red/40 bg-ssw-red/10 px-4 py-3"
-          >
-            {/* Header row: icon + "No tools available." reads as the error's title. */}
-            <div className="flex items-center gap-2 text-sm font-semibold text-ssw-red">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>No tools available</span>
-            </div>
-            {/* Detail: kept verbatim, in a softer light tone + smaller size so the
-                long transport message stays legible against the dark tinted bg (#982). */}
-            <p className="pl-6 text-xs leading-relaxed text-foreground/80 wrap-break-word whitespace-normal">
+          // Persistent inline error (not a fleeting toast), built on the shared
+          // shadcn Alert primitive for consistency (#982). Red border + tint keep
+          // the "error" affordance; the detail stays verbatim in a softer light
+          // tone so the long transport message is legible on the dark tinted bg.
+          <Alert className="border-ssw-red/40 bg-ssw-red/10">
+            <AlertCircle className="text-ssw-red" />
+            <AlertTitle className="font-semibold text-ssw-red">No tool available</AlertTitle>
+            <AlertDescription className="wrap-break-word whitespace-normal text-foreground/80">
               {error}
-            </p>
-          </div>
+            </AlertDescription>
+          </Alert>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={disabled}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={disabled}>
-            Save
-          </Button>
+          {error ? (
+            // On a load error there's nothing to select, so Cancel/Save are
+            // meaningless — offer a single neutral Close instead (#982).
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onClose} disabled={disabled}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={disabled}>
+                Save
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
