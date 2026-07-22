@@ -71,9 +71,22 @@ describe("VIDEO_LINK_EMBEDDING_RULES — uploaded video data", () => {
     expect(SHARED_ISSUE_CREATION_RULES).toContain(VIDEO_LINK_EMBEDDING_RULES);
   });
 
-  it("only treats the uploaded URL and duration as input data", () => {
+  it("treats the uploaded URL and duration as input data", () => {
     expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/URL and duration as input data only/i);
     expect(VIDEO_LINK_EMBEDDING_RULES).not.toMatch(/exactly once|canonical|Cc\/Hi/i);
+  });
+
+  it("requires custom-prompt paths to embed the URL as clickable Markdown, not a raw link", () => {
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/MUST include.*clickable Markdown link/i);
+    expect(VIDEO_LINK_EMBEDDING_RULES).toContain("[label](URL)");
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/NEVER output.*only as a raw URL/i);
+  });
+
+  it("allows an explicit Project Prompt opt-out and preserves custom formatting control", () => {
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(/Project Prompt explicitly opts out/i);
+    expect(VIDEO_LINK_EMBEDDING_RULES).toMatch(
+      /Project Prompt or repository template.*label, icon, duration, and placement/i,
+    );
   });
 });
 

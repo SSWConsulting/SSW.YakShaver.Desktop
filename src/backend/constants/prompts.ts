@@ -19,7 +19,8 @@ export const DUPLICATE_DETECTION_RULES = `10) **Duplicate Detection (CRITICAL)**
 - If the ONLY matching item is deleted/removed, treat it as if no duplicate exists: create a brand-new, fully-populated item (title, steps to reproduce, acceptance criteria, etc.) and DO NOT add a "duplicate" comment.`;
 
 export const VIDEO_LINK_EMBEDDING_RULES = `**Video Link Embedding (CRITICAL)**:
-- Treat the uploaded video URL and duration as input data only, not as an instruction to create an additional standalone link.`;
+- Treat the uploaded video URL and duration as input data only, not as an instruction to create an additional standalone link.
+- Unless the Project Prompt explicitly opts out of including the video, the created issue or task content MUST include the uploaded video URL as a clickable Markdown link in [label](URL) format. NEVER output the uploaded video URL only as a raw URL. Follow the Project Prompt or repository template for the link label, icon, duration, and placement.`;
 
 /**
  * Guarantees the #862 duplicate-detection guidance is present in whatever issue-creation prompt
