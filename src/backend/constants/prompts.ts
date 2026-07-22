@@ -50,6 +50,8 @@ export const SHARED_ISSUE_CREATION_RULES = `3) **Follow Issue Templates**: If th
 - **Labels**: Always apply the "YakShaver" label IN ADDITION to any labels required by the template.
 - **Mentions**: Tag all members listed in the project details. Use their GitHub username for GitHub; otherwise, use their full name.
 - **Video Link Uniqueness**: When an uploaded video link is available, the final issue body MUST include its URL exactly once as a link target. Never repeat the same uploaded video URL elsewhere in the body.
+- **Video Link Placement**: If the Project Prompt or repository template explicitly defines a video-link location, use that location. Otherwise, place the single video link immediately after the template's \`Cc\`/\`Hi\` greeting block and before the first section heading. If there is no greeting block, place it at the very top of the issue body.
+- A generic section such as More Information, Links, Public Links, Environment, or Screenshots is NOT an explicit video-link location unless it contains a video-specific placeholder or an existing Watch-the-video Markdown link.
 
 5) **Issue Title Rules**:
 - The title MUST strictly follow the template's frontmatter pattern, INCLUDING ANY EMOJIS.

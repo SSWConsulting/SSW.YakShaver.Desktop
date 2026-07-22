@@ -99,6 +99,18 @@ describe("SHARED_ISSUE_CREATION_RULES — uploaded video URL uniqueness", () => 
       /Never repeat the same uploaded video URL elsewhere/i,
     );
   });
+
+  it("places the link after Cc/Hi when a template has no explicit video location", () => {
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /Project Prompt or repository template explicitly defines a video-link location/i,
+    );
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /immediately after the template's .*Cc.*Hi.* greeting block and before the first section heading/i,
+    );
+    expect(SHARED_ISSUE_CREATION_RULES).toMatch(
+      /generic section.*is NOT an explicit video-link location/i,
+    );
+  });
 });
 
 describe("SHARED_ISSUE_CREATION_RULES — screenshots are mandatory", () => {
