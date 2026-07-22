@@ -104,6 +104,18 @@ function deferredGetAllResult(data: Shave[]) {
   };
 }
 
+function deferredGetAllFailure(error: string) {
+  let resolve!: (value: { success: false; error: string }) => void;
+  const promise = new Promise<{ success: false; error: string }>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+
+  return {
+    promise,
+    resolve: () => resolve({ success: false, error }),
+  };
+}
+
 describe("HomePage (#591 MyShaves re-render on shave completion)", () => {
   beforeEach(() => {
     progressCallbacks.length = 0;
@@ -194,5 +206,32 @@ describe("HomePage (#591 MyShaves re-render on shave completion)", () => {
 
     expect(screen.getByText("Fresh Result")).toBeInTheDocument();
     expect(screen.queryByText("Stale Result")).not.toBeInTheDocument();
+  });
+
+  it("keeps an initial foreground load result when a newer background refresh fails", async () => {
+    const initialLoad = deferredGetAllResult([makeShave({ title: "Loaded Shave" })]);
+    const failedBackgroundRefresh = deferredGetAllFailure("Background refresh failed");
+    getAll.mockReturnValueOnce(initialLoad.promise);
+    getAll.mockReturnValueOnce(failedBackgroundRefresh.promise);
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    );
+
+    emit(completedRun(JSON.stringify({ Status: "success", Title: "Loaded Shave" })));
+
+    await waitFor(() => expect(getAll).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      failedBackgroundRefresh.resolve();
+    });
+    await act(async () => {
+      initialLoad.resolve();
+    });
+
+    await screen.findByText("Loaded Shave");
+    expect(screen.queryByText("Something went wrong loading your shaves.")).not.toBeInTheDocument();
   });
 });

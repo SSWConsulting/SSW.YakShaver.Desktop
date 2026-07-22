@@ -33,7 +33,8 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shaveDisplayMode, setShaveDisplayMode] = useState<"table" | "card">("table");
-  const loadRequestIdRef = useRef(0);
+  const nextLoadRequestIdRef = useRef(0);
+  const latestAppliedLoadRequestIdRef = useRef(0);
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "updated", desc: true }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -41,8 +42,8 @@ export function HomePage() {
 
   const loadShaves = useCallback(async (options?: LoadShavesOptions) => {
     const showLoadingState = options?.showLoadingState ?? true;
-    const requestId = loadRequestIdRef.current + 1;
-    loadRequestIdRef.current = requestId;
+    const requestId = nextLoadRequestIdRef.current + 1;
+    nextLoadRequestIdRef.current = requestId;
 
     if (showLoadingState) {
       setLoading(true);
@@ -51,26 +52,24 @@ export function HomePage() {
 
     try {
       const result = await ipcClient.shave.getAll();
-      if (requestId !== loadRequestIdRef.current) {
-        return;
-      }
 
       if (!result.success) {
-        if (showLoadingState) {
+        if (showLoadingState && requestId >= latestAppliedLoadRequestIdRef.current) {
           setError(result.error || "Failed to load shaves");
           toast.error(result.error || "Failed to load shaves");
         }
         return;
       }
 
-      setShaves(result.data ?? []);
-    } catch (err) {
-      if (requestId !== loadRequestIdRef.current) {
+      if (requestId < latestAppliedLoadRequestIdRef.current) {
         return;
       }
 
+      latestAppliedLoadRequestIdRef.current = requestId;
+      setShaves(result.data ?? []);
+    } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load shaves";
-      if (showLoadingState) {
+      if (showLoadingState && requestId >= latestAppliedLoadRequestIdRef.current) {
         setError(message);
         toast.error("Failed to load shaves");
       }
