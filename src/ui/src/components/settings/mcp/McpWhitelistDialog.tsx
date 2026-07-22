@@ -44,17 +44,28 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
     setError(null);
     setTools([]);
     setSelected(new Set(server.toolWhitelist ?? []));
+    // Guard against a late response landing after the dialog closed or the user
+    // switched servers — otherwise a stale request overwrites the current tools
+    // or error (#982).
+    let cancelled = false;
     ipcClient.mcp
       .listServerTools(server.id ?? server.name)
       .then((list) => {
+        if (cancelled) return;
         const valid = list.filter((t) => t && typeof t.name === "string");
         const sorted = [...valid].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
         setTools(sorted);
       })
       .catch((e) => {
+        if (cancelled) return;
         setError(`Failed to load tools: ${formatIpcErrorMessage(e)}`);
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [server]);
 
   const toggleTool = useCallback((toolName: string) => {
@@ -99,7 +110,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
         <ScrollArea className="max-h-[50vh] pr-2">
           <div className="flex flex-col gap-3">
             {isLoading && <p className="text-sm text-muted-foreground">Loading tools…</p>}
-            {!isLoading && tools.length === 0 && (
+            {!isLoading && tools.length === 0 && !error && (
               <p className="text-sm text-muted-foreground">No tools available.</p>
             )}
             {!isLoading && tools.length > 0 && (
@@ -140,10 +151,18 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
           // Persistent inline error (not a fleeting toast), styled like SettingsWarningBanner (#982).
           <div
             role="alert"
-            className="flex items-start gap-2 rounded-md border border-ssw-red/40 bg-ssw-red/10 px-3 py-2 text-sm leading-relaxed text-ssw-red break-words whitespace-normal"
+            className="flex flex-col gap-1.5 rounded-md border border-ssw-red/40 bg-ssw-red/10 px-4 py-3"
           >
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
+            {/* Header row: icon + "No tools available." reads as the error's title. */}
+            <div className="flex items-center gap-2 text-sm font-semibold text-ssw-red">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>No tools available</span>
+            </div>
+            {/* Detail: kept verbatim, in a softer light tone + smaller size so the
+                long transport message stays legible against the dark tinted bg (#982). */}
+            <p className="pl-6 text-xs leading-relaxed text-foreground/80 wrap-break-word whitespace-normal">
+              {error}
+            </p>
           </div>
         )}
         <DialogFooter>

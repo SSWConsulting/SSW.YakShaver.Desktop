@@ -133,6 +133,9 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
     mocks.createClientAsync.mockReset();
     mocks.clearTokensAsync.mockReset();
     mocks.authorizeWithBackend.mockReset();
+    // Health checks now read/write the shared client cache; clear it so cases
+    // don't leak a cached client into one another (#982).
+    (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.clear();
   });
 
   it("reports authFailed when the tool probe returns 401", async () => {
@@ -142,6 +145,7 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
         toolCount: 0,
         authFailed: true,
       }),
+      disconnectAsync: vi.fn().mockResolvedValue(undefined),
     });
 
     const manager = await MCPServerManager.getInstanceAsync();
@@ -157,6 +161,7 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
         toolCount: 0,
         authFailed: false,
       }),
+      disconnectAsync: vi.fn().mockResolvedValue(undefined),
     });
 
     const manager = await MCPServerManager.getInstanceAsync();
@@ -201,6 +206,100 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
     ).toBe(false);
   });
 
+  it("reuses the cached client for the probe instead of creating a new one (#982)", async () => {
+    const probeHealthAsync = vi
+      .fn()
+      .mockResolvedValue({ healthy: true, toolCount: 3, authFailed: false });
+    const cached = { probeHealthAsync, disconnectAsync: vi.fn() };
+    (
+      MCPServerManager as unknown as {
+        mcpClients: Map<string, unknown>;
+      }
+    ).mcpClients.set("srv-1", cached);
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    const result = await manager.checkServerHealthAsync("srv-1");
+
+    expect(result.isHealthy).toBe(true);
+    // Probed the cached client; never spawned a fresh connection.
+    expect(probeHealthAsync).toHaveBeenCalledTimes(1);
+    expect(mocks.createClientAsync).not.toHaveBeenCalled();
+    // The healthy cached client is left in place, untouched.
+    expect(cached.disconnectAsync).not.toHaveBeenCalled();
+    expect(
+      (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.get("srv-1"),
+    ).toBe(cached);
+  });
+
+  it("closes a freshly-created probe client when the probe fails (#982)", async () => {
+    const disconnectAsync = vi.fn().mockResolvedValue(undefined);
+    mocks.createClientAsync.mockResolvedValue({
+      probeHealthAsync: vi
+        .fn()
+        .mockResolvedValue({ healthy: false, toolCount: 0, authFailed: false }),
+      disconnectAsync,
+    });
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    const result = await manager.checkServerHealthAsync("srv-1");
+
+    expect(result.isHealthy).toBe(false);
+    // The failed, never-cached probe client is closed, not leaked.
+    expect(disconnectAsync).toHaveBeenCalledTimes(1);
+    expect(
+      (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.has("srv-1"),
+    ).toBe(false);
+  });
+
+  it("evicts a cached client that fails a non-auth probe (#982)", async () => {
+    const disconnectAsync = vi.fn().mockResolvedValue(undefined);
+    const cached = {
+      probeHealthAsync: vi
+        .fn()
+        .mockResolvedValue({ healthy: false, toolCount: 0, authFailed: false }),
+      disconnectAsync,
+    };
+    (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.set(
+      "srv-1",
+      cached,
+    );
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    const result = await manager.checkServerHealthAsync("srv-1");
+
+    expect(result.isHealthy).toBe(false);
+    // A dead cached client is evicted + closed so it isn't handed to the orchestrator.
+    expect(disconnectAsync).toHaveBeenCalledTimes(1);
+    expect(
+      (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.has("srv-1"),
+    ).toBe(false);
+  });
+
+  it("keeps a cached client on an auth (401) probe failure — reauth owns eviction (#982)", async () => {
+    const disconnectAsync = vi.fn().mockResolvedValue(undefined);
+    const cached = {
+      probeHealthAsync: vi
+        .fn()
+        .mockResolvedValue({ healthy: false, toolCount: 0, authFailed: true }),
+      disconnectAsync,
+    };
+    (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.set(
+      "srv-1",
+      cached,
+    );
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    const result = await manager.checkServerHealthAsync("srv-1");
+
+    expect(result.isHealthy).toBe(false);
+    expect(result.authFailed).toBe(true);
+    // Left in place: the connection is still usable once re-credentialed.
+    expect(disconnectAsync).not.toHaveBeenCalled();
+    expect(
+      (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.get("srv-1"),
+    ).toBe(cached);
+  });
+
   it("surfaces a non-empty error string when the probe fails with 401", async () => {
     mocks.createClientAsync.mockResolvedValue({
       probeHealthAsync: vi.fn().mockResolvedValue({
@@ -209,6 +308,7 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
         authFailed: true,
         error: "HTTP 401 Unauthorized",
       }),
+      disconnectAsync: vi.fn().mockResolvedValue(undefined),
     });
 
     const manager = await MCPServerManager.getInstanceAsync();

@@ -412,25 +412,46 @@ export class MCPServerManager {
       };
     }
 
+    // Reuse the cached client when one already exists: probing it avoids
+    // spawning a fresh connection (a new stdio child process, in that transport's
+    // case) on every recurring health check, and — critically — never disconnects
+    // a client the orchestrator may currently be running tools through (#982).
+    const cachedClient = MCPServerManager.mcpClients.get(serverConfig.id);
     let client: MCPServerClient;
-    try {
-      client = await MCPServerClient.createClientAsync(serverConfig);
-    } catch (err) {
-      return {
-        isHealthy: false,
-        error: String(err),
-        isChecking: false,
-        authFailed: MCPServerClient.isAuthError(err),
-      };
+    if (cachedClient) {
+      client = cachedClient;
+    } else {
+      try {
+        client = await MCPServerClient.createClientAsync(serverConfig);
+      } catch (err) {
+        return {
+          isHealthy: false,
+          error: String(err),
+          isChecking: false,
+          authFailed: MCPServerClient.isAuthError(err),
+        };
+      }
     }
 
     const probe = await client.probeHealthAsync();
     if (probe.healthy) {
-      await MCPServerManager.mcpClients
-        .get(serverConfig.id)
-        ?.disconnectAsync()
-        .catch(() => undefined);
-      MCPServerManager.mcpClients.set(serverConfig.id, client);
+      // Only a freshly-created, healthy client needs caching; a reused cached
+      // client is already there and must be left untouched.
+      if (client !== cachedClient) {
+        MCPServerManager.mcpClients.set(serverConfig.id, client);
+      }
+    } else if (client !== cachedClient) {
+      // A newly-created probe client that failed is never cached, so close it
+      // here instead of leaking its connection / stdio process (#982).
+      await client.disconnectAsync().catch(() => undefined);
+    } else if (!probe.authFailed) {
+      // The *cached* client is unhealthy for a non-auth reason (its connection /
+      // stdio process is likely dead). Evict it so the next getMcpClientAsync
+      // rebuilds a fresh one instead of handing the orchestrator a dead client.
+      // Auth failures are left in place: reauthorizeServerAsync owns that eviction
+      // and the connection object itself is still usable once re-credentialed.
+      MCPServerManager.mcpClients.delete(serverConfig.id);
+      await cachedClient.disconnectAsync().catch(() => undefined);
     }
     return {
       isHealthy: probe.healthy,
