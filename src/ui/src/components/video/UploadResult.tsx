@@ -1,8 +1,9 @@
-import { Copy, ExternalLink, Loader2 } from "lucide-react";
+import { Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useClipboard } from "../../hooks/useClipboard";
 import { UploadStatus, type VideoUploadResult } from "../../types";
+import { LoadingState } from "../common/LoadingState";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
@@ -16,7 +17,7 @@ const openUrl = (url: string | null) => {
 
 const UploadingBadge = () => (
   <span className="text-sm font-medium px-3 py-1.5 rounded-full bg-white/10 text-white/80 border border-white/20 flex items-center gap-2">
-    <Loader2 className="w-3 h-3 animate-spin" />
+    <LoadingState inline className="w-3 h-3" />
     Uploading
   </span>
 );

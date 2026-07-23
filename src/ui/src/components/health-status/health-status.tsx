@@ -1,6 +1,7 @@
-import { Ban, CheckCircle2, Loader2, TriangleAlert, X } from "lucide-react";
+import { Ban, CheckCircle2, Loader2, TriangleAlert, X,XCircle } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { LoadingState } from "../common/LoadingState";
 
 interface SuccessDetails {
   username?: string;
@@ -68,7 +69,7 @@ export const HealthStatus = React.forwardRef<HTMLDivElement, HealthStatusProps>(
           className={cn("group relative flex items-center gap-2", className)}
           {...props}
         >
-          <Loader2 className="h-5 w-5 text-white/50 animate-spin" />
+          <LoadingState inline className="h-5 w-5 text-white/50" />
           <span className="invisible group-hover:visible absolute left-0 top-6 z-10 w-max max-w-xs rounded bg-neutral-800 px-2 py-1 text-xs shadow-lg">
             Checking...
           </span>

@@ -1,10 +1,10 @@
 import type { ModelConfig } from "@shared/types/llm";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import { DeleteConfirmDialog } from "@/components/dialogs/DeleteConfirmDialog";
 import { LLMProviderFields, type ProviderOption } from "@/components/llm/LLMProviderFields";
 import type { HealthStatusInfo } from "../../../types";
+import { LoadingState } from "../../common/LoadingState";
 import { Button } from "../../ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../../ui/form";
 import { Input } from "../../ui/input";
@@ -81,7 +81,7 @@ export function LLMProviderForm({
               Clear Config
             </Button>
             <Button type="submit" size="sm" disabled={isLoading}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {isLoading ? <LoadingState inline className="mr-2 h-4 w-4" /> : null}
               Save
             </Button>
           </div>

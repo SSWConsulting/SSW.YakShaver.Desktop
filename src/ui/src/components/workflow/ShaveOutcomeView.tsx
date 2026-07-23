@@ -1,4 +1,4 @@
-import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import { AlertTriangle, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getStatusVariant } from "@/lib/shave-utils";
 import { ipcClient } from "../../services/ipc-client";
@@ -121,7 +121,7 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
           {isProcessing && (
             <div className="rounded-md border border-white/15 bg-white/5 p-3">
               <div className="flex items-center gap-2 text-white/80 font-medium">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <LoadingState inline className="h-4 w-4" />
                 This shave is still running
               </div>
               <p className="text-sm text-white/60 mt-1">
