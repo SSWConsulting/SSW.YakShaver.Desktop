@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>YakShaver | Authorization Error</title>
+    <title>YakShaver | Authorization Declined</title>
     <style>
       :root {
         color-scheme: light;
@@ -69,8 +69,8 @@
         width: 28px;
         height: 28px;
         border-radius: 999px;
-        background: #cc4141;
-        color: #ffffff;
+        background: #f2b134;
+        color: #1a1414;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -119,12 +119,13 @@
       </div>
       <div class="status-badge" aria-hidden="true">
         <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M8 5V9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M8 11.25V11.26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </div>
-      <h1>Authorization error</h1>
-      <p>Something went wrong while connecting your account to <span class="brand">YakShaver</span>. Please close this window and try again from the app.</p>
-      <p class="hint">If this keeps happening, contact YakShaver support for help.</p>
+      <h1>Authorization declined</h1>
+      <p>The authorization request was cancelled or declined, so <span class="brand">YakShaver</span> wasn't connected. You can close this window and try again whenever you're ready.</p>
+      <p class="hint">No changes were made to your account.</p>
     </main>
   </body>
 </html>
