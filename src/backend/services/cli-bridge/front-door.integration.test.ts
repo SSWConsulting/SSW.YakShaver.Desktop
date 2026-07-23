@@ -1,11 +1,16 @@
 import { createServer, type Server as HttpServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { ToolSet } from "ai";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { BridgeClient } from "../../../cli/bridge-client";
 import { callToolViaBridge, listToolsViaBridge } from "../../../cli/mcp-serve";
-import { McpToolBridge, type ToolBridgeManager } from "../mcp/mcp-tool-bridge";
+import type { ToolApprovalDecision } from "../../../shared/types/mcp";
+import {
+  McpToolBridge,
+  type ToolBridgeManager,
+  type ToolBridgeUserInteraction,
+} from "../mcp/mcp-tool-bridge";
 import { type BridgeServices, routeRequest } from "./bridge-router";
 
 /**
@@ -79,10 +84,18 @@ function makeManager(whitelist: string[]): ToolBridgeManager {
 }
 
 /** Build the real BridgeServices, with only the tools front-door wired to a real bridge. */
-function makeServices(approvalMode: "yolo" | "ask" | "wait", whitelist: string[]): BridgeServices {
-  const bridge = new McpToolBridge(makeManager(whitelist), {
-    getSettingsAsync: async () => ({ toolApprovalMode: approvalMode }),
-  });
+function makeServices(
+  approvalMode: "yolo" | "ask" | "wait",
+  whitelist: string[],
+  userInteraction: ToolBridgeUserInteraction = {
+    requestToolApproval: async () => ({ kind: "approve" }),
+  },
+): BridgeServices {
+  const bridge = new McpToolBridge(
+    makeManager(whitelist),
+    { getSettingsAsync: async () => ({ toolApprovalMode: approvalMode }) },
+    userInteraction,
+  );
   // Only the routes this test exercises need real backing; the rest can throw.
   const notUsed = () => {
     throw new Error("not part of the front-door path");
@@ -99,7 +112,12 @@ function makeServices(approvalMode: "yolo" | "ask" | "wait", whitelist: string[]
     settings: { getSettingsAsync: notUsed, updateSettingsAsync: notUsed },
     tools: {
       listTools: () => bridge.listTools(),
-      callTool: (name: string, args?: Record<string, unknown>) => bridge.callTool(name, args),
+      callTool: (
+        name: string,
+        args?: Record<string, unknown>,
+        serverFilter?: string[],
+        shaveId?: string,
+      ) => bridge.callTool(name, args, serverFilter, shaveId),
     },
   } as unknown as BridgeServices;
 }
@@ -208,6 +226,84 @@ describe("front-door integration — mcp-serve → BridgeClient → router → M
     const result = await callToolViaBridge(client, "GitHub__create_issue", { title: "OK" });
     expect(result.isError).toBe(false);
     expect(result.content).toEqual([{ type: "text", text: "Created issue: OK" }]);
+  });
+
+  it("raises the approval prompt for a non-whitelisted tool under 'wait' and runs it once APPROVED (#920)", async () => {
+    const requestToolApproval = vi
+      .fn<ToolBridgeUserInteraction["requestToolApproval"]>()
+      .mockResolvedValue({ kind: "approve" } satisfies ToolApprovalDecision);
+    ({ server, port } = await startBridge(
+      makeServices("wait", /* whitelist */ [], { requestToolApproval }),
+    ));
+    const client = makeClient(port);
+
+    const result = await callToolViaBridge(client, "GitHub__create_issue", { title: "Bug" });
+
+    // The bug this closes (#920): Claude Code mode used to run this tool WITHOUT ever consulting
+    // the approval flow. Proving the mock was actually invoked, over the real HTTP round-trip, is
+    // the regression guard.
+    expect(requestToolApproval).toHaveBeenCalledTimes(1);
+    expect(requestToolApproval).toHaveBeenCalledWith(
+      "GitHub__create_issue",
+      { title: "Bug" },
+      expect.objectContaining({}),
+    );
+    expect(result.isError).toBe(false);
+    expect(result.content).toEqual([{ type: "text", text: "Created issue: Bug" }]);
+  });
+
+  it("does NOT run a non-whitelisted tool under 'wait' when the user denies it", async () => {
+    const requestToolApproval = vi
+      .fn<ToolBridgeUserInteraction["requestToolApproval"]>()
+      .mockResolvedValue({ kind: "deny_stop", feedback: "no" } satisfies ToolApprovalDecision);
+    ({ server, port } = await startBridge(
+      makeServices("wait", /* whitelist */ [], { requestToolApproval }),
+    ));
+    const client = makeClient(port);
+
+    const result = await callToolViaBridge(client, "GitHub__create_issue", { title: "Bug" });
+
+    expect(requestToolApproval).toHaveBeenCalledTimes(1);
+    expect(result.isError).toBe(true);
+    expect((result.content[0] as { text?: string }).text).toMatch(/not approved/i);
+  });
+
+  it("runs a WHITELISTED tool under 'wait' without prompting", async () => {
+    const requestToolApproval = vi.fn<ToolBridgeUserInteraction["requestToolApproval"]>();
+    ({ server, port } = await startBridge(
+      makeServices("wait", ["GitHub__create_issue"], { requestToolApproval }),
+    ));
+    const client = makeClient(port);
+
+    const result = await callToolViaBridge(client, "GitHub__create_issue", { title: "OK" });
+
+    expect(requestToolApproval).not.toHaveBeenCalled();
+    expect(result.isError).toBe(false);
+    expect(result.content).toEqual([{ type: "text", text: "Created issue: OK" }]);
+  });
+
+  it("forwards shaveId end-to-end from callToolViaBridge to McpToolBridge (#920 per-shave auto-approve)", async () => {
+    const requestToolApproval = vi
+      .fn<ToolBridgeUserInteraction["requestToolApproval"]>()
+      .mockResolvedValue({ kind: "approve" } satisfies ToolApprovalDecision);
+    ({ server, port } = await startBridge(
+      makeServices("wait", /* whitelist */ [], { requestToolApproval }),
+    ));
+    const client = makeClient(port);
+
+    await callToolViaBridge(
+      client,
+      "GitHub__create_issue",
+      { title: "Bug" },
+      undefined,
+      "shave-42",
+    );
+
+    expect(requestToolApproval).toHaveBeenCalledWith(
+      "GitHub__create_issue",
+      { title: "Bug" },
+      expect.objectContaining({ shaveId: "shave-42" }),
+    );
   });
 
   it("rejects an unauthenticated request at the HTTP boundary", async () => {

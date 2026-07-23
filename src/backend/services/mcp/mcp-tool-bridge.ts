@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { asSchema, type ToolSet } from "ai";
 import type { BridgeToolSummary, ToolCallResult } from "../../../shared/cli-bridge/protocol";
+import type { ToolApprovalDecision } from "../../../shared/types/mcp";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
 
 /**
@@ -26,22 +27,40 @@ export interface ToolBridgeSettings {
 }
 
 /**
+ * The slice of {@link UserInteractionService} the bridge needs to raise the SAME approval
+ * dialog+countdown the OpenAI backend uses (#920) — kept narrow so unit tests can inject a mock
+ * without dragging in Electron/BrowserWindow.
+ */
+export interface ToolBridgeUserInteraction {
+  requestToolApproval(
+    toolName: string,
+    args: unknown,
+    options?: { message?: string; shaveId?: string },
+  ): Promise<ToolApprovalDecision>;
+}
+
+/**
  * Bridges the app's aggregated MCP toolset to the localhost bridge endpoints
  * (`GET /tools`, `POST /tools/call`) consumed by the single `yakshaver` MCP
  * front-door (#915).
  *
- * Two responsibilities:
+ * Three responsibilities:
  *  1. Flatten the AI-SDK `ToolSet` (server-prefixed keys → `description` +
  *     JSON-Schema `inputSchema`) into wire-friendly summaries.
- *  2. Apply the app's tool-approval policy SERVER-SIDE on every call so a
- *     headless run never hangs on an interactive prompt: `yolo` runs everything;
- *     `ask`/`wait` run only whitelisted tools, otherwise return a STRUCTURED
- *     "not approved" result.
+ *  2. Apply the app's tool-approval policy SERVER-SIDE on every call: `yolo` runs everything;
+ *     `ask` runs only whitelisted tools, otherwise returns a STRUCTURED "not approved" result
+ *     immediately (never prompts — a headless caller can't answer an interactive dialog).
+ *  3. Under `wait`, raise the SAME approval dialog+countdown the OpenAI backend shows (#920) for a
+ *     non-whitelisted tool. This call blocks until the user responds or the countdown
+ *     auto-approves — safe here because the bridge is a plain in-process HTTP call with no
+ *     transport timeout (the front-door's `POST /tools/call` simply waits, exactly as it would for
+ *     any slow tool).
  */
 export class McpToolBridge {
   constructor(
     private readonly manager: ToolBridgeManager,
     private readonly settings: ToolBridgeSettings,
+    private readonly userInteraction: ToolBridgeUserInteraction,
   ) {}
 
   /** Aggregated tool list for `GET /tools`. Names/descriptions/schemas only. */
@@ -61,18 +80,18 @@ export class McpToolBridge {
   /**
    * Execute a single tool by its server-prefixed name for `POST /tools/call`.
    *
-   * Enforces the approval policy first, NEVER hanging. Only `ask` gates on the
-   * whitelist (a non-whitelisted tool returns `{ok:false, notApproved:true}`
-   * rather than waiting on a prompt the headless caller can't answer). `yolo` and
-   * `wait` both run everything — matching the orchestrator's `buildArgv`, which
-   * maps `wait` to `bypassPermissions` because the OpenAI backend's `wait` is
-   * "auto-approve after a delay", not a hard deny. Treating `wait` like `ask` here
-   * would hard-deny every non-whitelisted tool and break wait-mode runs.
+   * Enforces the approval policy first. `yolo` runs everything immediately. `ask` gates on the
+   * whitelist and never prompts — a non-whitelisted tool returns `{ok:false, notApproved:true}`
+   * rather than waiting on a dialog a headless caller couldn't answer anyway. `wait` also gates on
+   * the whitelist, but — since this call DOES have an interactive user on the other end of the
+   * bridge (the desktop app itself) — a non-whitelisted tool raises the same approval
+   * dialog+countdown OpenAI mode shows (#920) instead of hard-denying or silently running.
    */
   async callTool(
     name: string,
     args: Record<string, unknown> = {},
     serverFilter?: string[],
+    shaveId?: string,
   ): Promise<ToolCallResult> {
     // Resolve against the SAME filtered toolset `listTools` exposes, so a tool from an unselected
     // project isn't reachable even if the model guesses its name (the server-side gate for #915).
@@ -83,14 +102,34 @@ export class McpToolBridge {
     }
 
     const approvalMode = (await this.settings.getSettingsAsync()).toolApprovalMode;
-    if (approvalMode === "ask") {
+    if (approvalMode === "ask" || approvalMode === "wait") {
       const whitelist = new Set(await this.manager.getWhitelistWithServerPrefixAsync());
       if (!whitelist.has(name)) {
-        return {
-          ok: false,
-          notApproved: true,
-          error: `Tool '${name}' is not approved under the 'ask' approval mode. Whitelist it in YakShaver, or switch the approval mode to 'yolo'.`,
-        };
+        if (approvalMode === "ask") {
+          return {
+            ok: false,
+            notApproved: true,
+            error: `Tool '${name}' is not approved under the 'ask' approval mode. Whitelist it in YakShaver, or switch the approval mode to 'yolo'.`,
+          };
+        }
+
+        // wait: raise the same approval dialog+countdown the OpenAI backend uses, and block until
+        // the user responds (or the countdown auto-approves). Never hangs forever — the dialog
+        // itself auto-resolves after WAIT_MODE_AUTO_APPROVE_DELAY_MS.
+        const decision = await this.userInteraction.requestToolApproval(name, args, {
+          message: `Approval required to run ${name}`,
+          shaveId,
+        });
+        if (decision.kind !== "approve") {
+          const feedback = decision.kind === "request_changes" ? decision.feedback : undefined;
+          return {
+            ok: false,
+            notApproved: true,
+            error: feedback
+              ? `Tool '${name}' was not approved by the user: ${feedback}`
+              : `Tool '${name}' was not approved by the user.`,
+          };
+        }
       }
     }
 

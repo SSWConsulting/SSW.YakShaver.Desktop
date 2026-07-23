@@ -77,6 +77,35 @@ describe("mcp-serve front-door — tools/call proxy", () => {
     expect(result.content).toEqual([{ type: "text", text: "Created #5" }]);
   });
 
+  it("forwards shaveId to POST /tools/call when provided (#920, wait-mode per-shave auto-approve)", async () => {
+    const post = vi.fn().mockResolvedValue({ ok: true, result: "Created #5" } as ToolCallResult);
+
+    await callToolViaBridge(
+      { post },
+      "GitHub__create_issue",
+      { title: "Bug" },
+      undefined,
+      "shave-1",
+    );
+
+    expect(post).toHaveBeenCalledWith("/tools/call", {
+      name: "GitHub__create_issue",
+      arguments: { title: "Bug" },
+      shaveId: "shave-1",
+    });
+  });
+
+  it("omits shaveId from the POST body when not provided", async () => {
+    const post = vi.fn().mockResolvedValue({ ok: true, result: "Created #5" } as ToolCallResult);
+
+    await callToolViaBridge({ post }, "GitHub__create_issue", { title: "Bug" });
+
+    expect(post).toHaveBeenCalledWith("/tools/call", {
+      name: "GitHub__create_issue",
+      arguments: { title: "Bug" },
+    });
+  });
+
   it("stringifies a non-string tool result", async () => {
     const post = vi.fn().mockResolvedValue({ ok: true, result: { id: 5 } } as ToolCallResult);
     const result = await callToolViaBridge({ post }, "X__y", {});
