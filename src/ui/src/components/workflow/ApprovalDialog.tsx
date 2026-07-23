@@ -42,8 +42,9 @@ function getServiceIcon(serverName: string | null): ReactElement {
 
 /**
  * Plain-language explanations of why specific tools are needed, so non-technical
- * users can make an informed choice (issue #783 AC2). Returns null for tools
- * without a bespoke explanation, in which case the generic description is used.
+ * users can make an informed choice (issue #783 AC2, shortened further per #968).
+ * Returns null for tools without a bespoke explanation, in which case the generic
+ * description is used.
  *
  * Keyed on the raw, unformatted tool id (the segment after any server prefix) via
  * the shared {@link splitToolName} so it survives both MCP separators ("__" and ".").
@@ -51,7 +52,7 @@ function getServiceIcon(serverName: string | null): ReactElement {
 function getToolPurpose(rawToolName: string): string | null {
   switch (splitToolName(rawToolName).tool) {
     case "capture_video_frame":
-      return "YakShaver wants to capture a still frame from your screen recording so it can see what you're pointing at and keep working on your task accurately. It only runs when you say it's OK.";
+      return "YakShaver wants to grab a frame from your recording, so it can see what you're pointing at.";
     default:
       return null;
   }
@@ -154,20 +155,20 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
   const isOpen = true;
 
   const readableToolInfo = toolName ? parseToolName(toolName) : null;
-  const toolLabel = readableToolInfo?.tool ?? "an action";
   const dialogTitle = readableToolInfo
     ? `Can YakShaver use "${readableToolInfo.tool}"?`
     : "Can YakShaver perform this action?";
 
   // Some tools have a clear, user-facing purpose that non-technical users benefit
-  // from understanding (issue #783 AC2). Keyed on the raw, unformatted tool id so it
-  // survives both MCP separators ("__" and ".") and any display-label changes.
+  // from understanding (issue #783 AC2, shortened further per #968). Keyed on the raw,
+  // unformatted tool id so it survives both MCP separators ("__" and ".") and any
+  // display-label changes.
   const toolPurpose = toolName ? getToolPurpose(toolName) : null;
   const dialogDescription =
     toolPurpose ??
     (readableToolInfo?.server
-      ? `To keep working on your task, YakShaver needs to use the "${readableToolInfo.tool}" tool (from ${readableToolInfo.server}). It only runs when you say it's OK.`
-      : `To keep working on your task, YakShaver needs to perform an action. It only runs when you say it's OK.`);
+      ? `YakShaver needs to use "${readableToolInfo.tool}" (from ${readableToolInfo.server}) to keep going.`
+      : `YakShaver needs to perform an action to keep going.`);
 
   return (
     <AlertDialog open={isOpen}>
@@ -184,17 +185,15 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
         {!showCorrectionForm && (
           <ul className="space-y-1.5 text-sm text-white/70">
             <li>
-              <span className="font-medium text-white/90">Allow</span> &mdash; let YakShaver use{" "}
-              {`"${toolLabel}"`} this one time.
+              <span className="font-medium text-white/90">Allow</span> &mdash; use it this once.
             </li>
             <li>
-              <span className="font-medium text-white/90">Allow Always</span> &mdash; let YakShaver
-              use {`"${toolLabel}"`} now and skip this prompt next time.
+              <span className="font-medium text-white/90">Allow Always</span> &mdash; use it now and
+              don't ask again.
             </li>
             <li>
               <span className="font-medium text-white/90">Review / Correct&hellip;</span> &mdash;
-              don't run {`"${toolLabel}"`} as-is. You can leave a note telling YakShaver what to
-              change and try again, or stop the step entirely.
+              don't run it yet. Tell YakShaver what to change, or stop this step.
             </li>
           </ul>
         )}
