@@ -1,6 +1,7 @@
 import { Globe, Plug } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { reauthorizeAndRefresh } from "@/hooks/useMcpCardActions";
 import type { HealthStatusInfo } from "@/types";
 import { formatErrorMessage } from "@/utils";
 import { ipcClient } from "../../../services/ipc-client";
@@ -102,7 +103,7 @@ export function McpSettingsPanel({
             description: `Next to configure your Custom Prompt to include ${server.name} projects.`,
             duration: 8000,
           });
-        } else {
+        } else if (!result.authFailed) {
           toast.error(`Failed to connect ${server.name}`);
         }
       }
@@ -393,6 +394,11 @@ export function McpSettingsPanel({
               onTools={() => openWhitelistDialog(server)}
               onConnect={() => handleOnConnect(String(server.id), server)}
               onDisconnect={() => handleOnDisconnect(String(server.id), server)}
+              onReauthorize={() =>
+                reauthorizeAndRefresh(String(server.id), () =>
+                  loadServers({ serverIdToRefresh: String(server.id) }),
+                )
+              }
               onUpdate={async (newConfig) => {
                 setEditingServer(server);
                 await handleSubmit(newConfig);

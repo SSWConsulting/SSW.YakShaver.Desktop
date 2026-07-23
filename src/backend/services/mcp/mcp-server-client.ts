@@ -255,8 +255,11 @@ export class MCPServerClient {
       }
     } catch (error) {
       const errorMsg = formatAndReportError(error, "mcp_tool_count");
+      // Preserve the original error as `cause` so callers (e.g. isAuthError) can
+      // still inspect its structured `status` (401), not just the wrapped text (#982).
       throw new Error(
         `Failed to get tool count from MCP server: ${this.mcpClientName}. Error: ${errorMsg}`,
+        { cause: error },
       );
     }
   }
@@ -267,6 +270,51 @@ export class MCPServerClient {
       return { healthy: true, toolCount: toolCount };
     } catch {
       return { healthy: false, toolCount: 0 };
+    }
+  }
+
+  /**
+   * Positively identifies an OAuth/authorization failure (HTTP 401 / Unauthorized).
+   * Deliberately narrow: only a 401 counts. Network / SSL / 5xx / unknown shapes
+   * return false so the caller treats them as plain "unhealthy", not "auth-failed"
+   * (re-authorizing cannot fix those). Mirrors the conservative stance in #836.
+   */
+  public static isAuthError(err: unknown): boolean {
+    if (!err) return false;
+    const status =
+      typeof err === "object" && err !== null && "status" in err
+        ? (err as { status?: unknown }).status
+        : undefined;
+    if (status === 401) return true;
+    const message = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+    if (/\b401\b/.test(message) || /unauthorized/i.test(message)) return true;
+    // Errors wrapped with `{ cause }` (e.g. toolCountAsync) keep the original
+    // 401's structured `status` on the cause — unwrap one level to find it (#982).
+    const cause =
+      err instanceof Error && err.cause !== undefined && err.cause !== err ? err.cause : undefined;
+    return cause !== undefined ? MCPServerClient.isAuthError(cause) : false;
+  }
+
+  /**
+   * Like healthCheckAsync but classifies the failure. `authFailed` is true only
+   * when the underlying tool-list call failed with a positively-identified 401.
+   */
+  public async probeHealthAsync(): Promise<{
+    healthy: boolean;
+    toolCount: number;
+    authFailed: boolean;
+    error?: string;
+  }> {
+    try {
+      const toolCount = await this.toolCountAsync();
+      return { healthy: true, toolCount, authFailed: false };
+    } catch (err) {
+      return {
+        healthy: false,
+        toolCount: 0,
+        authFailed: MCPServerClient.isAuthError(err),
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   }
 

@@ -26,6 +26,10 @@ export default defineConfig({
         find: /^\/(.+)\?url$/,
         replacement: `${path.resolve(__dirname, "./public")}/$1?url`,
       },
+      // @shared modules live outside this package, so their bare imports (zod)
+      // resolve upward from src/shared toward the repo root — whose node_modules
+      // the ui-component-tests CI job never installs. Pin zod to this package's copy.
+      { find: "zod", replacement: path.resolve(__dirname, "./node_modules/zod") },
     ],
   },
   test: {
