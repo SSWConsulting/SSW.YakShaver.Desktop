@@ -21,7 +21,6 @@ import type {
   CustomPrompt,
   GetMyProjectsErrorCode,
   GetMyProjectsResponse,
-  GetMyShavesResponse,
   HealthStatusInfo,
   MCPStep,
   ScreenRecordingStartResult,
@@ -178,6 +177,7 @@ declare global {
           serverId: string,
         ) => Promise<Array<{ name: string; description?: string }>>;
         clearTokensAsync: (serverId: string) => Promise<{ success: boolean }>;
+        reauthorizeAsync: (serverId: string) => Promise<{ success: boolean }>;
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;
@@ -246,11 +246,6 @@ declare global {
         onProtocolError: (callback: (message: string) => void) => () => void;
       };
       portal: {
-        getMyShaves: () => Promise<{
-          success: boolean;
-          data?: GetMyShavesResponse;
-          error?: string;
-        }>;
         getMyProjects: () => Promise<{
           success: boolean;
           data?: GetMyProjectsResponse;

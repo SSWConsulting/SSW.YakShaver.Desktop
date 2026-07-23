@@ -28,7 +28,7 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
   const [setupExpanded, setSetupExpanded] = useState(false);
   const { copyToClipboard, copied } = useClipboard();
 
-  const { handleOnConnect, handleOnDisconnect } = useMcpCardActions(
+  const { handleOnConnect, handleOnDisconnect, handleOnReauthorize } = useMcpCardActions(
     McpJiraCard.Id,
     configLocal,
     onChange,
@@ -114,6 +114,7 @@ export function McpJiraCard({ config, onChange, healthInfo, onTools, viewMode }:
       config={configLocal}
       healthInfo={healthInfo}
       onDisconnect={handleDisconnect}
+      onReauthorize={handleOnReauthorize}
       onTools={onTools}
       viewMode={viewMode}
       extraContent={setupSection}

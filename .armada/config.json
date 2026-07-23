@@ -8,7 +8,7 @@
   "bellCommand": "",
   "mergeMethod": "squash",
   "maxReviewRounds": 2,
-  "armadaRepo": "calumjs/ARMADA",
+  "armadaRepo": "SSWConsulting/SSW.Armada",
   "autoArmSelfFixes": false,
   "cartography": "off",
   "foghorn": {

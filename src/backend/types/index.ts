@@ -1,9 +1,5 @@
-export interface HealthStatusInfo {
-  isHealthy: boolean;
-  error?: string;
-  successMessage?: string;
-  isChecking: boolean;
-}
+// Single shared contract — re-exported so existing `../types` imports keep working.
+export type { HealthStatusInfo } from "@shared/types/mcp";
 
 export enum ProgressStage {
   IDLE = "idle",
@@ -81,24 +77,6 @@ export enum VideoHostingProvider {
 export enum VideoSourceType {
   LOCAL_RECORDING = "local_recording",
   EXTERNAL_URL = "external_url",
-}
-
-export interface ShaveItem {
-  id: string;
-  title: string;
-  videoFile: VideoFile;
-  updatedAt: string;
-  createdAt: string;
-  shaveStatus: string;
-  workItemType: string;
-  projectName: string;
-  workItemUrl: string;
-  feedback: string | null;
-  videoEmbedUrl: string;
-}
-
-export interface GetMyShavesResponse {
-  items: ShaveItem[];
 }
 
 // Portal-projects types (#816) are shared between the backend and the UI, so per

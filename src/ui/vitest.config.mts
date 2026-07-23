@@ -22,6 +22,10 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "../shared"),
+      // @shared modules live outside this package, so their bare imports (zod)
+      // resolve upward from src/shared toward the repo root — whose node_modules
+      // the ui-component-tests CI job never installs. Pin zod to this package's copy.
+      zod: path.resolve(__dirname, "./node_modules/zod"),
     },
   },
   test: {

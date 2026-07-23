@@ -66,3 +66,16 @@ export interface MCPToolSummary {
   name: string;
   description?: string;
 }
+
+/**
+ * Result of an MCP server health check. Crosses the IPC boundary (backend
+ * produces it, UI consumes it), so it lives here as the single shared contract
+ * rather than being duplicated in backend and UI type modules (#982).
+ */
+export interface HealthStatusInfo {
+  isHealthy: boolean;
+  error?: string;
+  successMessage?: string;
+  isChecking: boolean;
+  authFailed?: boolean;
+}

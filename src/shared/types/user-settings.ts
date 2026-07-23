@@ -10,10 +10,14 @@ export const HotkeysSchema = z.object({
 export type Hotkeys = z.infer<typeof HotkeysSchema>;
 export type HotkeyAction = keyof Hotkeys;
 
+export const CloseBehaviorSchema = z.enum(["quit", "minimize-to-tray"]);
+export type CloseBehavior = z.infer<typeof CloseBehaviorSchema>;
+
 export const UserSettingsSchema = z.object({
   toolApprovalMode: ToolApprovalModeSchema,
   openAtLogin: z.boolean(),
   hotkeys: HotkeysSchema,
+  closeBehavior: CloseBehaviorSchema,
 });
 
 export const PartialUserSettingsSchema = UserSettingsSchema.omit({ hotkeys: true })
@@ -31,4 +35,5 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   hotkeys: {
     startRecording: "PrintScreen",
   },
+  closeBehavior: "minimize-to-tray",
 };
