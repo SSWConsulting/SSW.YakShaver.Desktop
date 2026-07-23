@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import yakShaverLogo from "/logos/SQ-YakShaver-LogoIcon-Red.svg?url";
 
 interface TelemetryConsentDialogProps {
   open: boolean;
@@ -46,7 +47,7 @@ export function TelemetryConsentDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
+            <img src={yakShaverLogo} alt="" className="h-5 w-5" />
             Help Us Improve YakShaver
           </DialogTitle>
           <DialogDescription className="pt-2">
@@ -60,7 +61,9 @@ export function TelemetryConsentDialog({
             <h4 className="text-sm font-medium">What we collect:</h4>
 
             <div className="flex items-start space-x-3">
-              <Bug className="h-4 w-4 mt-0.5 text-muted-foreground" />
+              <div className="flex items-center min-h-11">
+                <Bug className="h-4 w-4 text-muted-foreground" />
+              </div>
               <div className="flex-1">
                 <div className="flex items-center space-x-2 min-h-11">
                   <Checkbox
@@ -82,7 +85,9 @@ export function TelemetryConsentDialog({
             </div>
 
             <div className="flex items-start space-x-3">
-              <Activity className="h-4 w-4 mt-0.5 text-muted-foreground" />
+              <div className="flex items-center min-h-11">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </div>
               <div className="flex-1">
                 <div className="flex items-center space-x-2 min-h-11">
                   <Checkbox
@@ -104,7 +109,9 @@ export function TelemetryConsentDialog({
             </div>
 
             <div className="flex items-start space-x-3">
-              <BarChart3 className="h-4 w-4 mt-0.5 text-muted-foreground" />
+              <div className="flex items-center min-h-11">
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              </div>
               <div className="flex-1">
                 <div className="flex items-center space-x-2 min-h-11">
                   <Checkbox
