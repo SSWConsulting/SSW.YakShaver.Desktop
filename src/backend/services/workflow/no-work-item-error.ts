@@ -24,6 +24,8 @@ export function formatNoWorkItemError(
       return "Task execution was cancelled before a work item was created.";
     case "content-filter":
       return "The AI workflow was stopped by a content filter before a work item was created.";
+    case "timeout":
+      return "Executing the task took too long and timed out before a work item was created. This can happen if the AI got stuck retrying a tool or resource that isn't available — try again, optionally with a more specific prompt.";
     default:
       return "No work item was created. Your backlog connection (e.g. GitHub or Azure DevOps) may be signed out or unavailable — please reconnect and try again.";
   }

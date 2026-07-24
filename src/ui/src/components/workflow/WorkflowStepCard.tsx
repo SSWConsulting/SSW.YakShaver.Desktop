@@ -130,6 +130,11 @@ interface WorkflowStepCardProps {
 export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  // #698: only the Executing Task stage can usefully take a custom retry prompt — it's the
+  // stage that drives the AI agent loop, so a more specific prompt can steer it away from
+  // whatever got it stuck (e.g. a timeout from retrying a tool/resource that doesn't exist).
+  const [showPromptInput, setShowPromptInput] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
 
   const { hasPayload, parsedPayload, hasStepErrors, hasStructuredSteps } = useMemo(() => {
     if (!step.payload)
@@ -197,6 +202,8 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
     if (isExpandable) setIsExpanded(!isExpanded);
   };
 
+  const isExecutingTaskStage = step.stage === "executing_task";
+
   const handleRetry = async () => {
     if (!shaveId) return;
 
@@ -205,10 +212,13 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
       const result = await ipcClient.workflow.retryFromStage(
         step.stage as keyof WorkflowState,
         shaveId,
+        isExecutingTaskStage ? customPrompt.trim() || undefined : undefined,
       );
       if (!result?.success) {
         throw new Error(result?.error || "Retry failed");
       }
+      setShowPromptInput(false);
+      setCustomPrompt("");
     } catch (error) {
       toast.error("Retry failed", {
         description: formatErrorMessage(error),
@@ -262,7 +272,7 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             </div>
           )}
         </Button>
-        {step.status === "failed" && shaveId && (
+        {step.status === "failed" && shaveId && !showPromptInput && (
           <Button
             size="sm"
             variant="ghost"
@@ -280,7 +290,54 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             )}
           </Button>
         )}
+        {step.status === "failed" && shaveId && isExecutingTaskStage && !showPromptInput && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={isRetrying}
+            onClick={() => setShowPromptInput(true)}
+            className="bg-white/[0.08] border border-white/[0.15] hover:bg-white/[0.12] text-white/60 shrink-0"
+            title="Retry with a custom prompt"
+          >
+            <Sparkles className="size-3.5" />
+          </Button>
+        )}
       </div>
+
+      {/* #698: optional custom prompt for retrying the Executing Task stage after a failure
+          (e.g. a timeout) — lets the user steer the retry instead of repeating the exact same
+          run that got stuck. */}
+      {step.status === "failed" && shaveId && isExecutingTaskStage && showPromptInput && (
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="text"
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            placeholder="Optional: add instructions for the retry"
+            disabled={isRetrying}
+            className="h-8 flex-1 min-w-0 rounded border border-white/[0.15] bg-black/20 px-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-white/30"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleRetry();
+            }}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={isRetrying}
+            onClick={handleRetry}
+            className="bg-white/[0.08] border border-white/[0.15] hover:bg-white/[0.12] text-white/80 shrink-0"
+          >
+            {isRetrying ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <>
+                <RefreshCw className="size-3.5 mr-1.5" />
+                Retry
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* #523: error/detail content only renders once the row is expanded — a failed
           row is no longer forced open, so its error stays subtle (see the inline hint

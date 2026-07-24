@@ -369,6 +369,42 @@ describe("WorkflowRetryService", () => {
     );
   });
 
+  it("#698: threads an optional customPrompt through to processVideoSource when retrying EXECUTING_TASK", async () => {
+    // After a timeout on the Executing Task stage, the user can optionally supply a custom
+    // prompt to steer the retry instead of repeating the exact run that got stuck. Verify it
+    // reaches processVideoSource on the retry context.
+    const manager = setupFailedWorkflow(ProgressStage.EXECUTING_TASK);
+    (deps.getOrCreateWorkflowManager as ReturnType<typeof vi.fn>).mockReturnValue(manager);
+
+    await service.retryFromStage(
+      ProgressStage.EXECUTING_TASK,
+      SHAVE_ID,
+      "Please file this as a bug, not a feature",
+    );
+
+    expect(deps.processVideoSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shaveId: SHAVE_ID,
+        customPrompt: "Please file this as a bug, not a feature",
+      }),
+      manager,
+      ProgressStage.EXECUTING_TASK,
+    );
+  });
+
+  it("#698: omits customPrompt from the retry context when not supplied", async () => {
+    const manager = setupFailedWorkflow(ProgressStage.EXECUTING_TASK);
+    (deps.getOrCreateWorkflowManager as ReturnType<typeof vi.fn>).mockReturnValue(manager);
+
+    await service.retryFromStage(ProgressStage.EXECUTING_TASK, SHAVE_ID);
+
+    expect(deps.processVideoSource).toHaveBeenCalledWith(
+      expect.objectContaining({ shaveId: SHAVE_ID, customPrompt: undefined }),
+      manager,
+      ProgressStage.EXECUTING_TASK,
+    );
+  });
+
   it("returns error when middle stage retry has no checkpoint data", async () => {
     const manager = new WorkflowStateManager(SHAVE_ID);
     manager.startStage(ProgressStage.ANALYZING_TRANSCRIPT);
