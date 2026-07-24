@@ -389,6 +389,26 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
     expect(verifyGitHubTokenMock).not.toHaveBeenCalled();
     expect(result).toEqual({ available: false, currentVersion: "1.2.3" });
   });
+
+  it("does not attach a saved (possibly invalid/expired) token as an auth header when switching to the latest stable (public) channel (#600)", async () => {
+    // The stable channel is served from a public GitHub repo and must not require — or send — a
+    // GitHub token at all. Before the fix, configureAutoUpdater() unconditionally attached any
+    // saved token as a Bearer header before branching on channel type, so an invalid/expired token
+    // (which the user is never prompted to fix, since the stable channel doesn't gate on health)
+    // was still sent to the public GitHub releases provider.
+    getChannelMock.mockResolvedValue({ type: "latest" });
+    getTokenMock.mockResolvedValue("saved-but-possibly-invalid-token");
+
+    const { autoUpdater } = (await import("electron-updater")) as unknown as {
+      autoUpdater: { requestHeaders?: Record<string, string> };
+    };
+    autoUpdater.requestHeaders = {};
+
+    const handlers = new ReleaseChannelIPCHandlers();
+    await handlers.configureAutoUpdater({ type: "latest" });
+
+    expect(autoUpdater.requestHeaders?.Authorization).toBeUndefined();
+  });
 });
 
 describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", () => {
