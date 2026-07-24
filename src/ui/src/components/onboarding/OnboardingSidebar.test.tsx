@@ -36,7 +36,11 @@ describe("OnboardingSidebar current step highlight (#963)", () => {
     const currentRow = currentTitle.closest('[aria-current="step"]');
     expect(currentRow).not.toBeNull();
 
+    // Current title is bolder than a completed title, so the highlight is
+    // visible without relying on icon color alone.
     const completedTitle = screen.getByText(STEPS[0].title);
+    expect(currentTitle).toHaveClass("font-semibold");
+    expect(completedTitle).not.toHaveClass("font-semibold");
     expect(completedTitle.closest('[aria-current="step"]')).toBeNull();
 
     const pendingTitle = screen.getByText(STEPS[2].title);
@@ -55,27 +59,23 @@ describe("OnboardingSidebar current step highlight (#963)", () => {
   });
 
   it("keeps row spacing stable as the current highlight moves", () => {
-    const { rerender } = renderSidebar({ 1: "current", 2: "pending", 3: "pending" });
+    // The current-step highlight must be purely decorative (background/ring/text
+    // color) — it must NOT add or remove any class that changes a row's vertical
+    // footprint, or the rows (and their connector lines) would visibly shift as
+    // the highlight moves. Assert the spacing-affecting classes are identical on
+    // the current row and the non-current rows.
+    const verticalSpacing = (el: Element | null | undefined) =>
+      Array.from(el?.classList ?? [])
+        .filter((c) => /^(p[tby]|m[tby])-/.test(c) || c === "flex" || c === "gap-8")
+        .sort()
+        .join(" ");
 
-    for (const step of STEPS) {
-      expect(screen.getByText(step.title).closest('[class*="py-2"]')).not.toBeNull();
-    }
+    renderSidebar({ 1: "current", 2: "pending", 3: "pending" });
 
-    rerender(
-      <OnboardingSidebar
-        connectorPositions={[]}
-        stepListRef={{ current: null }}
-        stepIconRefs={{ current: [] }}
-        getSidebarStepStatus={(step) => {
-          if (step.id === 2) return "current";
-          return step.id < 2 ? "completed" : "pending";
-        }}
-      />,
-    );
-
-    for (const step of STEPS) {
-      expect(screen.getByText(step.title).closest('[class*="py-2"]')).not.toBeNull();
-    }
+    const currentRow = screen.getByText(STEPS[0].title).closest('[aria-current="step"]');
+    const otherRow = screen.getByText(STEPS[1].title).parentElement?.parentElement;
+    expect(currentRow).not.toBeNull();
+    expect(verticalSpacing(currentRow)).toBe(verticalSpacing(otherRow));
   });
 
   it("highlights the final step as current once the wizard reaches it", () => {

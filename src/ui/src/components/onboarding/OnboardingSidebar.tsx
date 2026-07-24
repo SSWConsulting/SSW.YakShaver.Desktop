@@ -59,7 +59,10 @@ export function OnboardingSidebar({
               <div
                 key={step.id}
                 aria-current={isCurrent ? "step" : undefined}
-                className="-mx-3 flex gap-8 px-3 py-2"
+                className={cn(
+                  "-mx-3 flex gap-8 rounded-lg px-3 py-2 transition-colors duration-300",
+                  isCurrent && "bg-ssw-red/10 ring-1 ring-inset ring-ssw-red/40",
+                )}
               >
                 <div className="flex flex-col items-center">
                   <div
@@ -88,10 +91,12 @@ export function OnboardingSidebar({
                 <div className="flex flex-col justify-center w-[219px]">
                   <p
                     className={cn(
-                      "text-sm leading-5 transition-colors duration-300",
-                      status === "pending"
-                        ? "font-medium text-white/[0.65]"
-                        : "font-medium text-white/[0.98]",
+                      "text-sm font-medium leading-5 transition-colors duration-300",
+                      isCurrent
+                        ? "font-semibold text-white"
+                        : status === "pending"
+                          ? "text-white/[0.65]"
+                          : "text-white/[0.98]",
                     )}
                   >
                     {step.title}
