@@ -1,7 +1,7 @@
 import { Settings2 } from "lucide-react";
 import { SettingsPageHeader } from "../SettingsPageHeader";
-import { ExecutingTaskTimeoutSetting } from "./ExecutingTaskTimeoutSetting";
 import { CloseBehaviorSetting } from "./CloseBehaviorSetting";
+import { ExecutingTaskTimeoutSetting } from "./ExecutingTaskTimeoutSetting";
 import { KeyMappingSetting } from "./KeyMappingSetting";
 import { StartupSetting } from "./StartupSetting";
 import { ToolApprovalSetting } from "./ToolApprovalSetting";
