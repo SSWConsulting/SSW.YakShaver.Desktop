@@ -17,8 +17,17 @@ type StoredShape = {
   tokensByKey: TokenMap;
 };
 
+type McpOAuthEvent =
+  | typeof McpOAuthTokenStorage.TOKENS_UPDATED_EVENT
+  | typeof McpOAuthTokenStorage.AUTH_FAILED_EVENT;
+
 export class McpOAuthTokenStorage extends BaseSecureStorage {
   public static readonly TOKENS_UPDATED_EVENT = "tokens-updated" as const;
+  /**
+   * An authorization attempt ended without tokens — the user declined, or the provider/backend
+   * failed. Lets a waiter fail fast instead of sitting out its timeout (#965).
+   */
+  public static readonly AUTH_FAILED_EVENT = "auth-failed" as const;
 
   private static instance: McpOAuthTokenStorage;
   private static legacyCleanupDone = false;
@@ -35,18 +44,19 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
     return McpOAuthTokenStorage.instance;
   }
 
-  public on(
-    event: typeof McpOAuthTokenStorage.TOKENS_UPDATED_EVENT,
-    listener: (serverId: string) => void,
-  ): void {
+  public on(event: McpOAuthEvent, listener: (serverId: string) => void): void {
     this.events.on(event, listener);
   }
 
-  public off(
-    event: typeof McpOAuthTokenStorage.TOKENS_UPDATED_EVENT,
-    listener: (serverId: string) => void,
-  ): void {
+  public off(event: McpOAuthEvent, listener: (serverId: string) => void): void {
     this.events.off(event, listener);
+  }
+
+  /**
+   * Signals that authorization for `serverId` failed, so no tokens are coming.
+   */
+  public notifyAuthFailed(serverId: string): void {
+    this.events.emit(McpOAuthTokenStorage.AUTH_FAILED_EVENT, serverId);
   }
 
   private getPath(): string {

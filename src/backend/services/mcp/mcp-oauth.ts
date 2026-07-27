@@ -151,6 +151,7 @@ export async function waitForTokens(
     const cleanup = () => {
       clearTimeout(timeoutId);
       tokenStorage.off(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+      tokenStorage.off(McpOAuthTokenStorage.AUTH_FAILED_EVENT, onAuthFailed);
     };
 
     const onTokensUpdated = async (updatedServerId: string) => {
@@ -164,7 +165,18 @@ export async function waitForTokens(
       }
     };
 
+    // The result page deep-links back on failure, so a declined or failed attempt reports straight
+    // away rather than looking like a hang until the timeout fires (#965).
+    const onAuthFailed = (failedServerId: string) => {
+      if (failedServerId === serverId) {
+        console.warn(`[McpOAuth] Authorization failed for server ${serverId}`);
+        cleanup();
+        reject(new Error("Authorization was cancelled or failed. Please try again."));
+      }
+    };
+
     tokenStorage.on(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+    tokenStorage.on(McpOAuthTokenStorage.AUTH_FAILED_EVENT, onAuthFailed);
 
     timeoutId = setTimeout(() => {
       cleanup();

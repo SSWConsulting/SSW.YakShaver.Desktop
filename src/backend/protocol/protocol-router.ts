@@ -32,12 +32,27 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
     const serverId = params.get("serverId");
+    const authError = params.get("error");
 
     console.log("[ProtocolRouter] Handling MCP OAuth callback", {
       serverId,
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
+      authError,
     });
+
+    // The declined/error result pages ping back with `error` and no tokens, so the waiting
+    // authorization can fail immediately instead of hanging until it times out (#965).
+    if (authError) {
+      console.warn("[ProtocolRouter] MCP OAuth callback reported failure", {
+        serverId,
+        authError,
+      });
+      if (serverId) {
+        McpOAuthTokenStorage.getInstance().notifyAuthFailed(serverId);
+      }
+      return;
+    }
 
     if (!accessToken || !refreshToken || !serverId) {
       const missing = [
@@ -115,11 +130,21 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     const refreshToken = params.get("refresh_token");
     const expiresIn = params.get("expires_in");
     const scope = params.get("scope");
+    const authError = params.get("error");
 
     console.log("[ProtocolRouter] Handling YouTube OAuth callback", {
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
+      authError,
     });
+
+    // Mirrors the MCP branch above: the declined/error result pages ping back with `error` and no
+    // tokens, so the waiting authorization fails immediately rather than hanging (#965).
+    if (authError) {
+      console.warn("[ProtocolRouter] YouTube OAuth callback reported failure", { authError });
+      YoutubeStorage.getInstance().notifyAuthFailed();
+      return;
+    }
 
     if (!accessToken || !refreshToken) {
       const missing = [

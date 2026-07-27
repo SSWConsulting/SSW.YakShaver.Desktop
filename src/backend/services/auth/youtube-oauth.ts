@@ -98,6 +98,7 @@ export async function waitForYouTubeTokens(
     const cleanup = () => {
       clearTimeout(timeoutId);
       storage.off(YoutubeStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+      storage.off(YoutubeStorage.AUTH_FAILED_EVENT, onAuthFailed);
     };
 
     const onTokensUpdated = async () => {
@@ -111,7 +112,21 @@ export async function waitForYouTubeTokens(
       }
     };
 
+    // The result page deep-links back on failure, so a declined or failed attempt reports straight
+    // away rather than looking like a hang until the timeout fires (#965).
+    const onAuthFailed = () => {
+      const elapsedMs = elapsedMsSince(waitStartedAt);
+      console.warn(`[YouTubeOAuth] Authorization failed after ${elapsedMs}ms`);
+      cleanup();
+      reject(
+        new YouTubeAuthError("declined", "YouTube authorization was cancelled or failed", {
+          elapsedMs,
+        }),
+      );
+    };
+
     storage.on(YoutubeStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+    storage.on(YoutubeStorage.AUTH_FAILED_EVENT, onAuthFailed);
 
     timeoutId = setTimeout(() => {
       cleanup();
