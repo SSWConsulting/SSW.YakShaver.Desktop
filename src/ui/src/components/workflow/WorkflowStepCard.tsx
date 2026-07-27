@@ -273,6 +273,7 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             variant="ghost"
             disabled={isRetrying}
             onClick={handleRetry}
+            aria-label={isRetrying ? `Retrying ${label}` : undefined}
             className="bg-white/[0.08] border border-white/[0.15] hover:bg-white/[0.12] text-white/80 shrink-0"
           >
             {isRetrying ? (

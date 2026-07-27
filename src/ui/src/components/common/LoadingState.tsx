@@ -13,16 +13,24 @@ interface LoadingStateProps {
    * pass `true`; full-page/section loaders should leave this unset to keep prior behaviour.
    */
   inline?: boolean;
+  /**
+   * Accessible status text for loaders that do not already have a visible label. Inline loaders
+   * without this prop are treated as decorative because their surrounding UI describes the state.
+   */
+  label?: string;
 }
 
-export function LoadingState({ className, inline = false }: LoadingStateProps = {}) {
+export function LoadingState({ className, inline = false, label }: LoadingStateProps = {}) {
+  const accessibilityProps = label
+    ? { "aria-label": label }
+    : inline
+      ? { role: undefined, "aria-label": undefined, "aria-hidden": true }
+      : {};
+  const spinner = <Spinner className={className} {...accessibilityProps} />;
+
   if (inline) {
-    return <Spinner className={className} />;
+    return spinner;
   }
 
-  return (
-    <div className="flex items-center justify-center py-8">
-      <Spinner className={className} />
-    </div>
-  );
+  return <div className="flex items-center justify-center py-8">{spinner}</div>;
 }
