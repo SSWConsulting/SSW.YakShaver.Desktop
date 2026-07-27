@@ -55,7 +55,8 @@ This document explains how to use the Releases settings in the SSW YakShaver Des
 
 ## 6. Notes
 
-- **GitHub Token**: You may need to configure a GitHub token to access PR pre-releases. See the **GitHub Token** tab in settings.
+- **Public downloads**: Stable and PR pre-releases are downloaded anonymously from the public
+  YakShaver repository. No GitHub token is required.
 - **Auto-update**: The app checks for updates every 10 minutes in the background.
 - **PR Cleanup**: When a PR is closed, its pre-release is automatically deleted.
 
@@ -64,6 +65,6 @@ This document explains how to use the Releases settings in the SSW YakShaver Des
 ## 7. Troubleshooting
 
 - If you do not see your PR in the list, ensure the PR build has completed and published a pre-release.
-- If you see errors about rate limits, add a GitHub token in settings.
+- If GitHub's anonymous API rate limit is reached, wait before refreshing the PR release list.
 
 ---

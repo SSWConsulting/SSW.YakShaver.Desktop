@@ -222,19 +222,6 @@ declare global {
           callback: (progress: { percent: number; transferred: number; total: number }) => void,
         ) => () => void;
       };
-      githubToken: {
-        get: () => Promise<string | undefined>;
-        set: (token: string) => Promise<void>;
-        clear: () => Promise<void>;
-        has: () => Promise<boolean>;
-        verify: () => Promise<{
-          isValid: boolean;
-          username?: string;
-          scopes?: string[];
-          rateLimitRemaining?: number;
-          error?: string;
-        }>;
-      };
       userSettings: {
         get: () => Promise<UserSettings>;
         update: (patch: Partial<UserSettings>) => Promise<{ success: boolean; error?: string }>;

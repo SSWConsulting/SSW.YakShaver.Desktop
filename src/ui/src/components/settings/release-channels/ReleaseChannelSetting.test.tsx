@@ -4,25 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ReleaseChannelSetting } from "./ReleaseChannelSetting";
 
 // vi.hoisted so the mock factory (hoisted above the imports) can reference these.
-const {
-  get,
-  set,
-  listReleases,
-  checkUpdates,
-  getCurrentVersion,
-  onDownloadProgress,
-  hasToken,
-  verifyToken,
-} = vi.hoisted(() => ({
-  get: vi.fn(),
-  set: vi.fn(),
-  listReleases: vi.fn(),
-  checkUpdates: vi.fn(),
-  getCurrentVersion: vi.fn(),
-  onDownloadProgress: vi.fn(),
-  hasToken: vi.fn(),
-  verifyToken: vi.fn(),
-}));
+const { get, set, listReleases, checkUpdates, getCurrentVersion, onDownloadProgress } = vi.hoisted(
+  () => ({
+    get: vi.fn(),
+    set: vi.fn(),
+    listReleases: vi.fn(),
+    checkUpdates: vi.fn(),
+    getCurrentVersion: vi.fn(),
+    onDownloadProgress: vi.fn(),
+  }),
+);
 
 vi.mock("@/services/ipc-client", () => ({
   ipcClient: {
@@ -33,10 +24,6 @@ vi.mock("@/services/ipc-client", () => ({
       checkUpdates,
       getCurrentVersion,
       onDownloadProgress,
-    },
-    githubToken: {
-      has: hasToken,
-      verify: verifyToken,
     },
   },
 }));
@@ -49,8 +36,6 @@ describe("ReleaseChannelSetting (#423)", () => {
     checkUpdates.mockReset();
     getCurrentVersion.mockReset().mockResolvedValue({ version: "1.2.3", commitHash: "abc123" });
     onDownloadProgress.mockReset().mockReturnValue(() => {});
-    hasToken.mockReset().mockResolvedValue(true);
-    verifyToken.mockReset().mockResolvedValue({ isValid: true });
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -153,26 +138,30 @@ describe("ReleaseChannelSetting (#423)", () => {
     });
   });
 
-  it("keeps 'Check for Updates' enabled for the Latest Stable channel with no GitHub token saved (#600)", async () => {
-    hasToken.mockResolvedValue(false);
-    verifyToken.mockResolvedValue({ isValid: false });
+  it("loads and checks a public PR release without GitHub-token state (#600)", async () => {
+    get.mockResolvedValue({ type: "pr", channel: "beta.42" });
+    listReleases.mockResolvedValue({
+      releases: [
+        {
+          prNumber: "42",
+          tag: "beta.42.1",
+          version: "beta.42.1",
+          publishedAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+    checkUpdates.mockResolvedValue({ available: false, currentVersion: "1.2.3" });
 
     render(<ReleaseChannelSetting isActive={true} />);
     await screen.findByText("1.2.3");
 
     const button = await screen.findByRole("button", { name: /check for updates/i });
     await waitFor(() => expect(button).toBeEnabled());
-  });
+    await userEvent.click(button);
 
-  it("keeps 'Check for Updates' enabled for the Latest Stable channel with an invalid/expired GitHub token saved (#600)", async () => {
-    hasToken.mockResolvedValue(true);
-    verifyToken.mockResolvedValue({ isValid: false, error: "Invalid or expired token" });
-
-    render(<ReleaseChannelSetting isActive={true} />);
-    await screen.findByText("1.2.3");
-
-    const button = await screen.findByRole("button", { name: /check for updates/i });
-    await waitFor(() => expect(button).toBeEnabled());
+    expect(listReleases).toHaveBeenCalled();
+    expect(set).toHaveBeenCalledWith({ type: "pr", channel: "beta.42" });
+    expect(checkUpdates).toHaveBeenCalled();
   });
 
   it("keeps the version card's bump label consistent with the toast when the update check resolves before loadCurrentVersion", async () => {

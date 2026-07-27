@@ -24,7 +24,6 @@ export function ResetAccountSetting() {
     setIsResetting(true);
     try {
       await ipcClient.llm.clearConfig();
-      await ipcClient.githubToken.clear();
 
       const servers = await ipcClient.mcp.listServers();
       for (const server of servers) {

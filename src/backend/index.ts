@@ -12,7 +12,6 @@ import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { IPC_CHANNELS } from "./ipc/channels";
 import { Cloud360IPCHandlers } from "./ipc/cloud-360-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
-import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { IdentityServerAuthIPCHandlers } from "./ipc/identity-server-auth-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
@@ -38,6 +37,7 @@ import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
 import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
+import { removeLegacyGitHubToken } from "./services/storage/legacy-github-token-cleanup";
 import { TelemetryService } from "./services/telemetry/telemetry-service";
 import { TrayManager } from "./services/tray/tray-manager";
 import { createGuardedBrowserWindow } from "./utils/devtools-guard";
@@ -300,7 +300,6 @@ let _mcpHandlers: McpIPCHandlers;
 let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
 let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
-let _githubTokenHandlers: GitHubTokenIPCHandlers;
 let _userSettingsHandlers: UserSettingsIPCHandlers;
 let _shaveHandlers: ShaveIPCHandlers;
 let _appControlHandlers: AppControlIPCHandlers;
@@ -396,6 +395,8 @@ app.setAboutPanelOptions({
 initAudioLoopback();
 
 app.whenReady().then(async () => {
+  await removeLegacyGitHubToken();
+
   if (!pendingProtocolUrl) {
     pendingProtocolUrl = getProtocolUrlFromArgs(process.argv);
   }
@@ -462,7 +463,6 @@ app.whenReady().then(async () => {
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
   _appControlHandlers = new AppControlIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
-  _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _userSettingsHandlers = new UserSettingsIPCHandlers(trayManager);
   await _userSettingsHandlers.initialize();
   _shaveHandlers = new ShaveIPCHandlers();
