@@ -331,10 +331,11 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             variant="ghost"
             disabled={isRetrying}
             onClick={handleRetry}
+            aria-label={isRetrying ? `Retrying ${label}` : undefined}
             className="bg-white/[0.08] border border-white/[0.15] hover:bg-white/[0.12] text-white/80 shrink-0"
           >
             {isRetrying ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <LoadingState inline className="size-3.5" />
             ) : (
               <>
                 <RefreshCw className="size-3.5 mr-1.5" />
