@@ -463,11 +463,6 @@ export class ReleaseChannelIPCHandlers {
       return;
     }
 
-    // All release channels are hosted in this public repository (#600). Never carry an
-    // Authorization header into either the public GitHub provider or the public PR asset feed.
-    const { Authorization: _unused, ...publicRequestHeaders } = autoUpdater.requestHeaders ?? {};
-    autoUpdater.requestHeaders = publicRequestHeaders;
-
     // Configure autoUpdater based on channel
     if (channel.type === "latest") {
       autoUpdater.channel = "latest";

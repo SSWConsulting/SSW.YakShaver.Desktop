@@ -68,7 +68,7 @@ const TABS: SettingsTab[] = [
 ];
 
 const TAB_ALIASES: Record<string, string> = {
-  github: "release",
+  github: "mcp",
   hotkeys: "general",
   language: "llm",
   telemetry: "account",

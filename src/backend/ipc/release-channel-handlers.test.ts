@@ -37,7 +37,6 @@ vi.mock("electron-updater", () => ({
     channel: undefined,
     allowPrerelease: false,
     allowDowngrade: false,
-    requestHeaders: {},
     on: (...args: [string, (...a: unknown[]) => void]) => autoUpdaterOnMock(...args),
     setFeedURL: (...args: unknown[]) => setFeedURLMock(...args),
     checkForUpdates: (...args: unknown[]) => checkForUpdatesMock(...args),
@@ -56,7 +55,6 @@ vi.mock("../services/storage/release-channel-storage", () => ({
   },
 }));
 
-import { autoUpdater } from "electron-updater";
 import { ReleaseChannelIPCHandlers } from "./release-channel-handlers";
 
 function releasesResponse(): Response {
@@ -102,7 +100,6 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     getChannelMock.mockResolvedValue({ type: "pr", channel: "beta.42" });
     fetchMock = vi.fn().mockResolvedValue(releasesResponse());
     vi.stubGlobal("fetch", fetchMock);
-    autoUpdater.requestHeaders = {};
   });
 
   afterEach(() => {
@@ -151,23 +148,6 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     );
     expect(checkForUpdatesMock).toHaveBeenCalled();
     expectAnonymousReleaseRequest(fetchMock);
-    expect(autoUpdater.requestHeaders).not.toHaveProperty("Authorization");
-  });
-
-  it.each([
-    { type: "latest" as const },
-    { type: "pr" as const, channel: "beta.42" },
-  ])("removes stale Authorization headers when configuring $type", async (channel) => {
-    autoUpdater.requestHeaders = {
-      Authorization: "Bearer legacy-token",
-      "X-Custom-Header": "preserved",
-    };
-    const handlers = new ReleaseChannelIPCHandlers();
-
-    await handlers.configureAutoUpdater(channel);
-
-    expect(autoUpdater.requestHeaders).toEqual({ "X-Custom-Header": "preserved" });
-    handlers.stopPeriodicUpdateChecks();
   });
 });
 
