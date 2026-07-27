@@ -129,6 +129,7 @@ declare global {
         retryFromStage: (
           stage: keyof WorkflowState,
           shaveId?: string,
+          customPrompt?: string,
         ) => Promise<{
           success: boolean;
           error?: string;

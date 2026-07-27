@@ -19,14 +19,18 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@shared": path.resolve(__dirname, "../shared"),
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      { find: "@shared", replacement: path.resolve(__dirname, "../shared") },
+      {
+        find: /^\/(.+)\?url$/,
+        replacement: `${path.resolve(__dirname, "./public")}/$1?url`,
+      },
       // @shared modules live outside this package, so their bare imports (zod)
       // resolve upward from src/shared toward the repo root — whose node_modules
       // the ui-component-tests CI job never installs. Pin zod to this package's copy.
-      zod: path.resolve(__dirname, "./node_modules/zod"),
-    },
+      { find: "zod", replacement: path.resolve(__dirname, "./node_modules/zod") },
+    ],
   },
   test: {
     globals: true,

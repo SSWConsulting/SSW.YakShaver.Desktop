@@ -263,8 +263,8 @@ const electronAPI = {
   workflow: {
     onProgressNeo: (callback: (progress: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, callback),
-    retryFromStage: (stage: keyof WorkflowState, shaveId?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId),
+    retryFromStage: (stage: keyof WorkflowState, shaveId?: string, customPrompt?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId, customPrompt),
     getRetryStatus: (shaveId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
     cancelRetry: (shaveId: string) =>
