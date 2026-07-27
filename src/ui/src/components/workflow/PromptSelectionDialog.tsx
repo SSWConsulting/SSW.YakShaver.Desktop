@@ -184,7 +184,7 @@ export function PromptSelectionDialog({
               >
                 {submitting ? (
                   <>
-                    <LoadingState />
+                    <LoadingState inline />
                     Continuing...
                   </>
                 ) : (
@@ -295,7 +295,7 @@ export function PromptSelectionDialog({
               >
                 {submitting ? (
                   <>
-                    <LoadingState />
+                    <LoadingState inline />
                     Selecting...
                   </>
                 ) : (

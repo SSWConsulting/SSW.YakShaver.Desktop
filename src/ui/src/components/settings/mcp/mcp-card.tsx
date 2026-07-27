@@ -1,5 +1,5 @@
-import { Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
+import { LoadingState } from "@/components/common/LoadingState";
 import { HealthStatus } from "@/components/health-status/health-status";
 import { Button } from "@/components/ui/button";
 
@@ -98,7 +98,7 @@ export function McpCard({
               )}
               {isReauthorizing ? (
                 <Button variant="warningOutline" className="min-w-28" disabled>
-                  <Loader2 className="size-4 shrink-0 animate-spin" />
+                  <LoadingState inline className="size-4 shrink-0" />
                   Reauthorizing…
                 </Button>
               ) : (
