@@ -8,6 +8,7 @@ describe("formatNoWorkItemError — #833 failure copy per termination reason", (
     ["max-iterations", /ran out of room/i],
     ["cancelled", /cancelled/i],
     ["content-filter", /content filter/i],
+    ["timeout", /timed out/i],
     ["stop", /signed out or unavailable/i],
     ["unknown", /signed out or unavailable/i],
   ];

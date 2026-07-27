@@ -8,6 +8,7 @@ export type MCPTerminationReason =
   | "content-filter"
   | "cancelled"
   | "max-iterations"
+  | "timeout"
   | "unknown";
 
 export interface BacklogArtifact {

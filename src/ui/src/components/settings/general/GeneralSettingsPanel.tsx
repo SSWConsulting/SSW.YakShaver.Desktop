@@ -1,5 +1,7 @@
 import { Settings2 } from "lucide-react";
 import { SettingsPageHeader } from "../SettingsPageHeader";
+import { CloseBehaviorSetting } from "./CloseBehaviorSetting";
+import { ExecutingTaskTimeoutSetting } from "./ExecutingTaskTimeoutSetting";
 import { KeyMappingSetting } from "./KeyMappingSetting";
 import { StartupSetting } from "./StartupSetting";
 import { ToolApprovalSetting } from "./ToolApprovalSetting";
@@ -18,8 +20,10 @@ export function GeneralSettingsPanel({ isActive }: GeneralSettingsPanelProps) {
       />
 
       <ToolApprovalSetting isActive={isActive} />
+      <ExecutingTaskTimeoutSetting isActive={isActive} />
       <KeyMappingSetting isActive={isActive} />
       <StartupSetting isActive={isActive} />
+      <CloseBehaviorSetting isActive={isActive} />
     </div>
   );
 }

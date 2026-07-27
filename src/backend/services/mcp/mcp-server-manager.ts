@@ -3,8 +3,11 @@ import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { ToolSet } from "ai";
 import { PRESET_MCP_SERVERS } from "../../../shared/mcp/preset-servers";
 import type { HealthStatusInfo } from "../../types/index.js";
+import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 import { McpStorage } from "../storage/mcp-storage";
+import { authorizeWithBackend } from "./mcp-oauth";
 import { type CreateClientOptions, MCPServerClient } from "./mcp-server-client";
+import { expandHomePath } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 
 /** Fields valid ONLY on an HTTP (streamableHttp) server config. */
@@ -29,6 +32,10 @@ export class MCPServerManager {
   private static internalClientTransports: Map<string, InMemoryTransport> = new Map();
   private static mcpClients: Map<string, MCPServerClient> = new Map();
   private static mcpClientPromises: Map<string, Promise<MCPServerClient | null>> = new Map();
+  // In-flight raw client creations, keyed by server id. Shared so concurrent
+  // callers (e.g. overlapping health checks) reuse ONE creation instead of each
+  // building a client and racing to overwrite the cache, leaking the loser (#982).
+  private static clientCreationPromises: Map<string, Promise<MCPServerClient>> = new Map();
   private constructor() {}
 
   public static async getInstanceAsync(): Promise<MCPServerManager> {
@@ -377,6 +384,42 @@ export class MCPServerManager {
     return await MCPServerManager.getAllServerConfigsAsync();
   }
 
+  /**
+   * Returns a cached client for the config, or creates one — deduplicating
+   * concurrent creations so overlapping callers share a single client and the
+   * cache is never overwritten by a racing build (which would leak the loser's
+   * connection / stdio process). The created client is cached before returning,
+   * so it is always cache-owned and never orphaned. Rejects if creation fails
+   * (callers classify the error); unlike getMcpClientAsync this does not run a
+   * health check or swallow the error (#982).
+   */
+  private static async getOrCreateClientAsync(config: MCPServerConfig): Promise<MCPServerClient> {
+    const cacheKey = config.id;
+
+    const cached = MCPServerManager.mcpClients.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const inFlight = MCPServerManager.clientCreationPromises.get(cacheKey);
+    if (inFlight) {
+      return await inFlight;
+    }
+
+    const creation = (async () => {
+      const client = await MCPServerClient.createClientAsync(config);
+      MCPServerManager.mcpClients.set(cacheKey, client);
+      return client;
+    })();
+
+    MCPServerManager.clientCreationPromises.set(cacheKey, creation);
+    try {
+      return await creation;
+    } finally {
+      MCPServerManager.clientCreationPromises.delete(cacheKey);
+    }
+  }
+
   public async checkServerHealthAsync(serverId: string): Promise<HealthStatusInfo> {
     const serverConfig = await MCPServerManager.resolveServerConfigAsync(serverId);
     if (!serverConfig) {
@@ -385,25 +428,101 @@ export class MCPServerManager {
       );
     }
 
-    const client = await this.getMcpClientAsync(serverId);
-    if (!client) {
+    // inMemory/builtin servers never hit the auth path; keep them on the
+    // existing null-returning cache path so they stay green.
+    if (serverConfig.transport === "inMemory") {
+      const client = await this.getMcpClientAsync(serverId);
+      if (!client) {
+        return {
+          isHealthy: false,
+          error: `MCP server client for '${serverId}' not found`,
+          isChecking: false,
+        };
+      }
+
+      const healthResult = await client.healthCheckAsync();
+
       return {
-        isHealthy: false,
-        error: `MCP server client for '${serverId}' not found`,
+        isHealthy: healthResult.healthy,
         isChecking: false,
+        successMessage:
+          healthResult.toolCount > 0
+            ? `Healthy - ${healthResult.toolCount} tools available`
+            : "Healthy",
       };
     }
 
-    const healthResult = await client.healthCheckAsync();
+    // Reuse the cached client when one already exists: probing it avoids
+    // spawning a fresh connection (a new stdio child process, in that transport's
+    // case) on every recurring health check, and — critically — never disconnects
+    // a client the orchestrator may currently be running tools through (#982).
+    let client: MCPServerClient;
+    try {
+      // Deduplicate concurrent creation: two overlapping health checks must not
+      // both build a client and race to overwrite the cache, leaking the loser's
+      // connection / stdio process. getOrCreateClientAsync returns the cached
+      // client if present, else shares ONE in-flight creation via
+      // mcpClientPromises and caches the result before returning (#982).
+      client = await MCPServerManager.getOrCreateClientAsync(serverConfig);
+    } catch (err) {
+      return {
+        isHealthy: false,
+        error: String(err),
+        isChecking: false,
+        authFailed: MCPServerClient.isAuthError(err),
+      };
+    }
 
+    // The client is now always cache-owned, so a probe failure just decides
+    // whether it should stay. Success: leave it. Non-auth failure: the
+    // connection / stdio process is likely dead — evict + close so the next
+    // getMcpClientAsync rebuilds a fresh one. Auth (401) failure: leave it in
+    // place; reauthorizeServerAsync owns that eviction and the connection object
+    // is still usable once re-credentialed (#982).
+    const probe = await client.probeHealthAsync();
+    if (!probe.healthy && !probe.authFailed) {
+      // Only evict if the cache still holds THIS client — a concurrent reauth or
+      // health check may have already swapped it out, and we must not close the
+      // replacement or drop a newer entry.
+      if (MCPServerManager.mcpClients.get(serverConfig.id) === client) {
+        MCPServerManager.mcpClients.delete(serverConfig.id);
+      }
+      await client.disconnectAsync().catch(() => undefined);
+    }
     return {
-      isHealthy: healthResult.healthy,
+      isHealthy: probe.healthy,
       isChecking: false,
-      successMessage:
-        healthResult.toolCount > 0
-          ? `Healthy - ${healthResult.toolCount} tools available`
-          : "Healthy",
+      authFailed: probe.authFailed,
+      error: probe.healthy ? undefined : probe.error,
+      successMessage: probe.healthy
+        ? probe.toolCount > 0
+          ? `Healthy - ${probe.toolCount} tools available`
+          : "Healthy"
+        : undefined,
     };
+  }
+
+  /**
+   * Re-authorizes an OAuth MCP server in place (#982): drop the dead credential,
+   * invalidate any cached client, and rerun the existing backend OAuth flow.
+   * Never mutates `enabled` — this is a credential refresh, not a disconnect.
+   */
+  public async reauthorizeServerAsync(serverId: string): Promise<void> {
+    const config = await MCPServerManager.resolveServerConfigAsync(serverId);
+    if (!config) {
+      throw new Error(`[MCPServerManager]: Reauthorize - MCP server '${serverId}' not found`);
+    }
+    if (config.transport !== "streamableHttp" || config.builtin || !config.url) {
+      throw new Error(`[MCPServerManager]: Reauthorize - server '${serverId}' does not use OAuth`);
+    }
+    const tokenStorage = McpOAuthTokenStorage.getInstance();
+    await tokenStorage.clearTokensAsync(serverId);
+    await MCPServerManager.mcpClients
+      .get(config.id)
+      ?.disconnectAsync()
+      .catch(() => undefined);
+    MCPServerManager.mcpClients.delete(config.id);
+    await authorizeWithBackend(tokenStorage, expandHomePath(config.url), serverId);
   }
 
   private static validateServerConfig(config: MCPServerConfig): void {

@@ -75,6 +75,7 @@ const IPC_CHANNELS = {
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
+  MCP_REAUTHORIZE: "mcp:reauthorize",
 
   // Automated workflow
   WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
@@ -123,7 +124,6 @@ const IPC_CHANNELS = {
   PROTOCOL_ERROR: "protocol:error",
 
   // Portal API
-  PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
   PORTAL_GET_MY_PROJECTS: "portal:get-my-projects",
   PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 
@@ -256,8 +256,8 @@ const electronAPI = {
   workflow: {
     onProgressNeo: (callback: (progress: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, callback),
-    retryFromStage: (stage: keyof WorkflowState, shaveId?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId),
+    retryFromStage: (stage: keyof WorkflowState, shaveId?: string, customPrompt?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId, customPrompt),
     getRetryStatus: (shaveId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
     cancelRetry: (shaveId: string) =>
@@ -312,6 +312,8 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, serverId),
     clearTokensAsync: (serverId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_CLEAR_TOKENS, serverId),
+    reauthorizeAsync: (serverId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_REAUTHORIZE, serverId),
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
@@ -364,7 +366,6 @@ const electronAPI = {
       onIpcEvent<string>(IPC_CHANNELS.PROTOCOL_ERROR, callback),
   },
   portal: {
-    getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
     getMyProjects: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_PROJECTS),
     cancelWorkItem: (workItemId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PORTAL_CANCEL_WORK_ITEM, workItemId),

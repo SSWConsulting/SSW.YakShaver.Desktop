@@ -1,9 +1,18 @@
+import { HelpCircle } from "lucide-react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import type { StepHandlers } from "@/types/onboarding";
-import { LLM_STEP_ID, MCP_STEP_ID, STEPS, VIDEO_STEP_ID } from "@/types/onboarding";
+import {
+  LLM_STEP_ID,
+  MCP_STEP_HELP_TEXT,
+  MCP_STEP_ID,
+  STEPS,
+  VIDEO_STEP_ID,
+} from "@/types/onboarding";
 import { ONBOARDING_COMPLETED_KEY } from "../../constants/onboarding";
 import { useOnboardingWizard } from "../../hooks/useOnboardingWizard";
+import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { LLMStep } from "./LLMStep";
 import { MCPStep } from "./MCPStep";
 import { OnboardingSidebar } from "./OnboardingSidebar";
@@ -92,9 +101,33 @@ export function OnboardingWizard({ onVisibilityChange }: OnboardingWizardProps) 
 
       {/* Card header */}
       <div className="flex flex-col gap-1.5 p-6 w-full">
-        <p className="text-2xl font-semibold leading-6 tracking-[-0.015em] text-white/[0.98]">
-          {currentStepData.title}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-2xl font-semibold leading-6 tracking-[-0.015em] text-white/[0.98]">
+            {currentStepData.title}
+          </p>
+          {wizard.currentStep === MCP_STEP_ID && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-5 text-white/50 hover:bg-transparent hover:text-white/80 focus-visible:ring-white/30"
+                  aria-label="What is an MCP server?"
+                >
+                  <HelpCircle className="size-4" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                sideOffset={8}
+                className="max-w-xs whitespace-normal bg-black text-left text-pretty leading-4 text-white [&_svg]:!hidden"
+              >
+                {MCP_STEP_HELP_TEXT}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
         <p className="text-sm font-normal leading-5 text-white/[0.56]">
           {currentStepData.description}
         </p>

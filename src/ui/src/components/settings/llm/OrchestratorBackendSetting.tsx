@@ -1,8 +1,8 @@
 import type { LLMConfigV2, OrchestrationBackend, OrchestratorReadiness } from "@shared/types/llm";
 import { DEFAULT_ORCHESTRATION_BACKEND } from "@shared/types/llm";
-import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { LoadingState } from "@/components/common/LoadingState";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -207,7 +207,7 @@ export function OrchestratorBackendSetting({ isActive }: OrchestratorBackendSett
               onClick={() => void checkReadiness()}
               disabled={isCheckingReadiness}
             >
-              {isCheckingReadiness && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+              {isCheckingReadiness && <LoadingState inline className="mr-1.5 h-3 w-3" />}
               Re-check
             </Button>
           }

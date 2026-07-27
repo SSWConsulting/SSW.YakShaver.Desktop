@@ -1,3 +1,4 @@
+import { shell } from "electron";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ shell: { openExternal: vi.fn() } }));
@@ -17,6 +18,7 @@ vi.mock("../storage/mcp-oauth-token-storage", () => ({
 }));
 
 import {
+  authorizeWithBackend,
   extractUpstreamOAuthErrorCode,
   isInvalidRefreshTokenError,
   McpTokenRefreshError,
@@ -269,5 +271,53 @@ describe("refreshTokenWithBackendWithRetry — bounded retry on transient failur
     expect(isInvalidRefreshTokenError(error)).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
+  });
+});
+
+describe("authorizeWithBackend — concurrent de-duplication (#982)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("opens only ONE browser tab when the same server is authorized concurrently", async () => {
+    const openExternal = vi.mocked(shell.openExternal).mockResolvedValue(undefined);
+    openExternal.mockClear();
+    // getAuthUrlFromBackend does a fetch → return an auth URL.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(200, { authorizationUrl: "https://auth.test/go" })),
+    );
+    // waitForTokens resolves immediately when the store already yields a token.
+    const tokenStorage = {
+      getTokensAsync: vi.fn().mockResolvedValue(TOKENS),
+    } as unknown as import("../storage/mcp-oauth-token-storage").McpOAuthTokenStorage;
+
+    // Fire two authorizations for the SAME serverId at once.
+    const [a, b] = await Promise.all([
+      authorizeWithBackend(tokenStorage, "https://srv", "srv-1"),
+      authorizeWithBackend(tokenStorage, "https://srv", "srv-1"),
+    ]);
+
+    expect(a).toEqual(TOKENS);
+    expect(b).toEqual(TOKENS);
+    // The dedup means only one browser tab / one backend auth-URL fetch happened.
+    expect(openExternal).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows a fresh authorization after the previous one settles", async () => {
+    const openExternal = vi.mocked(shell.openExternal).mockResolvedValue(undefined);
+    openExternal.mockClear();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(200, { authorizationUrl: "https://auth.test/go" })),
+    );
+    const tokenStorage = {
+      getTokensAsync: vi.fn().mockResolvedValue(TOKENS),
+    } as unknown as import("../storage/mcp-oauth-token-storage").McpOAuthTokenStorage;
+
+    await authorizeWithBackend(tokenStorage, "https://srv", "srv-1");
+    await authorizeWithBackend(tokenStorage, "https://srv", "srv-1");
+
+    // Sequential (not concurrent) calls each open their own tab — the entry is
+    // cleared once settled, so a later re-auth is not swallowed.
+    expect(openExternal).toHaveBeenCalledTimes(2);
   });
 });

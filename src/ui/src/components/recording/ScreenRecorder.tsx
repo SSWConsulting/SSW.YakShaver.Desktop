@@ -1,5 +1,5 @@
 import type { ToolApprovalMode, UserSettings } from "@shared/types/user-settings";
-import { CircleStopIcon, Upload } from "lucide-react";
+import { Circle, Square, Upload } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
@@ -61,9 +61,24 @@ interface RecordButtonProps {
   // Renders the split-button shell (and its "Record"/"Stop" label/layout)
   // whenever the YouTube-URL workflow is enabled.
   showSplitLayout: boolean;
+  // Drives which icon (filled record circle vs. filled stop square) the
+  // button shows; kept separate from controlAvailability since that type is
+  // about availability/disabled state, not raw recording state (issue #641).
+  isRecording: boolean;
   onToggleRecording: () => void;
   onUploadClick: () => void;
   className?: string;
+}
+
+// Filled record (circle) / stop (square) icon, matching the acceptance
+// criteria for issue #641. `aria-hidden` since the button's accessible
+// name/label already conveys the meaning via text.
+function RecordIcon({ isRecording, className }: { isRecording: boolean; className?: string }) {
+  return isRecording ? (
+    <Square aria-hidden="true" fill="currentColor" className={className} />
+  ) : (
+    <Circle aria-hidden="true" fill="currentColor" className={className} />
+  );
 }
 
 const PROCESS_YOUTUBE_URL_LABEL = "Process YouTube URL";
@@ -104,6 +119,7 @@ function getRecorderControlAvailability(
 function RecordButton({
   controlAvailability,
   showSplitLayout,
+  isRecording,
   onToggleRecording,
   onUploadClick,
   className = "",
@@ -129,7 +145,7 @@ function RecordButton({
         size="chunky"
         disabled={recordDisabled}
       >
-        <CircleStopIcon className="w-5 h-5" />
+        <RecordIcon isRecording={isRecording} className="w-5 h-5" />
         {recordLabel}
       </Button>
     );
@@ -143,7 +159,7 @@ function RecordButton({
         size="chunky"
         disabled={recordDisabled}
       >
-        <CircleStopIcon />
+        <RecordIcon isRecording={isRecording} />
         {recordLabel}
       </Button>
       <div className="w-px bg-ssw-red-foreground/20" />
@@ -471,6 +487,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
           <RecordButton
             controlAvailability={controlAvailability}
             showSplitLayout={showYoutubeUrlSplitLayout}
+            isRecording={isRecording}
             onToggleRecording={toggleRecording}
             onUploadClick={() => setYoutubeDialogOpen(true)}
             className={className}

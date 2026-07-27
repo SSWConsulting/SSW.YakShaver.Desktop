@@ -7,6 +7,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { MCPStepType } from "@/types";
 import {
+  formatIpcErrorMessage,
   formatKeyAsTitle,
   getVersionBumpType,
   isWorkflowFailed,
@@ -51,6 +52,27 @@ function makeState(overrides: Partial<Record<keyof WorkflowState, WorkflowStatus
   }
   return base;
 }
+
+describe("formatIpcErrorMessage", () => {
+  it("strips the Electron IPC wrapper and leading Error: chain, keeping the real reason", () => {
+    const raw = new Error(
+      "Error invoking remote method 'mcp:list-server-tools': Error: MCPClientError: MCP HTTP Transport Error: POSTing to endpoint (HTTP 401): token expired or revoked",
+    );
+    expect(formatIpcErrorMessage(raw)).toBe(
+      "MCPClientError: MCP HTTP Transport Error: POSTing to endpoint (HTTP 401): token expired or revoked",
+    );
+  });
+
+  it("leaves an already-clean message untouched", () => {
+    expect(formatIpcErrorMessage(new Error("HTTP 401: token expired or revoked"))).toBe(
+      "HTTP 401: token expired or revoked",
+    );
+  });
+
+  it("handles non-Error values", () => {
+    expect(formatIpcErrorMessage("plain string reason")).toBe("plain string reason");
+  });
+});
 
 describe("formatKeyAsTitle", () => {
   it("converts camelCase to spaced title case", () => {

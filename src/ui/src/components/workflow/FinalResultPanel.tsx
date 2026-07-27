@@ -923,7 +923,7 @@ export function FinalResultPanel() {
                   onClick={() => openReprocessDialog("original")}
                 >
                   {reprocessLoading && reprocessMode === "original" ? (
-                    <LoadingState />
+                    <LoadingState inline />
                   ) : (
                     <RotateCcw className="h-4 w-4" />
                   )}
@@ -938,7 +938,7 @@ export function FinalResultPanel() {
                     onClick={() => openReprocessDialog("undo")}
                   >
                     {reprocessLoading && reprocessMode === "undo" ? (
-                      <LoadingState />
+                      <LoadingState inline />
                     ) : (
                       <RotateCcw className="h-4 w-4" />
                     )}
@@ -951,7 +951,7 @@ export function FinalResultPanel() {
                     onClick={handleUndo}
                     className="flex-1"
                   >
-                    {undoLoading ? <LoadingState /> : <Undo2 className="h-4 w-4" />}
+                    {undoLoading ? <LoadingState inline /> : <Undo2 className="h-4 w-4" />}
                     Undo
                   </Button>
                 )}
@@ -988,7 +988,7 @@ export function FinalResultPanel() {
                       Cancel
                     </Button>
                     <Button type="button" onClick={handleReprocess} disabled={reprocessLoading}>
-                      {reprocessLoading && <LoadingState />}
+                      {reprocessLoading && <LoadingState inline />}
                       Run reprocess
                     </Button>
                   </DialogFooter>
