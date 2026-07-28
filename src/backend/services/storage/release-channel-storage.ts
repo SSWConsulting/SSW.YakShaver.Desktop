@@ -8,7 +8,25 @@ export interface ReleaseChannel {
   channel?: string;
 }
 
+export interface CachedGitHubRelease {
+  id: number;
+  tag_name: string;
+  name: string;
+  body?: string;
+  prerelease: boolean;
+  published_at: string;
+  html_url: string;
+}
+
+export interface GitHubReleaseCache {
+  releases: CachedGitHubRelease[];
+  fetchedAt: number;
+  etag?: string;
+  blockedUntil?: number;
+}
+
 const SETTINGS_FILE = "release-channel.enc";
+const RELEASE_CACHE_FILE = "release-cache.enc";
 
 const DEFAULT_CHANNEL: ReleaseChannel = {
   type: "latest",
@@ -17,6 +35,7 @@ const DEFAULT_CHANNEL: ReleaseChannel = {
 export class ReleaseChannelStorage extends BaseSecureStorage {
   private static instance: ReleaseChannelStorage;
   private cache: ReleaseChannel | null = null;
+  private releaseCache: GitHubReleaseCache | null | undefined;
 
   private constructor() {
     super();
@@ -31,6 +50,10 @@ export class ReleaseChannelStorage extends BaseSecureStorage {
 
   private getSettingsPath(): string {
     return join(this.storageDir, SETTINGS_FILE);
+  }
+
+  private getReleaseCachePath(): string {
+    return join(this.storageDir, RELEASE_CACHE_FILE);
   }
 
   private async loadSettings(): Promise<ReleaseChannel> {
@@ -55,5 +78,19 @@ export class ReleaseChannelStorage extends BaseSecureStorage {
 
   async setChannel(channel: ReleaseChannel): Promise<void> {
     await this.saveSettings(channel);
+  }
+
+  async getReleaseCache(): Promise<GitHubReleaseCache | null> {
+    if (this.releaseCache !== undefined) {
+      return this.releaseCache;
+    }
+
+    this.releaseCache = await this.decryptAndLoad<GitHubReleaseCache>(this.getReleaseCachePath());
+    return this.releaseCache;
+  }
+
+  async setReleaseCache(cache: GitHubReleaseCache): Promise<void> {
+    this.releaseCache = cache;
+    await this.encryptAndStore(this.getReleaseCachePath(), cache);
   }
 }

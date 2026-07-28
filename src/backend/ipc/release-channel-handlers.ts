@@ -2,20 +2,14 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import { config } from "../config/env";
 import { setIsQuitting } from "../index";
-import type { ReleaseChannel } from "../services/storage/release-channel-storage";
+import type {
+  CachedGitHubRelease,
+  GitHubReleaseCache,
+  ReleaseChannel,
+} from "../services/storage/release-channel-storage";
 import { ReleaseChannelStorage } from "../services/storage/release-channel-storage";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-
-interface GitHubRelease {
-  id: number;
-  tag_name: string;
-  name: string;
-  body?: string;
-  prerelease: boolean;
-  published_at: string;
-  html_url: string;
-}
 
 interface ProcessedRelease {
   prNumber: string;
@@ -33,14 +27,12 @@ const GITHUB_API_BASE = "https://api.github.com";
 const REPO_OWNER = "SSWConsulting";
 const REPO_NAME = "SSW.YakShaver.Desktop";
 const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_RATE_LIMIT_BACKOFF = 60 * 1000;
 
 export class ReleaseChannelIPCHandlers {
   private store = ReleaseChannelStorage.getInstance();
-  private releasesCache: {
-    releases: GitHubRelease[];
-    fetchedAt: number;
-    etag?: string;
-  } | null = null;
+  private releasesCache: GitHubReleaseCache | null = null;
+  private releasesCacheLoaded = false;
   private updateCheckInterval: NodeJS.Timeout | null = null;
   private readonly UPDATE_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
   private updateDialogDismissedInSession = false; // Track if user dismissed update dialog this session
@@ -167,8 +159,61 @@ export class ReleaseChannelIPCHandlers {
     this.startPeriodicUpdateChecks();
   }
 
+  private async loadPersistedReleasesCache(): Promise<void> {
+    if (this.releasesCacheLoaded) {
+      return;
+    }
+
+    this.releasesCache = await this.store.getReleaseCache();
+    this.releasesCacheLoaded = true;
+  }
+
+  private async persistReleasesCache(): Promise<void> {
+    if (!this.releasesCache) {
+      return;
+    }
+
+    try {
+      await this.store.setReleaseCache(this.releasesCache);
+    } catch (error) {
+      const errorMessage = formatAndReportError(error, "persist_release_cache");
+      console.warn(`Failed to persist GitHub release cache: ${errorMessage}`);
+    }
+  }
+
+  private getRateLimitBlockedUntil(response: Response): number {
+    const retryAfterSeconds = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
+    if (Number.isFinite(retryAfterSeconds)) {
+      return Date.now() + retryAfterSeconds * 1000;
+    }
+
+    const resetEpochSeconds = Number.parseInt(response.headers.get("x-ratelimit-reset") ?? "", 10);
+    if (Number.isFinite(resetEpochSeconds)) {
+      return resetEpochSeconds * 1000;
+    }
+
+    return Date.now() + DEFAULT_RATE_LIMIT_BACKOFF;
+  }
+
+  private getRateLimitError(): GitHubReleaseResponse {
+    if (this.releasesCache?.releases.length) {
+      return { releases: this.processReleases(this.releasesCache.releases) };
+    }
+
+    return {
+      releases: [],
+      error: "GitHub API rate limit exceeded. Try again later.",
+    };
+  }
+
   private async listReleases(forceRefresh = false): Promise<GitHubReleaseResponse> {
     try {
+      await this.loadPersistedReleasesCache();
+
+      if (this.releasesCache?.blockedUntil && Date.now() < this.releasesCache.blockedUntil) {
+        return this.getRateLimitError();
+      }
+
       if (
         !forceRefresh &&
         this.releasesCache &&
@@ -195,29 +240,44 @@ export class ReleaseChannelIPCHandlers {
 
       if (response.status === 304 && this.releasesCache) {
         this.releasesCache.fetchedAt = Date.now();
+        this.releasesCache.blockedUntil = undefined;
+        await this.persistReleasesCache();
         return { releases: this.processReleases(this.releasesCache.releases) };
       }
 
       if (!response.ok) {
         const errorBody = await response.text();
         const baseError = `Failed to fetch releases: ${response.statusText}`;
-        const errorMessage =
-          response.status === 403 && /rate limit/i.test(errorBody)
-            ? "GitHub API rate limit exceeded. Try again later."
-            : baseError;
+        const isRateLimited =
+          response.status === 429 ||
+          (response.status === 403 &&
+            (response.headers.get("x-ratelimit-remaining") === "0" ||
+              /rate limit/i.test(errorBody)));
+
+        if (isRateLimited) {
+          this.releasesCache = {
+            releases: this.releasesCache?.releases ?? [],
+            fetchedAt: this.releasesCache?.fetchedAt ?? 0,
+            etag: this.releasesCache?.etag,
+            blockedUntil: this.getRateLimitBlockedUntil(response),
+          };
+          await this.persistReleasesCache();
+          return this.getRateLimitError();
+        }
 
         return {
           releases: [],
-          error: errorMessage,
+          error: baseError,
         };
       }
 
-      const releases: GitHubRelease[] = await response.json();
+      const releases: CachedGitHubRelease[] = await response.json();
       this.releasesCache = {
         releases,
         fetchedAt: Date.now(),
         etag: response.headers.get("etag") ?? undefined,
       };
+      await this.persistReleasesCache();
 
       return { releases: this.processReleases(releases) };
     } catch (error) {
@@ -236,7 +296,7 @@ export class ReleaseChannelIPCHandlers {
    * - Group by PR and keep only the latest release per PR
    * - Sort by PR number descending
    */
-  private processReleases(releases: GitHubRelease[]): ProcessedRelease[] {
+  private processReleases(releases: CachedGitHubRelease[]): ProcessedRelease[] {
     // Filter prereleases
     const prereleases = releases.filter((r) => r.prerelease);
 
@@ -246,7 +306,7 @@ export class ReleaseChannelIPCHandlers {
     );
 
     // Group by PR number, keeping only the latest release for each PR
-    const prMap = new Map<string, GitHubRelease>();
+    const prMap = new Map<string, CachedGitHubRelease>();
     for (const release of sorted) {
       const prNumber = this.extractPRNumber(release);
       if (prNumber && !prMap.has(prNumber)) {
@@ -271,7 +331,7 @@ export class ReleaseChannelIPCHandlers {
   /**
    * Extract PR number from release name or body
    */
-  private extractPRNumber(release: GitHubRelease): string | null {
+  private extractPRNumber(release: CachedGitHubRelease): string | null {
     const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
     return prMatch ? prMatch[1] : null;
   }
@@ -279,7 +339,7 @@ export class ReleaseChannelIPCHandlers {
   /**
    * Get all releases for a specific PR number, sorted by published date (newest first)
    */
-  private getPRReleases(prNumber: string): GitHubRelease[] {
+  private getPRReleases(prNumber: string): CachedGitHubRelease[] {
     if (!this.releasesCache) {
       return [];
     }

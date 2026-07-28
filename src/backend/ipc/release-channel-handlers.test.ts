@@ -49,16 +49,23 @@ vi.mock("../config/env", () => ({ config: { commitHash: () => null } }));
 
 const getChannelMock = vi.fn();
 const setChannelMock = vi.fn();
+const getReleaseCacheMock = vi.fn();
+const setReleaseCacheMock = vi.fn();
 vi.mock("../services/storage/release-channel-storage", () => ({
   ReleaseChannelStorage: {
-    getInstance: () => ({ getChannel: getChannelMock, setChannel: setChannelMock }),
+    getInstance: () => ({
+      getChannel: getChannelMock,
+      setChannel: setChannelMock,
+      getReleaseCache: getReleaseCacheMock,
+      setReleaseCache: setReleaseCacheMock,
+    }),
   },
 }));
 
 import { ReleaseChannelIPCHandlers } from "./release-channel-handlers";
 
-function releasesResponse(): Response {
-  const releases = [
+function releaseData() {
+  return [
     {
       id: 1,
       tag_name: "beta.42.1",
@@ -69,9 +76,12 @@ function releasesResponse(): Response {
       html_url: "https://example.com",
     },
   ];
-  return new Response(JSON.stringify(releases), {
+}
+
+function releasesResponse(): Response {
+  return new Response(JSON.stringify(releaseData()), {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", etag: '"release-etag"' },
   });
 }
 
@@ -98,6 +108,8 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
   beforeEach(() => {
     vi.clearAllMocks();
     getChannelMock.mockResolvedValue({ type: "pr", channel: "beta.42" });
+    getReleaseCacheMock.mockResolvedValue(null);
+    setReleaseCacheMock.mockResolvedValue(undefined);
     fetchMock = vi.fn().mockResolvedValue(releasesResponse());
     vi.stubGlobal("fetch", fetchMock);
   });
@@ -122,6 +134,125 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     expect(result.error).toBeUndefined();
     expect(result.releases).toEqual([expect.objectContaining({ prNumber: "42" })]);
     expectAnonymousReleaseRequest(fetchMock);
+    expect(setReleaseCacheMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        releases: releaseData(),
+        etag: '"release-etag"',
+      }),
+    );
+  });
+
+  it("reuses a fresh release response persisted by a previous app session", async () => {
+    getReleaseCacheMock.mockResolvedValue({
+      releases: releaseData(),
+      fetchedAt: Date.now(),
+      etag: '"persisted-etag"',
+    });
+    const { ipcMain } = await import("electron");
+    new ReleaseChannelIPCHandlers();
+    const listReleases = getRegisteredHandler(
+      ipcMain.handle as Mock,
+      "release-channel:list-releases",
+    );
+
+    const result = (await listReleases()) as {
+      releases: Array<{ prNumber: string }>;
+    };
+
+    expect(result.releases).toEqual([expect.objectContaining({ prNumber: "42" })]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses a persisted ETag and refreshes the persisted cache timestamp after a 304", async () => {
+    const now = 1_800_000_000_000;
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
+    getReleaseCacheMock.mockResolvedValue({
+      releases: releaseData(),
+      fetchedAt: now - 10 * 60 * 1000,
+      etag: '"persisted-etag"',
+    });
+    fetchMock.mockResolvedValue(new Response(null, { status: 304 }));
+
+    try {
+      const { ipcMain } = await import("electron");
+      new ReleaseChannelIPCHandlers();
+      const listReleases = getRegisteredHandler(
+        ipcMain.handle as Mock,
+        "release-channel:list-releases",
+      );
+
+      await listReleases();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({ "If-None-Match": '"persisted-etag"' }),
+        }),
+      );
+      expect(setReleaseCacheMock).toHaveBeenCalledWith(
+        expect.objectContaining({ fetchedAt: now, etag: '"persisted-etag"' }),
+      );
+    } finally {
+      dateNowSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    {
+      name: "Retry-After",
+      headers: new Headers({ "retry-after": "120" }),
+      expectedBlockedUntil: 1_800_000_120_000,
+    },
+    {
+      name: "X-RateLimit-Reset",
+      headers: new Headers({
+        "x-ratelimit-remaining": "0",
+        "x-ratelimit-reset": "1800000180",
+      }),
+      expectedBlockedUntil: 1_800_000_180_000,
+    },
+  ])("stops GitHub requests until $name permits retry", async ({
+    headers,
+    expectedBlockedUntil,
+  }) => {
+    const now = 1_800_000_000_000;
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
+    getReleaseCacheMock.mockResolvedValue({
+      releases: releaseData(),
+      fetchedAt: now - 10 * 60 * 1000,
+      etag: '"persisted-etag"',
+    });
+    fetchMock.mockResolvedValue(
+      new Response("API rate limit exceeded", {
+        status: 429,
+        headers,
+      }),
+    );
+
+    try {
+      const { ipcMain } = await import("electron");
+      new ReleaseChannelIPCHandlers();
+      const listReleases = getRegisteredHandler(
+        ipcMain.handle as Mock,
+        "release-channel:list-releases",
+      );
+
+      const firstResult = (await listReleases()) as {
+        releases: Array<{ prNumber: string }>;
+        error?: string;
+      };
+      const secondResult = await listReleases();
+
+      expect(firstResult.error).toBeUndefined();
+      expect(firstResult.releases).toEqual([expect.objectContaining({ prNumber: "42" })]);
+      expect(secondResult).toEqual(firstResult);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(setReleaseCacheMock).toHaveBeenCalledWith(
+        expect.objectContaining({ blockedUntil: expectedBlockedUntil }),
+      );
+    } finally {
+      dateNowSpy.mockRestore();
+    }
   });
 
   it("checks and downloads a public PR release anonymously", async () => {
