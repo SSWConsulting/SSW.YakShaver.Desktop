@@ -12,7 +12,7 @@ interface SettingsWarningBannerProps {
 /**
  * #872 (AC1) — the shared "this needs attention" banner for Settings pages.
  *
- * Several panels (Orchestrator readiness, GitHub token, custom prompts) each
+ * Several panels (orchestrator readiness, MCP configuration, custom prompts) each
  * hand-rolled their own amber/yellow warning box with slightly different
  * shades and borders. This is the one place to render that state, on the
  * shared `--warning` token, so every non-destructive "fix this" message reads

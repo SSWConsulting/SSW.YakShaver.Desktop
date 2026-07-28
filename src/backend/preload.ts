@@ -116,13 +116,6 @@ const IPC_CHANNELS = {
   RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
   RELEASE_CHANNEL_DOWNLOAD_PROGRESS: "release-channel:download-progress",
 
-  // GitHub Token
-  GITHUB_TOKEN_GET: "github-token:get",
-  GITHUB_TOKEN_SET: "github-token:set",
-  GITHUB_TOKEN_CLEAR: "github-token:clear",
-  GITHUB_TOKEN_HAS: "github-token:has",
-  GITHUB_TOKEN_VERIFY: "github-token:verify",
-
   // App Control
   APP_RESTART: "app:restart",
   APP_OPEN_EXTERNAL: "app:open-external",
@@ -358,20 +351,6 @@ const electronAPI = {
     onDownloadProgress: (
       callback: (progress: { percent: number; transferred: number; total: number }) => void,
     ) => onIpcEvent(IPC_CHANNELS.RELEASE_CHANNEL_DOWNLOAD_PROGRESS, callback),
-  },
-  githubToken: {
-    get: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_GET),
-    set: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_SET, token),
-    clear: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_CLEAR),
-    has: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_HAS),
-    verify: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_VERIFY) as Promise<{
-        isValid: boolean;
-        username?: string;
-        scopes?: string[];
-        rateLimitRemaining?: number;
-        error?: string;
-      }>,
   },
   userSettings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),

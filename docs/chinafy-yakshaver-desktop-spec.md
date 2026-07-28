@@ -192,7 +192,7 @@ Go beyond translating the system prompt: build a library of locale-specific task
 
 **Requirement (AC4):** List at least 2 China-based Git hosting options and identify workflow changes needed.
 
-Current integrations live at `src/shared/mcp/preset-servers.ts:53`. Adding a new preset is mechanically simple — the hard parts are (a) whether an MCP server exists for the target platform and (b) generalising the GitHub-specific token storage at `src/backend/ipc/github-token-handlers.ts`.
+Current integrations live at `src/shared/mcp/preset-servers.ts:53`. Adding a new preset is mechanically simple — the hard parts are (a) whether an MCP server exists for the target platform and (b) configuring provider-specific authentication through the MCP server configuration.
 
 ### Option 1 — Gitee (码云) via a new MCP preset *(decided)*
 
@@ -203,7 +203,7 @@ Gitee is the de facto Chinese GitHub. It has a REST API similar in shape to GitH
 - ✅ **Minimal preset changes** — add a `GITEE_PRESET_CONFIG` entry alongside the existing three in `preset-servers.ts`.
 - ✅ **Fast domestic access** from mainland China.
 - ❌ **No official Gitee MCP server exists today** — we'd need to either use a community MCP (unvetted) or build a thin MCP wrapper around Gitee's REST API. This is the main investment.
-- ❌ `github-token-handlers.ts` is GitHub-specific; need to generalise token storage (e.g. `git-token-handlers.ts` keyed by provider).
+- ❌ Gitee authentication must be modelled in its MCP server configuration.
 - ❌ Issue template conventions on Gitee differ slightly from GitHub; prompt may need provider-aware instructions.
 
 ### Option 2 — GitCode (CSDN)
@@ -228,7 +228,7 @@ Now part of Tencent Cloud's enterprise DevOps suite.
 ### Workflow Changes Required (for any option)
 
 1. Add new preset config in `src/shared/mcp/preset-servers.ts`, following the shape of `GITHUB_PRESET_CONFIG`.
-2. Generalise `src/backend/ipc/github-token-handlers.ts` into a provider-aware token handler, or add a parallel `gitee-token-handlers.ts`.
+2. Define the Gitee MCP server's authentication fields and secure-storage behavior.
 3. Update `src/backend/services/workflow/prompts.ts` to make platform detection explicit (currently lists "GitHub, Azure DevOps, Jira" — add Gitee).
 4. Add a settings card under `src/ui/src/components/settings/mcp/` mirroring `mcp-github-card.tsx`.
 5. Decide on auth: Gitee supports personal access tokens (mirror the GitHub flow) and OAuth (higher effort).
@@ -243,7 +243,7 @@ Now part of Tencent Cloud's enterprise DevOps suite.
 
 | Endpoint in binary | File | Purpose | China replacement |
 |---|---|---|---|
-| `https://api.github.com` | `release-channel-handlers.ts:33`, `github-token-handlers.ts:46` | Releases + token verification | Gitee API |
+| `https://api.github.com` | `release-channel-handlers.ts` | Public release metadata | Gitee API |
 | `https://api.githubcopilot.com/mcp/` | `preset-servers.ts:17` | GitHub MCP server | Gitee MCP |
 | `@azure-devops/mcp` (npx download) | `preset-servers.ts:31` | Azure DevOps MCP | Remove from China build |
 | `https://mcp.atlassian.com/v1/mcp` | `preset-servers.ts:42` | Jira MCP server | Remove from China build |

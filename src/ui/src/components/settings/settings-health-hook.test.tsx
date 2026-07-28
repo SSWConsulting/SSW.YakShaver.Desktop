@@ -4,20 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSettingsTabHealth } from "./settings-health";
 
 // vi.hoisted so the mock factory (hoisted above the import) can reference these.
-const { getConfig, listServers, checkServerHealthAsync, checkOrchestratorReadiness, has } =
-  vi.hoisted(() => ({
+const { getConfig, listServers, checkServerHealthAsync, checkOrchestratorReadiness } = vi.hoisted(
+  () => ({
     getConfig: vi.fn(),
     listServers: vi.fn(),
     checkServerHealthAsync: vi.fn(),
     checkOrchestratorReadiness: vi.fn(),
-    has: vi.fn(),
-  }));
+  }),
+);
 
 vi.mock("@/services/ipc-client", () => ({
   ipcClient: {
     llm: { getConfig, checkOrchestratorReadiness },
     mcp: { listServers, checkServerHealthAsync },
-    githubToken: { has },
   },
 }));
 
@@ -35,7 +34,6 @@ describe("useSettingsTabHealth (address review #949: wedged MCP server timeout)"
     listServers.mockReset();
     checkServerHealthAsync.mockReset();
     checkOrchestratorReadiness.mockReset();
-    has.mockReset();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -45,7 +43,6 @@ describe("useSettingsTabHealth (address review #949: wedged MCP server timeout)"
     vi.useFakeTimers();
     getConfig.mockResolvedValue(null);
     listServers.mockResolvedValue([GITHUB]);
-    has.mockResolvedValue(true);
     checkServerHealthAsync.mockImplementation(() => new Promise(() => {})); // never resolves
 
     const { getByTestId } = render(<Harness open={true} />);
