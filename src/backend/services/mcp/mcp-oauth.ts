@@ -18,6 +18,16 @@ interface McpOAuthSession {
   state: string;
 }
 
+class McpOAuthResultError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "McpOAuthResultError";
+  }
+}
+
 export const DEFAULT_MCP_AUTH_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_POLL_INTERVAL_MS = 1500;
 const OAUTH_TIMEOUT_ERROR = "MCP OAuth session timed out. Reconnect the MCP server.";
@@ -174,14 +184,41 @@ async function getPortalAccessToken(): Promise<string> {
   return accessToken;
 }
 
+function getMcpOAuthRedirectUri(serverId: string): string {
+  const protocol =
+    config.azure()?.customProtocol ||
+    (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
+  return `${protocol}://oauth/callback?serverId=${encodeURIComponent(serverId)}`;
+}
+
+async function getOAuthResponseError(response: Response, fallback: string): Promise<string> {
+  try {
+    const data: unknown = await response.json();
+    if (isRecord(data)) {
+      const message =
+        (typeof data.error === "string" && data.error) ||
+        (typeof data.detail === "string" && data.detail);
+      if (message) {
+        return `${fallback}: ${message} (Status: ${response.status})`;
+      }
+    }
+  } catch {
+    // Fall back to the status-only message when the backend does not return JSON.
+  }
+
+  return `${fallback} (Status: ${response.status})`;
+}
+
 async function startRecoverableOAuth(
   serverUrl: string,
+  serverId: string,
   provider: McpOAuthProvider,
   accessToken: string,
 ): Promise<McpOAuthSession> {
   const url = new URL(`${config.portalApiUrl()}/mcp/auth/start`);
   url.searchParams.set("serverUrl", serverUrl);
   url.searchParams.set("provider", provider);
+  url.searchParams.set("redirectUri", getMcpOAuthRedirectUri(serverId));
 
   const response = await fetch(url.toString(), {
     method: "GET",
@@ -192,7 +229,7 @@ async function startRecoverableOAuth(
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to start MCP OAuth (Status: ${response.status})`);
+    throw new Error(await getOAuthResponseError(response, "Failed to start MCP OAuth"));
   }
 
   const data: unknown = await response.json();
@@ -223,19 +260,36 @@ async function getRecoverableOAuthResult(
   }
 
   if (response.status === 404) {
-    throw new Error("MCP OAuth session expired or was already used. Reconnect the MCP server.");
+    throw new McpOAuthResultError(
+      "MCP OAuth session expired or was already used. Reconnect the MCP server.",
+      response.status,
+    );
   }
 
   if (response.status === 401 || response.status === 403) {
-    throw new Error("Your YakShaver sign-in expired. Sign in again before reconnecting.");
+    throw new McpOAuthResultError(
+      "Your YakShaver sign-in expired. Sign in again before reconnecting.",
+      response.status,
+    );
   }
 
   if (!response.ok) {
-    throw new Error(`Failed to retrieve MCP OAuth result (Status: ${response.status})`);
+    throw new McpOAuthResultError(
+      await getOAuthResponseError(response, "Failed to retrieve MCP OAuth result"),
+      response.status,
+    );
   }
 
   const data: unknown = await response.json();
   return parseOAuthTokens(data);
+}
+
+function isTerminalOAuthResultError(error: unknown): boolean {
+  return (
+    (error instanceof McpOAuthResultError &&
+      (error.status === 401 || error.status === 403 || error.status === 404)) ||
+    (error instanceof Error && error.message === OAUTH_TIMEOUT_ERROR)
+  );
 }
 
 function delayUntilNextPoll(ms: number, signal: AbortSignal): Promise<void> {
@@ -294,14 +348,10 @@ async function pollRecoverableOAuthResult(
  */
 export async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
   const portalApiUrl = config.portalApiUrl();
-  const protocol =
-    config.azure()?.customProtocol ||
-    (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
-  const redirectUri = `${protocol}://oauth/callback?serverId=${encodeURIComponent(serverId)}`;
   const endpoint = "/mcp/auth/start";
   const url = new URL(`${portalApiUrl}${endpoint}`);
   url.searchParams.set("serverUrl", serverUrl);
-  url.searchParams.set("redirectUri", redirectUri);
+  url.searchParams.set("redirectUri", getMcpOAuthRedirectUri(serverId));
 
   let response: Response;
   try {
@@ -432,7 +482,7 @@ async function authorizeWithBackendOnce(
   }
 
   const accessToken = await getPortalAccessToken();
-  const session = await startRecoverableOAuth(serverUrl, provider, accessToken);
+  const session = await startRecoverableOAuth(serverUrl, serverId, provider, accessToken);
   const pollingAbortController = new AbortController();
   const deepLinkAbortController = new AbortController();
   const deepLinkTokens = waitForTokens(
@@ -450,10 +500,32 @@ async function authorizeWithBackendOnce(
     normalizedOptions.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
     pollingAbortController.signal,
   );
+  const deepLinkCompletion = deepLinkTokens.then((tokens) => ({
+    source: "deep-link" as const,
+    tokens,
+  }));
+  const pollingCompletion = polledTokens.then(
+    (tokens) => ({ source: "polling" as const, tokens }),
+    (error: unknown) => {
+      if (isTerminalOAuthResultError(error)) {
+        throw error;
+      }
+      return { source: "polling-error" as const, error };
+    },
+  );
 
   try {
     await shell.openExternal(session.authorizationUrl);
-    return await Promise.race([deepLinkTokens, polledTokens]);
+    const completion = await Promise.race([deepLinkCompletion, pollingCompletion]);
+    if (completion.source === "polling-error") {
+      console.warn(
+        "[McpOAuth] Result polling failed; continuing to wait for the Deep Link callback:",
+        completion.error,
+      );
+      pollingAbortController.abort();
+      return await deepLinkTokens;
+    }
+    return completion.tokens;
   } finally {
     pollingAbortController.abort();
     deepLinkAbortController.abort();

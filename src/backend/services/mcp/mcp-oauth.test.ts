@@ -139,7 +139,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     expect(completeOAuthAsync).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://api.test/api/mcp/auth/start?serverUrl=https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%3Foriginal%3Dtrue&provider=github",
+      "https://api.test/api/mcp/auth/start?serverUrl=https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%3Foriginal%3Dtrue&provider=github&redirectUri=yakshaver-desktop-dev%3A%2F%2Foauth%2Fcallback%3FserverId%3Dserver-1",
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: "Bearer portal-access-token" }),
       }),
@@ -152,6 +152,26 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       }),
     );
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("includes backend problem details when starting OAuth fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(400, {
+          detail: 'Required parameter "string redirectUri" was not provided from query string.',
+        }),
+      ),
+    );
+    const { storage } = createTokenStorage();
+
+    await expect(
+      authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
+        provider: "github",
+      }),
+    ).rejects.toThrow('Required parameter "string redirectUri"');
+
+    expect(shell.openExternal).not.toHaveBeenCalled();
   });
 
   it("stops polling when the deep-link callback completes first", async () => {
@@ -183,6 +203,48 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     const requestsWhenCompleted = fetchMock.mock.calls.length;
     await vi.advanceTimersByTimeAsync(50);
     expect(fetchMock).toHaveBeenCalledTimes(requestsWhenCompleted);
+  });
+
+  it("keeps waiting for the deep-link when result polling fails unexpectedly", async () => {
+    let resolveResultRequest: (response: Response) => void = () => undefined;
+    const resultResponse = new Promise<Response>((resolve) => {
+      resolveResultRequest = resolve;
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
+          state: "oauth-state",
+        }),
+      )
+      .mockReturnValueOnce(resultResponse);
+    vi.stubGlobal("fetch", fetchMock);
+    const { storage } = createTokenStorage();
+
+    const authorization = authorizeWithBackend(
+      storage,
+      "https://api.githubcopilot.com/mcp/",
+      "server-1",
+      {
+        provider: "github",
+        pollIntervalMs: 1,
+        timeoutMs: 100,
+      },
+    );
+    const settledAuthorization = authorization.then(
+      (tokens) => ({ success: true as const, tokens }),
+      (error: unknown) => ({ success: false as const, error }),
+    );
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    resolveResultRequest(jsonResponse(400, { error: "Unexpected backend polling failure" }));
+    await Promise.resolve();
+    await storage.saveTokensAsync("server-1", TOKENS);
+
+    await expect(settledAuthorization).resolves.toEqual({ success: true, tokens: TOKENS });
+    expect(shell.openExternal).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("uses the current signed-in account when polling an existing OAuth state", async () => {
