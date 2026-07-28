@@ -57,6 +57,8 @@ This document explains how to use the Releases settings in the SSW YakShaver Des
 
 - **Public downloads**: Stable and PR pre-releases are downloaded anonymously from the public
   YakShaver repository. No GitHub token is required.
+- **Legacy GitHub tokens**: After upgrading, the app deletes any previously saved GitHub personal
+  access token because release channels no longer use it.
 - **Auto-update**: The app checks for updates every 10 minutes in the background.
 - **PR Cleanup**: When a PR is closed, its pre-release is automatically deleted.
 

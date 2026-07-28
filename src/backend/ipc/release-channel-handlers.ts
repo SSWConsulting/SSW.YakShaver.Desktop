@@ -28,6 +28,7 @@ const REPO_OWNER = "SSWConsulting";
 const REPO_NAME = "SSW.YakShaver.Desktop";
 const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_RATE_LIMIT_BACKOFF = 60 * 1000;
+const MAX_RATE_LIMIT_BACKOFF = 60 * 60 * 1000;
 
 export class ReleaseChannelIPCHandlers {
   private store = ReleaseChannelStorage.getInstance();
@@ -164,8 +165,15 @@ export class ReleaseChannelIPCHandlers {
       return;
     }
 
-    this.releasesCache = await this.store.getReleaseCache();
-    this.releasesCacheLoaded = true;
+    try {
+      this.releasesCache = await this.store.getReleaseCache();
+    } catch (error) {
+      const errorMessage = formatAndReportError(error, "load_release_cache");
+      console.warn(`Failed to load GitHub release cache: ${errorMessage}`);
+      this.releasesCache = null;
+    } finally {
+      this.releasesCacheLoaded = true;
+    }
   }
 
   private async persistReleasesCache(): Promise<void> {
@@ -182,20 +190,29 @@ export class ReleaseChannelIPCHandlers {
   }
 
   private getRateLimitBlockedUntil(response: Response): number {
+    const now = Date.now();
     const retryAfterSeconds = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
     if (Number.isFinite(retryAfterSeconds)) {
-      return Date.now() + retryAfterSeconds * 1000;
+      return this.clampRateLimitBlockedUntil(now + retryAfterSeconds * 1000, now);
     }
 
     const resetEpochSeconds = Number.parseInt(response.headers.get("x-ratelimit-reset") ?? "", 10);
     if (Number.isFinite(resetEpochSeconds)) {
-      return resetEpochSeconds * 1000;
+      return this.clampRateLimitBlockedUntil(resetEpochSeconds * 1000, now);
     }
 
-    return Date.now() + DEFAULT_RATE_LIMIT_BACKOFF;
+    return now + DEFAULT_RATE_LIMIT_BACKOFF;
   }
 
-  private getRateLimitError(): GitHubReleaseResponse {
+  private clampRateLimitBlockedUntil(candidate: number, now: number): number {
+    if (!Number.isFinite(candidate) || candidate <= now) {
+      return now + DEFAULT_RATE_LIMIT_BACKOFF;
+    }
+
+    return Math.min(candidate, now + MAX_RATE_LIMIT_BACKOFF);
+  }
+
+  private getRateLimitFallback(): GitHubReleaseResponse {
     if (this.releasesCache?.releases.length) {
       return { releases: this.processReleases(this.releasesCache.releases) };
     }
@@ -206,19 +223,15 @@ export class ReleaseChannelIPCHandlers {
     };
   }
 
-  private async listReleases(forceRefresh = false): Promise<GitHubReleaseResponse> {
+  private async listReleases(): Promise<GitHubReleaseResponse> {
     try {
       await this.loadPersistedReleasesCache();
 
       if (this.releasesCache?.blockedUntil && Date.now() < this.releasesCache.blockedUntil) {
-        return this.getRateLimitError();
+        return this.getRateLimitFallback();
       }
 
-      if (
-        !forceRefresh &&
-        this.releasesCache &&
-        Date.now() - this.releasesCache.fetchedAt < RELEASES_CACHE_TTL
-      ) {
+      if (this.releasesCache && Date.now() - this.releasesCache.fetchedAt < RELEASES_CACHE_TTL) {
         return { releases: this.processReleases(this.releasesCache.releases) };
       }
 
@@ -262,7 +275,7 @@ export class ReleaseChannelIPCHandlers {
             blockedUntil: this.getRateLimitBlockedUntil(response),
           };
           await this.persistReleasesCache();
-          return this.getRateLimitError();
+          return this.getRateLimitFallback();
         }
 
         return {
@@ -380,9 +393,9 @@ export class ReleaseChannelIPCHandlers {
 
       // For PR channels
       if (channel.type === "pr" && channel.channel) {
-        // Get raw releases for update checking (not processed)
-        if (!this.releasesCache || Date.now() - this.releasesCache.fetchedAt > RELEASES_CACHE_TTL) {
-          await this.listReleases(true);
+        const listedReleases = await this.listReleases();
+        if (listedReleases.error) {
+          return { available: false, error: listedReleases.error, currentVersion };
         }
 
         if (!this.releasesCache) {
@@ -548,12 +561,11 @@ export class ReleaseChannelIPCHandlers {
       // For PR channels, we need to find the latest release tag first
       const prNumber = this.extractPRNumberFromChannel(channel.channel);
       if (prNumber) {
-        // Get the latest release for this PR
-        if (!this.releasesCache || Date.now() - this.releasesCache.fetchedAt > RELEASES_CACHE_TTL) {
-          await this.listReleases(true);
-        }
+        const listedReleases = await this.listReleases();
 
-        if (this.releasesCache) {
+        if (listedReleases.error) {
+          console.warn(`Failed to configure PR release channel: ${listedReleases.error}`);
+        } else if (this.releasesCache) {
           const prReleases = this.getPRReleases(prNumber);
 
           if (prReleases.length > 0) {

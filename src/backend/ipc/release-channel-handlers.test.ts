@@ -197,6 +197,34 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     }
   });
 
+  it("falls back to GitHub when the optional persisted cache cannot be read", async () => {
+    const warningSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getReleaseCacheMock.mockRejectedValue(new Error("Encryption is not available"));
+
+    try {
+      const { ipcMain } = await import("electron");
+      new ReleaseChannelIPCHandlers();
+      const listReleases = getRegisteredHandler(
+        ipcMain.handle as Mock,
+        "release-channel:list-releases",
+      );
+
+      const result = (await listReleases()) as {
+        releases: Array<{ prNumber: string }>;
+        error?: string;
+      };
+
+      expect(result.error).toBeUndefined();
+      expect(result.releases).toEqual([expect.objectContaining({ prNumber: "42" })]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(warningSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to load GitHub release cache"),
+      );
+    } finally {
+      warningSpy.mockRestore();
+    }
+  });
+
   it.each([
     {
       name: "Retry-After",
@@ -210,6 +238,19 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
         "x-ratelimit-reset": "1800000180",
       }),
       expectedBlockedUntil: 1_800_000_180_000,
+    },
+    {
+      name: "an excessive Retry-After value",
+      headers: new Headers({ "retry-after": "999999999" }),
+      expectedBlockedUntil: 1_800_003_600_000,
+    },
+    {
+      name: "an expired X-RateLimit-Reset value",
+      headers: new Headers({
+        "x-ratelimit-remaining": "0",
+        "x-ratelimit-reset": "1700000000",
+      }),
+      expectedBlockedUntil: 1_800_000_060_000,
     },
   ])("stops GitHub requests until $name permits retry", async ({
     headers,
@@ -279,6 +320,77 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     );
     expect(checkForUpdatesMock).toHaveBeenCalled();
     expectAnonymousReleaseRequest(fetchMock);
+  });
+
+  it("uses a fresh persisted cache for the first PR update check after launch", async () => {
+    getReleaseCacheMock.mockResolvedValue({
+      releases: releaseData(),
+      fetchedAt: Date.now(),
+      etag: '"persisted-etag"',
+    });
+    checkForUpdatesMock.mockResolvedValue({ updateInfo: { version: "beta.42.1" } });
+    const { ipcMain } = await import("electron");
+    new ReleaseChannelIPCHandlers();
+    const checkForUpdates = getRegisteredHandler(
+      ipcMain.handle as Mock,
+      "release-channel:check-updates",
+    );
+
+    const result = await checkForUpdates();
+
+    expect(result).toEqual({
+      available: true,
+      version: "beta.42.1",
+      currentVersion: "1.2.3",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses a fresh persisted cache when configuring the PR channel after launch", async () => {
+    getReleaseCacheMock.mockResolvedValue({
+      releases: releaseData(),
+      fetchedAt: Date.now(),
+      etag: '"persisted-etag"',
+    });
+    const handlers = new ReleaseChannelIPCHandlers();
+
+    try {
+      await handlers.configureAutoUpdater({ type: "pr", channel: "beta.42" });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(setFeedURLMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "generic",
+          url: expect.stringContaining("/releases/download/beta.42.1"),
+        }),
+      );
+    } finally {
+      handlers.stopPeriodicUpdateChecks();
+    }
+  });
+
+  it("reports the rate limit instead of claiming the selected PR has no releases", async () => {
+    fetchMock.mockResolvedValue(
+      new Response("API rate limit exceeded", {
+        status: 429,
+        headers: { "retry-after": "120" },
+      }),
+    );
+    const { ipcMain } = await import("electron");
+    new ReleaseChannelIPCHandlers();
+    const checkForUpdates = getRegisteredHandler(
+      ipcMain.handle as Mock,
+      "release-channel:check-updates",
+    );
+
+    const result = await checkForUpdates();
+
+    expect(result).toEqual({
+      available: false,
+      error: "GitHub API rate limit exceeded. Try again later.",
+      currentVersion: "1.2.3",
+    });
+    expect(checkForUpdatesMock).not.toHaveBeenCalled();
   });
 });
 
