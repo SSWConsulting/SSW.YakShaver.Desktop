@@ -15,6 +15,22 @@ const { get, set, listReleases, checkUpdates, getCurrentVersion, onDownloadProgr
   }),
 );
 
+const { toastError, toastInfo, toastSuccess, toastWarning } = vi.hoisted(() => ({
+  toastError: vi.fn(),
+  toastInfo: vi.fn(),
+  toastSuccess: vi.fn(),
+  toastWarning: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: toastError,
+    info: toastInfo,
+    success: toastSuccess,
+    warning: toastWarning,
+  },
+}));
+
 vi.mock("@/services/ipc-client", () => ({
   ipcClient: {
     releaseChannel: {
@@ -36,6 +52,10 @@ describe("ReleaseChannelSetting (#423)", () => {
     checkUpdates.mockReset();
     getCurrentVersion.mockReset().mockResolvedValue({ version: "1.2.3", commitHash: "abc123" });
     onDownloadProgress.mockReset().mockReturnValue(() => {});
+    toastError.mockReset();
+    toastInfo.mockReset();
+    toastSuccess.mockReset();
+    toastWarning.mockReset();
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -162,6 +182,37 @@ describe("ReleaseChannelSetting (#423)", () => {
     expect(listReleases).toHaveBeenCalled();
     expect(set).toHaveBeenCalledWith({ type: "pr", channel: "beta.42" });
     expect(checkUpdates).toHaveBeenCalled();
+  });
+
+  it("shows a warning instead of reporting cached PR data as the latest version", async () => {
+    const warning =
+      "GitHub API rate limit reached. Showing cached release data; updates cannot be confirmed yet.";
+    get.mockResolvedValue({ type: "pr", channel: "beta.42" });
+    listReleases.mockResolvedValue({
+      releases: [
+        {
+          prNumber: "42",
+          tag: "beta.42.1",
+          version: "beta.42.1",
+          publishedAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+      warning,
+    });
+    checkUpdates.mockResolvedValue({
+      available: false,
+      warning,
+      currentVersion: "1.2.3",
+    });
+
+    render(<ReleaseChannelSetting isActive={true} />);
+    await waitFor(() => expect(toastWarning).toHaveBeenCalledWith(warning));
+
+    await userEvent.click(screen.getByRole("button", { name: /check for updates/i }));
+
+    expect(await screen.findByText(warning)).toBeInTheDocument();
+    expect(screen.queryByText(/latest version/i)).not.toBeInTheDocument();
+    expect(toastWarning).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the version card's bump label consistent with the toast when the update check resolves before loadCurrentVersion", async () => {

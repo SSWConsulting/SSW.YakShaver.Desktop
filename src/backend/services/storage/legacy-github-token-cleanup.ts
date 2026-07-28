@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { app } from "electron";
 import { formatAndReportError } from "../../utils/error-utils";
 
+// Keep this historical path literal so cleanup still targets the old location if current storage moves.
 const LEGACY_GITHUB_TOKEN_PATH = ["yakshaver-tokens", "github-token.enc"] as const;
 
 export async function removeLegacyGitHubToken(): Promise<void> {

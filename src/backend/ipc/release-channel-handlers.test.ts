@@ -281,10 +281,12 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
       const firstResult = (await listReleases()) as {
         releases: Array<{ prNumber: string }>;
         error?: string;
+        warning?: string;
       };
       const secondResult = await listReleases();
 
       expect(firstResult.error).toBeUndefined();
+      expect(firstResult.warning).toContain("Showing cached release data");
       expect(firstResult.releases).toEqual([expect.objectContaining({ prNumber: "42" })]);
       expect(secondResult).toEqual(firstResult);
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -390,6 +392,32 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
       error: "GitHub API rate limit exceeded. Try again later.",
       currentVersion: "1.2.3",
     });
+    expect(checkForUpdatesMock).not.toHaveBeenCalled();
+  });
+
+  it("warns instead of claiming the cached PR release is current while rate-limited", async () => {
+    getReleaseCacheMock.mockResolvedValue({
+      releases: releaseData(),
+      fetchedAt: Date.now() - 10 * 60 * 1000,
+      etag: '"persisted-etag"',
+      blockedUntil: Date.now() + 10 * 60 * 1000,
+    });
+    const { ipcMain } = await import("electron");
+    new ReleaseChannelIPCHandlers();
+    const checkForUpdates = getRegisteredHandler(
+      ipcMain.handle as Mock,
+      "release-channel:check-updates",
+    );
+
+    const result = await checkForUpdates();
+
+    expect(result).toEqual({
+      available: false,
+      warning:
+        "GitHub API rate limit reached. Showing cached release data; updates cannot be confirmed yet.",
+      currentVersion: "1.2.3",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(checkForUpdatesMock).not.toHaveBeenCalled();
   });
 });

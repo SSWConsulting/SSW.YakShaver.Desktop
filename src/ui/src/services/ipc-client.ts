@@ -211,10 +211,12 @@ declare global {
         listReleases: () => Promise<{
           releases: Array<ProcessedRelease>;
           error?: string;
+          warning?: string;
         }>;
         checkUpdates: () => Promise<{
           available: boolean;
           error?: string;
+          warning?: string;
           version?: string;
           currentVersion?: string;
         }>;

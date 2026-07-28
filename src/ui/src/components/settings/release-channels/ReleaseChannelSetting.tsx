@@ -83,6 +83,9 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
         toast.error(`Failed to load releases: ${response.error}`);
       } else {
         setReleases(response.releases || []);
+        if (response.warning) {
+          toast.warning(response.warning);
+        }
       }
     } catch (error) {
       setReleases([]);
@@ -134,6 +137,9 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
       if (result.error) {
         setUpdateStatus(`Error: ${result.error}`);
         toast.error(`Update check failed: ${result.error}`);
+      } else if (result.warning) {
+        setUpdateStatus(result.warning);
+        toast.warning(result.warning);
       } else if (result.available) {
         const newVersion = result.version || "unknown";
         setAvailableVersion(newVersion);

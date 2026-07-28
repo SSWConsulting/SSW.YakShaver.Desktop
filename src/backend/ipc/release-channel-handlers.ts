@@ -21,6 +21,7 @@ interface ProcessedRelease {
 interface GitHubReleaseResponse {
   releases: ProcessedRelease[];
   error?: string;
+  warning?: string;
 }
 
 const GITHUB_API_BASE = "https://api.github.com";
@@ -29,6 +30,8 @@ const REPO_NAME = "SSW.YakShaver.Desktop";
 const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_RATE_LIMIT_BACKOFF = 60 * 1000;
 const MAX_RATE_LIMIT_BACKOFF = 60 * 60 * 1000;
+const RATE_LIMIT_CACHE_WARNING =
+  "GitHub API rate limit reached. Showing cached release data; updates cannot be confirmed yet.";
 
 export class ReleaseChannelIPCHandlers {
   private store = ReleaseChannelStorage.getInstance();
@@ -214,7 +217,10 @@ export class ReleaseChannelIPCHandlers {
 
   private getRateLimitFallback(): GitHubReleaseResponse {
     if (this.releasesCache?.releases.length) {
-      return { releases: this.processReleases(this.releasesCache.releases) };
+      return {
+        releases: this.processReleases(this.releasesCache.releases),
+        warning: RATE_LIMIT_CACHE_WARNING,
+      };
     }
 
     return {
@@ -374,6 +380,7 @@ export class ReleaseChannelIPCHandlers {
   private async checkForUpdates(): Promise<{
     available: boolean;
     error?: string;
+    warning?: string;
     version?: string;
     currentVersion?: string;
   }> {
@@ -396,6 +403,9 @@ export class ReleaseChannelIPCHandlers {
         const listedReleases = await this.listReleases();
         if (listedReleases.error) {
           return { available: false, error: listedReleases.error, currentVersion };
+        }
+        if (listedReleases.warning) {
+          return { available: false, warning: listedReleases.warning, currentVersion };
         }
 
         if (!this.releasesCache) {
