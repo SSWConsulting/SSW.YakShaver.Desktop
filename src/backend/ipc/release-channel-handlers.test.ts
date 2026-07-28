@@ -137,13 +137,12 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
       "release-channel:list-releases",
     );
 
-    const result = (await listReleases()) as {
-      releases: Array<{ prNumber: string }>;
-      error?: string;
-    };
+    const result = await listReleases();
 
-    expect(result.error).toBeUndefined();
-    expect(result.releases).toEqual([expect.objectContaining({ prNumber: "42" })]);
+    expect(result).toEqual({
+      status: "success",
+      releases: [expect.objectContaining({ prNumber: "42" })],
+    });
     expectAnonymousReleaseRequest(fetchMock);
     expect(setReleaseCacheMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -168,11 +167,12 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
       "release-channel:list-releases",
     );
 
-    const result = (await listReleases()) as {
-      releases: Array<{ prNumber: string }>;
-    };
+    const result = await listReleases();
 
-    expect(result.releases).toEqual([expect.objectContaining({ prNumber: "42" })]);
+    expect(result).toEqual({
+      status: "success",
+      releases: [expect.objectContaining({ prNumber: "42" })],
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -223,13 +223,12 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
         "release-channel:list-releases",
       );
 
-      const result = (await listReleases()) as {
-        releases: Array<{ prNumber: string }>;
-        error?: string;
-      };
+      const result = await listReleases();
 
-      expect(result.error).toBeUndefined();
-      expect(result.releases).toEqual([expect.objectContaining({ prNumber: "42" })]);
+      expect(result).toEqual({
+        status: "success",
+        releases: [expect.objectContaining({ prNumber: "42" })],
+      });
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(warningSpy).toHaveBeenCalledWith(
         expect.stringContaining("Failed to load GitHub release cache"),
@@ -293,16 +292,14 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
         "release-channel:list-releases",
       );
 
-      const firstResult = (await listReleases()) as {
-        releases: Array<{ prNumber: string }>;
-        error?: string;
-        warning?: string;
-      };
+      const firstResult = await listReleases();
       const secondResult = await listReleases();
 
-      expect(firstResult.error).toBeUndefined();
-      expect(firstResult.warning).toContain("Showing cached release data");
-      expect(firstResult.releases).toEqual([expect.objectContaining({ prNumber: "42" })]);
+      expect(firstResult).toEqual({
+        status: "warning",
+        warning: expect.stringContaining("Showing cached release data"),
+        releases: [expect.objectContaining({ prNumber: "42" })],
+      });
       expect(secondResult).toEqual(firstResult);
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(setReleaseCacheMock).toHaveBeenCalledWith(
@@ -325,6 +322,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     const result = await checkForUpdates();
 
     expect(result).toEqual({
+      status: "update-available",
       available: true,
       version: "beta.42.1",
       currentVersion: "1.2.3",
@@ -357,6 +355,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     const result = await checkForUpdates();
 
     expect(result).toEqual({
+      status: "update-available",
       available: true,
       version: "beta.42.1",
       currentVersion: "1.2.3",
@@ -405,6 +404,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     const result = await checkForUpdates();
 
     expect(result).toEqual({
+      status: "error",
       available: false,
       error: "GitHub API rate limit exceeded. Try again later.",
       currentVersion: "1.2.3",
@@ -430,6 +430,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     const result = await checkForUpdates();
 
     expect(result).toEqual({
+      status: "warning",
       available: false,
       warning:
         "GitHub API rate limit reached. Showing cached release data; updates cannot be confirmed yet.",

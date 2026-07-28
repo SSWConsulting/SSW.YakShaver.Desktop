@@ -1,3 +1,4 @@
+import type { ProcessedRelease } from "@shared/types/release-channel";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import {
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage, getVersionBumpType, type VersionBumpType } from "@/utils";
 import { SettingsSection } from "../SettingsSection";
-import type { ProcessedRelease, ReleaseChannel } from "./types";
+import type { ReleaseChannel } from "./types";
 
 interface ReleaseChannelSettingProps {
   isActive: boolean;
@@ -77,14 +78,22 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     setIsLoadingReleases(true);
     try {
       const response = await ipcClient.releaseChannel.listReleases();
-      if (response.error) {
-        // Clear previously loaded releases so the dropdown matches the latest API result.
-        setReleases([]);
-        toast.error(`Failed to load releases: ${response.error}`);
-      } else {
-        setReleases(response.releases || []);
-        if (response.warning) {
+      switch (response.status) {
+        case "success":
+          setReleases(response.releases);
+          break;
+        case "warning":
+          setReleases(response.releases);
           toast.warning(response.warning);
+          break;
+        case "error":
+          // Clear previously loaded releases so the dropdown matches the latest API result.
+          setReleases([]);
+          toast.error(`Failed to load releases: ${response.error}`);
+          break;
+        default: {
+          const exhaustiveCheck: never = response;
+          throw new Error(`Unhandled release-list result: ${JSON.stringify(exhaustiveCheck)}`);
         }
       }
     } catch (error) {
@@ -129,31 +138,41 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
       // Sync `currentVersion` state from the authoritative result so the version
       // card's bump label (which reads `currentVersion` state) and this toast/status
       // label always agree, even if `loadCurrentVersion()` hadn't resolved yet.
-      const effectiveCurrentVersion = result.currentVersion || currentVersion;
-      if (result.currentVersion && result.currentVersion !== currentVersion) {
+      const effectiveCurrentVersion = result.currentVersion;
+      if (result.currentVersion !== currentVersion) {
         setCurrentVersion(result.currentVersion);
       }
 
-      if (result.error) {
-        setUpdateStatus(`Error: ${result.error}`);
-        toast.error(`Update check failed: ${result.error}`);
-      } else if (result.warning) {
-        setUpdateStatus(result.warning);
-        toast.warning(result.warning);
-      } else if (result.available) {
-        const newVersion = result.version || "unknown";
-        setAvailableVersion(newVersion);
-        const bump = getVersionBumpType(effectiveCurrentVersion, newVersion);
-        const bumpLabel = BUMP_TYPE_LABEL[bump];
-        setUpdateStatus(
-          `${bumpLabel} available: ${effectiveCurrentVersion || "current"} → ${newVersion} - Download will start automatically`,
-        );
-        toast.success(
-          `${bumpLabel} available: ${effectiveCurrentVersion || "current"} → ${newVersion}. Download will start automatically.`,
-        );
-      } else {
-        setUpdateStatus(`You are on the latest version (${effectiveCurrentVersion})`);
-        toast.info("You are on the latest version");
+      switch (result.status) {
+        case "error":
+          setUpdateStatus(`Error: ${result.error}`);
+          toast.error(`Update check failed: ${result.error}`);
+          break;
+        case "warning":
+          setUpdateStatus(result.warning);
+          toast.warning(result.warning);
+          break;
+        case "update-available": {
+          const newVersion = result.version;
+          setAvailableVersion(newVersion);
+          const bump = getVersionBumpType(effectiveCurrentVersion, newVersion);
+          const bumpLabel = BUMP_TYPE_LABEL[bump];
+          setUpdateStatus(
+            `${bumpLabel} available: ${effectiveCurrentVersion} → ${newVersion} - Download will start automatically`,
+          );
+          toast.success(
+            `${bumpLabel} available: ${effectiveCurrentVersion} → ${newVersion}. Download will start automatically.`,
+          );
+          break;
+        }
+        case "up-to-date":
+          setUpdateStatus(`You are on the latest version (${effectiveCurrentVersion})`);
+          toast.info("You are on the latest version");
+          break;
+        default: {
+          const exhaustiveCheck: never = result;
+          throw new Error(`Unhandled update-check result: ${JSON.stringify(exhaustiveCheck)}`);
+        }
       }
     } catch (error) {
       const message = formatErrorMessage(error);

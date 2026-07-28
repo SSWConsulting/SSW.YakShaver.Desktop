@@ -1,3 +1,4 @@
+import type { ReleaseListResult, ReleaseUpdateCheckResult } from "@shared/types/release-channel";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import { config } from "../config/env";
@@ -13,34 +14,18 @@ import {
 } from "../services/storage/release-channel-storage";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-
-interface ProcessedRelease {
-  prNumber: string;
-  tag: string;
-  version: string;
-  publishedAt: string;
-}
-
-interface GitHubRelease {
-  tag_name: string;
-  name?: string | null;
-  body?: string | null;
-  prerelease: boolean;
-  published_at: string;
-}
-
-interface GitHubReleaseResponse {
-  releases: ProcessedRelease[];
-  error?: string;
-  warning?: string;
-}
+import {
+  clampRateLimitBlockedUntil,
+  type GitHubRelease,
+  processReleases,
+  toCachedReleases,
+} from "./releases";
 
 const GITHUB_API_BASE = "https://api.github.com";
 const REPO_OWNER = "SSWConsulting";
 const REPO_NAME = "SSW.YakShaver.Desktop";
 const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_RATE_LIMIT_BACKOFF = 60 * 1000;
-const MAX_RATE_LIMIT_BACKOFF = 60 * 60 * 1000;
 const RATE_LIMIT_CACHE_WARNING =
   "GitHub API rate limit reached. Showing cached release data; updates cannot be confirmed yet.";
 
@@ -207,40 +192,33 @@ export class ReleaseChannelIPCHandlers {
     const now = Date.now();
     const retryAfterSeconds = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
     if (Number.isFinite(retryAfterSeconds)) {
-      return this.clampRateLimitBlockedUntil(now + retryAfterSeconds * 1000, now);
+      return clampRateLimitBlockedUntil(now + retryAfterSeconds * 1000, now);
     }
 
     const resetEpochSeconds = Number.parseInt(response.headers.get("x-ratelimit-reset") ?? "", 10);
     if (Number.isFinite(resetEpochSeconds)) {
-      return this.clampRateLimitBlockedUntil(resetEpochSeconds * 1000, now);
+      return clampRateLimitBlockedUntil(resetEpochSeconds * 1000, now);
     }
 
     return now + DEFAULT_RATE_LIMIT_BACKOFF;
   }
 
-  private clampRateLimitBlockedUntil(candidate: number, now: number): number {
-    if (!Number.isFinite(candidate) || candidate <= now) {
-      return now + DEFAULT_RATE_LIMIT_BACKOFF;
-    }
-
-    return Math.min(candidate, now + MAX_RATE_LIMIT_BACKOFF);
-  }
-
-  private getRateLimitFallback(): GitHubReleaseResponse {
+  private getRateLimitFallback(): ReleaseListResult {
     if (this.releasesCache?.releases.length) {
       return {
-        releases: this.processReleases(this.releasesCache.releases),
+        status: "warning",
+        releases: processReleases(this.releasesCache.releases),
         warning: RATE_LIMIT_CACHE_WARNING,
       };
     }
 
     return {
-      releases: [],
+      status: "error",
       error: "GitHub API rate limit exceeded. Try again later.",
     };
   }
 
-  private async listReleases(): Promise<GitHubReleaseResponse> {
+  private async listReleases(): Promise<ReleaseListResult> {
     try {
       await this.loadPersistedReleasesCache();
 
@@ -249,7 +227,7 @@ export class ReleaseChannelIPCHandlers {
       }
 
       if (this.releasesCache && Date.now() - this.releasesCache.fetchedAt < RELEASES_CACHE_TTL) {
-        return { releases: this.processReleases(this.releasesCache.releases) };
+        return { status: "success", releases: processReleases(this.releasesCache.releases) };
       }
 
       const headers: Record<string, string> = {
@@ -272,7 +250,7 @@ export class ReleaseChannelIPCHandlers {
         this.releasesCache.fetchedAt = Date.now();
         this.releasesCache.blockedUntil = undefined;
         await this.persistReleasesCache();
-        return { releases: this.processReleases(this.releasesCache.releases) };
+        return { status: "success", releases: processReleases(this.releasesCache.releases) };
       }
 
       if (!response.ok) {
@@ -297,13 +275,13 @@ export class ReleaseChannelIPCHandlers {
         }
 
         return {
-          releases: [],
+          status: "error",
           error: baseError,
         };
       }
 
       const releases: GitHubRelease[] = await response.json();
-      const cachedReleases = this.toCachedReleases(releases);
+      const cachedReleases = toCachedReleases(releases);
       this.releasesCache = {
         version: RELEASE_CACHE_VERSION,
         releases: cachedReleases,
@@ -312,76 +290,14 @@ export class ReleaseChannelIPCHandlers {
       };
       await this.persistReleasesCache();
 
-      return { releases: this.processReleases(cachedReleases) };
+      return { status: "success", releases: processReleases(cachedReleases) };
     } catch (error) {
       const errMsg = formatAndReportError(error, "fetch_releases");
       return {
-        releases: [],
+        status: "error",
         error: errMsg,
       };
     }
-  }
-
-  /**
-   * Process the minimal cached releases into frontend-ready data:
-   * - Group by PR and keep only the latest release per PR
-   * - Sort by PR number descending
-   */
-  private processReleases(releases: CachedRelease[]): ProcessedRelease[] {
-    // Sort by published date (newest first)
-    const sorted = [...releases].sort(
-      (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
-    );
-
-    // Group by PR number, keeping only the latest release for each PR
-    const prMap = new Map<string, CachedRelease>();
-    for (const release of sorted) {
-      if (!prMap.has(release.prNumber)) {
-        prMap.set(release.prNumber, release);
-      }
-    }
-
-    // Convert to processed releases, sorted by PR number descending
-    return Array.from(prMap.entries())
-      .sort(
-        ([prNumberA], [prNumberB]) =>
-          Number.parseInt(prNumberB, 10) - Number.parseInt(prNumberA, 10),
-      )
-      .map(([prNumber, release]) => ({
-        prNumber,
-        tag: release.tag,
-        version: release.tag,
-        publishedAt: release.publishedAt,
-      }));
-  }
-
-  private toCachedReleases(releases: GitHubRelease[]): CachedRelease[] {
-    const cachedReleases: CachedRelease[] = [];
-    for (const release of releases) {
-      if (!release.prerelease) {
-        continue;
-      }
-
-      const prNumber = this.extractPRNumber(release);
-      if (!prNumber) {
-        continue;
-      }
-
-      cachedReleases.push({
-        prNumber,
-        tag: release.tag_name,
-        publishedAt: release.published_at,
-      });
-    }
-    return cachedReleases;
-  }
-
-  /**
-   * Extract PR number from release name or body
-   */
-  private extractPRNumber(release: GitHubRelease): string | null {
-    const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
-    return prMatch ? prMatch[1] : null;
   }
 
   /**
@@ -406,16 +322,11 @@ export class ReleaseChannelIPCHandlers {
     return prMatch ? prMatch[1] : null;
   }
 
-  private async checkForUpdates(): Promise<{
-    available: boolean;
-    error?: string;
-    warning?: string;
-    version?: string;
-    currentVersion?: string;
-  }> {
+  private async checkForUpdates(): Promise<ReleaseUpdateCheckResult> {
     // Skip update checks in development/unpackaged mode
     if (!app.isPackaged) {
       return {
+        status: "error",
         available: false,
         error: "Update checks are only available in packaged applications",
         currentVersion: this.getCurrentVersion(),
@@ -430,20 +341,36 @@ export class ReleaseChannelIPCHandlers {
       // For PR channels
       if (channel.type === "pr" && channel.channel) {
         const listedReleases = await this.listReleases();
-        if (listedReleases.error) {
-          return { available: false, error: listedReleases.error, currentVersion };
+        if (listedReleases.status === "error") {
+          return {
+            status: "error",
+            available: false,
+            error: listedReleases.error,
+            currentVersion,
+          };
         }
-        if (listedReleases.warning) {
-          return { available: false, warning: listedReleases.warning, currentVersion };
+        if (listedReleases.status === "warning") {
+          return {
+            status: "warning",
+            available: false,
+            warning: listedReleases.warning,
+            currentVersion,
+          };
         }
 
         if (!this.releasesCache) {
-          return { available: false, error: "Failed to fetch releases", currentVersion };
+          return {
+            status: "error",
+            available: false,
+            error: "Failed to fetch releases",
+            currentVersion,
+          };
         }
 
         const prNumber = this.extractPRNumberFromChannel(channel.channel);
         if (!prNumber) {
           return {
+            status: "error",
             available: false,
             error: `Invalid channel format: ${channel.channel}`,
             currentVersion,
@@ -452,6 +379,7 @@ export class ReleaseChannelIPCHandlers {
         const prReleases = this.getPRReleases(prNumber);
         if (prReleases.length === 0) {
           return {
+            status: "error",
             available: false,
             error: `No releases found for PR #${prNumber}`,
             currentVersion,
@@ -478,12 +406,14 @@ export class ReleaseChannelIPCHandlers {
             const result = await autoUpdater.checkForUpdates();
             if (result?.updateInfo) {
               return {
+                status: "update-available",
                 available: true,
                 version: targetVersion,
                 currentVersion,
               };
             } else {
               return {
+                status: "error",
                 available: false,
                 error:
                   "No update found. Ensure the PR release includes the correct beta.{PR}.yml manifest.",
@@ -493,6 +423,7 @@ export class ReleaseChannelIPCHandlers {
           } catch (error) {
             const errMsg = formatAndReportError(error, "check_prerelease");
             return {
+              status: "error",
               available: false,
               error: errMsg,
               currentVersion,
@@ -501,8 +432,8 @@ export class ReleaseChannelIPCHandlers {
         }
 
         return {
+          status: "up-to-date",
           available: false,
-          version: currentVersion,
           currentVersion,
         };
       }
@@ -513,16 +444,20 @@ export class ReleaseChannelIPCHandlers {
       const result = await autoUpdater.checkForUpdates();
       if (result?.updateInfo) {
         const updateVersion = result.updateInfo.version;
-        return {
-          available: updateVersion !== currentVersion,
-          version: updateVersion,
-          currentVersion,
-        };
+        if (updateVersion !== currentVersion) {
+          return {
+            status: "update-available",
+            available: true,
+            version: updateVersion,
+            currentVersion,
+          };
+        }
       }
-      return { available: false, currentVersion };
+      return { status: "up-to-date", available: false, currentVersion };
     } catch (error) {
       const errMsg = formatAndReportError(error, "check_update");
       return {
+        status: "error",
         available: false,
         error: errMsg,
         currentVersion,
@@ -602,7 +537,7 @@ export class ReleaseChannelIPCHandlers {
       if (prNumber) {
         const listedReleases = await this.listReleases();
 
-        if (listedReleases.error) {
+        if (listedReleases.status === "error") {
           console.warn(`Failed to configure PR release channel: ${listedReleases.error}`);
         } else if (this.releasesCache) {
           const prReleases = this.getPRReleases(prNumber);

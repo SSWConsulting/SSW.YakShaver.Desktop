@@ -48,7 +48,7 @@ describe("ReleaseChannelSetting (#423)", () => {
   beforeEach(() => {
     get.mockReset().mockResolvedValue({ type: "latest" });
     set.mockReset().mockResolvedValue(undefined);
-    listReleases.mockReset().mockResolvedValue({ releases: [] });
+    listReleases.mockReset().mockResolvedValue({ status: "success", releases: [] });
     checkUpdates.mockReset();
     getCurrentVersion.mockReset().mockResolvedValue({ version: "1.2.3", commitHash: "abc123" });
     onDownloadProgress.mockReset().mockReturnValue(() => {});
@@ -68,6 +68,7 @@ describe("ReleaseChannelSetting (#423)", () => {
 
   it("shows the new available version and labels a major bump (AC2/AC3)", async () => {
     checkUpdates.mockResolvedValue({
+      status: "update-available",
       available: true,
       version: "2.0.0",
       currentVersion: "1.2.3",
@@ -88,6 +89,7 @@ describe("ReleaseChannelSetting (#423)", () => {
 
   it("labels a minor bump distinctly from a major bump (AC3)", async () => {
     checkUpdates.mockResolvedValue({
+      status: "update-available",
       available: true,
       version: "1.3.0",
       currentVersion: "1.2.3",
@@ -106,6 +108,7 @@ describe("ReleaseChannelSetting (#423)", () => {
 
   it("labels a patch bump distinctly from major/minor bumps (AC3)", async () => {
     checkUpdates.mockResolvedValue({
+      status: "update-available",
       available: true,
       version: "1.2.4",
       currentVersion: "1.2.3",
@@ -123,7 +126,11 @@ describe("ReleaseChannelSetting (#423)", () => {
   });
 
   it("does not show a 'New Version Available' card when no update is available", async () => {
-    checkUpdates.mockResolvedValue({ available: false, currentVersion: "1.2.3" });
+    checkUpdates.mockResolvedValue({
+      status: "up-to-date",
+      available: false,
+      currentVersion: "1.2.3",
+    });
 
     render(<ReleaseChannelSetting isActive={true} />);
     await screen.findByText("1.2.3");
@@ -142,6 +149,7 @@ describe("ReleaseChannelSetting (#423)", () => {
       commitHash: "abc123",
     });
     checkUpdates.mockResolvedValue({
+      status: "update-available",
       available: true,
       version: "0.6.0-beta.941.1700000001000",
       currentVersion: "0.6.0-beta.940.1700000000000",
@@ -161,6 +169,7 @@ describe("ReleaseChannelSetting (#423)", () => {
   it("loads and checks a public PR release without GitHub-token state (#600)", async () => {
     get.mockResolvedValue({ type: "pr", channel: "beta.42" });
     listReleases.mockResolvedValue({
+      status: "success",
       releases: [
         {
           prNumber: "42",
@@ -170,7 +179,11 @@ describe("ReleaseChannelSetting (#423)", () => {
         },
       ],
     });
-    checkUpdates.mockResolvedValue({ available: false, currentVersion: "1.2.3" });
+    checkUpdates.mockResolvedValue({
+      status: "up-to-date",
+      available: false,
+      currentVersion: "1.2.3",
+    });
 
     render(<ReleaseChannelSetting isActive={true} />);
     await screen.findByText("1.2.3");
@@ -189,6 +202,7 @@ describe("ReleaseChannelSetting (#423)", () => {
       "GitHub API rate limit reached. Showing cached release data; updates cannot be confirmed yet.";
     get.mockResolvedValue({ type: "pr", channel: "beta.42" });
     listReleases.mockResolvedValue({
+      status: "warning",
       releases: [
         {
           prNumber: "42",
@@ -200,6 +214,7 @@ describe("ReleaseChannelSetting (#423)", () => {
       warning,
     });
     checkUpdates.mockResolvedValue({
+      status: "warning",
       available: false,
       warning,
       currentVersion: "1.2.3",
@@ -221,6 +236,7 @@ describe("ReleaseChannelSetting (#423)", () => {
     // the toast/status label, both driven by the authoritative `result.currentVersion`.
     getCurrentVersion.mockReturnValue(new Promise(() => {}));
     checkUpdates.mockResolvedValue({
+      status: "update-available",
       available: true,
       version: "2.0.0",
       currentVersion: "1.2.3",

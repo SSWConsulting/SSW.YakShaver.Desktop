@@ -1,13 +1,11 @@
 import type { Cloud360EventPayload, Cloud360Project } from "@shared/types/cloud360";
 import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
+import type { ReleaseListResult, ReleaseUpdateCheckResult } from "@shared/types/release-channel";
 import type { TelemetrySettings } from "@shared/types/telemetry";
 import type { UserSettings } from "@shared/types/user-settings";
 import type { WorkflowState } from "@shared/types/workflow";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
-import type {
-  ProcessedRelease,
-  ReleaseChannel,
-} from "@/components/settings/release-channels/types";
+import type { ReleaseChannel } from "@/components/settings/release-channels/types";
 import type {
   CreateShaveData,
   CreateVideoData,
@@ -208,18 +206,8 @@ declare global {
       releaseChannel: {
         get: () => Promise<ReleaseChannel>;
         set: (channel: ReleaseChannel) => Promise<void>;
-        listReleases: () => Promise<{
-          releases: Array<ProcessedRelease>;
-          error?: string;
-          warning?: string;
-        }>;
-        checkUpdates: () => Promise<{
-          available: boolean;
-          error?: string;
-          warning?: string;
-          version?: string;
-          currentVersion?: string;
-        }>;
+        listReleases: () => Promise<ReleaseListResult>;
+        checkUpdates: () => Promise<ReleaseUpdateCheckResult>;
         getCurrentVersion: () => Promise<VersionInfo>;
         onDownloadProgress: (
           callback: (progress: { percent: number; transferred: number; total: number }) => void,
