@@ -3,7 +3,7 @@ import { autoUpdater } from "electron-updater";
 import { config } from "../config/env";
 import { setIsQuitting } from "../index";
 import type {
-  CachedGitHubRelease,
+  CachedRelease,
   GitHubReleaseCache,
   ReleaseChannel,
 } from "../services/storage/release-channel-storage";
@@ -16,6 +16,14 @@ interface ProcessedRelease {
   tag: string;
   version: string;
   publishedAt: string;
+}
+
+interface GitHubRelease {
+  tag_name: string;
+  name?: string | null;
+  body?: string | null;
+  prerelease: boolean;
+  published_at: string;
 }
 
 interface GitHubReleaseResponse {
@@ -290,15 +298,16 @@ export class ReleaseChannelIPCHandlers {
         };
       }
 
-      const releases: CachedGitHubRelease[] = await response.json();
+      const releases: GitHubRelease[] = await response.json();
+      const cachedReleases = this.toCachedReleases(releases);
       this.releasesCache = {
-        releases,
+        releases: cachedReleases,
         fetchedAt: Date.now(),
         etag: response.headers.get("etag") ?? undefined,
       };
       await this.persistReleasesCache();
 
-      return { releases: this.processReleases(releases) };
+      return { releases: this.processReleases(cachedReleases) };
     } catch (error) {
       const errMsg = formatAndReportError(error, "fetch_releases");
       return {
@@ -309,27 +318,21 @@ export class ReleaseChannelIPCHandlers {
   }
 
   /**
-   * Process raw GitHub releases into frontend-ready data:
-   * - Filter to prereleases only
-   * - Extract PR numbers
+   * Process the minimal cached releases into frontend-ready data:
    * - Group by PR and keep only the latest release per PR
    * - Sort by PR number descending
    */
-  private processReleases(releases: CachedGitHubRelease[]): ProcessedRelease[] {
-    // Filter prereleases
-    const prereleases = releases.filter((r) => r.prerelease);
-
+  private processReleases(releases: CachedRelease[]): ProcessedRelease[] {
     // Sort by published date (newest first)
-    const sorted = prereleases.sort(
-      (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
+    const sorted = [...releases].sort(
+      (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
     );
 
     // Group by PR number, keeping only the latest release for each PR
-    const prMap = new Map<string, CachedGitHubRelease>();
+    const prMap = new Map<string, CachedRelease>();
     for (const release of sorted) {
-      const prNumber = this.extractPRNumber(release);
-      if (prNumber && !prMap.has(prNumber)) {
-        prMap.set(prNumber, release);
+      if (!prMap.has(release.prNumber)) {
+        prMap.set(release.prNumber, release);
       }
     }
 
@@ -341,16 +344,37 @@ export class ReleaseChannelIPCHandlers {
       )
       .map(([prNumber, release]) => ({
         prNumber,
-        tag: release.tag_name,
-        version: release.tag_name,
-        publishedAt: release.published_at,
+        tag: release.tag,
+        version: release.tag,
+        publishedAt: release.publishedAt,
       }));
+  }
+
+  private toCachedReleases(releases: GitHubRelease[]): CachedRelease[] {
+    const cachedReleases: CachedRelease[] = [];
+    for (const release of releases) {
+      if (!release.prerelease) {
+        continue;
+      }
+
+      const prNumber = this.extractPRNumber(release);
+      if (!prNumber) {
+        continue;
+      }
+
+      cachedReleases.push({
+        prNumber,
+        tag: release.tag_name,
+        publishedAt: release.published_at,
+      });
+    }
+    return cachedReleases;
   }
 
   /**
    * Extract PR number from release name or body
    */
-  private extractPRNumber(release: CachedGitHubRelease): string | null {
+  private extractPRNumber(release: GitHubRelease): string | null {
     const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
     return prMatch ? prMatch[1] : null;
   }
@@ -358,14 +382,14 @@ export class ReleaseChannelIPCHandlers {
   /**
    * Get all releases for a specific PR number, sorted by published date (newest first)
    */
-  private getPRReleases(prNumber: string): CachedGitHubRelease[] {
+  private getPRReleases(prNumber: string): CachedRelease[] {
     if (!this.releasesCache) {
       return [];
     }
 
     return this.releasesCache.releases
-      .filter((r) => this.extractPRNumber(r) === prNumber)
-      .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
+      .filter((release) => release.prNumber === prNumber)
+      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
   }
 
   /**
@@ -430,7 +454,7 @@ export class ReleaseChannelIPCHandlers {
         }
 
         const latestRelease = prReleases[0];
-        const targetVersion = latestRelease.tag_name;
+        const targetVersion = latestRelease.tag;
         const isCurrentlyOnThisVersion = currentVersion === targetVersion;
 
         // If not on this version, trigger download
@@ -584,14 +608,14 @@ export class ReleaseChannelIPCHandlers {
             autoUpdater.channel = channel.channel;
             autoUpdater.setFeedURL({
               provider: "generic",
-              url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag_name}`,
+              url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag}`,
               channel: channel.channel,
             });
             autoUpdater.allowPrerelease = true;
             autoUpdater.allowDowngrade = true;
 
             const currentVersion = app.getVersion();
-            const isOnLatest = currentVersion === latestRelease.tag_name;
+            const isOnLatest = currentVersion === latestRelease.tag;
 
             if (triggerImmediateCheck && !isOnLatest) {
               setTimeout(() => {

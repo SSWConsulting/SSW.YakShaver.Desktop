@@ -1,4 +1,6 @@
+import { promises as fs } from "node:fs";
 import { join } from "node:path";
+import { app } from "electron";
 import { BaseSecureStorage } from "./base-secure-storage";
 
 type ReleaseChannelType = "latest" | "pr";
@@ -8,29 +10,51 @@ export interface ReleaseChannel {
   channel?: string;
 }
 
-export interface CachedGitHubRelease {
-  id: number;
-  tag_name: string;
-  name: string;
-  body?: string;
-  prerelease: boolean;
-  published_at: string;
-  html_url: string;
+export interface CachedRelease {
+  prNumber: string;
+  tag: string;
+  publishedAt: string;
 }
 
 export interface GitHubReleaseCache {
-  releases: CachedGitHubRelease[];
+  releases: CachedRelease[];
   fetchedAt: number;
   etag?: string;
   blockedUntil?: number;
 }
 
 const SETTINGS_FILE = "release-channel.enc";
-const RELEASE_CACHE_FILE = "release-cache.enc";
+const RELEASE_CACHE_FILE = "release-cache.json";
 
 const DEFAULT_CHANNEL: ReleaseChannel = {
   type: "latest",
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isCachedRelease(value: unknown): value is CachedRelease {
+  return (
+    isRecord(value) &&
+    typeof value.prNumber === "string" &&
+    typeof value.tag === "string" &&
+    typeof value.publishedAt === "string"
+  );
+}
+
+function isGitHubReleaseCache(value: unknown): value is GitHubReleaseCache {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.releases) &&
+    value.releases.every(isCachedRelease) &&
+    typeof value.fetchedAt === "number" &&
+    Number.isFinite(value.fetchedAt) &&
+    (value.etag === undefined || typeof value.etag === "string") &&
+    (value.blockedUntil === undefined ||
+      (typeof value.blockedUntil === "number" && Number.isFinite(value.blockedUntil)))
+  );
+}
 
 export class ReleaseChannelStorage extends BaseSecureStorage {
   private static instance: ReleaseChannelStorage;
@@ -53,7 +77,7 @@ export class ReleaseChannelStorage extends BaseSecureStorage {
   }
 
   private getReleaseCachePath(): string {
-    return join(this.storageDir, RELEASE_CACHE_FILE);
+    return join(app.getPath("userData"), RELEASE_CACHE_FILE);
   }
 
   private async loadSettings(): Promise<ReleaseChannel> {
@@ -85,12 +109,26 @@ export class ReleaseChannelStorage extends BaseSecureStorage {
       return this.releaseCache;
     }
 
-    this.releaseCache = await this.decryptAndLoad<GitHubReleaseCache>(this.getReleaseCachePath());
-    return this.releaseCache;
+    try {
+      const cacheJson = await fs.readFile(this.getReleaseCachePath(), "utf8");
+      const parsedCache: unknown = JSON.parse(cacheJson);
+      if (!isGitHubReleaseCache(parsedCache)) {
+        throw new Error("GitHub release cache has an invalid structure");
+      }
+
+      this.releaseCache = parsedCache;
+      return this.releaseCache;
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+        this.releaseCache = null;
+        return null;
+      }
+      throw error;
+    }
   }
 
   async setReleaseCache(cache: GitHubReleaseCache): Promise<void> {
     this.releaseCache = cache;
-    await this.encryptAndStore(this.getReleaseCachePath(), cache);
+    await fs.writeFile(this.getReleaseCachePath(), JSON.stringify(cache), "utf8");
   }
 }
