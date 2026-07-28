@@ -16,7 +16,10 @@ export interface CachedRelease {
   publishedAt: string;
 }
 
-export interface GitHubReleaseCache {
+export const RELEASE_CACHE_VERSION = 1;
+
+export interface ReleaseCache {
+  version: typeof RELEASE_CACHE_VERSION;
   releases: CachedRelease[];
   fetchedAt: number;
   etag?: string;
@@ -39,13 +42,15 @@ function isCachedRelease(value: unknown): value is CachedRelease {
     isRecord(value) &&
     typeof value.prNumber === "string" &&
     typeof value.tag === "string" &&
-    typeof value.publishedAt === "string"
+    typeof value.publishedAt === "string" &&
+    Number.isFinite(Date.parse(value.publishedAt))
   );
 }
 
-function isGitHubReleaseCache(value: unknown): value is GitHubReleaseCache {
+function isReleaseCache(value: unknown): value is ReleaseCache {
   return (
     isRecord(value) &&
+    value.version === RELEASE_CACHE_VERSION &&
     Array.isArray(value.releases) &&
     value.releases.every(isCachedRelease) &&
     typeof value.fetchedAt === "number" &&
@@ -59,7 +64,7 @@ function isGitHubReleaseCache(value: unknown): value is GitHubReleaseCache {
 export class ReleaseChannelStorage extends BaseSecureStorage {
   private static instance: ReleaseChannelStorage;
   private cache: ReleaseChannel | null = null;
-  private releaseCache: GitHubReleaseCache | null | undefined;
+  private releaseCache: ReleaseCache | null | undefined;
 
   private constructor() {
     super();
@@ -104,7 +109,7 @@ export class ReleaseChannelStorage extends BaseSecureStorage {
     await this.saveSettings(channel);
   }
 
-  async getReleaseCache(): Promise<GitHubReleaseCache | null> {
+  async getReleaseCache(): Promise<ReleaseCache | null> {
     if (this.releaseCache !== undefined) {
       return this.releaseCache;
     }
@@ -112,7 +117,11 @@ export class ReleaseChannelStorage extends BaseSecureStorage {
     try {
       const cacheJson = await fs.readFile(this.getReleaseCachePath(), "utf8");
       const parsedCache: unknown = JSON.parse(cacheJson);
-      if (!isGitHubReleaseCache(parsedCache)) {
+      if (!isRecord(parsedCache) || parsedCache.version !== RELEASE_CACHE_VERSION) {
+        this.releaseCache = null;
+        return null;
+      }
+      if (!isReleaseCache(parsedCache)) {
         throw new Error("GitHub release cache has an invalid structure");
       }
 
@@ -127,7 +136,7 @@ export class ReleaseChannelStorage extends BaseSecureStorage {
     }
   }
 
-  async setReleaseCache(cache: GitHubReleaseCache): Promise<void> {
+  async setReleaseCache(cache: ReleaseCache): Promise<void> {
     this.releaseCache = cache;
     await fs.writeFile(this.getReleaseCachePath(), JSON.stringify(cache), "utf8");
   }

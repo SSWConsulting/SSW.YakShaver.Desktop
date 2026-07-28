@@ -52,6 +52,7 @@ const setChannelMock = vi.fn();
 const getReleaseCacheMock = vi.fn();
 const setReleaseCacheMock = vi.fn();
 vi.mock("../services/storage/release-channel-storage", () => ({
+  RELEASE_CACHE_VERSION: 1,
   ReleaseChannelStorage: {
     getInstance: () => ({
       getChannel: getChannelMock,
@@ -146,6 +147,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     expectAnonymousReleaseRequest(fetchMock);
     expect(setReleaseCacheMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        version: 1,
         releases: cachedReleaseData(),
         etag: '"release-etag"',
       }),
@@ -154,6 +156,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
 
   it("reuses a fresh release response persisted by a previous app session", async () => {
     getReleaseCacheMock.mockResolvedValue({
+      version: 1,
       releases: cachedReleaseData(),
       fetchedAt: Date.now(),
       etag: '"persisted-etag"',
@@ -177,6 +180,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     const now = 1_800_000_000_000;
     const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
     getReleaseCacheMock.mockResolvedValue({
+      version: 1,
       releases: cachedReleaseData(),
       fetchedAt: now - 10 * 60 * 1000,
       etag: '"persisted-etag"',
@@ -269,6 +273,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
     const now = 1_800_000_000_000;
     const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
     getReleaseCacheMock.mockResolvedValue({
+      version: 1,
       releases: cachedReleaseData(),
       fetchedAt: now - 10 * 60 * 1000,
       etag: '"persisted-etag"',
@@ -336,6 +341,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
 
   it("uses a fresh persisted cache for the first PR update check after launch", async () => {
     getReleaseCacheMock.mockResolvedValue({
+      version: 1,
       releases: cachedReleaseData(),
       fetchedAt: Date.now(),
       etag: '"persisted-etag"',
@@ -360,6 +366,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
 
   it("uses a fresh persisted cache when configuring the PR channel after launch", async () => {
     getReleaseCacheMock.mockResolvedValue({
+      version: 1,
       releases: cachedReleaseData(),
       fetchedAt: Date.now(),
       etag: '"persisted-etag"',
@@ -407,6 +414,7 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
 
   it("warns instead of claiming the cached PR release is current while rate-limited", async () => {
     getReleaseCacheMock.mockResolvedValue({
+      version: 1,
       releases: cachedReleaseData(),
       fetchedAt: Date.now() - 10 * 60 * 1000,
       etag: '"persisted-etag"',

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { GitHubReleaseCache } from "./release-channel-storage";
+import type { ReleaseCache } from "./release-channel-storage";
 
 const { decryptStringMock, encryptStringMock, readFileMock, writeFileMock } = vi.hoisted(() => ({
   decryptStringMock: vi.fn(),
@@ -29,7 +29,8 @@ vi.mock("node:fs", () => ({
 
 import { ReleaseChannelStorage } from "./release-channel-storage";
 
-const releaseCache: GitHubReleaseCache = {
+const releaseCache: ReleaseCache = {
+  version: 1,
   releases: [
     {
       prNumber: "42",
@@ -81,9 +82,10 @@ describe("ReleaseChannelStorage public release cache", () => {
     expect(encryptStringMock).not.toHaveBeenCalled();
   });
 
-  it("rejects cache files that contain the old full GitHub response shape", async () => {
-    readFileMock.mockResolvedValue(
-      JSON.stringify({
+  it.each([
+    {
+      name: "an unversioned cache",
+      cache: {
         releases: [
           {
             id: 1,
@@ -96,6 +98,24 @@ describe("ReleaseChannelStorage public release cache", () => {
           },
         ],
         fetchedAt: 1_800_000_000_000,
+        etag: '"stale-etag"',
+      },
+    },
+    {
+      name: "a cache from another schema version",
+      cache: { ...releaseCache, version: 2 },
+    },
+  ])("treats $name as a miss so its ETag cannot be reused", async ({ cache }) => {
+    readFileMock.mockResolvedValue(JSON.stringify(cache));
+
+    await expect(storage.getReleaseCache()).resolves.toBeNull();
+  });
+
+  it("rejects an invalid publication date in the current cache schema", async () => {
+    readFileMock.mockResolvedValue(
+      JSON.stringify({
+        ...releaseCache,
+        releases: [{ ...releaseCache.releases[0], publishedAt: "not-a-date" }],
       }),
     );
 

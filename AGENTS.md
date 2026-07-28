@@ -435,7 +435,7 @@ Channels are defined as constants in `src/backend/ipc/channels.ts`:
 
 #### Secure Storage Pattern (Inheritance)
 
-All encrypted credential storage extends `BaseSecureStorage` (which uses Electron's `safeStorage` API). Each storage class is a singleton with `encryptAndStore()`/`decryptAndLoad()` methods. Classes: `LlmStorage`, `YoutubeStorage`, `McpStorage`, `McpOAuthTokenStorage`, `CustomPromptStorage`, `UserSettingsStorage`, `ReleaseChannelStorage`. `ReleaseChannelStorage` keeps the selected channel encrypted, but its public GitHub release cache is a minimal plain JSON file in userData containing only PR number, tag, publication time, and cache metadata.
+All encrypted credential storage extends `BaseSecureStorage` (which uses Electron's `safeStorage` API). Each storage class is a singleton with `encryptAndStore()`/`decryptAndLoad()` methods. Classes: `LlmStorage`, `YoutubeStorage`, `McpStorage`, `McpOAuthTokenStorage`, `CustomPromptStorage`, `UserSettingsStorage`, `ReleaseChannelStorage`. `ReleaseChannelStorage` keeps the selected channel encrypted, but its public GitHub release cache is a schema-versioned minimal plain JSON file in userData containing only PR number, tag, publication time, and cache metadata.
 
 #### Database Service Pattern (Functions, Not Classes)
 

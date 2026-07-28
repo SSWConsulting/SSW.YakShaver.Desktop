@@ -4,10 +4,13 @@ import { config } from "../config/env";
 import { setIsQuitting } from "../index";
 import type {
   CachedRelease,
-  GitHubReleaseCache,
+  ReleaseCache,
   ReleaseChannel,
 } from "../services/storage/release-channel-storage";
-import { ReleaseChannelStorage } from "../services/storage/release-channel-storage";
+import {
+  RELEASE_CACHE_VERSION,
+  ReleaseChannelStorage,
+} from "../services/storage/release-channel-storage";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
@@ -43,7 +46,7 @@ const RATE_LIMIT_CACHE_WARNING =
 
 export class ReleaseChannelIPCHandlers {
   private store = ReleaseChannelStorage.getInstance();
-  private releasesCache: GitHubReleaseCache | null = null;
+  private releasesCache: ReleaseCache | null = null;
   private releasesCacheLoaded = false;
   private updateCheckInterval: NodeJS.Timeout | null = null;
   private readonly UPDATE_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
@@ -283,6 +286,7 @@ export class ReleaseChannelIPCHandlers {
 
         if (isRateLimited) {
           this.releasesCache = {
+            version: RELEASE_CACHE_VERSION,
             releases: this.releasesCache?.releases ?? [],
             fetchedAt: this.releasesCache?.fetchedAt ?? 0,
             etag: this.releasesCache?.etag,
@@ -301,6 +305,7 @@ export class ReleaseChannelIPCHandlers {
       const releases: GitHubRelease[] = await response.json();
       const cachedReleases = this.toCachedReleases(releases);
       this.releasesCache = {
+        version: RELEASE_CACHE_VERSION,
         releases: cachedReleases,
         fetchedAt: Date.now(),
         etag: response.headers.get("etag") ?? undefined,
