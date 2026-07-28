@@ -77,8 +77,6 @@ export interface SettingsHealthInputs {
    * (an undefined/still-loading entry is NOT treated as disconnected, so the nav
    * never flashes a false warning while checks are in flight). */
   mcpHealthById: Readonly<Record<string, Pick<HealthStatusInfo, "isHealthy"> | undefined>>;
-  /** Whether a GitHub token is saved (`ipcClient.githubToken.has()`). */
-  hasGithubToken: boolean;
 }
 
 function isEnabledBacklogProvider(server: Pick<MCPServerConfig, "id" | "enabled">) {
@@ -141,15 +139,6 @@ export function deriveSettingsHealth(inputs: SettingsHealthInputs): SettingsHeal
     };
   }
 
-  // Releases — the GitHub token gates GitHub release-channel/token-backed actions.
-  if (!inputs.hasGithubToken) {
-    map.release = {
-      tabId: "release",
-      severity: "critical",
-      message: "No GitHub token saved.",
-    };
-  }
-
   return map;
 }
 
@@ -164,10 +153,9 @@ export function useSettingsTabHealth(open: boolean): SettingsHealthMap {
 
   const check = useCallback(async () => {
     try {
-      const [llmConfig, mcpServers, hasGithubToken] = await Promise.all([
+      const [llmConfig, mcpServers] = await Promise.all([
         ipcClient.llm.getConfig().catch(() => null),
         ipcClient.mcp.listServers().catch(() => [] as MCPServerConfig[]),
-        ipcClient.githubToken.has().catch(() => true),
       ]);
 
       // Only probe Claude Code readiness when it's the selected backend — otherwise it's irrelevant
@@ -203,7 +191,6 @@ export function useSettingsTabHealth(open: boolean): SettingsHealthMap {
           llmConfig,
           mcpServers,
           mcpHealthById,
-          hasGithubToken,
           orchestratorReadiness,
         }),
       );

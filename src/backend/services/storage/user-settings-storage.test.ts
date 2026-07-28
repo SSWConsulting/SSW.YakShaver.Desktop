@@ -113,6 +113,22 @@ describe("UserSettingsStorage", () => {
       });
       expect(settings.toolApprovalMode).toBe(DEFAULT_USER_SETTINGS.toolApprovalMode);
     });
+
+    it("should default closeBehavior to minimize-to-tray for settings stored before #576", async () => {
+      const legacyStored = {
+        openAtLogin: true,
+        toolApprovalMode: "wait",
+        // closeBehavior did not exist in older stored settings
+      };
+
+      vi.mocked(fs.readFile).mockResolvedValueOnce(
+        Buffer.from(`encrypted:${JSON.stringify(legacyStored)}`),
+      );
+
+      const settings = await storage.getSettingsAsync();
+
+      expect(settings.closeBehavior).toBe("minimize-to-tray");
+    });
   });
 
   describe("updateSettingsAsync", () => {
@@ -166,6 +182,24 @@ describe("UserSettingsStorage", () => {
       const writtenData = writeCall[1] as Buffer;
       const savedJson = JSON.parse(writtenData.toString().replace("encrypted:", ""));
       expect(savedJson).toEqual(current);
+    });
+
+    it("should persist closeBehavior updates (#576)", async () => {
+      vi.mocked(fs.readFile).mockRejectedValueOnce({ code: "ENOENT" });
+
+      await storage.updateSettingsAsync({ closeBehavior: "quit" });
+
+      const writeCall = vi.mocked(fs.writeFile).mock.calls[0];
+      const writtenData = writeCall[1] as Buffer;
+      const savedJson = JSON.parse(writtenData.toString().replace("encrypted:", ""));
+
+      expect(savedJson).toEqual({
+        ...DEFAULT_USER_SETTINGS,
+        closeBehavior: "quit",
+      });
+
+      const current = await storage.getSettingsAsync();
+      expect(current.closeBehavior).toBe("quit");
     });
   });
 });

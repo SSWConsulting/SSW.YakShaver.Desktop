@@ -12,7 +12,6 @@ import { AuthIPCHandlers } from "./ipc/auth-handlers";
 import { IPC_CHANNELS } from "./ipc/channels";
 import { Cloud360IPCHandlers } from "./ipc/cloud-360-handlers";
 import { CustomPromptSettingsIPCHandlers } from "./ipc/custom-prompt-settings-handlers";
-import { GitHubTokenIPCHandlers } from "./ipc/github-token-handlers";
 import { IdentityServerAuthIPCHandlers } from "./ipc/identity-server-auth-handlers";
 import { LLMSettingsIPCHandlers } from "./ipc/llm-settings-handlers";
 import { McpIPCHandlers } from "./ipc/mcp-handlers";
@@ -38,6 +37,8 @@ import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
 import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
+import { removeLegacyGitHubToken } from "./services/storage/legacy-github-token-cleanup";
+import { UserSettingsStorage } from "./services/storage/user-settings-storage";
 import { TelemetryService } from "./services/telemetry/telemetry-service";
 import { TrayManager } from "./services/tray/tray-manager";
 import { createGuardedBrowserWindow } from "./utils/devtools-guard";
@@ -79,7 +80,7 @@ const getAppVersion = (): string => app.getVersion();
 
 const version = getAppVersion();
 const commitHash = config.commitHash();
-const appTitle = `YakShaver`;
+const appTitle = `YakShaver Desktop`;
 
 const createMenu = (): Menu => {
   const hashString = commitHash ? `${commitHash}` : "N/A";
@@ -178,7 +179,7 @@ const createWindow = (): BrowserWindow | null => {
 
   isCreatingMainWindow = true;
 
-  const title = `YakShaver`;
+  const title = appTitle;
 
   const window = createGuardedBrowserWindow({
     width: 1200,
@@ -213,19 +214,50 @@ const createWindow = (): BrowserWindow | null => {
   });
 
   window.on("close", (event) => {
-    if (!isQuitting) {
-      event.preventDefault();
-      window.hide();
-
-      // Ensure screen frame overlay is closed
-      try {
-        ScreenFrameWindow.getInstance().hide();
-      } catch (err) {
-        console.error("ScreenFrameWindow cleanup error:", err);
-      }
-
-      return false;
+    if (isQuitting) {
+      return;
     }
+
+    // Defer the close so we can check the user's preferred close behavior before
+    // deciding whether to hide (minimize to tray) or actually quit the app.
+    event.preventDefault();
+
+    UserSettingsStorage.getInstance()
+      .getSettingsAsync()
+      .then((settings) => {
+        if (window.isDestroyed()) {
+          return;
+        }
+
+        if (settings.closeBehavior === "quit") {
+          app.quit();
+          return;
+        }
+
+        window.hide();
+
+        // Ensure screen frame overlay is closed
+        try {
+          ScreenFrameWindow.getInstance().hide();
+        } catch (err) {
+          console.error("ScreenFrameWindow cleanup error:", err);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to read close behavior setting; minimizing to tray:", err);
+        if (window.isDestroyed()) {
+          return;
+        }
+
+        window.hide();
+
+        // Ensure screen frame overlay is closed
+        try {
+          ScreenFrameWindow.getInstance().hide();
+        } catch (cleanupErr) {
+          console.error("ScreenFrameWindow cleanup error:", cleanupErr);
+        }
+      });
   });
 
   window.on("closed", () => {
@@ -300,7 +332,6 @@ let _mcpHandlers: McpIPCHandlers;
 let _customPromptSettingsHandlers: CustomPromptSettingsIPCHandlers;
 let _processVideoHandlers: ProcessVideoIPCHandlers;
 let _releaseChannelHandlers: ReleaseChannelIPCHandlers;
-let _githubTokenHandlers: GitHubTokenIPCHandlers;
 let _userSettingsHandlers: UserSettingsIPCHandlers;
 let _shaveHandlers: ShaveIPCHandlers;
 let _appControlHandlers: AppControlIPCHandlers;
@@ -396,6 +427,8 @@ app.setAboutPanelOptions({
 initAudioLoopback();
 
 app.whenReady().then(async () => {
+  await removeLegacyGitHubToken();
+
   if (!pendingProtocolUrl) {
     pendingProtocolUrl = getProtocolUrlFromArgs(process.argv);
   }
@@ -462,7 +495,6 @@ app.whenReady().then(async () => {
   _customPromptSettingsHandlers = new CustomPromptSettingsIPCHandlers();
   _appControlHandlers = new AppControlIPCHandlers();
   _releaseChannelHandlers = new ReleaseChannelIPCHandlers();
-  _githubTokenHandlers = new GitHubTokenIPCHandlers();
   _userSettingsHandlers = new UserSettingsIPCHandlers(trayManager);
   await _userSettingsHandlers.initialize();
   _shaveHandlers = new ShaveIPCHandlers();

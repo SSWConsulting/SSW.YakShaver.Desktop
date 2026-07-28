@@ -59,6 +59,7 @@ export const IPC_CHANNELS = {
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
+  MCP_REAUTHORIZE: "mcp:reauthorize",
 
   // Automated workflow
   WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
@@ -95,13 +96,6 @@ export const IPC_CHANNELS = {
   RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
   RELEASE_CHANNEL_DOWNLOAD_PROGRESS: "release-channel:download-progress",
 
-  // GitHub Token
-  GITHUB_TOKEN_GET: "github-token:get",
-  GITHUB_TOKEN_SET: "github-token:set",
-  GITHUB_TOKEN_CLEAR: "github-token:clear",
-  GITHUB_TOKEN_HAS: "github-token:has",
-  GITHUB_TOKEN_VERIFY: "github-token:verify",
-
   // General Settings
   SETTINGS_GET: "settings:get",
   SETTINGS_UPDATE: "settings:update",
@@ -114,7 +108,6 @@ export const IPC_CHANNELS = {
   PROTOCOL_ERROR: "protocol:error",
 
   // Portal API
-  PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
   PORTAL_GET_MY_PROJECTS: "portal:get-my-projects",
   PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 

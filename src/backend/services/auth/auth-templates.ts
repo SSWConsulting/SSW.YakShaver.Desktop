@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { app } from "electron";
 import { config } from "../../config/env";
 
-export type AuthTemplateName = "successTemplate.html" | "errorTemplate.html";
+export type AuthTemplateName =
+  | "successTemplate.html"
+  | "errorTemplate.html"
+  | "failureTemplate.html";
 
 function getAuthTemplateDirectory(): string {
   return app.isPackaged
@@ -33,4 +36,13 @@ export function loadSuccessAuthTemplate(customProtocol?: string | null): string 
     "redirectUrl",
     getMainAppAuthUri(customProtocol),
   );
+}
+
+/**
+ * Loads the "failure" auth result page — used when the user cancels or declines the
+ * authorization request (e.g. an OAuth `access_denied` response), as distinct from
+ * `errorTemplate.html`, which covers a hard/unexpected technical failure.
+ */
+export function loadFailureAuthTemplate(): string {
+  return loadAuthTemplate("failureTemplate.html");
 }

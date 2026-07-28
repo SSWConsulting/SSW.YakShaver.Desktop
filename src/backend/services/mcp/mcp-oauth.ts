@@ -407,7 +407,15 @@ export async function waitForTokens(
 /**
  * Initiates the OAuth flow using the .NET backend.
  */
-export async function authorizeWithBackend(
+/**
+ * De-duplicates concurrent OAuth authorizations by serverId. Without this, a
+ * single Reauthorize (which clears the token) races the health-check and
+ * list-tools paths — each rediscovers "no token" and opens its own browser tab,
+ * so the user gets several authorization pages for one action (#982).
+ */
+const inFlightAuthorizations = new Map<string, Promise<OAuthTokens>>();
+
+async function authorizeWithBackendOnce(
   tokenStorage: McpOAuthTokenStorage,
   serverUrl: string,
   serverId: string,
@@ -449,6 +457,27 @@ export async function authorizeWithBackend(
   } finally {
     pollingAbortController.abort();
     deepLinkAbortController.abort();
+  }
+}
+
+export async function authorizeWithBackend(
+  tokenStorage: McpOAuthTokenStorage,
+  serverUrl: string,
+  serverId: string,
+  options: number | McpOAuthAuthorizeOptions = {},
+): Promise<OAuthTokens> {
+  const existing = inFlightAuthorizations.get(serverId);
+  if (existing) return existing;
+
+  const authorization = authorizeWithBackendOnce(tokenStorage, serverUrl, serverId, options);
+
+  inFlightAuthorizations.set(serverId, authorization);
+  try {
+    return await authorization;
+  } finally {
+    if (inFlightAuthorizations.get(serverId) === authorization) {
+      inFlightAuthorizations.delete(serverId);
+    }
   }
 }
 

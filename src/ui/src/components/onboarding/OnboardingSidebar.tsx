@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import type { ConnectorPosition, OnboardingStep, StepStatus } from "@/types/onboarding";
 import { STEPS } from "@/types/onboarding";
 import logo from "/logos/SQ-YakShaver-LogoIcon-Red.svg?url";
@@ -52,16 +53,30 @@ export function OnboardingSidebar({
 
           {STEPS.map((step, index) => {
             const status = getSidebarStepStatus(step);
+            const isCurrent = status === "current";
+
             return (
-              <div key={step.id} className="flex gap-8">
+              <div
+                key={step.id}
+                aria-current={isCurrent ? "step" : undefined}
+                className={cn(
+                  "-mx-3 flex gap-8 rounded-lg px-3 py-2 transition-colors duration-300",
+                  isCurrent && "bg-ssw-red/10 ring-1 ring-inset ring-ssw-red/40",
+                )}
+              >
                 <div className="flex flex-col items-center">
                   <div
                     ref={(element) => {
                       stepIconRefs.current[index] = element;
                     }}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                      status === "pending" ? "bg-[#432A1D]" : "bg-[#75594B]"
-                    }`}
+                    className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-300",
+                      isCurrent
+                        ? "bg-ssw-red shadow-sm ring-1 ring-inset ring-white/30"
+                        : status === "pending"
+                          ? "bg-[#432A1D]"
+                          : "bg-[#75594B]",
+                    )}
                   >
                     <img
                       src={step.icon}
@@ -75,11 +90,17 @@ export function OnboardingSidebar({
 
                 <div className="flex flex-col justify-center w-[219px]">
                   <p
-                    className={`text-sm font-medium leading-5 transition-opacity duration-300 ${
-                      status === "pending" ? "text-white/[0.65]" : "text-white/[0.98]"
-                    }`}
+                    className={cn(
+                      "text-sm font-medium leading-5 transition-colors duration-300",
+                      isCurrent
+                        ? "font-semibold text-white"
+                        : status === "pending"
+                          ? "text-white/[0.65]"
+                          : "text-white/[0.98]",
+                    )}
                   >
                     {step.title}
+                    {isCurrent && <span className="sr-only"> (current step)</span>}
                   </p>
                   <p className="text-sm font-normal leading-5 text-white/[0.55]">
                     {step.sidebarDescription}

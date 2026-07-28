@@ -36,6 +36,10 @@ const buttonVariants = cva(
         // never confirms — it only signals danger and triggers a confirm step.
         destructiveOutline:
           "min-h-11 border border-danger/60 text-white bg-danger/8 shadow-xs transition-colors duration-150 hover:bg-danger/15 focus-visible:ring-danger/40 focus-visible:border-danger",
+        // Outlined caution variant (shared --warning hue) for recover actions
+        // like Reauthorize — reads as caution, distinct from destructiveOutline.
+        warningOutline:
+          "min-h-11 border border-warning/60 text-warning bg-warning/8 shadow-xs transition-colors duration-150 hover:bg-warning/15 focus-visible:ring-warning/40 focus-visible:border-warning",
         outline:
           "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",

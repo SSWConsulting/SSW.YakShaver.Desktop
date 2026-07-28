@@ -1,80 +1,12 @@
-import https from "node:https";
 import type { GetMyProjectsResponse } from "@shared/types/portal";
 import { ipcMain } from "electron";
 import { config } from "../config/env";
 import type { IdentityServerAuthService } from "../services/auth/identity-server-auth";
 import { fetchProjectSummaries, mapProjectsResponse } from "../services/portal/portal-projects";
-import type { GetMyShavesResponse } from "../types";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
 export function registerPortalHandlers(identityServerAuthService: IdentityServerAuthService) {
-  ipcMain.handle(IPC_CHANNELS.PORTAL_GET_MY_SHAVES, async () => {
-    try {
-      const accessToken = await identityServerAuthService.getAccessToken();
-      if (!accessToken) {
-        return { success: false, error: "Failed to obtain access token" };
-      }
-
-      // Parse the portal API URL
-      const apiUrl = config.portalApiUrl();
-      const url = new URL(apiUrl);
-      const hostname = url.hostname;
-      const port = url.port ? parseInt(url.port, 10) : url.protocol === "https:" ? 443 : 80;
-      const path = `${url.pathname.replace(/\/$/, "")}/me/shaves`; // Ensure no double slashes
-
-      // Make API call to get user's shaves using HTTPS module for SSL certificate handling
-      const data = await new Promise<GetMyShavesResponse>((resolve, reject) => {
-        const options = {
-          hostname: hostname,
-          port: port,
-          path: path,
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-        };
-
-        const req = https.request(options, (res) => {
-          let responseData = "";
-
-          res.on("data", (chunk) => {
-            responseData += chunk;
-          });
-
-          res.on("end", () => {
-            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-              try {
-                const parsedData = JSON.parse(responseData);
-                resolve(parsedData);
-              } catch (error) {
-                reject(
-                  new Error(
-                    `Failed to parse JSON response: ${formatAndReportError(error, "portal_api")}`,
-                  ),
-                );
-              }
-            } else {
-              reject(new Error(`API call failed: ${res.statusCode} ${res.statusMessage}`));
-            }
-          });
-        });
-
-        req.on("error", (error) => {
-          reject(error);
-        });
-
-        req.end();
-      });
-
-      return { success: true, data };
-    } catch (error) {
-      console.error("Portal API error:", formatAndReportError(error, "portal_api"));
-      return { success: false, error: formatAndReportError(error, "portal_api") };
-    }
-  });
-
   // #816: list the signed-in user's projects, sourced from the portal endpoint
   // GET {portalApiUrl}/projects/summaries — the same project list the remote-prompts feature
   // already consumes in production. NOTE: that endpoint is tenant/organisation-scoped (every
