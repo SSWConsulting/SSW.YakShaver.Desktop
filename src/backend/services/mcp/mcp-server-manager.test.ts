@@ -15,6 +15,7 @@ vi.mock("../storage/mcp-storage", () => ({
   },
 }));
 
+import { MCPServerClient } from "./mcp-server-client";
 import { MCPServerManager } from "./mcp-server-manager";
 
 function createServer(name: string): MCPServerConfig {
@@ -84,5 +85,33 @@ describe("MCPServerManager server name uniqueness", () => {
       manager.updateServerAsync(server.id, { ...server, name: "GITHUB" }),
     ).rejects.toThrow("Server with name 'GITHUB' already exists");
     expect(storageState.configs.map((config) => config.name)).toEqual(["custom"]);
+  });
+});
+
+describe("MCPServerManager OAuth health errors (#771)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    storageState.configs = [
+      {
+        id: "github-oauth-error",
+        name: "GitHub OAuth error",
+        transport: "streamableHttp",
+        url: "https://api.githubcopilot.com/mcp/",
+        enabled: true,
+      },
+    ];
+  });
+
+  it("returns the actionable OAuth recovery error from client initialization", async () => {
+    vi.spyOn(MCPServerClient, "createClientAsync").mockRejectedValue(
+      new Error("MCP OAuth session expired or was already used. Reconnect the MCP server."),
+    );
+    const manager = await MCPServerManager.getInstanceAsync();
+
+    await expect(manager.checkServerHealthAsync("github-oauth-error")).resolves.toEqual({
+      isHealthy: false,
+      error: "MCP OAuth session expired or was already used. Reconnect the MCP server.",
+      isChecking: false,
+    });
   });
 });

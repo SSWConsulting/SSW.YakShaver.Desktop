@@ -81,7 +81,7 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
       scope: params.get("scope") ?? undefined,
     };
 
-    await McpOAuthTokenStorage.getInstance().saveTokensAsync(serverId, tokens);
+    await McpOAuthTokenStorage.getInstance().completeOAuthAsync(serverId, tokens);
   },
 
   // Main app auth callback (triggered by success template to refocus app)

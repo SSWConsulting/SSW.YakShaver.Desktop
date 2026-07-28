@@ -29,6 +29,7 @@ export class MCPServerManager {
   private static internalClientTransports: Map<string, InMemoryTransport> = new Map();
   private static mcpClients: Map<string, MCPServerClient> = new Map();
   private static mcpClientPromises: Map<string, Promise<MCPServerClient | null>> = new Map();
+  private static mcpClientErrors: Map<string, string> = new Map();
   private constructor() {}
 
   public static async getInstanceAsync(): Promise<MCPServerManager> {
@@ -174,16 +175,20 @@ export class MCPServerManager {
       options = { inMemoryClientTransport: transport };
     }
 
+    MCPServerManager.mcpClientErrors.delete(cacheKey);
     const creationPromise = (async () => {
       try {
         const client = await MCPServerClient.createClientAsync(config, options);
         const health = await client.healthCheckAsync();
         if (health.healthy) {
+          MCPServerManager.mcpClientErrors.delete(cacheKey);
           MCPServerManager.mcpClients.set(cacheKey, client);
           return client;
         }
         return null;
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        MCPServerManager.mcpClientErrors.set(cacheKey, errorMessage);
         console.warn(
           `[MCPServerManager] Failed to initialize client '${config.name}' (${config.id}): ${String(err)}`,
         );
@@ -346,6 +351,7 @@ export class MCPServerManager {
     if (configChanged) {
       await MCPServerManager.mcpClients.get(existing.id)?.disconnectAsync();
       MCPServerManager.mcpClients.delete(existing.id);
+      MCPServerManager.mcpClientErrors.delete(existing.id);
     }
 
     storedConfigs[index] = merged;
@@ -361,6 +367,7 @@ export class MCPServerManager {
 
     await MCPServerManager.mcpClients.get(existing.id)?.disconnectAsync();
     MCPServerManager.mcpClients.delete(existing.id);
+    MCPServerManager.mcpClientErrors.delete(existing.id);
     await this.saveConfigAsync(storedConfigs);
   }
 
@@ -389,7 +396,9 @@ export class MCPServerManager {
     if (!client) {
       return {
         isHealthy: false,
-        error: `MCP server client for '${serverId}' not found`,
+        error:
+          MCPServerManager.mcpClientErrors.get(serverConfig.id) ??
+          `MCP server client for '${serverId}' not found`,
         isChecking: false,
       };
     }

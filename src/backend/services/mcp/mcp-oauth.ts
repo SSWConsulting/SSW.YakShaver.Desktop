@@ -2,7 +2,25 @@ import type { OAuthTokens } from "@ai-sdk/mcp";
 import { shell } from "electron";
 import { config } from "../../config/env";
 import { delay } from "../../utils/async-utils";
+import { IdentityServerAuthService } from "../auth/identity-server-auth";
 import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
+
+export type McpOAuthProvider = "github" | "azure-devops";
+
+export interface McpOAuthAuthorizeOptions {
+  provider?: McpOAuthProvider;
+  pollIntervalMs?: number;
+  timeoutMs?: number;
+}
+
+interface McpOAuthSession {
+  authorizationUrl: string;
+  state: string;
+}
+
+export const DEFAULT_MCP_AUTH_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_POLL_INTERVAL_MS = 1500;
+const OAUTH_TIMEOUT_ERROR = "MCP OAuth session timed out. Reconnect the MCP server.";
 
 /**
  * Error thrown when an MCP OAuth token refresh fails.
@@ -86,6 +104,191 @@ export function extractUpstreamOAuthErrorCode(rawError: string | undefined): str
   return undefined;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getRequiredString(
+  value: Record<string, unknown>,
+  key: string,
+  responseName: string,
+): string {
+  const field = value[key];
+  if (typeof field !== "string" || field.length === 0) {
+    throw new Error(`${responseName} did not include a valid ${key}`);
+  }
+  return field;
+}
+
+function parseOAuthSession(value: unknown): McpOAuthSession {
+  if (!isRecord(value)) {
+    throw new Error("MCP OAuth start response was invalid");
+  }
+
+  return {
+    authorizationUrl: getRequiredString(value, "authorizationUrl", "MCP OAuth start response"),
+    state: getRequiredString(value, "state", "MCP OAuth start response"),
+  };
+}
+
+function parseOAuthTokens(value: unknown): OAuthTokens {
+  if (!isRecord(value)) {
+    throw new Error("MCP OAuth result response was invalid");
+  }
+
+  const accessToken = getRequiredString(value, "access_token", "MCP OAuth result response");
+  const refreshToken = getRequiredString(value, "refresh_token", "MCP OAuth result response");
+
+  return {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    token_type: typeof value.token_type === "string" ? value.token_type : "bearer",
+    ...(typeof value.expires_in === "number" ? { expires_in: value.expires_in } : {}),
+    ...(typeof value.scope === "string" ? { scope: value.scope } : {}),
+  };
+}
+
+export function inferMcpOAuthProvider(serverUrl: string): McpOAuthProvider | undefined {
+  const hostname = new URL(serverUrl).hostname.toLowerCase();
+
+  if (hostname.includes("github")) {
+    return "github";
+  }
+
+  if (
+    hostname === "dev.azure.com" ||
+    hostname.endsWith(".azure.com") ||
+    hostname.endsWith(".visualstudio.com")
+  ) {
+    return "azure-devops";
+  }
+
+  return undefined;
+}
+
+async function getPortalAccessToken(): Promise<string> {
+  const accessToken = await IdentityServerAuthService.getInstance().getAccessToken();
+  if (!accessToken) {
+    throw new Error("Sign in to YakShaver before connecting an MCP server");
+  }
+  return accessToken;
+}
+
+async function startRecoverableOAuth(
+  serverUrl: string,
+  provider: McpOAuthProvider,
+  accessToken: string,
+): Promise<McpOAuthSession> {
+  const url = new URL(`${config.portalApiUrl()}/mcp/auth/start`);
+  url.searchParams.set("serverUrl", serverUrl);
+  url.searchParams.set("provider", provider);
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to start MCP OAuth (Status: ${response.status})`);
+  }
+
+  const data: unknown = await response.json();
+  return parseOAuthSession(data);
+}
+
+async function getRecoverableOAuthResult(
+  serverUrl: string,
+  state: string,
+  accessToken: string,
+  signal: AbortSignal,
+): Promise<OAuthTokens | undefined> {
+  const url = new URL(`${config.portalApiUrl()}/mcp/auth/result`);
+  url.searchParams.set("serverUrl", serverUrl);
+  url.searchParams.set("state", state);
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    signal,
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (response.status === 202) {
+    return undefined;
+  }
+
+  if (response.status === 404) {
+    throw new Error("MCP OAuth session expired or was already used. Reconnect the MCP server.");
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    throw new Error("Your YakShaver sign-in expired. Sign in again before reconnecting.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to retrieve MCP OAuth result (Status: ${response.status})`);
+  }
+
+  const data: unknown = await response.json();
+  return parseOAuthTokens(data);
+}
+
+function delayUntilNextPoll(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new Error("MCP OAuth result polling was cancelled"));
+      return;
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const handleAbort = () => {
+      clearTimeout(timeoutId);
+      reject(new Error("MCP OAuth result polling was cancelled"));
+    };
+    timeoutId = setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+async function pollRecoverableOAuthResult(
+  tokenStorage: McpOAuthTokenStorage,
+  serverUrl: string,
+  serverId: string,
+  state: string,
+  timeoutMs: number,
+  pollIntervalMs: number,
+  signal: AbortSignal,
+): Promise<OAuthTokens> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline && !signal.aborted) {
+    const currentAccessToken = await getPortalAccessToken();
+    const tokens = await getRecoverableOAuthResult(serverUrl, state, currentAccessToken, signal);
+    if (tokens) {
+      const completed = await tokenStorage.completeOAuthAsync(serverId, tokens);
+      if (completed) {
+        return tokens;
+      }
+
+      const previouslyCompletedTokens = await tokenStorage.getTokensAsync(serverId);
+      if (previouslyCompletedTokens) {
+        return previouslyCompletedTokens;
+      }
+    }
+    await delayUntilNextPoll(pollIntervalMs, signal);
+  }
+
+  throw new Error(OAUTH_TIMEOUT_ERROR);
+}
+
 /**
  * Gets the authorization URL from the .NET backend for an MCP server.
  */
@@ -135,7 +338,12 @@ export async function waitForTokens(
   tokenStorage: McpOAuthTokenStorage,
   serverId: string,
   timeoutMs: number = 60000,
+  signal?: AbortSignal,
 ): Promise<OAuthTokens> {
+  if (signal?.aborted) {
+    throw new Error("MCP OAuth token wait was cancelled");
+  }
+
   // 1. Check immediately if tokens are already there
   const existingTokens = await tokenStorage.getTokensAsync(serverId);
   if (existingTokens) {
@@ -146,31 +354,53 @@ export async function waitForTokens(
   console.log(`[McpOAuth] Waiting for tokens for server ${serverId} (Timeout: ${timeoutMs}ms)...`);
 
   return new Promise((resolve, reject) => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: NodeJS.Timeout | undefined;
 
-    const cleanup = () => {
-      clearTimeout(timeoutId);
+    function cleanup() {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       tokenStorage.off(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
-    };
+      signal?.removeEventListener("abort", onAbort);
+    }
 
-    const onTokensUpdated = async (updatedServerId: string) => {
-      if (updatedServerId === serverId) {
-        console.log(`[McpOAuth] Received tokens-updated event for server ${serverId}`);
-        const tokens = await tokenStorage.getTokensAsync(serverId);
-        if (tokens) {
-          cleanup();
-          resolve(tokens);
-        }
+    function onAbort() {
+      cleanup();
+      reject(new Error("MCP OAuth token wait was cancelled"));
+    }
+
+    const resolveStoredTokens = async () => {
+      const tokens = await tokenStorage.getTokensAsync(serverId);
+      if (tokens) {
+        cleanup();
+        resolve(tokens);
       }
     };
 
+    const onTokensUpdated = (updatedServerId: string) => {
+      if (updatedServerId !== serverId) return;
+
+      console.log(`[McpOAuth] Received tokens-updated event for server ${serverId}`);
+      void resolveStoredTokens().catch((error: unknown) => {
+        cleanup();
+        reject(error);
+      });
+    };
+
     tokenStorage.on(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+    signal?.addEventListener("abort", onAbort, { once: true });
 
     timeoutId = setTimeout(() => {
       cleanup();
       console.error(`[McpOAuth] Timed out waiting for OAuth tokens for server ${serverId}`);
-      reject(new Error(`Timed out waiting for OAuth tokens for server ${serverId}`));
+      reject(new Error(OAUTH_TIMEOUT_ERROR));
     }, timeoutMs);
+
+    // Close the gap between the initial lookup and listener registration.
+    void resolveStoredTokens().catch((error: unknown) => {
+      cleanup();
+      reject(error);
+    });
   });
 }
 
@@ -181,11 +411,45 @@ export async function authorizeWithBackend(
   tokenStorage: McpOAuthTokenStorage,
   serverUrl: string,
   serverId: string,
-  timeoutMs: number = 60000,
+  options: number | McpOAuthAuthorizeOptions = {},
 ): Promise<OAuthTokens> {
-  const authUrl = await getAuthUrlFromBackend(serverUrl, serverId);
-  await shell.openExternal(authUrl);
-  return waitForTokens(tokenStorage, serverId, timeoutMs);
+  const normalizedOptions = typeof options === "number" ? { timeoutMs: options } : options;
+  const timeoutMs = normalizedOptions.timeoutMs ?? DEFAULT_MCP_AUTH_TIMEOUT_MS;
+  const provider = normalizedOptions.provider ?? inferMcpOAuthProvider(serverUrl);
+
+  if (!provider) {
+    const authUrl = await getAuthUrlFromBackend(serverUrl, serverId);
+    await shell.openExternal(authUrl);
+    return waitForTokens(tokenStorage, serverId, timeoutMs);
+  }
+
+  const accessToken = await getPortalAccessToken();
+  const session = await startRecoverableOAuth(serverUrl, provider, accessToken);
+  const pollingAbortController = new AbortController();
+  const deepLinkAbortController = new AbortController();
+  const deepLinkTokens = waitForTokens(
+    tokenStorage,
+    serverId,
+    timeoutMs,
+    deepLinkAbortController.signal,
+  );
+  const polledTokens = pollRecoverableOAuthResult(
+    tokenStorage,
+    serverUrl,
+    serverId,
+    session.state,
+    timeoutMs,
+    normalizedOptions.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
+    pollingAbortController.signal,
+  );
+
+  try {
+    await shell.openExternal(session.authorizationUrl);
+    return await Promise.race([deepLinkTokens, polledTokens]);
+  } finally {
+    pollingAbortController.abort();
+    deepLinkAbortController.abort();
+  }
 }
 
 /**

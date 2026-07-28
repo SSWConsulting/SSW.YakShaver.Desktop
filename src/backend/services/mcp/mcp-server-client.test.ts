@@ -66,6 +66,7 @@ const EXPIRED_TOKENS = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  delete process.env.MCP_AUTH_TIMEOUT_MS;
   mocks.mockStorage.getTokensAsync.mockResolvedValue(EXPIRED_TOKENS);
   mocks.mockStorage.isTokenExpired.mockReturnValue(true);
   mocks.createMcpClient.mockResolvedValue({});
@@ -120,5 +121,36 @@ describe("MCPServerClient.createClientAsync — token refresh failure handling (
     expect(mocks.mockStorage.saveTokensAsync).toHaveBeenCalledWith("github", fresh);
     expect(mocks.mockStorage.clearTokensAsync).not.toHaveBeenCalled();
     expect(mocks.createMcpClient).toHaveBeenCalled();
+  });
+});
+
+describe("MCPServerClient.createClientAsync — recoverable OAuth (#771)", () => {
+  it("uses the backend's five-minute OAuth result lifetime by default", async () => {
+    mocks.mockStorage.getTokensAsync
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue({ ...EXPIRED_TOKENS, access_token: "fresh-access" });
+    mocks.authorize.mockResolvedValue(undefined);
+
+    await MCPServerClient.createClientAsync(SERVER_CONFIG);
+
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      mocks.mockStorage,
+      SERVER_CONFIG.url,
+      SERVER_CONFIG.id,
+      5 * 60 * 1000,
+    );
+  });
+
+  it("surfaces an OAuth recovery error instead of trying an unauthenticated connection", async () => {
+    mocks.mockStorage.getTokensAsync.mockResolvedValue(undefined);
+    mocks.authorize.mockRejectedValue(
+      new Error("MCP OAuth session expired or was already used. Reconnect the MCP server."),
+    );
+
+    await expect(MCPServerClient.createClientAsync(SERVER_CONFIG)).rejects.toThrow(
+      "Reconnect the MCP server",
+    );
+
+    expect(mocks.createMcpClient).not.toHaveBeenCalled();
   });
 });

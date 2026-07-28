@@ -84,9 +84,9 @@ describe("protocol-router", () => {
     const send = vi.fn();
     const window = mockWindow(send);
 
-    const saveTokensAsync = vi.fn();
+    const completeOAuthAsync = vi.fn();
     const getInstance = vi.mocked(McpOAuthTokenStorage.getInstance);
-    getInstance.mockReturnValue({ saveTokensAsync } as unknown as McpOAuthTokenStorage);
+    getInstance.mockReturnValue({ completeOAuthAsync } as unknown as McpOAuthTokenStorage);
 
     const getServerConfigByIdAsync = vi.mocked(MCPServerManager.getServerConfigByIdAsync);
     getServerConfigByIdAsync.mockResolvedValue({
@@ -102,7 +102,7 @@ describe("protocol-router", () => {
     );
 
     expect(send).not.toHaveBeenCalled();
-    expect(saveTokensAsync).toHaveBeenCalledWith("server-1", {
+    expect(completeOAuthAsync).toHaveBeenCalledWith("server-1", {
       access_token: "token",
       refresh_token: "refresh",
       token_type: "bearer",

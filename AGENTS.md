@@ -437,6 +437,13 @@ Channels are defined as constants in `src/backend/ipc/channels.ts`:
 
 All encrypted credential storage extends `BaseSecureStorage` (which uses Electron's `safeStorage` API). Each storage class is a singleton with `encryptAndStore()`/`decryptAndLoad()` methods. Classes: `LlmStorage`, `YoutubeStorage`, `GitHubTokenStorage`, `McpStorage`, `McpOAuthTokenStorage`, `CustomPromptStorage`, `UserSettingsStorage`, `ReleaseChannelStorage`.
 
+#### Recoverable MCP OAuth
+
+GitHub and Azure DevOps MCP OAuth keep the original server URL and backend-issued `state` in
+memory, then poll `/mcp/auth/result` while retaining the custom-protocol Deep Link callback. Both
+paths complete through `McpOAuthTokenStorage.completeOAuthAsync()` so only the first result is
+stored. Polling stops after five minutes, matching the backend result lifetime.
+
 #### Database Service Pattern (Functions, Not Classes)
 
 Database services use plain exported functions (not classes) because better-sqlite3 is synchronous. No `async/await` in DB services. Use Drizzle ORM methods: `.get()` for single row, `.all()` for multiple rows, `.run()` for mutations. See `src/backend/db/services/shave-service.ts` for the pattern.

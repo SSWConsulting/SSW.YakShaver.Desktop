@@ -103,7 +103,9 @@ export function McpSettingsPanel({
             duration: 8000,
           });
         } else {
-          toast.error(`Failed to connect ${server.name}`);
+          toast.error(`Failed to connect ${server.name}`, {
+            description: result.error,
+          });
         }
       }
     } catch (e) {

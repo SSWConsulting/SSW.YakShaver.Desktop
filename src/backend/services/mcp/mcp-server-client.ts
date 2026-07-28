@@ -4,6 +4,7 @@ import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatAndReportError } from "../../utils/error-utils";
 import {
   authorizeWithBackend,
+  DEFAULT_MCP_AUTH_TIMEOUT_MS,
   isInvalidRefreshTokenError,
   McpTokenRefreshError,
   refreshTokenWithBackendWithRetry,
@@ -12,7 +13,6 @@ import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
 import type { ToolSet } from "ai";
-import { withTimeout } from "../../utils/async-utils";
 import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 
 export interface CreateClientOptions {
@@ -119,17 +119,15 @@ export class MCPServerClient {
       // If no valid tokens, trigger backend OAuth flow
       if (!tokens?.access_token) {
         try {
-          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
+          const authTimeoutMs = Number(
+            process.env.MCP_AUTH_TIMEOUT_MS ?? DEFAULT_MCP_AUTH_TIMEOUT_MS,
+          );
           console.log(
             `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl} (Timeout: ${authTimeoutMs}ms)`,
           );
 
           // This call will delegate discovery and DCR to the backend
-          await withTimeout(
-            authorizeWithBackend(tokenStorage, serverUrl, serverId, authTimeoutMs),
-            authTimeoutMs,
-            `${mcpConfig.name} OAuth`,
-          );
+          await authorizeWithBackend(tokenStorage, serverUrl, serverId, authTimeoutMs);
 
           // After OAuth, get tokens
           tokens = await tokenStorage.getTokensAsync(serverId);
@@ -143,9 +141,7 @@ export class MCPServerClient {
             `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`,
             authError,
           );
-          console.log(
-            `[MCPServerClient]: Falling back to default headers without authentication for ${mcpConfig.name}`,
-          );
+          throw authError;
         }
       }
 
