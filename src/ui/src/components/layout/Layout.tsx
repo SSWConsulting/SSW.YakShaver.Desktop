@@ -10,8 +10,8 @@ import Sidebar from "./sidebar";
 // into a specific shave's `/workflow/:shaveId` outcome view. The intentional
 // "jump to the live workflow view" navigation already happens at the two
 // points a run actually starts — ScreenRecorder and VideoPreviewModal each
-// call `useWorkflowNavigation({ listen: false })`'s `navigateToWorkflow()`
-// explicitly — so no global listener is needed here.
+// call `navigateToWorkflow()` explicitly — so no global listener is needed
+// here.
 export function Layout() {
   return (
     <div className="flex h-screen">
