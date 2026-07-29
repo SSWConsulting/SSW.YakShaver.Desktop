@@ -80,6 +80,35 @@ describe("protocol-router", () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it("forwards the attempt id so a stale tab cannot cancel a newer authorization", async () => {
+    const notifyAuthFailed = vi.fn();
+    vi.mocked(McpOAuthTokenStorage.getInstance).mockReturnValue({
+      notifyAuthFailed,
+    } as unknown as McpOAuthTokenStorage);
+
+    await handleProtocolUrl(
+      "yakshaver-desktop://oauth/callback?serverId=server-1&error=authorization_failed&attemptId=attempt-7",
+      mockWindow(vi.fn()),
+    );
+
+    expect(notifyAuthFailed).toHaveBeenCalledWith("server-1", "attempt-7");
+  });
+
+  // A callback from before the attempt id shipped must still fail fast rather than hang.
+  it("still reports failure when the callback carries no attempt id", async () => {
+    const notifyAuthFailed = vi.fn();
+    vi.mocked(McpOAuthTokenStorage.getInstance).mockReturnValue({
+      notifyAuthFailed,
+    } as unknown as McpOAuthTokenStorage);
+
+    await handleProtocolUrl(
+      "yakshaver-desktop://oauth/callback?serverId=server-1&error=authorization_failed",
+      mockWindow(vi.fn()),
+    );
+
+    expect(notifyAuthFailed).toHaveBeenCalledWith("server-1", null);
+  });
+
   it("stores tokens for valid OAuth callback", async () => {
     const send = vi.fn();
     const window = mockWindow(send);
