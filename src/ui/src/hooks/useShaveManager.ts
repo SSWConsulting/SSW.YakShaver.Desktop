@@ -6,7 +6,6 @@ import type {
   CreateVideoData,
   CreateVideoSourceData,
 } from "../../../backend/db/schema";
-import { normalizeYouTubeUrl } from "../../../backend/utils/youtube-url-utils";
 import { ipcClient } from "../services/ipc-client";
 import { ShaveStatus, type VideoUploadOrigin, type VideoUploadResult } from "../types";
 import {
@@ -86,31 +85,6 @@ export function useShaveManager() {
   const finalUpdatedKeysRef = useRef<Set<string>>(new Set());
 
   /**
-   * Check if a video URL already has a shave in the database.
-   */
-  const checkExistingShave = useCallback(async (videoUrl: string): Promise<string | null> => {
-    if (!videoUrl) return null;
-
-    try {
-      // Normalize the URL (especially for YouTube links)
-      const normalizedUrl = normalizeYouTubeUrl(videoUrl);
-      if (!normalizedUrl) return null;
-
-      // Check if a shave exists with this URL
-      const result = await ipcClient.shave.findByVideoUrl(normalizedUrl);
-
-      if (result.success && result.data) {
-        return result.data.id;
-      }
-
-      return null;
-    } catch (error) {
-      console.error("[Shave] Error checking for existing shave:", error);
-      return null;
-    }
-  }, []);
-
-  /**
    * Save a recording with video file metadata and shave information
    */
   const saveRecording = useCallback(
@@ -121,6 +95,13 @@ export function useShaveManager() {
     ) => {
       try {
         const result = await ipcClient.shave.create(shaveData, recordingFile, videoSource);
+        if (!result.success) {
+          toast.error("Could not save to My Shaves", {
+            description: result.error || "The shave could not be created.",
+          });
+          return result;
+        }
+
         toast.success("Saved to My Shaves", {
           description: "Your video was saved to My Shaves.",
         });
@@ -279,6 +260,5 @@ export function useShaveManager() {
 
   return {
     saveRecording,
-    checkExistingShave,
   };
 }
