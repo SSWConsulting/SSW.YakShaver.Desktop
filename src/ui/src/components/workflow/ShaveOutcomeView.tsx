@@ -89,7 +89,7 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
   if (isActive) {
     return (
       <>
-        <WorkflowProgressPanel shaveId={shaveId} />
+        <WorkflowProgressPanel mode="selected" shaveId={shaveId} />
         <FinalResultPanel selectedShaveId={shaveId} />
       </>
     );
@@ -156,9 +156,7 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
       </Card>
 
       {/* For a completed shave we can honestly show the full stage view (every stage ran). */}
-      {reconstructed && (
-        <WorkflowProgressPanel hydratedState={reconstructed} hydratedShaveId={undefined} />
-      )}
+      {reconstructed && <WorkflowProgressPanel mode="hydrated" hydratedState={reconstructed} />}
     </div>
   );
 }

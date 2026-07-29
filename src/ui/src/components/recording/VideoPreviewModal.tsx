@@ -48,7 +48,7 @@ export function VideoPreviewModal({
   onDurationLoad,
   is360Mode = false,
 }: VideoPreviewModalProps) {
-  const navigateToWorkflow = useWorkflowNavigation();
+  const navigateToWorkflow = useWorkflowNavigation({ listen: false });
   const [videoUrl, setVideoUrl] = useState("");
   const [showConfirmExit, setShowConfirmExit] = useState(false);
   const [autoApproveChecked, setAutoApproveChecked] = useState(false);

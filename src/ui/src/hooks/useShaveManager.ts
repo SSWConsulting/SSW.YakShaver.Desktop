@@ -85,13 +85,25 @@ export function useShaveManager() {
   const uploadCompletedKeysRef = useRef<Set<string>>(new Set());
   const finalUpdatedKeysRef = useRef<Set<string>>(new Set());
 
+  /**
+   * Check if a video URL already has a shave in the database.
+   */
   const checkExistingShave = useCallback(async (videoUrl: string): Promise<string | null> => {
-    const normalizedUrl = normalizeYouTubeUrl(videoUrl);
-    if (!normalizedUrl) return null;
+    if (!videoUrl) return null;
 
     try {
+      // Normalize the URL (especially for YouTube links)
+      const normalizedUrl = normalizeYouTubeUrl(videoUrl);
+      if (!normalizedUrl) return null;
+
+      // Check if a shave exists with this URL
       const result = await ipcClient.shave.findByVideoUrl(normalizedUrl);
-      return result.success && result.data ? result.data.id : null;
+
+      if (result.success && result.data) {
+        return result.data.id;
+      }
+
+      return null;
     } catch (error) {
       console.error("[Shave] Error checking for existing shave:", error);
       return null;

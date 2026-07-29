@@ -1,6 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Link } from "react-router-dom";
-import { getShaveWorkflowPath, getStatusVariant } from "@/lib/shave-utils";
+import { getStatusVariant } from "@/lib/shave-utils";
 import { timeAgo } from "@/lib/utils";
 import type { Shave } from "../../types";
 import { Badge } from "../ui/badge";
@@ -22,9 +22,9 @@ export function createShaveColumns(): ColumnDef<Shave>[] {
       accessorKey: "title",
       header: ({ column }) => <SortableHeader column={column} label="Title" />,
       cell: ({ row }) => (
-        // Active shaves open the live progress; finished shaves open their persisted outcome.
+        // #821: open this shave's Workflow Progress page (status / result / error) by id.
         <Link
-          to={getShaveWorkflowPath(row.original)}
+          to={`/workflow/${row.original.id}`}
           className={`max-w-[400px] truncate block hover:underline ${row.original.title ? "font-medium" : "font-medium text-muted-foreground italic"}`}
           title={`Open workflow progress for ${row.original.title || "this shave"}`}
         >

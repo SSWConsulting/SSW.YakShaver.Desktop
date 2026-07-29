@@ -2,7 +2,7 @@ import type { Cloud360EventPayload, Cloud360Project } from "@shared/types/cloud3
 import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { TelemetrySettings } from "@shared/types/telemetry";
 import type { UserSettings } from "@shared/types/user-settings";
-import type { WorkflowState } from "@shared/types/workflow";
+import type { GetWorkflowStateResult, WorkflowState } from "@shared/types/workflow";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type {
   ProcessedRelease,
@@ -137,11 +137,7 @@ declare global {
           youtubeResult?: unknown;
           mcpResult?: string;
         }>;
-        getState: (shaveId: string) => Promise<{
-          success: boolean;
-          state?: WorkflowState;
-          error?: string;
-        }>;
+        getState: (shaveId: string) => Promise<GetWorkflowStateResult>;
         getRetryStatus: (shaveId: string) => Promise<{
           success: boolean;
           stages?: Array<{
