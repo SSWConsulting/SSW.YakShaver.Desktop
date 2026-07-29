@@ -789,10 +789,14 @@ export function FinalResultPanel({ selectedShaveId }: FinalResultPanelProps = {}
   }, [resetForNewRun, selectedShaveId]);
 
   useEffect(() => {
+    if (selectedShaveId) {
+      return;
+    }
+
     return ipcClient.mcp.onStepUpdate((step) => {
       setMcpSteps((prev) => [...prev, { ...step, timestamp: Date.now() }]);
     });
-  }, []);
+  }, [selectedShaveId]);
 
   const handleReprocessDialogChange = useCallback((open: boolean) => {
     setReprocessDialogOpen(open);

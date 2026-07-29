@@ -55,3 +55,7 @@ export interface WorkflowProgressNeoPayload {
   shaveId: string;
   state: WorkflowState;
 }
+
+export type GetWorkflowStateResult =
+  | { success: true; state: WorkflowState }
+  | { success: false; error: string };

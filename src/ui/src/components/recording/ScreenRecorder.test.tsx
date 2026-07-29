@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AuthStatus, UploadStatus } from "../../types";
+import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
 import { ScreenRecorder } from "./ScreenRecorder";
 
 // Hoisted mock state so the (hoisted) vi.mock factories can read it and each
@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   recordedVideo: null as { blob: Blob; filePath: string; fileName: string } | null,
   saveRecording: vi.fn(),
   checkExistingShave: vi.fn(),
+  updateShaveStatus: vi.fn(),
   navigateToWorkflow: vi.fn(),
   // Captured handler the app registers on the screen-recording stop channel;
   // invoking it drives the real handleStopRecording -> preview flow.
@@ -71,6 +72,7 @@ vi.mock("@/services/ipc-client", () => ({
     // recording flow, which must remain unaffected by cloud-360 mode.
     llm: { getConfig: vi.fn().mockResolvedValue({ orchestrationBackend: "openai" }) },
     auth: { identityServer: { status: vi.fn().mockResolvedValue({ status: "unauthenticated" }) } },
+    shave: { updateStatus: state.updateShaveStatus },
   },
 }));
 
@@ -150,6 +152,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     state.recordedVideo = { blob: new Blob(), filePath: "/tmp/rec.webm", fileName: "rec.webm" };
     state.saveRecording = vi.fn().mockResolvedValue({ success: true, data: { id: "shave-1" } });
     state.checkExistingShave = vi.fn().mockResolvedValue(undefined);
+    state.updateShaveStatus.mockResolvedValue({ success: true });
 
     // ScreenRecorder subscribes to a few electronAPI event channels on mount.
     state.stopRequestHandler = null;
@@ -336,6 +339,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     });
 
     await waitFor(() => expect(state.checkExistingShave).toHaveBeenCalledWith(youtubeUrl));
+    expect(state.updateShaveStatus).toHaveBeenCalledWith("existing-shave", ShaveStatus.Processing);
     expect(state.saveRecording).not.toHaveBeenCalled();
     expect(state.navigateToWorkflow).toHaveBeenCalledTimes(1);
     expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalledWith(

@@ -10,21 +10,28 @@ type ProgressCallback = (payload: unknown) => void;
 
 // Captures the renderer's progress listener so the test can push workflow state
 // updates the same way the main process would over IPC.
-let progressCallback: ProgressCallback | undefined;
+const { onProgressNeo, progressCallbacks } = vi.hoisted(() => {
+  const callbacks: ProgressCallback[] = [];
+  return {
+    progressCallbacks: callbacks,
+    onProgressNeo: vi.fn((callback: ProgressCallback) => {
+      callbacks.push(callback);
+      return () => {};
+    }),
+  };
+});
+
+vi.mock("@/services/ipc-client", () => ({
+  ipcClient: { workflow: { onProgressNeo } },
+}));
 
 function stubElectronApi() {
-  const onProgressNeo = vi.fn((cb: ProgressCallback) => {
-    progressCallback = cb;
-    return () => {
-      progressCallback = undefined;
-    };
-  });
+  progressCallbacks.length = 0;
+  onProgressNeo.mockClear();
+}
 
-  Object.defineProperty(window, "electronAPI", {
-    configurable: true,
-    writable: true,
-    value: { workflow: { onProgressNeo } },
-  });
+function emitProgress(payload: unknown) {
+  progressCallbacks[0]?.(payload);
 }
 
 function makeStep(status: WorkflowStatus, stage: ProgressStage = ProgressStage.UPLOADING_VIDEO) {
@@ -68,7 +75,7 @@ function makeCompletedWithErrorsState(): WorkflowState {
 }
 
 afterEach(() => {
-  progressCallback = undefined;
+  progressCallbacks.length = 0;
 });
 
 describe("WorkflowProgressPanel — clear on processing failure (#733)", () => {
@@ -83,7 +90,7 @@ describe("WorkflowProgressPanel — clear on processing failure (#733)", () => {
 
     // Push a failed workflow state, as the main process would.
     act(() => {
-      progressCallback?.({ shaveId: "shave-1", state: makeFailedState() });
+      emitProgress({ shaveId: "shave-1", state: makeFailedState() });
     });
 
     expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
@@ -109,7 +116,7 @@ describe("WorkflowProgressPanel — clear on processing failure (#733)", () => {
     inProgressState.uploading_video = makeStep("in_progress");
 
     act(() => {
-      progressCallback?.({ shaveId: "shave-2", state: inProgressState });
+      emitProgress({ shaveId: "shave-2", state: inProgressState });
     });
 
     expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
@@ -124,7 +131,7 @@ describe("WorkflowProgressPanel — clear on processing failure (#733)", () => {
     render(<WorkflowProgressPanel />);
 
     act(() => {
-      progressCallback?.({ shaveId: "shave-err", state: makeCompletedWithErrorsState() });
+      emitProgress({ shaveId: "shave-err", state: makeCompletedWithErrorsState() });
     });
 
     expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
@@ -139,7 +146,7 @@ describe("WorkflowProgressPanel — clear on processing failure (#733)", () => {
     render(<WorkflowProgressPanel />);
 
     act(() => {
-      progressCallback?.({ shaveId: "shave-1", state: makeFailedState() });
+      emitProgress({ shaveId: "shave-1", state: makeFailedState() });
     });
 
     await user.click(screen.getByRole("button", { name: /clear failed workflow/i }));
@@ -149,7 +156,7 @@ describe("WorkflowProgressPanel — clear on processing failure (#733)", () => {
     const fresh = makeFailedState();
     fresh.uploading_video = makeStep("in_progress");
     act(() => {
-      progressCallback?.({ shaveId: "shave-2", state: fresh });
+      emitProgress({ shaveId: "shave-2", state: fresh });
     });
 
     expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
@@ -167,7 +174,7 @@ describe("WorkflowProgressPanel — clear on processing failure (#733)", () => {
     render(<WorkflowProgressPanel />);
 
     act(() => {
-      progressCallback?.({ shaveId: "shave-1", state: makeFailedState() });
+      emitProgress({ shaveId: "shave-1", state: makeFailedState() });
     });
 
     await user.click(screen.getByRole("button", { name: /clear failed workflow/i }));

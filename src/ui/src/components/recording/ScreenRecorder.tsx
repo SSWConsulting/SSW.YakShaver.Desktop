@@ -191,7 +191,7 @@ function RecordButton({
 }
 
 export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
-  const navigateToWorkflow = useWorkflowNavigation();
+  const navigateToWorkflow = useWorkflowNavigation({ listen: false });
   const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
@@ -431,7 +431,17 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
 
     try {
       let shaveId = await checkExistingShave(trimmedUrl);
-      if (!shaveId) {
+      if (shaveId) {
+        const resetResult = await ipcClient.shave.updateStatus(shaveId, ShaveStatus.Processing);
+        if (!resetResult.success) {
+          setUploadStatus(UploadStatus.ERROR);
+          setUploadResult({
+            success: false,
+            error: resetResult.error || "Could not prepare this shave for a new workflow",
+          });
+          return;
+        }
+      } else {
         const result = await saveRecording({
           clientOrigin: "YakShaver Desktop",
           title: "Untitled",

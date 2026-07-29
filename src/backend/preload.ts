@@ -1,5 +1,5 @@
 import type { Hotkeys, UserSettings } from "@shared/types/user-settings";
-import type { WorkflowState } from "@shared/types/workflow";
+import type { GetWorkflowStateResult, WorkflowState } from "@shared/types/workflow";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { TelemetrySettings } from "../shared/types/telemetry";
 import type {
@@ -259,7 +259,8 @@ const electronAPI = {
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, callback),
     retryFromStage: (stage: keyof WorkflowState, shaveId?: string, customPrompt?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId, customPrompt),
-    getState: (shaveId: string) => ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_STATE, shaveId),
+    getState: (shaveId: string): Promise<GetWorkflowStateResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_STATE, shaveId),
     getRetryStatus: (shaveId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
     cancelRetry: (shaveId: string) =>

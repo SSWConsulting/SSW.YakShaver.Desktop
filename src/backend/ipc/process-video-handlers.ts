@@ -4,6 +4,7 @@ import tmp from "tmp";
 import { z } from "zod";
 import type { TranscriptSegment } from "../../shared/types/transcript";
 import {
+  type GetWorkflowStateResult,
   WORKFLOW_STAGE_ORDER,
   ProgressStage as WorkflowProgressStage,
   type WorkflowState,
@@ -249,18 +250,21 @@ export class ProcessVideoIPCHandlers {
       },
     );
 
-    ipcMain.handle(IPC_CHANNELS.WORKFLOW_GET_STATE, async (_event, shaveId?: string) => {
-      if (!shaveId) {
-        return { success: false, error: "Shave ID is required" };
-      }
+    ipcMain.handle(
+      IPC_CHANNELS.WORKFLOW_GET_STATE,
+      async (_event, shaveId?: string): Promise<GetWorkflowStateResult> => {
+        if (!shaveId) {
+          return { success: false, error: "Shave ID is required" };
+        }
 
-      const workflowManager = this.workflowManagers.get(shaveId);
-      if (!workflowManager) {
-        return { success: false, error: "Workflow not found" };
-      }
+        const workflowManager = this.workflowManagers.get(shaveId);
+        if (!workflowManager) {
+          return { success: false, error: "Workflow not found" };
+        }
 
-      return { success: true, state: workflowManager.getState() };
-    });
+        return { success: true, state: workflowManager.getState() };
+      },
+    );
 
     // Get retry status for all failed stages
     ipcMain.handle(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, async (_event, shaveId?: string) => {
@@ -387,6 +391,7 @@ export class ProcessVideoIPCHandlers {
     try {
       const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
       this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
+      workflowManager.reset();
 
       workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);
       workflowManager.startStage(WorkflowProgressStage.DOWNLOADING_VIDEO);

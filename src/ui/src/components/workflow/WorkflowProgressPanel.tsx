@@ -1,7 +1,9 @@
 import { WORKFLOW_STAGE_ORDER, type WorkflowState } from "@shared/types/workflow";
 import { AlertTriangle, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { isWorkflowFailed, parseWorkflowProgressNeoPayload } from "@/utils";
+import { toast } from "sonner";
+import { ipcClient } from "@/services/ipc-client";
+import { formatErrorMessage, isWorkflowFailed, parseWorkflowProgressNeoPayload } from "@/utils";
 import { WORKFLOW_CLEAR_EVENT_CHANNEL } from "../../types/index";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -19,28 +21,19 @@ const STEP_LABELS: Record<keyof WorkflowState, string> = {
   updating_metadata: "Updating Metadata",
 };
 
-interface WorkflowProgressPanelProps {
-  /**
-   * #821: a pre-loaded state to render (when reached by navigation from a past shave) instead
-   * of subscribing to live progress events. When omitted, the panel keeps its original live
-   * behaviour for an in-flight run.
-   */
-  hydratedState?: WorkflowState | null;
-  /** The shave being viewed (read-only mode); omitted for the live run. */
-  hydratedShaveId?: string;
-  /** Restrict live state and events to the selected shave. */
-  shaveId?: string;
-}
+type WorkflowProgressPanelProps =
+  | { mode?: "live"; shaveId?: never; hydratedState?: never }
+  | { mode: "selected"; shaveId: string; hydratedState?: never }
+  | { mode: "hydrated"; shaveId?: string; hydratedState: WorkflowState };
 
-export function WorkflowProgressPanel({
-  hydratedState,
-  hydratedShaveId,
-  shaveId: selectedShaveId,
-}: WorkflowProgressPanelProps = {}) {
+export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode: "live" }) {
   const [liveState, setLiveState] = useState<WorkflowState | null>(null);
   const [liveShaveId, setLiveShaveId] = useState<string | undefined>();
 
-  const isHydrated = hydratedState != null;
+  const isHydrated = props.mode === "hydrated";
+  const selectedShaveId = props.mode === "selected" ? props.shaveId : undefined;
+  const hydratedState = props.mode === "hydrated" ? props.hydratedState : null;
+  const hydratedShaveId = props.mode === "hydrated" ? props.shaveId : undefined;
 
   useEffect(() => {
     // In hydrated (navigated) mode we render a persisted snapshot — don't subscribe to live events.
@@ -53,7 +46,7 @@ export function WorkflowProgressPanel({
     setLiveState(null);
     setLiveShaveId(selectedShaveId);
 
-    const cleanup = window.electronAPI.workflow.onProgressNeo((payload: unknown) => {
+    const cleanup = ipcClient.workflow.onProgressNeo((payload: unknown) => {
       const progress = parseWorkflowProgressNeoPayload(payload);
       if (selectedShaveId && progress.shaveId !== selectedShaveId) {
         return;
@@ -68,16 +61,21 @@ export function WorkflowProgressPanel({
     });
 
     if (selectedShaveId) {
-      void window.electronAPI.workflow
+      void ipcClient.workflow
         .getState(selectedShaveId)
         .then((result) => {
           if (!cancelled && !receivedLiveUpdate && result.success && result.state) {
             setLiveState(result.state);
           }
+          if (!cancelled && !result.success) {
+            toast.error("Failed to load workflow progress", { description: result.error });
+          }
         })
         .catch((error) => {
           if (!cancelled) {
-            console.error("Failed to load workflow progress:", error);
+            toast.error("Failed to load workflow progress", {
+              description: formatErrorMessage(error),
+            });
           }
         });
     }

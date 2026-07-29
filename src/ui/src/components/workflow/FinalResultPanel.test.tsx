@@ -162,6 +162,8 @@ describe("FinalResultPanel — clears previous output on a new run (#754)", () =
   it("ignores workflow events for a different selected shave", () => {
     render(<FinalResultPanel selectedShaveId="selected-shave" />);
 
+    expect(onStepUpdate).not.toHaveBeenCalled();
+
     emit(
       completedYouTubeRun(JSON.stringify({ Status: "success", Title: "Other run result" })),
       "other-shave",
