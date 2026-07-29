@@ -56,10 +56,10 @@ function withExecutingPayload(state: WorkflowState, finalOutput: string): Workfl
   return state;
 }
 
-function emit(state: WorkflowState) {
+function emit(state: WorkflowState, shaveId = "shave-1") {
   act(() => {
     for (const cb of progressCallbacks) {
-      cb({ shaveId: "shave-1", state });
+      cb({ shaveId, state });
     }
   });
 }
@@ -157,6 +157,22 @@ describe("FinalResultPanel — clears previous output on a new run (#754)", () =
 
     emit(completedYouTubeRun(JSON.stringify({ Status: "success", Title: "Second run result" })));
     expect(screen.getByText(/Second run result/)).toBeInTheDocument();
+  });
+
+  it("ignores workflow events for a different selected shave", () => {
+    render(<FinalResultPanel selectedShaveId="selected-shave" />);
+
+    emit(
+      completedYouTubeRun(JSON.stringify({ Status: "success", Title: "Other run result" })),
+      "other-shave",
+    );
+    expect(screen.queryByText(/Other run result/)).not.toBeInTheDocument();
+
+    emit(
+      completedYouTubeRun(JSON.stringify({ Status: "success", Title: "Selected run result" })),
+      "selected-shave",
+    );
+    expect(screen.getByText(/Selected run result/)).toBeInTheDocument();
   });
 });
 

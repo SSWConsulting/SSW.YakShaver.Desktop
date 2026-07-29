@@ -6,6 +6,7 @@ import { type Shave, ShaveStatus } from "../../types";
 import { LoadingState } from "../common/LoadingState";
 import { Badge } from "../ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { FinalResultPanel } from "./FinalResultPanel";
 import { WorkflowProgressPanel } from "./WorkflowProgressPanel";
 import { reconstructWorkflowState } from "./workflow-state-reconstruct";
 
@@ -40,9 +41,8 @@ export function parseFinalOutput(finalOutput: string | null | undefined): Parsed
 }
 
 /**
- * #821: read-only view of a PAST shave's Workflow Progress, reached via `/workflow/:shaveId`.
- * The live per-stage progress isn't persisted, so this renders from the persisted shave row: the
- * status, the final result (work item link / video), and — when it failed — the error details.
+ * #821: load the selected shave reached via `/workflow/:shaveId`. Active shaves reconnect to
+ * their in-memory workflow state; finished shaves render their persisted outcome.
  */
 export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
   const [shave, setShave] = useState<Shave | null>(null);
@@ -84,14 +84,21 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
     );
   }
 
+  const isActive =
+    shave.shaveStatus === ShaveStatus.Pending || shave.shaveStatus === ShaveStatus.Processing;
+  if (isActive) {
+    return (
+      <>
+        <WorkflowProgressPanel shaveId={shaveId} />
+        <FinalResultPanel selectedShaveId={shaveId} />
+      </>
+    );
+  }
+
   const parsed = parseFinalOutput(shave.finalOutput);
   const workItemUrl = parsed?.URL || shave.workItemUrl || undefined;
   const reconstructed = reconstructWorkflowState(shave.shaveStatus);
   const isFailed = shave.shaveStatus === ShaveStatus.Failed;
-  // #888 review: a still-running shave opened from history has no persisted per-stage
-  // progress and no result/error yet — show a clear in-progress message instead of an
-  // empty dead-end card.
-  const isProcessing = shave.shaveStatus === ShaveStatus.Processing;
 
   return (
     <div className="w-[500px] mx-auto my-4 space-y-4">
@@ -115,19 +122,6 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
               {shave.errorCode && (
                 <p className="text-xs text-red-200/60 mt-1">Code: {shave.errorCode}</p>
               )}
-            </div>
-          )}
-
-          {isProcessing && (
-            <div className="rounded-md border border-white/15 bg-white/5 p-3">
-              <div className="flex items-center gap-2 text-white/80 font-medium">
-                <LoadingState inline className="h-4 w-4" />
-                This shave is still running
-              </div>
-              <p className="text-sm text-white/60 mt-1">
-                Per-stage progress isn't shown for a shave opened from history. Check back once it
-                finishes, or watch it live from the active run.
-              </p>
             </div>
           )}
 

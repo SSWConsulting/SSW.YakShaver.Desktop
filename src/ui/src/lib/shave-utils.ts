@@ -1,5 +1,4 @@
-import type { BadgeVariant, Shave } from "../types";
-import { ShaveStatus } from "../types";
+import { type BadgeVariant, type Shave, ShaveStatus } from "../types";
 
 const STATUS_BADGE_VARIANTS: Record<string, BadgeVariant> = {
   [ShaveStatus.Completed]: "success",
@@ -13,7 +12,5 @@ export function getStatusVariant(status: string): BadgeVariant {
 }
 
 export function getShaveWorkflowPath(shave: Pick<Shave, "id" | "shaveStatus">): string {
-  const isActive =
-    shave.shaveStatus === ShaveStatus.Pending || shave.shaveStatus === ShaveStatus.Processing;
-  return isActive ? "/workflow" : `/workflow/${shave.id}`;
+  return `/workflow/${shave.id}`;
 }

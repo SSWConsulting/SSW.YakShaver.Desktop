@@ -9,7 +9,14 @@ vi.mock("../../services/ipc-client", () => ({
 }));
 // The nested panel subscribes to electronAPI; stub it out for this view's tests.
 vi.mock("./WorkflowProgressPanel", () => ({
-  WorkflowProgressPanel: () => <div>workflow-progress</div>,
+  WorkflowProgressPanel: ({ shaveId }: { shaveId?: string }) => (
+    <div>{shaveId ? `workflow-progress:${shaveId}` : "workflow-progress"}</div>
+  ),
+}));
+vi.mock("./FinalResultPanel", () => ({
+  FinalResultPanel: ({ selectedShaveId }: { selectedShaveId?: string }) => (
+    <div>{`final-result:${selectedShaveId ?? "unselected"}`}</div>
+  ),
 }));
 
 const shave = (over: Record<string, unknown>) => ({
@@ -29,7 +36,7 @@ afterEach(() => {
 });
 
 describe("ShaveOutcomeView (#821 / #888 review)", () => {
-  it("shows an in-progress message for a still-running (Processing) shave — no blank dead-end", async () => {
+  it("shows the selected live workflow for a still-running Processing shave", async () => {
     getById.mockResolvedValue({
       success: true,
       data: shave({ shaveStatus: ShaveStatus.Processing }),
@@ -37,7 +44,9 @@ describe("ShaveOutcomeView (#821 / #888 review)", () => {
 
     render(<ShaveOutcomeView shaveId="s1" />);
 
-    expect(await screen.findByText("This shave is still running")).toBeInTheDocument();
+    expect(await screen.findByText("workflow-progress:s1")).toBeInTheDocument();
+    expect(screen.getByText("final-result:s1")).toBeInTheDocument();
+    expect(screen.queryByText("This shave is still running")).not.toBeInTheDocument();
   });
 
   it("shows the failure details for a Failed shave", async () => {

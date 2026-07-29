@@ -28,11 +28,14 @@ interface WorkflowProgressPanelProps {
   hydratedState?: WorkflowState | null;
   /** The shave being viewed (read-only mode); omitted for the live run. */
   hydratedShaveId?: string;
+  /** Restrict live state and events to the selected shave. */
+  shaveId?: string;
 }
 
 export function WorkflowProgressPanel({
   hydratedState,
   hydratedShaveId,
+  shaveId: selectedShaveId,
 }: WorkflowProgressPanelProps = {}) {
   const [liveState, setLiveState] = useState<WorkflowState | null>(null);
   const [liveShaveId, setLiveShaveId] = useState<string | undefined>();
@@ -44,20 +47,49 @@ export function WorkflowProgressPanel({
     if (isHydrated) {
       return;
     }
+
+    let cancelled = false;
+    let receivedLiveUpdate = false;
+    setLiveState(null);
+    setLiveShaveId(selectedShaveId);
+
     const cleanup = window.electronAPI.workflow.onProgressNeo((payload: unknown) => {
       const progress = parseWorkflowProgressNeoPayload(payload);
+      if (selectedShaveId && progress.shaveId !== selectedShaveId) {
+        return;
+      }
       if (progress.state) {
+        receivedLiveUpdate = true;
         setLiveState(progress.state);
       }
       if (progress.shaveId) {
         setLiveShaveId(progress.shaveId);
       }
     });
-    return cleanup;
-  }, [isHydrated]);
+
+    if (selectedShaveId) {
+      void window.electronAPI.workflow
+        .getState(selectedShaveId)
+        .then((result) => {
+          if (!cancelled && !receivedLiveUpdate && result.success && result.state) {
+            setLiveState(result.state);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            console.error("Failed to load workflow progress:", error);
+          }
+        });
+    }
+
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [isHydrated, selectedShaveId]);
 
   const state = hydratedState ?? liveState;
-  const shaveId = isHydrated ? hydratedShaveId : liveShaveId;
+  const shaveId = isHydrated ? hydratedShaveId : (liveShaveId ?? selectedShaveId);
 
   // Dismiss a finished/failed run and return the processing screen to its ready
   // state so the user can start fresh without restarting the app (#733). The
