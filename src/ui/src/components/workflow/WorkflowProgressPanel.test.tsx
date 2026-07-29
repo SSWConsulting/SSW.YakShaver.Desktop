@@ -96,7 +96,11 @@ describe("WorkflowProgressPanel (#821)", () => {
     );
 
     render(
-      <WorkflowProgressPanel mode="selected" shaveId="selected-shave" onUnavailable={vi.fn()} />,
+      <WorkflowProgressPanel
+        mode="selected"
+        shaveId="selected-shave"
+        onAvailabilityChange={vi.fn()}
+      />,
     );
 
     expect((await screen.findByText("Uploading Video")).parentElement).toHaveTextContent(
@@ -116,18 +120,47 @@ describe("WorkflowProgressPanel (#821)", () => {
   });
 
   it("selected live path: reports an unavailable in-memory workflow without an error toast", async () => {
-    const onUnavailable = vi.fn();
+    const onAvailabilityChange = vi.fn();
+    parseMock.mockReturnValue({ shaveId: "missing-shave", state: completedState });
 
     render(
       <WorkflowProgressPanel
         mode="selected"
         shaveId="missing-shave"
-        onUnavailable={onUnavailable}
+        onAvailabilityChange={onAvailabilityChange}
       />,
     );
 
-    await vi.waitFor(() => expect(onUnavailable).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(onAvailabilityChange).toHaveBeenCalledWith(false));
     expect(toastError).not.toHaveBeenCalled();
+
+    act(() => progressCallbacks[0]?.("matching-live-update"));
+
+    expect(onAvailabilityChange).toHaveBeenLastCalledWith(true);
+    expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
+  });
+
+  it("does not resubscribe when only the availability callback identity changes", async () => {
+    getState.mockResolvedValue({ success: true, state: completedState });
+    const { rerender } = render(
+      <WorkflowProgressPanel
+        mode="selected"
+        shaveId="selected-shave"
+        onAvailabilityChange={() => undefined}
+      />,
+    );
+
+    await screen.findByText("AI Workflow Progress");
+    rerender(
+      <WorkflowProgressPanel
+        mode="selected"
+        shaveId="selected-shave"
+        onAvailabilityChange={() => undefined}
+      />,
+    );
+
+    expect(onProgressNeo).toHaveBeenCalledTimes(1);
+    expect(getState).toHaveBeenCalledTimes(1);
   });
 
   it("selected live path: ignores a failed snapshot lookup after live progress arrives", async () => {
@@ -140,13 +173,13 @@ describe("WorkflowProgressPanel (#821)", () => {
       }),
     );
     parseMock.mockReturnValue({ shaveId: "selected-shave", state: completedState });
-    const onUnavailable = vi.fn();
+    const onAvailabilityChange = vi.fn();
 
     render(
       <WorkflowProgressPanel
         mode="selected"
         shaveId="selected-shave"
-        onUnavailable={onUnavailable}
+        onAvailabilityChange={onAvailabilityChange}
       />,
     );
 
@@ -161,7 +194,7 @@ describe("WorkflowProgressPanel (#821)", () => {
       });
     });
 
-    expect(onUnavailable).not.toHaveBeenCalled();
+    expect(onAvailabilityChange).not.toHaveBeenCalledWith(false);
     expect(toastError).not.toHaveBeenCalled();
     expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
   });

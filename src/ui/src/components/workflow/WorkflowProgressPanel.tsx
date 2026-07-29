@@ -1,6 +1,6 @@
 import { WORKFLOW_STAGE_ORDER, type WorkflowState } from "@shared/types/workflow";
 import { AlertTriangle, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "@/services/ipc-client";
 import { formatErrorMessage, isWorkflowFailed, parseWorkflowProgressNeoPayload } from "@/utils";
@@ -27,7 +27,7 @@ type WorkflowProgressPanelProps =
       mode: "selected";
       shaveId: string;
       hydratedState?: never;
-      onUnavailable: () => void;
+      onAvailabilityChange: (available: boolean) => void;
     }
   | { mode: "hydrated"; shaveId?: string; hydratedState: WorkflowState };
 
@@ -37,9 +37,12 @@ export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode
 
   const isHydrated = props.mode === "hydrated";
   const selectedShaveId = props.mode === "selected" ? props.shaveId : undefined;
-  const onUnavailable = props.mode === "selected" ? props.onUnavailable : undefined;
+  const onAvailabilityChange = props.mode === "selected" ? props.onAvailabilityChange : undefined;
   const hydratedState = props.mode === "hydrated" ? props.hydratedState : null;
   const hydratedShaveId = props.mode === "hydrated" ? props.shaveId : undefined;
+  const notifyAvailability = useEffectEvent((available: boolean) => {
+    onAvailabilityChange?.(available);
+  });
 
   useEffect(() => {
     // In hydrated (navigated) mode we render a persisted snapshot — don't subscribe to live events.
@@ -59,6 +62,7 @@ export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode
       }
       if (progress.state) {
         receivedLiveUpdate = true;
+        notifyAvailability(true);
         setLiveState(progress.state);
       }
       if (progress.shaveId) {
@@ -77,7 +81,7 @@ export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode
             setLiveState(result.state);
           }
           if (!result.success && result.reason === "not_found") {
-            onUnavailable?.();
+            notifyAvailability(false);
           } else if (!result.success) {
             toast.error("Failed to load workflow progress", { description: result.error });
           }
@@ -95,7 +99,7 @@ export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode
       cancelled = true;
       cleanup();
     };
-  }, [isHydrated, onUnavailable, selectedShaveId]);
+  }, [isHydrated, selectedShaveId]);
 
   const state = hydratedState ?? liveState;
   const shaveId = isHydrated ? hydratedShaveId : (liveShaveId ?? selectedShaveId);
