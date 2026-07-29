@@ -207,7 +207,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const [recordedVideo, setRecordedVideo] = useState<RecordedVideo | null>(null);
   const [duration, setDuration] = useState<number>(0);
   const [approvalMode, setApprovalMode] = useState<ToolApprovalMode>("ask");
-  const { saveRecording, checkExistingShave } = useShaveManager();
+  const { saveRecording } = useShaveManager();
   const { is360Mode, isSignedIn } = useCloud360Mode();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
@@ -430,20 +430,23 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     setUploadResult(null);
 
     try {
-      let shaveId: string | undefined;
-      const existingShaveId = await checkExistingShave(trimmedUrl);
-      if (existingShaveId) {
-        shaveId = existingShaveId;
-      } else {
-        const result = await saveRecording({
-          clientOrigin: "YakShaver Desktop",
-          title: "Untitled",
-          shaveStatus: ShaveStatus.Pending,
-          videoEmbedUrl: normalizeYouTubeUrl(trimmedUrl),
+      const result = await saveRecording({
+        clientOrigin: "YakShaver Desktop",
+        title: "Untitled",
+        shaveStatus: ShaveStatus.Pending,
+        videoEmbedUrl: normalizeYouTubeUrl(trimmedUrl),
+      });
+      if (!result.success || !result.data?.id) {
+        setUploadStatus(UploadStatus.ERROR);
+        setUploadResult({
+          success: false,
+          error: result.error || "Could not create a shave for this workflow",
         });
-        shaveId = result?.data?.id;
+        return;
       }
-      await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, shaveId);
+
+      navigateToWorkflow();
+      await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, result.data.id);
       setYoutubeUrl("");
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);
@@ -460,7 +463,6 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
       return;
     }
 
-    navigateToWorkflow();
     handleProcessYoutubeUrl();
     setYoutubeDialogOpen(false);
   };
