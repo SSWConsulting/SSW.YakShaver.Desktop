@@ -254,12 +254,12 @@ export class ProcessVideoIPCHandlers {
       IPC_CHANNELS.WORKFLOW_GET_STATE,
       async (_event, shaveId?: string): Promise<GetWorkflowStateResult> => {
         if (!shaveId) {
-          return { success: false, error: "Shave ID is required" };
+          return { success: false, reason: "invalid_request", error: "Shave ID is required" };
         }
 
         const workflowManager = this.workflowManagers.get(shaveId);
         if (!workflowManager) {
-          return { success: false, error: "Workflow not found" };
+          return { success: false, reason: "not_found", error: "Workflow not found" };
         }
 
         return { success: true, state: workflowManager.getState() };
@@ -391,6 +391,9 @@ export class ProcessVideoIPCHandlers {
     try {
       const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
       this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
+      // URL workflows may intentionally reuse a Shave ID. Clear the previous run's snapshot and
+      // checkpoints before broadcasting the new run. File workflows use a newly created Shave ID,
+      // so processFileVideo does not need the same reset.
       workflowManager.reset();
 
       workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);

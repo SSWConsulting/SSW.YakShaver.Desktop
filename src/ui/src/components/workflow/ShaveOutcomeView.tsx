@@ -48,10 +48,12 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
   const [shave, setShave] = useState<Shave | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [workflowUnavailable, setWorkflowUnavailable] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setWorkflowUnavailable(false);
     try {
       const result = await ipcClient.shave.getById(shaveId);
       if (!result.success || !result.data) {
@@ -70,6 +72,10 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
     load();
   }, [load]);
 
+  const handleWorkflowUnavailable = useCallback(() => {
+    setWorkflowUnavailable(true);
+  }, []);
+
   if (loading) {
     return <LoadingState />;
   }
@@ -86,10 +92,14 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
 
   const isActive =
     shave.shaveStatus === ShaveStatus.Pending || shave.shaveStatus === ShaveStatus.Processing;
-  if (isActive) {
+  if (isActive && !workflowUnavailable) {
     return (
       <>
-        <WorkflowProgressPanel mode="selected" shaveId={shaveId} />
+        <WorkflowProgressPanel
+          mode="selected"
+          shaveId={shaveId}
+          onUnavailable={handleWorkflowUnavailable}
+        />
         <FinalResultPanel selectedShaveId={shaveId} />
       </>
     );
@@ -122,6 +132,19 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
               {shave.errorCode && (
                 <p className="text-xs text-red-200/60 mt-1">Code: {shave.errorCode}</p>
               )}
+            </div>
+          )}
+
+          {isActive && (
+            <div className="rounded-md border border-white/15 bg-white/5 p-3">
+              <div className="flex items-center gap-2 text-white/80 font-medium">
+                <LoadingState inline className="h-4 w-4" />
+                This shave is still running
+              </div>
+              <p className="text-sm text-white/60 mt-1">
+                Live per-stage progress is not available in this app session. Check back once the
+                shave finishes.
+              </p>
             </div>
           )}
 

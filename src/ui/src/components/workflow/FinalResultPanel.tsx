@@ -790,6 +790,9 @@ export function FinalResultPanel({ selectedShaveId }: FinalResultPanelProps = {}
 
   useEffect(() => {
     if (selectedShaveId) {
+      // MCP step events do not include a shaveId, so consuming them here could mix another run's
+      // tool log into the selected Shave. Undo remains available with the persisted outputs and a
+      // conservative prompt when no run-scoped granular log can be identified.
       return;
     }
 

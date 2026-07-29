@@ -122,9 +122,6 @@ export function useShaveManager() {
       try {
         const result = await ipcClient.shave.create(shaveData, recordingFile, videoSource);
         if (!result.success) {
-          toast.error("Could not save to My Shaves", {
-            description: result.error || "The shave could not be created.",
-          });
           return result;
         }
 
@@ -135,9 +132,6 @@ export function useShaveManager() {
       } catch (error) {
         console.error("[Shave] Failed to save recording:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
-        toast.error("Could not save to My Shaves", {
-          description: "The shave could not be created.",
-        });
         return { success: false, error: errorMessage };
       }
     },

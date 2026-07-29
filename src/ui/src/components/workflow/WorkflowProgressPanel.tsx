@@ -23,7 +23,12 @@ const STEP_LABELS: Record<keyof WorkflowState, string> = {
 
 type WorkflowProgressPanelProps =
   | { mode?: "live"; shaveId?: never; hydratedState?: never }
-  | { mode: "selected"; shaveId: string; hydratedState?: never }
+  | {
+      mode: "selected";
+      shaveId: string;
+      hydratedState?: never;
+      onUnavailable: () => void;
+    }
   | { mode: "hydrated"; shaveId?: string; hydratedState: WorkflowState };
 
 export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode: "live" }) {
@@ -32,6 +37,7 @@ export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode
 
   const isHydrated = props.mode === "hydrated";
   const selectedShaveId = props.mode === "selected" ? props.shaveId : undefined;
+  const onUnavailable = props.mode === "selected" ? props.onUnavailable : undefined;
   const hydratedState = props.mode === "hydrated" ? props.hydratedState : null;
   const hydratedShaveId = props.mode === "hydrated" ? props.shaveId : undefined;
 
@@ -64,15 +70,20 @@ export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode
       void ipcClient.workflow
         .getState(selectedShaveId)
         .then((result) => {
-          if (!cancelled && !receivedLiveUpdate && result.success && result.state) {
+          if (cancelled || receivedLiveUpdate) {
+            return;
+          }
+          if (result.success && result.state) {
             setLiveState(result.state);
           }
-          if (!cancelled && !result.success) {
+          if (!result.success && result.reason === "not_found") {
+            onUnavailable?.();
+          } else if (!result.success) {
             toast.error("Failed to load workflow progress", { description: result.error });
           }
         })
         .catch((error) => {
-          if (!cancelled) {
+          if (!cancelled && !receivedLiveUpdate) {
             toast.error("Failed to load workflow progress", {
               description: formatErrorMessage(error),
             });
@@ -84,7 +95,7 @@ export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode
       cancelled = true;
       cleanup();
     };
-  }, [isHydrated, selectedShaveId]);
+  }, [isHydrated, onUnavailable, selectedShaveId]);
 
   const state = hydratedState ?? liveState;
   const shaveId = isHydrated ? hydratedShaveId : (liveShaveId ?? selectedShaveId);

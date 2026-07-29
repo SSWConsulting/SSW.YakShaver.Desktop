@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ShaveStatus } from "../../types";
 import { parseFinalOutput, ShaveOutcomeView } from "./ShaveOutcomeView";
@@ -9,8 +9,21 @@ vi.mock("../../services/ipc-client", () => ({
 }));
 // The nested panel subscribes to electronAPI; stub it out for this view's tests.
 vi.mock("./WorkflowProgressPanel", () => ({
-  WorkflowProgressPanel: ({ shaveId }: { shaveId?: string }) => (
-    <div>{shaveId ? `workflow-progress:${shaveId}` : "workflow-progress"}</div>
+  WorkflowProgressPanel: ({
+    shaveId,
+    onUnavailable,
+  }: {
+    shaveId?: string;
+    onUnavailable?: () => void;
+  }) => (
+    <div>
+      {shaveId ? `workflow-progress:${shaveId}` : "workflow-progress"}
+      {onUnavailable && (
+        <button type="button" onClick={onUnavailable}>
+          Simulate unavailable workflow
+        </button>
+      )}
+    </div>
   ),
 }));
 vi.mock("./FinalResultPanel", () => ({
@@ -47,6 +60,27 @@ describe("ShaveOutcomeView (#821 / #888 review)", () => {
     expect(await screen.findByText("workflow-progress:s1")).toBeInTheDocument();
     expect(screen.getByText("final-result:s1")).toBeInTheDocument();
     expect(screen.queryByText("This shave is still running")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ShaveStatus.Pending,
+    ShaveStatus.Processing,
+  ])("falls back to the persisted running card when %s live workflow state is unavailable", async (shaveStatus) => {
+    getById.mockResolvedValue({
+      success: true,
+      data: shave({ shaveStatus }),
+    });
+
+    render(<ShaveOutcomeView shaveId="s1" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Simulate unavailable workflow" }));
+
+    expect(await screen.findByText("This shave is still running")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Live per-stage progress is not available in this app session/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("workflow-progress:s1")).not.toBeInTheDocument();
+    expect(screen.queryByText("final-result:s1")).not.toBeInTheDocument();
   });
 
   it("shows the failure details for a Failed shave", async () => {
