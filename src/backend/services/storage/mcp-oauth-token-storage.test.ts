@@ -43,4 +43,20 @@ describe("McpOAuthTokenStorage.completeOAuthAsync (#771)", () => {
     expect(saveTokens).toHaveBeenCalledOnce();
     expect(storedTokens?.access_token).toBe(FIRST_TOKENS.access_token);
   });
+
+  it("does not replace tokens when a later OAuth result completes sequentially", async () => {
+    let storedTokens: StoredOAuthTokens | undefined;
+    vi.spyOn(storage, "getTokensAsync").mockImplementation(async () => storedTokens);
+    const saveTokens = vi
+      .spyOn(storage, "saveTokensAsync")
+      .mockImplementation(async (_serverId, tokens) => {
+        storedTokens = { ...tokens, storedAt: Date.now() };
+      });
+
+    await expect(storage.completeOAuthAsync("server-1", FIRST_TOKENS)).resolves.toBe(true);
+    await expect(storage.completeOAuthAsync("server-1", LATE_TOKENS)).resolves.toBe(false);
+
+    expect(saveTokens).toHaveBeenCalledOnce();
+    expect(storedTokens?.access_token).toBe(FIRST_TOKENS.access_token);
+  });
 });

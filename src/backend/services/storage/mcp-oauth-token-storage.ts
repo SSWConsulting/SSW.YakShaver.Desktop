@@ -101,6 +101,10 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
     this.events.emit(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, serverId);
   }
 
+  /**
+   * Stores the first successful OAuth result. Existing credentials always win, so callers must
+   * clear the server's tokens before starting an intentional reauthorization.
+   */
   async completeOAuthAsync(serverId: string, tokens: OAuthTokens): Promise<boolean> {
     const inFlightCompletion = this.oauthCompletions.get(serverId);
     if (inFlightCompletion) {

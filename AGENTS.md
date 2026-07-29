@@ -442,7 +442,7 @@ All encrypted credential storage extends `BaseSecureStorage` (which uses Electro
 GitHub and Azure DevOps MCP OAuth keep the original server URL and backend-issued `state` in
 memory, then poll `/mcp/auth/result` while retaining the custom-protocol Deep Link callback. Both
 paths complete through `McpOAuthTokenStorage.completeOAuthAsync()` so only the first result is
-stored. Polling stops after five minutes, matching the backend result lifetime.
+stored. Polling uses the configured OAuth timeout; backend results expire after five minutes.
 
 #### Database Service Pattern (Functions, Not Classes)
 

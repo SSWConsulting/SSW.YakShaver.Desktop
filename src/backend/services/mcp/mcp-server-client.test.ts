@@ -126,18 +126,22 @@ describe("MCPServerClient.createClientAsync — token refresh failure handling (
 
 describe("MCPServerClient.createClientAsync — recoverable OAuth (#771)", () => {
   it("uses the backend's five-minute OAuth result lifetime by default", async () => {
+    const knownOAuthServer = {
+      ...SERVER_CONFIG,
+      url: "https://api.githubcopilot.com/mcp/",
+    } satisfies MCPServerConfig;
     mocks.mockStorage.getTokensAsync
       .mockResolvedValueOnce(undefined)
       .mockResolvedValue({ ...EXPIRED_TOKENS, access_token: "fresh-access" });
     mocks.authorize.mockResolvedValue(undefined);
 
-    await MCPServerClient.createClientAsync(SERVER_CONFIG);
+    await MCPServerClient.createClientAsync(knownOAuthServer);
 
     expect(mocks.authorize).toHaveBeenCalledWith(
       mocks.mockStorage,
-      SERVER_CONFIG.url,
-      SERVER_CONFIG.id,
-      5 * 60 * 1000,
+      knownOAuthServer.url,
+      knownOAuthServer.id,
+      { provider: "github", timeoutMs: 5 * 60 * 1000 },
     );
   });
 
@@ -156,6 +160,28 @@ describe("MCPServerClient.createClientAsync — recoverable OAuth (#771)", () =>
     );
 
     expect(mocks.createMcpClient).not.toHaveBeenCalled();
+  });
+
+  it("falls back to an explicit Authorization header for a known OAuth server", async () => {
+    const headerAuthenticatedServer = {
+      ...SERVER_CONFIG,
+      url: "https://api.githubcopilot.com/mcp/",
+      headers: { authorization: "Bearer configured-token" },
+    } satisfies MCPServerConfig;
+    mocks.mockStorage.getTokensAsync.mockResolvedValue(undefined);
+    mocks.authorize.mockRejectedValue(new Error("OAuth backend is unavailable"));
+
+    await expect(
+      MCPServerClient.createClientAsync(headerAuthenticatedServer),
+    ).resolves.toBeDefined();
+
+    expect(mocks.createMcpClient).toHaveBeenCalledWith({
+      transport: {
+        type: "http",
+        url: headerAuthenticatedServer.url,
+        headers: headerAuthenticatedServer.headers,
+      },
+    });
   });
 
   it("falls back to explicit headers when a custom HTTP server does not support OAuth", async () => {
@@ -204,7 +230,28 @@ describe("MCPServerClient.createClientAsync — recoverable OAuth (#771)", () =>
   });
 
   it("falls back to the default timeout when MCP_AUTH_TIMEOUT_MS is invalid", async () => {
+    const knownOAuthServer = {
+      ...SERVER_CONFIG,
+      url: "https://api.githubcopilot.com/mcp/",
+    } satisfies MCPServerConfig;
     process.env.MCP_AUTH_TIMEOUT_MS = "not-a-number";
+    mocks.mockStorage.getTokensAsync
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue({ ...EXPIRED_TOKENS, access_token: "fresh-access" });
+    mocks.authorize.mockResolvedValue(undefined);
+
+    await MCPServerClient.createClientAsync(knownOAuthServer);
+
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      mocks.mockStorage,
+      knownOAuthServer.url,
+      knownOAuthServer.id,
+      { provider: "github", timeoutMs: 5 * 60 * 1000 },
+    );
+  });
+
+  it("honors an explicit timeout for a legacy OAuth server", async () => {
+    process.env.MCP_AUTH_TIMEOUT_MS = "180000";
     mocks.mockStorage.getTokensAsync
       .mockResolvedValueOnce(undefined)
       .mockResolvedValue({ ...EXPIRED_TOKENS, access_token: "fresh-access" });
@@ -216,7 +263,7 @@ describe("MCPServerClient.createClientAsync — recoverable OAuth (#771)", () =>
       mocks.mockStorage,
       SERVER_CONFIG.url,
       SERVER_CONFIG.id,
-      5 * 60 * 1000,
+      { timeoutMs: 180_000 },
     );
   });
 });

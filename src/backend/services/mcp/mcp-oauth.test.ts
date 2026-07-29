@@ -36,6 +36,7 @@ import {
   McpTokenRefreshError,
   refreshTokenWithBackend,
   refreshTokenWithBackendWithRetry,
+  resolveMcpOAuthTimeoutMs,
 } from "./mcp-oauth";
 
 const TOKENS = {
@@ -107,6 +108,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -160,7 +162,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
         headers: expect.objectContaining({ Authorization: "Bearer portal-access-token" }),
       }),
     );
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
   });
 
   it("includes backend problem details when starting OAuth fails", async () => {
@@ -196,6 +198,42 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     expect(shell.openExternal).not.toHaveBeenCalled();
   });
 
+  it("surfaces a browser launch failure without leaving an unhandled rejection", async () => {
+    const unhandledRejections: unknown[] = [];
+    const collectUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
+    process.on("unhandledRejection", collectUnhandledRejection);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
+          state: "oauth-state",
+        }),
+      )
+      .mockResolvedValue(jsonResponse(202, {}));
+    vi.stubGlobal("fetch", fetchMock);
+    const { storage } = createTokenStorage();
+    vi.mocked(shell.openExternal).mockRejectedValue(
+      new Error("No application is registered to open this URL"),
+    );
+
+    try {
+      await expect(
+        authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
+          provider: "github",
+          pollIntervalMs: 1,
+          timeoutMs: 100,
+        }),
+      ).rejects.toThrow("No application is registered to open this URL");
+
+      // Node reports unhandled rejections a macrotask after the aborts in `finally` land.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandledRejections).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", collectUnhandledRejection);
+    }
+  });
+
   it("reports request timeouts without blaming the backend or SSL certificate", async () => {
     const timeoutError = new Error("The operation was aborted due to timeout");
     timeoutError.name = "TimeoutError";
@@ -219,7 +257,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     expect(error.message).not.toContain("SSL certificate");
   });
 
-  it("caps legacy deep-link-only OAuth waits at 60 seconds", async () => {
+  it("defaults legacy deep-link-only OAuth waits to 60 seconds", async () => {
     vi.useFakeTimers();
     vi.stubGlobal(
       "fetch",
@@ -248,7 +286,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     expect(error.message).toContain("timed out");
   });
 
-  it("stops polling when the deep-link callback completes first", async () => {
+  it("consumes the backend result when the deep-link callback completes first", async () => {
     vi.useFakeTimers();
     const fetchMock = vi
       .fn()
@@ -258,7 +296,8 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
           state: "oauth-state",
         }),
       )
-      .mockResolvedValue(jsonResponse(202, {}));
+      .mockResolvedValueOnce(jsonResponse(202, {}))
+      .mockResolvedValueOnce(jsonResponse(200, TOKENS));
     vi.stubGlobal("fetch", fetchMock);
     const { storage } = createTokenStorage();
     vi.mocked(shell.openExternal).mockImplementation(async () => {
@@ -274,9 +313,53 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       }),
     ).resolves.toEqual(TOKENS);
 
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining("/mcp/auth/result?"),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        headers: expect.objectContaining({ Authorization: "Bearer portal-access-token" }),
+      }),
+    );
     const requestsWhenCompleted = fetchMock.mock.calls.length;
     await vi.advanceTimersByTimeAsync(50);
     expect(fetchMock).toHaveBeenCalledTimes(requestsWhenCompleted);
+  });
+
+  it("keeps successful deep-link tokens when final result consumption fails", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
+          state: "oauth-state",
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(202, {}))
+      .mockResolvedValueOnce(jsonResponse(500, { error: "temporarily unavailable" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { storage } = createTokenStorage();
+    vi.mocked(shell.openExternal).mockImplementation(async () => {
+      await storage.saveTokensAsync("server-1", TOKENS);
+    });
+
+    await expect(
+      authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
+        provider: "github",
+        pollIntervalMs: 10,
+        timeoutMs: 100,
+      }),
+    ).resolves.toEqual(TOKENS);
+
+    await vi.waitFor(() =>
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[McpOAuth] Failed to consume the backend OAuth result after Deep Link completion:",
+        expect.any(Error),
+      ),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("recovers after transient result polling failures", async () => {
@@ -305,6 +388,65 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     expect(shell.openExternal).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(getStoredTokens()).toEqual(TOKENS);
+  });
+
+  it("retries local persistence without fetching an already-consumed result again", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
+          state: "oauth-state",
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, TOKENS));
+    vi.stubGlobal("fetch", fetchMock);
+    const { storage, completeOAuthAsync, getStoredTokens } = createTokenStorage();
+    completeOAuthAsync.mockRejectedValueOnce(new Error("Safe storage is temporarily unavailable"));
+
+    await expect(
+      authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
+        provider: "github",
+        pollIntervalMs: 1,
+        timeoutMs: 100,
+      }),
+    ).resolves.toEqual(TOKENS);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(completeOAuthAsync).toHaveBeenCalledTimes(2);
+    expect(getStoredTokens()).toEqual(TOKENS);
+  });
+
+  it("resets polling backoff after successfully consuming the backend result", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
+          state: "oauth-state",
+        }),
+      )
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(jsonResponse(200, TOKENS));
+    vi.stubGlobal("fetch", fetchMock);
+    const { storage, completeOAuthAsync } = createTokenStorage();
+    completeOAuthAsync.mockRejectedValueOnce(new Error("Safe storage is temporarily unavailable"));
+
+    await expect(
+      authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
+        provider: "github",
+        pollIntervalMs: 2,
+        timeoutMs: 100,
+      }),
+    ).resolves.toEqual(TOKENS);
+
+    expect(warnSpy.mock.calls.map(([message]) => message)).toEqual([
+      "[McpOAuth] OAuth result recovery failed transiently; retrying in 2ms:",
+      "[McpOAuth] OAuth result recovery failed transiently; retrying in 2ms:",
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(completeOAuthAsync).toHaveBeenCalledTimes(2);
   });
 
   it("retries when the portal access token is temporarily unavailable", async () => {
@@ -369,7 +511,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     );
   });
 
-  it("stops polling and asks the user to reconnect when the state is expired or consumed", async () => {
+  it("reports an expired or consumed state when the deep-link never arrives", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -388,6 +530,32 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
         timeoutMs: 100,
       }),
     ).rejects.toThrow("Reconnect the MCP server");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the deep-link active when the result endpoint returns 404", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
+          state: "oauth-state",
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(404, {}));
+    vi.stubGlobal("fetch", fetchMock);
+    const { storage } = createTokenStorage();
+    vi.mocked(shell.openExternal).mockImplementation(async () => {
+      setTimeout(() => void storage.saveTokensAsync("server-1", TOKENS), 10);
+    });
+
+    await expect(
+      authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
+        pollIntervalMs: 1,
+        timeoutMs: 100,
+      }),
+    ).resolves.toEqual(TOKENS);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -505,6 +673,18 @@ describe("inferMcpOAuthProvider", () => {
   });
 });
 
+describe("resolveMcpOAuthTimeoutMs", () => {
+  it("uses provider-specific defaults", () => {
+    expect(resolveMcpOAuthTimeoutMs("github")).toBe(5 * 60 * 1000);
+    expect(resolveMcpOAuthTimeoutMs("azure-devops")).toBe(5 * 60 * 1000);
+    expect(resolveMcpOAuthTimeoutMs(undefined)).toBe(60 * 1000);
+  });
+
+  it("honors an explicit timeout for legacy servers", () => {
+    expect(resolveMcpOAuthTimeoutMs(undefined, 180_000)).toBe(180_000);
+  });
+});
+
 describe("extractUpstreamOAuthErrorCode — pulling the upstream code out of the backend wrapper", () => {
   it("extracts invalid_grant from the real wrapped JSON body", () => {
     expect(
@@ -543,8 +723,10 @@ describe("extractUpstreamOAuthErrorCode — pulling the upstream code out of the
 });
 
 describe("refreshTokenWithBackend — failure classification (#836)", () => {
-  beforeEach(() => vi.restoreAllMocks());
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it("returns the new tokens on success", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, TOKENS)));

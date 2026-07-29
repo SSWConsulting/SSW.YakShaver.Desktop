@@ -47,6 +47,7 @@ const LEGACY_AUTH_TIMEOUT_MS = 60 * 1000;
 const DEFAULT_POLL_INTERVAL_MS = 1500;
 const MAX_POLL_RETRY_DELAY_MS = 10_000;
 const MCP_OAUTH_REQUEST_TIMEOUT_MS = 30_000;
+const FINAL_RESULT_CONSUMPTION_TIMEOUT_MS = 5_000;
 const GITHUB_MCP_HOST = "api.githubcopilot.com";
 const AZURE_DEVOPS_HOSTS = ["dev.azure.com", "visualstudio.com"] as const;
 
@@ -193,6 +194,21 @@ export function inferMcpOAuthProvider(serverUrl: string): McpOAuthProvider | und
   }
 
   return undefined;
+}
+
+export function resolveMcpOAuthTimeoutMs(
+  provider: McpOAuthProvider | undefined,
+  configuredTimeoutMs?: number,
+): number {
+  if (
+    configuredTimeoutMs !== undefined &&
+    Number.isFinite(configuredTimeoutMs) &&
+    configuredTimeoutMs > 0
+  ) {
+    return configuredTimeoutMs;
+  }
+
+  return provider ? DEFAULT_MCP_AUTH_TIMEOUT_MS : LEGACY_AUTH_TIMEOUT_MS;
 }
 
 async function getPortalAccessToken(): Promise<string> {
@@ -349,6 +365,27 @@ async function getRecoverableOAuthResult(
   return parseOAuthTokens(data);
 }
 
+async function consumeRecoverableOAuthResultAfterDeepLink(
+  serverUrl: string,
+  state: string,
+): Promise<void> {
+  try {
+    const accessToken = await getPortalAccessToken();
+    await getRecoverableOAuthResult(
+      serverUrl,
+      state,
+      accessToken,
+      AbortSignal.timeout(FINAL_RESULT_CONSUMPTION_TIMEOUT_MS),
+    );
+  } catch (error) {
+    // The Deep Link already persisted the tokens. This request only consumes the backend copy.
+    console.warn(
+      "[McpOAuth] Failed to consume the backend OAuth result after Deep Link completion:",
+      error,
+    );
+  }
+}
+
 function isTerminalOAuthResultError(error: unknown): boolean {
   return (
     (error instanceof McpOAuthResultError &&
@@ -385,16 +422,41 @@ async function pollRecoverableOAuthResult(
   timeoutMs: number,
   pollIntervalMs: number,
   signal: AbortSignal,
+  onResultConsumed: () => void,
 ): Promise<OAuthTokens> {
   const deadline = Date.now() + timeoutMs;
   let consecutiveFailures = 0;
+  let pendingTokens: OAuthTokens | undefined;
 
   while (Date.now() < deadline && !signal.aborted) {
-    let tokens: OAuthTokens | undefined;
     try {
-      const currentAccessToken = await getPortalAccessToken();
-      tokens = await getRecoverableOAuthResult(serverUrl, state, currentAccessToken, signal);
-      consecutiveFailures = 0;
+      if (!pendingTokens) {
+        const currentAccessToken = await getPortalAccessToken();
+        pendingTokens = await getRecoverableOAuthResult(
+          serverUrl,
+          state,
+          currentAccessToken,
+          signal,
+        );
+        consecutiveFailures = 0;
+        if (pendingTokens) {
+          onResultConsumed();
+        }
+      }
+
+      if (pendingTokens) {
+        const completed = await tokenStorage.completeOAuthAsync(serverId, pendingTokens);
+        if (completed) {
+          return pendingTokens;
+        }
+
+        const previouslyCompletedTokens = await tokenStorage.getTokensAsync(serverId);
+        if (previouslyCompletedTokens) {
+          return previouslyCompletedTokens;
+        }
+
+        throw new Error("MCP OAuth completion did not leave tokens in storage");
+      }
     } catch (error) {
       if (signal.aborted || isTerminalOAuthResultError(error)) {
         throw error;
@@ -406,7 +468,7 @@ async function pollRecoverableOAuthResult(
         MAX_POLL_RETRY_DELAY_MS,
       );
       console.warn(
-        `[McpOAuth] OAuth result polling failed transiently; retrying in ${retryDelayMs}ms:`,
+        `[McpOAuth] OAuth result recovery failed transiently; retrying in ${retryDelayMs}ms:`,
         error,
       );
       const remainingMs = Math.max(0, deadline - Date.now());
@@ -414,17 +476,6 @@ async function pollRecoverableOAuthResult(
       continue;
     }
 
-    if (tokens) {
-      const completed = await tokenStorage.completeOAuthAsync(serverId, tokens);
-      if (completed) {
-        return tokens;
-      }
-
-      const previouslyCompletedTokens = await tokenStorage.getTokensAsync(serverId);
-      if (previouslyCompletedTokens) {
-        return previouslyCompletedTokens;
-      }
-    }
     await delayUntilNextPoll(pollIntervalMs, signal);
   }
 
@@ -434,7 +485,7 @@ async function pollRecoverableOAuthResult(
 /**
  * Gets the authorization URL from the .NET backend for an MCP server.
  */
-export async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
+async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
   const data = await requestMcpOAuthStart(serverUrl, serverId);
   if (!isRecord(data)) {
     throw new Error("MCP OAuth start response was invalid");
@@ -445,10 +496,10 @@ export async function getAuthUrlFromBackend(serverUrl: string, serverId: string)
 /**
  * Waits for tokens to be available for a given server ID using an event-driven approach.
  */
-export async function waitForTokens(
+async function waitForTokens(
   tokenStorage: McpOAuthTokenStorage,
   serverId: string,
-  timeoutMs: number = LEGACY_AUTH_TIMEOUT_MS,
+  timeoutMs: number,
   signal?: AbortSignal,
 ): Promise<OAuthTokens> {
   if (signal?.aborted) {
@@ -516,9 +567,6 @@ export async function waitForTokens(
 }
 
 /**
- * Initiates the OAuth flow using the .NET backend.
- */
-/**
  * De-duplicates concurrent OAuth authorizations by serverId. Without this, a
  * single Reauthorize (which clears the token) races the health-check and
  * list-tools paths — each rediscovers "no token" and opens its own browser tab,
@@ -530,22 +578,23 @@ async function authorizeWithBackendOnce(
   tokenStorage: McpOAuthTokenStorage,
   serverUrl: string,
   serverId: string,
-  options: number | McpOAuthAuthorizeOptions = {},
+  options: McpOAuthAuthorizeOptions,
 ): Promise<OAuthTokens> {
-  const normalizedOptions = typeof options === "number" ? { timeoutMs: options } : options;
-  const timeoutMs = normalizedOptions.timeoutMs ?? DEFAULT_MCP_AUTH_TIMEOUT_MS;
-  const provider = normalizedOptions.provider ?? inferMcpOAuthProvider(serverUrl);
+  const provider = options.provider ?? inferMcpOAuthProvider(serverUrl);
+  const timeoutMs = resolveMcpOAuthTimeoutMs(provider, options.timeoutMs);
 
   if (!provider) {
     const authUrl = await getAuthUrlFromBackend(serverUrl, serverId);
     await shell.openExternal(authUrl);
-    return waitForTokens(tokenStorage, serverId, Math.min(timeoutMs, LEGACY_AUTH_TIMEOUT_MS));
+    return waitForTokens(tokenStorage, serverId, timeoutMs);
   }
 
   const accessToken = await getPortalAccessToken();
+  // Recovery state is intentionally in-memory; restarting the app requires restarting OAuth.
   const session = await startRecoverableOAuth(serverUrl, serverId, provider, accessToken);
   const pollingAbortController = new AbortController();
   const deepLinkAbortController = new AbortController();
+  let backendResultConsumed = false;
   const deepLinkTokens = waitForTokens(
     tokenStorage,
     serverId,
@@ -558,8 +607,11 @@ async function authorizeWithBackendOnce(
     serverId,
     session.state,
     timeoutMs,
-    normalizedOptions.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
+    options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
     pollingAbortController.signal,
+    () => {
+      backendResultConsumed = true;
+    },
   );
   const deepLinkCompletion = deepLinkTokens.then((tokens) => ({
     source: "deep-link" as const,
@@ -567,13 +619,13 @@ async function authorizeWithBackendOnce(
   }));
   const pollingCompletion = polledTokens.then(
     (tokens) => ({ source: "polling" as const, tokens }),
-    (error: unknown) => {
-      if (isTerminalOAuthResultError(error)) {
-        throw error;
-      }
-      return { source: "polling-error" as const, error };
-    },
+    (error: unknown) => ({ source: "polling-error" as const, error }),
   );
+  // `Promise.race` below is the only consumer of `deepLinkCompletion`. When `shell.openExternal`
+  // rejects (no handler registered for the URL) we never reach it, yet `finally` still aborts the
+  // Deep Link wait — rejecting an unobserved promise. Node treats that as an unhandled rejection
+  // and would take down the Electron main process instead of surfacing the launch failure.
+  deepLinkCompletion.catch(() => undefined);
 
   try {
     await shell.openExternal(session.authorizationUrl);
@@ -584,7 +636,20 @@ async function authorizeWithBackendOnce(
         completion.error,
       );
       pollingAbortController.abort();
-      return await deepLinkTokens;
+      try {
+        return await deepLinkTokens;
+      } catch (deepLinkError) {
+        if (isTerminalOAuthResultError(completion.error)) {
+          throw completion.error;
+        }
+        throw deepLinkError;
+      }
+    }
+    if (completion.source === "deep-link") {
+      pollingAbortController.abort();
+      if (!backendResultConsumed) {
+        void consumeRecoverableOAuthResultAfterDeepLink(serverUrl, session.state);
+      }
     }
     return completion.tokens;
   } finally {
@@ -597,7 +662,7 @@ export async function authorizeWithBackend(
   tokenStorage: McpOAuthTokenStorage,
   serverUrl: string,
   serverId: string,
-  options: number | McpOAuthAuthorizeOptions = {},
+  options: McpOAuthAuthorizeOptions = {},
 ): Promise<OAuthTokens> {
   const existing = inFlightAuthorizations.get(serverId);
   if (existing) return existing;
