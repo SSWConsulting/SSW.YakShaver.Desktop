@@ -43,6 +43,8 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
 
     // The declined/error result pages ping back with `error` and no tokens, so the waiting
     // authorization can fail immediately instead of hanging until it times out (#965).
+    // No attempt id: a stale tab is scoped by `serverId` and goes quiet once the backend's
+    // 5-minute OAuth state expires, leaving its result page without a deep link.
     if (authError) {
       console.warn("[ProtocolRouter] MCP OAuth callback reported failure", {
         serverId,
@@ -140,6 +142,8 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
 
     // Mirrors the MCP branch above: the declined/error result pages ping back with `error` and no
     // tokens, so the waiting authorization fails immediately rather than hanging (#965).
+    // Global signal (one YouTube binding, so nothing to scope by); a stale tab is bounded only
+    // by the backend's 5-minute OAuth state expiry.
     if (authError) {
       console.warn("[ProtocolRouter] YouTube OAuth callback reported failure", { authError });
       YoutubeStorage.getInstance().notifyAuthFailed();
