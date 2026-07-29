@@ -58,4 +58,4 @@ export interface WorkflowProgressNeoPayload {
 
 export type GetWorkflowStateResult =
   | { success: true; state: WorkflowState }
-  | { success: false; error: string };
+  | { success: false; reason: "invalid_request" | "not_found"; error: string };

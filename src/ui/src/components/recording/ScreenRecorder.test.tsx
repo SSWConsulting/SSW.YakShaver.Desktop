@@ -27,6 +27,15 @@ const state = vi.hoisted(() => ({
   stopRequestHandler: null as ((...args: unknown[]) => void) | null,
 }));
 
+const { toastError, toastWarning } = vi.hoisted(() => ({
+  toastError: vi.fn(),
+  toastWarning: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: toastError, warning: toastWarning },
+}));
+
 vi.mock("../../contexts/AdvancedSettingsContext", () => ({
   useAdvancedSettings: () => ({
     isYoutubeUrlWorkflowEnabled: state.isYoutubeUrlWorkflowEnabled,
@@ -341,7 +350,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     await waitFor(() => expect(state.checkExistingShave).toHaveBeenCalledWith(youtubeUrl));
     expect(state.updateShaveStatus).toHaveBeenCalledWith("existing-shave", ShaveStatus.Processing);
     expect(state.saveRecording).not.toHaveBeenCalled();
-    expect(state.navigateToWorkflow).toHaveBeenCalledTimes(1);
+    expect(state.navigateToWorkflow).toHaveBeenCalledWith({ shaveId: "existing-shave" });
     expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalledWith(
       youtubeUrl,
       "existing-shave",
@@ -370,6 +379,26 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     await waitFor(() => expect(state.saveRecording).toHaveBeenCalledTimes(1));
     expect(state.navigateToWorkflow).not.toHaveBeenCalled();
     expect(window.electronAPI.pipelines.processVideoUrl).not.toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("explains that recording processing continues when saving to My Shaves fails", async () => {
+    state.saveRecording.mockResolvedValue({ success: false, error: "Database unavailable" });
+
+    render(<ScreenRecorder showButtonOnly />);
+
+    await act(async () => state.stopRequestHandler?.());
+    fireEvent.click(await screen.findByTestId("continue-recording"));
+
+    await waitFor(() => expect(window.electronAPI.pipelines.processVideoFile).toHaveBeenCalled());
+    expect(toastError).toHaveBeenCalledWith("Could not save to My Shaves", {
+      description: "Video processing will continue, but we couldn't save this shave to My Shaves.",
+    });
+    expect(window.electronAPI.pipelines.processVideoFile).toHaveBeenCalledWith(
+      "/tmp/rec.webm",
+      undefined,
+      false,
+    );
   });
 
   it("keeps the Process YouTube link enabled while a URL submit is still pending", async () => {

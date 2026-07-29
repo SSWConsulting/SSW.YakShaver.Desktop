@@ -191,7 +191,7 @@ function RecordButton({
 }
 
 export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
-  const navigateToWorkflow = useWorkflowNavigation({ listen: false });
+  const navigateToWorkflow = useWorkflowNavigation();
   const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
@@ -390,6 +390,12 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
         },
       );
       const newShave = result?.data;
+      if (!result.success) {
+        toast.error("Could not save to My Shaves", {
+          description:
+            "Video processing will continue, but we couldn't save this shave to My Shaves.",
+        });
+      }
       if (!newShave?.id && shaveAutoApprove) {
         toast.warning(
           "Auto-approve is unavailable — shave record could not be created. You will be prompted for confirmations.",
@@ -459,8 +465,9 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
         shaveId = result.data.id;
       }
 
-      navigateToWorkflow();
-      await window.electronAPI.pipelines.processVideoUrl(trimmedUrl, shaveId);
+      const processing = window.electronAPI.pipelines.processVideoUrl(trimmedUrl, shaveId);
+      navigateToWorkflow({ shaveId });
+      await processing;
       setYoutubeUrl("");
     } catch (error) {
       setUploadStatus(UploadStatus.ERROR);

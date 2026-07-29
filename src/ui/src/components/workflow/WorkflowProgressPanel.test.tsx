@@ -36,13 +36,21 @@ const { getState, onProgressNeo, progressCallbacks } = vi.hoisted(() => {
   };
 });
 
+const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
+
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
+
 vi.mock("@/services/ipc-client", () => ({
   ipcClient: { workflow: { getState, onProgressNeo } },
 }));
 
 beforeEach(() => {
   progressCallbacks.length = 0;
-  getState.mockResolvedValue({ success: false, error: "Workflow not found" });
+  getState.mockResolvedValue({
+    success: false,
+    reason: "not_found",
+    error: "Workflow not found",
+  });
 });
 
 afterEach(() => {
@@ -87,7 +95,9 @@ describe("WorkflowProgressPanel (#821)", () => {
         : { shaveId: "other-shave", state: matchingState },
     );
 
-    render(<WorkflowProgressPanel mode="selected" shaveId="selected-shave" />);
+    render(
+      <WorkflowProgressPanel mode="selected" shaveId="selected-shave" onUnavailable={vi.fn()} />,
+    );
 
     expect((await screen.findByText("Uploading Video")).parentElement).toHaveTextContent(
       "Uploading Videocompleted",
@@ -103,5 +113,56 @@ describe("WorkflowProgressPanel (#821)", () => {
     expect(screen.getByText("Uploading Video").parentElement).toHaveTextContent(
       "Uploading Videoin_progress",
     );
+  });
+
+  it("selected live path: reports an unavailable in-memory workflow without an error toast", async () => {
+    const onUnavailable = vi.fn();
+
+    render(
+      <WorkflowProgressPanel
+        mode="selected"
+        shaveId="missing-shave"
+        onUnavailable={onUnavailable}
+      />,
+    );
+
+    await vi.waitFor(() => expect(onUnavailable).toHaveBeenCalledTimes(1));
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("selected live path: ignores a failed snapshot lookup after live progress arrives", async () => {
+    let resolveGetState:
+      | ((result: { success: false; reason: "not_found"; error: string }) => void)
+      | undefined;
+    getState.mockReturnValue(
+      new Promise((resolve) => {
+        resolveGetState = resolve;
+      }),
+    );
+    parseMock.mockReturnValue({ shaveId: "selected-shave", state: completedState });
+    const onUnavailable = vi.fn();
+
+    render(
+      <WorkflowProgressPanel
+        mode="selected"
+        shaveId="selected-shave"
+        onUnavailable={onUnavailable}
+      />,
+    );
+
+    act(() => progressCallbacks[0]?.("matching"));
+    expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveGetState?.({
+        success: false,
+        reason: "not_found",
+        error: "Workflow not found",
+      });
+    });
+
+    expect(onUnavailable).not.toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
+    expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
   });
 });

@@ -84,9 +84,4 @@ describe("Layout (#998 Shaves page keeps switching back to in-progress workflow)
     expect(screen.getByText("Shave Outcome Page")).toBeInTheDocument();
     expect(screen.queryByText("Workflow Page")).not.toBeInTheDocument();
   });
-
-  it("no longer subscribes to workflow progress events at all", () => {
-    renderAppShell("/");
-    expect(onProgressNeo).not.toHaveBeenCalled();
-  });
 });
