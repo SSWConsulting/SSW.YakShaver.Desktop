@@ -1,5 +1,5 @@
 import type { OAuthTokens } from "@ai-sdk/mcp";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { McpOAuthTokenStorage, type StoredOAuthTokens } from "./mcp-oauth-token-storage";
 
 vi.mock("electron", () => ({
@@ -21,7 +21,7 @@ const LATE_TOKENS: OAuthTokens = {
 describe("McpOAuthTokenStorage.completeOAuthAsync (#771)", () => {
   const storage = McpOAuthTokenStorage.getInstance();
 
-  beforeEach(() => {
+  afterEach(() => {
     vi.restoreAllMocks();
   });
 

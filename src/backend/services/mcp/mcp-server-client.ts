@@ -5,6 +5,7 @@ import { formatAndReportError } from "../../utils/error-utils";
 import {
   authorizeWithBackend,
   DEFAULT_MCP_AUTH_TIMEOUT_MS,
+  inferMcpOAuthProvider,
   isInvalidRefreshTokenError,
   McpTokenRefreshError,
   refreshTokenWithBackendWithRetry,
@@ -119,9 +120,11 @@ export class MCPServerClient {
       // If no valid tokens, trigger backend OAuth flow
       if (!tokens?.access_token) {
         try {
-          const authTimeoutMs = Number(
-            process.env.MCP_AUTH_TIMEOUT_MS ?? DEFAULT_MCP_AUTH_TIMEOUT_MS,
-          );
+          const configuredAuthTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS);
+          const authTimeoutMs =
+            Number.isFinite(configuredAuthTimeoutMs) && configuredAuthTimeoutMs > 0
+              ? configuredAuthTimeoutMs
+              : DEFAULT_MCP_AUTH_TIMEOUT_MS;
           console.log(
             `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl} (Timeout: ${authTimeoutMs}ms)`,
           );
@@ -141,7 +144,12 @@ export class MCPServerClient {
             `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`,
             authError,
           );
-          throw authError;
+          if (inferMcpOAuthProvider(serverUrl)) {
+            throw authError;
+          }
+          console.warn(
+            `[MCPServerClient]: OAuth is unavailable for ${mcpConfig.name}; trying its configured transport headers instead.`,
+          );
         }
       }
 

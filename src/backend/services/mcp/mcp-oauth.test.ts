@@ -31,6 +31,7 @@ import type { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 import {
   authorizeWithBackend,
   extractUpstreamOAuthErrorCode,
+  inferMcpOAuthProvider,
   isInvalidRefreshTokenError,
   McpTokenRefreshError,
   refreshTokenWithBackend,
@@ -139,15 +140,23 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     expect(completeOAuthAsync).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://api.test/api/mcp/auth/start?serverUrl=https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%3Foriginal%3Dtrue&provider=github&redirectUri=yakshaver-desktop-dev%3A%2F%2Foauth%2Fcallback%3FserverId%3Dserver-1",
+      expect.stringContaining("https://api.test/api/mcp/auth/start?"),
       expect.objectContaining({
+        signal: expect.any(AbortSignal),
         headers: expect.objectContaining({ Authorization: "Bearer portal-access-token" }),
       }),
+    );
+    const startUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(startUrl.searchParams.get("serverUrl")).toBe(serverUrl);
+    expect(startUrl.searchParams.get("provider")).toBe("github");
+    expect(startUrl.searchParams.get("redirectUri")).toBe(
+      "yakshaver-desktop-dev://oauth/callback?serverId=server-1",
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "https://api.test/api/mcp/auth/result?serverUrl=https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%3Foriginal%3Dtrue&state=oauth-state",
       expect.objectContaining({
+        signal: expect.any(AbortSignal),
         headers: expect.objectContaining({ Authorization: "Bearer portal-access-token" }),
       }),
     );
@@ -172,6 +181,71 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     ).rejects.toThrow('Required parameter "string redirectUri"');
 
     expect(shell.openExternal).not.toHaveBeenCalled();
+  });
+
+  it("wraps start request network failures with actionable backend guidance", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+    const { storage } = createTokenStorage();
+
+    await expect(
+      authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
+        provider: "github",
+      }),
+    ).rejects.toThrow("Ensure the YakShaver backend is running");
+
+    expect(shell.openExternal).not.toHaveBeenCalled();
+  });
+
+  it("reports request timeouts without blaming the backend or SSL certificate", async () => {
+    const timeoutError = new Error("The operation was aborted due to timeout");
+    timeoutError.name = "TimeoutError";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeoutError));
+    const { storage } = createTokenStorage();
+
+    const error = await authorizeWithBackend(
+      storage,
+      "https://api.githubcopilot.com/mcp/",
+      "server-1",
+      {
+        provider: "github",
+      },
+    ).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) {
+      throw new Error("Expected OAuth start to reject with an Error");
+    }
+    expect(error.message).toContain("Timed out while trying to start MCP OAuth");
+    expect(error.message).not.toContain("SSL certificate");
+  });
+
+  it("caps legacy deep-link-only OAuth waits at 60 seconds", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          authorizationUrl: "https://auth.atlassian.test/authorize",
+        }),
+      ),
+    );
+    const { storage } = createTokenStorage();
+    const authorization = authorizeWithBackend(
+      storage,
+      "https://mcp.atlassian.com/v1/mcp",
+      "server-1",
+    );
+    const errorPromise = authorization.catch((error: unknown) => error);
+
+    await vi.waitFor(() => expect(shell.openExternal).toHaveBeenCalledOnce());
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    const error = await errorPromise;
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) {
+      throw new Error("Expected legacy OAuth to reject with an Error");
+    }
+    expect(error.message).toContain("timed out");
   });
 
   it("stops polling when the deep-link callback completes first", async () => {
@@ -205,11 +279,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(requestsWhenCompleted);
   });
 
-  it("keeps waiting for the deep-link when result polling fails unexpectedly", async () => {
-    let resolveResultRequest: (response: Response) => void = () => undefined;
-    const resultResponse = new Promise<Response>((resolve) => {
-      resolveResultRequest = resolve;
-    });
+  it("recovers after transient result polling failures", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -218,33 +288,52 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
           state: "oauth-state",
         }),
       )
-      .mockReturnValueOnce(resultResponse);
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(jsonResponse(500, { error: "temporarily unavailable" }))
+      .mockResolvedValueOnce(jsonResponse(200, TOKENS));
+    vi.stubGlobal("fetch", fetchMock);
+    const { storage, getStoredTokens } = createTokenStorage();
+
+    await expect(
+      authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
+        provider: "github",
+        pollIntervalMs: 1,
+        timeoutMs: 200,
+      }),
+    ).resolves.toEqual(TOKENS);
+
+    expect(shell.openExternal).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(getStoredTokens()).toEqual(TOKENS);
+  });
+
+  it("retries when the portal access token is temporarily unavailable", async () => {
+    getPortalAccessToken
+      .mockResolvedValueOnce("starting-user-token")
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue("refreshed-user-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
+          state: "oauth-state",
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, TOKENS));
     vi.stubGlobal("fetch", fetchMock);
     const { storage } = createTokenStorage();
 
-    const authorization = authorizeWithBackend(
-      storage,
-      "https://api.githubcopilot.com/mcp/",
-      "server-1",
-      {
+    await expect(
+      authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
         provider: "github",
         pollIntervalMs: 1,
         timeoutMs: 100,
-      },
-    );
-    const settledAuthorization = authorization.then(
-      (tokens) => ({ success: true as const, tokens }),
-      (error: unknown) => ({ success: false as const, error }),
-    );
+      }),
+    ).resolves.toEqual(TOKENS);
 
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    resolveResultRequest(jsonResponse(400, { error: "Unexpected backend polling failure" }));
-    await Promise.resolve();
-    await storage.saveTokensAsync("server-1", TOKENS);
-
-    await expect(settledAuthorization).resolves.toEqual({ success: true, tokens: TOKENS });
-    expect(shell.openExternal).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getPortalAccessToken).toHaveBeenCalledTimes(3);
   });
 
   it("uses the current signed-in account when polling an existing OAuth state", async () => {
@@ -395,6 +484,24 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
         timeoutMs: 100,
       }),
     ).resolves.toEqual(TOKENS);
+  });
+});
+
+describe("inferMcpOAuthProvider", () => {
+  it("recognizes only the supported GitHub and Azure DevOps host domains", () => {
+    expect(inferMcpOAuthProvider("https://api.githubcopilot.com/mcp/")).toBe("github");
+    expect(inferMcpOAuthProvider("https://mcp.dev.azure.com/org")).toBe("azure-devops");
+    expect(inferMcpOAuthProvider("https://org.visualstudio.com/mcp")).toBe("azure-devops");
+  });
+
+  it("does not infer a provider from lookalike or unrelated hosts", () => {
+    expect(inferMcpOAuthProvider("https://api.githubcopilot.com.evil.example/mcp")).toBeUndefined();
+    expect(inferMcpOAuthProvider("https://mygithub-proxy.internal/mcp")).toBeUndefined();
+    expect(inferMcpOAuthProvider("https://storage.azure.com/mcp")).toBeUndefined();
+  });
+
+  it("returns undefined for malformed server URLs", () => {
+    expect(inferMcpOAuthProvider("not a URL")).toBeUndefined();
   });
 });
 

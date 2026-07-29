@@ -142,16 +142,82 @@ describe("MCPServerClient.createClientAsync — recoverable OAuth (#771)", () =>
   });
 
   it("surfaces an OAuth recovery error instead of trying an unauthenticated connection", async () => {
+    const knownOAuthServer = {
+      ...SERVER_CONFIG,
+      url: "https://api.githubcopilot.com/mcp/",
+    } satisfies MCPServerConfig;
     mocks.mockStorage.getTokensAsync.mockResolvedValue(undefined);
     mocks.authorize.mockRejectedValue(
       new Error("MCP OAuth session expired or was already used. Reconnect the MCP server."),
     );
 
-    await expect(MCPServerClient.createClientAsync(SERVER_CONFIG)).rejects.toThrow(
+    await expect(MCPServerClient.createClientAsync(knownOAuthServer)).rejects.toThrow(
       "Reconnect the MCP server",
     );
 
     expect(mocks.createMcpClient).not.toHaveBeenCalled();
+  });
+
+  it("falls back to explicit headers when a custom HTTP server does not support OAuth", async () => {
+    const headerAuthenticatedServer = {
+      ...SERVER_CONFIG,
+      id: "context7",
+      name: "Context7",
+      url: "https://mcp.context7.com/mcp",
+      headers: { CONTEXT7_API_KEY: "configured-api-key" },
+    } satisfies MCPServerConfig;
+    mocks.mockStorage.getTokensAsync.mockResolvedValue(undefined);
+    mocks.authorize.mockRejectedValue(new Error("OAuth discovery is not supported"));
+
+    await expect(
+      MCPServerClient.createClientAsync(headerAuthenticatedServer),
+    ).resolves.toBeDefined();
+
+    expect(mocks.createMcpClient).toHaveBeenCalledWith({
+      transport: {
+        type: "http",
+        url: headerAuthenticatedServer.url,
+        headers: headerAuthenticatedServer.headers,
+      },
+    });
+  });
+
+  it("falls back to an unauthenticated connection for a public HTTP server", async () => {
+    const publicServer = {
+      ...SERVER_CONFIG,
+      id: "public-server",
+      name: "Public Server",
+      url: "https://public-mcp.example/mcp",
+    } satisfies MCPServerConfig;
+    mocks.mockStorage.getTokensAsync.mockResolvedValue(undefined);
+    mocks.authorize.mockRejectedValue(new Error("OAuth discovery is not supported"));
+
+    await expect(MCPServerClient.createClientAsync(publicServer)).resolves.toBeDefined();
+
+    expect(mocks.createMcpClient).toHaveBeenCalledWith({
+      transport: {
+        type: "http",
+        url: publicServer.url,
+        headers: {},
+      },
+    });
+  });
+
+  it("falls back to the default timeout when MCP_AUTH_TIMEOUT_MS is invalid", async () => {
+    process.env.MCP_AUTH_TIMEOUT_MS = "not-a-number";
+    mocks.mockStorage.getTokensAsync
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue({ ...EXPIRED_TOKENS, access_token: "fresh-access" });
+    mocks.authorize.mockResolvedValue(undefined);
+
+    await MCPServerClient.createClientAsync(SERVER_CONFIG);
+
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      mocks.mockStorage,
+      SERVER_CONFIG.url,
+      SERVER_CONFIG.id,
+      5 * 60 * 1000,
+    );
   });
 });
 

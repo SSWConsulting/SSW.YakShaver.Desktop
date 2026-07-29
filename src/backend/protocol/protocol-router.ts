@@ -81,7 +81,12 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
       scope: params.get("scope") ?? undefined,
     };
 
-    await McpOAuthTokenStorage.getInstance().completeOAuthAsync(serverId, tokens);
+    const completed = await McpOAuthTokenStorage.getInstance().completeOAuthAsync(serverId, tokens);
+    if (!completed) {
+      console.info(
+        `[ProtocolRouter] Ignored a duplicate MCP OAuth callback for server ${serverId}.`,
+      );
+    }
   },
 
   // Main app auth callback (triggered by success template to refocus app)

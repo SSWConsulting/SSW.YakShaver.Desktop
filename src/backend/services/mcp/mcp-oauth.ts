@@ -18,6 +18,13 @@ interface McpOAuthSession {
   state: string;
 }
 
+interface McpOAuthStartRequestOptions {
+  provider?: McpOAuthProvider;
+  accessToken?: string;
+}
+
+const OAUTH_TIMEOUT_ERROR = "MCP OAuth session timed out. Reconnect the MCP server.";
+
 class McpOAuthResultError extends Error {
   constructor(
     message: string,
@@ -28,9 +35,20 @@ class McpOAuthResultError extends Error {
   }
 }
 
+class McpOAuthTimeoutError extends Error {
+  constructor() {
+    super(OAUTH_TIMEOUT_ERROR);
+    this.name = "McpOAuthTimeoutError";
+  }
+}
+
 export const DEFAULT_MCP_AUTH_TIMEOUT_MS = 5 * 60 * 1000;
+const LEGACY_AUTH_TIMEOUT_MS = 60 * 1000;
 const DEFAULT_POLL_INTERVAL_MS = 1500;
-const OAUTH_TIMEOUT_ERROR = "MCP OAuth session timed out. Reconnect the MCP server.";
+const MAX_POLL_RETRY_DELAY_MS = 10_000;
+const MCP_OAUTH_REQUEST_TIMEOUT_MS = 30_000;
+const GITHUB_MCP_HOST = "api.githubcopilot.com";
+const AZURE_DEVOPS_HOSTS = ["dev.azure.com", "visualstudio.com"] as const;
 
 /**
  * Error thrown when an MCP OAuth token refresh fails.
@@ -159,17 +177,18 @@ function parseOAuthTokens(value: unknown): OAuthTokens {
 }
 
 export function inferMcpOAuthProvider(serverUrl: string): McpOAuthProvider | undefined {
-  const hostname = new URL(serverUrl).hostname.toLowerCase();
+  let hostname: string;
+  try {
+    hostname = new URL(serverUrl).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
 
-  if (hostname.includes("github")) {
+  if (hostname === GITHUB_MCP_HOST) {
     return "github";
   }
 
-  if (
-    hostname === "dev.azure.com" ||
-    hostname.endsWith(".azure.com") ||
-    hostname.endsWith(".visualstudio.com")
-  ) {
+  if (AZURE_DEVOPS_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`))) {
     return "azure-devops";
   }
 
@@ -209,30 +228,68 @@ async function getOAuthResponseError(response: Response, fallback: string): Prom
   return `${fallback} (Status: ${response.status})`;
 }
 
+function getOAuthRequestSignal(parentSignal?: AbortSignal): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(MCP_OAUTH_REQUEST_TIMEOUT_MS);
+  return parentSignal ? AbortSignal.any([parentSignal, timeoutSignal]) : timeoutSignal;
+}
+
+function createOAuthNetworkError(action: string, cause: unknown): Error {
+  const errorName = isRecord(cause) && typeof cause.name === "string" ? cause.name : undefined;
+  if (errorName === "TimeoutError") {
+    return new Error(`Timed out while trying to ${action}. Try again.`, { cause });
+  }
+  if (errorName === "AbortError") {
+    return new Error(`Cancelled while trying to ${action}.`, { cause });
+  }
+
+  return new Error(
+    `Failed to ${action}. Ensure the YakShaver backend is running and its SSL certificate is trusted.`,
+    { cause },
+  );
+}
+
+async function requestMcpOAuthStart(
+  serverUrl: string,
+  serverId: string,
+  options: McpOAuthStartRequestOptions = {},
+): Promise<unknown> {
+  const url = new URL(`${config.portalApiUrl()}/mcp/auth/start`);
+  url.searchParams.set("serverUrl", serverUrl);
+  url.searchParams.set("redirectUri", getMcpOAuthRedirectUri(serverId));
+  if (options.provider) {
+    url.searchParams.set("provider", options.provider);
+  }
+
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (options.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      method: "GET",
+      signal: getOAuthRequestSignal(),
+      headers,
+    });
+  } catch (error) {
+    throw createOAuthNetworkError("start MCP OAuth", error);
+  }
+
+  if (!response.ok) {
+    throw new Error(await getOAuthResponseError(response, "Failed to start MCP OAuth"));
+  }
+
+  return await response.json();
+}
+
 async function startRecoverableOAuth(
   serverUrl: string,
   serverId: string,
   provider: McpOAuthProvider,
   accessToken: string,
 ): Promise<McpOAuthSession> {
-  const url = new URL(`${config.portalApiUrl()}/mcp/auth/start`);
-  url.searchParams.set("serverUrl", serverUrl);
-  url.searchParams.set("provider", provider);
-  url.searchParams.set("redirectUri", getMcpOAuthRedirectUri(serverId));
-
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(await getOAuthResponseError(response, "Failed to start MCP OAuth"));
-  }
-
-  const data: unknown = await response.json();
+  const data = await requestMcpOAuthStart(serverUrl, serverId, { provider, accessToken });
   return parseOAuthSession(data);
 }
 
@@ -246,14 +303,22 @@ async function getRecoverableOAuthResult(
   url.searchParams.set("serverUrl", serverUrl);
   url.searchParams.set("state", state);
 
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    signal,
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      method: "GET",
+      signal: getOAuthRequestSignal(signal),
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  } catch (error) {
+    if (signal.aborted) {
+      throw new Error("MCP OAuth result polling was cancelled", { cause: error });
+    }
+    throw createOAuthNetworkError("retrieve the MCP OAuth result", error);
+  }
 
   if (response.status === 202) {
     return undefined;
@@ -288,7 +353,7 @@ function isTerminalOAuthResultError(error: unknown): boolean {
   return (
     (error instanceof McpOAuthResultError &&
       (error.status === 401 || error.status === 403 || error.status === 404)) ||
-    (error instanceof Error && error.message === OAUTH_TIMEOUT_ERROR)
+    error instanceof McpOAuthTimeoutError
   );
 }
 
@@ -322,10 +387,33 @@ async function pollRecoverableOAuthResult(
   signal: AbortSignal,
 ): Promise<OAuthTokens> {
   const deadline = Date.now() + timeoutMs;
+  let consecutiveFailures = 0;
 
   while (Date.now() < deadline && !signal.aborted) {
-    const currentAccessToken = await getPortalAccessToken();
-    const tokens = await getRecoverableOAuthResult(serverUrl, state, currentAccessToken, signal);
+    let tokens: OAuthTokens | undefined;
+    try {
+      const currentAccessToken = await getPortalAccessToken();
+      tokens = await getRecoverableOAuthResult(serverUrl, state, currentAccessToken, signal);
+      consecutiveFailures = 0;
+    } catch (error) {
+      if (signal.aborted || isTerminalOAuthResultError(error)) {
+        throw error;
+      }
+
+      consecutiveFailures += 1;
+      const retryDelayMs = Math.min(
+        pollIntervalMs * 2 ** (consecutiveFailures - 1),
+        MAX_POLL_RETRY_DELAY_MS,
+      );
+      console.warn(
+        `[McpOAuth] OAuth result polling failed transiently; retrying in ${retryDelayMs}ms:`,
+        error,
+      );
+      const remainingMs = Math.max(0, deadline - Date.now());
+      await delayUntilNextPoll(Math.min(retryDelayMs, remainingMs), signal);
+      continue;
+    }
+
     if (tokens) {
       const completed = await tokenStorage.completeOAuthAsync(serverId, tokens);
       if (completed) {
@@ -340,45 +428,18 @@ async function pollRecoverableOAuthResult(
     await delayUntilNextPoll(pollIntervalMs, signal);
   }
 
-  throw new Error(OAUTH_TIMEOUT_ERROR);
+  throw new McpOAuthTimeoutError();
 }
 
 /**
  * Gets the authorization URL from the .NET backend for an MCP server.
  */
 export async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
-  const portalApiUrl = config.portalApiUrl();
-  const endpoint = "/mcp/auth/start";
-  const url = new URL(`${portalApiUrl}${endpoint}`);
-  url.searchParams.set("serverUrl", serverUrl);
-  url.searchParams.set("redirectUri", getMcpOAuthRedirectUri(serverId));
-
-  let response: Response;
-  try {
-    response = await fetch(url.toString(), {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-  } catch (fetchError) {
-    console.error(`[McpOAuth] Fetch failed for ${url.toString()}:`, fetchError);
-    throw new Error(
-      `Failed to connect to backend at ${url.toString()}. Ensure the backend is running and SSL certificates are trusted.`,
-    );
+  const data = await requestMcpOAuthStart(serverUrl, serverId);
+  if (!isRecord(data)) {
+    throw new Error("MCP OAuth start response was invalid");
   }
-
-  if (!response.ok) {
-    let errorMessage = "Failed to get authorization URL from backend";
-    try {
-      const errorData = await response.json();
-      errorMessage = errorData.error || errorMessage;
-    } catch {
-      errorMessage = `${errorMessage} (Status: ${response.status})`;
-    }
-    throw new Error(errorMessage);
-  }
-
-  const data = await response.json();
-  return data.authorizationUrl;
+  return getRequiredString(data, "authorizationUrl", "MCP OAuth start response");
 }
 
 /**
@@ -387,7 +448,7 @@ export async function getAuthUrlFromBackend(serverUrl: string, serverId: string)
 export async function waitForTokens(
   tokenStorage: McpOAuthTokenStorage,
   serverId: string,
-  timeoutMs: number = 60000,
+  timeoutMs: number = LEGACY_AUTH_TIMEOUT_MS,
   signal?: AbortSignal,
 ): Promise<OAuthTokens> {
   if (signal?.aborted) {
@@ -443,7 +504,7 @@ export async function waitForTokens(
     timeoutId = setTimeout(() => {
       cleanup();
       console.error(`[McpOAuth] Timed out waiting for OAuth tokens for server ${serverId}`);
-      reject(new Error(OAUTH_TIMEOUT_ERROR));
+      reject(new McpOAuthTimeoutError());
     }, timeoutMs);
 
     // Close the gap between the initial lookup and listener registration.
@@ -478,7 +539,7 @@ async function authorizeWithBackendOnce(
   if (!provider) {
     const authUrl = await getAuthUrlFromBackend(serverUrl, serverId);
     await shell.openExternal(authUrl);
-    return waitForTokens(tokenStorage, serverId, timeoutMs);
+    return waitForTokens(tokenStorage, serverId, Math.min(timeoutMs, LEGACY_AUTH_TIMEOUT_MS));
   }
 
   const accessToken = await getPortalAccessToken();
