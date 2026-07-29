@@ -1,6 +1,6 @@
 import { Video } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getStatusVariant } from "@/lib/shave-utils";
+import { getShaveWorkflowPath, getStatusVariant } from "@/lib/shave-utils";
 import { getYouTubeThumbnail, timeAgo } from "@/lib/utils";
 import type { Shave } from "../../types";
 import { Badge } from "../ui/badge";
@@ -46,9 +46,9 @@ function ShaveCard({ shave }: { shave: Shave }) {
       )}
 
       <div className="flex flex-col gap-2 px-4 pt-4 pb-3">
-        {/* #821: open this shave's Workflow Progress page by id. */}
+        {/* Active shaves open the live progress; finished shaves open their persisted outcome. */}
         <Link
-          to={`/workflow/${shave.id}`}
+          to={getShaveWorkflowPath(shave)}
           className={`font-medium text-sm line-clamp-2 hover:underline ${!shave.title ? "text-muted-foreground italic" : ""}`}
           title={`Open workflow progress for ${shave.title || "this shave"}`}
         >

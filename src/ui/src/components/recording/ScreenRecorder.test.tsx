@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   recordedVideo: null as { blob: Blob; filePath: string; fileName: string } | null,
   saveRecording: vi.fn(),
   checkExistingShave: vi.fn(),
+  navigateToWorkflow: vi.fn(),
   // Captured handler the app registers on the screen-recording stop channel;
   // invoking it drives the real handleStopRecording -> preview flow.
   stopRequestHandler: null as ((...args: unknown[]) => void) | null,
@@ -60,7 +61,7 @@ vi.mock("@/hooks/useShaveManager", () => ({
 }));
 
 vi.mock("@/hooks/useWorkflowNavigation", () => ({
-  useWorkflowNavigation: () => vi.fn(),
+  useWorkflowNavigation: () => state.navigateToWorkflow,
 }));
 
 vi.mock("@/services/ipc-client", () => ({
@@ -147,7 +148,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     state.authStatus = AuthStatus.AUTHENTICATED;
     state.uploadStatus = UploadStatus.IDLE;
     state.recordedVideo = { blob: new Blob(), filePath: "/tmp/rec.webm", fileName: "rec.webm" };
-    state.saveRecording = vi.fn().mockResolvedValue({ data: { id: "shave-1" } });
+    state.saveRecording = vi.fn().mockResolvedValue({ success: true, data: { id: "shave-1" } });
     state.checkExistingShave = vi.fn().mockResolvedValue(undefined);
 
     // ScreenRecorder subscribes to a few electronAPI event channels on mount.
@@ -313,6 +314,60 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     expect(processYoutubeLink()).toBeInTheDocument();
   });
 
+  it("creates a new shave for every YouTube URL workflow", async () => {
+    const youtubeUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    state.checkExistingShave.mockResolvedValue("existing-shave");
+    state.saveRecording.mockResolvedValue({ success: true, data: { id: "new-shave" } });
+
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+
+    const openDialogButton = processYoutubeLink();
+    if (!openDialogButton) {
+      throw new Error("Expected the Process YouTube URL button to be available");
+    }
+    fireEvent.click(openDialogButton);
+    fireEvent.change(await screen.findByLabelText("YouTube URL"), {
+      target: { value: youtubeUrl },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Process Link" }));
+    });
+
+    await waitFor(() => expect(state.saveRecording).toHaveBeenCalledTimes(1));
+    expect(state.checkExistingShave).not.toHaveBeenCalled();
+    expect(state.navigateToWorkflow).toHaveBeenCalledTimes(1);
+    expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalledWith(
+      youtubeUrl,
+      "new-shave",
+    );
+  });
+
+  it("does not start a YouTube URL workflow when the shave cannot be created", async () => {
+    state.saveRecording.mockResolvedValue({ success: false, error: "Database unavailable" });
+
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+
+    const openDialogButton = processYoutubeLink();
+    if (!openDialogButton) {
+      throw new Error("Expected the Process YouTube URL button to be available");
+    }
+    fireEvent.click(openDialogButton);
+    fireEvent.change(await screen.findByLabelText("YouTube URL"), {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Process Link" }));
+    });
+
+    await waitFor(() => expect(state.saveRecording).toHaveBeenCalledTimes(1));
+    expect(state.navigateToWorkflow).not.toHaveBeenCalled();
+    expect(window.electronAPI.pipelines.processVideoUrl).not.toHaveBeenCalled();
+  });
+
   it("keeps the Process YouTube link enabled while a URL submit is still pending", async () => {
     let resolveProcessVideoUrl: (() => void) | undefined;
     window.electronAPI.pipelines.processVideoUrl = vi.fn(
@@ -370,7 +425,7 @@ describe("ScreenRecorder - record/stop icon (#641)", () => {
     state.authStatus = AuthStatus.AUTHENTICATED;
     state.uploadStatus = UploadStatus.IDLE;
     state.recordedVideo = null;
-    state.saveRecording = vi.fn().mockResolvedValue({ data: { id: "shave-1" } });
+    state.saveRecording = vi.fn().mockResolvedValue({ success: true, data: { id: "shave-1" } });
     state.checkExistingShave = vi.fn().mockResolvedValue(undefined);
 
     state.stopRequestHandler = null;
