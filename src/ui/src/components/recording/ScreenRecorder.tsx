@@ -191,7 +191,7 @@ function RecordButton({
 }
 
 export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
-  const navigateToWorkflow = useWorkflowNavigation({ listen: false });
+  const navigateToWorkflow = useWorkflowNavigation();
   const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();

@@ -1,5 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import userEvent from "@testing-library/user-event";
+import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Layout } from "./Layout";
 
@@ -14,17 +15,19 @@ import { Layout } from "./Layout";
 // user straight back to the bare `/workflow` route.
 vi.mock("./sidebar", () => ({ default: () => <div>Sidebar</div> }));
 
-let capturedCb: (() => void) | undefined;
-const onProgressNeo = vi.fn((cb: () => void) => {
-  capturedCb = cb;
+let capturedProgressCallback: (() => void) | undefined;
+const onProgressNeo = vi.fn((callback: () => void) => {
+  capturedProgressCallback = callback;
   return vi.fn(); // cleanup
 });
 
 beforeEach(() => {
-  capturedCb = undefined;
-  (window as unknown as { electronAPI: unknown }).electronAPI = {
-    workflow: { onProgressNeo },
-  };
+  capturedProgressCallback = undefined;
+  Object.defineProperty(window, "electronAPI", {
+    configurable: true,
+    writable: true,
+    value: { workflow: { onProgressNeo } },
+  });
 });
 
 afterEach(() => {
@@ -36,7 +39,15 @@ function renderAppShell(initialPath: string) {
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route element={<Layout />}>
-          <Route path="/" element={<div>Shaves Page</div>} />
+          <Route
+            path="/"
+            element={
+              <div>
+                Shaves Page
+                <Link to="/workflow/shave-123">Open workflow progress</Link>
+              </div>
+            }
+          />
           <Route path="/workflow" element={<div>Workflow Page</div>} />
           <Route path="/workflow/:shaveId" element={<div>Shave Outcome Page</div>} />
         </Route>
@@ -52,20 +63,23 @@ describe("Layout (#998 Shaves page keeps switching back to in-progress workflow)
 
     // Simulate the backend pushing several progress ticks while the user is
     // deliberately viewing Shaves during an in-progress workflow.
-    act(() => capturedCb?.());
-    act(() => capturedCb?.());
-    act(() => capturedCb?.());
+    act(() => capturedProgressCallback?.());
+    act(() => capturedProgressCallback?.());
+    act(() => capturedProgressCallback?.());
 
     // The user should remain on Shaves — no forced navigation away.
     expect(screen.getByText("Shaves Page")).toBeInTheDocument();
     expect(screen.queryByText("Workflow Page")).not.toBeInTheDocument();
   });
 
-  it("does not bounce the user off a specific shave's outcome page back to the live workflow view", () => {
-    renderAppShell("/workflow/shave-123");
+  it("keeps the selected shave's outcome page open after clicking its navigation control", async () => {
+    const user = userEvent.setup();
+    renderAppShell("/");
+
+    await user.click(screen.getByRole("link", { name: "Open workflow progress" }));
     expect(screen.getByText("Shave Outcome Page")).toBeInTheDocument();
 
-    act(() => capturedCb?.());
+    act(() => capturedProgressCallback?.());
 
     expect(screen.getByText("Shave Outcome Page")).toBeInTheDocument();
     expect(screen.queryByText("Workflow Page")).not.toBeInTheDocument();
