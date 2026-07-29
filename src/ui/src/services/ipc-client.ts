@@ -135,6 +135,11 @@ declare global {
           youtubeResult?: unknown;
           mcpResult?: string;
         }>;
+        getState: (shaveId: string) => Promise<{
+          success: boolean;
+          state?: WorkflowState;
+          error?: string;
+        }>;
         getRetryStatus: (shaveId: string) => Promise<{
           success: boolean;
           stages?: Array<{

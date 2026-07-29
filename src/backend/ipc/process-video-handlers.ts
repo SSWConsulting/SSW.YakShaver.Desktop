@@ -249,6 +249,19 @@ export class ProcessVideoIPCHandlers {
       },
     );
 
+    ipcMain.handle(IPC_CHANNELS.WORKFLOW_GET_STATE, async (_event, shaveId?: string) => {
+      if (!shaveId) {
+        return { success: false, error: "Shave ID is required" };
+      }
+
+      const workflowManager = this.workflowManagers.get(shaveId);
+      if (!workflowManager) {
+        return { success: false, error: "Workflow not found" };
+      }
+
+      return { success: true, state: workflowManager.getState() };
+    });
+
     // Get retry status for all failed stages
     ipcMain.handle(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, async (_event, shaveId?: string) => {
       if (!shaveId) {

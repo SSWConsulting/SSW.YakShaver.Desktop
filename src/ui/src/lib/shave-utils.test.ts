@@ -3,16 +3,16 @@ import { ShaveStatus } from "../types";
 import { getShaveWorkflowPath } from "./shave-utils";
 
 describe("getShaveWorkflowPath", () => {
-  it("opens the live workflow for a pending shave", () => {
+  it("opens the selected workflow for a pending shave", () => {
     expect(getShaveWorkflowPath({ id: "pending-shave", shaveStatus: ShaveStatus.Pending })).toBe(
-      "/workflow",
+      "/workflow/pending-shave",
     );
   });
 
-  it("opens the live workflow for a processing shave", () => {
+  it("opens the selected workflow for a processing shave", () => {
     expect(
       getShaveWorkflowPath({ id: "processing-shave", shaveStatus: ShaveStatus.Processing }),
-    ).toBe("/workflow");
+    ).toBe("/workflow/processing-shave");
   });
 
   it("opens the persisted outcome for a finished shave", () => {

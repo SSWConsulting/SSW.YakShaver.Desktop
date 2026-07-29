@@ -82,6 +82,7 @@ const IPC_CHANNELS = {
   // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
   // Different from RERUN_TASK which is a user-initiated re-execution after success.
   WORKFLOW_RETRY_FROM_STAGE: "workflow:retry-from-stage",
+  WORKFLOW_GET_STATE: "workflow:get-state",
   WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
   WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 
@@ -258,6 +259,7 @@ const electronAPI = {
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, callback),
     retryFromStage: (stage: keyof WorkflowState, shaveId?: string, customPrompt?: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId, customPrompt),
+    getState: (shaveId: string) => ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_STATE, shaveId),
     getRetryStatus: (shaveId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
     cancelRetry: (shaveId: string) =>

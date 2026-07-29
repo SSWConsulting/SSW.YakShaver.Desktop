@@ -1,3 +1,4 @@
+import type { WorkflowState } from "@shared/types/workflow";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowProgressPanel } from "./WorkflowProgressPanel";
@@ -5,7 +6,12 @@ import { reconstructWorkflowState } from "./workflow-state-reconstruct";
 
 // Render each step as just its label so we assert the panel's wiring, not the card internals.
 vi.mock("./WorkflowStepCard", () => ({
-  WorkflowStepCard: ({ label }: { label: string }) => <div>{label}</div>,
+  WorkflowStepCard: ({ label, step }: { label: string; step: { status: string } }) => (
+    <div>
+      <span>{label}</span>
+      <span>{step.status}</span>
+    </div>
+  ),
 }));
 
 // Control the live payload -> state parsing.
@@ -23,12 +29,14 @@ const onProgressNeo = vi.fn((cb: (payload: unknown) => void) => {
   capturedCb = cb;
   return vi.fn(); // cleanup
 });
+const getState = vi.fn();
 
 beforeEach(() => {
   capturedCb = undefined;
   (window as unknown as { electronAPI: unknown }).electronAPI = {
-    workflow: { onProgressNeo },
+    workflow: { getState, onProgressNeo },
   };
+  getState.mockResolvedValue({ success: false, error: "Workflow not found" });
 });
 
 afterEach(() => {
@@ -59,5 +67,35 @@ describe("WorkflowProgressPanel (#821)", () => {
     expect(onProgressNeo).not.toHaveBeenCalled();
     expect(screen.getByText("AI Workflow Progress")).toBeInTheDocument();
     expect(screen.getByText("Executing Task")).toBeInTheDocument();
+  });
+
+  it("selected live path: loads the current state immediately and ignores other shaves", async () => {
+    const matchingState: WorkflowState = {
+      ...completedState,
+      uploading_video: { ...completedState.uploading_video, status: "in_progress" },
+    };
+    getState.mockResolvedValue({ success: true, state: completedState });
+    parseMock.mockImplementation((payload: unknown) =>
+      payload === "matching"
+        ? { shaveId: "selected-shave", state: matchingState }
+        : { shaveId: "other-shave", state: matchingState },
+    );
+
+    render(<WorkflowProgressPanel shaveId="selected-shave" />);
+
+    expect((await screen.findByText("Uploading Video")).parentElement).toHaveTextContent(
+      "Uploading Videocompleted",
+    );
+    expect(getState).toHaveBeenCalledWith("selected-shave");
+
+    act(() => capturedCb?.("other"));
+    expect(screen.getByText("Uploading Video").parentElement).toHaveTextContent(
+      "Uploading Videocompleted",
+    );
+
+    act(() => capturedCb?.("matching"));
+    expect(screen.getByText("Uploading Video").parentElement).toHaveTextContent(
+      "Uploading Videoin_progress",
+    );
   });
 });

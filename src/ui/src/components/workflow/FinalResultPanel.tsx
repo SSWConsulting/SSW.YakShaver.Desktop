@@ -610,10 +610,14 @@ export function resolveDisplayStatus(
   return aiStatus;
 }
 
-export function FinalResultPanel() {
+interface FinalResultPanelProps {
+  selectedShaveId?: string;
+}
+
+export function FinalResultPanel({ selectedShaveId }: FinalResultPanelProps = {}) {
   const [finalOutput, setFinalOutput] = useState<string | undefined>();
   const [intermediateOutput, setIntermediateOutput] = useState<string | undefined>();
-  const [shaveId, setShaveId] = useState<string | undefined>(undefined);
+  const [shaveId, setShaveId] = useState<string | undefined>(selectedShaveId);
   const [uploadResult, setUploadResult] = useState<VideoUploadResult>();
   const [mcpSteps, setMcpSteps] = useState<MCPStep[]>([]);
   const [reprocessDialogOpen, setReprocessDialogOpen] = useState(false);
@@ -690,8 +694,17 @@ export function FinalResultPanel() {
   }, [handleWorkflowCleared]);
 
   useEffect(() => {
+    if (selectedShaveId) {
+      setShaveId(selectedShaveId);
+    }
+  }, [selectedShaveId]);
+
+  useEffect(() => {
     return ipcClient.workflow.onProgressNeo((data: unknown) => {
       const neoProgress = parseWorkflowProgressNeoPayload(data);
+      if (selectedShaveId && neoProgress.shaveId !== selectedShaveId) {
+        return;
+      }
       if (neoProgress.shaveId) {
         setShaveId(neoProgress.shaveId);
       }
@@ -773,7 +786,7 @@ export function FinalResultPanel() {
 
       stageRef.current = currentStage;
     });
-  }, [resetForNewRun]);
+  }, [resetForNewRun, selectedShaveId]);
 
   useEffect(() => {
     return ipcClient.mcp.onStepUpdate((step) => {

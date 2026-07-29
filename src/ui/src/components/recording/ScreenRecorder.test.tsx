@@ -314,7 +314,7 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     expect(processYoutubeLink()).toBeInTheDocument();
   });
 
-  it("creates a new shave for every YouTube URL workflow", async () => {
+  it("reuses the existing shave for the same YouTube URL", async () => {
     const youtubeUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
     state.checkExistingShave.mockResolvedValue("existing-shave");
     state.saveRecording.mockResolvedValue({ success: true, data: { id: "new-shave" } });
@@ -335,12 +335,12 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
       fireEvent.click(screen.getByRole("button", { name: "Process Link" }));
     });
 
-    await waitFor(() => expect(state.saveRecording).toHaveBeenCalledTimes(1));
-    expect(state.checkExistingShave).not.toHaveBeenCalled();
+    await waitFor(() => expect(state.checkExistingShave).toHaveBeenCalledWith(youtubeUrl));
+    expect(state.saveRecording).not.toHaveBeenCalled();
     expect(state.navigateToWorkflow).toHaveBeenCalledTimes(1);
     expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalledWith(
       youtubeUrl,
-      "new-shave",
+      "existing-shave",
     );
   });
 
