@@ -1,6 +1,7 @@
 import { AlertTriangle, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getStatusVariant } from "@/lib/shave-utils";
+import { cn } from "@/lib/utils";
 import { ipcClient } from "../../services/ipc-client";
 import { type Shave, ShaveStatus } from "../../types";
 import { LoadingState } from "../common/LoadingState";
@@ -72,8 +73,8 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
     load();
   }, [load]);
 
-  const handleWorkflowUnavailable = useCallback(() => {
-    setWorkflowUnavailable(true);
+  const handleWorkflowAvailabilityChange = useCallback((available: boolean) => {
+    setWorkflowUnavailable(!available);
   }, []);
 
   if (loading) {
@@ -92,25 +93,12 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
 
   const isActive =
     shave.shaveStatus === ShaveStatus.Pending || shave.shaveStatus === ShaveStatus.Processing;
-  if (isActive && !workflowUnavailable) {
-    return (
-      <>
-        <WorkflowProgressPanel
-          mode="selected"
-          shaveId={shaveId}
-          onUnavailable={handleWorkflowUnavailable}
-        />
-        <FinalResultPanel selectedShaveId={shaveId} />
-      </>
-    );
-  }
-
   const parsed = parseFinalOutput(shave.finalOutput);
   const workItemUrl = parsed?.URL || shave.workItemUrl || undefined;
   const reconstructed = reconstructWorkflowState(shave.shaveStatus);
   const isFailed = shave.shaveStatus === ShaveStatus.Failed;
 
-  return (
+  const persistedOutcome = (
     <div className="w-[500px] mx-auto my-4 space-y-4">
       <Card className="bg-black/20 backdrop-blur-md border-white/10">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -182,4 +170,25 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
       {reconstructed && <WorkflowProgressPanel mode="hydrated" hydratedState={reconstructed} />}
     </div>
   );
+
+  if (isActive) {
+    return (
+      <>
+        <div
+          hidden={workflowUnavailable}
+          className={cn({ contents: !workflowUnavailable, hidden: workflowUnavailable })}
+        >
+          <WorkflowProgressPanel
+            mode="selected"
+            shaveId={shaveId}
+            onAvailabilityChange={handleWorkflowAvailabilityChange}
+          />
+          <FinalResultPanel selectedShaveId={shaveId} />
+        </div>
+        {workflowUnavailable && persistedOutcome}
+      </>
+    );
+  }
+
+  return persistedOutcome;
 }

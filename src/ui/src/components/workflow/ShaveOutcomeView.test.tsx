@@ -11,16 +11,21 @@ vi.mock("../../services/ipc-client", () => ({
 vi.mock("./WorkflowProgressPanel", () => ({
   WorkflowProgressPanel: ({
     shaveId,
-    onUnavailable,
+    onAvailabilityChange,
   }: {
     shaveId?: string;
-    onUnavailable?: () => void;
+    onAvailabilityChange?: (available: boolean) => void;
   }) => (
     <div>
       {shaveId ? `workflow-progress:${shaveId}` : "workflow-progress"}
-      {onUnavailable && (
-        <button type="button" onClick={onUnavailable}>
+      {onAvailabilityChange && (
+        <button type="button" onClick={() => onAvailabilityChange(false)}>
           Simulate unavailable workflow
+        </button>
+      )}
+      {onAvailabilityChange && (
+        <button type="button" onClick={() => onAvailabilityChange(true)}>
+          Simulate available workflow
         </button>
       )}
     </div>
@@ -79,8 +84,14 @@ describe("ShaveOutcomeView (#821 / #888 review)", () => {
     expect(
       screen.getByText(/Live per-stage progress is not available in this app session/i),
     ).toBeInTheDocument();
-    expect(screen.queryByText("workflow-progress:s1")).not.toBeInTheDocument();
-    expect(screen.queryByText("final-result:s1")).not.toBeInTheDocument();
+    expect(screen.getByText("workflow-progress:s1")).not.toBeVisible();
+    expect(screen.getByText("final-result:s1")).not.toBeVisible();
+
+    fireEvent.click(screen.getByText("Simulate available workflow"));
+
+    expect(screen.queryByText("This shave is still running")).not.toBeInTheDocument();
+    expect(screen.getByText("workflow-progress:s1")).toBeVisible();
+    expect(screen.getByText("final-result:s1")).toBeVisible();
   });
 
   it("shows the failure details for a Failed shave", async () => {
