@@ -174,6 +174,9 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
   if (isActive) {
     return (
       <>
+        {/* Keep the live panels mounted while showing the persisted fallback so their subscriptions
+            can restore this view when matching progress arrives. `contents` avoids changing the
+            visible layout. */}
         <div
           hidden={workflowUnavailable}
           className={cn({ contents: !workflowUnavailable, hidden: workflowUnavailable })}
