@@ -44,19 +44,28 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
     return McpOAuthTokenStorage.instance;
   }
 
-  public on(event: McpOAuthEvent, listener: (serverId: string) => void): void {
+  public on(
+    event: McpOAuthEvent,
+    listener: (serverId: string, attemptId?: string | null) => void,
+  ): void {
     this.events.on(event, listener);
   }
 
-  public off(event: McpOAuthEvent, listener: (serverId: string) => void): void {
+  public off(
+    event: McpOAuthEvent,
+    listener: (serverId: string, attemptId?: string | null) => void,
+  ): void {
     this.events.off(event, listener);
   }
 
   /**
    * Signals that authorization for `serverId` failed, so no tokens are coming.
+   *
+   * `attemptId` identifies which attempt failed, so a waiter can ignore a callback from an
+   * earlier tab rather than being cancelled by it.
    */
-  public notifyAuthFailed(serverId: string): void {
-    this.events.emit(McpOAuthTokenStorage.AUTH_FAILED_EVENT, serverId);
+  public notifyAuthFailed(serverId: string, attemptId?: string | null): void {
+    this.events.emit(McpOAuthTokenStorage.AUTH_FAILED_EVENT, serverId, attemptId);
   }
 
   private getPath(): string {

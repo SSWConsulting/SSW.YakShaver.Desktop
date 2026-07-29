@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import type { OAuthTokens } from "@ai-sdk/mcp";
 import { shell } from "electron";
 import { config } from "../../config/env";
 import { delay } from "../../utils/async-utils";
+import { AUTH_ATTEMPT_PARAM, isCurrentAuthAttempt } from "../auth/auth-attempt";
 import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 
 /**
@@ -89,12 +91,19 @@ export function extractUpstreamOAuthErrorCode(rawError: string | undefined): str
 /**
  * Gets the authorization URL from the .NET backend for an MCP server.
  */
-export async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
+export async function getAuthUrlFromBackend(
+  serverUrl: string,
+  serverId: string,
+  attemptId?: string,
+): Promise<string> {
   const portalApiUrl = config.portalApiUrl();
   const protocol =
     config.azure()?.customProtocol ||
     (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
-  const redirectUri = `${protocol}://oauth/callback?serverId=${encodeURIComponent(serverId)}`;
+  // The attempt id rides along on the redirect URI, which the backend echoes back when it
+  // deep-links a failure — that is what lets `waitForTokens` tell this attempt from an older one.
+  const attemptQuery = attemptId ? `&${AUTH_ATTEMPT_PARAM}=${encodeURIComponent(attemptId)}` : "";
+  const redirectUri = `${protocol}://oauth/callback?serverId=${encodeURIComponent(serverId)}${attemptQuery}`;
   const endpoint = "/mcp/auth/start";
   const url = new URL(`${portalApiUrl}${endpoint}`);
   url.searchParams.set("serverUrl", serverUrl);
@@ -135,6 +144,7 @@ export async function waitForTokens(
   tokenStorage: McpOAuthTokenStorage,
   serverId: string,
   timeoutMs: number = 60000,
+  attemptId?: string,
 ): Promise<OAuthTokens> {
   // 1. Check immediately if tokens are already there
   const existingTokens = await tokenStorage.getTokensAsync(serverId);
@@ -166,13 +176,23 @@ export async function waitForTokens(
     };
 
     // The result page deep-links back on failure, so a declined or failed attempt reports straight
-    // away rather than looking like a hang until the timeout fires (#965).
-    const onAuthFailed = (failedServerId: string) => {
-      if (failedServerId === serverId) {
-        console.warn(`[McpOAuth] Authorization failed for server ${serverId}`);
-        cleanup();
-        reject(new Error("Authorization was cancelled or failed. Please try again."));
+    // away rather than looking like a hang until the timeout fires (#965). A tab left open from an
+    // earlier attempt for this same server would otherwise cancel this one, so its callback is
+    // ignored unless it belongs to the attempt being waited on.
+    const onAuthFailed = (failedServerId: string, failedAttemptId?: string | null) => {
+      if (failedServerId !== serverId) {
+        return;
       }
+      if (!isCurrentAuthAttempt(failedAttemptId, attemptId)) {
+        console.log(`[McpOAuth] Ignoring failure from a stale attempt for server ${serverId}`, {
+          failedAttemptId,
+          attemptId,
+        });
+        return;
+      }
+      console.warn(`[McpOAuth] Authorization failed for server ${serverId}`);
+      cleanup();
+      reject(new Error("Authorization was cancelled or failed. Please try again."));
     };
 
     tokenStorage.on(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
@@ -207,9 +227,12 @@ export async function authorizeWithBackend(
   if (existing) return existing;
 
   const authorization = (async () => {
-    const authUrl = await getAuthUrlFromBackend(serverUrl, serverId);
+    // One id per attempt, shared by the URL we send out and the waiter, so a failure reported by
+    // an earlier tab for this same server is ignored instead of cancelling this attempt.
+    const attemptId = randomUUID();
+    const authUrl = await getAuthUrlFromBackend(serverUrl, serverId, attemptId);
     await shell.openExternal(authUrl);
-    return waitForTokens(tokenStorage, serverId, timeoutMs);
+    return waitForTokens(tokenStorage, serverId, timeoutMs, attemptId);
   })();
 
   inFlightAuthorizations.set(serverId, authorization);

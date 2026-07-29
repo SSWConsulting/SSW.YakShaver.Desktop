@@ -1,6 +1,7 @@
 import type { OAuthTokens } from "@ai-sdk/mcp";
 import type { BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../ipc/channels";
+import { AUTH_ATTEMPT_PARAM } from "../services/auth/auth-attempt";
 import { IdentityServerAuthService } from "../services/auth/identity-server-auth";
 import type { TokenData } from "../services/auth/types";
 import { MCPServerManager } from "../services/mcp/mcp-server-manager";
@@ -33,6 +34,7 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     const refreshToken = params.get("refresh_token");
     const serverId = params.get("serverId");
     const authError = params.get("error");
+    const attemptId = params.get(AUTH_ATTEMPT_PARAM);
 
     console.log("[ProtocolRouter] Handling MCP OAuth callback", {
       serverId,
@@ -43,15 +45,16 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
 
     // The declined/error result pages ping back with `error` and no tokens, so the waiting
     // authorization can fail immediately instead of hanging until it times out (#965).
-    // No attempt id: a stale tab is scoped by `serverId` and goes quiet once the backend's
-    // 5-minute OAuth state expires, leaving its result page without a deep link.
+    // The attempt id travels with it so a tab left over from an earlier attempt cannot cancel
+    // whichever authorization is waiting now.
     if (authError) {
       console.warn("[ProtocolRouter] MCP OAuth callback reported failure", {
         serverId,
         authError,
+        attemptId,
       });
       if (serverId) {
-        McpOAuthTokenStorage.getInstance().notifyAuthFailed(serverId);
+        McpOAuthTokenStorage.getInstance().notifyAuthFailed(serverId, attemptId);
       }
       return;
     }
@@ -133,6 +136,7 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     const expiresIn = params.get("expires_in");
     const scope = params.get("scope");
     const authError = params.get("error");
+    const attemptId = params.get(AUTH_ATTEMPT_PARAM);
 
     console.log("[ProtocolRouter] Handling YouTube OAuth callback", {
       hasAccessToken: !!accessToken,
@@ -141,12 +145,15 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     });
 
     // Mirrors the MCP branch above: the declined/error result pages ping back with `error` and no
-    // tokens, so the waiting authorization fails immediately rather than hanging (#965).
-    // Global signal (one YouTube binding, so nothing to scope by); a stale tab is bounded only
-    // by the backend's 5-minute OAuth state expiry.
+    // tokens, so the waiting authorization fails immediately rather than hanging (#965). There is
+    // only one YouTube binding, so the attempt id is the sole thing separating a stale tab's
+    // failure from the attempt currently waiting.
     if (authError) {
-      console.warn("[ProtocolRouter] YouTube OAuth callback reported failure", { authError });
-      YoutubeStorage.getInstance().notifyAuthFailed();
+      console.warn("[ProtocolRouter] YouTube OAuth callback reported failure", {
+        authError,
+        attemptId,
+      });
+      YoutubeStorage.getInstance().notifyAuthFailed(attemptId);
       return;
     }
 

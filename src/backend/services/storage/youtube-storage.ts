@@ -31,19 +31,22 @@ export class YoutubeStorage extends BaseSecureStorage {
     return YoutubeStorage.instance;
   }
 
-  public on(event: YoutubeStorageEvent, listener: () => void): void {
+  public on(event: YoutubeStorageEvent, listener: (attemptId?: string | null) => void): void {
     this.events.on(event, listener);
   }
 
-  public off(event: YoutubeStorageEvent, listener: () => void): void {
+  public off(event: YoutubeStorageEvent, listener: (attemptId?: string | null) => void): void {
     this.events.off(event, listener);
   }
 
   /**
    * Signals that YouTube authorization failed, so no tokens are coming.
+   *
+   * `attemptId` identifies which attempt failed, so a waiter can ignore a callback from an
+   * earlier tab rather than being cancelled by it.
    */
-  public notifyAuthFailed(): void {
-    this.events.emit(YoutubeStorage.AUTH_FAILED_EVENT);
+  public notifyAuthFailed(attemptId?: string | null): void {
+    this.events.emit(YoutubeStorage.AUTH_FAILED_EVENT, attemptId);
   }
 
   private getTokenPath(): string {
