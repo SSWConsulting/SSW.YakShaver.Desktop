@@ -167,7 +167,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
   const dialogDescription =
     toolPurpose ??
     (readableToolInfo?.server
-      ? `YakShaver needs to use "${readableToolInfo.tool}" (from ${readableToolInfo.server}) to keep going.`
+      ? `YakShaver needs to use this tool: "${readableToolInfo.tool}" (from ${readableToolInfo.server})`
       : `YakShaver needs to perform an action to keep going.`);
 
   return (
@@ -182,21 +182,6 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
           </div>
           <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
         </AlertDialogHeader>
-        {!showCorrectionForm && (
-          <ul className="space-y-1.5 text-sm text-white/70">
-            <li>
-              <span className="font-medium text-white/90">Allow</span> &mdash; use it this once.
-            </li>
-            <li>
-              <span className="font-medium text-white/90">Allow Always</span> &mdash; use it now and
-              don't ask again.
-            </li>
-            <li>
-              <span className="font-medium text-white/90">Review / Correct&hellip;</span> &mdash;
-              don't run it yet. Tell YakShaver what to change, or stop this step.
-            </li>
-          </ul>
-        )}
         {autoApprovalCountdown !== null && (
           <p className="text-xs text-yellow-300">
             Auto-approving in {autoApprovalCountdown}s if no action is taken.
