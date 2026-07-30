@@ -165,12 +165,19 @@ function parseOAuthSession(value: unknown): McpOAuthSession {
     throw new Error("MCP OAuth start response was invalid");
   }
 
-  return {
-    authorizationUrl: getRequiredString(value, "authorizationUrl", "MCP OAuth start response"),
-    // Absent when the backend treated the start as anonymous. That means nothing was retained to
-    // recover, so failing here beats opening a browser for a flow that cannot be polled.
-    retrievalToken: getRequiredString(value, "retrievalToken", "MCP OAuth start response"),
-  };
+  const authorizationUrl = getRequiredString(value, "authorizationUrl", "MCP OAuth start response");
+
+  // Missing when the backend either treated this start as anonymous or predates recoverable results.
+  // Either way nothing was retained to poll for, so this fails before a browser opens rather than
+  // stranding the user on a consent screen whose result cannot be collected.
+  const retrievalToken = value.retrievalToken;
+  if (typeof retrievalToken !== "string" || retrievalToken.length === 0) {
+    throw new Error(
+      "This YakShaver backend does not support recoverable MCP OAuth. Update the backend, or retry once its deployment finishes.",
+    );
+  }
+
+  return { authorizationUrl, retrievalToken };
 }
 
 function parseOAuthTokens(value: unknown): OAuthTokens {
@@ -368,9 +375,20 @@ async function getRecoverableOAuthResult(
     );
   }
 
-  if (response.status === 401 || response.status === 403) {
+  // Both are terminal, but they need different advice. 401 means the sign-in itself is no longer
+  // accepted, which signing in again fixes. 403 means the sign-in worked and the account simply is
+  // not linked to a YakShaver tenant or user — signing in again cannot change that, so telling the
+  // user to do it would send them round a loop.
+  if (response.status === 401) {
     throw new McpOAuthResultError(
       "Your YakShaver sign-in expired. Sign in again before reconnecting.",
+      response.status,
+    );
+  }
+
+  if (response.status === 403) {
+    throw new McpOAuthResultError(
+      "This account is not linked to a YakShaver tenant. Ask your administrator to add it.",
       response.status,
     );
   }

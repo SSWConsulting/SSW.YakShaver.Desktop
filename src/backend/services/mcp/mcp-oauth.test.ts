@@ -496,13 +496,15 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { storage } = createTokenStorage();
 
+    // 403 is the backend saying the account it authenticated owns no result here, so the advice is to
+    // get the account linked — not to sign in again, which cannot change the outcome.
     await expect(
       authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
         provider: "github",
         pollIntervalMs: 1,
         timeoutMs: 100,
       }),
-    ).rejects.toThrow("sign-in expired");
+    ).rejects.toThrow("not linked to a YakShaver tenant");
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
@@ -511,6 +513,54 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
         headers: expect.objectContaining({ Authorization: "Bearer current-user-token" }),
       }),
     );
+  });
+
+  it("fails before opening a browser when the backend issues no retrieval token", async () => {
+    const openExternal = vi.mocked((await import("electron")).shell.openExternal);
+    openExternal.mockClear();
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      // A backend deployed before recoverable results, or one that treated this start as anonymous.
+      jsonResponse(200, {
+        authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { storage } = createTokenStorage();
+
+    await expect(
+      authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
+        provider: "github",
+        pollIntervalMs: 1,
+        timeoutMs: 100,
+      }),
+    ).rejects.toThrow("does not support recoverable MCP OAuth");
+
+    // Stranding the user on a consent screen whose result can never be collected is the failure this
+    // guards against, so no browser may have been opened.
+    expect(openExternal).not.toHaveBeenCalled();
+  });
+
+  it("tells the user to sign in again when the portal rejects the token", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
+          retrievalToken: "retrieval-token",
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(401, {}));
+    vi.stubGlobal("fetch", fetchMock);
+    const { storage } = createTokenStorage();
+
+    // Unlike 403, signing in again is the fix here — so the two must not share a message.
+    await expect(
+      authorizeWithBackend(storage, "https://api.githubcopilot.com/mcp/", "server-1", {
+        provider: "github",
+        pollIntervalMs: 1,
+        timeoutMs: 100,
+      }),
+    ).rejects.toThrow("sign-in expired");
   });
 
   it("reports an expired or consumed state when the deep-link never arrives", async () => {
