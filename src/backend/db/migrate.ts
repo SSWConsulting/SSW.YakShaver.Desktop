@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { app } from "electron";
 import { getDb, getDbPath } from "./client";
 import { DatabaseBackupService } from "./services/backup-service";
 
@@ -33,9 +34,10 @@ function ensureRequiredTablesExist(): void {
 function getMigrationsPath(): string {
   const isDev = process.env.NODE_ENV === "development";
 
-  // Development: use project source directly
+  // Development: use project source directly. Anchored to the app directory for the same reason as
+  // getDbPath — a deep-link launch starts the process from an unrelated working directory.
   if (isDev) {
-    const devPath = path.join(process.cwd(), "src", "backend", "db", "migrations");
+    const devPath = path.join(app.getAppPath(), "src", "backend", "db", "migrations");
     if (fs.existsSync(devPath)) {
       return devPath;
     }
