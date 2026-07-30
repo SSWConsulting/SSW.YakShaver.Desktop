@@ -43,10 +43,9 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
       authError,
     });
 
-    // The declined/error result pages ping back with `error` and no tokens, so the waiting
-    // authorization can fail immediately instead of hanging until it times out (#965).
-    // The attempt id travels with it so a tab left over from an earlier attempt cannot cancel
-    // whichever authorization is waiting now.
+    // The declined/error result pages ping back with `error` and no tokens so the waiting
+    // authorization fails immediately instead of hanging until it times out (#965). The attempt id
+    // travels with it so a stale tab cannot cancel whichever authorization is waiting now.
     if (authError) {
       console.warn("[ProtocolRouter] MCP OAuth callback reported failure", {
         serverId,
@@ -144,10 +143,8 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
       authError,
     });
 
-    // Mirrors the MCP branch above: the declined/error result pages ping back with `error` and no
-    // tokens, so the waiting authorization fails immediately rather than hanging (#965). There is
-    // only one YouTube binding, so the attempt id is the sole thing separating a stale tab's
-    // failure from the attempt currently waiting.
+    // Mirrors the MCP branch above. There is only one YouTube binding, so the attempt id is the sole
+    // thing separating a stale tab's failure from the attempt currently waiting.
     if (authError) {
       console.warn("[ProtocolRouter] YouTube OAuth callback reported failure", {
         authError,
