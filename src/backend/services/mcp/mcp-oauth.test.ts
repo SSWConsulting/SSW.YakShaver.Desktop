@@ -358,7 +358,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     await vi.waitFor(() =>
       expect(warnSpy).toHaveBeenCalledWith(
         "[McpOAuth] Failed to consume the backend OAuth result after Deep Link completion:",
-        expect.any(Error),
+        expect.stringContaining("temporarily unavailable"),
       ),
     );
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -586,7 +586,8 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps the deep-link active when the result endpoint returns 404", async () => {
+  it("does not accept a late deep-link after the result endpoint returns terminal 404", async () => {
+    vi.useFakeTimers();
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -607,9 +608,10 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
         pollIntervalMs: 1,
         timeoutMs: 100,
       }),
-    ).resolves.toEqual(TOKENS);
+    ).rejects.toThrow("Reconnect the MCP server");
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(await storage.getTokensAsync("server-1")).toBeUndefined();
   });
 
   it("asks the user to reconnect when OAuth does not finish before the result expires", async () => {

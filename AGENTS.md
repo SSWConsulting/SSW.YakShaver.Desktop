@@ -439,10 +439,12 @@ All encrypted credential storage extends `BaseSecureStorage` (which uses Electro
 
 #### Recoverable MCP OAuth
 
-GitHub and Azure DevOps MCP OAuth keep the original server URL and backend-issued `state` in
-memory, then poll `/mcp/auth/result` while retaining the custom-protocol Deep Link callback. Both
-paths complete through `McpOAuthTokenStorage.completeOAuthAsync()` so only the first result is
-stored. Polling uses the configured OAuth timeout; backend results expire after five minutes.
+GitHub and Azure DevOps MCP OAuth keep the original server URL and backend-issued retrieval token in
+memory, then poll `/mcp/auth/result` while retaining the custom-protocol Deep Link callback. The
+retrieval token is distinct from the browser-visible OAuth `state` and only travels between Desktop
+and Backend. Both completion paths use `McpOAuthTokenStorage.completeOAuthAsync()` so only the first
+result is stored. Polling uses the configured OAuth timeout; backend results expire after five
+minutes.
 
 #### Database Service Pattern (Functions, Not Classes)
 

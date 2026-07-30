@@ -3,6 +3,7 @@ import type { OAuthTokens } from "@ai-sdk/mcp";
 import { shell } from "electron";
 import { config } from "../../config/env";
 import { delay } from "../../utils/async-utils";
+import { formatAndReportError } from "../../utils/error-utils";
 import { AUTH_ATTEMPT_PARAM, isCurrentAuthAttempt } from "../auth/auth-attempt";
 import { IdentityServerAuthService } from "../auth/identity-server-auth";
 import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
@@ -418,9 +419,10 @@ async function consumeRecoverableOAuthResultAfterDeepLink(
     );
   } catch (error) {
     // The Deep Link already persisted the tokens. This request only consumes the backend copy.
+    const message = formatAndReportError(error, "mcp_oauth_result_consumption");
     console.warn(
       "[McpOAuth] Failed to consume the backend OAuth result after Deep Link completion:",
-      error,
+      message,
     );
   }
 }
@@ -561,6 +563,10 @@ export async function waitForTokens(
   if (existingTokens) {
     console.log(`[McpOAuth] Tokens already present for server ${serverId}`);
     return existingTokens;
+  }
+
+  if (signal?.aborted) {
+    throw new Error("MCP OAuth token wait was cancelled");
   }
 
   console.log(`[McpOAuth] Waiting for tokens for server ${serverId} (Timeout: ${timeoutMs}ms)...`);
@@ -710,19 +716,17 @@ async function authorizeWithBackendOnce(
     await shell.openExternal(session.authorizationUrl);
     const completion = await Promise.race([deepLinkCompletion, pollingCompletion]);
     if (completion.source === "polling-error") {
+      pollingAbortController.abort();
+      if (isTerminalOAuthResultError(completion.error)) {
+        deepLinkAbortController.abort();
+        throw completion.error;
+      }
+
       console.warn(
         "[McpOAuth] Result polling failed; continuing to wait for the Deep Link callback:",
         completion.error,
       );
-      pollingAbortController.abort();
-      try {
-        return await deepLinkTokens;
-      } catch (deepLinkError) {
-        if (isTerminalOAuthResultError(completion.error)) {
-          throw completion.error;
-        }
-        throw deepLinkError;
-      }
+      return await deepLinkTokens;
     }
     if (completion.source === "deep-link") {
       pollingAbortController.abort();

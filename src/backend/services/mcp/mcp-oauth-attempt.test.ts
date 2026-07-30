@@ -40,6 +40,24 @@ function fakeStorage() {
 }
 
 describe("waitForTokens attempt correlation", () => {
+  it("stops when aborted during the initial token lookup", async () => {
+    let finishLookup: ((tokens: null) => void) | undefined;
+    const initialLookup = new Promise<null>((resolve) => {
+      finishLookup = resolve;
+    });
+    const storage = fakeStorage();
+    storage.getTokensAsync.mockImplementationOnce(() => initialLookup);
+    const abortController = new AbortController();
+    const waiting = waitForTokens(storage as unknown as McpOAuthTokenStorage, SERVER_ID, 5000, {
+      signal: abortController.signal,
+    });
+
+    abortController.abort();
+    finishLookup?.(null);
+
+    await expect(waiting).rejects.toThrow(/cancelled/i);
+  });
+
   it("fails fast when the failure belongs to the attempt being waited on", async () => {
     const storage = fakeStorage();
     const waiting = waitForTokens(storage as unknown as McpOAuthTokenStorage, SERVER_ID, 5000, {
