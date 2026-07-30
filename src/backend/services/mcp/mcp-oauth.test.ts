@@ -119,7 +119,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValueOnce(jsonResponse(202, {}))
@@ -151,12 +151,14 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
     const startUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
     expect(startUrl.searchParams.get("serverUrl")).toBe(serverUrl);
     expect(startUrl.searchParams.get("provider")).toBe("github");
-    expect(startUrl.searchParams.get("redirectUri")).toBe(
-      "yakshaver-desktop-dev://oauth/callback?serverId=server-1",
-    );
+    // The redirect URI also carries a per-attempt id (#965) so a failure deep-linked by a stale tab
+    // cannot cancel this attempt. Its value is a fresh uuid, so match the shape rather than pin it.
+    const redirectUri = new URL(String(startUrl.searchParams.get("redirectUri")));
+    expect(redirectUri.searchParams.get("serverId")).toBe("server-1");
+    expect(redirectUri.searchParams.get("attemptId")).toEqual(expect.any(String));
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "https://api.test/api/mcp/auth/result?serverUrl=https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%3Foriginal%3Dtrue&state=oauth-state",
+      "https://api.test/api/mcp/auth/result?serverUrl=https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%3Foriginal%3Dtrue&retrievalToken=retrieval-token",
       expect.objectContaining({
         signal: expect.any(AbortSignal),
         headers: expect.objectContaining({ Authorization: "Bearer portal-access-token" }),
@@ -207,7 +209,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValue(jsonResponse(202, {}));
@@ -293,7 +295,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValueOnce(jsonResponse(202, {}))
@@ -334,7 +336,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValueOnce(jsonResponse(202, {}))
@@ -368,7 +370,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockRejectedValueOnce(new TypeError("fetch failed"))
@@ -396,7 +398,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValueOnce(jsonResponse(200, TOKENS));
@@ -424,7 +426,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockRejectedValueOnce(new TypeError("fetch failed"))
@@ -459,7 +461,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValueOnce(jsonResponse(200, TOKENS));
@@ -487,7 +489,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValueOnce(jsonResponse(403, {}));
@@ -517,7 +519,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValueOnce(jsonResponse(404, {}));
@@ -540,7 +542,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValueOnce(jsonResponse(404, {}));
@@ -566,7 +568,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValue(jsonResponse(202, {}));
@@ -587,7 +589,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://app.vssps.visualstudio.com/oauth2/authorize",
-          state: "azure-state",
+          retrievalToken: "azure-retrieval-token",
         }),
       )
       .mockResolvedValueOnce(jsonResponse(404, {}));
@@ -614,7 +616,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValueOnce(jsonResponse(401, {}));
@@ -635,7 +637,7 @@ describe("authorizeWithBackend — OAuth result recovery (#771)", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           authorizationUrl: "https://github.com/login/oauth/authorize?state=oauth-state",
-          state: "oauth-state",
+          retrievalToken: "retrieval-token",
         }),
       )
       .mockResolvedValue(jsonResponse(202, {}));

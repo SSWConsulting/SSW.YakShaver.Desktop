@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import type { OAuthTokens } from "@ai-sdk/mcp";
 import { shell } from "electron";
 import { config } from "../../config/env";
 import { delay } from "../../utils/async-utils";
+import { AUTH_ATTEMPT_PARAM, isCurrentAuthAttempt } from "../auth/auth-attempt";
 import { IdentityServerAuthService } from "../auth/identity-server-auth";
 import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 
@@ -15,12 +17,21 @@ export interface McpOAuthAuthorizeOptions {
 
 interface McpOAuthSession {
   authorizationUrl: string;
-  state: string;
+  /**
+   * Secret that collects the completed tokens from `/mcp/auth/result`.
+   *
+   * Deliberately not the OAuth `state`: state is sent on to the provider and comes back on a
+   * browser-visible deep link, so it ends up in third-party logs and `Referer` headers. This value
+   * only ever travels between this app and the YakShaver backend.
+   */
+  retrievalToken: string;
 }
 
 interface McpOAuthStartRequestOptions {
   provider?: McpOAuthProvider;
   accessToken?: string;
+  /** Identifies this attempt on the redirect URI, so a stale tab cannot cancel it (#965). */
+  attemptId?: string;
 }
 
 const OAUTH_TIMEOUT_ERROR = "MCP OAuth session timed out. Reconnect the MCP server.";
@@ -156,7 +167,9 @@ function parseOAuthSession(value: unknown): McpOAuthSession {
 
   return {
     authorizationUrl: getRequiredString(value, "authorizationUrl", "MCP OAuth start response"),
-    state: getRequiredString(value, "state", "MCP OAuth start response"),
+    // Absent when the backend treated the start as anonymous. That means nothing was retained to
+    // recover, so failing here beats opening a browser for a flow that cannot be polled.
+    retrievalToken: getRequiredString(value, "retrievalToken", "MCP OAuth start response"),
   };
 }
 
@@ -219,11 +232,14 @@ async function getPortalAccessToken(): Promise<string> {
   return accessToken;
 }
 
-function getMcpOAuthRedirectUri(serverId: string): string {
+function getMcpOAuthRedirectUri(serverId: string, attemptId?: string): string {
   const protocol =
     config.azure()?.customProtocol ||
     (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
-  return `${protocol}://oauth/callback?serverId=${encodeURIComponent(serverId)}`;
+  // The attempt id rides along on the redirect URI, which the backend echoes back when it
+  // deep-links a failure — that is what lets `waitForTokens` tell this attempt from an older one.
+  const attemptQuery = attemptId ? `&${AUTH_ATTEMPT_PARAM}=${encodeURIComponent(attemptId)}` : "";
+  return `${protocol}://oauth/callback?serverId=${encodeURIComponent(serverId)}${attemptQuery}`;
 }
 
 async function getOAuthResponseError(response: Response, fallback: string): Promise<string> {
@@ -271,7 +287,7 @@ async function requestMcpOAuthStart(
 ): Promise<unknown> {
   const url = new URL(`${config.portalApiUrl()}/mcp/auth/start`);
   url.searchParams.set("serverUrl", serverUrl);
-  url.searchParams.set("redirectUri", getMcpOAuthRedirectUri(serverId));
+  url.searchParams.set("redirectUri", getMcpOAuthRedirectUri(serverId, options.attemptId));
   if (options.provider) {
     url.searchParams.set("provider", options.provider);
   }
@@ -304,20 +320,25 @@ async function startRecoverableOAuth(
   serverId: string,
   provider: McpOAuthProvider,
   accessToken: string,
+  attemptId: string,
 ): Promise<McpOAuthSession> {
-  const data = await requestMcpOAuthStart(serverUrl, serverId, { provider, accessToken });
+  const data = await requestMcpOAuthStart(serverUrl, serverId, {
+    provider,
+    accessToken,
+    attemptId,
+  });
   return parseOAuthSession(data);
 }
 
 async function getRecoverableOAuthResult(
   serverUrl: string,
-  state: string,
+  retrievalToken: string,
   accessToken: string,
   signal: AbortSignal,
 ): Promise<OAuthTokens | undefined> {
   const url = new URL(`${config.portalApiUrl()}/mcp/auth/result`);
   url.searchParams.set("serverUrl", serverUrl);
-  url.searchParams.set("state", state);
+  url.searchParams.set("retrievalToken", retrievalToken);
 
   let response: Response;
   try {
@@ -367,13 +388,13 @@ async function getRecoverableOAuthResult(
 
 async function consumeRecoverableOAuthResultAfterDeepLink(
   serverUrl: string,
-  state: string,
+  retrievalToken: string,
 ): Promise<void> {
   try {
     const accessToken = await getPortalAccessToken();
     await getRecoverableOAuthResult(
       serverUrl,
-      state,
+      retrievalToken,
       accessToken,
       AbortSignal.timeout(FINAL_RESULT_CONSUMPTION_TIMEOUT_MS),
     );
@@ -418,7 +439,7 @@ async function pollRecoverableOAuthResult(
   tokenStorage: McpOAuthTokenStorage,
   serverUrl: string,
   serverId: string,
-  state: string,
+  retrievalToken: string,
   timeoutMs: number,
   pollIntervalMs: number,
   signal: AbortSignal,
@@ -434,7 +455,7 @@ async function pollRecoverableOAuthResult(
         const currentAccessToken = await getPortalAccessToken();
         pendingTokens = await getRecoverableOAuthResult(
           serverUrl,
-          state,
+          retrievalToken,
           currentAccessToken,
           signal,
         );
@@ -483,10 +504,16 @@ async function pollRecoverableOAuthResult(
 }
 
 /**
- * Gets the authorization URL from the .NET backend for an MCP server.
+ * Gets the authorization URL for a server with no recovery support, where the Deep Link is the only
+ * way tokens come back. Sends no bearer token, so the backend keeps the flow anonymous and retains
+ * nothing to poll for — the attempt id is still what lets a failure cancel the right attempt.
  */
-async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promise<string> {
-  const data = await requestMcpOAuthStart(serverUrl, serverId);
+async function getAuthUrlFromBackend(
+  serverUrl: string,
+  serverId: string,
+  attemptId: string,
+): Promise<string> {
+  const data = await requestMcpOAuthStart(serverUrl, serverId, { attemptId });
   if (!isRecord(data)) {
     throw new Error("MCP OAuth start response was invalid");
   }
@@ -496,11 +523,16 @@ async function getAuthUrlFromBackend(serverUrl: string, serverId: string): Promi
 /**
  * Waits for tokens to be available for a given server ID using an event-driven approach.
  */
-async function waitForTokens(
+export async function waitForTokens(
   tokenStorage: McpOAuthTokenStorage,
   serverId: string,
   timeoutMs: number,
-  signal?: AbortSignal,
+  // Two independent ways this wait can end early, and both are needed. `signal` cancels it from
+  // inside this process — the result poll won the race, so stop waiting on the Deep Link.
+  // `attemptId` guards against the outside: a browser tab left open from an earlier attempt can
+  // deep-link a failure for this same server, and without an id to compare it would cancel
+  // whichever attempt is waiting now.
+  { signal, attemptId }: { signal?: AbortSignal; attemptId?: string } = {},
 ): Promise<OAuthTokens> {
   if (signal?.aborted) {
     throw new Error("MCP OAuth token wait was cancelled");
@@ -523,6 +555,7 @@ async function waitForTokens(
         clearTimeout(timeoutId);
       }
       tokenStorage.off(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+      tokenStorage.off(McpOAuthTokenStorage.AUTH_FAILED_EVENT, onAuthFailed);
       signal?.removeEventListener("abort", onAbort);
     }
 
@@ -549,7 +582,28 @@ async function waitForTokens(
       });
     };
 
+    // The result page deep-links back on failure, so a declined or failed attempt reports straight
+    // away rather than looking like a hang until the timeout fires (#965). A tab left open from an
+    // earlier attempt for this same server would otherwise cancel this one, so its callback is
+    // ignored unless it belongs to the attempt being waited on.
+    const onAuthFailed = (failedServerId: string, failedAttemptId?: string | null) => {
+      if (failedServerId !== serverId) {
+        return;
+      }
+      if (!isCurrentAuthAttempt(failedAttemptId, attemptId)) {
+        console.log(`[McpOAuth] Ignoring failure from a stale attempt for server ${serverId}`, {
+          failedAttemptId,
+          attemptId,
+        });
+        return;
+      }
+      console.warn(`[McpOAuth] Authorization failed for server ${serverId}`);
+      cleanup();
+      reject(new Error("Authorization was cancelled or failed. Please try again."));
+    };
+
     tokenStorage.on(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+    tokenStorage.on(McpOAuthTokenStorage.AUTH_FAILED_EVENT, onAuthFailed);
     signal?.addEventListener("abort", onAbort, { once: true });
 
     timeoutId = setTimeout(() => {
@@ -582,30 +636,37 @@ async function authorizeWithBackendOnce(
 ): Promise<OAuthTokens> {
   const provider = options.provider ?? inferMcpOAuthProvider(serverUrl);
   const timeoutMs = resolveMcpOAuthTimeoutMs(provider, options.timeoutMs);
+  // One id per attempt, shared by the URL we send out and the waiter, so a failure reported by an
+  // earlier tab for this same server is ignored instead of cancelling this attempt.
+  const attemptId = randomUUID();
 
   if (!provider) {
-    const authUrl = await getAuthUrlFromBackend(serverUrl, serverId);
+    const authUrl = await getAuthUrlFromBackend(serverUrl, serverId, attemptId);
     await shell.openExternal(authUrl);
-    return waitForTokens(tokenStorage, serverId, timeoutMs);
+    return waitForTokens(tokenStorage, serverId, timeoutMs, { attemptId });
   }
 
   const accessToken = await getPortalAccessToken();
   // Recovery state is intentionally in-memory; restarting the app requires restarting OAuth.
-  const session = await startRecoverableOAuth(serverUrl, serverId, provider, accessToken);
+  const session = await startRecoverableOAuth(
+    serverUrl,
+    serverId,
+    provider,
+    accessToken,
+    attemptId,
+  );
   const pollingAbortController = new AbortController();
   const deepLinkAbortController = new AbortController();
   let backendResultConsumed = false;
-  const deepLinkTokens = waitForTokens(
-    tokenStorage,
-    serverId,
-    timeoutMs,
-    deepLinkAbortController.signal,
-  );
+  const deepLinkTokens = waitForTokens(tokenStorage, serverId, timeoutMs, {
+    signal: deepLinkAbortController.signal,
+    attemptId,
+  });
   const polledTokens = pollRecoverableOAuthResult(
     tokenStorage,
     serverUrl,
     serverId,
-    session.state,
+    session.retrievalToken,
     timeoutMs,
     options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
     pollingAbortController.signal,
@@ -648,7 +709,7 @@ async function authorizeWithBackendOnce(
     if (completion.source === "deep-link") {
       pollingAbortController.abort();
       if (!backendResultConsumed) {
-        void consumeRecoverableOAuthResultAfterDeepLink(serverUrl, session.state);
+        void consumeRecoverableOAuthResultAfterDeepLink(serverUrl, session.retrievalToken);
       }
     }
     return completion.tokens;
