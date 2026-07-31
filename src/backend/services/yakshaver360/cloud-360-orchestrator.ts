@@ -29,7 +29,10 @@ export class Cloud360Orchestrator {
         if (!precheck.canShave) {
           broadcastCloud360Event({
             shaveId,
-            event: { type: "error", message: precheck.message ?? "This recording can't be processed." },
+            event: {
+              type: "error",
+              message: precheck.message ?? "This recording can't be processed.",
+            },
             runStart: true,
           });
           return false;

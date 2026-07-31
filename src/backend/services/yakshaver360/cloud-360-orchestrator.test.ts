@@ -1,14 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SandboxEvent } from "./types";
 
-const { broadcast, uploadRecordingFromFile, processRecording, checkCloud360Credits, getAccessToken } =
-  vi.hoisted(() => ({
-    broadcast: vi.fn(),
-    uploadRecordingFromFile: vi.fn(),
-    processRecording: vi.fn(),
-    checkCloud360Credits: vi.fn(),
-    getAccessToken: vi.fn(),
-  }));
+const {
+  broadcast,
+  uploadRecordingFromFile,
+  processRecording,
+  checkCloud360Credits,
+  getAccessToken,
+} = vi.hoisted(() => ({
+  broadcast: vi.fn(),
+  uploadRecordingFromFile: vi.fn(),
+  processRecording: vi.fn(),
+  checkCloud360Credits: vi.fn(),
+  getAccessToken: vi.fn(),
+}));
 
 vi.mock("./cloud-360-broadcast", () => ({ broadcastCloud360Event: broadcast }));
 
@@ -162,7 +167,11 @@ describe("Cloud360Orchestrator", () => {
     uploadRecordingFromFile.mockRejectedValue(new Error("Not signed in"));
 
     await expect(
-      new Cloud360Orchestrator().run({ filePath: "/tmp/v.mp4", projectId: "p1", durationSeconds: 1 }),
+      new Cloud360Orchestrator().run({
+        filePath: "/tmp/v.mp4",
+        projectId: "p1",
+        durationSeconds: 1,
+      }),
     ).resolves.toBe(false);
 
     expect(checkCloud360Credits).not.toHaveBeenCalled();

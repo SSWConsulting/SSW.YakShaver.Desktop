@@ -45,7 +45,8 @@ export async function checkCloud360Credits(token: string): Promise<CreditPrechec
 
   if ((balance?.remaining ?? 0) >= 1) return { canShave: true };
 
-  const hasNoPlan = balance?.error === "NoStripeCustomer" || balance?.error === "NoActiveSubscription";
+  const hasNoPlan =
+    balance?.error === "NoStripeCustomer" || balance?.error === "NoActiveSubscription";
   return hasNoPlan
     ? {
         canShave: false,

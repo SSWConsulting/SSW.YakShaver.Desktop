@@ -56,7 +56,9 @@ describe("Cloud360ProjectDialog", () => {
   // what actually spares the user recording a video that can never be processed.
   describe("credit pre-check", () => {
     it("withholds the project list and explains why when credits are spent", async () => {
-      listProjects.mockResolvedValueOnce([{ id: "1", name: "Widgets", githubRepo: "acme/widgets" }]);
+      listProjects.mockResolvedValueOnce([
+        { id: "1", name: "Widgets", githubRepo: "acme/widgets" },
+      ]);
       checkCredits.mockResolvedValue({ canShave: false, reason: "out-of-credits" });
       render(<Cloud360ProjectDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} />);
 
@@ -87,7 +89,9 @@ describe("Cloud360ProjectDialog", () => {
 
     // Fails open: a broken pre-check must never be the thing that stops a paying user.
     it("still lists projects when the credit check itself throws", async () => {
-      listProjects.mockResolvedValueOnce([{ id: "1", name: "Widgets", githubRepo: "acme/widgets" }]);
+      listProjects.mockResolvedValueOnce([
+        { id: "1", name: "Widgets", githubRepo: "acme/widgets" },
+      ]);
       checkCredits.mockRejectedValue(new Error("ipc exploded"));
       render(<Cloud360ProjectDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} />);
 

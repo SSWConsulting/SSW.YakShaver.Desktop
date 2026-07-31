@@ -32,30 +32,25 @@ interface Props {
 }
 
 /** Centred empty state shown instead of the project list when the tenant cannot shave. */
-function BlockedState({
-  reason,
-  onAction,
-}: {
-  reason: ShaveBlockReason;
-  onAction: () => void;
-}) {
+function BlockedState({ reason, onAction }: { reason: ShaveBlockReason; onAction: () => void }) {
   const copy = getBlockCopy(reason);
   return (
-    <div
-      role="status"
-      className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center"
-    >
+    // <output> is the semantic element for role="status" — announced politely by screen readers
+    // when the gate replaces the project list.
+    <output className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
       <div className="flex size-11 items-center justify-center rounded-full bg-destructive/10 text-destructive">
         <CircleAlert className="size-5" aria-hidden="true" />
       </div>
       <div className="space-y-1.5">
         <p className="font-semibold text-base">{copy.title}</p>
-        <p className="mx-auto max-w-sm text-muted-foreground text-sm leading-relaxed">{copy.body}</p>
+        <p className="mx-auto max-w-sm text-muted-foreground text-sm leading-relaxed">
+          {copy.body}
+        </p>
       </div>
       <Button size="sm" onClick={onAction}>
         {copy.actionLabel}
       </Button>
-    </div>
+    </output>
   );
 }
 
