@@ -30,20 +30,31 @@ export interface CreditPrecheckResult {
 
 const BILLING_HINT = "Visit https://portal.yakshaver.ai/plan to update your subscription.";
 
+// The dialog holds its project list until this resolves, so a hung request would be indistinguishable
+// from a permanent spinner. Short enough that a slow backend costs a moment, not the whole flow.
+const TIMEOUT_MS = 5000;
+
 export async function checkCloud360Credits(token: string): Promise<CreditPrecheckResult> {
   let balance: CreditBalanceDto;
   try {
     const response = await fetch(`${config.portalApiUrl()}/credits/balance`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!response.ok) return { canShave: true };
     balance = (await response.json()) as CreditBalanceDto;
   } catch {
-    // Unreachable, non-ok or unparseable — fail open and let the process route report the truth.
+    // Unreachable, timed out, non-ok or unparseable — fail open and let the process route report
+    // the truth.
     return { canShave: true };
   }
 
-  if ((balance?.remaining ?? 0) >= 1) return { canShave: true };
+  // Only a number we can actually compare should ever block. `?? 0` alone would treat a null or a
+  // stringified count as "no credits" and stop a paying user over a malformed response.
+  if (typeof balance?.remaining !== "number" || Number.isNaN(balance.remaining)) {
+    return { canShave: true };
+  }
+  if (balance.remaining >= 1) return { canShave: true };
 
   const hasNoPlan =
     balance?.error === "NoStripeCustomer" || balance?.error === "NoActiveSubscription";

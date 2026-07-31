@@ -99,7 +99,7 @@ export function Cloud360ProjectDialog({ open, onOpenChange, onConfirm }: Props) 
   }, [open]);
 
   const handleOpenBilling = useCallback(() => {
-    void window.electronAPI.app.openExternal(BILLING_URL);
+    void ipcClient.app.openExternal(BILLING_URL);
   }, []);
 
   const filtered = useMemo(() => {

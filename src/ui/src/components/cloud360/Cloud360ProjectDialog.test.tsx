@@ -7,7 +7,7 @@ const { listProjects, checkCredits, openExternal } = vi.hoisted(() => ({
   openExternal: vi.fn(),
 }));
 vi.mock("@/services/ipc-client", () => ({
-  ipcClient: { cloud360: { listProjects, checkCredits } },
+  ipcClient: { cloud360: { listProjects, checkCredits }, app: { openExternal } },
 }));
 
 import { Cloud360ProjectDialog } from "./Cloud360ProjectDialog";
@@ -17,11 +17,6 @@ beforeEach(() => {
   // Default to a tenant that can shave, so the pre-existing cases below still exercise the list.
   checkCredits.mockReset().mockResolvedValue({ canShave: true });
   openExternal.mockReset();
-  Object.defineProperty(window, "electronAPI", {
-    value: { app: { openExternal } },
-    writable: true,
-    configurable: true,
-  });
 });
 
 describe("Cloud360ProjectDialog", () => {
