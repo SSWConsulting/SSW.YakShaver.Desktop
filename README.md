@@ -10,7 +10,7 @@ Licensed under [AGPL-3.0-only](./LICENSE).
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/en/download) 20+ (matches the version used by the release CI)
+- [Node.js](https://nodejs.org/en/download) 20+ (CI uses 20 for release workflows, 22 for test workflows — 20+ covers both)
 
 ## Setup
 
@@ -120,8 +120,8 @@ yt-dlp "https://www.youtube.com/watch?v=example"
 1. `npm run setup` – ensure all dependencies are installed
 2. `npm run make` - this runs `electron-builder`, which outputs to `/build`:
 
-- Final installers/distributables (e.g. the Windows `.exe`, macOS `.zip`) are written directly in `/build`
-- Unpacked app folders are per-platform subfolders, e.g. `/build/win-unpacked`, `/build/mac`, `/build/mac-arm64`
+- Final installers/distributables (e.g. the Windows `.exe`, macOS `.dmg`) are written directly in `/build`
+- Unpacked app folders are per-platform subfolders, e.g. `/build/win-unpacked`, `/build/mac`, `/build/mac-x64`
 
 See [RELEASE.md](./RELEASE.md) for how these builds feed into the release process.
 
@@ -132,6 +132,8 @@ See [RELEASE.md](./RELEASE.md) for how these builds feed into the release proces
 - **Windows**: `%APPDATA%\YakShaver\yakshaver-tokens\*.enc`
 - **macOS**: `~/Library/Application Support/YakShaver/yakshaver-tokens/*.enc`
 - **Linux**: `~/.config/YakShaver/yakshaver-tokens/*.enc`
+
+  These paths are for the packaged app (or `npm run start`). Running via `npm run dev` (see [Run](#run)) sets `NODE_ENV=development`, which redirects `userData` to a separate `YakShaverDev` directory (e.g. `%APPDATA%\YakShaverDev\yakshaver-tokens\*.enc` on Windows) so dev sessions don't collide with a real install.
 
 
 ### Model Settings (User-provided API keys)
