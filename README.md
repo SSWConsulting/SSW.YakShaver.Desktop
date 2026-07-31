@@ -6,9 +6,11 @@ For more information, visit our website at [yakshaver.ai](https://yakshaver.ai)
 
 We also offer a **web version** [YakShaver 360](https://360.yakshaver.ai)
 
+Licensed under [AGPL-3.0-only](./LICENSE).
+
 ## Prerequisites
 
-- [Node JS](https://nodejs.org/en/download)
+- [Node.js](https://nodejs.org/en/download) 20+ (matches the version used by the release CI)
 
 ## Setup
 
@@ -116,31 +118,34 @@ yt-dlp "https://www.youtube.com/watch?v=example"
 ## Building
 
 1. `npm run setup` – ensure all dependencies are installed
-2. `npm run make` - this will create 2 folders
+2. `npm run make` - this runs `electron-builder`, which outputs to `/build`:
 
-- `/out/make/{target}/{arch}` - which contains the installers/distributables for end users
-- `/SSW.YakShaver-{system}-{arch}` - which contains the unpacked/portable app
+- Final installers/distributables (e.g. the Windows `.exe`, macOS `.zip`) are written directly in `/build`
+- Unpacked app folders are per-platform subfolders, e.g. `/build/win-unpacked`, `/build/mac`, `/build/mac-arm64`
+
+See [RELEASE.md](./RELEASE.md) for how these builds feed into the release process.
 
 ## Configuration
 
 - Keys are stored securely on your device using the operating system's encryption (Electron safeStorage) in the app's user data directory
 
-- **Windows**: `%APPDATA%\SSW.YakShaver\yakshaver-tokens\*.enc`
-- **macOS**: `~/Library/Application Support/SSW.YakShaver/yakshaver-tokens/*.enc`
-- **Linux**: `~/.config/SSW.YakShaver/yakshaver-tokens/*.enc`
+- **Windows**: `%APPDATA%\YakShaver\yakshaver-tokens\*.enc`
+- **macOS**: `~/Library/Application Support/YakShaver/yakshaver-tokens/*.enc`
+- **Linux**: `~/.config/YakShaver/yakshaver-tokens/*.enc`
 
 
-### OpenAI API Key (User-provided)
+### Model Settings (User-provided API keys)
 
-You can now set your own OpenAI API key directly in the app:
+You can set your own provider API key directly in the app — OpenAI, Azure OpenAI, and DeepSeek are
+all supported:
 
-- Open the app and go to the main screen toolbar.
-- Click the "LLM Settings" button.
-- Paste your OpenAI API key (starts with `sk-...`) and Save.
+- Open the app and click the Settings icon in the sidebar.
+- Go to the "Model Settings" panel.
+- Choose your provider, paste its API key, and Save.
 
 Notes:
 
-- You can clear the stored key anytime from the same dialog.
+- You can clear the stored key anytime from the same panel.
 
 ### MCP Server Configuration
 
