@@ -448,6 +448,20 @@ describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", ()
     showMessageBoxMock.mockReset();
   });
 
+  it("states explicitly that the reminder returns after restart, instead of ambiguous 'Later' (#999)", async () => {
+    showMessageBoxMock.mockResolvedValue({ response: 1 });
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+
+    const options = showMessageBoxMock.mock.calls[0][0];
+    expect(options.buttons).toEqual(["Restart Now", "Remind Me After Restart"]);
+    expect(options.buttons).not.toContain("Later");
+    expect(options.message).toMatch(/next time you start YakShaver/i);
+  });
+
   it("does not stack a second reminder dialog while the first is still awaiting a response", async () => {
     // The reported bug's second half: "If the reminder dialog is open already, a subsequent
     // update check should not open another reminder dialog on top of it." Simulate the first
@@ -516,9 +530,10 @@ describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", ()
   });
 
   it("does not show a reminder again this session after the user clicks Later — the originally reported bug", async () => {
-    // The reported bug's first half: clicking "Remind me later" must stop further reminders for
-    // the rest of the current session, even when the periodic ~10-minute check fires again.
-    showMessageBoxMock.mockResolvedValue({ response: 1 }); // 1 = "Later"
+    // The reported bug's first half: clicking "Remind Me After Restart" (#999, formerly "Later")
+    // must stop further reminders for the rest of the current session, even when the periodic
+    // ~10-minute check fires again.
+    showMessageBoxMock.mockResolvedValue({ response: 1 }); // 1 = "Remind Me After Restart"
 
     new ReleaseChannelIPCHandlers();
 
