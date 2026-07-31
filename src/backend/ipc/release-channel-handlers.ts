@@ -89,8 +89,8 @@ export class ReleaseChannelIPCHandlers {
     });
 
     autoUpdater.on("update-downloaded", () => {
-      // Skip showing dialog if user already dismissed it this session (#456) - once "Later" is
-      // clicked, no further reminder should appear for the rest of the current session.
+      // Skip showing dialog if user already dismissed it this session (#456) - once "Remind Me
+      // After Restart" is clicked, no further reminder should appear for the rest of the current session.
       if (this.updateDialogDismissedInSession) {
         return;
       }
