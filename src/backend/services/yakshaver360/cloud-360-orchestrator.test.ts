@@ -1,13 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SandboxEvent } from "./types";
 
-const { broadcast, uploadRecordingFromFile, processRecording } = vi.hoisted(() => ({
-  broadcast: vi.fn(),
-  uploadRecordingFromFile: vi.fn(),
-  processRecording: vi.fn(),
-}));
+const { broadcast, uploadRecordingFromFile, processRecording, checkCloud360Credits, getAccessToken } =
+  vi.hoisted(() => ({
+    broadcast: vi.fn(),
+    uploadRecordingFromFile: vi.fn(),
+    processRecording: vi.fn(),
+    checkCloud360Credits: vi.fn(),
+    getAccessToken: vi.fn(),
+  }));
 
 vi.mock("./cloud-360-broadcast", () => ({ broadcastCloud360Event: broadcast }));
+
+vi.mock("./credit-precheck", () => ({ checkCloud360Credits }));
+
+vi.mock("../auth/identity-server-auth", () => ({
+  IdentityServerAuthService: { getInstance: () => ({ getAccessToken }) },
+}));
 
 vi.mock("./yakshaver360-client", () => ({
   YakShaver360Client: {
@@ -25,6 +34,9 @@ beforeEach(() => {
   broadcast.mockReset();
   uploadRecordingFromFile.mockReset();
   processRecording.mockReset();
+  // Default: signed in with credits available, so existing cases exercise the happy path.
+  checkCloud360Credits.mockReset().mockResolvedValue({ canShave: true });
+  getAccessToken.mockReset().mockResolvedValue("token-1");
 });
 
 describe("Cloud360Orchestrator", () => {
@@ -115,5 +127,45 @@ describe("Cloud360Orchestrator", () => {
       shaveId: undefined,
       event: { type: "error", message: "Not signed in" },
     });
+  });
+
+  // Issue #3899: the credit gate must stop the run before the upload, not after it.
+  it("blocks before uploading when the credit pre-check fails", async () => {
+    checkCloud360Credits.mockResolvedValue({
+      canShave: false,
+      message: "Out of YakShaver credits, so this recording can't be processed.",
+    });
+
+    await expect(
+      new Cloud360Orchestrator().run({
+        filePath: "/tmp/v.mp4",
+        projectId: "p1",
+        shaveId: "s1",
+        durationSeconds: 1,
+      }),
+    ).resolves.toBe(false);
+
+    expect(uploadRecordingFromFile).not.toHaveBeenCalled();
+    expect(processRecording).not.toHaveBeenCalled();
+    expect(broadcast).toHaveBeenCalledWith({
+      shaveId: "s1",
+      event: {
+        type: "error",
+        message: "Out of YakShaver credits, so this recording can't be processed.",
+      },
+      runStart: true,
+    });
+  });
+
+  it("still uploads when the user is not signed in, leaving the failure to the upload call", async () => {
+    getAccessToken.mockResolvedValue(null);
+    uploadRecordingFromFile.mockRejectedValue(new Error("Not signed in"));
+
+    await expect(
+      new Cloud360Orchestrator().run({ filePath: "/tmp/v.mp4", projectId: "p1", durationSeconds: 1 }),
+    ).resolves.toBe(false);
+
+    expect(checkCloud360Credits).not.toHaveBeenCalled();
+    expect(uploadRecordingFromFile).toHaveBeenCalled();
   });
 });
