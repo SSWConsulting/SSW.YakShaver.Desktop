@@ -790,9 +790,9 @@ export function FinalResultPanel({ selectedShaveId }: FinalResultPanelProps = {}
 
   useEffect(() => {
     if (selectedShaveId) {
-      // MCP step events do not include a shaveId, so consuming them here could mix another run's
-      // tool log into the selected Shave. Undo remains available with the persisted outputs and a
-      // conservative prompt when no run-scoped granular log can be identified.
+      // The legacy MCP step channel has no shaveId, so consuming it here could mix another run's
+      // tool log into the selected Shave. Run-scoped steps arrive through the matching workflow
+      // progress payload above; until they do, the UI explains why Undo is unavailable.
       return;
     }
 

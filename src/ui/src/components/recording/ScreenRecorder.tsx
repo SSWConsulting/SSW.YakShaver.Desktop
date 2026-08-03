@@ -389,7 +389,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
           durationSeconds: duration,
         },
       );
-      const newShave = result?.data;
+      const newShave = result.data;
       if (!result.success) {
         toast.error("Could not save to My Shaves", {
           description:

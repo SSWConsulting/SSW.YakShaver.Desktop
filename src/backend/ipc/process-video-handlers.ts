@@ -394,7 +394,7 @@ export class ProcessVideoIPCHandlers {
       // URL workflows may intentionally reuse a Shave ID. Clear the previous run's snapshot and
       // checkpoints before broadcasting the new run. File workflows use a newly created Shave ID,
       // so processFileVideo does not need the same reset.
-      workflowManager.reset();
+      workflowManager.reset({ silent: true });
 
       workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);
       workflowManager.startStage(WorkflowProgressStage.DOWNLOADING_VIDEO);

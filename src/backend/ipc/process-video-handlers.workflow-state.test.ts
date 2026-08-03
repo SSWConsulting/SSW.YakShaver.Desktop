@@ -122,7 +122,7 @@ describe("workflow:get-state", () => {
       error: "Download unavailable",
       workflowId: "shave-1",
     });
-    expect(testState.reset).toHaveBeenCalledTimes(1);
+    expect(testState.reset).toHaveBeenCalledWith({ silent: true });
 
     const getState = getHandler(IPC_CHANNELS.WORKFLOW_GET_STATE);
     await expect(getState(undefined, "shave-1")).resolves.toEqual({

@@ -176,6 +176,28 @@ describe("FinalResultPanel — clears previous output on a new run (#754)", () =
     );
     expect(screen.getByText(/Selected run result/)).toBeInTheDocument();
   });
+
+  it("uses run-scoped MCP steps from the selected shave's workflow event", () => {
+    render(<FinalResultPanel selectedShaveId="selected-shave" />);
+
+    const state = completedYouTubeRun(
+      JSON.stringify({ Status: "success", Title: "Selected run result" }),
+    );
+    state.executing_task.payload = JSON.stringify({
+      finalOutput: JSON.stringify({ Status: "success", Title: "Selected run result" }),
+      steps: [{ type: "tool_call", toolName: "GitHub__create_issue" }],
+    });
+
+    emit(state, "selected-shave");
+
+    expect(onStepUpdate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    expect(
+      screen.queryByText(
+        "Undo becomes available after YakShaver logs the tool calls for this run.",
+      ),
+    ).not.toBeInTheDocument();
+  });
 });
 
 // A run that produced a final output AND then had its metadata stage fail — the
