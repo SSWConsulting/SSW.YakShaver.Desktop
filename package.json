@@ -59,7 +59,7 @@
     "googleapis": "^171.4.0",
     "gray-matter": "^4.0.3",
     "isomorphic-fetch": "^3.0.0",
-    "json-schema-to-zod": "^2.6.1",
+    "json-schema-to-zod": "^2.8.1",
     "openai": "^6.16.0",
     "openid-client": "^6.8.2",
     "tmp": "^0.2.5",
