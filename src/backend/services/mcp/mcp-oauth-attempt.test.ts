@@ -40,14 +40,29 @@ function fakeStorage() {
 }
 
 describe("waitForTokens attempt correlation", () => {
+  it("stops when aborted during the initial token lookup", async () => {
+    let finishLookup: ((tokens: null) => void) | undefined;
+    const initialLookup = new Promise<null>((resolve) => {
+      finishLookup = resolve;
+    });
+    const storage = fakeStorage();
+    storage.getTokensAsync.mockImplementationOnce(() => initialLookup);
+    const abortController = new AbortController();
+    const waiting = waitForTokens(storage as unknown as McpOAuthTokenStorage, SERVER_ID, 5000, {
+      signal: abortController.signal,
+    });
+
+    abortController.abort();
+    finishLookup?.(null);
+
+    await expect(waiting).rejects.toThrow(/cancelled/i);
+  });
+
   it("fails fast when the failure belongs to the attempt being waited on", async () => {
     const storage = fakeStorage();
-    const waiting = waitForTokens(
-      storage as unknown as McpOAuthTokenStorage,
-      SERVER_ID,
-      5000,
-      "attempt-2",
-    );
+    const waiting = waitForTokens(storage as unknown as McpOAuthTokenStorage, SERVER_ID, 5000, {
+      attemptId: "attempt-2",
+    });
     // waitForTokens awaits its "already have tokens?" check before subscribing.
     await Promise.resolve();
 
@@ -65,12 +80,9 @@ describe("waitForTokens attempt correlation", () => {
     vi.useFakeTimers();
     try {
       const storage = fakeStorage();
-      const waiting = waitForTokens(
-        storage as unknown as McpOAuthTokenStorage,
-        SERVER_ID,
-        5000,
-        "attempt-2",
-      );
+      const waiting = waitForTokens(storage as unknown as McpOAuthTokenStorage, SERVER_ID, 5000, {
+        attemptId: "attempt-2",
+      });
       // Let waitForTokens get past its initial "already have tokens?" await and subscribe.
       await vi.advanceTimersByTimeAsync(0);
 
@@ -95,12 +107,9 @@ describe("waitForTokens attempt correlation", () => {
    */
   it("still fails fast when the callback carries no attempt id", async () => {
     const storage = fakeStorage();
-    const waiting = waitForTokens(
-      storage as unknown as McpOAuthTokenStorage,
-      SERVER_ID,
-      5000,
-      "attempt-2",
-    );
+    const waiting = waitForTokens(storage as unknown as McpOAuthTokenStorage, SERVER_ID, 5000, {
+      attemptId: "attempt-2",
+    });
     await Promise.resolve();
 
     storage.emitFailure(SERVER_ID, null);
@@ -112,12 +121,9 @@ describe("waitForTokens attempt correlation", () => {
     vi.useFakeTimers();
     try {
       const storage = fakeStorage();
-      const waiting = waitForTokens(
-        storage as unknown as McpOAuthTokenStorage,
-        SERVER_ID,
-        5000,
-        "attempt-2",
-      );
+      const waiting = waitForTokens(storage as unknown as McpOAuthTokenStorage, SERVER_ID, 5000, {
+        attemptId: "attempt-2",
+      });
       await vi.advanceTimersByTimeAsync(0);
 
       storage.emitFailure("some-other-server", "attempt-2");

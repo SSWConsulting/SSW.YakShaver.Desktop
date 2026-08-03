@@ -31,6 +31,7 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
 
   private static instance: McpOAuthTokenStorage;
   private static legacyCleanupDone = false;
+  private oauthCompletions = new Map<string, Promise<boolean>>();
   private events = new EventEmitter();
 
   private constructor() {
@@ -117,6 +118,41 @@ export class McpOAuthTokenStorage extends BaseSecureStorage {
     };
     await this.saveAllAsync(data);
     this.events.emit(McpOAuthTokenStorage.TOKENS_UPDATED_EVENT, serverId);
+  }
+
+  /**
+   * Stores the first successful OAuth result. Existing credentials always win, so callers must
+   * clear the server's tokens before starting an intentional reauthorization.
+   */
+  async completeOAuthAsync(serverId: string, tokens: OAuthTokens): Promise<boolean> {
+    const inFlightCompletion = this.oauthCompletions.get(serverId);
+    if (inFlightCompletion) {
+      await inFlightCompletion;
+      return false;
+    }
+
+    const completion = this.saveOAuthTokensIfMissingAsync(serverId, tokens);
+    this.oauthCompletions.set(serverId, completion);
+
+    try {
+      return await completion;
+    } finally {
+      if (this.oauthCompletions.get(serverId) === completion) {
+        this.oauthCompletions.delete(serverId);
+      }
+    }
+  }
+
+  private async saveOAuthTokensIfMissingAsync(
+    serverId: string,
+    tokens: OAuthTokens,
+  ): Promise<boolean> {
+    if (await this.getTokensAsync(serverId)) {
+      return false;
+    }
+
+    await this.saveTokensAsync(serverId, tokens);
+    return true;
   }
 
   public isTokenExpired(tokens: StoredOAuthTokens): boolean {
