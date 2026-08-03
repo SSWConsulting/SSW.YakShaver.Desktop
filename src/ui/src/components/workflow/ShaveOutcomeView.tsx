@@ -177,10 +177,7 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
         {/* Keep the live panels mounted while showing the persisted fallback so their subscriptions
             can restore this view when matching progress arrives. `contents` avoids changing the
             visible layout. */}
-        <div
-          hidden={workflowUnavailable}
-          className={cn({ contents: !workflowUnavailable, hidden: workflowUnavailable })}
-        >
+        <div hidden={workflowUnavailable} className={cn(!workflowUnavailable && "contents")}>
           <WorkflowProgressPanel
             mode="selected"
             shaveId={shaveId}
