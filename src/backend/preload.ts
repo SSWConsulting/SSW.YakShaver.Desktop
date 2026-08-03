@@ -151,6 +151,7 @@ const IPC_CHANNELS = {
   // Cloud 360 orchestration
   CLOUD360_EVENT: "cloud-360:event",
   CLOUD360_LIST_PROJECTS: "cloud-360:list-projects",
+  CLOUD360_CHECK_CREDITS: "cloud-360:check-credits",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -268,6 +269,7 @@ const electronAPI = {
   },
   cloud360: {
     listProjects: () => ipcRenderer.invoke(IPC_CHANNELS.CLOUD360_LIST_PROJECTS),
+    checkCredits: () => ipcRenderer.invoke(IPC_CHANNELS.CLOUD360_CHECK_CREDITS),
   },
   llm: {
     setConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),

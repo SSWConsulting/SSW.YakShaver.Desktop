@@ -1,4 +1,8 @@
-import type { Cloud360EventPayload, Cloud360Project } from "@shared/types/cloud360";
+import type {
+  Cloud360EventPayload,
+  Cloud360Project,
+  CreditPrecheckResult,
+} from "@shared/types/cloud360";
 import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { ReleaseListResult, ReleaseUpdateCheckResult } from "@shared/types/release-channel";
 import type { TelemetrySettings } from "@shared/types/telemetry";
@@ -59,6 +63,7 @@ declare global {
       };
       cloud360: {
         listProjects: () => Promise<Cloud360Project[]>;
+        checkCredits: () => Promise<CreditPrecheckResult>;
       };
       youtube: {
         startAuth: () => Promise<AuthResult>;

@@ -467,7 +467,7 @@ export class MCPServerManager {
     } catch (err) {
       return {
         isHealthy: false,
-        error: String(err),
+        error: err instanceof Error ? err.message : String(err),
         isChecking: false,
         authFailed: MCPServerClient.isAuthError(err),
       };

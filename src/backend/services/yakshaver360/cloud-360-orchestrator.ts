@@ -1,4 +1,6 @@
+import { IdentityServerAuthService } from "../auth/identity-server-auth";
 import { broadcastCloud360Event } from "./cloud-360-broadcast";
+import { checkCloud360Credits } from "./credit-precheck";
 import { YakShaver360Client } from "./yakshaver360-client";
 
 export interface Cloud360RunParams {
@@ -18,6 +20,25 @@ export class Cloud360Orchestrator {
     const { shaveId } = params;
     let succeeded = false;
     try {
+      // Last-resort gate (issue #3899): Cloud360ProjectDialog already blocks before recording, so
+      // reaching here means the balance ran out since. Spares a pointless multi-megabyte upload
+      // and replaces the process route's opaque "Failed to start stream (402)". Fails open.
+      const token = await IdentityServerAuthService.getInstance().getAccessToken();
+      if (token) {
+        const precheck = await checkCloud360Credits(token);
+        if (!precheck.canShave) {
+          broadcastCloud360Event({
+            shaveId,
+            event: {
+              type: "error",
+              message: precheck.message ?? "This recording can't be processed.",
+            },
+            runStart: true,
+          });
+          return false;
+        }
+      }
+
       // Upload + sandbox spin-up emit no server events; synthesize status rows so the live
       // view shows progress instead of a blank feed during those silent stretches.
       broadcastCloud360Event({
