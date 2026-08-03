@@ -89,8 +89,8 @@ export class ReleaseChannelIPCHandlers {
     });
 
     autoUpdater.on("update-downloaded", () => {
-      // Skip showing dialog if user already dismissed it this session (#456) - once "Later" is
-      // clicked, no further reminder should appear for the rest of the current session.
+      // Skip showing dialog if user already dismissed it this session (#456) - once "Remind Me
+      // After Restart" is clicked, no further reminder should appear for the rest of the current session.
       if (this.updateDialogDismissedInSession) {
         return;
       }
@@ -114,8 +114,9 @@ export class ReleaseChannelIPCHandlers {
         .showMessageBox({
           type: "info",
           title: "Update Ready",
-          message: "A new version has been downloaded. Restart now to install?",
-          buttons: ["Restart Now", "Later"],
+          message:
+            "A new version has been downloaded. Restart now to install, or you'll be reminded the next time you start YakShaver.",
+          buttons: ["Restart Now", "Remind Me After Restart"],
           defaultId: 0,
           cancelId: 1,
         })
@@ -132,8 +133,9 @@ export class ReleaseChannelIPCHandlers {
               autoUpdater.quitAndInstall(false, true);
             });
           } else {
-            // User chose "Later" - remember this for the current session so no further reminder
-            // is shown, whether from another "update-downloaded" event or the periodic check.
+            // User chose "Remind Me After Restart" - remember this for the current session so no
+            // further reminder is shown, whether from another "update-downloaded" event or the
+            // periodic check. The reminder returns on the next app start (#456, #999).
             this.updateDialogDismissedInSession = true;
           }
         })
