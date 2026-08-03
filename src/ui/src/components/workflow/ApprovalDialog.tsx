@@ -7,6 +7,7 @@ import { LoadingState } from "../common/LoadingState";
 import { AzureDevOpsIcon } from "../settings/mcp/devops/devops-icon";
 import { GitHubIcon } from "../settings/mcp/github/github-icon";
 import { AtlassianIcon } from "../settings/mcp/jira/atlassian";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -182,6 +183,31 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
           </div>
           <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
         </AlertDialogHeader>
+        {!showCorrectionForm && (
+          <Accordion type="single" collapsible>
+            <AccordionItem value="more-info">
+              <AccordionTrigger className="py-1 text-sm font-normal text-white/70">
+                More info&hellip;
+              </AccordionTrigger>
+              <AccordionContent className="pt-1 pb-1">
+                <ul className="space-y-1.5 text-sm text-white/70">
+                  <li>
+                    <span className="font-medium text-white/90">Allow</span> &mdash; use it this
+                    once.
+                  </li>
+                  <li>
+                    <span className="font-medium text-white/90">Allow Always</span> &mdash; use it
+                    now and don't ask again.
+                  </li>
+                  <li>
+                    <span className="font-medium text-white/90">Review&hellip;</span> &mdash; don't
+                    run it yet. Tell YakShaver what to change, or stop this step.
+                  </li>
+                </ul>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
         {autoApprovalCountdown !== null && (
           <p className="text-xs text-yellow-300">
             Auto-approving in {autoApprovalCountdown}s if no action is taken.
@@ -273,7 +299,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                   setShowCorrectionForm(true);
                 }}
               >
-                Review / Correct&hellip;
+                Review&hellip;
               </AlertDialogCancel>
               <Button
                 type="button"
