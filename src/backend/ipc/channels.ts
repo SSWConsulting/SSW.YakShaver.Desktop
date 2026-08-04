@@ -66,6 +66,7 @@ export const IPC_CHANNELS = {
   // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
   // Different from RERUN_TASK which is a user-initiated re-execution after success.
   WORKFLOW_RETRY_FROM_STAGE: "workflow:retry-from-stage",
+  WORKFLOW_GET_STATE: "workflow:get-state",
   WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
   WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 

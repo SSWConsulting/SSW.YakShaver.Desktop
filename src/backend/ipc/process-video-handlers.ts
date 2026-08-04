@@ -4,6 +4,7 @@ import tmp from "tmp";
 import { z } from "zod";
 import type { TranscriptSegment } from "../../shared/types/transcript";
 import {
+  type GetWorkflowStateResult,
   WORKFLOW_STAGE_ORDER,
   ProgressStage as WorkflowProgressStage,
   type WorkflowState,
@@ -249,6 +250,22 @@ export class ProcessVideoIPCHandlers {
       },
     );
 
+    ipcMain.handle(
+      IPC_CHANNELS.WORKFLOW_GET_STATE,
+      async (_event, shaveId?: string): Promise<GetWorkflowStateResult> => {
+        if (!shaveId) {
+          return { success: false, reason: "invalid_request", error: "Shave ID is required" };
+        }
+
+        const workflowManager = this.workflowManagers.get(shaveId);
+        if (!workflowManager) {
+          return { success: false, reason: "not_found", error: "Workflow not found" };
+        }
+
+        return { success: true, state: workflowManager.getState() };
+      },
+    );
+
     // Get retry status for all failed stages
     ipcMain.handle(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, async (_event, shaveId?: string) => {
       if (!shaveId) {
@@ -374,6 +391,10 @@ export class ProcessVideoIPCHandlers {
     try {
       const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
       this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
+      // URL workflows may intentionally reuse a Shave ID. Clear the previous run's snapshot and
+      // checkpoints before broadcasting the new run. File workflows use a newly created Shave ID,
+      // so processFileVideo does not need the same reset.
+      workflowManager.reset({ silent: true });
 
       workflowManager.skipStage(WorkflowProgressStage.UPLOADING_VIDEO);
       workflowManager.startStage(WorkflowProgressStage.DOWNLOADING_VIDEO);

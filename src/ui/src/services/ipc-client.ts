@@ -7,7 +7,7 @@ import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { ReleaseListResult, ReleaseUpdateCheckResult } from "@shared/types/release-channel";
 import type { TelemetrySettings } from "@shared/types/telemetry";
 import type { UserSettings } from "@shared/types/user-settings";
-import type { WorkflowState } from "@shared/types/workflow";
+import type { GetWorkflowStateResult, WorkflowState } from "@shared/types/workflow";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
 import type { ReleaseChannel } from "@/components/settings/release-channels/types";
 import type {
@@ -140,6 +140,7 @@ declare global {
           youtubeResult?: unknown;
           mcpResult?: string;
         }>;
+        getState: (shaveId: string) => Promise<GetWorkflowStateResult>;
         getRetryStatus: (shaveId: string) => Promise<{
           success: boolean;
           stages?: Array<{

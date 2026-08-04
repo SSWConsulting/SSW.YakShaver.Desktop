@@ -56,10 +56,10 @@ function withExecutingPayload(state: WorkflowState, finalOutput: string): Workfl
   return state;
 }
 
-function emit(state: WorkflowState) {
+function emit(state: WorkflowState, shaveId = "shave-1") {
   act(() => {
     for (const cb of progressCallbacks) {
-      cb({ shaveId: "shave-1", state });
+      cb({ shaveId, state });
     }
   });
 }
@@ -157,6 +157,46 @@ describe("FinalResultPanel — clears previous output on a new run (#754)", () =
 
     emit(completedYouTubeRun(JSON.stringify({ Status: "success", Title: "Second run result" })));
     expect(screen.getByText(/Second run result/)).toBeInTheDocument();
+  });
+
+  it("ignores workflow events for a different selected shave", () => {
+    render(<FinalResultPanel selectedShaveId="selected-shave" />);
+
+    expect(onStepUpdate).not.toHaveBeenCalled();
+
+    emit(
+      completedYouTubeRun(JSON.stringify({ Status: "success", Title: "Other run result" })),
+      "other-shave",
+    );
+    expect(screen.queryByText(/Other run result/)).not.toBeInTheDocument();
+
+    emit(
+      completedYouTubeRun(JSON.stringify({ Status: "success", Title: "Selected run result" })),
+      "selected-shave",
+    );
+    expect(screen.getByText(/Selected run result/)).toBeInTheDocument();
+  });
+
+  it("uses run-scoped MCP steps from the selected shave's workflow event", () => {
+    render(<FinalResultPanel selectedShaveId="selected-shave" />);
+
+    const state = completedYouTubeRun(
+      JSON.stringify({ Status: "success", Title: "Selected run result" }),
+    );
+    state.executing_task.payload = JSON.stringify({
+      finalOutput: JSON.stringify({ Status: "success", Title: "Selected run result" }),
+      steps: [{ type: "tool_call", toolName: "GitHub__create_issue" }],
+    });
+
+    emit(state, "selected-shave");
+
+    expect(onStepUpdate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+    expect(
+      screen.queryByText(
+        "Undo becomes available after YakShaver logs the tool calls for this run.",
+      ),
+    ).not.toBeInTheDocument();
   });
 });
 

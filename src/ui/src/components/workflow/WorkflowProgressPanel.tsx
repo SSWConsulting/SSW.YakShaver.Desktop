@@ -1,7 +1,9 @@
 import { WORKFLOW_STAGE_ORDER, type WorkflowState } from "@shared/types/workflow";
 import { AlertTriangle, X } from "lucide-react";
-import { useEffect, useState } from "react";
-import { isWorkflowFailed, parseWorkflowProgressNeoPayload } from "@/utils";
+import { useEffect, useEffectEvent, useState } from "react";
+import { toast } from "sonner";
+import { ipcClient } from "@/services/ipc-client";
+import { formatErrorMessage, isWorkflowFailed, parseWorkflowProgressNeoPayload } from "@/utils";
 import { WORKFLOW_CLEAR_EVENT_CHANNEL } from "../../types/index";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -19,45 +21,88 @@ const STEP_LABELS: Record<keyof WorkflowState, string> = {
   updating_metadata: "Updating Metadata",
 };
 
-interface WorkflowProgressPanelProps {
-  /**
-   * #821: a pre-loaded state to render (when reached by navigation from a past shave) instead
-   * of subscribing to live progress events. When omitted, the panel keeps its original live
-   * behaviour for an in-flight run.
-   */
-  hydratedState?: WorkflowState | null;
-  /** The shave being viewed (read-only mode); omitted for the live run. */
-  hydratedShaveId?: string;
-}
+type WorkflowProgressPanelProps =
+  | { mode?: "live"; shaveId?: never; hydratedState?: never }
+  | {
+      mode: "selected";
+      shaveId: string;
+      hydratedState?: never;
+      onAvailabilityChange: (available: boolean) => void;
+    }
+  | { mode: "hydrated"; shaveId?: string; hydratedState: WorkflowState };
 
-export function WorkflowProgressPanel({
-  hydratedState,
-  hydratedShaveId,
-}: WorkflowProgressPanelProps = {}) {
+export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode: "live" }) {
   const [liveState, setLiveState] = useState<WorkflowState | null>(null);
   const [liveShaveId, setLiveShaveId] = useState<string | undefined>();
 
-  const isHydrated = hydratedState != null;
+  const isHydrated = props.mode === "hydrated";
+  const selectedShaveId = props.mode === "selected" ? props.shaveId : undefined;
+  const onAvailabilityChange = props.mode === "selected" ? props.onAvailabilityChange : undefined;
+  const hydratedState = props.mode === "hydrated" ? props.hydratedState : null;
+  const hydratedShaveId = props.mode === "hydrated" ? props.shaveId : undefined;
+  const notifyAvailability = useEffectEvent((available: boolean) => {
+    onAvailabilityChange?.(available);
+  });
 
   useEffect(() => {
     // In hydrated (navigated) mode we render a persisted snapshot — don't subscribe to live events.
     if (isHydrated) {
       return;
     }
-    const cleanup = window.electronAPI.workflow.onProgressNeo((payload: unknown) => {
+
+    let cancelled = false;
+    let receivedLiveUpdate = false;
+    setLiveState(null);
+    setLiveShaveId(selectedShaveId);
+
+    const cleanup = ipcClient.workflow.onProgressNeo((payload: unknown) => {
       const progress = parseWorkflowProgressNeoPayload(payload);
+      if (selectedShaveId && progress.shaveId !== selectedShaveId) {
+        return;
+      }
       if (progress.state) {
+        receivedLiveUpdate = true;
+        notifyAvailability(true);
         setLiveState(progress.state);
       }
       if (progress.shaveId) {
         setLiveShaveId(progress.shaveId);
       }
     });
-    return cleanup;
-  }, [isHydrated]);
+
+    if (selectedShaveId) {
+      void ipcClient.workflow
+        .getState(selectedShaveId)
+        .then((result) => {
+          if (cancelled || receivedLiveUpdate) {
+            return;
+          }
+          if (result.success && result.state) {
+            setLiveState(result.state);
+          }
+          if (!result.success && result.reason === "not_found") {
+            notifyAvailability(false);
+          } else if (!result.success) {
+            toast.error("Failed to load workflow progress", { description: result.error });
+          }
+        })
+        .catch((error) => {
+          if (!cancelled && !receivedLiveUpdate) {
+            toast.error("Failed to load workflow progress", {
+              description: formatErrorMessage(error),
+            });
+          }
+        });
+    }
+
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [isHydrated, selectedShaveId]);
 
   const state = hydratedState ?? liveState;
-  const shaveId = isHydrated ? hydratedShaveId : liveShaveId;
+  const shaveId = isHydrated ? hydratedShaveId : (liveShaveId ?? selectedShaveId);
 
   // Dismiss a finished/failed run and return the processing screen to its ready
   // state so the user can start fresh without restarting the app (#733). The
