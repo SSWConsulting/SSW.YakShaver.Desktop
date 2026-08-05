@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 /**
  * The JSON envelope the orchestrator's final message is formatted into.
  *
@@ -5,15 +7,25 @@
  * backend (to find the work item whose title the workflow reconciles against), so the fence
  * stripping and the field names live in exactly one place. A backend that failed to parse what
  * the UI parses would silently skip reconciliation instead of failing visibly.
+ *
+ * The payload is model-produced, so every field is validated rather than asserted. A field whose
+ * type is wrong is dropped (`.catch(undefined)`) instead of poisoning the whole envelope: a
+ * numeric `URL` must not reach the database as one, but it also must not cost us the `Status`
+ * sitting next to it. A payload that is not an object at all still throws, which is what the
+ * renderer relies on to report an unusable final output.
  */
-export interface FinalOutput {
-  Status?: string;
-  Repository?: string;
-  Title?: string;
-  URL?: string;
-  Description?: string;
-  Labels?: string[];
-}
+const optionalText = z.string().trim().optional().catch(undefined);
+
+export const FinalOutputSchema = z.object({
+  Status: optionalText,
+  Repository: optionalText,
+  Title: optionalText,
+  URL: optionalText,
+  Description: optionalText,
+  Labels: z.array(z.string()).optional().catch(undefined),
+});
+
+export type FinalOutput = z.infer<typeof FinalOutputSchema>;
 
 /**
  * Throws when the payload is not the expected JSON envelope — callers decide how loud that is.
@@ -22,7 +34,7 @@ export interface FinalOutput {
  */
 export function parseFinalOutput(finalOutput: string): FinalOutput {
   const cleanOutput = finalOutput.replace(/```json\n?|\n?```/g, "").trim();
-  return JSON.parse(cleanOutput) as FinalOutput;
+  return FinalOutputSchema.parse(JSON.parse(cleanOutput));
 }
 
 /**
@@ -52,7 +64,7 @@ function readFinalOutputField(
   }
 
   try {
-    return parseFinalOutput(finalOutput)[field]?.trim() || undefined;
+    return parseFinalOutput(finalOutput)[field] || undefined;
   } catch {
     return undefined;
   }

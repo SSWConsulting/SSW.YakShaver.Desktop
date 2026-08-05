@@ -429,8 +429,9 @@ Once a work item exists, the platform hosting it owns its title — not the work
 successful EXECUTING_TASK, `reconcileWorkItemTitleAsync`
 (`src/backend/services/workflow/title-reconciliation.ts`) reads that title back, and the Shave
 record, the portal `WorkItemDto`, and YakShaver-uploaded video metadata all follow it (falling back
-to the orchestrator's reported title when the read fails, and never failing the run). External
-video-source titles remain source metadata.
+to the orchestrator's reported title when the read fails, and never failing the run). The re-execute
+path (`RERUN_TASK`) re-syncs only the Shave, since it does not re-post to the portal or re-run
+metadata at all. External video-source titles remain source metadata.
 
 `BacklogItemResolver` (`src/backend/services/backlog/backlog-item-resolver.ts`) holds ALL the
 platform knowledge: recognised URL shapes, which read tool to call out of the aggregated MCP
