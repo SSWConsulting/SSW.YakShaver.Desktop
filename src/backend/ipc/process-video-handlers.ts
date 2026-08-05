@@ -210,8 +210,7 @@ export class ProcessVideoIPCHandlers {
           // Portal and video metadata are not re-sent on this path, so only the shave is updated.
           const reconciliation = await reconcileWorkItemTitleAsync(
             await this.getBacklogItemResolver(),
-            finalOutput,
-            serverFilter,
+            { artifacts: loopResult.artifacts, finalOutput, serverFilter },
           );
           this.persistShaveTitle(shaveId, reconciliation.title);
 
@@ -512,10 +511,10 @@ export class ProcessVideoIPCHandlers {
     let desktopAgentProjectPrompt: string | undefined = checkpoint.desktopAgentProjectPrompt;
     let mcpResult: string | undefined = checkpoint.mcpResult;
     let finalOutput: string | undefined = checkpoint.finalOutput;
-    // The work item's own title, once it has one to read. Undefined until EXECUTING_TASK succeeds,
-    // and undefined afterwards whenever the read failed — in which case every consumer below keeps
-    // whatever title it already had rather than being handed a guess.
-    let resolvedTitle: string | undefined;
+    // The title every YakShaver-owned record should carry: read from the work item when possible,
+    // otherwise the one the orchestrator reported filing. Restored from the checkpoint so a
+    // metadata-only retry — which skips the EXECUTING_TASK block that computes it — still has it.
+    let effectiveTitle: string | undefined = checkpoint.effectiveTitle;
 
     let currentStage: keyof WorkflowState | null = null;
 
@@ -755,23 +754,25 @@ export class ProcessVideoIPCHandlers {
 
         mcpAdapter.complete(mcpResult, finalOutput);
 
-        workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
-          mcpResult,
-          finalOutput,
-        });
-
         // The work item exists now, and from this point IT owns its title — not this workflow.
         // Read the title back and let every YakShaver-owned record follow it. Deliberately not
         // conditional on WHICH action ran: a create, an update of an existing duplicate, or a
         // comment all end up linked to one item, and that item is the authority either way.
-        resolvedTitle = (
-          await reconcileWorkItemTitleAsync(
-            await this.getBacklogItemResolver(),
+        effectiveTitle = (
+          await reconcileWorkItemTitleAsync(await this.getBacklogItemResolver(), {
+            artifacts: loopResult.artifacts,
             finalOutput,
             serverFilter,
-          )
+          })
         ).title;
-        this.persistShaveTitle(shaveId, resolvedTitle);
+        this.persistShaveTitle(shaveId, effectiveTitle);
+
+        // Checkpointed AFTER the read so a retry from a later stage inherits the same title.
+        workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
+          mcpResult,
+          finalOutput,
+          effectiveTitle,
+        });
 
         // Send to portal if authenticated and project is remote — non-fatal, does not affect workflow stage status
         // local projects don't have portal project IDs so not sent to portal regardless of auth status
@@ -799,12 +800,12 @@ export class ProcessVideoIPCHandlers {
               const workItemDto = WorkItemDtoSchema.parse(objectResult);
               workItemDto.projectId = projectDetails.id;
               workItemDto.projectName = projectDetails.name;
-              // Portal describes the SAME work item, so it must carry the same title the user sees
-              // in GitHub/Azure DevOps/Jira — not the one the model re-derived while serializing.
-              // When the read-back failed we leave the model's value, which is the pre-existing
-              // behaviour rather than a regression.
-              if (resolvedTitle) {
-                workItemDto.title = resolvedTitle;
+              // Portal describes the SAME work item, so it must carry the same title as the shave
+              // and the video — not a third one the model re-derived while serializing. This also
+              // makes the write-back below (`title: workItemDto.title`) agree with what was
+              // already persisted, instead of racing it with another guess.
+              if (effectiveTitle) {
+                workItemDto.title = effectiveTitle;
               }
 
               // #808: The Tenant view renders its preview from the portal payload's video fields.
@@ -865,7 +866,7 @@ export class ProcessVideoIPCHandlers {
               finalResult: mcpResult ?? undefined,
             });
             // The video documents this work item, so a YakShaver-uploaded one carries its title.
-            applyResolvedTitleToOwnedVideoMetadata(metadata, resolvedTitle);
+            applyResolvedTitleToOwnedVideoMetadata(metadata, effectiveTitle);
             workflowManager.updateStagePayload(
               WorkflowProgressStage.UPDATING_METADATA,
               metadata.metadata,

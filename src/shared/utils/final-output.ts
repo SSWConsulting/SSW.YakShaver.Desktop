@@ -26,18 +26,33 @@ export function parseFinalOutput(finalOutput: string): FinalOutput {
 }
 
 /**
- * The work item link the user clicks in "View work item" — and the input to title reconciliation.
- * Returns undefined rather than throwing: a missing link just means there is nothing to reconcile
- * against, which is the same outcome as before reconciliation existed.
+ * The work item link the user clicks in "View work item" — and the fallback input to title
+ * reconciliation. Returns undefined rather than throwing: a missing link just means there is
+ * nothing to reconcile against, which is the same outcome as before reconciliation existed.
  */
 export function readWorkItemUrl(finalOutput: string | undefined): string | undefined {
+  return readFinalOutputField(finalOutput, "URL");
+}
+
+/**
+ * The title the orchestrator REPORTS it filed. Self-reported and therefore not authoritative — but
+ * it is what the shave title has always fallen back to, and it beats showing the recording's file
+ * name when the work item itself cannot be read.
+ */
+export function readReportedTitle(finalOutput: string | undefined): string | undefined {
+  return readFinalOutputField(finalOutput, "Title");
+}
+
+function readFinalOutputField(
+  finalOutput: string | undefined,
+  field: "URL" | "Title",
+): string | undefined {
   if (!finalOutput) {
     return undefined;
   }
 
   try {
-    const url = parseFinalOutput(finalOutput).URL?.trim();
-    return url || undefined;
+    return parseFinalOutput(finalOutput)[field]?.trim() || undefined;
   } catch {
     return undefined;
   }

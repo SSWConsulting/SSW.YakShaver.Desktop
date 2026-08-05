@@ -425,33 +425,18 @@ field on `LLMConfigV2` (`src/shared/types/llm.ts`, default `openai`), surfaced i
 
 #### Work Item Title Reconciliation (who owns the title)
 
-Once a work item exists, the platform that hosts it owns its title — not the workflow. After a
+Once a work item exists, the platform hosting it owns its title — not the workflow. After a
 successful EXECUTING_TASK, `reconcileWorkItemTitleAsync`
-(`src/backend/services/workflow/title-reconciliation.ts`) reads the item's CURRENT title back and
-every YakShaver-owned record follows it: the Shave record, the portal `WorkItemDto`, and
-YakShaver-uploaded video metadata. External video-source titles remain source metadata.
+(`src/backend/services/workflow/title-reconciliation.ts`) reads that title back, and the Shave
+record, the portal `WorkItemDto`, and YakShaver-uploaded video metadata all follow it (falling back
+to the orchestrator's reported title when the read fails, and never failing the run). External
+video-source titles remain source metadata.
 
-The reconciliation deliberately does NOT branch on which action ran. A create, an update of an
-existing duplicate, a comment, or a transition all end up linked to one item, and that item is the
-authority either way — so the agent is never forced to file a title YakShaver picked in advance.
-
-`BacklogItemResolver` (`src/backend/services/backlog/backlog-item-resolver.ts`) contains ALL the
-platform knowledge: which URL shapes are recognised (github.com, dev.azure.com/visualstudio.com,
-*.atlassian.net), which read tool to call out of the aggregated MCP toolset, and how a title is
-spelled in each response. Callers pass a URL and get back a title or a classified failure
-(`not_found` / `deleted` are terminal; `transient` / `unauthenticated` / `no_read_tool` are
-retryable). Two deliberate properties:
-
-- **It reads through the run's own MCP identity and `serverFilter`**, but NOT through
-  `McpToolBridge`'s approval policy. That policy gates tools the MODEL chose; this is a read the app
-  itself issues against a URL the run already produced, and routing it through `ask` mode would deny
-  reconciliation for anyone who has not whitelisted a read tool.
-- **Failure is never fatal.** A work item that was genuinely filed must not be reported as a failed
-  run because its title could not be read back; the record simply keeps the title it had.
-
-The work item link itself comes from the orchestrator's final output (`URL`), parsed by the shared
-`parseFinalOutput` (`src/shared/utils/final-output.ts`) so the renderer's "View work item" link and
-the backend's reconciliation input can never diverge.
+`BacklogItemResolver` (`src/backend/services/backlog/backlog-item-resolver.ts`) holds ALL the
+platform knowledge: recognised URL shapes, which read tool to call out of the aggregated MCP
+toolset, how a title is spelled per platform, and failure classification. Its read is app-initiated
+and read-only, so it does NOT go through `McpToolBridge`'s approval policy (which gates tools the
+agent chose).
 
 #### IPC Handler Pattern (Class-based)
 

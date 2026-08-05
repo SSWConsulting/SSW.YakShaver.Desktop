@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { asSchema, type ToolSet } from "ai";
 import { PRESET_SERVER_IDS } from "../../../shared/mcp/preset-servers";
 import type { MCPServerConfig } from "../../../shared/types/mcp";
+import { isBacklogItemMutationTool } from "../../utils/screenshot-markdown";
 
 /**
  * Reads the CURRENT title of a backlog work item straight from the system that owns it.
@@ -429,6 +430,17 @@ export class McpBacklogItemResolver implements BacklogItemResolver {
       return { ok: false, reason: "no_read_tool", detail: ref.platform };
     }
 
+    // Second gate, and the one that makes the approval exemption below defensible as CODE rather
+    // than as a promise in a comment: refuse outright to execute anything that can author a work
+    // item. `selectReadToolName` requires a read verb, but a name like `update_issue_details`
+    // satisfies that and still mutates — so the mutation classifier gets the last word.
+    if (isBacklogItemMutationTool(toolName)) {
+      console.warn(
+        `[BacklogItemResolver] Refusing to reconcile through '${toolName}': it can mutate a work item.`,
+      );
+      return { ok: false, reason: "no_read_tool", detail: toolName };
+    }
+
     const tool = tools[toolName];
     const execute = (tool as { execute?: unknown }).execute;
     if (typeof execute !== "function") {
@@ -436,9 +448,11 @@ export class McpBacklogItemResolver implements BacklogItemResolver {
     }
 
     // NOTE: this deliberately does NOT go through McpToolBridge's approval policy. That policy
-    // exists to gate tools the MODEL chose to run; this is a read the app itself issues against a
-    // URL the run already produced, and routing it through `ask` mode would deny reconciliation
-    // for every user who has not whitelisted a read tool.
+    // gates tools the MODEL chose to run; this is a read the app itself issues, and routing it
+    // through `ask` mode would deny reconciliation to every user who has not whitelisted a read
+    // tool. The exemption is contained on three sides, all enforced above: the target must parse
+    // as a work item URL on a known host (so the model cannot steer the read anywhere it likes),
+    // the tool is chosen by us rather than by the model, and it must not be a mutation tool.
     let resultText: string;
     let errored: boolean;
     try {

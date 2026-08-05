@@ -281,6 +281,19 @@ describe("McpBacklogItemResolver", () => {
     });
   });
 
+  it("refuses to execute a tool that can mutate a work item", async () => {
+    // `update_issue_details` satisfies the read-verb match ("detail") but still authors the item.
+    // The exemption from the approval policy is only defensible if this can never run.
+    const tool = githubTool({ content: [{ type: "text", text: '{"title":"whatever"}' }] });
+    const resolver = makeResolver({ GitHub__update_issue_details: tool });
+
+    await expect(resolver.resolveAsync("https://github.com/o/r/issues/42")).resolves.toMatchObject({
+      ok: false,
+      reason: "no_read_tool",
+    });
+    expect(tool.execute).not.toHaveBeenCalled();
+  });
+
   it("treats an unreachable server as transient, not as a bad URL", async () => {
     const resolver = new McpBacklogItemResolver({
       collectToolsForSelectedServersAsync: vi

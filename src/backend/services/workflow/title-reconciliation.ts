@@ -1,27 +1,54 @@
-import { readWorkItemUrl } from "../../../shared/utils/final-output";
+import { readReportedTitle, readWorkItemUrl } from "../../../shared/utils/final-output";
 import type { BacklogItemResolver, BacklogResolveFailure } from "../backlog/backlog-item-resolver";
+import { parseBacklogItemUrl } from "../backlog/backlog-item-resolver";
+import type { BacklogArtifact } from "../mcp/backlog-orchestrator";
 import { TelemetryService } from "../telemetry/telemetry-service";
 
-/** Why no authoritative title was adopted. `no_work_item_url` means there was nothing to read. */
+/** Why the title did not come from the work item itself. `no_work_item_url`: nothing to read. */
 export type TitleReconciliationFailure = BacklogResolveFailure | "no_work_item_url";
 
 export interface TitleReconciliation {
-  /** The title read back from the work item. Present only when the read succeeded. */
+  /**
+   * The title every YakShaver-owned record should carry: read from the work item when that
+   * succeeded, otherwise the title the orchestrator reported filing. Undefined only when neither
+   * exists, in which case callers keep whatever title they already had.
+   */
   title?: string;
+  /** Absent when the title came from the work item. Present = why the read did not happen/succeed. */
   reason?: TitleReconciliationFailure;
-  /** True when a later attempt could still succeed — the input to any retry/backfill pass. */
-  retryable: boolean;
+}
+
+export interface TitleReconciliationInput {
+  /**
+   * Work item evidence the outcome judge extracted from tool RESULTS. Preferred over the model's
+   * own narration, since #833 established that the narration cannot be trusted for what was filed.
+   */
+  artifacts?: readonly BacklogArtifact[];
+  /** The orchestrator's final message — carries both the fallback URL and the fallback title. */
+  finalOutput?: string;
+  /** The project's selected MCP servers, so the read uses the run's own identity and restriction. */
+  serverFilter?: string[];
 }
 
 /**
- * A signed-out connection or an unhealthy server can be fixed and retried; a deleted item or a URL
- * we do not recognise cannot. Retrying the second group forever is as wrong as giving up on the first.
+ * Choose which work item to read, preferring judge-extracted evidence over the model's narration.
+ *
+ * Every candidate is validated by actually parsing it, not by assuming the first one is usable: the
+ * judge is explicitly allowed to report "an id, a number, or a URL", so `artifacts[0]` may be `"5"`,
+ * and its free-form `type` may point at a comment or a pull request. Taking the first candidate
+ * that parses as a backlog item URL is what keeps a bare id from shadowing a perfectly good link.
  */
-const RETRYABLE: ReadonlySet<TitleReconciliationFailure> = new Set([
-  "transient",
-  "unauthenticated",
-  "no_read_tool",
-]);
+export function selectWorkItemUrl(
+  artifacts: readonly BacklogArtifact[] | undefined,
+  finalOutput: string | undefined,
+): string | undefined {
+  const candidates: (string | undefined)[] = [
+    ...(artifacts ?? []).map((artifact) => artifact.idOrUrl),
+    readWorkItemUrl(finalOutput),
+  ];
+
+  return candidates.find((candidate) => candidate && parseBacklogItemUrl(candidate));
+}
 
 /**
  * Read the work item's CURRENT title so everything YakShaver owns can follow it.
@@ -31,17 +58,18 @@ const RETRYABLE: ReadonlySet<TitleReconciliationFailure> = new Set([
  * what happened, only which item the run ended up linked to.
  *
  * Best-effort by construction. A work item that was genuinely created must never be reported as a
- * failed run because we could not read its title back afterwards, so every failure path here
- * returns a reason instead of throwing.
+ * failed run because we could not read its title back afterwards, so every failure path returns the
+ * reported title with a reason instead of throwing.
  */
 export async function reconcileWorkItemTitleAsync(
   resolver: BacklogItemResolver,
-  finalOutput: string | undefined,
-  serverFilter?: string[],
+  { artifacts, finalOutput, serverFilter }: TitleReconciliationInput,
 ): Promise<TitleReconciliation> {
-  const workItemUrl = readWorkItemUrl(finalOutput);
+  const reportedTitle = readReportedTitle(finalOutput);
+  const workItemUrl = selectWorkItemUrl(artifacts, finalOutput);
+
   if (!workItemUrl) {
-    return { reason: "no_work_item_url", retryable: false };
+    return { title: reportedTitle, reason: "no_work_item_url" };
   }
 
   const resolution = await resolver.resolveAsync(workItemUrl, serverFilter);
@@ -51,17 +79,17 @@ export async function reconcileWorkItemTitleAsync(
       name: "WorkItemTitleReconciliation",
       properties: { outcome: "resolved", platform: resolution.platform },
     });
-    return { title: resolution.title, retryable: false };
+    return { title: resolution.title };
   }
 
   console.warn(
     `[TitleReconciliation] Could not read the work item title (${resolution.reason})` +
-      `${resolution.detail ? `: ${resolution.detail}` : ""}. Keeping the current title.`,
+      `${resolution.detail ? `: ${resolution.detail}` : ""}. Falling back to the reported title.`,
   );
   TelemetryService.getInstance().trackEvent({
     name: "WorkItemTitleReconciliation",
     properties: { outcome: "unresolved", reason: resolution.reason },
   });
 
-  return { reason: resolution.reason, retryable: RETRYABLE.has(resolution.reason) };
+  return { title: reportedTitle, reason: resolution.reason };
 }
