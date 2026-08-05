@@ -245,28 +245,36 @@ export function selectReadToolName(
 }
 
 /**
- * Parameter names each URL-derived value is known by across the servers we target. Filling the
+ * The parameter name each URL-derived value is known by on the servers we target. Filling the
  * tool's DECLARED parameters (rather than hardcoding one server's spelling) is what lets the same
  * code drive GitHub's action-based `issue_read` and the legacy `get_issue` without a per-server
  * branch — whichever variant is installed, we fill the names it actually asks for.
+ *
+ * Matching is case- and separator-insensitive, so one entry already covers `issue_number` and
+ * `issueNumber`. Every entry here is a name a real server is known to use; ADD MORE ONLY FROM AN
+ * OBSERVED SCHEMA. Inventing plausible spellings would claim a coverage that has never been
+ * exercised, and an unmatched parameter degrades safely — the read fails and the title is kept.
  */
-const VALUE_ALIASES: Record<string, readonly string[]> = {
-  owner: ["owner", "org", "organization", "owner_name"],
-  repo: ["repo", "repository", "repo_name", "repositoryname"],
-  number: ["issue_number", "issuenumber", "number", "issue", "issueid", "issue_id"],
-  organization: ["organization", "org", "organizationname"],
-  project: ["project", "projectname", "project_name", "projectid"],
-  id: ["id", "workitemid", "work_item_id", "wit_id", "ids"],
-  key: ["issueidorkey", "issue_key", "issuekey", "key", "issueid", "issue_id_or_key"],
+const VALUE_PARAMETER_NAMES: Record<string, readonly string[]> = {
+  owner: ["owner"],
+  repo: ["repo"],
+  number: ["issue_number"],
+  organization: ["organization"],
+  project: ["project"],
+  id: ["id"],
+  key: ["issueIdOrKey"],
 };
 
-/** A read call has no side effects to authorise, so any declared "which operation" parameter is a get. */
-const OPERATION_PARAM = /^(method|action|operation|mode)$/;
+/**
+ * A read has no side effect to authorise, so an action-based tool's "which operation" parameter is
+ * always a get. `method` is the spelling the GitHub remote server uses for its `issue_read` /
+ * `issue_write` pair; same rule as above applies to adding others.
+ */
+const OPERATION_PARAM = /^method$/;
 const OPERATION_READ_VALUE = /^(get|read|show|view|detail)/;
 
 interface JsonSchemaLike {
   properties?: Record<string, unknown>;
-  required?: unknown;
 }
 
 /**
@@ -285,8 +293,8 @@ export function buildReadToolArgs(
     const normalized = propertyName.toLowerCase().replace(/[^a-z0-9]/g, "");
 
     const matchedRole = Object.keys(values).find((role) =>
-      (VALUE_ALIASES[role] ?? [role]).some(
-        (alias) => alias.replace(/[^a-z0-9]/g, "") === normalized,
+      (VALUE_PARAMETER_NAMES[role] ?? [role]).some(
+        (candidate) => candidate.toLowerCase().replace(/[^a-z0-9]/g, "") === normalized,
       ),
     );
     if (matchedRole) {
