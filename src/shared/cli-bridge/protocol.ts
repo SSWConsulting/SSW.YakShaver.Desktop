@@ -39,6 +39,7 @@ export const CLI_BRIDGE_DISABLE_ENV = "YAKSHAVER_DISABLE_CLI_BRIDGE";
  */
 export const CLI_BRIDGE_PORT_ENV = "YAKSHAVER_BRIDGE_PORT";
 export const CLI_BRIDGE_TOKEN_ENV = "YAKSHAVER_BRIDGE_TOKEN";
+export const CLI_BRIDGE_SHAVE_TITLE_ENV = "YAKSHAVER_BRIDGE_SHAVE_TITLE";
 
 /**
  * Comma-separated server ids/names the front-door must restrict its toolset to (the project's
@@ -174,6 +175,8 @@ export const ToolCallInputSchema = z.object({
    * an unselected project even if the model guesses its name.
    */
   serverFilter: z.array(z.string()).optional(),
+  /** Canonical Shave title to apply at the backlog mutation boundary. */
+  shaveTitle: z.string().trim().min(1).max(90).optional(),
 });
 export type ToolCallInput = z.infer<typeof ToolCallInputSchema>;
 

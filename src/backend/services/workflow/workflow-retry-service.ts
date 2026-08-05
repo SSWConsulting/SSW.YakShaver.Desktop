@@ -80,7 +80,11 @@ const STAGE_REQUIRED_INPUTS: Partial<Record<keyof WorkflowState, (keyof Checkpoi
   [WorkflowProgressStage.OPTIMIZING_TRANSCRIPT]: ["transcript", "transcriptText"],
   [WorkflowProgressStage.ANALYZING_TRANSCRIPT]: ["transcript", "transcriptText"],
   [WorkflowProgressStage.SELECTING_PROMPT]: ["transcriptText", "intermediateOutput"],
-  [WorkflowProgressStage.EXECUTING_TASK]: ["transcriptText", "projectDetails"],
+  [WorkflowProgressStage.EXECUTING_TASK]: [
+    "transcriptText",
+    "intermediateOutput",
+    "projectDetails",
+  ],
   [WorkflowProgressStage.UPDATING_METADATA]: ["mcpResult"],
 };
 

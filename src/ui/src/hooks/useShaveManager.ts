@@ -19,7 +19,6 @@ import {
 interface FinalOutput {
   Status?: string;
   Repository?: string;
-  Title?: string;
   URL?: string;
   Description?: string;
   Labels?: string[];
@@ -27,7 +26,6 @@ interface FinalOutput {
 
 interface ParsedShaveOutput {
   status: ShaveStatus;
-  title: string;
   workItemUrl: string;
 }
 
@@ -43,7 +41,6 @@ function parseFinalOutput(finalOutput: string): ParsedShaveOutput | null {
     return {
       status:
         llmOutput.Status?.toLowerCase() === "fail" ? ShaveStatus.Failed : ShaveStatus.Completed,
-      title: llmOutput.Title || "",
       workItemUrl: llmOutput.URL || "",
     };
   } catch (e) {
@@ -194,19 +191,6 @@ export function useShaveManager() {
             console.error("[Shave] Error updating shave video URL (by id):", err);
           }
         }
-
-        // Save the video title to local DB as soon as it's available so that
-        // if the workflow fails before the final output step, we already have
-        // a meaningful title rather than the "Untitled" placeholder.
-        if (uploadResult.data.title) {
-          try {
-            await ipcClient.shave.update(shaveId, {
-              title: uploadResult.data.title,
-            });
-          } catch (err) {
-            console.error("[Shave] Error updating shave title from upload result:", err);
-          }
-        }
       }
     }
 
@@ -235,8 +219,6 @@ export function useShaveManager() {
       const parsedOutput = parseFinalOutput(finalOutput);
 
       if (parsedOutput) {
-        const finalTitle = parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
-
         // #861 AC#3/#5: a failed required post-creation stage overrides the AI's "success"
         // so the persisted shave status doesn't claim a clean completion. This shares the
         // single source of truth with FinalResultPanel's warning badge, so the persisted
@@ -247,7 +229,6 @@ export function useShaveManager() {
             : parsedOutput.status;
 
         await ipcClient.shave.update(shaveId, {
-          title: finalTitle,
           shaveStatus,
           workItemUrl: parsedOutput.workItemUrl,
         });

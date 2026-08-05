@@ -114,6 +114,7 @@ export const INITIAL_SUMMARY_PROMPT = `You are a precise information structuring
 Output a single valid JSON object with the following fields:
 
 ## Required Fields:
+- "title": a concise, specific title that summarizes the user's request (maximum 90 characters)
 - "taskType": string representing the user's core intent
 - "detectedLanguage": string in BCP 47 format (e.g., "en-US")
 - "formattedContent": full transcript as a Markdown string
@@ -136,6 +137,7 @@ Input: "create an issue in the torre demo project about UI", the output should b
 
 Output:
 {
+  "title": "Create an issue for the Torre demo UI",
   "taskType": "create_issue",
   "detectedLanguage": "en-US",
   "formattedContent": "create an issue in the torre demo project about UI",

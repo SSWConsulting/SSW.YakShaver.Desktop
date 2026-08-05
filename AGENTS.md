@@ -422,6 +422,10 @@ field on `LLMConfigV2` (`src/shared/types/llm.ts`, default `openai`), surfaced i
 `OrchestratorBackendSetting`. Both backends return the same `MCPLoopResult`, whose
 `backlogActionSucceeded` gates COMPLETE vs FAIL.
 
+The transcript-analysis stage produces the canonical Shave title before orchestration. Both
+backends enforce that exact value at the backlog mutation boundary, Portal receives the same title,
+and YakShaver-owned video metadata reuses it; external video-source titles remain source metadata.
+
 #### IPC Handler Pattern (Class-based)
 
 All IPC handlers are one class per domain. Each class registers handlers in the constructor via `Object.entries().forEach()` with `ipcMain.handle()`. Handler methods are private and return structured `{ success, data?, error? }` results. See `src/backend/ipc/auth-handlers.ts` for a reference implementation.

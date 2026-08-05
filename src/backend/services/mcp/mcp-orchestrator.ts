@@ -12,7 +12,9 @@ import type { VideoUploadResult } from "../auth/types";
 import { TelemetryService } from "../telemetry/telemetry-service";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
 import {
+  applyShaveTitleToWorkItemArgs,
   type BacklogArtifact,
+  extractPreparedWorkItemTitle,
   type IBacklogOrchestrator,
   judgeBacklogOutcome,
   type ManualLoopOptions,
@@ -185,7 +187,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
   }
 
   public async manualLoopAsync(
-    videoTranscription: string,
+    taskContent: string,
     videoUploadResult?: VideoUploadResult,
     options: ManualLoopOptions = {},
   ): Promise<MCPLoopResult> {
@@ -215,6 +217,10 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
       ? `\n---\nProject Prompt:\n${options.desktopAgentProjectPrompt}`
       : "";
 
+    systemPrompt += options.shaveTitle
+      ? `\n---\nCanonical title:\nUse this exact title for the backlog work item: ${options.shaveTitle}`
+      : "";
+
     systemPrompt = this.appendVideoInfoToSystemPrompt(
       systemPrompt,
       videoUploadResult,
@@ -231,12 +237,13 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
         role: "system",
         content: "When selecting tools, briefly explain the reason for choosing them.",
       },
-      { role: "user", content: `video transcription: ${videoTranscription}` },
+      { role: "user", content: `task content: ${taskContent}` },
     ];
 
     // Records every executed tool call + its result. At the end we judge — from these
     // RESULTS, not the model's narration — whether a backlog item was actually filed (#833).
     const toolActivity: ToolActivity[] = [];
+    const successfulWorkItemTitles: string[] = [];
 
     // Every loop exit funnels through here so the outcome is judged from the tool RESULTS
     // regardless of WHY the loop ended — an item filed before a cap/limit is still honoured.
@@ -247,7 +254,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
     ): Promise<MCPLoopResult> => {
       const outcome = await this.judgeBacklogOutcome(
         options.desktopAgentProjectPrompt,
-        videoTranscription,
+        taskContent,
         toolActivity,
         judgeFinalText,
       );
@@ -255,6 +262,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
         text,
         backlogActionSucceeded: outcome.achieved,
         artifacts: outcome.artifacts,
+        workItemTitle: outcome.achieved ? successfulWorkItemTitles.at(-1) : undefined,
         terminationReason,
       };
     };
@@ -291,6 +299,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
           (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
         );
         for (const toolCall of llmResponse.toolCalls) {
+          applyShaveTitleToWorkItemArgs(toolCall.toolName, toolCall.input, options.shaveTitle);
           const isWhitelisted = toolWhiteList.has(toolCall.toolName);
           const toolStartTime = Date.now();
 
@@ -424,11 +433,19 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
               });
 
               // Resolve any toolOutputRef parameters before executing the tool
-              const resolvedInput = this.normalizeScreenshotMarkdownInArgs(
+              const resolvedInput = applyShaveTitleToWorkItemArgs(
                 toolCall.toolName,
-                this.resolveToolOutputReferences(toolCall.input),
+                this.normalizeScreenshotMarkdownInArgs(
+                  toolCall.toolName,
+                  this.resolveToolOutputReferences(toolCall.input),
+                ),
+                options.shaveTitle,
               );
 
+              const preparedWorkItemTitle = extractPreparedWorkItemTitle(
+                toolCall.toolName,
+                resolvedInput,
+              );
               const toolOutput = await toolToCall.execute(resolvedInput, {
                 toolCallId: toolCall.toolCallId,
               } as ToolExecutionOptions);
@@ -448,6 +465,9 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
               // Record the call + its result for the end-of-loop outcome judge. `ok` reflects
               // whether the tool itself errored (MCP sets isError on a failed/auth-denied call).
               const toolErrored = (toolOutput as { isError?: boolean }).isError === true;
+              if (!toolErrored && preparedWorkItemTitle) {
+                successfulWorkItemTitles.push(preparedWorkItemTitle);
+              }
               toolActivity.push({
                 toolName: toolCall.toolName,
                 ok: !toolErrored,
@@ -585,14 +605,14 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
    */
   private async judgeBacklogOutcome(
     goal: string | undefined,
-    transcript: string,
+    taskContent: string,
     toolActivity: ToolActivity[],
     finalText: string,
   ): Promise<{ achieved: boolean; artifacts: BacklogArtifact[] }> {
     return judgeBacklogOutcome(
       MCPOrchestrator.languageModelProvider,
       goal,
-      transcript,
+      taskContent,
       toolActivity,
       finalText,
     );

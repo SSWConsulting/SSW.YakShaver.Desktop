@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   CLI_BRIDGE_PORT_ENV,
   CLI_BRIDGE_SERVER_FILTER_ENV,
+  CLI_BRIDGE_SHAVE_TITLE_ENV,
   CLI_BRIDGE_TOKEN_ENV,
 } from "../../../shared/cli-bridge/protocol";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
@@ -15,6 +16,8 @@ import type { VideoUploadResult } from "../auth/types";
 import type { IProcessSpawner } from "../process/process-spawner";
 import { UserSettingsStorage } from "../storage/user-settings-storage";
 import {
+  applyShaveTitleToWorkItemArgs,
+  extractPreparedWorkItemTitle,
   type IBacklogOrchestrator,
   judgeBacklogOutcome,
   type ManualLoopOptions,
@@ -29,6 +32,10 @@ import { orchestratorSystemPrompt } from "./prompts";
 
 /** Default safety cap on tool iterations when the caller doesn't supply one (mirrors the OpenAI loop). */
 const DEFAULT_MAX_TOOL_ITERATIONS = 20;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 /**
  * Wall-clock cap on a single headless `claude -p` run. `--max-turns` bounds the number of agent
@@ -181,7 +188,7 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
   }
 
   public async manualLoopAsync(
-    videoTranscription: string,
+    taskContent: string,
     videoUploadResult?: VideoUploadResult,
     options: ManualLoopOptions = {},
   ): Promise<MCPLoopResult> {
@@ -196,6 +203,7 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
       options.desktopAgentProjectPrompt,
       videoUploadResult,
       options.videoFilePath,
+      options.shaveTitle,
     );
 
     // #915: one front-door entry proxies the app's aggregated toolset (incl. internal/in-memory
@@ -203,7 +211,7 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
     // via env so the app restricts both the LISTED and the CALLABLE tools to that project — that
     // server-side filter is the authoritative gate. `--allowedTools` below is only the ask-mode
     // auto-approve list; it need not be filtered because an unselected tool isn't reachable anyway.
-    const mcpConfig = this.buildMcpConfig(frontDoor);
+    const mcpConfig = this.buildMcpConfig(frontDoor, options.shaveTitle);
     const allowedTools = await this.buildAllowedTools(manager);
 
     this.surfaceServerNotices(approvalMode, allowedTools, options.onStep);
@@ -227,7 +235,7 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
         allowedTools,
         options.maxToolIterations ?? DEFAULT_MAX_TOOL_ITERATIONS,
       );
-      return await this.runClaude(argv, videoTranscription, options);
+      return await this.runClaude(argv, taskContent, options);
     } finally {
       await Promise.all([
         fs.unlink(tmpConfigPath).catch(() => {
@@ -293,6 +301,7 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
     desktopAgentProjectPrompt?: string,
     videoUploadResult?: VideoUploadResult,
     videoFilePath?: string,
+    shaveTitle?: string,
   ): string {
     let systemPrompt = orchestratorSystemPrompt;
 
@@ -327,6 +336,10 @@ ${videoEmbeddingRules}`;
       systemPrompt += `\n\nVideo file available for screenshot capture: ${videoFilePath}.`;
     }
 
+    if (shaveTitle) {
+      systemPrompt += `\n\nUse this exact title for the backlog work item: ${shaveTitle}`;
+    }
+
     return systemPrompt;
   }
 
@@ -337,14 +350,21 @@ ${videoEmbeddingRules}`;
    *
    * The resulting tools appear to Claude as `mcp__yakshaver__<Server__tool>`.
    */
-  public buildMcpConfig(frontDoor: YakshaverFrontDoorConfig): ClaudeMcpConfigFile {
+  public buildMcpConfig(
+    frontDoor: YakshaverFrontDoorConfig,
+    shaveTitle?: string,
+  ): ClaudeMcpConfigFile {
     const entry: ClaudeStdioServer = {
       type: "stdio",
       command: frontDoor.command,
       args: [frontDoor.cliEntryPath, "mcp-serve"],
     };
-    if (frontDoor.env && Object.keys(frontDoor.env).length > 0) {
-      entry.env = frontDoor.env;
+    const env = {
+      ...frontDoor.env,
+      ...(shaveTitle ? { [CLI_BRIDGE_SHAVE_TITLE_ENV]: shaveTitle } : {}),
+    };
+    if (Object.keys(env).length > 0) {
+      entry.env = env;
     }
     return { mcpServers: { [YAKSHAVER_MCP_SERVER_KEY]: entry } };
   }
@@ -427,13 +447,15 @@ ${videoEmbeddingRules}`;
 
   private async runClaude(
     argv: string[],
-    videoTranscription: string,
+    taskContent: string,
     options: ManualLoopOptions,
   ): Promise<MCPLoopResult> {
     const toolActivity: ToolActivity[] = [];
     // Correlates a tool_use block's opaque id (e.g. `toolu_01ABC...`) back to its real tool name,
     // so the tool_result we record later carries the actual name instead of the opaque id.
     const toolNameById = new Map<string, string>();
+    const preparedTitleById = new Map<string, string>();
+    const successfulWorkItemTitles: string[] = [];
 
     // Reject early if the caller already aborted before we spawned anything.
     if (options.signal?.aborted) {
@@ -449,9 +471,9 @@ ${videoEmbeddingRules}`;
       message: "Orchestrating with Claude Code…",
     });
 
-    // The orchestrator role is delivered via `--system-prompt` (in argv), so only the transcript
-    // goes on stdin as the user turn. Passing it over stdin avoids argv length limits.
-    const userPrompt = `video transcription: ${videoTranscription}`;
+    // The orchestrator role is delivered via `--system-prompt` (in argv), so only the analyzed
+    // task content goes on stdin as the user turn. Passing it over stdin avoids argv length limits.
+    const userPrompt = `task content: ${taskContent}`;
     // If `claude` dies before/while we write, its stdin pipe closes and the write emits EPIPE on the
     // stdin stream. An unhandled `error` on a stream throws (and would crash the host process), so
     // swallow it here — the real failure is reported by the child's `error`/non-zero `close` paths.
@@ -525,7 +547,15 @@ ${videoEmbeddingRules}`;
           // Non-JSON lines (e.g. stray logs) are ignored — the stream is newline-delimited JSON.
           return;
         }
-        const result = this.handleStreamEvent(event, toolActivity, toolNameById, options.onStep);
+        const result = this.handleStreamEvent(
+          event,
+          toolActivity,
+          toolNameById,
+          preparedTitleById,
+          successfulWorkItemTitles,
+          options.shaveTitle,
+          options.onStep,
+        );
         if (result.finalText !== undefined) finalText = result.finalText;
         if (result.terminationReason) terminationReason = result.terminationReason;
       };
@@ -581,7 +611,7 @@ ${videoEmbeddingRules}`;
     const outcome = await judgeBacklogOutcome(
       provider,
       options.desktopAgentProjectPrompt,
-      videoTranscription,
+      taskContent,
       toolActivity,
       finalText,
     );
@@ -605,6 +635,7 @@ ${videoEmbeddingRules}`;
       text: finalText,
       backlogActionSucceeded: outcome.achieved,
       artifacts: outcome.artifacts,
+      workItemTitle: outcome.achieved ? successfulWorkItemTitles.at(-1) : undefined,
       terminationReason,
       verificationUnavailable: outcome.verificationUnavailable,
     };
@@ -618,6 +649,9 @@ ${videoEmbeddingRules}`;
     event: ClaudeStreamEvent,
     toolActivity: ToolActivity[],
     toolNameById: Map<string, string>,
+    preparedTitleById: Map<string, string>,
+    successfulWorkItemTitles: string[],
+    shaveTitle?: string,
     onStep?: ManualLoopOptions["onStep"],
   ): { finalText?: string; terminationReason?: MCPTerminationReason } {
     // Assistant turn: may carry text and/or tool_use blocks.
@@ -639,7 +673,20 @@ ${videoEmbeddingRules}`;
           const toolName = stripFrontDoorPrefix(block.name ?? "unknown");
           // Remember which tool this opaque id belongs to so the matching tool_result (which only
           // carries the id) can be recorded under the real tool name.
-          if (block.id) toolNameById.set(block.id, toolName);
+          if (block.id) {
+            toolNameById.set(block.id, toolName);
+            if (isRecord(block.input)) {
+              const effectiveArgs = applyShaveTitleToWorkItemArgs(
+                toolName,
+                block.input,
+                shaveTitle,
+              );
+              const preparedTitle = extractPreparedWorkItemTitle(toolName, effectiveArgs);
+              if (preparedTitle) {
+                preparedTitleById.set(block.id, preparedTitle);
+              }
+            }
+          }
           onStep?.({
             type: "tool_call",
             toolName,
@@ -662,6 +709,12 @@ ${videoEmbeddingRules}`;
             (block.tool_use_id ? toolNameById.get(block.tool_use_id) : undefined) ??
             block.tool_use_id ??
             "unknown";
+          const preparedTitle = block.tool_use_id
+            ? preparedTitleById.get(block.tool_use_id)
+            : undefined;
+          if (ok && preparedTitle) {
+            successfulWorkItemTitles.push(preparedTitle);
+          }
           toolActivity.push({
             toolName,
             ok,

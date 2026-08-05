@@ -117,6 +117,26 @@ export function applyVideoMetadataPersistence(
   return action;
 }
 
+export interface OwnedVideoMetadataTitleTarget {
+  snippet: { title: string };
+  metadata: { title: string };
+}
+
+/** Keeps an uploaded video's final metadata title aligned with its canonical Shave title. */
+export function applyShaveTitleToOwnedVideoMetadata(
+  target: OwnedVideoMetadataTitleTarget,
+  shaveTitle?: string,
+): boolean {
+  const canonicalTitle = shaveTitle?.trim();
+  if (!canonicalTitle) {
+    return false;
+  }
+
+  target.snippet.title = canonicalTitle;
+  target.metadata.title = canonicalTitle;
+  return true;
+}
+
 /**
  * The authoritative video fields that must be carried on the portal WorkItemDto so the Tenant
  * view can render a preview.

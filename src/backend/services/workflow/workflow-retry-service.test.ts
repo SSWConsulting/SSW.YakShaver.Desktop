@@ -198,6 +198,16 @@ describe("validateCheckpointData", () => {
     expect(result.missing).toContain("transcriptText");
   });
 
+  it("requires analyzed content before retrying MCP execution", () => {
+    const result = validateCheckpointData(ProgressStage.EXECUTING_TASK, {
+      transcriptText: "hello",
+      projectDetails: { name: "Test" },
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.missing).toContain("intermediateOutput");
+  });
+
   it("returns valid for stages with no required inputs (uploading_video)", () => {
     const result = validateCheckpointData(ProgressStage.UPLOADING_VIDEO, {});
     expect(result.valid).toBe(true);

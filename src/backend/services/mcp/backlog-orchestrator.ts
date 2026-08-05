@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { MCPStep } from "../../../shared/types/mcp";
+import { isBacklogItemMutationTool } from "../../utils/screenshot-markdown";
 import type { VideoUploadResult } from "../auth/types";
 
 export type MCPTerminationReason =
@@ -29,6 +30,8 @@ export interface MCPLoopResult {
   backlogActionSucceeded: boolean;
   /** The concrete created/updated artifacts the judge found (issue ids/URLs), if any. */
   artifacts: BacklogArtifact[];
+  /** Exact title submitted to the successful backlog mutation tool, when that tool accepts one. */
+  workItemTitle?: string;
   /** Why the loop ended — distinguishes a clean finish from hitting a safety cap. */
   terminationReason: MCPTerminationReason;
   /**
@@ -47,6 +50,146 @@ export interface ToolActivity {
   resultText: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  return value.trim().length > 0 ? value : undefined;
+}
+
+function isTitleFieldIdentifier(value: unknown): boolean {
+  const identifier = nonEmptyString(value)?.trim().toLowerCase();
+  if (!identifier) {
+    return false;
+  }
+  return (
+    identifier === "title" ||
+    identifier === "summary" ||
+    identifier === "system.title" ||
+    identifier.endsWith("/fields/system.title")
+  );
+}
+
+/**
+ * Finds a title in common GitHub, Azure DevOps, and Jira mutation argument shapes. The lookup is
+ * deliberately tied to title field names; it never treats a generic `name` value as the title.
+ */
+function findTitleInToolArgs(value: unknown, depth = 0): string | undefined {
+  if (depth > 4 || !isRecord(value)) {
+    return undefined;
+  }
+
+  for (const [key, fieldValue] of Object.entries(value)) {
+    if (isTitleFieldIdentifier(key)) {
+      const title = nonEmptyString(fieldValue);
+      if (title) {
+        return title;
+      }
+    }
+  }
+
+  const fieldIdentifier = value.name ?? value.key ?? value.path ?? value.referenceName;
+  if (isTitleFieldIdentifier(fieldIdentifier)) {
+    const title = nonEmptyString(value.value ?? value.fieldValue);
+    if (title) {
+      return title;
+    }
+  }
+
+  for (const nestedValue of Object.values(value)) {
+    if (Array.isArray(nestedValue)) {
+      for (let index = nestedValue.length - 1; index >= 0; index -= 1) {
+        const title = findTitleInToolArgs(nestedValue[index], depth + 1);
+        if (title) {
+          return title;
+        }
+      }
+      continue;
+    }
+
+    const title = findTitleInToolArgs(nestedValue, depth + 1);
+    if (title) {
+      return title;
+    }
+  }
+
+  return undefined;
+}
+
+function replaceTitleInToolArgs(value: unknown, shaveTitle: string, depth = 0): boolean {
+  if (depth > 4 || !isRecord(value)) {
+    return false;
+  }
+
+  for (const key of Object.keys(value)) {
+    if (isTitleFieldIdentifier(key)) {
+      value[key] = shaveTitle;
+      return true;
+    }
+  }
+
+  const fieldIdentifier = value.name ?? value.key ?? value.path ?? value.referenceName;
+  if (isTitleFieldIdentifier(fieldIdentifier)) {
+    if ("value" in value) {
+      value.value = shaveTitle;
+      return true;
+    }
+    if ("fieldValue" in value) {
+      value.fieldValue = shaveTitle;
+      return true;
+    }
+  }
+
+  for (const nestedValue of Object.values(value)) {
+    if (Array.isArray(nestedValue)) {
+      for (let index = nestedValue.length - 1; index >= 0; index -= 1) {
+        if (replaceTitleInToolArgs(nestedValue[index], shaveTitle, depth + 1)) {
+          return true;
+        }
+      }
+      continue;
+    }
+
+    if (replaceTitleInToolArgs(nestedValue, shaveTitle, depth + 1)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Makes the Shave title the canonical title at the backlog tool boundary. This mutates only the
+ * first recognized GitHub/Azure DevOps/Jira title field and leaves non-mutation tools untouched.
+ */
+export function applyShaveTitleToWorkItemArgs(
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+  shaveTitle?: string,
+): Record<string, unknown> {
+  const canonicalTitle = nonEmptyString(shaveTitle);
+  if (canonicalTitle && isBacklogItemMutationTool(toolName)) {
+    replaceTitleInToolArgs(toolArgs, canonicalTitle);
+  }
+  return toolArgs;
+}
+
+/**
+ * Reads the title the agent prepared immediately before calling a backlog mutation tool. Callers
+ * retain the returned string only when that tool succeeds; the full tool arguments never enter the
+ * outcome-judge activity log.
+ */
+export function extractPreparedWorkItemTitle(
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+): string | undefined {
+  return isBacklogItemMutationTool(toolName) ? findTitleInToolArgs(toolArgs) : undefined;
+}
+
 /**
  * Options the backlog-creation step passes to whichever orchestrator backend drives it.
  * Identical to what `MCPOrchestrator.manualLoopAsync` accepts so the call site is backend-agnostic.
@@ -58,6 +201,7 @@ export interface ManualLoopOptions {
   videoFilePath?: string; // local video file path for screenshot capture
   serverFilter?: string[]; // if provided, only include tools from these server IDs
   shaveId?: string; // identifies the current shave for per-shave auto-approve
+  shaveTitle?: string; // canonical title used by Shave, Work Item, and owned video metadata
   onStep?: (step: MCPStep) => void;
   /**
    * Aborts an in-flight run. The OpenAI backend can already be cancelled via its approval flow;
@@ -75,7 +219,7 @@ export interface ManualLoopOptions {
  */
 export interface IBacklogOrchestrator {
   manualLoopAsync(
-    videoTranscription: string,
+    taskContent: string,
     videoUploadResult?: VideoUploadResult,
     options?: ManualLoopOptions,
   ): Promise<MCPLoopResult>;
@@ -117,7 +261,7 @@ export interface OutcomeJudgeProvider {
 export async function judgeBacklogOutcome(
   provider: OutcomeJudgeProvider | null | undefined,
   goal: string | undefined,
-  transcript: string,
+  taskContent: string,
   toolActivity: ToolActivity[],
   finalText: string,
 ): Promise<{ achieved: boolean; artifacts: BacklogArtifact[]; verificationUnavailable?: boolean }> {
@@ -151,7 +295,7 @@ export async function judgeBacklogOutcome(
 
   const judgePrompt = [
     `TASK INSTRUCTIONS GIVEN TO THE AGENT:\n${goal?.slice(0, 4000) || "(create a backlog work item describing the user's request)"}`,
-    `USER REQUEST (video transcript):\n${transcript.slice(0, 2000)}`,
+    `ANALYZED TASK CONTENT:\n${taskContent.slice(0, 2000)}`,
     `TOOL CALLS AND THEIR RESULTS (ground truth — decide from these):\n${JSON.stringify(toolActivity)}`,
     `AGENT FINAL MESSAGE (do NOT trust this for success):\n${finalText.slice(0, 2000)}`,
   ].join("\n\n---\n\n");

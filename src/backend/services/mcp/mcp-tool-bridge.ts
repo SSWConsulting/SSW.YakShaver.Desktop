@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { asSchema, type ToolSet } from "ai";
 import type { BridgeToolSummary, ToolCallResult } from "../../../shared/cli-bridge/protocol";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
+import { applyShaveTitleToWorkItemArgs } from "./backlog-orchestrator";
 
 /**
  * The slice of {@link MCPServerManager} the tool bridge needs. Kept narrow so the
@@ -73,6 +74,7 @@ export class McpToolBridge {
     name: string,
     args: Record<string, unknown> = {},
     serverFilter?: string[],
+    shaveTitle?: string,
   ): Promise<ToolCallResult> {
     // Resolve against the SAME filtered toolset `listTools` exposes, so a tool from an unselected
     // project isn't reachable even if the model guesses its name (the server-side gate for #915).
@@ -102,7 +104,8 @@ export class McpToolBridge {
     try {
       // The AI-SDK execute signature is execute(input, options). The bridge has
       // no streaming context, so we pass a minimal options object.
-      const result = await (execute as ToolExecute)(args, {
+      const effectiveArgs = applyShaveTitleToWorkItemArgs(name, args, shaveTitle);
+      const result = await (execute as ToolExecute)(effectiveArgs, {
         toolCallId: `bridge-${randomUUID()}`,
         messages: [],
       });

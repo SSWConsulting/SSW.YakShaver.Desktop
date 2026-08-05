@@ -22,6 +22,10 @@ vi.mock("../../utils/error-utils", () => ({
     error instanceof Error ? error.message : String(error),
 }));
 
+import {
+  applyShaveTitleToWorkItemArgs,
+  extractPreparedWorkItemTitle,
+} from "./backlog-orchestrator";
 import { BacklogOutcomeSchema, MCPOrchestrator } from "./mcp-orchestrator";
 
 type ToolCall = { toolName: string; toolCallId: string; input: Record<string, unknown> };
@@ -73,12 +77,12 @@ const stop = (text: string): LlmResponse => ({
   finishReason: "stop",
   text,
 });
-const toolTurn = (toolName: string): LlmResponse => ({
+const toolTurn = (toolName: string, input: Record<string, unknown> = {}): LlmResponse => ({
   response: { messages: [] },
   content: [],
   finishReason: "tool-calls",
   text: "",
-  toolCalls: [{ toolName, toolCallId: "tc1", input: {} }],
+  toolCalls: [{ toolName, toolCallId: "tc1", input }],
 });
 const tool = (text: string, isError = false) => ({
   execute: vi.fn().mockResolvedValue({ content: [{ type: "text", text }], isError }),
@@ -100,7 +104,7 @@ describe("#833 — outcome is judged from tool RESULTS, not tool-name heuristics
     const createIssue = tool("401 Unauthorized: token expired", /* isError */ true);
     const { orch, generateObject } = makeOrchestrator(
       [
-        toolTurn("github__create_issue"),
+        toolTurn("github__create_issue", { title: "Title from a failed call" }),
         stop("I couldn't create the issue — you appear to be signed out."),
       ],
       { github__create_issue: createIssue },
@@ -109,6 +113,7 @@ describe("#833 — outcome is judged from tool RESULTS, not tool-name heuristics
     const r = await orch.manualLoopAsync("a bug report transcript", undefined, {});
     expect(createIssue.execute).toHaveBeenCalled();
     expect(r.backlogActionSucceeded).toBe(false);
+    expect(r.workItemTitle).toBeUndefined();
     expect(generateObject).not.toHaveBeenCalled();
   });
 
@@ -158,6 +163,34 @@ describe("#833 — outcome is judged from tool RESULTS, not tool-name heuristics
     expect(generateObject).toHaveBeenCalledTimes(1);
     expect(r.backlogActionSucceeded).toBe(true);
     expect(r.artifacts).toEqual([{ type: "issue", idOrUrl: "https://github.com/o/r/issues/1" }]);
+  });
+
+  it("uses the canonical Shave title for the successful create tool", async () => {
+    const createIssue = tool("Created issue #2: https://github.com/o/r/issues/2");
+    const { orch, generateObject } = makeOrchestrator(
+      [
+        toolTurn("github__create_issue", { title: "🐛 Exact PBI title", body: "Details" }),
+        stop("Done — the work item was created."),
+      ],
+      { github__create_issue: createIssue },
+      ["github__create_issue"],
+      {
+        achieved: true,
+        artifacts: [{ type: "issue", idOrUrl: "https://github.com/o/r/issues/2" }],
+      },
+    );
+
+    const result = await orch.manualLoopAsync("a bug report transcript", undefined, {
+      shaveTitle: "🐛 Canonical Shave title",
+    });
+
+    expect(createIssue.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "🐛 Canonical Shave title" }),
+      expect.anything(),
+    );
+    expect(result.workItemTitle).toBe("🐛 Canonical Shave title");
+    const judgePrompt = (generateObject as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(judgePrompt).not.toContain("Details");
   });
 
   it("model FALSELY claims success in its final message → judge rules on results, returns false", async () => {
@@ -302,5 +335,63 @@ describe("BacklogOutcomeSchema stays OpenAI strict-structured-output compatible"
       artifacts: [],
       reasoning: "",
     });
+  });
+});
+
+describe("extractPreparedWorkItemTitle", () => {
+  it("reads Azure DevOps System.Title JSON-patch arguments", () => {
+    expect(
+      extractPreparedWorkItemTitle("Azure_DevOps__wit_create_work_item", {
+        document: [{ op: "add", path: "/fields/System.Title", value: "🐛 Exact Azure PBI title" }],
+      }),
+    ).toBe("🐛 Exact Azure PBI title");
+  });
+
+  it("reads a nested Jira summary", () => {
+    expect(
+      extractPreparedWorkItemTitle("Jira__jira_create_issue", {
+        fields: { summary: "Accepted Jira title" },
+      }),
+    ).toBe("Accepted Jira title");
+  });
+
+  it("does not treat a read tool title as a created work-item title", () => {
+    expect(
+      extractPreparedWorkItemTitle("GitHub__get_issue", {
+        title: "Existing issue",
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe("applyShaveTitleToWorkItemArgs", () => {
+  it("replaces a GitHub title with the canonical Shave title", () => {
+    const args = { title: "Model title", body: "Details" };
+
+    expect(
+      applyShaveTitleToWorkItemArgs("GitHub__create_issue", args, "Canonical Shave title"),
+    ).toEqual({ title: "Canonical Shave title", body: "Details" });
+  });
+
+  it("replaces an Azure DevOps System.Title JSON-patch value", () => {
+    const args = {
+      document: [{ op: "add", path: "/fields/System.Title", value: "Model title" }],
+    };
+
+    applyShaveTitleToWorkItemArgs(
+      "Azure_DevOps__wit_create_work_item",
+      args,
+      "Canonical Shave title",
+    );
+
+    expect(args.document[0].value).toBe("Canonical Shave title");
+  });
+
+  it("does not change title-like arguments on read tools", () => {
+    const args = { title: "Search filter" };
+
+    applyShaveTitleToWorkItemArgs("GitHub__get_issue", args, "Canonical Shave title");
+
+    expect(args.title).toBe("Search filter");
   });
 });

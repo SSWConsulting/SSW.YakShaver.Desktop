@@ -2,12 +2,38 @@ import { describe, expect, it, vi } from "vitest";
 import type { VideoUploadResult } from "../auth/types";
 import {
   applyPortalVideoFields,
+  applyShaveTitleToOwnedVideoMetadata,
   applyVideoMetadataPersistence,
   decideVideoMetadataPersistence,
   derivePortalVideoFields,
   type PortalVideoFieldTarget,
   type VideoMetadataShaveStore,
 } from "./video-metadata-persistence";
+
+describe("applyShaveTitleToOwnedVideoMetadata", () => {
+  it("uses the canonical Shave title for both uploaded-video title representations", () => {
+    const target = {
+      snippet: { title: "Generated video title" },
+      metadata: { title: "Generated metadata title" },
+    };
+
+    expect(applyShaveTitleToOwnedVideoMetadata(target, "Canonical Shave title")).toBe(true);
+    expect(target).toEqual({
+      snippet: { title: "Canonical Shave title" },
+      metadata: { title: "Canonical Shave title" },
+    });
+  });
+
+  it("leaves metadata unchanged when no Shave title is available", () => {
+    const target = {
+      snippet: { title: "Generated video title" },
+      metadata: { title: "Generated metadata title" },
+    };
+
+    expect(applyShaveTitleToOwnedVideoMetadata(target)).toBe(false);
+    expect(target.snippet.title).toBe("Generated video title");
+  });
+});
 
 /**
  * #808: Desktop-recorded YakShaves intermittently saved without `videoEmbedUrl`/`videoFile`.

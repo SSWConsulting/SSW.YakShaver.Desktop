@@ -29,12 +29,17 @@ import { optimizeTranscript } from "../services/transcript/optimize-transcript-s
 import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
+import {
+  AnalyzedTranscriptSchema,
+  readAnalyzedTranscript,
+} from "../services/workflow/analyzed-transcript";
 import { runManualLoopWithTimeout } from "../services/workflow/executing-task-timeout";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 import {
   applyPortalVideoFields,
+  applyShaveTitleToOwnedVideoMetadata,
   applyVideoMetadataPersistence,
 } from "../services/workflow/video-metadata-persistence";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
@@ -140,6 +145,8 @@ export class ProcessVideoIPCHandlers {
           workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
 
           const languageModelProvider = await LanguageModelProvider.getInstance();
+          const shaveTitle = readAnalyzedTranscript(intermediateOutput)?.title;
+          this.persistShaveTitle(shaveId, shaveTitle);
 
           const projectDetails =
             await PromptSelectionService.getInstance().getConfirmedProjectDetails(
@@ -179,6 +186,7 @@ export class ProcessVideoIPCHandlers {
               videoFilePath: filePath,
               serverFilter,
               shaveId,
+              shaveTitle,
               onStep: mcpAdapter.onStep,
             },
             executingTaskTimeoutMs,
@@ -496,6 +504,7 @@ export class ProcessVideoIPCHandlers {
     let desktopAgentProjectPrompt: string | undefined = checkpoint.desktopAgentProjectPrompt;
     let mcpResult: string | undefined = checkpoint.mcpResult;
     let finalOutput: string | undefined = checkpoint.finalOutput;
+    let shaveTitle = readAnalyzedTranscript(intermediateOutput ?? "")?.title;
 
     let currentStage: keyof WorkflowState | null = null;
 
@@ -510,6 +519,9 @@ export class ProcessVideoIPCHandlers {
       // with no preview in the Tenant view. Writing it here from the backend guarantees the
       // field is persisted whenever the upload/download succeeded, regardless of UI timing.
       this.persistVideoMetadataToShave(shaveId, youtubeResult);
+      // Keep the upload/download title as an early fallback. ANALYZING_TRANSCRIPT replaces it with
+      // the canonical Shave title later; both writes stay ordered in the backend workflow.
+      this.persistShaveTitle(shaveId, youtubeResult.data?.title);
 
       // -- CONVERTING_AUDIO --
       if (shouldRunStage(WorkflowProgressStage.CONVERTING_AUDIO)) {
@@ -619,10 +631,14 @@ export class ProcessVideoIPCHandlers {
 
       ${effectiveTranscript}`;
 
-        intermediateOutput = await languageModelProvider.generateJson(
+        const analyzedTranscript = await languageModelProvider.generateObject(
           userPrompt,
+          AnalyzedTranscriptSchema,
           INITIAL_SUMMARY_PROMPT,
         );
+        intermediateOutput = JSON.stringify(analyzedTranscript);
+        shaveTitle = analyzedTranscript.title;
+        this.persistShaveTitle(shaveId, shaveTitle);
 
         workflowManager.completeStage(
           WorkflowProgressStage.ANALYZING_TRANSCRIPT,
@@ -679,8 +695,8 @@ export class ProcessVideoIPCHandlers {
 
         const { orchestrator, backend } = await this.getBacklogOrchestrator();
 
-        // Use optimized transcript if available for the task execution loop (logged on fallback);
-        // keep the adapter's audit/UI payload consistent with what actually drives execution below.
+        // Keep the source transcript in the audit/UI payload, while the MCP loop consumes the
+        // structured analyzed content produced by the prior stage.
         const effectiveExecutionTranscript = this.resolveEffectiveTranscript(
           optimizedTranscriptText,
           transcriptText,
@@ -697,7 +713,7 @@ export class ProcessVideoIPCHandlers {
           await UserSettingsStorage.getInstance().getSettingsAsync();
         const loopResult = await runManualLoopWithTimeout(
           orchestrator,
-          effectiveExecutionTranscript,
+          intermediateOutput ?? effectiveExecutionTranscript,
           youtubeResult,
           {
             projectMetaData,
@@ -705,6 +721,7 @@ export class ProcessVideoIPCHandlers {
             videoFilePath: filePath,
             serverFilter,
             shaveId,
+            shaveTitle,
             onStep: mcpAdapter.onStep,
           },
           executingTaskTimeoutMs,
@@ -766,6 +783,9 @@ export class ProcessVideoIPCHandlers {
               const workItemDto = WorkItemDtoSchema.parse(objectResult);
               workItemDto.projectId = projectDetails.id;
               workItemDto.projectName = projectDetails.name;
+              if (shaveTitle) {
+                workItemDto.title = shaveTitle;
+              }
 
               // #808: The Tenant view renders its preview from the portal payload's video fields.
               // These were previously left to the LLM to copy out of the system prompt during
@@ -787,7 +807,6 @@ export class ProcessVideoIPCHandlers {
                 // stores stay in sync even if the workflow fails after this point.
                 shaveService.updateShave(shaveId, {
                   portalWorkItemId: portalResult.workItemId,
-                  title: workItemDto.title,
                   projectName: workItemDto.projectName,
                   workItemUrl: workItemDto.workItemUrl,
                 });
@@ -824,6 +843,7 @@ export class ProcessVideoIPCHandlers {
               executionHistory: JSON.stringify(transcript ?? [], null, 2),
               finalResult: mcpResult ?? undefined,
             });
+            applyShaveTitleToOwnedVideoMetadata(metadata, shaveTitle);
             workflowManager.updateStagePayload(
               WorkflowProgressStage.UPDATING_METADATA,
               metadata.metadata,
@@ -983,6 +1003,21 @@ export class ProcessVideoIPCHandlers {
         error,
       );
       return mcpResult;
+    }
+  }
+
+  private persistShaveTitle(shaveId: string | undefined, shaveTitle?: string): void {
+    if (!shaveId || !shaveTitle) {
+      return;
+    }
+
+    try {
+      ShaveService.getInstance().updateShave(shaveId, { title: shaveTitle });
+    } catch (error) {
+      console.warn(
+        "[ProcessVideo] Failed to persist analyzed Shave title (non-fatal):",
+        formatAndReportError(error, "persist_desktop_title"),
+      );
     }
   }
 
