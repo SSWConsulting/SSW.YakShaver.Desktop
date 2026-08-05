@@ -14,11 +14,16 @@ import { INITIAL_SUMMARY_PROMPT, TASK_EXECUTION_PROMPT } from "../constants/prom
 import { IdentityServerAuthService } from "../services/auth/identity-server-auth";
 import type { VideoUploadResult } from "../services/auth/types";
 import { YouTubeClient } from "../services/auth/youtube-client";
+import {
+  type BacklogItemResolver,
+  McpBacklogItemResolver,
+} from "../services/backlog/backlog-item-resolver";
 import { FFmpegService } from "../services/ffmpeg/ffmpeg-service";
 import type { IBacklogOrchestrator } from "../services/mcp/backlog-orchestrator";
 import { LanguageModelProvider } from "../services/mcp/language-model-provider";
 import { LocalClaudeOrchestrator } from "../services/mcp/local-claude-orchestrator";
 import { MCPOrchestrator } from "../services/mcp/mcp-orchestrator";
+import { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import { TranscriptionModelProvider } from "../services/mcp/transcription-model-provider";
 import { SendWorkItemDetailsToPortal, WorkItemDtoSchema } from "../services/portal/actions";
 import type { ProjectDto } from "../services/prompt/prompt-manager";
@@ -29,18 +34,14 @@ import { optimizeTranscript } from "../services/transcript/optimize-transcript-s
 import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
-import {
-  AnalyzedTranscriptGenerationSchema,
-  normalizeAnalyzedTranscript,
-  readAnalyzedTranscript,
-} from "../services/workflow/analyzed-transcript";
 import { runManualLoopWithTimeout } from "../services/workflow/executing-task-timeout";
 import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
+import { reconcileWorkItemTitleAsync } from "../services/workflow/title-reconciliation";
 import {
   applyPortalVideoFields,
-  applyShaveTitleToOwnedVideoMetadata,
+  applyResolvedTitleToOwnedVideoMetadata,
   applyVideoMetadataPersistence,
 } from "../services/workflow/video-metadata-persistence";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
@@ -146,8 +147,6 @@ export class ProcessVideoIPCHandlers {
           workflowManager.startStage(WorkflowProgressStage.SELECTING_PROMPT);
 
           const languageModelProvider = await LanguageModelProvider.getInstance();
-          const shaveTitle = readAnalyzedTranscript(intermediateOutput)?.title;
-          this.persistShaveTitle(shaveId, shaveTitle);
 
           const projectDetails =
             await PromptSelectionService.getInstance().getConfirmedProjectDetails(
@@ -187,7 +186,6 @@ export class ProcessVideoIPCHandlers {
               videoFilePath: filePath,
               serverFilter,
               shaveId,
-              shaveTitle,
               onStep: mcpAdapter.onStep,
             },
             executingTaskTimeoutMs,
@@ -207,6 +205,15 @@ export class ProcessVideoIPCHandlers {
 
           mcpAdapter.complete(mcpResult, finalOutput);
           workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
+
+          // A re-execution can retarget or rename the work item, so the shave follows it here too.
+          // Portal and video metadata are not re-sent on this path, so only the shave is updated.
+          const reconciliation = await reconcileWorkItemTitleAsync(
+            await this.getBacklogItemResolver(),
+            finalOutput,
+            serverFilter,
+          );
+          this.persistShaveTitle(shaveId, reconciliation.title);
 
           return {
             success: true,
@@ -505,7 +512,10 @@ export class ProcessVideoIPCHandlers {
     let desktopAgentProjectPrompt: string | undefined = checkpoint.desktopAgentProjectPrompt;
     let mcpResult: string | undefined = checkpoint.mcpResult;
     let finalOutput: string | undefined = checkpoint.finalOutput;
-    let shaveTitle = readAnalyzedTranscript(intermediateOutput ?? "")?.title;
+    // The work item's own title, once it has one to read. Undefined until EXECUTING_TASK succeeds,
+    // and undefined afterwards whenever the read failed — in which case every consumer below keeps
+    // whatever title it already had rather than being handed a guess.
+    let resolvedTitle: string | undefined;
 
     let currentStage: keyof WorkflowState | null = null;
 
@@ -520,13 +530,6 @@ export class ProcessVideoIPCHandlers {
       // with no preview in the Tenant view. Writing it here from the backend guarantees the
       // field is persisted whenever the upload/download succeeded, regardless of UI timing.
       this.persistVideoMetadataToShave(shaveId, youtubeResult);
-      // The upload/download title is only an early placeholder for a FRESH run, where
-      // ANALYZING_TRANSCRIPT replaces it below. This line is NOT stage-guarded (it mirrors the
-      // unconditional metadata write above), so a resume that starts at or after SELECTING_PROMPT
-      // reaches it with ANALYZING_TRANSCRIPT skipped — and nothing downstream writes a title any
-      // more. Preferring the recovered `shaveTitle` is what stops such a resume from permanently
-      // reverting the Shave to its raw recording name.
-      this.persistShaveTitle(shaveId, shaveTitle ?? youtubeResult.data?.title);
 
       // -- CONVERTING_AUDIO --
       if (shouldRunStage(WorkflowProgressStage.CONVERTING_AUDIO)) {
@@ -636,16 +639,10 @@ export class ProcessVideoIPCHandlers {
 
       ${effectiveTranscript}`;
 
-        const analyzedTranscript = normalizeAnalyzedTranscript(
-          await languageModelProvider.generateObject(
-            userPrompt,
-            AnalyzedTranscriptGenerationSchema,
-            INITIAL_SUMMARY_PROMPT,
-          ),
+        intermediateOutput = await languageModelProvider.generateJson(
+          userPrompt,
+          INITIAL_SUMMARY_PROMPT,
         );
-        intermediateOutput = JSON.stringify(analyzedTranscript);
-        shaveTitle = analyzedTranscript.title;
-        this.persistShaveTitle(shaveId, shaveTitle);
 
         workflowManager.completeStage(
           WorkflowProgressStage.ANALYZING_TRANSCRIPT,
@@ -702,8 +699,8 @@ export class ProcessVideoIPCHandlers {
 
         const { orchestrator, backend } = await this.getBacklogOrchestrator();
 
-        // Keep the source transcript in the audit/UI payload, while the MCP loop consumes the
-        // structured analyzed content produced by the prior stage.
+        // Use optimized transcript if available for the task execution loop (logged on fallback);
+        // keep the adapter's audit/UI payload consistent with what actually drives execution below.
         const effectiveExecutionTranscript = this.resolveEffectiveTranscript(
           optimizedTranscriptText,
           transcriptText,
@@ -720,7 +717,7 @@ export class ProcessVideoIPCHandlers {
           await UserSettingsStorage.getInstance().getSettingsAsync();
         const loopResult = await runManualLoopWithTimeout(
           orchestrator,
-          intermediateOutput ?? effectiveExecutionTranscript,
+          effectiveExecutionTranscript,
           youtubeResult,
           {
             projectMetaData,
@@ -728,7 +725,6 @@ export class ProcessVideoIPCHandlers {
             videoFilePath: filePath,
             serverFilter,
             shaveId,
-            shaveTitle,
             onStep: mcpAdapter.onStep,
           },
           executingTaskTimeoutMs,
@@ -764,6 +760,19 @@ export class ProcessVideoIPCHandlers {
           finalOutput,
         });
 
+        // The work item exists now, and from this point IT owns its title — not this workflow.
+        // Read the title back and let every YakShaver-owned record follow it. Deliberately not
+        // conditional on WHICH action ran: a create, an update of an existing duplicate, or a
+        // comment all end up linked to one item, and that item is the authority either way.
+        resolvedTitle = (
+          await reconcileWorkItemTitleAsync(
+            await this.getBacklogItemResolver(),
+            finalOutput,
+            serverFilter,
+          )
+        ).title;
+        this.persistShaveTitle(shaveId, resolvedTitle);
+
         // Send to portal if authenticated and project is remote — non-fatal, does not affect workflow stage status
         // local projects don't have portal project IDs so not sent to portal regardless of auth status
         //
@@ -790,8 +799,12 @@ export class ProcessVideoIPCHandlers {
               const workItemDto = WorkItemDtoSchema.parse(objectResult);
               workItemDto.projectId = projectDetails.id;
               workItemDto.projectName = projectDetails.name;
-              if (shaveTitle) {
-                workItemDto.title = shaveTitle;
+              // Portal describes the SAME work item, so it must carry the same title the user sees
+              // in GitHub/Azure DevOps/Jira — not the one the model re-derived while serializing.
+              // When the read-back failed we leave the model's value, which is the pre-existing
+              // behaviour rather than a regression.
+              if (resolvedTitle) {
+                workItemDto.title = resolvedTitle;
               }
 
               // #808: The Tenant view renders its preview from the portal payload's video fields.
@@ -814,6 +827,7 @@ export class ProcessVideoIPCHandlers {
                 // stores stay in sync even if the workflow fails after this point.
                 shaveService.updateShave(shaveId, {
                   portalWorkItemId: portalResult.workItemId,
+                  title: workItemDto.title,
                   projectName: workItemDto.projectName,
                   workItemUrl: workItemDto.workItemUrl,
                 });
@@ -850,7 +864,8 @@ export class ProcessVideoIPCHandlers {
               executionHistory: JSON.stringify(transcript ?? [], null, 2),
               finalResult: mcpResult ?? undefined,
             });
-            applyShaveTitleToOwnedVideoMetadata(metadata, shaveTitle);
+            // The video documents this work item, so a YakShaver-uploaded one carries its title.
+            applyResolvedTitleToOwnedVideoMetadata(metadata, resolvedTitle);
             workflowManager.updateStagePayload(
               WorkflowProgressStage.UPDATING_METADATA,
               metadata.metadata,
@@ -945,6 +960,33 @@ export class ProcessVideoIPCHandlers {
   }
 
   /**
+   * Reads work item titles through the SAME MCP identity the run itself used. Built per call
+   * because the manager singleton resolves connections lazily; the resolver holds no state.
+   */
+  private async getBacklogItemResolver(): Promise<BacklogItemResolver> {
+    return new McpBacklogItemResolver(await MCPServerManager.getInstanceAsync());
+  }
+
+  /**
+   * Best-effort: a title that cannot be persisted must never fail a workflow whose work item was
+   * already filed. The shave simply keeps the title it had.
+   */
+  private persistShaveTitle(shaveId: string | undefined, title?: string): void {
+    if (!shaveId || !title) {
+      return;
+    }
+
+    try {
+      ShaveService.getInstance().updateShave(shaveId, { title });
+    } catch (error) {
+      console.warn(
+        "[ProcessVideo] Failed to persist the resolved work item title (non-fatal):",
+        formatAndReportError(error, "persist_shave_title"),
+      );
+    }
+  }
+
+  /**
    * Selects the orchestrator backend for the backlog-creation step from the persisted LLM config.
    * `local-claude` drives the step with a headless `claude -p`; anything else (including a config
    * with no `orchestrationBackend` field) uses the in-process OpenAI loop. Falls back to OpenAI if
@@ -1010,21 +1052,6 @@ export class ProcessVideoIPCHandlers {
         error,
       );
       return mcpResult;
-    }
-  }
-
-  private persistShaveTitle(shaveId: string | undefined, shaveTitle?: string): void {
-    if (!shaveId || !shaveTitle) {
-      return;
-    }
-
-    try {
-      ShaveService.getInstance().updateShave(shaveId, { title: shaveTitle });
-    } catch (error) {
-      console.warn(
-        "[ProcessVideo] Failed to persist analyzed Shave title (non-fatal):",
-        formatAndReportError(error, "persist_shave_title"),
-      );
     }
   }
 

@@ -178,23 +178,4 @@ describe("McpToolBridge.callTool - approval policy enforcement", () => {
       expect.objectContaining({ toolCallId: expect.any(String) }),
     );
   });
-
-  it("applies the canonical Shave title before the front-door executes a mutation", async () => {
-    const bridge = new McpToolBridge(
-      makeManager(makeToolSet({ GitHub__create_issue: executeSpy }), []),
-      makeSettings("yolo"),
-    );
-
-    await bridge.callTool(
-      "GitHub__create_issue",
-      { title: "Claude title", body: "Details" },
-      undefined,
-      "Canonical Shave title",
-    );
-
-    expect(executeSpy).toHaveBeenCalledWith(
-      { title: "Canonical Shave title", body: "Details" },
-      expect.objectContaining({ toolCallId: expect.any(String) }),
-    );
-  });
 });

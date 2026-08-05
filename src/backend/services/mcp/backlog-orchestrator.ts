@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { MCPStep } from "../../../shared/types/mcp";
-import { isBacklogItemMutationTool } from "../../utils/screenshot-markdown";
 import type { VideoUploadResult } from "../auth/types";
 
 export type MCPTerminationReason =
@@ -48,124 +47,6 @@ export interface ToolActivity {
   resultText: string;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function nonEmptyString(value: unknown): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  return value.trim().length > 0 ? value : undefined;
-}
-
-function isTitleFieldIdentifier(value: unknown): boolean {
-  const identifier = nonEmptyString(value)?.trim().toLowerCase();
-  if (!identifier) {
-    return false;
-  }
-  return (
-    identifier === "title" ||
-    identifier === "summary" ||
-    identifier === "system.title" ||
-    identifier.endsWith("/fields/system.title")
-  );
-}
-
-interface WorkItemTitleFieldLocation {
-  container: Record<string, unknown>;
-  key: string;
-}
-
-/**
- * Locates a title field in common GitHub, Azure DevOps, and Jira mutation argument shapes. The
- * lookup is deliberately tied to title field names; it never treats a generic `name` value as the
- * title. Returning the location keeps title discovery and replacement on exactly the same path.
- */
-function locateWorkItemTitleField(
-  value: unknown,
-  depth = 0,
-): WorkItemTitleFieldLocation | undefined {
-  if (depth > 4 || !isRecord(value)) {
-    return undefined;
-  }
-
-  for (const key of Object.keys(value)) {
-    if (isTitleFieldIdentifier(key)) {
-      return { container: value, key };
-    }
-  }
-
-  const fieldIdentifier = value.name ?? value.key ?? value.path ?? value.referenceName;
-  if (isTitleFieldIdentifier(fieldIdentifier)) {
-    if ("value" in value) {
-      return { container: value, key: "value" };
-    }
-    if ("fieldValue" in value) {
-      return { container: value, key: "fieldValue" };
-    }
-  }
-
-  for (const nestedValue of Object.values(value)) {
-    if (Array.isArray(nestedValue)) {
-      for (let index = nestedValue.length - 1; index >= 0; index -= 1) {
-        const location = locateWorkItemTitleField(nestedValue[index], depth + 1);
-        if (location) {
-          return location;
-        }
-      }
-      continue;
-    }
-
-    const location = locateWorkItemTitleField(nestedValue, depth + 1);
-    if (location) {
-      return location;
-    }
-  }
-
-  return undefined;
-}
-
-export interface WorkItemTitleRewriteResult {
-  args: Record<string, unknown>;
-  /** A backlog mutation tool was called with a canonical title available to enforce. */
-  attempted: boolean;
-  /**
-   * A title field was found and overwritten. `attempted && !applied` is the only interesting
-   * combination: it means the tool authors a work item but exposes its title under a name this
-   * code does not recognise, so the enforcement silently did nothing. Callers report that at the
-   * call site, where the tool name is still known.
-   *
-   * Note it also fires for a legitimately title-less mutation (an `update_issue` that only changes
-   * state), where NOT rewriting is the correct behaviour — so treat it as a signal to investigate,
-   * never as an error.
-   */
-  applied: boolean;
-}
-
-/**
- * Makes the Shave title the canonical title at the backlog tool boundary. This mutates only the
- * first recognized GitHub/Azure DevOps/Jira title field and leaves non-mutation tools untouched.
- */
-export function applyShaveTitleToWorkItemArgs(
-  toolName: string,
-  toolArgs: Record<string, unknown>,
-  shaveTitle?: string,
-): WorkItemTitleRewriteResult {
-  const canonicalTitle = nonEmptyString(shaveTitle);
-  if (!canonicalTitle || !isBacklogItemMutationTool(toolName)) {
-    return { args: toolArgs, attempted: false, applied: false };
-  }
-
-  const location = locateWorkItemTitleField(toolArgs);
-  if (!location) {
-    return { args: toolArgs, attempted: true, applied: false };
-  }
-
-  location.container[location.key] = canonicalTitle;
-  return { args: toolArgs, attempted: true, applied: true };
-}
-
 /**
  * Options the backlog-creation step passes to whichever orchestrator backend drives it.
  * Identical to what `MCPOrchestrator.manualLoopAsync` accepts so the call site is backend-agnostic.
@@ -177,7 +58,6 @@ export interface ManualLoopOptions {
   videoFilePath?: string; // local video file path for screenshot capture
   serverFilter?: string[]; // if provided, only include tools from these server IDs
   shaveId?: string; // identifies the current shave for per-shave auto-approve
-  shaveTitle?: string; // canonical title used by Shave, Work Item, and owned video metadata
   onStep?: (step: MCPStep) => void;
   /**
    * Aborts an in-flight run. The OpenAI backend can already be cancelled via its approval flow;
@@ -195,7 +75,7 @@ export interface ManualLoopOptions {
  */
 export interface IBacklogOrchestrator {
   manualLoopAsync(
-    taskContent: string,
+    videoTranscription: string,
     videoUploadResult?: VideoUploadResult,
     options?: ManualLoopOptions,
   ): Promise<MCPLoopResult>;
@@ -237,7 +117,7 @@ export interface OutcomeJudgeProvider {
 export async function judgeBacklogOutcome(
   provider: OutcomeJudgeProvider | null | undefined,
   goal: string | undefined,
-  taskContent: string,
+  transcript: string,
   toolActivity: ToolActivity[],
   finalText: string,
 ): Promise<{ achieved: boolean; artifacts: BacklogArtifact[]; verificationUnavailable?: boolean }> {
@@ -271,7 +151,7 @@ export async function judgeBacklogOutcome(
 
   const judgePrompt = [
     `TASK INSTRUCTIONS GIVEN TO THE AGENT:\n${goal?.slice(0, 4000) || "(create a backlog work item describing the user's request)"}`,
-    `ANALYZED TASK CONTENT:\n${taskContent.slice(0, 2000)}`,
+    `USER REQUEST (video transcript):\n${transcript.slice(0, 2000)}`,
     `TOOL CALLS AND THEIR RESULTS (ground truth — decide from these):\n${JSON.stringify(toolActivity)}`,
     `AGENT FINAL MESSAGE (do NOT trust this for success):\n${finalText.slice(0, 2000)}`,
   ].join("\n\n---\n\n");

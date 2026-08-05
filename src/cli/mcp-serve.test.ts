@@ -77,24 +77,6 @@ describe("mcp-serve front-door — tools/call proxy", () => {
     expect(result.content).toEqual([{ type: "text", text: "Created #5" }]);
   });
 
-  it("forwards the canonical Shave title to the desktop bridge", async () => {
-    const post = vi.fn().mockResolvedValue({ ok: true, result: "Created #6" } as ToolCallResult);
-
-    await callToolViaBridge(
-      { post },
-      "GitHub__create_issue",
-      { title: "Claude title" },
-      undefined,
-      "Canonical Shave title",
-    );
-
-    expect(post).toHaveBeenCalledWith("/tools/call", {
-      name: "GitHub__create_issue",
-      arguments: { title: "Claude title" },
-      shaveTitle: "Canonical Shave title",
-    });
-  });
-
   it("stringifies a non-string tool result", async () => {
     const post = vi.fn().mockResolvedValue({ ok: true, result: { id: 5 } } as ToolCallResult);
     const result = await callToolViaBridge({ post }, "X__y", {});

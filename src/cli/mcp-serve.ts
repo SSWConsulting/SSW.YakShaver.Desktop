@@ -9,7 +9,6 @@ import {
   type BridgeToolSummary,
   CLI_BRIDGE_PORT_ENV,
   CLI_BRIDGE_SERVER_FILTER_ENV,
-  CLI_BRIDGE_SHAVE_TITLE_ENV,
   CLI_BRIDGE_TOKEN_ENV,
   type ToolCallResult,
 } from "../shared/cli-bridge/protocol";
@@ -43,8 +42,6 @@ export interface McpServeOptions {
    * selected servers. Undefined/empty means every enabled server.
    */
   serverFilter?: string[];
-  /** Canonical title the current Shave assigned to newly-created backlog items. */
-  shaveTitle?: string;
 }
 
 /**
@@ -57,7 +54,6 @@ export function createMcpServer(options: McpServeOptions = {}): Server {
   // The orchestrator injects the project's selected servers; the front-door forwards them so the
   // app restricts the toolset (and tool execution) to that project, not every configured server.
   const serverFilter = options.serverFilter ?? readServerFilterFromEnv();
-  const shaveTitle = options.shaveTitle ?? process.env[CLI_BRIDGE_SHAVE_TITLE_ENV];
 
   const server = new Server(
     { name: "yakshaver", version: "1.0.0" },
@@ -66,13 +62,7 @@ export function createMcpServer(options: McpServeOptions = {}): Server {
 
   server.setRequestHandler(ListToolsRequestSchema, () => listToolsViaBridge(client, serverFilter));
   server.setRequestHandler(CallToolRequestSchema, (request) =>
-    callToolViaBridge(
-      client,
-      request.params.name,
-      request.params.arguments,
-      serverFilter,
-      shaveTitle,
-    ),
+    callToolViaBridge(client, request.params.name, request.params.arguments, serverFilter),
   );
 
   return server;
@@ -132,7 +122,6 @@ export async function callToolViaBridge(
   name: string,
   args: Record<string, unknown> | undefined,
   serverFilter?: string[],
-  shaveTitle?: string,
 ): Promise<McpToolResult> {
   let result: ToolCallResult;
   try {
@@ -140,7 +129,6 @@ export async function callToolViaBridge(
       name,
       arguments: args ?? {},
       ...(serverFilter && serverFilter.length > 0 ? { serverFilter } : {}),
-      ...(shaveTitle ? { shaveTitle } : {}),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -4,17 +4,9 @@ import { defaultProjectPrompt } from "../services/workflow/prompts";
 import {
   DUPLICATE_DETECTION_RULES,
   ensureDuplicateDetectionRules,
-  INITIAL_SUMMARY_PROMPT,
   SHARED_ISSUE_CREATION_RULES,
   VIDEO_LINK_EMBEDDING_RULES,
 } from "./prompts";
-
-describe("INITIAL_SUMMARY_PROMPT — canonical Shave title", () => {
-  it("requires a title before MCP execution", () => {
-    expect(INITIAL_SUMMARY_PROMPT).toContain('"title"');
-    expect(INITIAL_SUMMARY_PROMPT).toMatch(/maximum 90 characters/i);
-  });
-});
 
 // Regression guard for #719: "GitHub issue created with ✨ as title instead of
 // video title". The issue title is produced by the LLM following

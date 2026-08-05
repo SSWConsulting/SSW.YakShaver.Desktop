@@ -28,7 +28,7 @@ import type {
  */
 export async function runManualLoopWithTimeout(
   orchestrator: IBacklogOrchestrator,
-  taskContent: string,
+  videoTranscription: string,
   videoUploadResult: VideoUploadResult | undefined,
   options: ManualLoopOptions | undefined,
   timeoutMs: number,
@@ -45,7 +45,7 @@ export async function runManualLoopWithTimeout(
 
   try {
     return await withTimeout(
-      orchestrator.manualLoopAsync(taskContent, videoUploadResult, {
+      orchestrator.manualLoopAsync(videoTranscription, videoUploadResult, {
         ...options,
         signal: controller.signal,
       }),

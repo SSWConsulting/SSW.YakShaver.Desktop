@@ -122,18 +122,24 @@ export interface OwnedVideoMetadataTitleTarget {
   metadata: { title: string };
 }
 
-/** Keeps an uploaded video's final metadata title aligned with its canonical Shave title. */
-export function applyShaveTitleToOwnedVideoMetadata(
+/**
+ * Align a YakShaver-uploaded video's outgoing metadata with the title read back from the work item.
+ *
+ * Only applies to videos YakShaver owns — the caller reaches this after `resolveMetadataStage`,
+ * which already skips external video sources. A video the user merely linked keeps its own title,
+ * because we are not its publisher.
+ */
+export function applyResolvedTitleToOwnedVideoMetadata(
   target: OwnedVideoMetadataTitleTarget,
-  shaveTitle?: string,
+  resolvedTitle?: string,
 ): boolean {
-  const canonicalTitle = shaveTitle?.trim();
-  if (!canonicalTitle) {
+  const title = resolvedTitle?.trim();
+  if (!title) {
     return false;
   }
 
-  target.snippet.title = canonicalTitle;
-  target.metadata.title = canonicalTitle;
+  target.snippet.title = title;
+  target.metadata.title = title;
   return true;
 }
 

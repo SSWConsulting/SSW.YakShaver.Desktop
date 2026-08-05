@@ -150,20 +150,6 @@ describe("LocalClaudeOrchestrator", () => {
       expect(config.mcpServers.yakshaver).not.toHaveProperty("env");
     });
 
-    it("passes the canonical Shave title to the front-door", () => {
-      const orch = new LocalClaudeOrchestrator();
-      const config = orch.buildMcpConfig(frontDoor, "Canonical Shave title");
-      const server = config.mcpServers.yakshaver;
-      expect(server.type).toBe("stdio");
-      if (server.type !== "stdio") {
-        throw new Error("Expected the yakshaver front-door to use stdio");
-      }
-
-      expect(server.env).toMatchObject({
-        YAKSHAVER_BRIDGE_SHAVE_TITLE: "Canonical Shave title",
-      });
-    });
-
     it("re-prefixes the app's whitelist as mcp__yakshaver__<Server__tool>", async () => {
       const orch = new LocalClaudeOrchestrator();
       const manager = makeManager(["GitHub__create_issue", "Internal__fill_template"]);
@@ -309,14 +295,13 @@ describe("LocalClaudeOrchestrator", () => {
       );
 
       const result = await orch.manualLoopAsync("a bug report", undefined, {
-        shaveTitle: "Canonical Shave title",
         onStep: (s) => steps.push(s),
       });
 
       // stdin received the transcript as the user turn (the system prompt goes via argv)
       expect(runChild.stdin.write).toHaveBeenCalled();
       const written = (runChild.stdin.write as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(written).toContain("task content: a bug report");
+      expect(written).toContain("video transcription: a bug report");
 
       const types = steps.map((s) => s.type);
       // A `start` step is always emitted first so the Executing Task box is never empty.
@@ -353,7 +338,6 @@ describe("LocalClaudeOrchestrator", () => {
       expect(result.artifacts).toEqual([
         { type: "issue", idOrUrl: "https://github.com/o/r/issues/5" },
       ]);
-      expect(toolCallStep?.args).toEqual({ title: "Canonical Shave title" });
       expect(result.text).toBe("Done! Created issue #5.");
     });
 

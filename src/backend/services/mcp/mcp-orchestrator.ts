@@ -12,7 +12,6 @@ import type { VideoUploadResult } from "../auth/types";
 import { TelemetryService } from "../telemetry/telemetry-service";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
 import {
-  applyShaveTitleToWorkItemArgs,
   type BacklogArtifact,
   type IBacklogOrchestrator,
   judgeBacklogOutcome,
@@ -186,7 +185,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
   }
 
   public async manualLoopAsync(
-    taskContent: string,
+    videoTranscription: string,
     videoUploadResult?: VideoUploadResult,
     options: ManualLoopOptions = {},
   ): Promise<MCPLoopResult> {
@@ -216,10 +215,6 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
       ? `\n---\nProject Prompt:\n${options.desktopAgentProjectPrompt}`
       : "";
 
-    systemPrompt += options.shaveTitle
-      ? `\n---\nCanonical title:\nUse this exact title for the backlog work item: ${options.shaveTitle}`
-      : "";
-
     systemPrompt = this.appendVideoInfoToSystemPrompt(
       systemPrompt,
       videoUploadResult,
@@ -236,7 +231,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
         role: "system",
         content: "When selecting tools, briefly explain the reason for choosing them.",
       },
-      { role: "user", content: `task content: ${taskContent}` },
+      { role: "user", content: `video transcription: ${videoTranscription}` },
     ];
 
     // Records every executed tool call + its result. At the end we judge — from these
@@ -252,7 +247,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
     ): Promise<MCPLoopResult> => {
       const outcome = await this.judgeBacklogOutcome(
         options.desktopAgentProjectPrompt,
-        taskContent,
+        videoTranscription,
         toolActivity,
         judgeFinalText,
       );
@@ -296,7 +291,6 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
           (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
         );
         for (const toolCall of llmResponse.toolCalls) {
-          applyShaveTitleToWorkItemArgs(toolCall.toolName, toolCall.input, options.shaveTitle);
           const isWhitelisted = toolWhiteList.has(toolCall.toolName);
           const toolStartTime = Date.now();
 
@@ -430,28 +424,11 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
               });
 
               // Resolve any toolOutputRef parameters before executing the tool
-              const titleRewrite = applyShaveTitleToWorkItemArgs(
+              const resolvedInput = this.normalizeScreenshotMarkdownInArgs(
                 toolCall.toolName,
-                this.normalizeScreenshotMarkdownInArgs(
-                  toolCall.toolName,
-                  this.resolveToolOutputReferences(toolCall.input),
-                ),
-                options.shaveTitle,
+                this.resolveToolOutputReferences(toolCall.input),
               );
-              const resolvedInput = titleRewrite.args;
-              if (titleRewrite.attempted && !titleRewrite.applied) {
-                console.warn(
-                  `[MCPOrchestrator] Could not locate a title field for ${toolCall.toolName}; ` +
-                    "the Shave title could not be enforced.",
-                );
-                telemetryService.trackEvent({
-                  name: "WorkItemTitleRewriteSkipped",
-                  properties: {
-                    toolName: toolCall.toolName,
-                    orchestrator: "openai",
-                  },
-                });
-              }
+
               const toolOutput = await toolToCall.execute(resolvedInput, {
                 toolCallId: toolCall.toolCallId,
               } as ToolExecutionOptions);
@@ -608,14 +585,14 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
    */
   private async judgeBacklogOutcome(
     goal: string | undefined,
-    taskContent: string,
+    transcript: string,
     toolActivity: ToolActivity[],
     finalText: string,
   ): Promise<{ achieved: boolean; artifacts: BacklogArtifact[] }> {
     return judgeBacklogOutcome(
       MCPOrchestrator.languageModelProvider,
       goal,
-      taskContent,
+      transcript,
       toolActivity,
       finalText,
     );

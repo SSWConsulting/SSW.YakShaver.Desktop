@@ -52,7 +52,6 @@ export interface BridgeServices {
       name: string,
       args?: Record<string, unknown>,
       serverFilter?: string[],
-      shaveTitle?: string,
     ): Promise<ToolCallResult>;
   };
 }
@@ -326,7 +325,6 @@ async function routeTools(
       parsed.data.name,
       parsed.data.arguments ?? {},
       parsed.data.serverFilter,
-      parsed.data.shaveTitle,
     );
     // A tool-level failure (incl. a structured "not approved") is still a
     // successful BRIDGE response — the envelope carries {ok:false,...} so the

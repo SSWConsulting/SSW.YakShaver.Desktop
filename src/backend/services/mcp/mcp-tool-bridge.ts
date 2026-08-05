@@ -2,8 +2,6 @@ import { randomUUID } from "node:crypto";
 import { asSchema, type ToolSet } from "ai";
 import type { BridgeToolSummary, ToolCallResult } from "../../../shared/cli-bridge/protocol";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
-import { TelemetryService } from "../telemetry/telemetry-service";
-import { applyShaveTitleToWorkItemArgs } from "./backlog-orchestrator";
 
 /**
  * The slice of {@link MCPServerManager} the tool bridge needs. Kept narrow so the
@@ -75,7 +73,6 @@ export class McpToolBridge {
     name: string,
     args: Record<string, unknown> = {},
     serverFilter?: string[],
-    shaveTitle?: string,
   ): Promise<ToolCallResult> {
     // Resolve against the SAME filtered toolset `listTools` exposes, so a tool from an unselected
     // project isn't reachable even if the model guesses its name (the server-side gate for #915).
@@ -105,21 +102,7 @@ export class McpToolBridge {
     try {
       // The AI-SDK execute signature is execute(input, options). The bridge has
       // no streaming context, so we pass a minimal options object.
-      const titleRewrite = applyShaveTitleToWorkItemArgs(name, args, shaveTitle);
-      if (titleRewrite.attempted && !titleRewrite.applied) {
-        console.warn(
-          `[McpToolBridge] Could not locate a title field for ${name}; ` +
-            "the Shave title could not be enforced.",
-        );
-        // Mirrors the OpenAI loop's event so the signal is symmetric across both backends — this
-        // is the only place the Claude Code path can observe it, since the front-door executes
-        // the tool here rather than in the orchestrator.
-        TelemetryService.getInstance().trackEvent({
-          name: "WorkItemTitleRewriteSkipped",
-          properties: { toolName: name, orchestrator: "local-claude" },
-        });
-      }
-      const result = await (execute as ToolExecute)(titleRewrite.args, {
+      const result = await (execute as ToolExecute)(args, {
         toolCallId: `bridge-${randomUUID()}`,
         messages: [],
       });

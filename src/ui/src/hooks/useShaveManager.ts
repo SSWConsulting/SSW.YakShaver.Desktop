@@ -1,4 +1,5 @@
 import type { WorkflowState } from "@shared/types/workflow";
+import { parseFinalOutput } from "@shared/utils/final-output";
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type {
@@ -16,27 +17,24 @@ import {
   requiredPostCreationStageFailure,
 } from "../utils";
 
-interface FinalOutput {
-  Status?: string;
-  Repository?: string;
-  URL?: string;
-  Description?: string;
-  Labels?: string[];
-}
-
 interface ParsedShaveOutput {
   status: ShaveStatus;
   workItemUrl: string;
 }
 
-function parseFinalOutput(finalOutput: string): ParsedShaveOutput | null {
+/**
+ * The title is deliberately NOT read from here. The model's final message describes what it
+ * believes it filed; the work item itself is the authority, and the backend reconciles the shave
+ * title against it once the item exists. Persisting the self-reported title would race with — and
+ * overwrite — that authoritative value.
+ */
+function parseShaveOutput(finalOutput: string): ParsedShaveOutput | null {
   if (!finalOutput) {
     return null;
   }
 
   try {
-    const cleanOutput = finalOutput.replace(/```json\n?|\n?```/g, "").trim();
-    const llmOutput: FinalOutput = JSON.parse(cleanOutput);
+    const llmOutput = parseFinalOutput(finalOutput);
 
     return {
       status:
@@ -191,6 +189,19 @@ export function useShaveManager() {
             console.error("[Shave] Error updating shave video URL (by id):", err);
           }
         }
+
+        // Save the video title to local DB as soon as it's available so that
+        // if the workflow fails before the final output step, we already have
+        // a meaningful title rather than the "Untitled" placeholder.
+        if (uploadResult.data.title) {
+          try {
+            await ipcClient.shave.update(shaveId, {
+              title: uploadResult.data.title,
+            });
+          } catch (err) {
+            console.error("[Shave] Error updating shave title from upload result:", err);
+          }
+        }
       }
     }
 
@@ -216,7 +227,7 @@ export function useShaveManager() {
     finalUpdatedKeysRef.current.add(finalUpdatedKey);
 
     try {
-      const parsedOutput = parseFinalOutput(finalOutput);
+      const parsedOutput = parseShaveOutput(finalOutput);
 
       if (parsedOutput) {
         // #861 AC#3/#5: a failed required post-creation stage overrides the AI's "success"
