@@ -14,6 +14,29 @@ describe("parseFinalOutput", () => {
     expect(parseFinalOutput('```json\n{"Status":"Success"}\n```')).toEqual({ Status: "Success" });
   });
 
+  // #888: the fence handling has to CAPTURE the block, not delete the markers. These are the cases
+  // a global substring-strip gets wrong, and this module is now the only implementation of them.
+  it("accepts an uppercase fence", () => {
+    expect(parseFinalOutput('```JSON\n{"URL":"https://x"}\n```')).toEqual({ URL: "https://x" });
+  });
+
+  it("accepts a fenced block preceded by prose", () => {
+    expect(parseFinalOutput('Here is the result:\n```json\n{"URL":"https://x"}\n```')).toEqual({
+      URL: "https://x",
+    });
+  });
+
+  it("preserves backticks inside a value instead of mutating the payload", () => {
+    const description = "run ```npm test``` first";
+    const input = `\`\`\`json\n${JSON.stringify({ Description: description })}\n\`\`\``;
+
+    expect(parseFinalOutput(input).Description).toBe(description);
+  });
+
+  it("parses bare JSON with no fence at all", () => {
+    expect(parseFinalOutput('{"Title":"T"}')).toEqual({ Title: "T" });
+  });
+
   it("drops a wrongly typed field instead of letting it through", () => {
     // The renderer used to write this straight into the shave's work_item_url column.
     const parsed = parseFinalOutput('{"Status":"Success","URL":5}');

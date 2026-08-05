@@ -1,3 +1,7 @@
+import {
+  type FinalOutput,
+  parseFinalOutput as parseFinalOutputEnvelope,
+} from "@shared/utils/final-output";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getStatusVariant } from "@/lib/shave-utils";
@@ -15,27 +19,15 @@ interface ShaveOutcomeViewProps {
   shaveId: string;
 }
 
-interface ParsedFinalOutput {
-  Title?: string;
-  URL?: string;
-  Description?: string;
-  Repository?: string;
-  Labels?: string[];
-}
-
-export function parseFinalOutput(finalOutput: string | null | undefined): ParsedFinalOutput | null {
+/**
+ * The fence handling and field validation live in `@shared/utils/final-output`, which the backend
+ * parses the same payload with — this view only adds its own "never throw, render nothing" contract
+ * on top. The #888 fence-capture behaviour is tested here and in that module's own tests.
+ */
+export function parseFinalOutput(finalOutput: string | null | undefined): FinalOutput | null {
   if (!finalOutput) return null;
   try {
-    // Extract the body of a fenced code block (```json … ``` or a bare ``` fence),
-    // case-insensitively and ignoring any surrounding prose, then parse ONLY that.
-    // A prior global substring-strip mutated the payload — e.g. it removed backticks
-    // from inside a Description value — so we capture the block body and leave its
-    // characters untouched. No fence -> parse the raw string.
-    // Greedy capture (to the LAST fence) so a payload value that itself contains a
-    // ``` (e.g. a Description with a fenced command) is preserved, not truncated.
-    const fenced = finalOutput.match(/```(?:json)?\s*([\s\S]*)```/i);
-    const body = (fenced ? fenced[1] : finalOutput).trim();
-    return JSON.parse(body) as ParsedFinalOutput;
+    return parseFinalOutputEnvelope(finalOutput);
   } catch {
     return null;
   }

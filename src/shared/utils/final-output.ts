@@ -28,13 +28,26 @@ export const FinalOutputSchema = z.object({
 export type FinalOutput = z.infer<typeof FinalOutputSchema>;
 
 /**
+ * Extract the JSON body from whatever the model wrapped it in.
+ *
+ * #888: this CAPTURES the fenced block rather than deleting the fence markers. A global
+ * substring-strip mutates the payload — it removed the backticks from inside a `Description`
+ * value — and is blind to an uppercase ```JSON fence or to prose around the block. Greedy to the
+ * LAST fence, so a value that itself contains a ``` survives instead of being truncated.
+ * No fence at all -> parse the raw string.
+ */
+function extractJsonBody(finalOutput: string): string {
+  const fenced = finalOutput.match(/```(?:json)?\s*([\s\S]*)```/i);
+  return (fenced ? fenced[1] : finalOutput).trim();
+}
+
+/**
  * Throws when the payload is not the expected JSON envelope — callers decide how loud that is.
  * The renderer surfaces it (it blocks persisting the shave record); the backend swallows it
  * (title reconciliation is best-effort and must never fail an already-filed work item).
  */
 export function parseFinalOutput(finalOutput: string): FinalOutput {
-  const cleanOutput = finalOutput.replace(/```json\n?|\n?```/g, "").trim();
-  return FinalOutputSchema.parse(JSON.parse(cleanOutput));
+  return FinalOutputSchema.parse(JSON.parse(extractJsonBody(finalOutput)));
 }
 
 /**
