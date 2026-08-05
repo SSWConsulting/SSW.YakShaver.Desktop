@@ -31,24 +31,44 @@ describe("selectWorkItemUrl", () => {
     ).toBe("https://github.com/o/r/issues/7");
   });
 
-  it("falls through a BARE ID artifact to the usable URL", () => {
-    // The judge is explicitly allowed to report "an id, a number, or a URL", so `artifacts[0]` is
-    // often just "5". A `??` fallback would stop there and never try the link that actually works.
-    expect(selectWorkItemUrl([{ type: "issue", idOrUrl: "5" }], finalOutput(ISSUE_URL))).toBe(
+  it("falls through a BARE ID artifact to the URL that names the same item", () => {
+    // The judge is explicitly allowed to report "an id, a number, or a URL", so an artifact is
+    // often just "42" and cannot be read directly; the model's URL is the usable link.
+    expect(selectWorkItemUrl([{ type: "issue", idOrUrl: "42" }], finalOutput(ISSUE_URL))).toBe(
       ISSUE_URL,
     );
+  });
+
+  it("refuses a model URL that no artifact corroborates", () => {
+    // The read runs with the user's credentials and without an approval prompt, so a model must
+    // not be able to point it at an item the tool results never mentioned.
+    expect(
+      selectWorkItemUrl([{ type: "issue", idOrUrl: "5" }], finalOutput(ISSUE_URL)),
+    ).toBeUndefined();
+  });
+
+  it("recognises the item id inside a decorated artifact", () => {
+    expect(
+      selectWorkItemUrl(
+        [{ type: "work_item", idOrUrl: "AB#1234" }],
+        finalOutput("https://dev.azure.com/ssw/YakShaver/_workitems/edit/1234"),
+      ),
+    ).toBe("https://dev.azure.com/ssw/YakShaver/_workitems/edit/1234");
   });
 
   it("skips an artifact that is not a backlog item", () => {
     expect(
       selectWorkItemUrl(
-        [{ type: "pull_request", idOrUrl: "https://github.com/o/r/pull/9" }],
+        [
+          { type: "pull_request", idOrUrl: "https://github.com/o/r/pull/9" },
+          { type: "issue", idOrUrl: "42" },
+        ],
         finalOutput(ISSUE_URL),
       ),
     ).toBe(ISSUE_URL);
   });
 
-  it("returns undefined when no candidate is a work item URL", () => {
+  it("returns undefined when there is no usable URL at all", () => {
     expect(selectWorkItemUrl([{ type: "issue", idOrUrl: "5" }], finalOutput())).toBeUndefined();
   });
 });
@@ -62,6 +82,7 @@ describe("reconcileWorkItemTitleAsync", () => {
     });
 
     const result = await reconcileWorkItemTitleAsync(resolver, {
+      artifacts: [{ type: "issue", idOrUrl: "42" }],
       finalOutput: finalOutput(ISSUE_URL),
     });
 
@@ -73,7 +94,7 @@ describe("reconcileWorkItemTitleAsync", () => {
     // file name, which is worse than what the workflow did before reconciliation existed.
     const result = await reconcileWorkItemTitleAsync(
       resolverReturning({ ok: false, reason: "unauthenticated" }),
-      { finalOutput: finalOutput(ISSUE_URL) },
+      { artifacts: [{ type: "issue", idOrUrl: "42" }], finalOutput: finalOutput(ISSUE_URL) },
     );
 
     expect(result).toEqual({ title: REPORTED_TITLE, reason: "unauthenticated" });
@@ -94,6 +115,25 @@ describe("reconcileWorkItemTitleAsync", () => {
     await expect(
       reconcileWorkItemTitleAsync(resolver, { finalOutput: "I created the issue for you!" }),
     ).resolves.toEqual({ title: undefined, reason: "no_work_item_url" });
+  });
+
+  it("keeps the reported title when the read stalls instead of holding the workflow open", async () => {
+    // Everything after this call — the checkpoint, the portal write, the metadata stage, temp-file
+    // cleanup — runs for a work item that was ALREADY filed, so a hung reader must not strand it.
+    vi.useFakeTimers();
+    try {
+      const resolver: BacklogItemResolver = { resolveAsync: () => new Promise(() => {}) };
+
+      const pending = reconcileWorkItemTitleAsync(resolver, {
+        artifacts: [{ type: "issue", idOrUrl: "42" }],
+        finalOutput: finalOutput(ISSUE_URL),
+      });
+      await vi.advanceTimersByTimeAsync(20_000);
+
+      await expect(pending).resolves.toEqual({ title: REPORTED_TITLE, reason: "transient" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reads the artifact URL, not the narration URL, when both are usable", async () => {
