@@ -17,7 +17,6 @@ import type { IProcessSpawner } from "../process/process-spawner";
 import { UserSettingsStorage } from "../storage/user-settings-storage";
 import {
   applyShaveTitleToWorkItemArgs,
-  extractPreparedWorkItemTitle,
   type IBacklogOrchestrator,
   judgeBacklogOutcome,
   type ManualLoopOptions,
@@ -454,8 +453,6 @@ ${videoEmbeddingRules}`;
     // Correlates a tool_use block's opaque id (e.g. `toolu_01ABC...`) back to its real tool name,
     // so the tool_result we record later carries the actual name instead of the opaque id.
     const toolNameById = new Map<string, string>();
-    const preparedTitleById = new Map<string, string>();
-    const successfulWorkItemTitles: string[] = [];
 
     // Reject early if the caller already aborted before we spawned anything.
     if (options.signal?.aborted) {
@@ -551,8 +548,6 @@ ${videoEmbeddingRules}`;
           event,
           toolActivity,
           toolNameById,
-          preparedTitleById,
-          successfulWorkItemTitles,
           options.shaveTitle,
           options.onStep,
         );
@@ -635,7 +630,6 @@ ${videoEmbeddingRules}`;
       text: finalText,
       backlogActionSucceeded: outcome.achieved,
       artifacts: outcome.artifacts,
-      workItemTitle: outcome.achieved ? successfulWorkItemTitles.at(-1) : undefined,
       terminationReason,
       verificationUnavailable: outcome.verificationUnavailable,
     };
@@ -649,8 +643,6 @@ ${videoEmbeddingRules}`;
     event: ClaudeStreamEvent,
     toolActivity: ToolActivity[],
     toolNameById: Map<string, string>,
-    preparedTitleById: Map<string, string>,
-    successfulWorkItemTitles: string[],
     shaveTitle?: string,
     onStep?: ManualLoopOptions["onStep"],
   ): { finalText?: string; terminationReason?: MCPTerminationReason } {
@@ -671,26 +663,23 @@ ${videoEmbeddingRules}`;
           // prefix once here so both the id->name map (used by the judge) and the UI step carry the
           // real `Server__tool` name.
           const toolName = stripFrontDoorPrefix(block.name ?? "unknown");
+          let effectiveArgs = block.input;
           // Remember which tool this opaque id belongs to so the matching tool_result (which only
           // carries the id) can be recorded under the real tool name.
           if (block.id) {
             toolNameById.set(block.id, toolName);
             if (isRecord(block.input)) {
-              const effectiveArgs = applyShaveTitleToWorkItemArgs(
-                toolName,
-                block.input,
-                shaveTitle,
-              );
-              const preparedTitle = extractPreparedWorkItemTitle(toolName, effectiveArgs);
-              if (preparedTitle) {
-                preparedTitleById.set(block.id, preparedTitle);
-              }
+              // Display only: this is a parsed copy of what Claude sent, so rewriting it cannot
+              // change the call. The authoritative rewrite (and the skipped-rewrite warning) lives
+              // in McpToolBridge, on the other side of the front-door. Mirroring it here keeps the
+              // Executing Task box showing the title that will actually be filed.
+              effectiveArgs = applyShaveTitleToWorkItemArgs(toolName, block.input, shaveTitle).args;
             }
           }
           onStep?.({
             type: "tool_call",
             toolName,
-            args: block.input,
+            args: effectiveArgs,
           });
         }
       }
@@ -709,12 +698,6 @@ ${videoEmbeddingRules}`;
             (block.tool_use_id ? toolNameById.get(block.tool_use_id) : undefined) ??
             block.tool_use_id ??
             "unknown";
-          const preparedTitle = block.tool_use_id
-            ? preparedTitleById.get(block.tool_use_id)
-            : undefined;
-          if (ok && preparedTitle) {
-            successfulWorkItemTitles.push(preparedTitle);
-          }
           toolActivity.push({
             toolName,
             ok,

@@ -30,8 +30,6 @@ export interface MCPLoopResult {
   backlogActionSucceeded: boolean;
   /** The concrete created/updated artifacts the judge found (issue ids/URLs), if any. */
   artifacts: BacklogArtifact[];
-  /** Exact title submitted to the successful backlog mutation tool, when that tool accepts one. */
-  workItemTitle?: string;
   /** Why the loop ended — distinguishes a clean finish from hitting a safety cap. */
   terminationReason: MCPTerminationReason;
   /**
@@ -74,92 +72,75 @@ function isTitleFieldIdentifier(value: unknown): boolean {
   );
 }
 
+interface WorkItemTitleFieldLocation {
+  container: Record<string, unknown>;
+  key: string;
+}
+
 /**
- * Finds a title in common GitHub, Azure DevOps, and Jira mutation argument shapes. The lookup is
- * deliberately tied to title field names; it never treats a generic `name` value as the title.
+ * Locates a title field in common GitHub, Azure DevOps, and Jira mutation argument shapes. The
+ * lookup is deliberately tied to title field names; it never treats a generic `name` value as the
+ * title. Returning the location keeps title discovery and replacement on exactly the same path.
  */
-function findTitleInToolArgs(value: unknown, depth = 0): string | undefined {
+function locateWorkItemTitleField(
+  value: unknown,
+  depth = 0,
+): WorkItemTitleFieldLocation | undefined {
   if (depth > 4 || !isRecord(value)) {
     return undefined;
   }
 
-  for (const [key, fieldValue] of Object.entries(value)) {
-    if (isTitleFieldIdentifier(key)) {
-      const title = nonEmptyString(fieldValue);
-      if (title) {
-        return title;
-      }
-    }
-  }
-
-  const fieldIdentifier = value.name ?? value.key ?? value.path ?? value.referenceName;
-  if (isTitleFieldIdentifier(fieldIdentifier)) {
-    const title = nonEmptyString(value.value ?? value.fieldValue);
-    if (title) {
-      return title;
-    }
-  }
-
-  for (const nestedValue of Object.values(value)) {
-    if (Array.isArray(nestedValue)) {
-      for (let index = nestedValue.length - 1; index >= 0; index -= 1) {
-        const title = findTitleInToolArgs(nestedValue[index], depth + 1);
-        if (title) {
-          return title;
-        }
-      }
-      continue;
-    }
-
-    const title = findTitleInToolArgs(nestedValue, depth + 1);
-    if (title) {
-      return title;
-    }
-  }
-
-  return undefined;
-}
-
-function replaceTitleInToolArgs(value: unknown, shaveTitle: string, depth = 0): boolean {
-  if (depth > 4 || !isRecord(value)) {
-    return false;
-  }
-
   for (const key of Object.keys(value)) {
     if (isTitleFieldIdentifier(key)) {
-      value[key] = shaveTitle;
-      return true;
+      return { container: value, key };
     }
   }
 
   const fieldIdentifier = value.name ?? value.key ?? value.path ?? value.referenceName;
   if (isTitleFieldIdentifier(fieldIdentifier)) {
     if ("value" in value) {
-      value.value = shaveTitle;
-      return true;
+      return { container: value, key: "value" };
     }
     if ("fieldValue" in value) {
-      value.fieldValue = shaveTitle;
-      return true;
+      return { container: value, key: "fieldValue" };
     }
   }
 
   for (const nestedValue of Object.values(value)) {
     if (Array.isArray(nestedValue)) {
       for (let index = nestedValue.length - 1; index >= 0; index -= 1) {
-        if (replaceTitleInToolArgs(nestedValue[index], shaveTitle, depth + 1)) {
-          return true;
+        const location = locateWorkItemTitleField(nestedValue[index], depth + 1);
+        if (location) {
+          return location;
         }
       }
       continue;
     }
 
-    if (replaceTitleInToolArgs(nestedValue, shaveTitle, depth + 1)) {
-      return true;
+    const location = locateWorkItemTitleField(nestedValue, depth + 1);
+    if (location) {
+      return location;
     }
   }
 
-  return false;
+  return undefined;
+}
+
+export interface WorkItemTitleRewriteResult {
+  args: Record<string, unknown>;
+  /** A backlog mutation tool was called with a canonical title available to enforce. */
+  attempted: boolean;
+  /**
+   * A title field was found and overwritten. `attempted && !applied` is the only interesting
+   * combination: it means the tool authors a work item but exposes its title under a name this
+   * code does not recognise, so the enforcement silently did nothing. Callers report that at the
+   * call site, where the tool name is still known.
+   *
+   * Note it also fires for a legitimately title-less mutation (an `update_issue` that only changes
+   * state), where NOT rewriting is the correct behaviour — so treat it as a signal to investigate,
+   * never as an error.
+   */
+  applied: boolean;
 }
 
 /**
@@ -170,24 +151,19 @@ export function applyShaveTitleToWorkItemArgs(
   toolName: string,
   toolArgs: Record<string, unknown>,
   shaveTitle?: string,
-): Record<string, unknown> {
+): WorkItemTitleRewriteResult {
   const canonicalTitle = nonEmptyString(shaveTitle);
-  if (canonicalTitle && isBacklogItemMutationTool(toolName)) {
-    replaceTitleInToolArgs(toolArgs, canonicalTitle);
+  if (!canonicalTitle || !isBacklogItemMutationTool(toolName)) {
+    return { args: toolArgs, attempted: false, applied: false };
   }
-  return toolArgs;
-}
 
-/**
- * Reads the title the agent prepared immediately before calling a backlog mutation tool. Callers
- * retain the returned string only when that tool succeeds; the full tool arguments never enter the
- * outcome-judge activity log.
- */
-export function extractPreparedWorkItemTitle(
-  toolName: string,
-  toolArgs: Record<string, unknown>,
-): string | undefined {
-  return isBacklogItemMutationTool(toolName) ? findTitleInToolArgs(toolArgs) : undefined;
+  const location = locateWorkItemTitleField(toolArgs);
+  if (!location) {
+    return { args: toolArgs, attempted: true, applied: false };
+  }
+
+  location.container[location.key] = canonicalTitle;
+  return { args: toolArgs, attempted: true, applied: true };
 }
 
 /**

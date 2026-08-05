@@ -354,7 +354,6 @@ describe("LocalClaudeOrchestrator", () => {
         { type: "issue", idOrUrl: "https://github.com/o/r/issues/5" },
       ]);
       expect(toolCallStep?.args).toEqual({ title: "Canonical Shave title" });
-      expect(result.workItemTitle).toBe("Canonical Shave title");
       expect(result.text).toBe("Done! Created issue #5.");
     });
 

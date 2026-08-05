@@ -14,7 +14,6 @@ import { UserInteractionService } from "../user-interaction/user-interaction-ser
 import {
   applyShaveTitleToWorkItemArgs,
   type BacklogArtifact,
-  extractPreparedWorkItemTitle,
   type IBacklogOrchestrator,
   judgeBacklogOutcome,
   type ManualLoopOptions,
@@ -243,7 +242,6 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
     // Records every executed tool call + its result. At the end we judge — from these
     // RESULTS, not the model's narration — whether a backlog item was actually filed (#833).
     const toolActivity: ToolActivity[] = [];
-    const successfulWorkItemTitles: string[] = [];
 
     // Every loop exit funnels through here so the outcome is judged from the tool RESULTS
     // regardless of WHY the loop ended — an item filed before a cap/limit is still honoured.
@@ -262,7 +260,6 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
         text,
         backlogActionSucceeded: outcome.achieved,
         artifacts: outcome.artifacts,
-        workItemTitle: outcome.achieved ? successfulWorkItemTitles.at(-1) : undefined,
         terminationReason,
       };
     };
@@ -433,7 +430,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
               });
 
               // Resolve any toolOutputRef parameters before executing the tool
-              const resolvedInput = applyShaveTitleToWorkItemArgs(
+              const titleRewrite = applyShaveTitleToWorkItemArgs(
                 toolCall.toolName,
                 this.normalizeScreenshotMarkdownInArgs(
                   toolCall.toolName,
@@ -441,11 +438,20 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
                 ),
                 options.shaveTitle,
               );
-
-              const preparedWorkItemTitle = extractPreparedWorkItemTitle(
-                toolCall.toolName,
-                resolvedInput,
-              );
+              const resolvedInput = titleRewrite.args;
+              if (titleRewrite.attempted && !titleRewrite.applied) {
+                console.warn(
+                  `[MCPOrchestrator] Could not locate a title field for ${toolCall.toolName}; ` +
+                    "the Shave title could not be enforced.",
+                );
+                telemetryService.trackEvent({
+                  name: "WorkItemTitleRewriteSkipped",
+                  properties: {
+                    toolName: toolCall.toolName,
+                    orchestrator: "openai",
+                  },
+                });
+              }
               const toolOutput = await toolToCall.execute(resolvedInput, {
                 toolCallId: toolCall.toolCallId,
               } as ToolExecutionOptions);
@@ -465,9 +471,6 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
               // Record the call + its result for the end-of-loop outcome judge. `ok` reflects
               // whether the tool itself errored (MCP sets isError on a failed/auth-denied call).
               const toolErrored = (toolOutput as { isError?: boolean }).isError === true;
-              if (!toolErrored && preparedWorkItemTitle) {
-                successfulWorkItemTitles.push(preparedWorkItemTitle);
-              }
               toolActivity.push({
                 toolName: toolCall.toolName,
                 ok: !toolErrored,

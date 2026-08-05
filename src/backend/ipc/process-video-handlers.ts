@@ -30,7 +30,8 @@ import { UserInteractionService } from "../services/user-interaction/user-intera
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import {
-  AnalyzedTranscriptSchema,
+  AnalyzedTranscriptGenerationSchema,
+  normalizeAnalyzedTranscript,
   readAnalyzedTranscript,
 } from "../services/workflow/analyzed-transcript";
 import { runManualLoopWithTimeout } from "../services/workflow/executing-task-timeout";
@@ -519,9 +520,13 @@ export class ProcessVideoIPCHandlers {
       // with no preview in the Tenant view. Writing it here from the backend guarantees the
       // field is persisted whenever the upload/download succeeded, regardless of UI timing.
       this.persistVideoMetadataToShave(shaveId, youtubeResult);
-      // Keep the upload/download title as an early fallback. ANALYZING_TRANSCRIPT replaces it with
-      // the canonical Shave title later; both writes stay ordered in the backend workflow.
-      this.persistShaveTitle(shaveId, youtubeResult.data?.title);
+      // The upload/download title is only an early placeholder for a FRESH run, where
+      // ANALYZING_TRANSCRIPT replaces it below. This line is NOT stage-guarded (it mirrors the
+      // unconditional metadata write above), so a resume that starts at or after SELECTING_PROMPT
+      // reaches it with ANALYZING_TRANSCRIPT skipped — and nothing downstream writes a title any
+      // more. Preferring the recovered `shaveTitle` is what stops such a resume from permanently
+      // reverting the Shave to its raw recording name.
+      this.persistShaveTitle(shaveId, shaveTitle ?? youtubeResult.data?.title);
 
       // -- CONVERTING_AUDIO --
       if (shouldRunStage(WorkflowProgressStage.CONVERTING_AUDIO)) {
@@ -631,10 +636,12 @@ export class ProcessVideoIPCHandlers {
 
       ${effectiveTranscript}`;
 
-        const analyzedTranscript = await languageModelProvider.generateObject(
-          userPrompt,
-          AnalyzedTranscriptSchema,
-          INITIAL_SUMMARY_PROMPT,
+        const analyzedTranscript = normalizeAnalyzedTranscript(
+          await languageModelProvider.generateObject(
+            userPrompt,
+            AnalyzedTranscriptGenerationSchema,
+            INITIAL_SUMMARY_PROMPT,
+          ),
         );
         intermediateOutput = JSON.stringify(analyzedTranscript);
         shaveTitle = analyzedTranscript.title;
@@ -1016,7 +1023,7 @@ export class ProcessVideoIPCHandlers {
     } catch (error) {
       console.warn(
         "[ProcessVideo] Failed to persist analyzed Shave title (non-fatal):",
-        formatAndReportError(error, "persist_desktop_title"),
+        formatAndReportError(error, "persist_shave_title"),
       );
     }
   }

@@ -22,10 +22,7 @@ vi.mock("../../utils/error-utils", () => ({
     error instanceof Error ? error.message : String(error),
 }));
 
-import {
-  applyShaveTitleToWorkItemArgs,
-  extractPreparedWorkItemTitle,
-} from "./backlog-orchestrator";
+import { applyShaveTitleToWorkItemArgs } from "./backlog-orchestrator";
 import { BacklogOutcomeSchema, MCPOrchestrator } from "./mcp-orchestrator";
 
 type ToolCall = { toolName: string; toolCallId: string; input: Record<string, unknown> };
@@ -113,7 +110,6 @@ describe("#833 — outcome is judged from tool RESULTS, not tool-name heuristics
     const r = await orch.manualLoopAsync("a bug report transcript", undefined, {});
     expect(createIssue.execute).toHaveBeenCalled();
     expect(r.backlogActionSucceeded).toBe(false);
-    expect(r.workItemTitle).toBeUndefined();
     expect(generateObject).not.toHaveBeenCalled();
   });
 
@@ -184,11 +180,13 @@ describe("#833 — outcome is judged from tool RESULTS, not tool-name heuristics
       shaveTitle: "🐛 Canonical Shave title",
     });
 
+    // The model proposed "🐛 Exact PBI title"; the boundary rewrite is what the tool actually ran
+    // with, so enforcement is proven from the execute() call rather than from the model's output.
     expect(createIssue.execute).toHaveBeenCalledWith(
       expect.objectContaining({ title: "🐛 Canonical Shave title" }),
       expect.anything(),
     );
-    expect(result.workItemTitle).toBe("🐛 Canonical Shave title");
+    expect(result.backlogActionSucceeded).toBe(true);
     const judgePrompt = (generateObject as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(judgePrompt).not.toContain("Details");
   });
@@ -338,39 +336,17 @@ describe("BacklogOutcomeSchema stays OpenAI strict-structured-output compatible"
   });
 });
 
-describe("extractPreparedWorkItemTitle", () => {
-  it("reads Azure DevOps System.Title JSON-patch arguments", () => {
-    expect(
-      extractPreparedWorkItemTitle("Azure_DevOps__wit_create_work_item", {
-        document: [{ op: "add", path: "/fields/System.Title", value: "🐛 Exact Azure PBI title" }],
-      }),
-    ).toBe("🐛 Exact Azure PBI title");
-  });
-
-  it("reads a nested Jira summary", () => {
-    expect(
-      extractPreparedWorkItemTitle("Jira__jira_create_issue", {
-        fields: { summary: "Accepted Jira title" },
-      }),
-    ).toBe("Accepted Jira title");
-  });
-
-  it("does not treat a read tool title as a created work-item title", () => {
-    expect(
-      extractPreparedWorkItemTitle("GitHub__get_issue", {
-        title: "Existing issue",
-      }),
-    ).toBeUndefined();
-  });
-});
-
 describe("applyShaveTitleToWorkItemArgs", () => {
   it("replaces a GitHub title with the canonical Shave title", () => {
     const args = { title: "Model title", body: "Details" };
 
     expect(
       applyShaveTitleToWorkItemArgs("GitHub__create_issue", args, "Canonical Shave title"),
-    ).toEqual({ title: "Canonical Shave title", body: "Details" });
+    ).toEqual({
+      args: { title: "Canonical Shave title", body: "Details" },
+      attempted: true,
+      applied: true,
+    });
   });
 
   it("replaces an Azure DevOps System.Title JSON-patch value", () => {
@@ -378,20 +354,52 @@ describe("applyShaveTitleToWorkItemArgs", () => {
       document: [{ op: "add", path: "/fields/System.Title", value: "Model title" }],
     };
 
-    applyShaveTitleToWorkItemArgs(
+    const result = applyShaveTitleToWorkItemArgs(
       "Azure_DevOps__wit_create_work_item",
       args,
       "Canonical Shave title",
     );
 
     expect(args.document[0].value).toBe("Canonical Shave title");
+    expect(result).toMatchObject({ attempted: true, applied: true });
+  });
+
+  it("replaces a nested Jira summary", () => {
+    const args = { fields: { summary: "Model title" } };
+
+    const result = applyShaveTitleToWorkItemArgs(
+      "Jira__jira_create_issue",
+      args,
+      "Canonical Shave title",
+    );
+
+    expect(args.fields.summary).toBe("Canonical Shave title");
+    expect(result).toMatchObject({ attempted: true, applied: true });
   });
 
   it("does not change title-like arguments on read tools", () => {
     const args = { title: "Search filter" };
 
-    applyShaveTitleToWorkItemArgs("GitHub__get_issue", args, "Canonical Shave title");
+    const result = applyShaveTitleToWorkItemArgs(
+      "GitHub__get_issue",
+      args,
+      "Canonical Shave title",
+    );
 
     expect(args.title).toBe("Search filter");
+    expect(result).toMatchObject({ attempted: false, applied: false });
+  });
+
+  it("reports an attempted but unapplied rewrite for an unknown custom title field", () => {
+    const args = { subject: "Model title" };
+
+    const result = applyShaveTitleToWorkItemArgs(
+      "Custom__create_ticket",
+      args,
+      "Canonical Shave title",
+    );
+
+    expect(args.subject).toBe("Model title");
+    expect(result).toEqual({ args, attempted: true, applied: false });
   });
 });
