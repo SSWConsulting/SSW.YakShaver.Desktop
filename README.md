@@ -121,7 +121,7 @@ yt-dlp "https://www.youtube.com/watch?v=example"
 2. `npm run make` - this runs `electron-builder`, which outputs to `/build`:
 
 - Final installers/distributables (e.g. the Windows `.exe`, macOS `.dmg`) are written directly in `/build`
-- Unpacked app folders are per-platform subfolders, e.g. `/build/win-unpacked`, `/build/mac`, `/build/mac-x64`
+- Unpacked app folders are per-platform subfolders, e.g. `/build/win-unpacked`, `/build/mac` (macOS x64), `/build/mac-arm64`
 
 See [RELEASE.md](./RELEASE.md) for how these builds feed into the release process.
 
@@ -133,7 +133,7 @@ See [RELEASE.md](./RELEASE.md) for how these builds feed into the release proces
 - **macOS**: `~/Library/Application Support/YakShaver/yakshaver-tokens/*.enc`
 - **Linux**: `~/.config/YakShaver/yakshaver-tokens/*.enc`
 
-  These paths are for the packaged app (or `npm run start`). Running via `npm run dev` (see [Run](#run)) sets `NODE_ENV=development`, which redirects `userData` to a separate `YakShaverDev` directory (e.g. `%APPDATA%\YakShaverDev\yakshaver-tokens\*.enc` on Windows) so dev sessions don't collide with a real install.
+These paths are for the packaged app (or `npm run start`). Running via `npm run dev` (see [Run](#run)) sets `NODE_ENV=development`, which redirects `userData` to a separate `YakShaverDev` directory (e.g. `%APPDATA%\YakShaverDev\yakshaver-tokens\*.enc` on Windows) so dev sessions don't collide with a real install.
 
 
 ### Model Settings (User-provided API keys)
