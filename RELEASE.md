@@ -38,4 +38,4 @@ To build and test the app locally before release:
 npm run make
 ```
 
-This will build the application and create distributable packages in the `out` directory.
+This will build the application and create distributable packages in the `build` directory.
