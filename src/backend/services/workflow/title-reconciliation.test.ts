@@ -1,7 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// One shared spy rather than a fresh one per getInstance(), so what was tracked can be asserted:
+// every failure of this feature degrades silently to the previous title, which makes telemetry the
+// only way to tell a working reconciliation from one that has never fired.
+const { trackEvent } = vi.hoisted(() => ({ trackEvent: vi.fn() }));
 
 vi.mock("../telemetry/telemetry-service", () => ({
-  TelemetryService: { getInstance: () => ({ trackEvent: vi.fn() }) },
+  TelemetryService: { getInstance: () => ({ trackEvent }) },
 }));
 
 import type { BacklogItemResolver } from "../backlog/backlog-item-resolver";
@@ -20,6 +25,10 @@ const finalOutput = (url?: string, title: string | undefined = REPORTED_TITLE) =
 const resolverReturning = (
   resolution: Awaited<ReturnType<BacklogItemResolver["resolveAsync"]>>,
 ): BacklogItemResolver => ({ resolveAsync: vi.fn().mockResolvedValue(resolution) });
+
+beforeEach(() => {
+  trackEvent.mockClear();
+});
 
 describe("selectWorkItemUrl", () => {
   it("prefers the judge's tool-result evidence over the model's narration", () => {
@@ -107,6 +116,20 @@ describe("reconcileWorkItemTitleAsync", () => {
 
     expect(result).toEqual({ title: REPORTED_TITLE, reason: "no_work_item_url" });
     expect(resolver.resolveAsync).not.toHaveBeenCalled();
+  });
+
+  it("reports the no-link path to telemetry like every other failure", async () => {
+    // Untracked, this path is invisible — and it is the one that answers "has reconciliation ever
+    // fired?", since it covers a model that reported no URL and artifacts that were all bare ids.
+    await reconcileWorkItemTitleAsync(
+      resolverReturning({ ok: true, platform: "github", title: "unused" }),
+      { finalOutput: finalOutput() },
+    );
+
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: "WorkItemTitleReconciliation",
+      properties: { outcome: "unresolved", reason: "no_work_item_url" },
+    });
   });
 
   it("survives an unparseable final output instead of failing the filed work item", async () => {

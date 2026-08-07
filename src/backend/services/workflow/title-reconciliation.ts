@@ -106,6 +106,14 @@ export async function reconcileWorkItemTitleAsync(
   const workItemUrl = selectWorkItemUrl(artifacts, finalOutput);
 
   if (!workItemUrl) {
+    // Tracked like every other failure, and for a sharper reason than the rest: this is the path
+    // taken when nothing corroborated a work item, so it is the one that separates "reconciliation
+    // is working" from "reconciliation has never once fired". Silent here, and the post-merge
+    // numbers could not tell those apart — nor size the backfill this PR leaves out of scope.
+    TelemetryService.getInstance().trackEvent({
+      name: "WorkItemTitleReconciliation",
+      properties: { outcome: "unresolved", reason: "no_work_item_url" },
+    });
     return { title: reportedTitle, reason: "no_work_item_url" };
   }
 

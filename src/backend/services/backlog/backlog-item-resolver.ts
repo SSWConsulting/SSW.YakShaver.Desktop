@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { asSchema, type ToolSet } from "ai";
 import { PRESET_SERVER_IDS } from "../../../shared/mcp/preset-servers";
 import type { MCPServerConfig } from "../../../shared/types/mcp";
-import { isBacklogItemMutationTool } from "../../utils/screenshot-markdown";
 
 /**
  * Reads the CURRENT title of a backlog work item straight from the system that owns it.
@@ -25,6 +24,8 @@ export type BacklogResolveFailure =
   | "unsupported_url"
   /** No enabled/selected MCP server exposes a read tool for that platform. */
   | "no_read_tool"
+  /** A tool was found, but its name implies it can mutate — refused rather than executed. */
+  | "refused_mutation_tool"
   /** The platform answered, but the item is gone (or the URL was never right). Do NOT retry. */
   | "not_found"
   /** The MCP connection is signed out or lacks access. Retry after the user reconnects. */
@@ -92,16 +93,25 @@ export function parseBacklogItemUrl(rawUrl: string): BacklogItemRef | undefined 
 
   // https://dev.azure.com/{org}/{project}/_workitems/edit/{id}
   // https://{org}.visualstudio.com/{project}/_workitems/edit/{id}
+  // The two hosts differ only in WHERE the organization lives — a path segment vs. the hostname —
+  // and on both the project segment is optional, because an org-level link omits it.
   const isAzureDevOps = host === "dev.azure.com" || host.endsWith(".visualstudio.com");
   if (isAzureDevOps) {
     const editIndex = segments.findIndex((segment) => segment.toLowerCase() === "_workitems");
     const id = segments[editIndex + 2];
-    if (editIndex > 0 && id && /^\d+$/.test(id)) {
+    // On dev.azure.com the organization occupies segment 0, so `_workitems` can never be first;
+    // on the legacy host the organization is in the hostname, so an org-level link starts with it.
+    const projectIndex = host === "dev.azure.com" ? 1 : 0;
+    if (editIndex >= projectIndex && id && /^\d+$/.test(id)) {
       const organization = host === "dev.azure.com" ? segments[0] : host.split(".")[0];
-      // On dev.azure.com the project is the segment before `_workitems`; on the legacy host the
-      // organization lives in the hostname, so the whole path prefix belongs to the project.
-      const project = segments[editIndex - 1];
-      return { platform: "azure-devops", values: { organization, project, id } };
+      // Absent on an org-level link, and then genuinely omitted: passing the organization in the
+      // project's place would send the reader looking in a project that does not exist. A tool that
+      // requires `project` fails its own validation instead, which keeps the existing title.
+      const project = editIndex > projectIndex ? segments[projectIndex] : undefined;
+      return {
+        platform: "azure-devops",
+        values: { organization, id, ...(project ? { project } : {}) },
+      };
     }
     return undefined;
   }
@@ -224,9 +234,7 @@ export function selectReadToolName(
   const itemNoun = PLATFORM_ITEM_NOUN[platform];
 
   for (const name of Object.keys(tools)) {
-    const normalized = name.toLowerCase();
-    const [prefix, ...rest] = normalized.split("__");
-    const bare = rest.length > 0 ? rest.join("__") : normalized;
+    const { prefix, bare } = splitToolName(name);
 
     const knownPlatform = serverPlatforms.get(prefix);
     const servesPlatform = knownPlatform
@@ -242,6 +250,42 @@ export function selectReadToolName(
   }
 
   return undefined;
+}
+
+/** The `<server>__` prefix the orchestrator adds, and the bare operation name underneath it. */
+function splitToolName(toolName: string): { prefix: string; bare: string } {
+  const normalized = toolName.toLowerCase();
+  const [prefix, ...rest] = normalized.split("__");
+  return { prefix, bare: rest.length > 0 ? rest.join("__") : normalized };
+}
+
+/**
+ * Verbs that say a tool can change something. Matched as substrings rather than as whole tokens,
+ * because real servers both separate the words (`update_issue`) and run them together
+ * (`editjiraissue`).
+ */
+const MUTATION_VERB = /(create|update|edit|write|new|add|delete|remove|close|reopen|transition)/;
+
+/**
+ * A BACKSTOP against an oddly named tool — deliberately not claimed as an independent boundary.
+ *
+ * `selectReadToolName` already requires a read verb, and that requirement is what keeps
+ * `create_issue`, `issue_write` and `wit_update_work_item` from ever being picked. What this adds is
+ * the one shape that requirement cannot see: a name carrying a read verb AND a write verb, such as
+ * `get_or_update_issue`, `issue_read_write` or `update_issue_details`.
+ *
+ * Deliberately a denylist of write verbs rather than an allowlist of read-only shapes. An allowlist
+ * would have to enumerate every vendor's vocabulary — `wit_`, `jira_`, whatever ships next — and one
+ * word it did not know would silently disable reconciliation for that whole platform, visible only
+ * in telemetry. A verb THIS list misses is still bounded by the read-verb requirement above; a
+ * reader an allowlist wrongly rejects is bounded by nothing.
+ *
+ * Owned here rather than borrowed from `isBacklogItemMutationTool`, which answers a different
+ * question ("does this author a body?", #834) and therefore reports `delete_issue` and `close_issue`
+ * as non-mutations. Tuning that regex for its own purpose must not move this check.
+ */
+export function isReadOnlyItemToolName(toolName: string): boolean {
+  return !MUTATION_VERB.test(splitToolName(toolName).bare);
 }
 
 /**
@@ -438,15 +482,14 @@ export class McpBacklogItemResolver implements BacklogItemResolver {
       return { ok: false, reason: "no_read_tool", detail: ref.platform };
     }
 
-    // Second gate, and the one that makes the approval exemption below defensible as CODE rather
-    // than as a promise in a comment: refuse outright to execute anything that can author a work
-    // item. `selectReadToolName` requires a read verb, but a name like `update_issue_details`
-    // satisfies that and still mutates — so the mutation classifier gets the last word.
-    if (isBacklogItemMutationTool(toolName)) {
+    // Backstop for the shape the read-verb requirement above cannot see: a name that carries both
+    // verbs, e.g. `get_or_update_issue`. Not an independent boundary — two checks against the same
+    // string are one kind of evidence — but it decides something for every name, which is the point.
+    if (!isReadOnlyItemToolName(toolName)) {
       console.warn(
-        `[BacklogItemResolver] Refusing to reconcile through '${toolName}': it can mutate a work item.`,
+        `[BacklogItemResolver] Refusing to reconcile through '${toolName}': its name implies a mutation.`,
       );
-      return { ok: false, reason: "no_read_tool", detail: toolName };
+      return { ok: false, reason: "refused_mutation_tool", detail: toolName };
     }
 
     const tool = tools[toolName];
@@ -458,9 +501,12 @@ export class McpBacklogItemResolver implements BacklogItemResolver {
     // NOTE: this deliberately does NOT go through McpToolBridge's approval policy. That policy
     // gates tools the MODEL chose to run; this is a read the app itself issues, and routing it
     // through `ask` mode would deny reconciliation to every user who has not whitelisted a read
-    // tool. The exemption is contained on three sides, all enforced above: the target must parse
-    // as a work item URL on a known host (so the model cannot steer the read anywhere it likes),
-    // the tool is chosen by us rather than by the model, and it must not be a mutation tool.
+    // tool. The exemption rests on two boundaries, both enforced above: the target must parse as a
+    // work item URL on a known host (so the model cannot steer the read anywhere it likes), and the
+    // tool is chosen by us rather than by the model — chosen, specifically, by requiring a read verb
+    // in its name, which is what excludes `create_issue` / `issue_write` / `wit_update_work_item`.
+    // `isReadOnlyItemToolName` then backstops the read-verb requirement; it is a third check, but
+    // not a third boundary, since it reads the same tool name.
     let resultText: string;
     let errored: boolean;
     try {

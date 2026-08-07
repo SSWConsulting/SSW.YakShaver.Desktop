@@ -6,6 +6,7 @@ import {
   classifyReadFailure,
   extractItemTitle,
   identifyServerPlatform,
+  isReadOnlyItemToolName,
   McpBacklogItemResolver,
   mapServerPrefixesToPlatforms,
   parseBacklogItemUrl,
@@ -27,6 +28,27 @@ describe("parseBacklogItemUrl", () => {
         values: { organization: "ssw", project: "YakShaver", id: "1234" },
       },
     );
+  });
+
+  it("reads the legacy Azure DevOps host, where the org lives in the hostname", () => {
+    expect(
+      parseBacklogItemUrl("https://ssw.visualstudio.com/YakShaver/_workitems/edit/1234"),
+    ).toEqual({
+      platform: "azure-devops",
+      values: { organization: "ssw", project: "YakShaver", id: "1234" },
+    });
+  });
+
+  it.each([
+    ["https://dev.azure.com/ssw/_workitems/edit/1234", "ssw"],
+    ["https://ssw.visualstudio.com/_workitems/edit/1234", "ssw"],
+  ])("keeps an org-level link readable without inventing a project (%s)", (url, organization) => {
+    // The project segment is genuinely absent. Naming the org in its place would send the reader
+    // looking in a project that does not exist, which reads worse than leaving it out.
+    expect(parseBacklogItemUrl(url)).toEqual({
+      platform: "azure-devops",
+      values: { organization, id: "1234" },
+    });
   });
 
   it("reads a Jira browse URL", () => {
@@ -160,6 +182,38 @@ describe("selectReadToolName", () => {
   });
 });
 
+describe("isReadOnlyItemToolName", () => {
+  // The names real servers actually expose. A write verb added to MUTATION_VERB that also appears
+  // in one of these would silently disable reconciliation for that platform, so they are asserted
+  // rather than assumed — an over-eager denylist fails here instead of in telemetry.
+  it.each([
+    "GitHub__get_issue",
+    "GitHub__issue_read",
+    "Azure_DevOps__wit_get_work_item",
+    "Jira__jira_get_issue",
+    "Jira__getJiraIssue",
+    "get_issue",
+  ])("admits the real reader %s", (name) => {
+    expect(isReadOnlyItemToolName(name)).toBe(true);
+  });
+
+  // Names that pass selectReadToolName's read-verb requirement and still carry a write verb —
+  // the only shape this backstop exists for.
+  it.each([
+    "GitHub__update_issue_details",
+    "GitHub__get_or_update_issue",
+    "GitHub__issue_read_write",
+    "GitHub__delete_issue_view",
+  ])("refuses %s, which reads AND writes", (name) => {
+    expect(isReadOnlyItemToolName(name)).toBe(false);
+  });
+
+  it("judges the operation, not the server it came from", () => {
+    // A server named "Issue Updates" must not condemn its own read tool.
+    expect(isReadOnlyItemToolName("Issue_Updates__get_issue")).toBe(true);
+  });
+});
+
 describe("buildReadToolArgs", () => {
   it("fills the parameter names the tool actually declares", () => {
     const schema = {
@@ -281,15 +335,15 @@ describe("McpBacklogItemResolver", () => {
     });
   });
 
-  it("refuses to execute a tool that can mutate a work item", async () => {
-    // `update_issue_details` satisfies the read-verb match ("detail") but still authors the item.
-    // The exemption from the approval policy is only defensible if this can never run.
+  it("refuses to execute a tool that reads AND writes, distinctly from having no reader", async () => {
+    // `get_or_update_issue` satisfies the read-verb match and still authors the item. The refusal
+    // carries its own reason so a backstop that fires is never mistaken for a missing tool.
     const tool = githubTool({ content: [{ type: "text", text: '{"title":"whatever"}' }] });
-    const resolver = makeResolver({ GitHub__update_issue_details: tool });
+    const resolver = makeResolver({ GitHub__get_or_update_issue: tool });
 
     await expect(resolver.resolveAsync("https://github.com/o/r/issues/42")).resolves.toMatchObject({
       ok: false,
-      reason: "no_read_tool",
+      reason: "refused_mutation_tool",
     });
     expect(tool.execute).not.toHaveBeenCalled();
   });
