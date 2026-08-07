@@ -99,6 +99,7 @@ SSW.YakShaver.Desktop/
 │   │   │   └── channels.ts           # All IPC channel name constants
 │   │   ├── services/                  # Business logic services
 │   │   │   ├── auth/                  # YouTube & Microsoft OAuth
+│   │   │   ├── backlog/               # Reads work items back from GitHub/ADO/Jira (title reconciliation)
 │   │   │   ├── cli-bridge/            # Localhost HTTP bridge for the yakshaver CLI
 │   │   │   ├── ffmpeg/                # Video codec conversion
 │   │   │   ├── mcp/                   # MCP orchestration (central AI hub)
@@ -421,6 +422,22 @@ The backend is selected per run by `getBacklogOrchestrator()` from the `orchestr
 field on `LLMConfigV2` (`src/shared/types/llm.ts`, default `openai`), surfaced in Settings via
 `OrchestratorBackendSetting`. Both backends return the same `MCPLoopResult`, whose
 `backlogActionSucceeded` gates COMPLETE vs FAIL.
+
+#### Work Item Title Reconciliation (who owns the title)
+
+Once a work item exists, the platform hosting it owns its title — not the workflow. After a
+successful EXECUTING_TASK, `reconcileWorkItemTitleAsync`
+(`src/backend/services/workflow/title-reconciliation.ts`) reads that title back, and the Shave
+record, the portal `WorkItemDto`, and YakShaver-uploaded video metadata all follow it (falling back
+to the orchestrator's reported title when the read fails, and never failing the run). The re-execute
+path (`RERUN_TASK`) re-syncs only the Shave, since it does not re-post to the portal or re-run
+metadata at all. External video-source titles remain source metadata.
+
+`BacklogItemResolver` (`src/backend/services/backlog/backlog-item-resolver.ts`) holds ALL the
+platform knowledge: recognised URL shapes, which read tool to call out of the aggregated MCP
+toolset, how a title is spelled per platform, and failure classification. Its read is app-initiated
+and read-only, so it does NOT go through `McpToolBridge`'s approval policy (which gates tools the
+agent chose).
 
 #### IPC Handler Pattern (Class-based)
 
