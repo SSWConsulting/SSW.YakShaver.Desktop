@@ -55,6 +55,12 @@ export interface CheckpointData {
   }>;
   mcpResult?: string;
   finalOutput?: string;
+  /**
+   * The title the work item ended up with, as resolved after the backlog action. Checkpointed
+   * because UPDATING_METADATA runs OUTSIDE the EXECUTING_TASK block and can be retried on its own —
+   * without this, a metadata-only retry would silently fall back to the model's video title.
+   */
+  effectiveTitle?: string;
 
   // UPDATING_METADATA
   videoId?: string;
