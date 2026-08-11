@@ -53,8 +53,12 @@
       (() => {
         let triggered = false;
         const link = document.getElementById('deeplink');
+        // Stays put when opened directly in a browser, where the placeholder is unsubstituted and
+        // would otherwise be followed as a relative URL. Matched on the scheme, not on the
+        // placeholder, which the renderer would itself substitute here.
+        const isDeeplink = () => link.getAttribute('href').indexOf('yakshaver-desktop') === 0;
         const triggerDeeplink = () => {
-          if (triggered) {
+          if (triggered || !isDeeplink()) {
             return; // Prevent multiple triggers
           }
           triggered = true;
@@ -79,6 +83,10 @@
 
         // Handle manual clicks as fallback (only if auto-trigger failed)
         link.addEventListener('click', (e) => {
+          if (!isDeeplink()) {
+            e.preventDefault(); // Opened directly in a browser; there is nowhere to go.
+            return;
+          }
           if (!triggered) {
             e.preventDefault();
             triggerDeeplink();

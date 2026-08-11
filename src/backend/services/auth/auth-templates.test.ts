@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { type AuthTemplateName, loadAuthTemplate, loadSuccessAuthTemplate } from "./auth-templates";
 
@@ -58,5 +60,15 @@ describe("auth template shared styles", () => {
   // a stylesheet sitting in front of the href would swallow it.
   it("substitutes the deep link into the href, not somewhere in the styles", () => {
     expect(loadSuccessAuthTemplate()).toContain('href="yakshaver-desktop-dev://auth"');
+  });
+
+  // The success page follows its own deep link on load. Opened from disk the href is still the
+  // bare placeholder, which the browser would chase as a relative URL — so the page navigates
+  // away before anyone can look at it. The scheme guard is what keeps it reviewable.
+  it("guards the redirect on the scheme, so an unsubstituted page stays put", () => {
+    const raw = readFileSync(join(__dirname, "../../assets/auth/successTemplate.html"), "utf8");
+
+    expect(raw).toContain("indexOf('yakshaver-desktop') === 0");
+    expect(raw).toMatch(/href="redirectUrl"/);
   });
 });
