@@ -68,7 +68,15 @@ describe("auth template shared styles", () => {
   it("guards the redirect on the scheme, so an unsubstituted page stays put", () => {
     const raw = readFileSync(join(__dirname, "../../assets/auth/successTemplate.html"), "utf8");
 
-    expect(raw).toContain("indexOf('yakshaver-desktop') === 0");
+    expect(raw).toContain("includes('://')");
     expect(raw).toMatch(/href="redirectUrl"/);
+  });
+
+  // The protocol is configurable, so the guard must not assume the default scheme — a custom one
+  // that failed it would strand the user on this page after a successful sign-in.
+  it("still redirects when a custom protocol is configured", () => {
+    const html = loadSuccessAuthTemplate("acme-yakshaver");
+
+    expect(html).toContain('href="acme-yakshaver://auth"');
   });
 });

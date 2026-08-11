@@ -54,9 +54,10 @@
         let triggered = false;
         const link = document.getElementById('deeplink');
         // Stays put when opened directly in a browser, where the placeholder is unsubstituted and
-        // would otherwise be followed as a relative URL. Matched on the scheme, not on the
-        // placeholder, which the renderer would itself substitute here.
-        const isDeeplink = () => link.getAttribute('href').indexOf('yakshaver-desktop') === 0;
+        // would otherwise be followed as a relative URL. Tests for a scheme rather than a known
+        // one, since the protocol is configurable, and not for the placeholder itself, which the
+        // renderer would substitute here too.
+        const isDeeplink = () => link.getAttribute('href').includes('://');
         const triggerDeeplink = () => {
           if (triggered || !isDeeplink()) {
             return; // Prevent multiple triggers
