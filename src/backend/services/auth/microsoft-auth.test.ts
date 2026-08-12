@@ -69,7 +69,13 @@ vi.mock("../../config/env", () => ({
 vi.mock("node:fs", () => {
   return {
     existsSync: vi.fn().mockReturnValue(true),
-    readFileSync: vi.fn().mockReturnValue("<html>YOUR_APP_PROTOCOL</html>"),
+    // Stands in for both an auth template and the stylesheet it links: loadAuthTemplate swaps
+    // that link for the stylesheet's contents, so markup without it is rejected as malformed.
+    readFileSync: vi
+      .fn()
+      .mockReturnValue(
+        '<html><link rel="stylesheet" href="auth-pages.css" />YOUR_APP_PROTOCOL</html>',
+      ),
     promises: {
       access: vi.fn().mockResolvedValue(undefined),
       mkdir: vi.fn().mockResolvedValue(undefined),
