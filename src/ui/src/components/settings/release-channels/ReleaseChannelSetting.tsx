@@ -42,6 +42,7 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
   const [channel, setChannel] = useState<ReleaseChannel>({ type: "latest" });
   const [releases, setReleases] = useState<ProcessedRelease[]>([]);
   const [currentVersion, setCurrentVersion] = useState<string>("");
+  const [commitHash, setCommitHash] = useState<string>("");
   const [availableVersion, setAvailableVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingReleases, setIsLoadingReleases] = useState(false);
@@ -108,6 +109,7 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
     try {
       const info = await ipcClient.releaseChannel.getCurrentVersion();
       setCurrentVersion(info.version);
+      setCommitHash(info.commitHash ?? "");
     } catch (error) {
       toast.error(`Failed to load current version: ${formatErrorMessage(error)}`);
     }
@@ -282,6 +284,11 @@ export function ReleaseChannelSetting({ isActive }: ReleaseChannelSettingProps) 
           <div className="rounded-md border border-border bg-card p-3">
             <p className="text-sm text-muted-foreground">Current Version</p>
             <p className="text-lg">{currentVersion}</p>
+            {commitHash && (
+              <p className="text-xs text-muted-foreground font-mono break-all mt-1">
+                Build {commitHash}
+              </p>
+            )}
           </div>
         )}
 
