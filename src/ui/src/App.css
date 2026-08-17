@@ -73,6 +73,7 @@
    * Settings stop hand-mixing ad hoc amber/yellow shades. */
   --warning: #f2b134;
   --warning-foreground: oklch(0.134 0.029 49.263);
+  --success: #4ade80;
 }
 
 @theme {
@@ -114,6 +115,7 @@
   --color-ssw-red: var(--ssw-red);
   --color-ssw-red-foreground: var(--ssw-red-foreground);
   --color-danger: var(--danger);
+  --color-success: var(--success);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
 }

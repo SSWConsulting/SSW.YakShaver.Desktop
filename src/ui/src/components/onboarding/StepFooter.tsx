@@ -35,7 +35,7 @@ export function StepFooter({ currentStep, isNextDisabled, onNext, onPrevious }: 
         )}
 
         <Button
-          className="flex items-center justify-center self-end px-4 py-2"
+          className="flex items-center justify-center px-4 py-2"
           size="sm"
           type="button"
           onClick={onNext}

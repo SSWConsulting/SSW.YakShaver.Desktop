@@ -125,22 +125,20 @@ export const PlatformConnectionCard = ({
 
         {connectedLabel ? (
           <div className="flex flex-col items-start gap-2 min-[1140px]:items-end">
-            <div
-              role="status"
-              aria-label={connectedLabel}
-              className="flex items-center gap-2 text-sm font-medium text-green-400"
-            >
+            <div className="flex items-center gap-2 text-sm font-medium text-success">
               {connectedIndicator}
               <span>{connectedLabel}</span>
             </div>
             {secondaryActionLabel && onSecondaryAction && (
-              <button
+              <Button
                 type="button"
+                variant="link"
+                size="sm"
                 onClick={onSecondaryAction}
-                className="text-sm text-white/70 underline underline-offset-4 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="h-auto min-h-0 min-w-0 px-0 py-0 text-sm text-muted-foreground underline underline-offset-4 before:hidden hover:text-foreground"
               >
                 {secondaryActionLabel}
-              </button>
+              </Button>
             )}
           </div>
         ) : (

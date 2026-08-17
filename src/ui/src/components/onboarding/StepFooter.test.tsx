@@ -13,7 +13,6 @@ describe("StepFooter", () => {
 
     const nextButton = screen.getByRole("button", { name: "Next" });
     expect(nextButton).toBeInTheDocument();
-    expect(nextButton.className).toContain("self-end");
     expect(nextButton.querySelector("svg")).not.toBeNull();
   });
 

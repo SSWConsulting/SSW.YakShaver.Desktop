@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthStatus } from "../../types";
 import { YouTubeConnection } from "./YouTubeConnection";
@@ -47,27 +48,32 @@ describe("YouTubeConnection", () => {
     state.resetCountdown.mockReset();
   });
 
-  it("keeps Connect as the primary CTA while disconnected", () => {
+  it("keeps Connect as the available action while disconnected", async () => {
     render(<YouTubeConnection />);
+    const user = userEvent.setup();
 
     const connectButton = screen.getByRole("button", { name: "Connect" });
     expect(connectButton).toBeInTheDocument();
-    expect(connectButton.className).toContain("bg-primary");
-    expect(screen.queryByRole("status", { name: "Connected" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Connected")).not.toBeInTheDocument();
+
+    await user.click(connectButton);
+
+    expect(state.startCountdown).toHaveBeenCalledTimes(1);
+    expect(state.startAuth).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a connected status and lower-emphasis Disconnect link after authentication", () => {
+  it("shows a connected status and disconnect action after authentication", async () => {
     state.authStatus = AuthStatus.AUTHENTICATED;
 
     render(<YouTubeConnection />);
+    const user = userEvent.setup();
 
-    expect(screen.getByRole("status", { name: "Connected" })).toBeInTheDocument();
+    expect(screen.getByText("Connected")).toBeInTheDocument();
     expect(screen.getByText("Yak Channel")).toBeInTheDocument();
 
     const disconnectButton = screen.getByRole("button", { name: "Disconnect" });
-    expect(disconnectButton.className).toContain("underline");
+    await user.click(disconnectButton);
 
-    const actionArea = disconnectButton.parentElement?.parentElement;
-    expect(actionArea?.className).toContain("min-[1140px]:items-end");
+    expect(state.disconnect).toHaveBeenCalledTimes(1);
   });
 });
