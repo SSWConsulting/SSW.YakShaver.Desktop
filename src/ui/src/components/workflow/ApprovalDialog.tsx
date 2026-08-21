@@ -186,7 +186,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
         {!showCorrectionForm && (
           <Accordion type="single" collapsible>
             <AccordionItem value="more-info">
-              <AccordionTrigger className="py-1 text-sm font-normal text-white/70">
+              <AccordionTrigger className="flex-row-reverse justify-end gap-1.5 py-1 text-sm font-normal text-white/70">
                 More info&hellip;
               </AccordionTrigger>
               <AccordionContent className="pt-1 pb-1">
