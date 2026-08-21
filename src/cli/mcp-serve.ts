@@ -9,6 +9,7 @@ import {
   type BridgeToolSummary,
   CLI_BRIDGE_PORT_ENV,
   CLI_BRIDGE_SERVER_FILTER_ENV,
+  CLI_BRIDGE_SHAVE_ID_ENV,
   CLI_BRIDGE_TOKEN_ENV,
   type ToolCallResult,
 } from "../shared/cli-bridge/protocol";
@@ -42,6 +43,12 @@ export interface McpServeOptions {
    * selected servers. Undefined/empty means every enabled server.
    */
   serverFilter?: string[];
+  /**
+   * The current shave's id, forwarded on `POST /tools/call` so a `wait`-mode approval prompt can
+   * honour the per-shave auto-approve override (#920). Injectable for testing; in production it is
+   * read from {@link CLI_BRIDGE_SHAVE_ID_ENV}.
+   */
+  shaveId?: string;
 }
 
 /**
@@ -54,6 +61,7 @@ export function createMcpServer(options: McpServeOptions = {}): Server {
   // The orchestrator injects the project's selected servers; the front-door forwards them so the
   // app restricts the toolset (and tool execution) to that project, not every configured server.
   const serverFilter = options.serverFilter ?? readServerFilterFromEnv();
+  const shaveId = options.shaveId ?? readShaveIdFromEnv();
 
   const server = new Server(
     { name: "yakshaver", version: "1.0.0" },
@@ -62,7 +70,7 @@ export function createMcpServer(options: McpServeOptions = {}): Server {
 
   server.setRequestHandler(ListToolsRequestSchema, () => listToolsViaBridge(client, serverFilter));
   server.setRequestHandler(CallToolRequestSchema, (request) =>
-    callToolViaBridge(client, request.params.name, request.params.arguments, serverFilter),
+    callToolViaBridge(client, request.params.name, request.params.arguments, serverFilter, shaveId),
   );
 
   return server;
@@ -116,12 +124,17 @@ type McpToolResult = Pick<CallToolResult, "content" | "isError">;
  *  - a transport failure (app quit/restart, socket drop, non-JSON body),
  *  - a tool-level `isError` on an `ok:true` result — passed through verbatim so a
  *    tool FAILURE is never masked as success (matches the in-process orchestrator).
+ *
+ * Under `wait` approval mode, the bridge itself may block this call awaiting the user's response to
+ * an approval dialog (#920) — safe because `BridgeClient.post` sets no request timeout, so this
+ * simply waits like it would for any slow tool.
  */
 export async function callToolViaBridge(
   client: Pick<BridgeClient, "post">,
   name: string,
   args: Record<string, unknown> | undefined,
   serverFilter?: string[],
+  shaveId?: string,
 ): Promise<McpToolResult> {
   let result: ToolCallResult;
   try {
@@ -129,6 +142,7 @@ export async function callToolViaBridge(
       name,
       arguments: args ?? {},
       ...(serverFilter && serverFilter.length > 0 ? { serverFilter } : {}),
+      ...(shaveId ? { shaveId } : {}),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -218,6 +232,12 @@ function readServerFilterFromEnv(): string[] | undefined {
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
   return ids.length > 0 ? ids : undefined;
+}
+
+/** Read the current shave id the orchestrator injected, if any (#920). */
+function readShaveIdFromEnv(): string | undefined {
+  const raw = process.env[CLI_BRIDGE_SHAVE_ID_ENV];
+  return raw && raw.trim().length > 0 ? raw.trim() : undefined;
 }
 
 /** Encode a server filter as a `?serverFilter=a,b` query suffix, or "" when there is none. */

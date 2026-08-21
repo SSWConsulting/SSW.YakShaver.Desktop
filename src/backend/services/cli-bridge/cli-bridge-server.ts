@@ -16,6 +16,7 @@ import { McpToolBridge } from "../mcp/mcp-tool-bridge";
 import { applyOpenAtLoginSetting } from "../settings/login-item";
 import { LlmStorage } from "../storage/llm-storage";
 import { UserSettingsStorage } from "../storage/user-settings-storage";
+import { UserInteractionService } from "../user-interaction/user-interaction-service";
 import { type BridgeServices, routeRequest } from "./bridge-router";
 
 const MAX_BODY_BYTES = 256 * 1024; // 256 KB is plenty for config payloads.
@@ -313,8 +314,8 @@ export function createDefaultServices(): BridgeServices {
       async listTools(serverFilter) {
         return (await getToolBridge()).listTools(serverFilter);
       },
-      async callTool(name, args, serverFilter) {
-        return (await getToolBridge()).callTool(name, args, serverFilter);
+      async callTool(name, args, serverFilter, shaveId) {
+        return (await getToolBridge()).callTool(name, args, serverFilter, shaveId);
       },
     },
   };
@@ -323,7 +324,9 @@ export function createDefaultServices(): BridgeServices {
 /** Build a {@link McpToolBridge} wired to the live singletons. */
 async function getToolBridge(): Promise<McpToolBridge> {
   const manager = await MCPServerManager.getInstanceAsync();
-  return new McpToolBridge(manager, {
-    getSettingsAsync: () => UserSettingsStorage.getInstance().getSettingsAsync(),
-  });
+  return new McpToolBridge(
+    manager,
+    { getSettingsAsync: () => UserSettingsStorage.getInstance().getSettingsAsync() },
+    UserInteractionService.getInstance(),
+  );
 }
