@@ -1,3 +1,4 @@
+import { CheckCircle2 } from "lucide-react";
 import { FaYoutube } from "react-icons/fa";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useCountdown } from "../../hooks/useCountdown";
@@ -26,18 +27,18 @@ export function YouTubeConnection({ buttonSize = "lg", onStatusChange }: YouTube
   // silently reverting to "Connect" with no feedback.
   const errorMessage = status === AuthStatus.ERROR ? authState.error : undefined;
 
-  const handleYouTubeAction = async () => {
-    if (isConnected) {
-      await disconnect();
-      onStatusChange?.(false);
-    } else {
-      startCountdown();
-      try {
-        await startAuth();
-      } finally {
-        resetCountdown();
-      }
+  const handleConnect = async () => {
+    startCountdown();
+    try {
+      await startAuth();
+    } finally {
+      resetCountdown();
     }
+  };
+
+  const handleDisconnect = async () => {
+    await disconnect();
+    onStatusChange?.(false);
   };
 
   const getYouTubeButtonText = () => {
@@ -52,11 +53,17 @@ export function YouTubeConnection({ buttonSize = "lg", onStatusChange }: YouTube
       title="YouTube"
       subtitle={isConnected && userInfo?.channelName ? userInfo.channelName : undefined}
       description={errorMessage}
-      onAction={handleYouTubeAction}
-      actionLabel={getYouTubeButtonText()}
+      onAction={isConnected ? undefined : handleConnect}
+      actionLabel={isConnected ? undefined : getYouTubeButtonText()}
       actionDisabled={isConnecting && !isConnected}
-      buttonVariant={isConnected ? "destructiveOutline" : "outline"}
+      buttonVariant="default"
       buttonSize={buttonSize}
+      connectedLabel={isConnected ? "Connected" : undefined}
+      connectedIndicator={
+        isConnected ? <CheckCircle2 className="size-4" aria-hidden="true" /> : undefined
+      }
+      onSecondaryAction={isConnected ? handleDisconnect : undefined}
+      secondaryActionLabel={isConnected ? "Disconnect" : undefined}
     />
   );
 }

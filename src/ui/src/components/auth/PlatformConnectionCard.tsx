@@ -21,11 +21,15 @@ interface PlatformConnectionCardProps {
   label?: string;
   badgeText?: string;
   badgeVariant?: BadgeVariant;
-  onAction: () => void;
-  actionLabel: string;
+  onAction?: () => void;
+  actionLabel?: string;
   actionDisabled?: boolean;
   buttonVariant?: ButtonVariant;
   buttonSize?: ButtonSize;
+  connectedLabel?: string;
+  connectedIndicator?: ReactNode;
+  onSecondaryAction?: () => void;
+  secondaryActionLabel?: string;
   className?: string;
   compact?: boolean;
 }
@@ -63,6 +67,10 @@ export const PlatformConnectionCard = ({
   actionDisabled,
   buttonVariant = "default",
   buttonSize = "lg",
+  connectedLabel,
+  connectedIndicator,
+  onSecondaryAction,
+  secondaryActionLabel,
   className,
   compact = false,
 }: PlatformConnectionCardProps) => {
@@ -77,9 +85,7 @@ export const PlatformConnectionCard = ({
       ? "text-base leading-5"
       : "text-sm leading-6 min-[1140px]:text-lg min-[1140px]:leading-7 xl:text-xl",
 
-    actionArea: compact
-      ? "mt-2"
-      : "mt-0 min-[1140px]:flex-row min-[1140px]:items-center min-[1140px]:gap-4 xl:gap-6",
+    actionArea: compact ? "mt-2" : "mt-0 items-start min-[1140px]:items-end",
 
     button: compact ? "w-full" : "w-full min-[1140px]:w-auto min-[1140px]:px-5 xl:px-6",
   };
@@ -117,16 +123,39 @@ export const PlatformConnectionCard = ({
           <BadgeDisplay badgeText={badgeText} badgeVariant={badgeVariant} position="fullscreen" />
         )}
 
-        <Button
-          size={buttonSize}
-          variant={buttonVariant}
-          onClick={onAction}
-          disabled={actionDisabled}
-          aria-label={actionLabel}
-          className={cn(styles.button)}
-        >
-          {actionLabel}
-        </Button>
+        {connectedLabel ? (
+          <div className="flex flex-col items-start gap-2 min-[1140px]:items-end">
+            <div className="flex items-center gap-2 text-sm font-medium text-success">
+              {connectedIndicator}
+              <span>{connectedLabel}</span>
+            </div>
+            {secondaryActionLabel && onSecondaryAction && (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={onSecondaryAction}
+                className="h-auto min-h-0 min-w-0 px-0 py-0 text-sm text-muted-foreground underline underline-offset-4 before:hidden hover:text-foreground"
+              >
+                {secondaryActionLabel}
+              </Button>
+            )}
+          </div>
+        ) : (
+          actionLabel &&
+          onAction && (
+            <Button
+              size={buttonSize}
+              variant={buttonVariant}
+              onClick={onAction}
+              disabled={actionDisabled}
+              aria-label={actionLabel}
+              className={cn(styles.button)}
+            >
+              {actionLabel}
+            </Button>
+          )
+        )}
       </div>
     </div>
   );
