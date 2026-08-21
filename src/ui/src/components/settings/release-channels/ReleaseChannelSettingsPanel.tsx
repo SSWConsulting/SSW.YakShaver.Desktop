@@ -1,6 +1,5 @@
 import { Package } from "lucide-react";
 import { SettingsPageHeader } from "../SettingsPageHeader";
-import { GitHubTokenSetting } from "./GitHubTokenSetting";
 import { ReleaseChannelSetting } from "./ReleaseChannelSetting";
 
 interface ReleaseChannelSettingsPanelProps {
@@ -13,11 +12,10 @@ export function ReleaseChannelSettingsPanel({ isActive }: ReleaseChannelSettings
       <SettingsPageHeader
         icon={Package}
         title="Releases"
-        description="Configure update channels and GitHub access for PR releases."
+        description="Choose between the latest stable release and public PR release builds."
       />
 
       <ReleaseChannelSetting isActive={isActive} />
-      <GitHubTokenSetting isActive={isActive} />
     </div>
   );
 }

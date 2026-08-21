@@ -1,5 +1,4 @@
 import { Folders } from "lucide-react";
-import { useEffect, useState } from "react";
 import YakOutline from "/logos/SQ-YakShaver-LogoIcon-Outline.svg?url";
 import logoImage from "/logos/YakShaver-Horizontal-Color-Darkmode.svg?url";
 import { IdentityServerAuthManager } from "../auth/IdentityServerAuthManager";
@@ -10,22 +9,6 @@ import { StatusDashboard } from "./StatusDashboard";
 import { StatusDashboardErrorBoundary } from "./StatusDashboardErrorBoundary";
 
 export default function Sidebar() {
-  const [appVersion, setAppVersion] = useState<string>("");
-  const [commitHash, setCommitHash] = useState<string>("");
-
-  useEffect(() => {
-    const fetchVersion = async () => {
-      try {
-        const info = await window.electronAPI.releaseChannel.getCurrentVersion();
-        setAppVersion(info.version);
-        setCommitHash(info.commitHash);
-      } catch (error) {
-        console.error("Failed to fetch app version information:", error);
-      }
-    };
-    fetchVersion();
-  }, []);
-
   return (
     <div className=" fixed top-0 left-0 w-[18rem] h-full bg-black/60 border-r border-white/25 flex flex-col gap-6 p-8 z-40">
       <h1>
@@ -48,12 +31,6 @@ export default function Sidebar() {
       <div className="relative bottom-0 mt-auto flex flex-col gap-3 left-0">
         <SettingsDialog />
         <IdentityServerAuthManager />
-        {(appVersion || commitHash) && (
-          <div className="text-[10px] text-white/30 font-mono break-all leading-tight">
-            {appVersion && `v${appVersion} `}
-            {commitHash && `(${commitHash})`}
-          </div>
-        )}
       </div>
     </div>
   );

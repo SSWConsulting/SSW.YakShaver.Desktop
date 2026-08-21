@@ -68,7 +68,7 @@ const TABS: SettingsTab[] = [
 ];
 
 const TAB_ALIASES: Record<string, string> = {
-  github: "release",
+  github: "mcp",
   hotkeys: "general",
   language: "llm",
   telemetry: "account",
@@ -214,7 +214,7 @@ export function SettingsDialog() {
             className="flex-1 min-w-0 h-full overflow-hidden"
           >
             <ScrollArea className="h-full">
-              <div className="pb-4 pr-1">
+              <div className="pb-4 pr-3">
                 {activeTab?.id === "general" && (
                   <GeneralSettingsPanel isActive={open && activeTabId === "general"} />
                 )}

@@ -41,8 +41,8 @@ vi.mock("./mcp-server-client", async (importOriginal) => {
   return {
     ...actual,
     MCPServerClient: {
-      ...actual.MCPServerClient,
       createClientAsync: mocks.createClientAsync,
+      isAuthError: actual.MCPServerClient.isAuthError,
     },
   };
 });
@@ -116,6 +116,34 @@ describe("MCPServerManager server name uniqueness", () => {
       manager.updateServerAsync(server.id, { ...server, name: "GITHUB" }),
     ).rejects.toThrow("Server with name 'GITHUB' already exists");
     expect(storageState.configs.map((config) => config.name)).toEqual(["custom"]);
+  });
+});
+
+describe("MCPServerManager OAuth health errors (#771)", () => {
+  beforeEach(() => {
+    mocks.createClientAsync.mockReset();
+    storageState.configs = [
+      {
+        id: "github-oauth-error",
+        name: "GitHub OAuth error",
+        transport: "streamableHttp",
+        url: "https://api.githubcopilot.com/mcp/",
+        enabled: true,
+      },
+    ];
+  });
+
+  it("returns the actionable OAuth recovery error from client initialization", async () => {
+    mocks.createClientAsync.mockRejectedValue(
+      new Error("MCP OAuth session expired or was already used. Reconnect the MCP server."),
+    );
+    const manager = await MCPServerManager.getInstanceAsync();
+
+    await expect(manager.checkServerHealthAsync("github-oauth-error")).resolves.toMatchObject({
+      isHealthy: false,
+      error: "MCP OAuth session expired or was already used. Reconnect the MCP server.",
+      isChecking: false,
+    });
   });
 });
 

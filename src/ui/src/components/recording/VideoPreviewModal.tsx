@@ -48,7 +48,7 @@ export function VideoPreviewModal({
   onDurationLoad,
   is360Mode = false,
 }: VideoPreviewModalProps) {
-  const navigateToWorkflow = useWorkflowNavigation({ listen: false });
+  const navigateToWorkflow = useWorkflowNavigation();
   const [videoUrl, setVideoUrl] = useState("");
   const [showConfirmExit, setShowConfirmExit] = useState(false);
   const [autoApproveChecked, setAutoApproveChecked] = useState(false);
@@ -160,7 +160,7 @@ export function VideoPreviewModal({
               <Button
                 variant="default"
                 onClick={() => {
-                  navigateToWorkflow(is360Mode ? { backend: "cloud-360" } : undefined);
+                  navigateToWorkflow(is360Mode ? { state: { backend: "cloud-360" } } : undefined);
                   onContinue(autoApproveChecked);
                 }}
                 disabled={audioCheck.status === "checking" || audioCheck.status === "no_audio"}

@@ -261,7 +261,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <LoadingState />
+                    <LoadingState inline />
                     Cancelling...
                   </span>
                 ) : (
@@ -282,7 +282,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <LoadingState />
+                    <LoadingState inline />
                     Sending...
                   </span>
                 ) : (
@@ -312,7 +312,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <LoadingState />
+                    <LoadingState inline />
                     Saving...
                   </span>
                 ) : (
@@ -328,7 +328,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
               >
                 {approvalSubmitting ? (
                   <span className="flex items-center gap-2">
-                    <LoadingState />
+                    <LoadingState inline />
                     Processing...
                   </span>
                 ) : (

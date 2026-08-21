@@ -4,19 +4,26 @@ import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatAndReportError } from "../../utils/error-utils";
 import {
   authorizeWithBackend,
+  inferMcpOAuthProvider,
   isInvalidRefreshTokenError,
   McpTokenRefreshError,
   refreshTokenWithBackendWithRetry,
+  resolveMcpOAuthTimeoutMs,
 } from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
 import "dotenv/config";
 import type { ToolSet } from "ai";
-import { withTimeout } from "../../utils/async-utils";
 import { McpOAuthTokenStorage } from "../storage/mcp-oauth-token-storage";
 
 export interface CreateClientOptions {
   inMemoryClientTransport?: InMemoryTransport;
+}
+
+function hasConfiguredAuthorizationHeader(headers: Record<string, string> | undefined): boolean {
+  return Object.entries(headers ?? {}).some(
+    ([name, value]) => name.toLowerCase() === "authorization" && value.trim().length > 0,
+  );
 }
 
 export class MCPServerClient {
@@ -119,17 +126,18 @@ export class MCPServerClient {
       // If no valid tokens, trigger backend OAuth flow
       if (!tokens?.access_token) {
         try {
-          const authTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS ?? 60000);
+          const configuredAuthTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS);
+          const provider = inferMcpOAuthProvider(serverUrl);
+          const authTimeoutMs = resolveMcpOAuthTimeoutMs(provider, configuredAuthTimeoutMs);
           console.log(
             `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl} (Timeout: ${authTimeoutMs}ms)`,
           );
 
           // This call will delegate discovery and DCR to the backend
-          await withTimeout(
-            authorizeWithBackend(tokenStorage, serverUrl, serverId, authTimeoutMs),
-            authTimeoutMs,
-            `${mcpConfig.name} OAuth`,
-          );
+          await authorizeWithBackend(tokenStorage, serverUrl, serverId, {
+            ...(provider ? { provider } : {}),
+            timeoutMs: authTimeoutMs,
+          });
 
           // After OAuth, get tokens
           tokens = await tokenStorage.getTokensAsync(serverId);
@@ -143,8 +151,16 @@ export class MCPServerClient {
             `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`,
             authError,
           );
-          console.log(
-            `[MCPServerClient]: Falling back to default headers without authentication for ${mcpConfig.name}`,
+          const provider = inferMcpOAuthProvider(serverUrl);
+          if (provider && !hasConfiguredAuthorizationHeader(mcpConfig.headers)) {
+            formatAndReportError(authError, "mcp_oauth_authorization", {
+              serverId,
+              provider,
+            });
+            throw authError;
+          }
+          console.warn(
+            `[MCPServerClient]: OAuth is unavailable for ${mcpConfig.name}; trying its configured transport headers instead.`,
           );
         }
       }

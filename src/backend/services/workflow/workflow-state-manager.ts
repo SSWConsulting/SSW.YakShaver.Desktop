@@ -11,6 +11,10 @@ import { formatErrorMessage } from "../../utils/error-utils";
 import { TelemetryService } from "../telemetry/telemetry-service";
 import { type CheckpointData, WorkflowCheckpointService } from "./workflow-checkpoint-service";
 
+interface WorkflowResetOptions {
+  silent?: boolean;
+}
+
 export class WorkflowStateManager {
   private shaveId: string;
   private state: WorkflowState;
@@ -56,10 +60,12 @@ export class WorkflowStateManager {
     return this.shaveId;
   }
 
-  public reset() {
+  public reset({ silent = false }: WorkflowResetOptions = {}) {
     this.state = this.initiateStates();
     this.checkpointService.clearAll(this.shaveId);
-    this.broadcast();
+    if (!silent) {
+      this.broadcast();
+    }
   }
 
   /**

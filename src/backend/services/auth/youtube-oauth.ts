@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { shell } from "electron";
 import { config } from "../../config/env";
 import { YoutubeStorage } from "../storage/youtube-storage";
+import { AUTH_ATTEMPT_PARAM, isCurrentAuthAttempt } from "./auth-attempt";
 import type { TokenData } from "./types";
 import { YouTubeAuthError } from "./youtube-auth-error";
 
@@ -23,12 +25,16 @@ function elapsedMsSince(start: number): number {
 /**
  * Gets the authorization URL from the .NET backend for YouTube OAuth.
  */
-export async function getYouTubeAuthUrlFromBackend(): Promise<string> {
+export async function getYouTubeAuthUrlFromBackend(attemptId?: string): Promise<string> {
   const portalApiUrl = config.portalApiUrl();
   const protocol =
     config.azure()?.customProtocol ||
     (config.isDev() ? "yakshaver-desktop-dev" : "yakshaver-desktop");
-  const redirectUri = `${protocol}://youtube/oauth/callback`;
+  // The attempt id rides along on the redirect URI, which the backend echoes back when it
+  // deep-links a failure — with a single YouTube binding it is the only way a waiter can tell
+  // this attempt's callback from one left over in an older tab.
+  const attemptQuery = attemptId ? `?${AUTH_ATTEMPT_PARAM}=${encodeURIComponent(attemptId)}` : "";
+  const redirectUri = `${protocol}://youtube/oauth/callback${attemptQuery}`;
   const endpoint = "/desktop-video-hostings/youtube/auth/start";
   const url = new URL(`${portalApiUrl}${endpoint}`);
   url.searchParams.set("redirectUri", redirectUri);
@@ -81,6 +87,7 @@ export async function getYouTubeAuthUrlFromBackend(): Promise<string> {
 export async function waitForYouTubeTokens(
   storage: YoutubeStorage,
   timeoutMs: number = 60000,
+  attemptId?: string,
 ): Promise<TokenData> {
   // Check immediately if tokens are already there
   const existingTokens = await storage.getYouTubeTokens();
@@ -98,6 +105,7 @@ export async function waitForYouTubeTokens(
     const cleanup = () => {
       clearTimeout(timeoutId);
       storage.off(YoutubeStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+      storage.off(YoutubeStorage.AUTH_FAILED_EVENT, onAuthFailed);
     };
 
     const onTokensUpdated = async () => {
@@ -111,7 +119,30 @@ export async function waitForYouTubeTokens(
       }
     };
 
+    // The result page deep-links back on failure, so a declined or failed attempt reports straight
+    // away rather than looking like a hang until the timeout fires (#965). A tab left open from an
+    // earlier attempt would otherwise cancel this one, so its callback is ignored unless it
+    // belongs to the attempt being waited on.
+    const onAuthFailed = (failedAttemptId?: string | null) => {
+      if (!isCurrentAuthAttempt(failedAttemptId, attemptId)) {
+        console.log("[YouTubeOAuth] Ignoring failure from a stale attempt", {
+          failedAttemptId,
+          attemptId,
+        });
+        return;
+      }
+      const elapsedMs = elapsedMsSince(waitStartedAt);
+      console.warn(`[YouTubeOAuth] Authorization failed after ${elapsedMs}ms`);
+      cleanup();
+      reject(
+        new YouTubeAuthError("declined", "YouTube authorization was cancelled or failed", {
+          elapsedMs,
+        }),
+      );
+    };
+
     storage.on(YoutubeStorage.TOKENS_UPDATED_EVENT, onTokensUpdated);
+    storage.on(YoutubeStorage.AUTH_FAILED_EVENT, onAuthFailed);
 
     timeoutId = setTimeout(() => {
       cleanup();
@@ -139,13 +170,16 @@ export async function authorizeYouTubeWithBackend(
   timeoutMs: number = 60000,
 ): Promise<TokenData> {
   const flowStartedAt = Date.now();
-  const authUrl = await getYouTubeAuthUrlFromBackend();
+  // One id per attempt, shared by the URL we send out and the waiter, so a failure reported by an
+  // earlier tab is ignored instead of cancelling this attempt.
+  const attemptId = randomUUID();
+  const authUrl = await getYouTubeAuthUrlFromBackend(attemptId);
   console.log("[YouTubeOAuth] Opening browser for authentication...");
   await shell.openExternal(authUrl);
   console.log(
     `[YouTubeOAuth] Browser opened after ${elapsedMsSince(flowStartedAt)}ms; awaiting callback...`,
   );
-  return waitForYouTubeTokens(storage, timeoutMs);
+  return waitForYouTubeTokens(storage, timeoutMs, attemptId);
 }
 
 /**

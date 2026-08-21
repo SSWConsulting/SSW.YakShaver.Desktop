@@ -1,11 +1,17 @@
-import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import {
+  type FinalOutput,
+  parseFinalOutput as parseFinalOutputEnvelope,
+} from "@shared/utils/final-output";
+import { AlertTriangle, ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getStatusVariant } from "@/lib/shave-utils";
+import { cn } from "@/lib/utils";
 import { ipcClient } from "../../services/ipc-client";
 import { type Shave, ShaveStatus } from "../../types";
 import { LoadingState } from "../common/LoadingState";
 import { Badge } from "../ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { FinalResultPanel } from "./FinalResultPanel";
 import { WorkflowProgressPanel } from "./WorkflowProgressPanel";
 import { reconstructWorkflowState } from "./workflow-state-reconstruct";
 
@@ -13,45 +19,34 @@ interface ShaveOutcomeViewProps {
   shaveId: string;
 }
 
-interface ParsedFinalOutput {
-  Title?: string;
-  URL?: string;
-  Description?: string;
-  Repository?: string;
-  Labels?: string[];
-}
-
-export function parseFinalOutput(finalOutput: string | null | undefined): ParsedFinalOutput | null {
+/**
+ * The fence handling and field validation live in `@shared/utils/final-output`, which the backend
+ * parses the same payload with — this view only adds its own "never throw, render nothing" contract
+ * on top. The #888 fence-capture behaviour is tested here and in that module's own tests.
+ */
+export function parseFinalOutput(finalOutput: string | null | undefined): FinalOutput | null {
   if (!finalOutput) return null;
   try {
-    // Extract the body of a fenced code block (```json … ``` or a bare ``` fence),
-    // case-insensitively and ignoring any surrounding prose, then parse ONLY that.
-    // A prior global substring-strip mutated the payload — e.g. it removed backticks
-    // from inside a Description value — so we capture the block body and leave its
-    // characters untouched. No fence -> parse the raw string.
-    // Greedy capture (to the LAST fence) so a payload value that itself contains a
-    // ``` (e.g. a Description with a fenced command) is preserved, not truncated.
-    const fenced = finalOutput.match(/```(?:json)?\s*([\s\S]*)```/i);
-    const body = (fenced ? fenced[1] : finalOutput).trim();
-    return JSON.parse(body) as ParsedFinalOutput;
+    return parseFinalOutputEnvelope(finalOutput);
   } catch {
     return null;
   }
 }
 
 /**
- * #821: read-only view of a PAST shave's Workflow Progress, reached via `/workflow/:shaveId`.
- * The live per-stage progress isn't persisted, so this renders from the persisted shave row: the
- * status, the final result (work item link / video), and — when it failed — the error details.
+ * #821: load the selected shave reached via `/workflow/:shaveId`. Active shaves reconnect to
+ * their in-memory workflow state; finished shaves render their persisted outcome.
  */
 export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
   const [shave, setShave] = useState<Shave | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [workflowUnavailable, setWorkflowUnavailable] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setWorkflowUnavailable(false);
     try {
       const result = await ipcClient.shave.getById(shaveId);
       if (!result.success || !result.data) {
@@ -70,6 +65,10 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
     load();
   }, [load]);
 
+  const handleWorkflowAvailabilityChange = useCallback((available: boolean) => {
+    setWorkflowUnavailable(!available);
+  }, []);
+
   if (loading) {
     return <LoadingState />;
   }
@@ -84,16 +83,14 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
     );
   }
 
+  const isActive =
+    shave.shaveStatus === ShaveStatus.Pending || shave.shaveStatus === ShaveStatus.Processing;
   const parsed = parseFinalOutput(shave.finalOutput);
   const workItemUrl = parsed?.URL || shave.workItemUrl || undefined;
   const reconstructed = reconstructWorkflowState(shave.shaveStatus);
   const isFailed = shave.shaveStatus === ShaveStatus.Failed;
-  // #888 review: a still-running shave opened from history has no persisted per-stage
-  // progress and no result/error yet — show a clear in-progress message instead of an
-  // empty dead-end card.
-  const isProcessing = shave.shaveStatus === ShaveStatus.Processing;
 
-  return (
+  const persistedOutcome = (
     <div className="w-[500px] mx-auto my-4 space-y-4">
       <Card className="bg-black/20 backdrop-blur-md border-white/10">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -118,15 +115,15 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
             </div>
           )}
 
-          {isProcessing && (
+          {isActive && (
             <div className="rounded-md border border-white/15 bg-white/5 p-3">
               <div className="flex items-center gap-2 text-white/80 font-medium">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <LoadingState inline className="h-4 w-4" />
                 This shave is still running
               </div>
               <p className="text-sm text-white/60 mt-1">
-                Per-stage progress isn't shown for a shave opened from history. Check back once it
-                finishes, or watch it live from the active run.
+                Live per-stage progress is not available in this app session. Check back once the
+                shave finishes.
               </p>
             </div>
           )}
@@ -162,9 +159,28 @@ export function ShaveOutcomeView({ shaveId }: ShaveOutcomeViewProps) {
       </Card>
 
       {/* For a completed shave we can honestly show the full stage view (every stage ran). */}
-      {reconstructed && (
-        <WorkflowProgressPanel hydratedState={reconstructed} hydratedShaveId={undefined} />
-      )}
+      {reconstructed && <WorkflowProgressPanel mode="hydrated" hydratedState={reconstructed} />}
     </div>
   );
+
+  if (isActive) {
+    return (
+      <>
+        {/* Keep the live panels mounted while showing the persisted fallback so their subscriptions
+            can restore this view when matching progress arrives. `contents` avoids changing the
+            visible layout. */}
+        <div hidden={workflowUnavailable} className={cn(!workflowUnavailable && "contents")}>
+          <WorkflowProgressPanel
+            mode="selected"
+            shaveId={shaveId}
+            onAvailabilityChange={handleWorkflowAvailabilityChange}
+          />
+          <FinalResultPanel selectedShaveId={shaveId} />
+        </div>
+        {workflowUnavailable && persistedOutcome}
+      </>
+    );
+  }
+
+  return persistedOutcome;
 }

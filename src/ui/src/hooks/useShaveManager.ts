@@ -1,4 +1,5 @@
 import type { WorkflowState } from "@shared/types/workflow";
+import { parseFinalOutput } from "@shared/utils/final-output";
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type {
@@ -16,34 +17,28 @@ import {
   requiredPostCreationStageFailure,
 } from "../utils";
 
-interface FinalOutput {
-  Status?: string;
-  Repository?: string;
-  Title?: string;
-  URL?: string;
-  Description?: string;
-  Labels?: string[];
-}
-
 interface ParsedShaveOutput {
   status: ShaveStatus;
-  title: string;
   workItemUrl: string;
 }
 
-function parseFinalOutput(finalOutput: string): ParsedShaveOutput | null {
+/**
+ * The title is deliberately NOT read from here. The model's final message describes what it
+ * believes it filed; the work item itself is the authority, and the backend reconciles the shave
+ * title against it once the item exists. Persisting the self-reported title would race with — and
+ * overwrite — that authoritative value.
+ */
+function parseShaveOutput(finalOutput: string): ParsedShaveOutput | null {
   if (!finalOutput) {
     return null;
   }
 
   try {
-    const cleanOutput = finalOutput.replace(/```json\n?|\n?```/g, "").trim();
-    const llmOutput: FinalOutput = JSON.parse(cleanOutput);
+    const llmOutput = parseFinalOutput(finalOutput);
 
     return {
       status:
         llmOutput.Status?.toLowerCase() === "fail" ? ShaveStatus.Failed : ShaveStatus.Completed,
-      title: llmOutput.Title || "",
       workItemUrl: llmOutput.URL || "",
     };
   } catch (e) {
@@ -121,6 +116,10 @@ export function useShaveManager() {
     ) => {
       try {
         const result = await ipcClient.shave.create(shaveData, recordingFile, videoSource);
+        if (!result.success) {
+          return result;
+        }
+
         toast.success("Saved to My Shaves", {
           description: "Your video was saved to My Shaves.",
         });
@@ -128,10 +127,6 @@ export function useShaveManager() {
       } catch (error) {
         console.error("[Shave] Failed to save recording:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
-        toast.error("Could not save to My Shaves", {
-          description:
-            "Video processing will continue, but we couldn't save this shave to My Shaves.",
-        });
         return { success: false, error: errorMessage };
       }
     },
@@ -232,11 +227,9 @@ export function useShaveManager() {
     finalUpdatedKeysRef.current.add(finalUpdatedKey);
 
     try {
-      const parsedOutput = parseFinalOutput(finalOutput);
+      const parsedOutput = parseShaveOutput(finalOutput);
 
       if (parsedOutput) {
-        const finalTitle = parsedOutput.title || uploadResult?.data?.title || "Untitled Work Item";
-
         // #861 AC#3/#5: a failed required post-creation stage overrides the AI's "success"
         // so the persisted shave status doesn't claim a clean completion. This shares the
         // single source of truth with FinalResultPanel's warning badge, so the persisted
@@ -247,7 +240,6 @@ export function useShaveManager() {
             : parsedOutput.status;
 
         await ipcClient.shave.update(shaveId, {
-          title: finalTitle,
           shaveStatus,
           workItemUrl: parsedOutput.workItemUrl,
         });

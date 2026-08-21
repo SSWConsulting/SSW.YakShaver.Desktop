@@ -66,6 +66,7 @@ export const IPC_CHANNELS = {
   // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
   // Different from RERUN_TASK which is a user-initiated re-execution after success.
   WORKFLOW_RETRY_FROM_STAGE: "workflow:retry-from-stage",
+  WORKFLOW_GET_STATE: "workflow:get-state",
   WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
   WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 
@@ -95,13 +96,6 @@ export const IPC_CHANNELS = {
   RELEASE_CHANNEL_CHECK_UPDATES: "release-channel:check-updates",
   RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
   RELEASE_CHANNEL_DOWNLOAD_PROGRESS: "release-channel:download-progress",
-
-  // GitHub Token
-  GITHUB_TOKEN_GET: "github-token:get",
-  GITHUB_TOKEN_SET: "github-token:set",
-  GITHUB_TOKEN_CLEAR: "github-token:clear",
-  GITHUB_TOKEN_HAS: "github-token:has",
-  GITHUB_TOKEN_VERIFY: "github-token:verify",
 
   // General Settings
   SETTINGS_GET: "settings:get",
@@ -141,4 +135,5 @@ export const IPC_CHANNELS = {
   // Cloud 360 orchestration
   CLOUD360_EVENT: "cloud-360:event",
   CLOUD360_LIST_PROJECTS: "cloud-360:list-projects",
+  CLOUD360_CHECK_CREDITS: "cloud-360:check-credits",
 } as const;

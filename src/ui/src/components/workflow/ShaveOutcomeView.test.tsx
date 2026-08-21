@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ShaveStatus } from "../../types";
 import { parseFinalOutput, ShaveOutcomeView } from "./ShaveOutcomeView";
@@ -9,7 +9,32 @@ vi.mock("../../services/ipc-client", () => ({
 }));
 // The nested panel subscribes to electronAPI; stub it out for this view's tests.
 vi.mock("./WorkflowProgressPanel", () => ({
-  WorkflowProgressPanel: () => <div>workflow-progress</div>,
+  WorkflowProgressPanel: ({
+    shaveId,
+    onAvailabilityChange,
+  }: {
+    shaveId?: string;
+    onAvailabilityChange?: (available: boolean) => void;
+  }) => (
+    <div>
+      {shaveId ? `workflow-progress:${shaveId}` : "workflow-progress"}
+      {onAvailabilityChange && (
+        <button type="button" onClick={() => onAvailabilityChange(false)}>
+          Simulate unavailable workflow
+        </button>
+      )}
+      {onAvailabilityChange && (
+        <button type="button" onClick={() => onAvailabilityChange(true)}>
+          Simulate available workflow
+        </button>
+      )}
+    </div>
+  ),
+}));
+vi.mock("./FinalResultPanel", () => ({
+  FinalResultPanel: ({ selectedShaveId }: { selectedShaveId?: string }) => (
+    <div>{`final-result:${selectedShaveId ?? "unselected"}`}</div>
+  ),
 }));
 
 const shave = (over: Record<string, unknown>) => ({
@@ -29,7 +54,7 @@ afterEach(() => {
 });
 
 describe("ShaveOutcomeView (#821 / #888 review)", () => {
-  it("shows an in-progress message for a still-running (Processing) shave — no blank dead-end", async () => {
+  it("shows the selected live workflow for a still-running Processing shave", async () => {
     getById.mockResolvedValue({
       success: true,
       data: shave({ shaveStatus: ShaveStatus.Processing }),
@@ -37,7 +62,36 @@ describe("ShaveOutcomeView (#821 / #888 review)", () => {
 
     render(<ShaveOutcomeView shaveId="s1" />);
 
+    expect(await screen.findByText("workflow-progress:s1")).toBeInTheDocument();
+    expect(screen.getByText("final-result:s1")).toBeInTheDocument();
+    expect(screen.queryByText("This shave is still running")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ShaveStatus.Pending,
+    ShaveStatus.Processing,
+  ])("falls back to the persisted running card when %s live workflow state is unavailable", async (shaveStatus) => {
+    getById.mockResolvedValue({
+      success: true,
+      data: shave({ shaveStatus }),
+    });
+
+    render(<ShaveOutcomeView shaveId="s1" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Simulate unavailable workflow" }));
+
     expect(await screen.findByText("This shave is still running")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Live per-stage progress is not available in this app session/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("workflow-progress:s1")).not.toBeVisible();
+    expect(screen.getByText("final-result:s1")).not.toBeVisible();
+
+    fireEvent.click(screen.getByText("Simulate available workflow"));
+
+    expect(screen.queryByText("This shave is still running")).not.toBeInTheDocument();
+    expect(screen.getByText("workflow-progress:s1")).toBeVisible();
+    expect(screen.getByText("final-result:s1")).toBeVisible();
   });
 
   it("shows the failure details for a Failed shave", async () => {

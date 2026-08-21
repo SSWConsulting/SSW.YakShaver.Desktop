@@ -1,6 +1,7 @@
 import type { OAuthTokens } from "@ai-sdk/mcp";
 import type { BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../ipc/channels";
+import { AUTH_ATTEMPT_PARAM } from "../services/auth/auth-attempt";
 import { IdentityServerAuthService } from "../services/auth/identity-server-auth";
 import type { TokenData } from "../services/auth/types";
 import { MCPServerManager } from "../services/mcp/mcp-server-manager";
@@ -32,12 +33,30 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
     const serverId = params.get("serverId");
+    const authError = params.get("error");
+    const attemptId = params.get(AUTH_ATTEMPT_PARAM);
 
     console.log("[ProtocolRouter] Handling MCP OAuth callback", {
       serverId,
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
+      authError,
     });
+
+    // The declined/error result pages ping back with `error` and no tokens so the waiting
+    // authorization fails immediately instead of hanging until it times out (#965). The attempt id
+    // travels with it so a stale tab cannot cancel whichever authorization is waiting now.
+    if (authError) {
+      console.warn("[ProtocolRouter] MCP OAuth callback reported failure", {
+        serverId,
+        authError,
+        attemptId,
+      });
+      if (serverId) {
+        McpOAuthTokenStorage.getInstance().notifyAuthFailed(serverId, attemptId);
+      }
+      return;
+    }
 
     if (!accessToken || !refreshToken || !serverId) {
       const missing = [
@@ -81,7 +100,12 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
       scope: params.get("scope") ?? undefined,
     };
 
-    await McpOAuthTokenStorage.getInstance().saveTokensAsync(serverId, tokens);
+    const completed = await McpOAuthTokenStorage.getInstance().completeOAuthAsync(serverId, tokens);
+    if (!completed) {
+      console.info(
+        `[ProtocolRouter] Ignored a duplicate MCP OAuth callback for server ${serverId}.`,
+      );
+    }
   },
 
   // Main app auth callback (triggered by success template to refocus app)
@@ -115,11 +139,25 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
     const refreshToken = params.get("refresh_token");
     const expiresIn = params.get("expires_in");
     const scope = params.get("scope");
+    const authError = params.get("error");
+    const attemptId = params.get(AUTH_ATTEMPT_PARAM);
 
     console.log("[ProtocolRouter] Handling YouTube OAuth callback", {
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
+      authError,
     });
+
+    // Mirrors the MCP branch above. There is only one YouTube binding, so the attempt id is the sole
+    // thing separating a stale tab's failure from the attempt currently waiting.
+    if (authError) {
+      console.warn("[ProtocolRouter] YouTube OAuth callback reported failure", {
+        authError,
+        attemptId,
+      });
+      YoutubeStorage.getInstance().notifyAuthFailed(attemptId);
+      return;
+    }
 
     if (!accessToken || !refreshToken) {
       const missing = [

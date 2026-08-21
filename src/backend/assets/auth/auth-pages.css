@@ -1,0 +1,124 @@
+/* Shared look for the auth result pages (success / failure / error). The success page's button
+   styles stay in that page: it is the only one with a button.
+
+   Dark-only: the app hardcodes `class="dark"`, so a light page here would be the product's only
+   light surface. Colours are the app's `.dark` tokens (src/ui/src/App.css) resolved to hex, since
+   these pages run outside Tailwind. Keep in sync with that block and with SSW.YakShaver:
+   backend/src/SSW.YakShaver/Features/Mcp/WebApi/AuthResultPages/auth-pages.css. */
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  font-family:
+    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Avenir, Helvetica, Arial,
+    sans-serif;
+  /* --background */
+  background: #1a1414;
+  /* --foreground */
+  color: #faf9f8;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  /* --card */
+  background: #2b2523;
+  /* --border */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 40px 32px 32px;
+  text-align: center;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+}
+
+.logo {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo svg {
+  width: 44px;
+  height: auto;
+}
+
+.status-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.status-badge svg {
+  width: 15px;
+  height: 15px;
+}
+
+.status-badge--success {
+  background: #2e9e5b;
+}
+
+/* --warning: the shared "needs attention" token, so these pages stop hand-mixing amber. */
+.status-badge--warning {
+  background: #f2b134;
+  /* --warning-foreground */
+  color: #1a1414;
+}
+
+/* --danger: reserved for genuine faults. */
+.status-badge--error {
+  background: #ff453a;
+}
+
+h1 {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: #faf9f8;
+}
+
+p {
+  font-size: 14px;
+  line-height: 21px;
+  /* --muted-foreground */
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0 0 24px;
+}
+
+.brand {
+  font-weight: 600;
+  /* --ssw-red */
+  color: #cc4141;
+}
+
+.hint {
+  margin-top: 18px;
+  margin-bottom: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}

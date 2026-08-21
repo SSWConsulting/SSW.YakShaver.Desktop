@@ -1,77 +1,38 @@
+import type { ReleaseListResult, ReleaseUpdateCheckResult } from "@shared/types/release-channel";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import { config } from "../config/env";
 import { setIsQuitting } from "../index";
-import { verifyGitHubToken } from "../services/github/github-token-verifier";
-import { GitHubTokenStorage } from "../services/storage/github-token-storage";
-import type { ReleaseChannel } from "../services/storage/release-channel-storage";
-import { ReleaseChannelStorage } from "../services/storage/release-channel-storage";
+import type {
+  CachedRelease,
+  ReleaseCache,
+  ReleaseChannel,
+} from "../services/storage/release-channel-storage";
+import {
+  RELEASE_CACHE_VERSION,
+  ReleaseChannelStorage,
+} from "../services/storage/release-channel-storage";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
-
-interface GitHubRelease {
-  id: number;
-  tag_name: string;
-  name: string;
-  body?: string;
-  prerelease: boolean;
-  published_at: string;
-  html_url: string;
-}
-
-interface ProcessedRelease {
-  prNumber: string;
-  tag: string;
-  version: string;
-  publishedAt: string;
-}
-
-interface GitHubReleaseResponse {
-  releases: ProcessedRelease[];
-  error?: string;
-}
+import {
+  clampRateLimitBlockedUntil,
+  type GitHubRelease,
+  processReleases,
+  toCachedReleases,
+} from "./releases";
 
 const GITHUB_API_BASE = "https://api.github.com";
 const REPO_OWNER = "SSWConsulting";
 const REPO_NAME = "SSW.YakShaver.Desktop";
 const RELEASES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-// PR releases are gated on the configured GitHub token being valid (#919): an invalid/expired
-// token must not be usable to list, select, or download PR builds. Cache the verification briefly
-// so every list/select/download call doesn't re-hit the GitHub /user endpoint.
-const TOKEN_HEALTH_CACHE_TTL = 60 * 1000; // 1 minute
-const INVALID_TOKEN_ERROR =
-  "GitHub token is invalid or expired. Update it in Settings | GitHub Token to use PR releases.";
-// Distinct from INVALID_TOKEN_ERROR (review on #919) — "no token saved" and "saved but invalid"
-// are different states and must not share the same "invalid or expired" wording, otherwise a user
-// who never configured a token gets a misleading "invalid" error on every Settings load.
-const NO_TOKEN_ERROR =
-  "A GitHub token is required to list, select, or download PR releases. Add one in Settings | GitHub Token.";
-const RATE_LIMITED_ERROR =
-  "GitHub API rate limit exceeded while verifying your token. Your token is fine — try again shortly.";
-// Distinct from INVALID_TOKEN_ERROR (review on #939) — a transport failure (offline, DNS, TLS,
-// timeout, GitHub outage) while calling the GitHub API is not evidence the token itself is bad, so
-// it must not be reported as "invalid or expired" either. verifyGitHubToken()'s catch block is the
-// only path that produces an error string other than "Invalid or expired token" / "Rate limit
-// exceeded", so that's what isNetworkError below keys off.
-const VERIFICATION_UNAVAILABLE_ERROR =
-  "Couldn't verify your GitHub token right now (network error). Check your connection and try again.";
+const DEFAULT_RATE_LIMIT_BACKOFF = 60 * 1000;
+const RATE_LIMIT_CACHE_WARNING =
+  "GitHub API rate limit reached. Showing cached release data; updates cannot be confirmed yet.";
 
 export class ReleaseChannelIPCHandlers {
   private store = ReleaseChannelStorage.getInstance();
-  private tokenStore = GitHubTokenStorage.getInstance();
-  private releasesCache: {
-    releases: GitHubRelease[];
-    fetchedAt: number;
-    etag?: string;
-  } | null = null;
-  private tokenHealthCache: {
-    isValid: boolean;
-    checkedAt: number;
-    token: string;
-    isRateLimited: boolean;
-    isNetworkError: boolean;
-    error?: string;
-  } | null = null;
+  private releasesCache: ReleaseCache | null = null;
+  private releasesCacheLoaded = false;
   private updateCheckInterval: NodeJS.Timeout | null = null;
   private readonly UPDATE_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
   private updateDialogDismissedInSession = false; // Track if user dismissed update dialog this session
@@ -128,8 +89,8 @@ export class ReleaseChannelIPCHandlers {
     });
 
     autoUpdater.on("update-downloaded", () => {
-      // Skip showing dialog if user already dismissed it this session (#456) - once "Later" is
-      // clicked, no further reminder should appear for the rest of the current session.
+      // Skip showing dialog if user already dismissed it this session (#456) - once "Remind Me
+      // After Restart" is clicked, no further reminder should appear for the rest of the current session.
       if (this.updateDialogDismissedInSession) {
         return;
       }
@@ -153,8 +114,9 @@ export class ReleaseChannelIPCHandlers {
         .showMessageBox({
           type: "info",
           title: "Update Ready",
-          message: "A new version has been downloaded. Restart now to install?",
-          buttons: ["Restart Now", "Later"],
+          message:
+            "A new version has been downloaded. Restart now to install, or you'll be reminded the next time you start YakShaver.",
+          buttons: ["Restart Now", "Remind Me After Restart"],
           defaultId: 0,
           cancelId: 1,
         })
@@ -171,8 +133,9 @@ export class ReleaseChannelIPCHandlers {
               autoUpdater.quitAndInstall(false, true);
             });
           } else {
-            // User chose "Later" - remember this for the current session so no further reminder
-            // is shown, whether from another "update-downloaded" event or the periodic check.
+            // User chose "Remind Me After Restart" - remember this for the current session so no
+            // further reminder is shown, whether from another "update-downloaded" event or the
+            // periodic check. The reminder returns on the next app start (#456, #999).
             this.updateDialogDismissedInSession = true;
           }
         })
@@ -198,126 +161,81 @@ export class ReleaseChannelIPCHandlers {
     this.startPeriodicUpdateChecks();
   }
 
-  /**
-   * PR release channels require a healthy (valid, non-expired) GitHub token (#919) — invalid
-   * tokens must not be usable to list/select/download PR builds. The "latest" stable channel is
-   * unaffected: it doesn't need a token at all.
-   *
-   * Cached briefly per-token so repeated list/select/download calls in quick succession don't each
-   * re-verify against the GitHub API.
-   *
-   * Returns a small status object rather than a bare boolean (review on #919) so callers can tell
-   * apart four distinct states that all render as "not healthy" but need different treatment:
-   *   - no token saved at all — not an error, just an unconfigured feature (NO_TOKEN_ERROR)
-   *   - a rate-limited check — the token itself may be fine, GitHub is just throttling us
-   *     (RATE_LIMITED_ERROR)
-   *   - a transport failure (offline/DNS/TLS/timeout/GitHub outage) verifying the token — the token
-   *     itself was never actually checked, so this must not read as "invalid" either
-   *     (VERIFICATION_UNAVAILABLE_ERROR, review on #939)
-   *   - an actually invalid/expired token (INVALID_TOKEN_ERROR)
-   */
-  private async isGitHubTokenHealthy(forceRefresh = false): Promise<{
-    healthy: boolean;
-    noToken: boolean;
-    isRateLimited: boolean;
-    isNetworkError: boolean;
-    error?: string;
-  }> {
-    const token = await this.tokenStore.getToken();
-    if (!token) {
-      return { healthy: false, noToken: true, isRateLimited: false, isNetworkError: false };
+  private async loadPersistedReleasesCache(): Promise<void> {
+    if (this.releasesCacheLoaded) {
+      return;
     }
 
-    if (
-      !forceRefresh &&
-      this.tokenHealthCache &&
-      this.tokenHealthCache.token === token &&
-      Date.now() - this.tokenHealthCache.checkedAt < TOKEN_HEALTH_CACHE_TTL
-    ) {
+    try {
+      this.releasesCache = await this.store.getReleaseCache();
+    } catch (error) {
+      const errorMessage = formatAndReportError(error, "load_release_cache");
+      console.warn(`Failed to load GitHub release cache: ${errorMessage}`);
+      this.releasesCache = null;
+    } finally {
+      this.releasesCacheLoaded = true;
+    }
+  }
+
+  private async persistReleasesCache(): Promise<void> {
+    if (!this.releasesCache) {
+      return;
+    }
+
+    try {
+      await this.store.setReleaseCache(this.releasesCache);
+    } catch (error) {
+      const errorMessage = formatAndReportError(error, "persist_release_cache");
+      console.warn(`Failed to persist GitHub release cache: ${errorMessage}`);
+    }
+  }
+
+  private getRateLimitBlockedUntil(response: Response): number {
+    const now = Date.now();
+    const retryAfterSeconds = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
+    if (Number.isFinite(retryAfterSeconds)) {
+      return clampRateLimitBlockedUntil(now + retryAfterSeconds * 1000, now);
+    }
+
+    const resetEpochSeconds = Number.parseInt(response.headers.get("x-ratelimit-reset") ?? "", 10);
+    if (Number.isFinite(resetEpochSeconds)) {
+      return clampRateLimitBlockedUntil(resetEpochSeconds * 1000, now);
+    }
+
+    return now + DEFAULT_RATE_LIMIT_BACKOFF;
+  }
+
+  private getRateLimitFallback(): ReleaseListResult {
+    if (this.releasesCache?.releases.length) {
       return {
-        healthy: this.tokenHealthCache.isValid,
-        noToken: false,
-        isRateLimited: this.tokenHealthCache.isRateLimited,
-        isNetworkError: this.tokenHealthCache.isNetworkError,
-        error: this.tokenHealthCache.error,
+        status: "warning",
+        releases: processReleases(this.releasesCache.releases),
+        warning: RATE_LIMIT_CACHE_WARNING,
       };
     }
 
-    const verification = await verifyGitHubToken(token);
-    // verifyGitHubToken() distinguishes a 401 ("Invalid or expired token") and a 403 rate-limit
-    // ("Rate limit exceeded") from a transport failure — its catch block is the only path that
-    // produces any other error string (the raw fetch/DNS/TLS error text) — key off that same text
-    // rather than re-deriving it, so this stays in sync with the shared helper without duplicating
-    // its logic.
-    const isRateLimited = !verification.isValid && verification.error === "Rate limit exceeded";
-    const isNetworkError =
-      !verification.isValid &&
-      !isRateLimited &&
-      verification.error !== undefined &&
-      verification.error !== "Invalid or expired token";
-    this.tokenHealthCache = {
-      isValid: verification.isValid,
-      checkedAt: Date.now(),
-      token,
-      isRateLimited,
-      isNetworkError,
-      error: verification.error,
-    };
     return {
-      healthy: verification.isValid,
-      noToken: false,
-      isRateLimited,
-      isNetworkError,
-      error: verification.error,
+      status: "error",
+      error: "GitHub API rate limit exceeded. Try again later.",
     };
   }
 
-  /**
-   * Map an isGitHubTokenHealthy() result to the user-facing error string for the four unhealthy
-   * states (review on #919, #939) — kept in one place so listReleases/checkForUpdates/
-   * configureAutoUpdater all report the same distinction consistently.
-   */
-  private tokenHealthErrorMessage(health: {
-    noToken: boolean;
-    isRateLimited: boolean;
-    isNetworkError: boolean;
-  }): string {
-    if (health.noToken) {
-      return NO_TOKEN_ERROR;
-    }
-    if (health.isRateLimited) {
-      return RATE_LIMITED_ERROR;
-    }
-    if (health.isNetworkError) {
-      return VERIFICATION_UNAVAILABLE_ERROR;
-    }
-    return INVALID_TOKEN_ERROR;
-  }
-
-  private async listReleases(forceRefresh = false): Promise<GitHubReleaseResponse> {
+  private async listReleases(): Promise<ReleaseListResult> {
     try {
-      const tokenHealth = await this.isGitHubTokenHealthy();
-      if (!tokenHealth.healthy) {
-        return { releases: [], error: this.tokenHealthErrorMessage(tokenHealth) };
+      await this.loadPersistedReleasesCache();
+
+      if (this.releasesCache?.blockedUntil && Date.now() < this.releasesCache.blockedUntil) {
+        return this.getRateLimitFallback();
       }
 
-      if (
-        !forceRefresh &&
-        this.releasesCache &&
-        Date.now() - this.releasesCache.fetchedAt < RELEASES_CACHE_TTL
-      ) {
-        return { releases: this.processReleases(this.releasesCache.releases) };
+      if (this.releasesCache && Date.now() - this.releasesCache.fetchedAt < RELEASES_CACHE_TTL) {
+        return { status: "success", releases: processReleases(this.releasesCache.releases) };
       }
 
       const headers: Record<string, string> = {
         Accept: "application/vnd.github+json",
         "User-Agent": `${app.getName()}/${app.getVersion()}`,
       };
-
-      const githubToken = await this.tokenStore.getToken();
-      if (githubToken) {
-        headers.Authorization = `Bearer ${githubToken}`;
-      }
 
       if (this.releasesCache?.etag) {
         headers["If-None-Match"] = this.releasesCache.etag;
@@ -332,98 +250,69 @@ export class ReleaseChannelIPCHandlers {
 
       if (response.status === 304 && this.releasesCache) {
         this.releasesCache.fetchedAt = Date.now();
-        return { releases: this.processReleases(this.releasesCache.releases) };
+        this.releasesCache.blockedUntil = undefined;
+        await this.persistReleasesCache();
+        return { status: "success", releases: processReleases(this.releasesCache.releases) };
       }
 
       if (!response.ok) {
         const errorBody = await response.text();
         const baseError = `Failed to fetch releases: ${response.statusText}`;
-        const errorMessage =
-          response.status === 403 && /rate limit/i.test(errorBody)
-            ? "GitHub API rate limit exceeded. Please configure a GitHub token in Settings | GitHub Token"
-            : baseError;
+        const isRateLimited =
+          response.status === 429 ||
+          (response.status === 403 &&
+            (response.headers.get("x-ratelimit-remaining") === "0" ||
+              /rate limit/i.test(errorBody)));
+
+        if (isRateLimited) {
+          this.releasesCache = {
+            version: RELEASE_CACHE_VERSION,
+            releases: this.releasesCache?.releases ?? [],
+            fetchedAt: this.releasesCache?.fetchedAt ?? 0,
+            etag: this.releasesCache?.etag,
+            blockedUntil: this.getRateLimitBlockedUntil(response),
+          };
+          await this.persistReleasesCache();
+          return this.getRateLimitFallback();
+        }
 
         return {
-          releases: [],
-          error: errorMessage,
+          status: "error",
+          error: baseError,
         };
       }
 
       const releases: GitHubRelease[] = await response.json();
+      const cachedReleases = toCachedReleases(releases);
       this.releasesCache = {
-        releases,
+        version: RELEASE_CACHE_VERSION,
+        releases: cachedReleases,
         fetchedAt: Date.now(),
         etag: response.headers.get("etag") ?? undefined,
       };
+      await this.persistReleasesCache();
 
-      return { releases: this.processReleases(releases) };
+      return { status: "success", releases: processReleases(cachedReleases) };
     } catch (error) {
       const errMsg = formatAndReportError(error, "fetch_releases");
       return {
-        releases: [],
+        status: "error",
         error: errMsg,
       };
     }
   }
 
   /**
-   * Process raw GitHub releases into frontend-ready data:
-   * - Filter to prereleases only
-   * - Extract PR numbers
-   * - Group by PR and keep only the latest release per PR
-   * - Sort by PR number descending
-   */
-  private processReleases(releases: GitHubRelease[]): ProcessedRelease[] {
-    // Filter prereleases
-    const prereleases = releases.filter((r) => r.prerelease);
-
-    // Sort by published date (newest first)
-    const sorted = prereleases.sort(
-      (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime(),
-    );
-
-    // Group by PR number, keeping only the latest release for each PR
-    const prMap = new Map<string, GitHubRelease>();
-    for (const release of sorted) {
-      const prNumber = this.extractPRNumber(release);
-      if (prNumber && !prMap.has(prNumber)) {
-        prMap.set(prNumber, release);
-      }
-    }
-
-    // Convert to processed releases, sorted by PR number descending
-    return Array.from(prMap.entries())
-      .sort(
-        ([prNumberA], [prNumberB]) =>
-          Number.parseInt(prNumberB, 10) - Number.parseInt(prNumberA, 10),
-      )
-      .map(([prNumber, release]) => ({
-        prNumber,
-        tag: release.tag_name,
-        version: release.tag_name,
-        publishedAt: release.published_at,
-      }));
-  }
-
-  /**
-   * Extract PR number from release name or body
-   */
-  private extractPRNumber(release: GitHubRelease): string | null {
-    const prMatch = release.name?.match(/PR #(\d+)/) || release.body?.match(/PR #(\d+)/);
-    return prMatch ? prMatch[1] : null;
-  }
-
-  /**
    * Get all releases for a specific PR number, sorted by published date (newest first)
    */
-  private getPRReleases(prNumber: string): GitHubRelease[] {
+  private getPRReleases(prNumber: string): CachedRelease[] {
     if (!this.releasesCache) {
       return [];
     }
 
     return this.releasesCache.releases
-      .filter((r) => this.extractPRNumber(r) === prNumber)
-      .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
+      .filter((release) => release.prNumber === prNumber)
+      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
   }
 
   /**
@@ -435,15 +324,11 @@ export class ReleaseChannelIPCHandlers {
     return prMatch ? prMatch[1] : null;
   }
 
-  private async checkForUpdates(): Promise<{
-    available: boolean;
-    error?: string;
-    version?: string;
-    currentVersion?: string;
-  }> {
+  private async checkForUpdates(): Promise<ReleaseUpdateCheckResult> {
     // Skip update checks in development/unpackaged mode
     if (!app.isPackaged) {
       return {
+        status: "error",
         available: false,
         error: "Update checks are only available in packaged applications",
         currentVersion: this.getCurrentVersion(),
@@ -457,28 +342,37 @@ export class ReleaseChannelIPCHandlers {
 
       // For PR channels
       if (channel.type === "pr" && channel.channel) {
-        // PR releases require a healthy GitHub token (#919) — block before touching the releases
-        // cache, the GitHub API, or the autoUpdater so an invalid token can never trigger a
-        // download. This is the explicit, user-initiated "Check for Updates" action, so bypass the
-        // 60s token-health cache: a user who just fixed their token shouldn't be stuck seeing
-        // "invalid" for up to a minute after retrying.
-        const tokenHealth = await this.isGitHubTokenHealthy(true);
-        if (!tokenHealth.healthy) {
-          return { available: false, error: this.tokenHealthErrorMessage(tokenHealth) };
+        const listedReleases = await this.listReleases();
+        if (listedReleases.status === "error") {
+          return {
+            status: "error",
+            available: false,
+            error: listedReleases.error,
+            currentVersion,
+          };
         }
-
-        // Get raw releases for update checking (not processed)
-        if (!this.releasesCache || Date.now() - this.releasesCache.fetchedAt > RELEASES_CACHE_TTL) {
-          await this.listReleases(true);
+        if (listedReleases.status === "warning") {
+          return {
+            status: "warning",
+            available: false,
+            warning: listedReleases.warning,
+            currentVersion,
+          };
         }
 
         if (!this.releasesCache) {
-          return { available: false, error: "Failed to fetch releases", currentVersion };
+          return {
+            status: "error",
+            available: false,
+            error: "Failed to fetch releases",
+            currentVersion,
+          };
         }
 
         const prNumber = this.extractPRNumberFromChannel(channel.channel);
         if (!prNumber) {
           return {
+            status: "error",
             available: false,
             error: `Invalid channel format: ${channel.channel}`,
             currentVersion,
@@ -487,6 +381,7 @@ export class ReleaseChannelIPCHandlers {
         const prReleases = this.getPRReleases(prNumber);
         if (prReleases.length === 0) {
           return {
+            status: "error",
             available: false,
             error: `No releases found for PR #${prNumber}`,
             currentVersion,
@@ -494,7 +389,7 @@ export class ReleaseChannelIPCHandlers {
         }
 
         const latestRelease = prReleases[0];
-        const targetVersion = latestRelease.tag_name;
+        const targetVersion = latestRelease.tag;
         const isCurrentlyOnThisVersion = currentVersion === targetVersion;
 
         // If not on this version, trigger download
@@ -513,12 +408,14 @@ export class ReleaseChannelIPCHandlers {
             const result = await autoUpdater.checkForUpdates();
             if (result?.updateInfo) {
               return {
+                status: "update-available",
                 available: true,
                 version: targetVersion,
                 currentVersion,
               };
             } else {
               return {
+                status: "error",
                 available: false,
                 error:
                   "No update found. Ensure the PR release includes the correct beta.{PR}.yml manifest.",
@@ -528,6 +425,7 @@ export class ReleaseChannelIPCHandlers {
           } catch (error) {
             const errMsg = formatAndReportError(error, "check_prerelease");
             return {
+              status: "error",
               available: false,
               error: errMsg,
               currentVersion,
@@ -536,8 +434,8 @@ export class ReleaseChannelIPCHandlers {
         }
 
         return {
+          status: "up-to-date",
           available: false,
-          version: currentVersion,
           currentVersion,
         };
       }
@@ -548,16 +446,20 @@ export class ReleaseChannelIPCHandlers {
       const result = await autoUpdater.checkForUpdates();
       if (result?.updateInfo) {
         const updateVersion = result.updateInfo.version;
-        return {
-          available: updateVersion !== currentVersion,
-          version: updateVersion,
-          currentVersion,
-        };
+        if (updateVersion !== currentVersion) {
+          return {
+            status: "update-available",
+            available: true,
+            version: updateVersion,
+            currentVersion,
+          };
+        }
       }
-      return { available: false, currentVersion };
+      return { status: "up-to-date", available: false, currentVersion };
     } catch (error) {
       const errMsg = formatAndReportError(error, "check_update");
       return {
+        status: "error",
         available: false,
         error: errMsg,
         currentVersion,
@@ -583,11 +485,7 @@ export class ReleaseChannelIPCHandlers {
       return;
     }
 
-    // Set up periodic checks — routed through this.checkForUpdates() (not the autoUpdater
-    // directly) so the same token-health gate that guards the manual "Check for Updates" button
-    // and listReleases() also covers this background timer (#919). Without this, a PR channel
-    // configured while the token was healthy would keep polling the PR feed unguarded every 10
-    // minutes after the token later expired or was revoked.
+    // Route periodic checks through the same channel-aware path as manual update checks.
     this.updateCheckInterval = setInterval(() => {
       this.checkForUpdates().catch((err) => {
         console.error("Periodic update check failed:", err);
@@ -614,14 +512,6 @@ export class ReleaseChannelIPCHandlers {
       return;
     }
 
-    const githubToken = await this.tokenStore.getToken();
-    if (githubToken) {
-      autoUpdater.requestHeaders = {
-        ...autoUpdater.requestHeaders,
-        Authorization: `Bearer ${githubToken}`,
-      };
-    }
-
     // Configure autoUpdater based on channel
     if (channel.type === "latest") {
       autoUpdater.channel = "latest";
@@ -644,32 +534,14 @@ export class ReleaseChannelIPCHandlers {
         }, 2000);
       }
     } else if (channel.type === "pr" && channel.channel) {
-      // PR channels are token-gated (#919) — don't configure the autoUpdater feed (and never
-      // trigger a background download) unless the token is currently valid.
-      const tokenHealth = await this.isGitHubTokenHealthy();
-      if (!tokenHealth.healthy) {
-        console.warn(
-          tokenHealth.noToken
-            ? "Skipping PR release channel configuration: no GitHub token configured."
-            : "Skipping PR release channel configuration: GitHub token is invalid.",
-        );
-        // Still (re)start the periodic timer (review on #919): the timer itself re-checks token
-        // health via checkForUpdates() every tick, so if the token becomes healthy later without
-        // another explicit reconfigure call, periodic checks are already running to pick it up
-        // rather than staying stopped forever.
-        this.startPeriodicUpdateChecks();
-        return;
-      }
-
       // For PR channels, we need to find the latest release tag first
       const prNumber = this.extractPRNumberFromChannel(channel.channel);
       if (prNumber) {
-        // Get the latest release for this PR
-        if (!this.releasesCache || Date.now() - this.releasesCache.fetchedAt > RELEASES_CACHE_TTL) {
-          await this.listReleases(true);
-        }
+        const listedReleases = await this.listReleases();
 
-        if (this.releasesCache) {
+        if (listedReleases.status === "error") {
+          console.warn(`Failed to configure PR release channel: ${listedReleases.error}`);
+        } else if (this.releasesCache) {
           const prReleases = this.getPRReleases(prNumber);
 
           if (prReleases.length > 0) {
@@ -678,14 +550,14 @@ export class ReleaseChannelIPCHandlers {
             autoUpdater.channel = channel.channel;
             autoUpdater.setFeedURL({
               provider: "generic",
-              url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag_name}`,
+              url: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${latestRelease.tag}`,
               channel: channel.channel,
             });
             autoUpdater.allowPrerelease = true;
             autoUpdater.allowDowngrade = true;
 
             const currentVersion = app.getVersion();
-            const isOnLatest = currentVersion === latestRelease.tag_name;
+            const isOnLatest = currentVersion === latestRelease.tag;
 
             if (triggerImmediateCheck && !isOnLatest) {
               setTimeout(() => {
