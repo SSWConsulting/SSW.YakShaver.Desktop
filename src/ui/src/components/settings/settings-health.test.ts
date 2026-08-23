@@ -24,7 +24,6 @@ function inputs(overrides: Partial<SettingsHealthInputs> = {}): SettingsHealthIn
     llmConfig: healthyLlm,
     mcpServers: [],
     mcpHealthById: {},
-    hasGithubToken: true,
     ...overrides,
   };
 }
@@ -197,23 +196,15 @@ describe("deriveSettingsHealth", () => {
     });
   });
 
-  describe("Releases (release)", () => {
-    it("flags a missing GitHub token as critical", () => {
-      expect(deriveSettingsHealth(inputs({ hasGithubToken: false })).release?.severity).toBe(
-        "critical",
-      );
-    });
-
-    it("does NOT flag when a token is present", () => {
-      expect(deriveSettingsHealth(inputs({ hasGithubToken: true })).release).toBeUndefined();
-    });
-  });
-
   it("reports multiple independent issues at once", () => {
     const health = deriveSettingsHealth(
-      inputs({ llmConfig: { languageModel: null }, hasGithubToken: false }),
+      inputs({
+        llmConfig: { languageModel: null },
+        mcpServers: [githubServer],
+        mcpHealthById: { [PRESET_SERVER_IDS.GITHUB]: { isHealthy: false } },
+      }),
     );
-    expect(Object.keys(health).sort()).toEqual(["llm", "release"]);
+    expect(Object.keys(health).sort()).toEqual(["llm", "mcp"]);
   });
 });
 

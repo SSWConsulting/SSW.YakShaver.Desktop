@@ -59,12 +59,14 @@ export const IPC_CHANNELS = {
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
+  MCP_REAUTHORIZE: "mcp:reauthorize",
 
   // Automated workflow
   WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
   // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
   // Different from RERUN_TASK which is a user-initiated re-execution after success.
   WORKFLOW_RETRY_FROM_STAGE: "workflow:retry-from-stage",
+  WORKFLOW_GET_STATE: "workflow:get-state",
   WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
   WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 
@@ -95,13 +97,6 @@ export const IPC_CHANNELS = {
   RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
   RELEASE_CHANNEL_DOWNLOAD_PROGRESS: "release-channel:download-progress",
 
-  // GitHub Token
-  GITHUB_TOKEN_GET: "github-token:get",
-  GITHUB_TOKEN_SET: "github-token:set",
-  GITHUB_TOKEN_CLEAR: "github-token:clear",
-  GITHUB_TOKEN_HAS: "github-token:has",
-  GITHUB_TOKEN_VERIFY: "github-token:verify",
-
   // General Settings
   SETTINGS_GET: "settings:get",
   SETTINGS_UPDATE: "settings:update",
@@ -114,7 +109,6 @@ export const IPC_CHANNELS = {
   PROTOCOL_ERROR: "protocol:error",
 
   // Portal API
-  PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
   PORTAL_GET_MY_PROJECTS: "portal:get-my-projects",
   PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 
@@ -141,4 +135,5 @@ export const IPC_CHANNELS = {
   // Cloud 360 orchestration
   CLOUD360_EVENT: "cloud-360:event",
   CLOUD360_LIST_PROJECTS: "cloud-360:list-projects",
+  CLOUD360_CHECK_CREDITS: "cloud-360:check-credits",
 } as const;

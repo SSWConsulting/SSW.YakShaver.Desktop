@@ -1,13 +1,15 @@
-import type { Cloud360EventPayload, Cloud360Project } from "@shared/types/cloud360";
+import type {
+  Cloud360EventPayload,
+  Cloud360Project,
+  CreditPrecheckResult,
+} from "@shared/types/cloud360";
 import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
+import type { ReleaseListResult, ReleaseUpdateCheckResult } from "@shared/types/release-channel";
 import type { TelemetrySettings } from "@shared/types/telemetry";
 import type { UserSettings } from "@shared/types/user-settings";
-import type { WorkflowState } from "@shared/types/workflow";
+import type { GetWorkflowStateResult, WorkflowState } from "@shared/types/workflow";
 import type { MCPServerConfig } from "@/components/settings/mcp/McpServerForm";
-import type {
-  ProcessedRelease,
-  ReleaseChannel,
-} from "@/components/settings/release-channels/types";
+import type { ReleaseChannel } from "@/components/settings/release-channels/types";
 import type {
   CreateShaveData,
   CreateVideoData,
@@ -21,7 +23,6 @@ import type {
   CustomPrompt,
   GetMyProjectsErrorCode,
   GetMyProjectsResponse,
-  GetMyShavesResponse,
   HealthStatusInfo,
   MCPStep,
   ScreenRecordingStartResult,
@@ -62,6 +63,7 @@ declare global {
       };
       cloud360: {
         listProjects: () => Promise<Cloud360Project[]>;
+        checkCredits: () => Promise<CreditPrecheckResult>;
       };
       youtube: {
         startAuth: () => Promise<AuthResult>;
@@ -130,6 +132,7 @@ declare global {
         retryFromStage: (
           stage: keyof WorkflowState,
           shaveId?: string,
+          customPrompt?: string,
         ) => Promise<{
           success: boolean;
           error?: string;
@@ -137,6 +140,7 @@ declare global {
           youtubeResult?: unknown;
           mcpResult?: string;
         }>;
+        getState: (shaveId: string) => Promise<GetWorkflowStateResult>;
         getRetryStatus: (shaveId: string) => Promise<{
           success: boolean;
           stages?: Array<{
@@ -178,6 +182,7 @@ declare global {
           serverId: string,
         ) => Promise<Array<{ name: string; description?: string }>>;
         clearTokensAsync: (serverId: string) => Promise<{ success: boolean }>;
+        reauthorizeAsync: (serverId: string) => Promise<{ success: boolean }>;
       };
       settings: {
         getAllPrompts: () => Promise<Array<CustomPrompt>>;
@@ -207,33 +212,12 @@ declare global {
       releaseChannel: {
         get: () => Promise<ReleaseChannel>;
         set: (channel: ReleaseChannel) => Promise<void>;
-        listReleases: () => Promise<{
-          releases: Array<ProcessedRelease>;
-          error?: string;
-        }>;
-        checkUpdates: () => Promise<{
-          available: boolean;
-          error?: string;
-          version?: string;
-          currentVersion?: string;
-        }>;
+        listReleases: () => Promise<ReleaseListResult>;
+        checkUpdates: () => Promise<ReleaseUpdateCheckResult>;
         getCurrentVersion: () => Promise<VersionInfo>;
         onDownloadProgress: (
           callback: (progress: { percent: number; transferred: number; total: number }) => void,
         ) => () => void;
-      };
-      githubToken: {
-        get: () => Promise<string | undefined>;
-        set: (token: string) => Promise<void>;
-        clear: () => Promise<void>;
-        has: () => Promise<boolean>;
-        verify: () => Promise<{
-          isValid: boolean;
-          username?: string;
-          scopes?: string[];
-          rateLimitRemaining?: number;
-          error?: string;
-        }>;
       };
       userSettings: {
         get: () => Promise<UserSettings>;
@@ -246,11 +230,6 @@ declare global {
         onProtocolError: (callback: (message: string) => void) => () => void;
       };
       portal: {
-        getMyShaves: () => Promise<{
-          success: boolean;
-          data?: GetMyShavesResponse;
-          error?: string;
-        }>;
         getMyProjects: () => Promise<{
           success: boolean;
           data?: GetMyProjectsResponse;

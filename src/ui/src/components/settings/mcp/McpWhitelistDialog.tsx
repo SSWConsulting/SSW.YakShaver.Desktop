@@ -1,7 +1,9 @@
+import { AlertCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "../../../services/ipc-client";
-import { formatToolName } from "../../../utils";
+import { formatIpcErrorMessage, formatToolName } from "../../../utils";
+import { Alert, AlertDescription, AlertTitle } from "../../ui/alert";
 import { Button } from "../../ui/button";
 import { Checkbox } from "../../ui/checkbox";
 import {
@@ -29,23 +31,42 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!server) return;
+    // On close, clear transient state so a re-open never shows a stale
+    // tool list or error (e.g. after reauthorizing from the card) (#982).
+    if (!server) {
+      setError(null);
+      setTools([]);
+      return;
+    }
     setIsLoading(true);
+    setError(null);
     setTools([]);
     setSelected(new Set(server.toolWhitelist ?? []));
+    // Guard against a late response landing after the dialog closed or the user
+    // switched servers — otherwise a stale request overwrites the current tools
+    // or error (#982).
+    let cancelled = false;
     ipcClient.mcp
       .listServerTools(server.id ?? server.name)
       .then((list) => {
+        if (cancelled) return;
         const valid = list.filter((t) => t && typeof t.name === "string");
         const sorted = [...valid].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
         setTools(sorted);
       })
       .catch((e) => {
-        toast.error(`Failed to load tools: ${String(e)}`);
+        if (cancelled) return;
+        setError(`Failed to load tools: ${formatIpcErrorMessage(e)}`);
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [server]);
 
   const toggleTool = useCallback((toolName: string) => {
@@ -62,6 +83,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
   const handleSave = useCallback(async () => {
     if (!server || !server.id) return;
     setIsSaving(true);
+    setError(null);
     try {
       const updated: MCPServerConfig = {
         ...server,
@@ -71,7 +93,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
       toast.success(`Whitelist updated for '${server.name}'`);
       onSaved();
     } catch (e) {
-      toast.error(`Failed to save whitelist: ${String(e)}`);
+      setError(`Failed to save whitelist: ${formatIpcErrorMessage(e)}`);
     } finally {
       setIsSaving(false);
     }
@@ -81,7 +103,7 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
     <Dialog open={open} onOpenChange={(value) => (!value ? onClose() : undefined)}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Configure Tool Whitelist</DialogTitle>
+          <DialogTitle>MCP Tools</DialogTitle>
           <DialogDescription>
             Add or remove tool from whitelist for server '{server?.name}'.
           </DialogDescription>
@@ -89,8 +111,8 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
         <ScrollArea className="max-h-[50vh] pr-2">
           <div className="flex flex-col gap-3">
             {isLoading && <p className="text-sm text-muted-foreground">Loading tools…</p>}
-            {!isLoading && tools.length === 0 && (
-              <p className="text-sm text-muted-foreground">No tools available.</p>
+            {!isLoading && tools.length === 0 && !error && (
+              <p className="text-sm text-muted-foreground">No tool available</p>
             )}
             {!isLoading && tools.length > 0 && (
               <div className="flex flex-col gap-2">
@@ -126,13 +148,38 @@ export function McpWhitelistDialog({ server, onClose, onSaved }: McpWhitelistDia
             )}
           </div>
         </ScrollArea>
+        {error && (
+          // Persistent inline error (not a fleeting toast), built on the shared
+          // shadcn Alert primitive for consistency (#982). Red border + tint keep
+          // the "error" affordance; the detail stays verbatim in a softer light
+          // tone so the long transport message is legible on the dark tinted bg.
+          <Alert className="border-ssw-red/40 bg-ssw-red/10">
+            {/* text-ssw-red! overrides the Alert primitive's [&>svg]:text-current,
+                which would otherwise force the icon to the container's white. */}
+            <AlertCircle className="text-ssw-red!" />
+            <AlertTitle className="font-semibold text-ssw-red">No tool available</AlertTitle>
+            <AlertDescription className="wrap-break-word whitespace-normal text-foreground/80">
+              {error}
+            </AlertDescription>
+          </Alert>
+        )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={disabled}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={disabled}>
-            Save
-          </Button>
+          {error ? (
+            // On a load error there's nothing to select, so Cancel/Save are
+            // meaningless — offer a single neutral Close instead (#982).
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onClose} disabled={disabled}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={disabled}>
+                Save
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

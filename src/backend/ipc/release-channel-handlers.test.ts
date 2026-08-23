@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
-// Keep Electron, the real autoUpdater, and encrypted storage out of this unit test — we're
-// exercising the token-health gating logic in ReleaseChannelIPCHandlers (#919), not Electron
-// itself.
+// Keep Electron and the real autoUpdater out of this unit test. The tests exercise anonymous
+// public release access (#600), the update-ready dialog's anti-stacking behavior (#456), and the
+// startup update-check gating for PR builds (#532).
 const getVersionMock = vi.fn(() => "1.2.3");
+const showMessageBoxMock = vi.fn().mockResolvedValue({ response: 1 });
 vi.mock("electron", () => ({
   app: {
     getName: () => "YakShaver",
@@ -11,12 +12,26 @@ vi.mock("electron", () => ({
     isPackaged: true,
   },
   BrowserWindow: { getAllWindows: () => [] },
-  dialog: { showMessageBox: vi.fn().mockResolvedValue({ response: 1 }) },
+  dialog: { showMessageBox: (...args: unknown[]) => showMessageBoxMock(...args) },
   ipcMain: { handle: vi.fn() },
 }));
 
 const checkForUpdatesMock = vi.fn();
 const setFeedURLMock = vi.fn();
+const quitAndInstallMock = vi.fn();
+// Capture registered autoUpdater listeners (keyed by event name) so tests can fire events like
+// "update-downloaded" directly, the same way the real electron-updater instance would (#456).
+const autoUpdaterListeners = new Map<string, Array<(...args: unknown[]) => void>>();
+const autoUpdaterOnMock = vi.fn((event: string, listener: (...args: unknown[]) => void) => {
+  const listeners = autoUpdaterListeners.get(event) ?? [];
+  listeners.push(listener);
+  autoUpdaterListeners.set(event, listeners);
+});
+function emitAutoUpdaterEvent(event: string, ...args: unknown[]) {
+  for (const listener of autoUpdaterListeners.get(event) ?? []) {
+    listener(...args);
+  }
+}
 vi.mock("electron-updater", () => ({
   autoUpdater: {
     autoDownload: false,
@@ -24,38 +39,36 @@ vi.mock("electron-updater", () => ({
     channel: undefined,
     allowPrerelease: false,
     allowDowngrade: false,
-    requestHeaders: {},
-    on: vi.fn(),
+    on: (...args: [string, (...a: unknown[]) => void]) => autoUpdaterOnMock(...args),
     setFeedURL: (...args: unknown[]) => setFeedURLMock(...args),
     checkForUpdates: (...args: unknown[]) => checkForUpdatesMock(...args),
+    quitAndInstall: (...args: unknown[]) => quitAndInstallMock(...args),
   },
 }));
 
 vi.mock("../index", () => ({ setIsQuitting: vi.fn() }));
 vi.mock("../config/env", () => ({ config: { commitHash: () => null } }));
 
-const verifyGitHubTokenMock = vi.fn();
-vi.mock("../services/github/github-token-verifier", () => ({
-  verifyGitHubToken: (...args: unknown[]) => verifyGitHubTokenMock(...args),
-}));
-
-const getTokenMock = vi.fn();
-vi.mock("../services/storage/github-token-storage", () => ({
-  GitHubTokenStorage: { getInstance: () => ({ getToken: getTokenMock }) },
-}));
-
 const getChannelMock = vi.fn();
 const setChannelMock = vi.fn();
+const getReleaseCacheMock = vi.fn();
+const setReleaseCacheMock = vi.fn();
 vi.mock("../services/storage/release-channel-storage", () => ({
+  RELEASE_CACHE_VERSION: 1,
   ReleaseChannelStorage: {
-    getInstance: () => ({ getChannel: getChannelMock, setChannel: setChannelMock }),
+    getInstance: () => ({
+      getChannel: getChannelMock,
+      setChannel: setChannelMock,
+      getReleaseCache: getReleaseCacheMock,
+      setReleaseCache: setReleaseCacheMock,
+    }),
   },
 }));
 
 import { ReleaseChannelIPCHandlers } from "./release-channel-handlers";
 
-function releasesResponse(): Response {
-  const releases = [
+function releaseData() {
+  return [
     {
       id: 1,
       tag_name: "beta.42.1",
@@ -66,31 +79,53 @@ function releasesResponse(): Response {
       html_url: "https://example.com",
     },
   ];
-  return {
-    ok: true,
-    status: 200,
-    headers: { get: () => null },
-    json: async () => releases,
-    text: async () => JSON.stringify(releases),
-  } as unknown as Response;
 }
 
-// Reach into the private IPC-handler methods the same way the constructor wires them — via the
-// ipcMain.handle mock calls — so the test exercises exactly what the renderer would trigger.
+function cachedReleaseData() {
+  return [
+    {
+      prNumber: "42",
+      tag: "beta.42.1",
+      publishedAt: "2026-01-01T00:00:00Z",
+    },
+  ];
+}
+
+function releasesResponse(): Response {
+  return new Response(JSON.stringify(releaseData()), {
+    status: 200,
+    headers: { "Content-Type": "application/json", etag: '"release-etag"' },
+  });
+}
+
 function getRegisteredHandler(ipcMainHandleMock: Mock, channelName: string) {
   const call = ipcMainHandleMock.mock.calls.find(([channel]) => channel === channelName);
   if (!call) throw new Error(`No handler registered for ${channelName}`);
+  // ipcMain.handle's mock records unknown arguments, so the registered callback cannot be
+  // narrowed further without asserting the contract that ReleaseChannelIPCHandlers registers.
   return call[1] as (...args: unknown[]) => Promise<unknown>;
 }
 
-describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub token (#919)", () => {
+function expectAnonymousReleaseRequest(fetchMock: Mock): void {
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.any(String),
+    expect.objectContaining({
+      headers: expect.not.objectContaining({ Authorization: expect.anything() }),
+    }),
+  );
+}
+
+describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub token (#600)", () => {
   let fetchMock: Mock;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
+    // vi.clearAllMocks() clears calls but not implementations, so the version overrides the
+    // #532 startup-gating tests set below would otherwise leak into every later test.
     getVersionMock.mockReturnValue("1.2.3");
-    getTokenMock.mockResolvedValue("some-token");
     getChannelMock.mockResolvedValue({ type: "pr", channel: "beta.42" });
+    getReleaseCacheMock.mockResolvedValue(null);
+    setReleaseCacheMock.mockResolvedValue(undefined);
     fetchMock = vi.fn().mockResolvedValue(releasesResponse());
     vi.stubGlobal("fetch", fetchMock);
   });
@@ -99,9 +134,7 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
     vi.unstubAllGlobals();
   });
 
-  it("listReleases refuses to call the GitHub API and surfaces a clear error when the token is invalid", async () => {
-    verifyGitHubTokenMock.mockResolvedValue({ isValid: false, error: "Invalid or expired token" });
-
+  it("lists public PR releases anonymously", async () => {
     const { ipcMain } = await import("electron");
     new ReleaseChannelIPCHandlers();
     const listReleases = getRegisteredHandler(
@@ -111,16 +144,27 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
 
     const result = await listReleases();
 
-    expect(fetchMock).not.toHaveBeenCalled();
     expect(result).toEqual({
-      releases: [],
-      error: expect.stringMatching(/invalid|expired/i),
+      status: "success",
+      releases: [expect.objectContaining({ prNumber: "42" })],
     });
+    expectAnonymousReleaseRequest(fetchMock);
+    expect(setReleaseCacheMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 1,
+        releases: cachedReleaseData(),
+        etag: '"release-etag"',
+      }),
+    );
   });
 
-  it("listReleases succeeds and calls the GitHub API when the token is healthy", async () => {
-    verifyGitHubTokenMock.mockResolvedValue({ isValid: true, username: "octocat" });
-
+  it("reuses a fresh release response persisted by a previous app session", async () => {
+    getReleaseCacheMock.mockResolvedValue({
+      version: 1,
+      releases: cachedReleaseData(),
+      fetchedAt: Date.now(),
+      etag: '"persisted-etag"',
+    });
     const { ipcMain } = await import("electron");
     new ReleaseChannelIPCHandlers();
     const listReleases = getRegisteredHandler(
@@ -128,44 +172,151 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
       "release-channel:list-releases",
     );
 
-    const result = (await listReleases()) as {
-      releases: Array<{ prNumber: string }>;
-      error?: string;
-    };
+    const result = await listReleases();
 
-    expect(fetchMock).toHaveBeenCalled();
-    expect(result.error).toBeUndefined();
-    expect(result.releases).toHaveLength(1);
-    expect(result.releases[0].prNumber).toBe("42");
-  });
-
-  it("checkForUpdates on a PR channel refuses to download when the token is invalid — the reported bug", async () => {
-    verifyGitHubTokenMock.mockResolvedValue({ isValid: false, error: "Invalid or expired token" });
-
-    const { ipcMain } = await import("electron");
-    new ReleaseChannelIPCHandlers();
-    const checkForUpdates = getRegisteredHandler(
-      ipcMain.handle as Mock,
-      "release-channel:check-updates",
-    );
-
-    const result = await checkForUpdates();
-
-    // The core regression this issue is about: an invalid token must never reach the autoUpdater
-    // or trigger a download.
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(checkForUpdatesMock).not.toHaveBeenCalled();
-    expect(setFeedURLMock).not.toHaveBeenCalled();
     expect(result).toEqual({
-      available: false,
-      error: expect.stringMatching(/invalid|expired/i),
+      status: "success",
+      releases: [expect.objectContaining({ prNumber: "42" })],
     });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("checkForUpdates on a PR channel proceeds to the autoUpdater when the token is healthy", async () => {
-    verifyGitHubTokenMock.mockResolvedValue({ isValid: true, username: "octocat" });
-    checkForUpdatesMock.mockResolvedValue({ updateInfo: { version: "beta.42.1" } });
+  it("uses a persisted ETag and refreshes the persisted cache timestamp after a 304", async () => {
+    const now = 1_800_000_000_000;
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
+    getReleaseCacheMock.mockResolvedValue({
+      version: 1,
+      releases: cachedReleaseData(),
+      fetchedAt: now - 10 * 60 * 1000,
+      etag: '"persisted-etag"',
+    });
+    fetchMock.mockResolvedValue(new Response(null, { status: 304 }));
 
+    try {
+      const { ipcMain } = await import("electron");
+      new ReleaseChannelIPCHandlers();
+      const listReleases = getRegisteredHandler(
+        ipcMain.handle as Mock,
+        "release-channel:list-releases",
+      );
+
+      await listReleases();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({ "If-None-Match": '"persisted-etag"' }),
+        }),
+      );
+      expect(setReleaseCacheMock).toHaveBeenCalledWith(
+        expect.objectContaining({ fetchedAt: now, etag: '"persisted-etag"' }),
+      );
+    } finally {
+      dateNowSpy.mockRestore();
+    }
+  });
+
+  it("falls back to GitHub when the optional persisted cache cannot be read", async () => {
+    const warningSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getReleaseCacheMock.mockRejectedValue(new Error("Encryption is not available"));
+
+    try {
+      const { ipcMain } = await import("electron");
+      new ReleaseChannelIPCHandlers();
+      const listReleases = getRegisteredHandler(
+        ipcMain.handle as Mock,
+        "release-channel:list-releases",
+      );
+
+      const result = await listReleases();
+
+      expect(result).toEqual({
+        status: "success",
+        releases: [expect.objectContaining({ prNumber: "42" })],
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(warningSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to load GitHub release cache"),
+      );
+    } finally {
+      warningSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    {
+      name: "Retry-After",
+      headers: new Headers({ "retry-after": "120" }),
+      expectedBlockedUntil: 1_800_000_120_000,
+    },
+    {
+      name: "X-RateLimit-Reset",
+      headers: new Headers({
+        "x-ratelimit-remaining": "0",
+        "x-ratelimit-reset": "1800000180",
+      }),
+      expectedBlockedUntil: 1_800_000_180_000,
+    },
+    {
+      name: "an excessive Retry-After value",
+      headers: new Headers({ "retry-after": "999999999" }),
+      expectedBlockedUntil: 1_800_003_600_000,
+    },
+    {
+      name: "an expired X-RateLimit-Reset value",
+      headers: new Headers({
+        "x-ratelimit-remaining": "0",
+        "x-ratelimit-reset": "1700000000",
+      }),
+      expectedBlockedUntil: 1_800_000_060_000,
+    },
+  ])("stops GitHub requests until $name permits retry", async ({
+    headers,
+    expectedBlockedUntil,
+  }) => {
+    const now = 1_800_000_000_000;
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
+    getReleaseCacheMock.mockResolvedValue({
+      version: 1,
+      releases: cachedReleaseData(),
+      fetchedAt: now - 10 * 60 * 1000,
+      etag: '"persisted-etag"',
+    });
+    fetchMock.mockResolvedValue(
+      new Response("API rate limit exceeded", {
+        status: 429,
+        headers,
+      }),
+    );
+
+    try {
+      const { ipcMain } = await import("electron");
+      new ReleaseChannelIPCHandlers();
+      const listReleases = getRegisteredHandler(
+        ipcMain.handle as Mock,
+        "release-channel:list-releases",
+      );
+
+      const firstResult = await listReleases();
+      const secondResult = await listReleases();
+
+      expect(firstResult).toEqual({
+        status: "warning",
+        warning: expect.stringContaining("Showing cached release data"),
+        releases: [expect.objectContaining({ prNumber: "42" })],
+      });
+      expect(secondResult).toEqual(firstResult);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(setReleaseCacheMock).toHaveBeenCalledWith(
+        expect.objectContaining({ blockedUntil: expectedBlockedUntil }),
+      );
+    } finally {
+      dateNowSpy.mockRestore();
+    }
+  });
+
+  it("checks and downloads a public PR release anonymously", async () => {
+    checkForUpdatesMock.mockResolvedValue({ updateInfo: { version: "beta.42.1" } });
     const { ipcMain } = await import("electron");
     new ReleaseChannelIPCHandlers();
     const checkForUpdates = getRegisteredHandler(
@@ -175,89 +326,30 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
 
     const result = await checkForUpdates();
 
-    expect(setFeedURLMock).toHaveBeenCalled();
-    expect(checkForUpdatesMock).toHaveBeenCalled();
     expect(result).toEqual({
+      status: "update-available",
       available: true,
       version: "beta.42.1",
       currentVersion: "1.2.3",
     });
-  });
-
-  it("caches a healthy token-health result within the 60s TTL — a second call within the window does not re-verify", async () => {
-    vi.useFakeTimers();
-    try {
-      verifyGitHubTokenMock.mockResolvedValue({ isValid: true, username: "octocat" });
-
-      const { ipcMain } = await import("electron");
-      new ReleaseChannelIPCHandlers();
-      const listReleases = getRegisteredHandler(
-        ipcMain.handle as Mock,
-        "release-channel:list-releases",
-      );
-
-      await listReleases();
-      expect(verifyGitHubTokenMock).toHaveBeenCalledTimes(1);
-
-      // Still within the 60s cache TTL — must reuse the cached result, not re-verify.
-      vi.advanceTimersByTime(30 * 1000);
-      await listReleases();
-      expect(verifyGitHubTokenMock).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("re-verifies the token after the 60s cache TTL expires", async () => {
-    vi.useFakeTimers();
-    try {
-      verifyGitHubTokenMock.mockResolvedValue({ isValid: true, username: "octocat" });
-
-      const { ipcMain } = await import("electron");
-      new ReleaseChannelIPCHandlers();
-      const listReleases = getRegisteredHandler(
-        ipcMain.handle as Mock,
-        "release-channel:list-releases",
-      );
-
-      await listReleases();
-      expect(verifyGitHubTokenMock).toHaveBeenCalledTimes(1);
-
-      // Past the 60s cache TTL — must re-verify against GitHub rather than serve a stale result.
-      vi.advanceTimersByTime(61 * 1000);
-      await listReleases();
-      expect(verifyGitHubTokenMock).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("listReleases distinguishes 'no token configured' from 'invalid token' — no misleading invalid-token error", async () => {
-    // Regression coverage (review on #939): a user who has never configured a GitHub token must
-    // not see the same "invalid or expired" wording as someone whose saved token failed
-    // verification — isGitHubTokenHealthy() must never even reach verifyGitHubToken() in this case.
-    getTokenMock.mockResolvedValue(undefined);
-
-    const { ipcMain } = await import("electron");
-    new ReleaseChannelIPCHandlers();
-    const listReleases = getRegisteredHandler(
-      ipcMain.handle as Mock,
-      "release-channel:list-releases",
+    expect(setFeedURLMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "generic",
+        url: expect.stringContaining("/releases/download/beta.42.1"),
+      }),
     );
-
-    const result = await listReleases();
-
-    expect(verifyGitHubTokenMock).not.toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      releases: [],
-      error: expect.not.stringMatching(/invalid or expired/i),
-    });
+    expect(checkForUpdatesMock).toHaveBeenCalled();
+    expectAnonymousReleaseRequest(fetchMock);
   });
 
-  it("checkForUpdates on a PR channel distinguishes 'no token configured' from 'invalid token'", async () => {
-    getTokenMock.mockResolvedValue(undefined);
-
+  it("uses a fresh persisted cache for the first PR update check after launch", async () => {
+    getReleaseCacheMock.mockResolvedValue({
+      version: 1,
+      releases: cachedReleaseData(),
+      fetchedAt: Date.now(),
+      etag: '"persisted-etag"',
+    });
+    checkForUpdatesMock.mockResolvedValue({ updateInfo: { version: "beta.42.1" } });
     const { ipcMain } = await import("electron");
     new ReleaseChannelIPCHandlers();
     const checkForUpdates = getRegisteredHandler(
@@ -267,92 +359,36 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
 
     const result = await checkForUpdates();
 
-    expect(verifyGitHubTokenMock).not.toHaveBeenCalled();
-    expect(checkForUpdatesMock).not.toHaveBeenCalled();
     expect(result).toEqual({
-      available: false,
-      error: expect.not.stringMatching(/invalid or expired/i),
+      status: "update-available",
+      available: true,
+      version: "beta.42.1",
+      currentVersion: "1.2.3",
     });
-  });
-
-  it("does not report a rate-limited token as invalid — distinguishes 403 rate-limit from 401 invalid", async () => {
-    // Regression coverage (review on #939): verifyGitHubToken() already distinguishes a rate-limit
-    // (403) from an actually-invalid token (401) in its `error` field; isGitHubTokenHealthy() must
-    // propagate that distinction rather than reporting both as "invalid or expired".
-    verifyGitHubTokenMock.mockResolvedValue({ isValid: false, error: "Rate limit exceeded" });
-
-    const { ipcMain } = await import("electron");
-    new ReleaseChannelIPCHandlers();
-    const listReleases = getRegisteredHandler(
-      ipcMain.handle as Mock,
-      "release-channel:list-releases",
-    );
-
-    const result = await listReleases();
-
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      releases: [],
-      error: expect.stringMatching(/rate limit/i),
-    });
-    expect((result as { error?: string }).error).toEqual(
-      expect.not.stringMatching(/invalid or expired/i),
-    );
   });
 
-  it("does not report a network/transport failure as an invalid token — distinguishes offline/DNS/TLS errors from 401 invalid", async () => {
-    // Regression coverage (muster review on #939): verifyGitHubToken()'s catch block surfaces the
-    // raw fetch/DNS/TLS error text (e.g. "fetch failed") rather than "Invalid or expired token" —
-    // isGitHubTokenHealthy() must not collapse that into the generic invalid-token message, since a
-    // user who is simply offline has no evidence their token is actually bad.
-    verifyGitHubTokenMock.mockResolvedValue({ isValid: false, error: "fetch failed" });
-
-    const { ipcMain } = await import("electron");
-    new ReleaseChannelIPCHandlers();
-    const listReleases = getRegisteredHandler(
-      ipcMain.handle as Mock,
-      "release-channel:list-releases",
-    );
-
-    const result = await listReleases();
-
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      releases: [],
-      error: expect.stringMatching(/couldn't verify|network/i),
+  it("uses a fresh persisted cache when configuring the PR channel after launch", async () => {
+    getReleaseCacheMock.mockResolvedValue({
+      version: 1,
+      releases: cachedReleaseData(),
+      fetchedAt: Date.now(),
+      etag: '"persisted-etag"',
     });
-    expect((result as { error?: string }).error).toEqual(
-      expect.not.stringMatching(/invalid or expired/i),
-    );
-  });
+    const handlers = new ReleaseChannelIPCHandlers();
 
-  it("configureAutoUpdater still (re)starts periodic checks on the unhealthy-token early-return path", async () => {
-    // Regression coverage (review on #939): configureAutoUpdater() used to return early on an
-    // unhealthy token without reaching the startPeriodicUpdateChecks() call at the end of the
-    // method — meaning periodic checks would never (re)start later if the token became healthy
-    // again without another explicit reconfigure call. Assert the timer gets armed even on this
-    // early-return path by advancing past one interval and observing a checkForUpdates-driven call.
-    vi.useFakeTimers();
     try {
-      verifyGitHubTokenMock.mockResolvedValue({
-        isValid: false,
-        error: "Invalid or expired token",
-      });
-      getChannelMock.mockResolvedValue({ type: "pr", channel: "beta.42" });
-
-      const handlers = new ReleaseChannelIPCHandlers();
       await handlers.configureAutoUpdater({ type: "pr", channel: "beta.42" });
 
-      // The unhealthy token blocked configuration itself (no feed URL set)...
-      expect(setFeedURLMock).not.toHaveBeenCalled();
-
-      // ...but the periodic timer must still be armed: advancing past one interval should invoke
-      // the gated checkForUpdates() path, which re-verifies the token via verifyGitHubToken().
-      const callsBefore = verifyGitHubTokenMock.mock.calls.length;
-      await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 1000);
-      expect(verifyGitHubTokenMock.mock.calls.length).toBeGreaterThan(callsBefore);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(setFeedURLMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "generic",
+          url: expect.stringContaining("/releases/download/beta.42.1"),
+        }),
+      );
     } finally {
-      vi.useRealTimers();
+      handlers.stopPeriodicUpdateChecks();
     }
   });
 
@@ -365,14 +401,23 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
     // call, so configureAutoUpdater's own gated immediate-check is now the only startup check path.
     // The current version matches the latest PR release's tag exactly, so no check should fire.
     getVersionMock.mockReturnValue("beta.42.1");
-    verifyGitHubTokenMock.mockResolvedValue({ isValid: true, username: "octocat" });
 
+    vi.useFakeTimers();
     const handlers = new ReleaseChannelIPCHandlers();
-    await handlers.configureAutoUpdater({ type: "pr", channel: "beta.42" }, true);
+    try {
+      await handlers.configureAutoUpdater({ type: "pr", channel: "beta.42" }, true);
 
-    expect(setFeedURLMock).toHaveBeenCalled();
-    // Already on the latest release for this PR — the immediate check must be skipped entirely.
-    expect(checkForUpdatesMock).not.toHaveBeenCalled();
+      expect(setFeedURLMock).toHaveBeenCalled();
+      // The immediate check is scheduled via setTimeout(..., 2000); advance past it so this
+      // asserts the isOnLatest gate really suppressed the check, rather than just observing that
+      // the timer had not fired yet.
+      await vi.advanceTimersByTimeAsync(2100);
+      // Already on the latest release for this PR — the immediate check must be skipped entirely.
+      expect(checkForUpdatesMock).not.toHaveBeenCalled();
+    } finally {
+      handlers.stopPeriodicUpdateChecks();
+      vi.useRealTimers();
+    }
   });
 
   it("configureAutoUpdater on startup does trigger a check when a newer PR build is available", async () => {
@@ -380,12 +425,11 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
     // a check that always no-ops. When the running version differs from the latest PR release tag,
     // the immediate check must still fire.
     getVersionMock.mockReturnValue("beta.42.0-older");
-    verifyGitHubTokenMock.mockResolvedValue({ isValid: true, username: "octocat" });
     checkForUpdatesMock.mockResolvedValue({ updateInfo: { version: "beta.42.1" } });
 
     vi.useFakeTimers();
+    const handlers = new ReleaseChannelIPCHandlers();
     try {
-      const handlers = new ReleaseChannelIPCHandlers();
       await handlers.configureAutoUpdater({ type: "pr", channel: "beta.42" }, true);
       expect(setFeedURLMock).toHaveBeenCalled();
 
@@ -393,15 +437,18 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
       await vi.advanceTimersByTimeAsync(2100);
       expect(checkForUpdatesMock).toHaveBeenCalled();
     } finally {
+      handlers.stopPeriodicUpdateChecks();
       vi.useRealTimers();
     }
   });
 
-  it("does not require a token at all for the latest stable channel", async () => {
-    getChannelMock.mockResolvedValue({ type: "latest" });
-    getTokenMock.mockResolvedValue(undefined);
-    checkForUpdatesMock.mockResolvedValue(null);
-
+  it("reports the rate limit instead of claiming the selected PR has no releases", async () => {
+    fetchMock.mockResolvedValue(
+      new Response("API rate limit exceeded", {
+        status: 429,
+        headers: { "retry-after": "120" },
+      }),
+    );
     const { ipcMain } = await import("electron");
     new ReleaseChannelIPCHandlers();
     const checkForUpdates = getRegisteredHandler(
@@ -411,8 +458,187 @@ describe("ReleaseChannelIPCHandlers — PR releases require a healthy GitHub tok
 
     const result = await checkForUpdates();
 
-    // verifyGitHubToken is never even consulted for the stable channel.
-    expect(verifyGitHubTokenMock).not.toHaveBeenCalled();
-    expect(result).toEqual({ available: false, currentVersion: "1.2.3" });
+    expect(result).toEqual({
+      status: "error",
+      available: false,
+      error: "GitHub API rate limit exceeded. Try again later.",
+      currentVersion: "1.2.3",
+    });
+    expect(checkForUpdatesMock).not.toHaveBeenCalled();
+  });
+
+  it("warns instead of claiming the cached PR release is current while rate-limited", async () => {
+    getReleaseCacheMock.mockResolvedValue({
+      version: 1,
+      releases: cachedReleaseData(),
+      fetchedAt: Date.now() - 10 * 60 * 1000,
+      etag: '"persisted-etag"',
+      blockedUntil: Date.now() + 10 * 60 * 1000,
+    });
+    const { ipcMain } = await import("electron");
+    new ReleaseChannelIPCHandlers();
+    const checkForUpdates = getRegisteredHandler(
+      ipcMain.handle as Mock,
+      "release-channel:check-updates",
+    );
+
+    const result = await checkForUpdates();
+
+    expect(result).toEqual({
+      status: "warning",
+      available: false,
+      warning:
+        "GitHub API rate limit reached. Showing cached release data; updates cannot be confirmed yet.",
+      currentVersion: "1.2.3",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(checkForUpdatesMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("ReleaseChannelIPCHandlers — update-ready reminder dialog (#456)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    autoUpdaterListeners.clear();
+    showMessageBoxMock.mockReset();
+  });
+
+  it("states explicitly that the reminder returns after restart, instead of ambiguous 'Later' (#999)", async () => {
+    showMessageBoxMock.mockResolvedValue({ response: 1 });
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+
+    const options = showMessageBoxMock.mock.calls[0][0];
+    expect(options.buttons).toEqual(["Restart Now", "Remind Me After Restart"]);
+    expect(options.buttons).not.toContain("Later");
+    expect(options.message).toMatch(/next time you start YakShaver/i);
+  });
+
+  it("treats native dismissal (Escape/close) the same as clicking Remind Me After Restart, via cancelId", async () => {
+    // dialog.showMessageBox resolves with { response: cancelId } when the user dismisses the
+    // dialog natively (Escape or the close box) instead of clicking a button. cancelId is set to
+    // 1 ("Remind Me After Restart"), so this must suppress further reminders exactly like an
+    // explicit click on that button.
+    showMessageBoxMock.mockResolvedValue({ response: 1 });
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+
+    // A subsequent update-downloaded event in the same session must not reopen the dialog.
+    emitAutoUpdaterEvent("update-downloaded");
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not stack a second reminder dialog while the first is still awaiting a response", async () => {
+    // The reported bug's second half: "If the reminder dialog is open already, a subsequent
+    // update check should not open another reminder dialog on top of it." Simulate the first
+    // dialog's promise never resolving (user hasn't answered yet) and fire a second
+    // "update-downloaded" event (e.g. the periodic background check landing mid-dialog) — only one
+    // dialog must ever be shown.
+    let resolveFirstDialog: ((result: { response: number }) => void) | undefined;
+    showMessageBoxMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstDialog = resolve;
+        }),
+    );
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    emitAutoUpdaterEvent("update-downloaded");
+
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+
+    // Resolve the first dialog and wait for the handler's .then/.finally chain to flush before
+    // the test ends, matching the sibling test's vi.waitFor pattern rather than firing-and-forgetting.
+    resolveFirstDialog?.({ response: 1 });
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps suppressing duplicate reminders while a long-running dialog remains open", async () => {
+    vi.useFakeTimers();
+    try {
+      showMessageBoxMock.mockImplementation(() => new Promise(() => {})); // never settles
+
+      new ReleaseChannelIPCHandlers();
+
+      emitAutoUpdaterEvent("update-downloaded");
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+
+      // Advance beyond both the removed five-minute watchdog and the ten-minute update interval.
+      await vi.advanceTimersByTimeAsync(11 * 60 * 1000);
+
+      // The original native dialog is still visible, so another event must remain suppressed.
+      emitAutoUpdaterEvent("update-downloaded");
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("releases the guard after a dialog error so a later event can retry", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    showMessageBoxMock
+      .mockRejectedValueOnce(new Error("dialog failed"))
+      .mockImplementationOnce(() => new Promise(() => {}));
+
+    try {
+      new ReleaseChannelIPCHandlers();
+
+      emitAutoUpdaterEvent("update-downloaded");
+      await vi.waitFor(() => expect(errorSpy).toHaveBeenCalledTimes(1));
+
+      emitAutoUpdaterEvent("update-downloaded");
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(2);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("does not show a reminder again this session after the user clicks Remind Me After Restart — the originally reported bug", async () => {
+    // The reported bug's first half: clicking "Remind Me After Restart" (#999, formerly "Later")
+    // must stop further reminders for the rest of the current session, even when the periodic
+    // ~10-minute check fires again.
+    showMessageBoxMock.mockResolvedValue({ response: 1 }); // 1 = "Remind Me After Restart"
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+
+    // Simulate the periodic check finding the same update again later in the session.
+    emitAutoUpdaterEvent("update-downloaded");
+    emitAutoUpdaterEvent("update-downloaded");
+
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show another reminder after the user clicks Restart Now, even before quitAndInstall fires", async () => {
+    // Regression coverage (review on #456): isUpdateDialogOpen resets in .finally() synchronously,
+    // but the real quit (autoUpdater.quitAndInstall) is deferred via setImmediate. A second
+    // "update-downloaded" event landing in that gap must not stack a dialog moments before the app
+    // quits — pinned here via the isRestartingToInstall short-circuit.
+    showMessageBoxMock.mockResolvedValue({ response: 0 }); // 0 = "Restart Now"
+
+    new ReleaseChannelIPCHandlers();
+
+    emitAutoUpdaterEvent("update-downloaded");
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(1));
+
+    // A second event landing after the dialog resolved (isUpdateDialogOpen already released) but
+    // before the deferred quitAndInstall() fires must still be suppressed.
+    emitAutoUpdaterEvent("update-downloaded");
+
+    expect(showMessageBoxMock).toHaveBeenCalledTimes(1);
+
+    // Let the deferred quitAndInstall() flush before the test ends, so it doesn't fire during a
+    // later test.
+    await vi.waitFor(() => expect(quitAndInstallMock).toHaveBeenCalledTimes(1));
   });
 });

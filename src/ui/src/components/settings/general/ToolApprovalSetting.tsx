@@ -22,7 +22,8 @@ const MODE_OPTIONS: readonly ModeOption[] = [
   {
     id: "ask",
     title: "Ask",
-    description: "Pause for your approval before running MCP tools that are not whitelisted.",
+    description:
+      "Pause for your approval before the agent runs MCP tools that are not whitelisted.",
   },
   {
     id: "wait",

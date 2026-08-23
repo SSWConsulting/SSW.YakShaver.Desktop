@@ -14,7 +14,12 @@ const configureSqlite = (sqliteInstance: Database.Database): void => {
 export const getDbPath = (): string => {
   const databaseFileName = "database.sqlite";
   if (process.env.NODE_ENV === "development") {
-    return path.join(process.cwd(), "data", databaseFileName);
+    // Anchored to the app directory rather than the working directory: when Windows launches the
+    // app to service a `yakshaver-desktop-dev://` deep link it starts the process from its own
+    // directory (system32), and a cwd-relative path sent this at an unwritable location. Because
+    // this module opens the database as it loads, that threw before the single-instance handler
+    // could hand the URL to the running app.
+    return path.join(app.getAppPath(), "data", databaseFileName);
   }
   return path.join(app.getPath("userData"), databaseFileName);
 };

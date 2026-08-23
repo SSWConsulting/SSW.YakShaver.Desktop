@@ -118,3 +118,24 @@ describe("SettingsNav (#803) keyboard navigation", () => {
     expect(buttons[0]).toHaveAttribute("tabindex", "-1");
   });
 });
+
+describe("SettingsNav (#785) scrollable when window height is reduced", () => {
+  it("renders the tablist inside a scroll-area viewport, not a plain overflow div", () => {
+    // #785: the nav previously scrolled via a bare `overflow-y-auto` div, whose
+    // scrollbar is the OS/browser's native one — which can render with zero
+    // visible width (observed on Linux/GTK themes) or stay hidden until
+    // scrolled (macOS default), leaving no visible affordance that more tabs
+    // exist below the fold. The tablist must live inside the shared
+    // `ScrollArea` (the same styled-scrollbar component the settings panel
+    // uses) so it gets a visible, cross-OS-consistent scrollbar whenever its
+    // content overflows.
+    render(<SettingsNav tabs={tabs} activeTabId="general" onSelect={vi.fn()} />);
+
+    const tablist = screen.getByRole("tablist", { name: "Settings sections" });
+    const viewport = tablist.closest('[data-slot="scroll-area-viewport"]');
+    expect(viewport).not.toBeNull();
+
+    const scrollAreaRoot = viewport?.closest('[data-slot="scroll-area"]');
+    expect(scrollAreaRoot).not.toBeNull();
+  });
+});

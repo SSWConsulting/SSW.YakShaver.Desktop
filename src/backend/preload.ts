@@ -1,5 +1,5 @@
 import type { Hotkeys, UserSettings } from "@shared/types/user-settings";
-import type { WorkflowState } from "@shared/types/workflow";
+import type { GetWorkflowStateResult, WorkflowState } from "@shared/types/workflow";
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 import type { TelemetrySettings } from "../shared/types/telemetry";
 import type {
@@ -75,12 +75,14 @@ const IPC_CHANNELS = {
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
+  MCP_REAUTHORIZE: "mcp:reauthorize",
 
   // Automated workflow
   WORKFLOW_PROGRESS_NEO: "workflow:progress-neo",
   // Resume from failure: restores checkpoint data and re-runs from the failed stage onward.
   // Different from RERUN_TASK which is a user-initiated re-execution after success.
   WORKFLOW_RETRY_FROM_STAGE: "workflow:retry-from-stage",
+  WORKFLOW_GET_STATE: "workflow:get-state",
   WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
   WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
 
@@ -115,13 +117,6 @@ const IPC_CHANNELS = {
   RELEASE_CHANNEL_GET_CURRENT_VERSION: "release-channel:get-current-version",
   RELEASE_CHANNEL_DOWNLOAD_PROGRESS: "release-channel:download-progress",
 
-  // GitHub Token
-  GITHUB_TOKEN_GET: "github-token:get",
-  GITHUB_TOKEN_SET: "github-token:set",
-  GITHUB_TOKEN_CLEAR: "github-token:clear",
-  GITHUB_TOKEN_HAS: "github-token:has",
-  GITHUB_TOKEN_VERIFY: "github-token:verify",
-
   // App Control
   APP_RESTART: "app:restart",
   APP_OPEN_EXTERNAL: "app:open-external",
@@ -130,7 +125,6 @@ const IPC_CHANNELS = {
   PROTOCOL_ERROR: "protocol:error",
 
   // Portal API
-  PORTAL_GET_MY_SHAVES: "portal:get-my-shaves",
   PORTAL_GET_MY_PROJECTS: "portal:get-my-projects",
   PORTAL_CANCEL_WORK_ITEM: "portal:cancel-work-item",
 
@@ -157,6 +151,7 @@ const IPC_CHANNELS = {
   // Cloud 360 orchestration
   CLOUD360_EVENT: "cloud-360:event",
   CLOUD360_LIST_PROJECTS: "cloud-360:list-projects",
+  CLOUD360_CHECK_CREDITS: "cloud-360:check-credits",
 } as const;
 
 const onIpcEvent = <T>(channel: string, callback: (payload: T) => void) => {
@@ -263,8 +258,10 @@ const electronAPI = {
   workflow: {
     onProgressNeo: (callback: (progress: unknown) => void) =>
       onIpcEvent(IPC_CHANNELS.WORKFLOW_PROGRESS_NEO, callback),
-    retryFromStage: (stage: keyof WorkflowState, shaveId?: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId),
+    retryFromStage: (stage: keyof WorkflowState, shaveId?: string, customPrompt?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RETRY_FROM_STAGE, stage, shaveId, customPrompt),
+    getState: (shaveId: string): Promise<GetWorkflowStateResult> =>
+      ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_STATE, shaveId),
     getRetryStatus: (shaveId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
     cancelRetry: (shaveId: string) =>
@@ -272,6 +269,7 @@ const electronAPI = {
   },
   cloud360: {
     listProjects: () => ipcRenderer.invoke(IPC_CHANNELS.CLOUD360_LIST_PROJECTS),
+    checkCredits: () => ipcRenderer.invoke(IPC_CHANNELS.CLOUD360_CHECK_CREDITS),
   },
   llm: {
     setConfig: (config: unknown) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_CONFIG, config),
@@ -319,6 +317,8 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, serverId),
     clearTokensAsync: (serverId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_CLEAR_TOKENS, serverId),
+    reauthorizeAsync: (serverId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.MCP_REAUTHORIZE, serverId),
   },
   settings: {
     getAllPrompts: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_ALL_PROMPTS),
@@ -357,20 +357,6 @@ const electronAPI = {
       callback: (progress: { percent: number; transferred: number; total: number }) => void,
     ) => onIpcEvent(IPC_CHANNELS.RELEASE_CHANNEL_DOWNLOAD_PROGRESS, callback),
   },
-  githubToken: {
-    get: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_GET),
-    set: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_SET, token),
-    clear: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_CLEAR),
-    has: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_HAS),
-    verify: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.GITHUB_TOKEN_VERIFY) as Promise<{
-        isValid: boolean;
-        username?: string;
-        scopes?: string[];
-        rateLimitRemaining?: number;
-        error?: string;
-      }>,
-  },
   userSettings: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
     update: (patch: Partial<UserSettings>) =>
@@ -385,7 +371,6 @@ const electronAPI = {
       onIpcEvent<string>(IPC_CHANNELS.PROTOCOL_ERROR, callback),
   },
   portal: {
-    getMyShaves: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_SHAVES),
     getMyProjects: () => ipcRenderer.invoke(IPC_CHANNELS.PORTAL_GET_MY_PROJECTS),
     cancelWorkItem: (workItemId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.PORTAL_CANCEL_WORK_ITEM, workItemId),

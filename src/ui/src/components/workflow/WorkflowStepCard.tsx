@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Loader2,
   RefreshCw,
   Sparkles,
   XCircle,
@@ -15,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { formatErrorMessage, isErrorStep } from "@/utils";
 import { ipcClient } from "../../services/ipc-client";
 import type { MCPStep } from "../../types";
+import { LoadingState } from "../common/LoadingState";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
@@ -60,8 +60,8 @@ function OrchestratorBadge({ backend }: { backend: OrchestratorBackend }) {
 
 const STATUS_CONFIG = {
   in_progress: {
-    icon: Loader2,
-    iconClass: "animate-spin text-zinc-300",
+    icon: null,
+    iconClass: "text-zinc-300",
     containerClass: "border-gray-500/30 bg-gray-500/5",
     textClass: "text-white/90",
   },
@@ -87,6 +87,11 @@ const STATUS_CONFIG = {
 
 function StatusIcon({ status, className }: { status: WorkflowStep["status"]; className?: string }) {
   const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
+
+  if (status === "in_progress") {
+    return <LoadingState inline className={cn("size-5", config.iconClass, className)} />;
+  }
+
   const Icon = config.icon;
 
   if (!Icon) {
@@ -130,6 +135,11 @@ interface WorkflowStepCardProps {
 export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  // #698: only the Executing Task stage can usefully take a custom retry prompt — it's the
+  // stage that drives the AI agent loop, so a more specific prompt can steer it away from
+  // whatever got it stuck (e.g. a timeout from retrying a tool/resource that doesn't exist).
+  const [showPromptInput, setShowPromptInput] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
 
   const { hasPayload, parsedPayload, hasStepErrors, hasStructuredSteps } = useMemo(() => {
     if (!step.payload)
@@ -177,8 +187,18 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
 
   if (step.status === "skipped") return null;
 
-  // Only non-failed states get expand/collapse for payload
-  const isExpandable = !isFailed && hasPayload;
+  // #523: failed steps are expandable too (when they carry a payload) so the error
+  // detail is opt-in via the same click-to-expand affordance as other rows, instead
+  // of always rendering a prominent red block for a collapsed row.
+  const isExpandable = hasPayload;
+
+  const errorMessage = isFailed ? extractErrorMessage(parsedPayload) : null;
+
+  // #974 review: a single shared condition for "there is error detail behind the
+  // expand toggle", used by both the expanded CardContent block below and the
+  // collapsed-row hint, so the two can never independently drift out of sync.
+  const hasErrorDetail =
+    isFailed && ((hasStructuredSteps && hasPayload) || (!hasStructuredSteps && !!errorMessage));
 
   const config =
     STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
@@ -186,6 +206,8 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
   const toggleExpand = () => {
     if (isExpandable) setIsExpanded(!isExpanded);
   };
+
+  const isExecutingTaskStage = step.stage === "executing_task";
 
   const handleRetry = async () => {
     if (!shaveId) return;
@@ -195,10 +217,13 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
       const result = await ipcClient.workflow.retryFromStage(
         step.stage as keyof WorkflowState,
         shaveId,
+        isExecutingTaskStage ? customPrompt.trim() || undefined : undefined,
       );
       if (!result?.success) {
         throw new Error(result?.error || "Retry failed");
       }
+      setShowPromptInput(false);
+      setCustomPrompt("");
     } catch (error) {
       toast.error("Retry failed", {
         description: formatErrorMessage(error),
@@ -208,24 +233,41 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
     }
   };
 
-  const errorMessage = isFailed ? extractErrorMessage(parsedPayload) : null;
-
   return (
     <Card className={cn("rounded-lg p-3 gap-0 transition-all", config.containerClass)}>
       {/* Header row */}
       <div className="flex items-center gap-3">
-        {isExpandable ? (
-          <Button
-            variant="ghost"
-            onClick={toggleExpand}
-            className="h-auto flex-1 justify-between p-0 text-base hover:bg-transparent hover:text-current dark:hover:bg-transparent"
-            aria-expanded={isExpanded}
-          >
-            <div className="flex items-center gap-3 flex-1">
-              <StatusIcon status={effectiveStatus} />
+        {/* #974 review: the header is always a <Button>, whether or not the row is
+            currently expandable — toggling isExpandable used to swap the element type
+            between <Button> and <div> at this DOM position, which forces React to
+            unmount/remount the subtree (dropping focus/hover) every time. Disabling it
+            keeps identity stable across renders and removes that as a flicker source. */}
+        <Button
+          variant="ghost"
+          onClick={toggleExpand}
+          disabled={!isExpandable}
+          className="h-auto flex-1 justify-between p-0 text-base hover:bg-transparent hover:text-current dark:hover:bg-transparent disabled:opacity-100 disabled:pointer-events-auto disabled:cursor-default"
+          aria-expanded={isExpandable ? isExpanded : undefined}
+        >
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <StatusIcon status={effectiveStatus} />
+            <span className="flex shrink-0 items-center gap-1">
               <span className={cn("font-medium", config.textClass)}>{label}</span>
-              {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
-            </div>
+              {/* Keep the visual affordance out of the accessible label. */}
+              {isExpandable && (
+                <span aria-hidden="true" className={config.textClass}>
+                  &hellip;
+                </span>
+              )}
+            </span>
+            {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
+            {isFailed && (
+              <span className="sr-only">
+                {hasErrorDetail ? "Error. Expand for details." : "Error."}
+              </span>
+            )}
+          </div>
+          {isExpandable && (
             <div className="text-white/50 hover:text-white/90">
               {isExpanded ? (
                 <ChevronDown className="size-4" />
@@ -233,24 +275,19 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
                 <ChevronRight className="size-4" />
               )}
             </div>
-          </Button>
-        ) : (
-          <div className="flex items-center gap-3 flex-1">
-            <StatusIcon status={effectiveStatus} />
-            <span className={cn("font-medium", config.textClass)}>{label}</span>
-            {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
-          </div>
-        )}
-        {step.status === "failed" && shaveId && (
+          )}
+        </Button>
+        {step.status === "failed" && shaveId && !showPromptInput && (
           <Button
             size="sm"
             variant="ghost"
             disabled={isRetrying}
             onClick={handleRetry}
+            aria-label={isRetrying ? `Retrying ${label}` : undefined}
             className="bg-white/[0.08] border border-white/[0.15] hover:bg-white/[0.12] text-white/80 shrink-0"
           >
             {isRetrying ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <LoadingState inline className="size-3.5" />
             ) : (
               <>
                 <RefreshCw className="size-3.5 mr-1.5" />
@@ -259,17 +296,71 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             )}
           </Button>
         )}
+        {step.status === "failed" && shaveId && isExecutingTaskStage && !showPromptInput && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={isRetrying}
+            onClick={() => setShowPromptInput(true)}
+            className="bg-white/[0.08] border border-white/[0.15] hover:bg-white/[0.12] text-white/60 shrink-0"
+            title="Retry with a custom prompt"
+          >
+            <Sparkles className="size-3.5" />
+          </Button>
+        )}
       </div>
 
-      {/* Error content area — always visible for failed cards */}
-      {isFailed && hasStructuredSteps && hasPayload && (
+      {/* #698: optional custom prompt for retrying the Executing Task stage after a failure
+          (e.g. a timeout) — lets the user steer the retry instead of repeating the exact same
+          run that got stuck. */}
+      {step.status === "failed" && shaveId && isExecutingTaskStage && showPromptInput && (
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="text"
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            placeholder="Optional: add instructions for the retry"
+            disabled={isRetrying}
+            className="h-8 flex-1 min-w-0 rounded border border-white/[0.15] bg-black/20 px-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-white/30"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleRetry();
+            }}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={isRetrying}
+            onClick={handleRetry}
+            aria-label={isRetrying ? `Retrying ${label}` : undefined}
+            className="bg-white/[0.08] border border-white/[0.15] hover:bg-white/[0.12] text-white/80 shrink-0"
+          >
+            {isRetrying ? (
+              <LoadingState inline className="size-3.5" />
+            ) : (
+              <>
+                <RefreshCw className="size-3.5 mr-1.5" />
+                Retry
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      {/* #523: error/detail content only renders once the row is expanded — a failed
+          row is no longer forced open, so its error stays subtle (see the inline hint
+          above) until the user opts in. This also removes the flicker previously caused
+          by the always-on block snapping open/closed as executing_task's live payload
+          toggled effectiveStatus between "failed" and "completed". Both branches below
+          share the hasErrorDetail condition with the collapsed hint above so the two
+          can't drift apart. */}
+      {isExpanded && hasErrorDetail && hasStructuredSteps && (
         <CardContent className="p-0 pt-2">
           <div className="overflow-x-auto rounded bg-black/20 p-2 text-white/80">
             <StageWithContent stage={step.stage} payload={parsedPayload} />
           </div>
         </CardContent>
       )}
-      {isFailed && !hasStructuredSteps && errorMessage && (
+      {isExpanded && hasErrorDetail && !hasStructuredSteps && (
         <CardContent className="p-0 pt-2">
           <div className="rounded bg-black/20 p-3 text-sm">
             <p className="text-red-400">An error occurred. Please check the details below.</p>
@@ -280,8 +371,8 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
         </CardContent>
       )}
 
-      {/* Expandable details — non-failed payloads only */}
-      {isExpanded && isExpandable && hasPayload && (
+      {/* Expandable details — non-failed payloads */}
+      {isExpanded && isExpandable && !isFailed && hasPayload && (
         <CardContent className="p-0 pt-2">
           <div className="overflow-x-auto rounded bg-black/20 p-2 text-white/80">
             <StageWithContent stage={step.stage} payload={parsedPayload} />

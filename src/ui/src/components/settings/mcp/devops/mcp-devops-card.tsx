@@ -25,7 +25,7 @@ export function McpAzureDevOpsCard({
 }: McpDevOpsCardProps) {
   const configLocal = config ?? AZURE_DEVOPS_PRESET_CONFIG;
 
-  const { handleOnConnect, handleOnDisconnect } = useMcpCardActions(
+  const { handleOnConnect, handleOnDisconnect, handleOnReauthorize } = useMcpCardActions(
     McpAzureDevOpsCard.Id,
     configLocal,
     onChange,
@@ -38,6 +38,7 @@ export function McpAzureDevOpsCard({
       healthInfo={healthInfo}
       onConnect={handleOnConnect}
       onDisconnect={handleOnDisconnect}
+      onReauthorize={handleOnReauthorize}
       onTools={onTools}
       viewMode={viewMode}
       hideDelete={true}

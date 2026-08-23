@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { VideoUploadResult } from "../auth/types";
 import {
   applyPortalVideoFields,
+  applyResolvedTitleToOwnedVideoMetadata,
   applyVideoMetadataPersistence,
   decideVideoMetadataPersistence,
   derivePortalVideoFields,
@@ -456,5 +457,38 @@ describe("applyPortalVideoFields wiring (#808 Tenant view)", () => {
     expect(dto.uploadedVideoProvider).toBeNull();
     expect(dto.uploadedVideoUrl).toBe("https://example.com/videos/some-clip");
     expect(dto.uploadedVideoEmbedUrl).toBeNull();
+  });
+});
+
+describe("applyResolvedTitleToOwnedVideoMetadata", () => {
+  const makeMetadata = () => ({
+    snippet: { title: "Title the model wrote for the video" },
+    metadata: { title: "Title the model wrote for the video" },
+  });
+
+  it("aligns the uploaded video with the work item's own title", () => {
+    const metadata = makeMetadata();
+
+    expect(applyResolvedTitleToOwnedVideoMetadata(metadata, "🐛 The issue's real title")).toBe(
+      true,
+    );
+    // Both halves matter: `snippet` is what YouTube receives, `metadata` is what the stage payload
+    // shows the user. Updating only one would put the workflow panel and YouTube out of step.
+    expect(metadata.snippet.title).toBe("🐛 The issue's real title");
+    expect(metadata.metadata.title).toBe("🐛 The issue's real title");
+  });
+
+  it("leaves the video untouched when the title could not be read back", () => {
+    const metadata = makeMetadata();
+
+    expect(applyResolvedTitleToOwnedVideoMetadata(metadata, undefined)).toBe(false);
+    expect(metadata.snippet.title).toBe("Title the model wrote for the video");
+  });
+
+  it("ignores a whitespace-only title rather than blanking the video", () => {
+    const metadata = makeMetadata();
+
+    expect(applyResolvedTitleToOwnedVideoMetadata(metadata, "   ")).toBe(false);
+    expect(metadata.snippet.title).toBe("Title the model wrote for the video");
   });
 });

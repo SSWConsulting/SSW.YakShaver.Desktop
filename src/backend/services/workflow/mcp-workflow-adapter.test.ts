@@ -102,4 +102,73 @@ describe("McpWorkflowAdapter", () => {
   it("targets the EXECUTING_TASK stage", () => {
     expect(WorkflowProgressStage.EXECUTING_TASK).toBe("executing_task");
   });
+
+  /**
+   * #698: `runManualLoopWithTimeout` abandons the underlying `manualLoopAsync` call on timeout
+   * without necessarily stopping it (MCPOrchestrator ignores the cancellation signal). Because
+   * `WorkflowStateManager` instances are cached and reused per shaveId across retries, a late
+   * `onStep`/`complete`/`fail` from that abandoned call would otherwise land on whatever the next
+   * attempt has since written. `discard()` is the guard against that.
+   */
+  describe("discard() (#698)", () => {
+    it("ignores onStep after discard", () => {
+      const { manager, readPayload } = makeStubManager();
+      const adapter = new McpWorkflowAdapter(manager, { orchestrator: "openai" });
+
+      adapter.onStep({ type: "start", message: "before discard" });
+      adapter.discard();
+      adapter.onStep({ type: "tool_call", toolName: "create_backlog_item" });
+
+      expect(readPayload().steps).toHaveLength(1);
+    });
+
+    it("ignores complete() after discard", () => {
+      const { manager, readPayload, getStatus } = makeStubManager();
+      const adapter = new McpWorkflowAdapter(manager, { orchestrator: "openai" });
+      // Constructing with initialContext seeds the payload and sets status "in_progress" — that's
+      // the baseline discard() must leave untouched (it only guards AGAINST FURTHER writes).
+      const statusBeforeDiscard = getStatus();
+
+      adapter.discard();
+      adapter.complete("late result", "late output");
+
+      expect(getStatus()).toBe(statusBeforeDiscard);
+      expect(readPayload().mcpResult).toBeUndefined();
+    });
+
+    it("ignores fail() after discard", () => {
+      const { manager, readPayload, getStatus } = makeStubManager();
+      const adapter = new McpWorkflowAdapter(manager, { orchestrator: "openai" });
+      const statusBeforeDiscard = getStatus();
+
+      adapter.discard();
+      adapter.fail("late result", "late output", "late error");
+
+      expect(getStatus()).toBe(statusBeforeDiscard);
+      expect(readPayload().error).toBeUndefined();
+    });
+
+    it("does not affect a fresh adapter for the same manager (simulating a subsequent retry)", () => {
+      const { manager, readPayload, getStatus } = makeStubManager();
+
+      const timedOutAttempt = new McpWorkflowAdapter(manager, { orchestrator: "openai" });
+      timedOutAttempt.onStep({ type: "start", message: "attempt 1" });
+      timedOutAttempt.discard();
+
+      // A retry for the same shaveId reuses the same WorkflowStateManager instance in the real
+      // IPC handler (workflowManagers is keyed by shaveId), but gets its own adapter.
+      const retryAttempt = new McpWorkflowAdapter(manager, { orchestrator: "claude-code" });
+      retryAttempt.onStep({ type: "start", message: "attempt 2" });
+      retryAttempt.complete("retry result", "retry output");
+
+      expect(getStatus()).toBe("completed");
+      expect(readPayload().mcpResult).toBe("retry result");
+
+      // The discarded attempt 1 adapter must not be able to clobber this even if its underlying
+      // call finally settles after the retry has already completed.
+      timedOutAttempt.complete("stale late result", "stale late output");
+      expect(getStatus()).toBe("completed");
+      expect(readPayload().mcpResult).toBe("retry result");
+    });
+  });
 });

@@ -24,7 +24,6 @@ export function ResetAccountSetting() {
     setIsResetting(true);
     try {
       await ipcClient.llm.clearConfig();
-      await ipcClient.githubToken.clear();
 
       const servers = await ipcClient.mcp.listServers();
       for (const server of servers) {
@@ -87,7 +86,6 @@ export function ResetAccountSetting() {
               <ul className="list-disc list-inside mt-2 space-y-1">
                 <li>Log you out of YouTube</li>
                 <li>Log you out of Microsoft services</li>
-                <li>Clear your GitHub token</li>
                 <li>Remove all MCP server configurations</li>
                 <li>Clear your LLM API keys</li>
                 <li>Clear your custom prompts</li>

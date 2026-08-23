@@ -4,24 +4,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ReleaseChannelSetting } from "./ReleaseChannelSetting";
 
 // vi.hoisted so the mock factory (hoisted above the imports) can reference these.
-const {
-  get,
-  set,
-  listReleases,
-  checkUpdates,
-  getCurrentVersion,
-  onDownloadProgress,
-  hasToken,
-  verifyToken,
-} = vi.hoisted(() => ({
-  get: vi.fn(),
-  set: vi.fn(),
-  listReleases: vi.fn(),
-  checkUpdates: vi.fn(),
-  getCurrentVersion: vi.fn(),
-  onDownloadProgress: vi.fn(),
-  hasToken: vi.fn(),
-  verifyToken: vi.fn(),
+const { get, set, listReleases, checkUpdates, getCurrentVersion, onDownloadProgress } = vi.hoisted(
+  () => ({
+    get: vi.fn(),
+    set: vi.fn(),
+    listReleases: vi.fn(),
+    checkUpdates: vi.fn(),
+    getCurrentVersion: vi.fn(),
+    onDownloadProgress: vi.fn(),
+  }),
+);
+
+const { toastError, toastInfo, toastSuccess, toastWarning } = vi.hoisted(() => ({
+  toastError: vi.fn(),
+  toastInfo: vi.fn(),
+  toastSuccess: vi.fn(),
+  toastWarning: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: toastError,
+    info: toastInfo,
+    success: toastSuccess,
+    warning: toastWarning,
+  },
 }));
 
 vi.mock("@/services/ipc-client", () => ({
@@ -34,10 +41,6 @@ vi.mock("@/services/ipc-client", () => ({
       getCurrentVersion,
       onDownloadProgress,
     },
-    githubToken: {
-      has: hasToken,
-      verify: verifyToken,
-    },
   },
 }));
 
@@ -45,12 +48,14 @@ describe("ReleaseChannelSetting (#423)", () => {
   beforeEach(() => {
     get.mockReset().mockResolvedValue({ type: "latest" });
     set.mockReset().mockResolvedValue(undefined);
-    listReleases.mockReset().mockResolvedValue({ releases: [] });
+    listReleases.mockReset().mockResolvedValue({ status: "success", releases: [] });
     checkUpdates.mockReset();
     getCurrentVersion.mockReset().mockResolvedValue({ version: "1.2.3", commitHash: "abc123" });
     onDownloadProgress.mockReset().mockReturnValue(() => {});
-    hasToken.mockReset().mockResolvedValue(true);
-    verifyToken.mockReset().mockResolvedValue({ isValid: true });
+    toastError.mockReset();
+    toastInfo.mockReset();
+    toastSuccess.mockReset();
+    toastWarning.mockReset();
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -61,8 +66,25 @@ describe("ReleaseChannelSetting (#423)", () => {
     expect(screen.getByText("Current Version")).toBeInTheDocument();
   });
 
+  it("shows the build/commit hash alongside the current version (#1016)", async () => {
+    render(<ReleaseChannelSetting isActive={true} />);
+
+    await screen.findByText("1.2.3");
+    expect(screen.getByText("Build abc123")).toBeInTheDocument();
+  });
+
+  it("does not show a build line when no commit hash is available (#1016)", async () => {
+    getCurrentVersion.mockReset().mockResolvedValue({ version: "1.2.3", commitHash: "" });
+
+    render(<ReleaseChannelSetting isActive={true} />);
+
+    await screen.findByText("1.2.3");
+    expect(screen.queryByText(/^Build /)).not.toBeInTheDocument();
+  });
+
   it("shows the new available version and labels a major bump (AC2/AC3)", async () => {
     checkUpdates.mockResolvedValue({
+      status: "update-available",
       available: true,
       version: "2.0.0",
       currentVersion: "1.2.3",
@@ -83,6 +105,7 @@ describe("ReleaseChannelSetting (#423)", () => {
 
   it("labels a minor bump distinctly from a major bump (AC3)", async () => {
     checkUpdates.mockResolvedValue({
+      status: "update-available",
       available: true,
       version: "1.3.0",
       currentVersion: "1.2.3",
@@ -101,6 +124,7 @@ describe("ReleaseChannelSetting (#423)", () => {
 
   it("labels a patch bump distinctly from major/minor bumps (AC3)", async () => {
     checkUpdates.mockResolvedValue({
+      status: "update-available",
       available: true,
       version: "1.2.4",
       currentVersion: "1.2.3",
@@ -118,7 +142,11 @@ describe("ReleaseChannelSetting (#423)", () => {
   });
 
   it("does not show a 'New Version Available' card when no update is available", async () => {
-    checkUpdates.mockResolvedValue({ available: false, currentVersion: "1.2.3" });
+    checkUpdates.mockResolvedValue({
+      status: "up-to-date",
+      available: false,
+      currentVersion: "1.2.3",
+    });
 
     render(<ReleaseChannelSetting isActive={true} />);
     await screen.findByText("1.2.3");
@@ -137,6 +165,7 @@ describe("ReleaseChannelSetting (#423)", () => {
       commitHash: "abc123",
     });
     checkUpdates.mockResolvedValue({
+      status: "update-available",
       available: true,
       version: "0.6.0-beta.941.1700000001000",
       currentVersion: "0.6.0-beta.940.1700000000000",
@@ -153,12 +182,77 @@ describe("ReleaseChannelSetting (#423)", () => {
     });
   });
 
+  it("loads and checks a public PR release without GitHub-token state (#600)", async () => {
+    get.mockResolvedValue({ type: "pr", channel: "beta.42" });
+    listReleases.mockResolvedValue({
+      status: "success",
+      releases: [
+        {
+          prNumber: "42",
+          tag: "beta.42.1",
+          version: "beta.42.1",
+          publishedAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+    checkUpdates.mockResolvedValue({
+      status: "up-to-date",
+      available: false,
+      currentVersion: "1.2.3",
+    });
+
+    render(<ReleaseChannelSetting isActive={true} />);
+    await screen.findByText("1.2.3");
+
+    const button = await screen.findByRole("button", { name: /check for updates/i });
+    await waitFor(() => expect(button).toBeEnabled());
+    await userEvent.click(button);
+
+    expect(listReleases).toHaveBeenCalled();
+    expect(set).toHaveBeenCalledWith({ type: "pr", channel: "beta.42" });
+    expect(checkUpdates).toHaveBeenCalled();
+  });
+
+  it("shows a warning instead of reporting cached PR data as the latest version", async () => {
+    const warning =
+      "GitHub API rate limit reached. Showing cached release data; updates cannot be confirmed yet.";
+    get.mockResolvedValue({ type: "pr", channel: "beta.42" });
+    listReleases.mockResolvedValue({
+      status: "warning",
+      releases: [
+        {
+          prNumber: "42",
+          tag: "beta.42.1",
+          version: "beta.42.1",
+          publishedAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+      warning,
+    });
+    checkUpdates.mockResolvedValue({
+      status: "warning",
+      available: false,
+      warning,
+      currentVersion: "1.2.3",
+    });
+
+    render(<ReleaseChannelSetting isActive={true} />);
+    await waitFor(() => expect(toastWarning).toHaveBeenCalledWith(warning));
+
+    await userEvent.click(screen.getByRole("button", { name: /check for updates/i }));
+
+    expect(await screen.findByText(warning)).toBeInTheDocument();
+    expect(screen.queryByText(/latest version/i)).not.toBeInTheDocument();
+    expect(toastWarning).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps the version card's bump label consistent with the toast when the update check resolves before loadCurrentVersion", async () => {
     // loadCurrentVersion() never resolves (simulates it not having finished yet), so
     // `currentVersion` state starts empty; the version card's label must still match
     // the toast/status label, both driven by the authoritative `result.currentVersion`.
     getCurrentVersion.mockReturnValue(new Promise(() => {}));
     checkUpdates.mockResolvedValue({
+      status: "update-available",
       available: true,
       version: "2.0.0",
       currentVersion: "1.2.3",

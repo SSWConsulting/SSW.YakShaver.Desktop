@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AuthStatus, UploadStatus } from "../../types";
+import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
 import { ScreenRecorder } from "./ScreenRecorder";
 
 // Hoisted mock state so the (hoisted) vi.mock factories can read it and each
@@ -20,9 +20,20 @@ const state = vi.hoisted(() => ({
   recordedVideo: null as { blob: Blob; filePath: string; fileName: string } | null,
   saveRecording: vi.fn(),
   checkExistingShave: vi.fn(),
+  updateShaveStatus: vi.fn(),
+  navigateToWorkflow: vi.fn(),
   // Captured handler the app registers on the screen-recording stop channel;
   // invoking it drives the real handleStopRecording -> preview flow.
   stopRequestHandler: null as ((...args: unknown[]) => void) | null,
+}));
+
+const { toastError, toastWarning } = vi.hoisted(() => ({
+  toastError: vi.fn(),
+  toastWarning: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: toastError, warning: toastWarning },
 }));
 
 vi.mock("../../contexts/AdvancedSettingsContext", () => ({
@@ -60,7 +71,7 @@ vi.mock("@/hooks/useShaveManager", () => ({
 }));
 
 vi.mock("@/hooks/useWorkflowNavigation", () => ({
-  useWorkflowNavigation: () => vi.fn(),
+  useWorkflowNavigation: () => state.navigateToWorkflow,
 }));
 
 vi.mock("@/services/ipc-client", () => ({
@@ -70,6 +81,7 @@ vi.mock("@/services/ipc-client", () => ({
     // recording flow, which must remain unaffected by cloud-360 mode.
     llm: { getConfig: vi.fn().mockResolvedValue({ orchestrationBackend: "openai" }) },
     auth: { identityServer: { status: vi.fn().mockResolvedValue({ status: "unauthenticated" }) } },
+    shave: { updateStatus: state.updateShaveStatus },
   },
 }));
 
@@ -147,8 +159,9 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     state.authStatus = AuthStatus.AUTHENTICATED;
     state.uploadStatus = UploadStatus.IDLE;
     state.recordedVideo = { blob: new Blob(), filePath: "/tmp/rec.webm", fileName: "rec.webm" };
-    state.saveRecording = vi.fn().mockResolvedValue({ data: { id: "shave-1" } });
+    state.saveRecording = vi.fn().mockResolvedValue({ success: true, data: { id: "shave-1" } });
     state.checkExistingShave = vi.fn().mockResolvedValue(undefined);
+    state.updateShaveStatus.mockResolvedValue({ success: true });
 
     // ScreenRecorder subscribes to a few electronAPI event channels on mount.
     state.stopRequestHandler = null;
@@ -313,6 +326,81 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     expect(processYoutubeLink()).toBeInTheDocument();
   });
 
+  it("reuses the existing shave for the same YouTube URL", async () => {
+    const youtubeUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    state.checkExistingShave.mockResolvedValue("existing-shave");
+    state.saveRecording.mockResolvedValue({ success: true, data: { id: "new-shave" } });
+
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+
+    const openDialogButton = processYoutubeLink();
+    if (!openDialogButton) {
+      throw new Error("Expected the Process YouTube URL button to be available");
+    }
+    fireEvent.click(openDialogButton);
+    fireEvent.change(await screen.findByLabelText("YouTube URL"), {
+      target: { value: youtubeUrl },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Process Link" }));
+    });
+
+    await waitFor(() => expect(state.checkExistingShave).toHaveBeenCalledWith(youtubeUrl));
+    expect(state.updateShaveStatus).toHaveBeenCalledWith("existing-shave", ShaveStatus.Processing);
+    expect(state.saveRecording).not.toHaveBeenCalled();
+    expect(state.navigateToWorkflow).toHaveBeenCalledWith({ shaveId: "existing-shave" });
+    expect(window.electronAPI.pipelines.processVideoUrl).toHaveBeenCalledWith(
+      youtubeUrl,
+      "existing-shave",
+    );
+  });
+
+  it("does not start a YouTube URL workflow when the shave cannot be created", async () => {
+    state.saveRecording.mockResolvedValue({ success: false, error: "Database unavailable" });
+
+    render(<ScreenRecorder showButtonOnly />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+
+    const openDialogButton = processYoutubeLink();
+    if (!openDialogButton) {
+      throw new Error("Expected the Process YouTube URL button to be available");
+    }
+    fireEvent.click(openDialogButton);
+    fireEvent.change(await screen.findByLabelText("YouTube URL"), {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Process Link" }));
+    });
+
+    await waitFor(() => expect(state.saveRecording).toHaveBeenCalledTimes(1));
+    expect(state.navigateToWorkflow).not.toHaveBeenCalled();
+    expect(window.electronAPI.pipelines.processVideoUrl).not.toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("explains that recording processing continues when saving to My Shaves fails", async () => {
+    state.saveRecording.mockResolvedValue({ success: false, error: "Database unavailable" });
+
+    render(<ScreenRecorder showButtonOnly />);
+
+    await act(async () => state.stopRequestHandler?.());
+    fireEvent.click(await screen.findByTestId("continue-recording"));
+
+    await waitFor(() => expect(window.electronAPI.pipelines.processVideoFile).toHaveBeenCalled());
+    expect(toastError).toHaveBeenCalledWith("Could not save to My Shaves", {
+      description: "Video processing will continue, but we couldn't save this shave to My Shaves.",
+    });
+    expect(window.electronAPI.pipelines.processVideoFile).toHaveBeenCalledWith(
+      "/tmp/rec.webm",
+      undefined,
+      false,
+    );
+  });
+
   it("keeps the Process YouTube link enabled while a URL submit is still pending", async () => {
     let resolveProcessVideoUrl: (() => void) | undefined;
     window.electronAPI.pipelines.processVideoUrl = vi.fn(
@@ -358,5 +446,56 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     await waitFor(() => expect(processYoutubeLink()).toBeEnabled());
     expect(screen.getByText("Record")).toBeInTheDocument();
     expect(screen.queryByText("Start Recording")).not.toBeInTheDocument();
+  });
+});
+
+describe("ScreenRecorder - record/stop icon (#641)", () => {
+  beforeEach(() => {
+    // Single-button layout (no split), simplest surface for asserting the record/stop icon.
+    state.isYoutubeUrlWorkflowEnabled = false;
+    state.isRecording = false;
+    state.isProcessing = false;
+    state.authStatus = AuthStatus.AUTHENTICATED;
+    state.uploadStatus = UploadStatus.IDLE;
+    state.recordedVideo = null;
+    state.saveRecording = vi.fn().mockResolvedValue({ success: true, data: { id: "shave-1" } });
+    state.checkExistingShave = vi.fn().mockResolvedValue(undefined);
+
+    state.stopRequestHandler = null;
+    (window as unknown as { electronAPI: unknown }).electronAPI = {
+      screenRecording: {
+        onStopRequest: vi.fn((cb: (...args: unknown[]) => void) => {
+          state.stopRequestHandler = cb;
+          return () => {};
+        }),
+        onOpenSourcePicker: vi.fn(() => () => {}),
+        restoreMainWindow: vi.fn(),
+        hasAudio: vi.fn().mockResolvedValue({ success: true, hasAudio: true }),
+      },
+      pipelines: {
+        processVideoFile: vi.fn().mockResolvedValue(undefined),
+        processVideoUrl: vi.fn().mockResolvedValue(undefined),
+      },
+      userSettings: { onHotkeyUpdate: vi.fn(() => () => {}) },
+    };
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it("shows a record icon when not recording", async () => {
+    render(<ScreenRecorder showButtonOnly />);
+
+    const button = await screen.findByRole("button", { name: "Start Recording" });
+    expect(button.querySelector("circle")).toBeInTheDocument();
+    expect(button.querySelector("rect")).not.toBeInTheDocument();
+  });
+
+  it("shows a stop icon while recording", async () => {
+    state.isRecording = true;
+    render(<ScreenRecorder showButtonOnly />);
+
+    const button = await screen.findByRole("button", { name: "Stop Recording" });
+    expect(button.querySelector("rect")).toBeInTheDocument();
+    expect(button.querySelector("circle")).not.toBeInTheDocument();
   });
 });

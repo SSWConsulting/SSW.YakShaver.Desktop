@@ -117,6 +117,32 @@ export function applyVideoMetadataPersistence(
   return action;
 }
 
+export interface OwnedVideoMetadataTitleTarget {
+  snippet: { title: string };
+  metadata: { title: string };
+}
+
+/**
+ * Align a YakShaver-uploaded video's outgoing metadata with the title read back from the work item.
+ *
+ * Only applies to videos YakShaver owns — the caller reaches this after `resolveMetadataStage`,
+ * which already skips external video sources. A video the user merely linked keeps its own title,
+ * because we are not its publisher.
+ */
+export function applyResolvedTitleToOwnedVideoMetadata(
+  target: OwnedVideoMetadataTitleTarget,
+  resolvedTitle?: string,
+): boolean {
+  const title = resolvedTitle?.trim();
+  if (!title) {
+    return false;
+  }
+
+  target.snippet.title = title;
+  target.metadata.title = title;
+  return true;
+}
+
 /**
  * The authoritative video fields that must be carried on the portal WorkItemDto so the Tenant
  * view can render a preview.

@@ -1,5 +1,5 @@
 import type { BrowserWindow } from "electron";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS } from "../ipc/channels";
 import { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import type { MCPServerConfig } from "../services/mcp/types";
@@ -30,6 +30,10 @@ describe("protocol-router", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("sends IPC error when OAuth callback params are missing", async () => {
@@ -80,13 +84,42 @@ describe("protocol-router", () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it("forwards the attempt id so a stale tab cannot cancel a newer authorization", async () => {
+    const notifyAuthFailed = vi.fn();
+    vi.mocked(McpOAuthTokenStorage.getInstance).mockReturnValue({
+      notifyAuthFailed,
+    } as unknown as McpOAuthTokenStorage);
+
+    await handleProtocolUrl(
+      "yakshaver-desktop://oauth/callback?serverId=server-1&error=authorization_failed&attemptId=attempt-7",
+      mockWindow(vi.fn()),
+    );
+
+    expect(notifyAuthFailed).toHaveBeenCalledWith("server-1", "attempt-7");
+  });
+
+  // A callback from before the attempt id shipped must still fail fast rather than hang.
+  it("still reports failure when the callback carries no attempt id", async () => {
+    const notifyAuthFailed = vi.fn();
+    vi.mocked(McpOAuthTokenStorage.getInstance).mockReturnValue({
+      notifyAuthFailed,
+    } as unknown as McpOAuthTokenStorage);
+
+    await handleProtocolUrl(
+      "yakshaver-desktop://oauth/callback?serverId=server-1&error=authorization_failed",
+      mockWindow(vi.fn()),
+    );
+
+    expect(notifyAuthFailed).toHaveBeenCalledWith("server-1", null);
+  });
+
   it("stores tokens for valid OAuth callback", async () => {
     const send = vi.fn();
     const window = mockWindow(send);
 
-    const saveTokensAsync = vi.fn();
+    const completeOAuthAsync = vi.fn().mockResolvedValue(true);
     const getInstance = vi.mocked(McpOAuthTokenStorage.getInstance);
-    getInstance.mockReturnValue({ saveTokensAsync } as unknown as McpOAuthTokenStorage);
+    getInstance.mockReturnValue({ completeOAuthAsync } as unknown as McpOAuthTokenStorage);
 
     const getServerConfigByIdAsync = vi.mocked(MCPServerManager.getServerConfigByIdAsync);
     getServerConfigByIdAsync.mockResolvedValue({
@@ -102,12 +135,32 @@ describe("protocol-router", () => {
     );
 
     expect(send).not.toHaveBeenCalled();
-    expect(saveTokensAsync).toHaveBeenCalledWith("server-1", {
+    expect(completeOAuthAsync).toHaveBeenCalledWith("server-1", {
       access_token: "token",
       refresh_token: "refresh",
       token_type: "bearer",
       expires_in: undefined,
       scope: undefined,
     });
+  });
+
+  it("logs when a late OAuth callback is ignored after polling already completed", async () => {
+    const completeOAuthAsync = vi.fn().mockResolvedValue(false);
+    vi.mocked(McpOAuthTokenStorage.getInstance).mockReturnValue({
+      completeOAuthAsync,
+    } as unknown as McpOAuthTokenStorage);
+    vi.mocked(MCPServerManager.getServerConfigByIdAsync).mockResolvedValue({
+      id: "server-1",
+      name: "Test Server",
+      transport: "inMemory",
+      inMemoryServerId: "server-1",
+    } satisfies MCPServerConfig);
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+
+    await handleProtocolUrl(
+      "yakshaver-desktop://oauth/callback?access_token=late&refresh_token=late-refresh&serverId=server-1",
+    );
+
+    expect(info).toHaveBeenCalledWith(expect.stringContaining("server-1"));
   });
 });

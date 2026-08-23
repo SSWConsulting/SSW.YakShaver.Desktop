@@ -11,6 +11,8 @@ export type YouTubeAuthErrorReason =
   | "backend_unreachable"
   | "auth_start_failed"
   | "timeout"
+  /** The user declined consent, or the provider/backend failed the authorization (#965). */
+  | "declined"
   | "unknown";
 
 interface YouTubeAuthErrorOptions {
@@ -62,6 +64,8 @@ export function describeYouTubeAuthError(reason: YouTubeAuthErrorReason): string
       return "YouTube sign-in couldn't be started. Please try again in a moment.";
     case "timeout":
       return "Didn't hear back from YouTube. If no verification prompt appeared, check your Google or authenticator app, then click Connect to try again.";
+    case "declined":
+      return "YouTube wasn't connected because the authorization was cancelled. Click Connect to try again.";
     default:
       return "YouTube sign-in didn't complete. Please click Connect to try again.";
   }

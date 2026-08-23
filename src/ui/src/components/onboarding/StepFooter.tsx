@@ -11,7 +11,7 @@ interface StepFooterProps {
 export function StepFooter({ currentStep, isNextDisabled, onNext, onPrevious }: StepFooterProps) {
   const getButtonLabel = () => {
     if (currentStep === STEPS.length) return "Finish";
-    return "Next";
+    return "Next >";
   };
 
   return (
@@ -29,7 +29,7 @@ export function StepFooter({ currentStep, isNextDisabled, onNext, onPrevious }: 
             size="sm"
             onClick={onPrevious}
           >
-            Previous
+            {"< Previous"}
           </Button>
         )}
 

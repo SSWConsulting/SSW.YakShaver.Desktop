@@ -36,6 +36,7 @@ describe("UserSettingsIPCHandlers", () => {
       getSettingsAsync: vi.fn().mockResolvedValue({
         openAtLogin: false,
         hotkeys: { startRecording: "Ctrl+Shift+R" },
+        closeBehavior: "minimize-to-tray",
       }),
       updateSettingsAsync: vi.fn().mockResolvedValue(undefined),
     };
@@ -132,6 +133,22 @@ describe("UserSettingsIPCHandlers", () => {
         openAtLogin: true,
         openAsHidden: false,
       });
+    });
+
+    it("should persist a closeBehavior update (#576)", async () => {
+      const patch = { closeBehavior: "quit" };
+      const result = await updateHandler({}, patch);
+
+      expect(result).toEqual({ success: true });
+      expect(mockStorage.updateSettingsAsync).toHaveBeenCalledWith(patch);
+    });
+
+    it("should reject an invalid closeBehavior value (#576)", async () => {
+      const patch = { closeBehavior: "not-a-valid-option" };
+      const result = await updateHandler({}, patch);
+
+      expect(result).toMatchObject({ success: false, error: "Invalid settings data" });
+      expect(mockStorage.updateSettingsAsync).not.toHaveBeenCalled();
     });
 
     it("should handle hotkey update success", async () => {
