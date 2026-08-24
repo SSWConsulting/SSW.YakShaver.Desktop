@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { STEPS } from "@/types/onboarding";
 import { Button } from "../ui/button";
 
@@ -11,13 +12,13 @@ interface StepFooterProps {
 export function StepFooter({ currentStep, isNextDisabled, onNext, onPrevious }: StepFooterProps) {
   const getButtonLabel = () => {
     if (currentStep === STEPS.length) return "Finish";
-    return "Next >";
+    return "Next";
   };
 
   return (
-    <div className="flex h-16 items-center justify-end px-6 w-full">
+    <div className="flex h-16 w-full items-center justify-end px-6">
       <div
-        className={`flex items-center w-full ${
+        className={`flex w-full items-center ${
           currentStep > 1 ? "justify-between" : "justify-end"
         }`}
       >
@@ -40,7 +41,8 @@ export function StepFooter({ currentStep, isNextDisabled, onNext, onPrevious }: 
           onClick={onNext}
           disabled={isNextDisabled}
         >
-          {getButtonLabel()}
+          <span>{getButtonLabel()}</span>
+          {currentStep < STEPS.length && <ChevronRight className="size-4" aria-hidden="true" />}
         </Button>
       </div>
     </div>
