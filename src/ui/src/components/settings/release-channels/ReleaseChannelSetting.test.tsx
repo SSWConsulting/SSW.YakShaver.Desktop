@@ -66,6 +66,22 @@ describe("ReleaseChannelSetting (#423)", () => {
     expect(screen.getByText("Current Version")).toBeInTheDocument();
   });
 
+  it("shows the build/commit hash alongside the current version (#1016)", async () => {
+    render(<ReleaseChannelSetting isActive={true} />);
+
+    await screen.findByText("1.2.3");
+    expect(screen.getByText("Build abc123")).toBeInTheDocument();
+  });
+
+  it("does not show a build line when no commit hash is available (#1016)", async () => {
+    getCurrentVersion.mockReset().mockResolvedValue({ version: "1.2.3", commitHash: "" });
+
+    render(<ReleaseChannelSetting isActive={true} />);
+
+    await screen.findByText("1.2.3");
+    expect(screen.queryByText(/^Build /)).not.toBeInTheDocument();
+  });
+
   it("shows the new available version and labels a major bump (AC2/AC3)", async () => {
     checkUpdates.mockResolvedValue({
       status: "update-available",
