@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 // Keep Electron and the real autoUpdater out of this unit test. The tests exercise anonymous
-// public release access (#600) and the update-ready dialog's anti-stacking behavior (#456).
+// public release access (#600), the update-ready dialog's anti-stacking behavior (#456), and the
+// startup update-check gating for PR builds (#532).
+const getVersionMock = vi.fn(() => "1.2.3");
 const showMessageBoxMock = vi.fn().mockResolvedValue({ response: 1 });
 vi.mock("electron", () => ({
   app: {
     getName: () => "YakShaver",
-    getVersion: () => "1.2.3",
+    getVersion: () => getVersionMock(),
     isPackaged: true,
   },
   BrowserWindow: { getAllWindows: () => [] },
@@ -118,6 +120,9 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // vi.clearAllMocks() clears calls but not implementations, so the version overrides the
+    // #532 startup-gating tests set below would otherwise leak into every later test.
+    getVersionMock.mockReturnValue("1.2.3");
     getChannelMock.mockResolvedValue({ type: "pr", channel: "beta.42" });
     getReleaseCacheMock.mockResolvedValue(null);
     setReleaseCacheMock.mockResolvedValue(undefined);
@@ -384,6 +389,56 @@ describe("ReleaseChannelIPCHandlers — public releases do not require a GitHub 
       );
     } finally {
       handlers.stopPeriodicUpdateChecks();
+    }
+  });
+
+  it("configureAutoUpdater on startup does not trigger a check when already on the latest PR build — the reported bug (#532)", async () => {
+    // Regression coverage for #532: on macOS (and elsewhere), PR builds showed a native
+    // "update available" prompt on startup even when already running the latest release for that
+    // PR. Root cause was index.ts calling the raw, unguarded autoUpdater.checkForUpdatesAndNotify()
+    // immediately after configureAutoUpdater(channel, true) — bypassing the isOnLatest gate below
+    // and firing an update check (and native notify) unconditionally. The fix removed that redundant
+    // call, so configureAutoUpdater's own gated immediate-check is now the only startup check path.
+    // The current version matches the latest PR release's tag exactly, so no check should fire.
+    getVersionMock.mockReturnValue("beta.42.1");
+
+    vi.useFakeTimers();
+    const handlers = new ReleaseChannelIPCHandlers();
+    try {
+      await handlers.configureAutoUpdater({ type: "pr", channel: "beta.42" }, true);
+
+      expect(setFeedURLMock).toHaveBeenCalled();
+      // The immediate check is scheduled via setTimeout(..., 2000); advance past it so this
+      // asserts the isOnLatest gate really suppressed the check, rather than just observing that
+      // the timer had not fired yet.
+      await vi.advanceTimersByTimeAsync(2100);
+      // Already on the latest release for this PR — the immediate check must be skipped entirely.
+      expect(checkForUpdatesMock).not.toHaveBeenCalled();
+    } finally {
+      handlers.stopPeriodicUpdateChecks();
+      vi.useRealTimers();
+    }
+  });
+
+  it("configureAutoUpdater on startup does trigger a check when a newer PR build is available", async () => {
+    // Sanity counterpart to the regression test above — confirms the gate is a real comparison, not
+    // a check that always no-ops. When the running version differs from the latest PR release tag,
+    // the immediate check must still fire.
+    getVersionMock.mockReturnValue("beta.42.0-older");
+    checkForUpdatesMock.mockResolvedValue({ updateInfo: { version: "beta.42.1" } });
+
+    vi.useFakeTimers();
+    const handlers = new ReleaseChannelIPCHandlers();
+    try {
+      await handlers.configureAutoUpdater({ type: "pr", channel: "beta.42" }, true);
+      expect(setFeedURLMock).toHaveBeenCalled();
+
+      // The immediate check is scheduled via setTimeout(..., 2000) — advance past it.
+      await vi.advanceTimersByTimeAsync(2100);
+      expect(checkForUpdatesMock).toHaveBeenCalled();
+    } finally {
+      handlers.stopPeriodicUpdateChecks();
+      vi.useRealTimers();
     }
   });
 
