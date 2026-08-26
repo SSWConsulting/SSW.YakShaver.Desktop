@@ -98,10 +98,21 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [withLoading, fetchAuthStatus]);
 
+  // #1023 review round 4 — user-initiated connect/disconnect (Settings ->
+  // YouTubeConnection) is a genuine state transition, not a background re-check, so
+  // it should still show a busy state — but only once the very first checkAuthStatus
+  // has resolved. Before that first resolution, `isLoading` is already true (see the
+  // initial useState(true) above) for the mount-time reason documented there;
+  // unconditionally re-entering it here would just be a redundant no-op flicker.
+  // After that first resolution, entering `isLoading` for the duration of the IPC
+  // round trip is the correct, intentional UX: unlike a silent focus re-check, this
+  // is a user-triggered action whose whole point is to change auth state, so
+  // ScreenRecorder's disabled-reason UI briefly reflecting "unsettled" is accurate,
+  // not a regression of the #1022/round-3 flash bug.
   const startAuth = useCallback(async () => {
     setAuthState({ status: AuthStatus.AUTHENTICATING });
 
-    await withLoading(async () => {
+    const run = async () => {
       try {
         const result = await ipcClient.youtube.startAuth();
         setAuthState(
@@ -115,11 +126,17 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (error) {
         setError(error, "Authentication failed");
       }
-    });
+    };
+
+    if (hasCheckedOnceRef.current) {
+      await withLoading(run);
+    } else {
+      await run();
+    }
   }, [withLoading, setError]);
 
   const disconnect = useCallback(async () => {
-    await withLoading(async () => {
+    const run = async () => {
       try {
         const success = await ipcClient.youtube.disconnect();
         setAuthState(
@@ -130,7 +147,13 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (error) {
         setError(error, "Failed to disconnect");
       }
-    });
+    };
+
+    if (hasCheckedOnceRef.current) {
+      await withLoading(run);
+    } else {
+      await run();
+    }
   }, [withLoading, setError]);
 
   const refreshToken = useCallback(async () => {
