@@ -55,6 +55,10 @@ interface RecorderControlState {
   isProcessing: boolean;
   isProcessingUrl: boolean;
   isVideoHostConnected: boolean;
+  // #1023 review — 360 mode's "video host" gate is Identity Server sign-in, not the
+  // standard YouTube/video-platform auth, so the disabled-reason copy must branch on
+  // this to avoid telling a signed-out 360 user to "connect a video host".
+  is360Mode: boolean;
 }
 
 interface RecorderControlAvailability {
@@ -99,6 +103,10 @@ const PROCESS_YOUTUBE_URL_LABEL = "Process YouTube URL";
 // description, so all three surfaces describing the same disabled reason
 // stay in sync.
 const VIDEO_HOST_DISABLED_REASON = "Recording requires a connected video host.";
+// #1023 review — 360 mode's equivalent gate is Identity Server sign-in (see
+// `isVideoHostConnected` derivation below), so it needs its own accurate copy rather
+// than reusing the standard-flow "connect a video host" message.
+const IDENTITY_SERVER_DISABLED_REASON = "Recording requires signing in to Identity Server.";
 
 function getRecordLabel(controlState: RecorderControlState, showSplitLayout: boolean) {
   if (controlState.isRecording) return showSplitLayout ? "Stop" : "Stop Recording";
@@ -118,7 +126,18 @@ function getRecorderControlAvailability(
   // #1022 — only the missing-video-host cause gets a reason; it's the one
   // actionable cause (the others are transient app states with no user
   // action to take), so the tooltip/inline message stay scoped to it.
-  const recordDisabledReason = missingVideoHost ? VIDEO_HOST_DISABLED_REASON : null;
+  // #1023 review — also guard on !isProcessing/!isTranscribing explicitly (not just
+  // via missingVideoHost) so the reason can never claim "video host" while a
+  // transient processing/transcribing state is the actual (or a concurrent) blocker,
+  // even if those two states are ever decoupled from isRecording in the future.
+  // #1023 review — branch the copy on is360Mode: 360's gate is Identity Server
+  // sign-in, not the standard video-host auth, so the message must say so.
+  const recordDisabledReason =
+    missingVideoHost && !controlState.isProcessing && !controlState.isTranscribing
+      ? controlState.is360Mode
+        ? IDENTITY_SERVER_DISABLED_REASON
+        : VIDEO_HOST_DISABLED_REASON
+      : null;
 
   let uploadTitle = PROCESS_YOUTUBE_URL_LABEL;
   if (controlState.isRecording) {
@@ -270,6 +289,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     isProcessing,
     isProcessingUrl,
     isVideoHostConnected,
+    is360Mode,
   } satisfies RecorderControlState;
   // 360 has no YouTube-URL path, so keep a single Record button (no split layout).
   const showYoutubeUrlSplitLayout = !is360Mode && isYoutubeUrlWorkflowEnabled && !isRecording;
@@ -551,7 +571,11 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   // elsewhere in that flow), so the video-host status indicator/banner below
   // is scoped to the standard (non-360) flow, matching the existing
   // `!is360Mode && !isVideoHostConnected` guard this replaces.
-  const showVideoHostWarning = !is360Mode && !isVideoHostConnected && !showButtonOnly;
+  // #1023 review — NOT gated on showButtonOnly: the sidebar (sidebar.tsx) is the
+  // only real mount point and always passes showButtonOnly={true}, so gating on it
+  // made both the Badge and this banner unreachable dead code in production. The
+  // `showButtonOnly` prop now only controls compact vs. full layout, not visibility.
+  const showVideoHostWarning = !is360Mode && !isVideoHostConnected;
 
   return (
     <>
@@ -580,11 +604,13 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
           {/* #1022 — status indicator near the record button showing video
               host connection state, independent of the (more prominent)
               banner below so the state is visible at a glance even once the
-              banner has been dismissed-by-familiarity. */}
-          {!is360Mode && !showButtonOnly && (
+              banner has been dismissed-by-familiarity.
+              #1023 review — reachable in every mount (incl. the sidebar's
+              showButtonOnly), with compact sizing there so it fits the narrow rail. */}
+          {!is360Mode && (
             <Badge
               variant={isVideoHostConnected ? "success" : "destructive"}
-              className="mt-1"
+              className={cn("mt-1", showButtonOnly && "text-[10px] px-1.5 py-0")}
               data-testid="video-host-status"
             >
               {isVideoHostConnected ? "Video host connected" : "Video host not connected"}
@@ -594,10 +620,22 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
         {showVideoHostWarning && (
           // #1022 — a prominent, actionable banner (not just muted text) so
           // the missing-video-host reason can't be missed, with a direct link
-          // to the Video Host settings tab. Mirrors HomeMcpStatusBanner (#869).
-          <div
-            role="alert"
-            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3"
+          // to the Video Host settings tab. Layout mirrors HomeMcpStatusBanner (#869),
+          // compacted to a single column when showButtonOnly (the narrow sidebar rail).
+          // #1023 review — uses `role="status"`/`aria-live="polite"` via an <output>
+          // element rather than `role="alert"`, matching the convention this repo
+          // settled on for persistent/recurring status banners (see SettingsWarningBanner
+          // #954 and StatusDashboard #949): `alert`'s assertive interrupt semantics are
+          // for a one-shot message, not state that's already present at mount and can
+          // flip repeatedly (connect/disconnect) while this component stays mounted.
+          <output
+            aria-live="polite"
+            className={cn(
+              "flex w-full gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3",
+              showButtonOnly
+                ? "flex-col items-start"
+                : "flex-col sm:flex-row sm:items-center justify-between",
+            )}
           >
             <div className="flex items-start gap-2 text-yellow-100">
               <AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-yellow-300" />
@@ -611,7 +649,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             >
               Open Video Host Settings
             </Button>
-          </div>
+          </output>
         )}
         <SourcePickerDialog
           open={pickerOpen}

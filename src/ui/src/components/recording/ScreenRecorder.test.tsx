@@ -501,6 +501,34 @@ describe("ScreenRecorder - video host disabled-state messaging (#1022)", () => {
     );
   });
 
+  // #1023 review — the sidebar (the only real production mount point) always
+  // renders with showButtonOnly, and the non-showButtonOnly render above is not
+  // a configuration that occurs in the shipped app. This regression previously let
+  // the Badge/banner ship as unreachable dead code (both were gated on
+  // `!showButtonOnly`), so assert the same surfaces here too.
+  it("shows the status badge and inline alert banner in the production showButtonOnly layout", async () => {
+    state.authStatus = AuthStatus.NOT_AUTHENTICATED;
+    render(<ScreenRecorder showButtonOnly />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("video-host-status")).toHaveTextContent("Video host not connected"),
+    );
+
+    const alert = await screen.findByRole("status");
+    expect(alert).toHaveTextContent("Recording requires a connected video host.");
+    expect(screen.getByRole("button", { name: "Open Video Host Settings" })).toBeInTheDocument();
+  });
+
+  it("hides the badge/banner in the production showButtonOnly layout once a video host is connected", async () => {
+    state.authStatus = AuthStatus.AUTHENTICATED;
+    render(<ScreenRecorder showButtonOnly />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("video-host-status")).toHaveTextContent("Video host connected"),
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("does not show a disabled-reason tooltip once a video host is connected", async () => {
     state.authStatus = AuthStatus.AUTHENTICATED;
     render(<ScreenRecorder />);
@@ -533,7 +561,7 @@ describe("ScreenRecorder - video host disabled-state messaging (#1022)", () => {
     state.authStatus = AuthStatus.NOT_AUTHENTICATED;
     render(<ScreenRecorder />);
 
-    const alert = await screen.findByRole("alert");
+    const alert = await screen.findByRole("status");
     expect(alert).toHaveTextContent("Recording requires a connected video host.");
 
     const openSettingsListener = vi.fn();
@@ -553,7 +581,7 @@ describe("ScreenRecorder - video host disabled-state messaging (#1022)", () => {
     render(<ScreenRecorder />);
 
     await waitFor(() => expect(screen.getByTestId("video-host-status")).toBeInTheDocument());
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
 
