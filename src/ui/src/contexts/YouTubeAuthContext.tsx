@@ -1,4 +1,12 @@
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { parseWorkflowProgressNeoPayload, parseWorkflowStepPayload } from "@/utils";
 import { STATUS_DASHBOARD_REFRESH_EVENT } from "../components/layout/status-dashboard";
 import { ipcClient } from "../services/ipc-client";
@@ -44,6 +52,9 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>(UploadStatus.IDLE);
   const [uploadResult, setUploadResult] = useState<VideoUploadResult | null>(null);
+  // #1023 review round 3 — tracks whether the very first checkAuthStatus() call
+  // (below) has resolved yet, mirroring useCloud360Mode's `isInitial` guard.
+  const hasCheckedOnceRef = useRef(false);
 
   const setError = useCallback((error: unknown, fallback: string) => {
     setAuthState({
@@ -61,14 +72,31 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const checkAuthStatus = useCallback(async () => {
-    await withLoading(async () => {
-      if (!window.electronAPI) throw new Error("electronAPI not available");
+  const fetchAuthStatus = useCallback(async () => {
+    if (!window.electronAPI) throw new Error("electronAPI not available");
 
-      const status = await ipcClient.youtube.getAuthStatus();
-      setAuthState(status);
-    });
-  }, [withLoading]);
+    const status = await ipcClient.youtube.getAuthStatus();
+    setAuthState(status);
+  }, []);
+
+  // #1023 review round 3 — only the FIRST call re-enters the shared `isLoading`
+  // state; every later re-check (window focus, STATUS_DASHBOARD_REFRESH_EVENT)
+  // updates authState directly without toggling isLoading. `isLoading` is consumed
+  // by ScreenRecorder's `isAuthInfoLoading`, which suppresses the disabled-reason
+  // tooltip/Badge/banner while auth info is unsettled — if every focus-triggered
+  // re-check also flipped isLoading back to true, that suppression would fire on
+  // every window focus, hiding the disabled-reason explanation for a beat and
+  // recreating the exact #1022 "disabled, no explanation" symptom intermittently
+  // instead of just on first mount. Matches the isInitial pattern useCloud360Mode
+  // already established for the same failure mode.
+  const checkAuthStatus = useCallback(async () => {
+    if (!hasCheckedOnceRef.current) {
+      hasCheckedOnceRef.current = true;
+      await withLoading(fetchAuthStatus);
+    } else {
+      await fetchAuthStatus();
+    }
+  }, [withLoading, fetchAuthStatus]);
 
   const startAuth = useCallback(async () => {
     setAuthState({ status: AuthStatus.AUTHENTICATING });

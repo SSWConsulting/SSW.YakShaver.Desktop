@@ -607,7 +607,11 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   // only real mount point and always passes showButtonOnly={true}, so gating on it
   // made both the Badge and this banner unreachable dead code in production. The
   // `showButtonOnly` prop now only controls compact vs. full layout, not visibility.
-  const showVideoHostWarning = !is360Mode && !isVideoHostConnected;
+  // #1023 review round 3 — also gated on !isRecording, matching the sibling
+  // `missingVideoHost` guard `recordDisabledReason` already uses: once a recording
+  // is in progress the video-host connection is no longer the actionable state to
+  // surface, so the banner shouldn't reappear if host auth drops mid-session.
+  const showVideoHostWarning = !is360Mode && !isRecording && !isVideoHostConnected;
 
   return (
     <>
