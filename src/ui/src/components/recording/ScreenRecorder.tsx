@@ -1,5 +1,5 @@
 import type { ToolApprovalMode, UserSettings } from "@shared/types/user-settings";
-import { Circle, Square, Upload } from "lucide-react";
+import { AlertTriangle, Circle, Square, Upload } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { useShaveManager } from "@/hooks/useShaveManager";
@@ -14,6 +14,7 @@ import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
 import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
 import { Cloud360ProjectDialog } from "../cloud360/Cloud360ProjectDialog";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -29,6 +30,13 @@ import { Label } from "../ui/label";
 import { SourcePickerDialog } from "./SourcePickerDialog";
 import { useCloud360Mode } from "./useCloud360Mode";
 import { VideoPreviewModal } from "./VideoPreviewModal";
+
+// #1022 — opens Settings directly on the Video Host tab, reusing the same
+// decoupled "open-settings-tab" event HomeMcpStatusBanner (#869) uses so
+// ScreenRecorder doesn't need to know about SettingsDialog's internals.
+function openVideoHostSettings() {
+  window.dispatchEvent(new CustomEvent("open-settings-tab", { detail: { tabId: "videoHost" } }));
+}
 
 interface RecordedVideo {
   blob: Blob;
@@ -51,6 +59,10 @@ interface RecorderControlState {
 
 interface RecorderControlAvailability {
   recordDisabled: boolean;
+  // #1022 — set only when Record is disabled specifically because no video
+  // host is connected (not for the transient isProcessing/isTranscribing
+  // causes), so the tooltip/inline message stay scoped to the actionable case.
+  recordDisabledReason: string | null;
   uploadDisabled: boolean;
   uploadTitle: string;
   recordLabel: string;
@@ -83,6 +95,11 @@ function RecordIcon({ isRecording, className }: { isRecording: boolean; classNam
 
 const PROCESS_YOUTUBE_URL_LABEL = "Process YouTube URL";
 
+// #1022 — shared copy for the tooltip, inline banner, and screen-reader
+// description, so all three surfaces describing the same disabled reason
+// stay in sync.
+const VIDEO_HOST_DISABLED_REASON = "Recording requires a connected video host.";
+
 function getRecordLabel(controlState: RecorderControlState, showSplitLayout: boolean) {
   if (controlState.isRecording) return showSplitLayout ? "Stop" : "Stop Recording";
   if (controlState.isTranscribing) return "Transcribing...";
@@ -93,11 +110,15 @@ function getRecorderControlAvailability(
   controlState: RecorderControlState,
   showSplitLayout: boolean,
 ): RecorderControlAvailability {
+  const missingVideoHost = !controlState.isRecording && !controlState.isVideoHostConnected;
   const recordDisabled =
-    controlState.isProcessing ||
-    controlState.isTranscribing ||
-    (!controlState.isRecording && !controlState.isVideoHostConnected);
+    controlState.isProcessing || controlState.isTranscribing || missingVideoHost;
   const uploadDisabled = recordDisabled || controlState.isRecording;
+
+  // #1022 — only the missing-video-host cause gets a reason; it's the one
+  // actionable cause (the others are transient app states with no user
+  // action to take), so the tooltip/inline message stay scoped to it.
+  const recordDisabledReason = missingVideoHost ? VIDEO_HOST_DISABLED_REASON : null;
 
   let uploadTitle = PROCESS_YOUTUBE_URL_LABEL;
   if (controlState.isRecording) {
@@ -110,6 +131,7 @@ function getRecorderControlAvailability(
 
   return {
     recordDisabled,
+    recordDisabledReason,
     uploadDisabled,
     uploadTitle,
     recordLabel: getRecordLabel(controlState, showSplitLayout),
@@ -124,8 +146,10 @@ function RecordButton({
   onUploadClick,
   className = "",
 }: RecordButtonProps) {
-  const { recordDisabled, uploadDisabled, uploadTitle, recordLabel } = controlAvailability;
+  const { recordDisabled, recordDisabledReason, uploadDisabled, uploadTitle, recordLabel } =
+    controlAvailability;
   const uploadDescriptionId = useId();
+  const recordDescriptionId = useId();
   const handleUploadClick = useCallback(() => {
     if (uploadDisabled) {
       return;
@@ -136,32 +160,52 @@ function RecordButton({
 
   if (!showSplitLayout) {
     return (
-      <Button
-        className={cn(
-          "bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
-          className,
+      // #1022 — `title` wraps the (natively) disabled button so hover still
+      // shows the reason: a native `disabled` button suppresses its own
+      // pointer/focus events, so the tooltip has to live on a parent that
+      // still receives them. Mirrors the upload button's wrapper below.
+      <div title={recordDisabledReason ?? undefined}>
+        <Button
+          className={cn(
+            "bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
+            className,
+          )}
+          onClick={onToggleRecording}
+          size="chunky"
+          disabled={recordDisabled}
+          aria-describedby={recordDisabledReason ? recordDescriptionId : undefined}
+        >
+          <RecordIcon isRecording={isRecording} className="w-5 h-5" />
+          {recordLabel}
+        </Button>
+        {recordDisabledReason && (
+          <span id={recordDescriptionId} className="sr-only">
+            {recordDisabledReason}
+          </span>
         )}
-        onClick={onToggleRecording}
-        size="chunky"
-        disabled={recordDisabled}
-      >
-        <RecordIcon isRecording={isRecording} className="w-5 h-5" />
-        {recordLabel}
-      </Button>
+      </div>
     );
   }
 
   return (
     <div className={cn("flex w-full rounded-md overflow-hidden", className)}>
-      <Button
-        className="flex-1 bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
-        onClick={onToggleRecording}
-        size="chunky"
-        disabled={recordDisabled}
-      >
-        <RecordIcon isRecording={isRecording} />
-        {recordLabel}
-      </Button>
+      <div className="flex-1 rounded-none rounded-l-md" title={recordDisabledReason ?? undefined}>
+        <Button
+          className="w-full bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center justify-start rounded-none rounded-l-md"
+          onClick={onToggleRecording}
+          size="chunky"
+          disabled={recordDisabled}
+          aria-describedby={recordDisabledReason ? recordDescriptionId : undefined}
+        >
+          <RecordIcon isRecording={isRecording} />
+          {recordLabel}
+        </Button>
+        {recordDisabledReason && (
+          <span id={recordDescriptionId} className="sr-only">
+            {recordDisabledReason}
+          </span>
+        )}
+      </div>
       <div className="w-px bg-ssw-red-foreground/20" />
       {/* Keep the unavailable upload action focusable: native disabled buttons
           leave the tab order, so keyboard and screen-reader users would miss
@@ -503,6 +547,12 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     }
   };
 
+  // #1022 — 360 mode has its own "sign in" gate (isSignedIn, surfaced
+  // elsewhere in that flow), so the video-host status indicator/banner below
+  // is scoped to the standard (non-360) flow, matching the existing
+  // `!is360Mode && !isVideoHostConnected` guard this replaces.
+  const showVideoHostWarning = !is360Mode && !isVideoHostConnected && !showButtonOnly;
+
   return (
     <>
       <section className="flex flex-col gap-4 items-center w-full">
@@ -527,11 +577,41 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
               ))}
             </p>
           )}
+          {/* #1022 — status indicator near the record button showing video
+              host connection state, independent of the (more prominent)
+              banner below so the state is visible at a glance even once the
+              banner has been dismissed-by-familiarity. */}
+          {!is360Mode && !showButtonOnly && (
+            <Badge
+              variant={isVideoHostConnected ? "success" : "destructive"}
+              className="mt-1"
+              data-testid="video-host-status"
+            >
+              {isVideoHostConnected ? "Video host connected" : "Video host not connected"}
+            </Badge>
+          )}
         </div>
-        {!is360Mode && !isVideoHostConnected && !showButtonOnly && (
-          <p className="text-sm text-muted-foreground text-center">
-            Please connect a video platform below to start recording
-          </p>
+        {showVideoHostWarning && (
+          // #1022 — a prominent, actionable banner (not just muted text) so
+          // the missing-video-host reason can't be missed, with a direct link
+          // to the Video Host settings tab. Mirrors HomeMcpStatusBanner (#869).
+          <div
+            role="alert"
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3"
+          >
+            <div className="flex items-start gap-2 text-yellow-100">
+              <AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-yellow-300" />
+              <span className="text-sm">{VIDEO_HOST_DISABLED_REASON} Connect one to continue.</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 self-start"
+              onClick={openVideoHostSettings}
+            >
+              Open Video Host Settings
+            </Button>
+          </div>
         )}
         <SourcePickerDialog
           open={pickerOpen}

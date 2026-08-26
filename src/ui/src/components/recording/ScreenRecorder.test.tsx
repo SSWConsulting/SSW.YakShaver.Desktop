@@ -449,6 +449,114 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
   });
 });
 
+describe("ScreenRecorder - video host disabled-state messaging (#1022)", () => {
+  const setupElectronApi = () => {
+    state.stopRequestHandler = null;
+    (window as unknown as { electronAPI: unknown }).electronAPI = {
+      screenRecording: {
+        onStopRequest: vi.fn((cb: (...args: unknown[]) => void) => {
+          state.stopRequestHandler = cb;
+          return () => {};
+        }),
+        onOpenSourcePicker: vi.fn(() => () => {}),
+        restoreMainWindow: vi.fn(),
+        hasAudio: vi.fn().mockResolvedValue({ success: true, hasAudio: true }),
+      },
+      pipelines: {
+        processVideoFile: vi.fn().mockResolvedValue(undefined),
+        processVideoUrl: vi.fn().mockResolvedValue(undefined),
+      },
+      userSettings: { onHotkeyUpdate: vi.fn(() => () => {}) },
+    };
+  };
+
+  beforeEach(() => {
+    state.isYoutubeUrlWorkflowEnabled = false;
+    state.isRecording = false;
+    state.isProcessing = false;
+    state.uploadStatus = UploadStatus.IDLE;
+    state.recordedVideo = null;
+    setupElectronApi();
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it("shows a tooltip on the disabled record button explaining a video host is required", async () => {
+    state.authStatus = AuthStatus.NOT_AUTHENTICATED;
+    render(<ScreenRecorder />);
+
+    const button = await screen.findByRole("button", { name: "Start Recording" });
+    expect(button).toBeDisabled();
+
+    // The `title` lives on the wrapper (native disabled buttons suppress
+    // their own hover/focus events), same convention as the upload button.
+    const wrapper = button.parentElement;
+    expect(wrapper).toHaveAttribute("title", "Recording requires a connected video host.");
+
+    // Also exposed to assistive tech via aria-describedby.
+    const descriptionId = button.getAttribute("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId as string)?.textContent).toBe(
+      "Recording requires a connected video host.",
+    );
+  });
+
+  it("does not show a disabled-reason tooltip once a video host is connected", async () => {
+    state.authStatus = AuthStatus.AUTHENTICATED;
+    render(<ScreenRecorder />);
+
+    const button = await screen.findByRole("button", { name: "Start Recording" });
+    expect(button).toBeEnabled();
+    expect(button.parentElement).not.toHaveAttribute("title");
+    expect(button).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("shows a status indicator near the record button reflecting video host connection state", async () => {
+    state.authStatus = AuthStatus.NOT_AUTHENTICATED;
+    render(<ScreenRecorder />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("video-host-status")).toHaveTextContent("Video host not connected"),
+    );
+  });
+
+  it("updates the status indicator to connected once a video host is connected", async () => {
+    state.authStatus = AuthStatus.AUTHENTICATED;
+    render(<ScreenRecorder />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("video-host-status")).toHaveTextContent("Video host connected"),
+    );
+  });
+
+  it("shows a prominent inline alert with a link to Video Host settings when disabled due to missing video host", async () => {
+    state.authStatus = AuthStatus.NOT_AUTHENTICATED;
+    render(<ScreenRecorder />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Recording requires a connected video host.");
+
+    const openSettingsListener = vi.fn();
+    window.addEventListener("open-settings-tab", openSettingsListener);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Video Host Settings" }));
+
+    expect(openSettingsListener).toHaveBeenCalledTimes(1);
+    const event = openSettingsListener.mock.calls[0]?.[0] as CustomEvent;
+    expect(event.detail).toEqual({ tabId: "videoHost" });
+
+    window.removeEventListener("open-settings-tab", openSettingsListener);
+  });
+
+  it("hides the inline video-host alert once a video host is connected", async () => {
+    state.authStatus = AuthStatus.AUTHENTICATED;
+    render(<ScreenRecorder />);
+
+    await waitFor(() => expect(screen.getByTestId("video-host-status")).toBeInTheDocument());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
 describe("ScreenRecorder - record/stop icon (#641)", () => {
   beforeEach(() => {
     // Single-button layout (no split), simplest surface for asserting the record/stop icon.
