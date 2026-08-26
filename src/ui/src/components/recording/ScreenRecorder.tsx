@@ -203,7 +203,12 @@ function RecordButton({
       // shows the reason: a native `disabled` button suppresses its own
       // pointer/focus events, so the tooltip has to live on a parent that
       // still receives them. Mirrors the upload button's wrapper below.
-      <div title={recordDisabledReason ?? undefined}>
+      // #1023 review round 4 — the wrapper also needs the caller's sizing/alignment
+      // class (e.g. sidebar.tsx's `w-full justify-start`): the parent here is
+      // `flex flex-col items-center`, so an unstyled wrapper shrink-wraps and makes
+      // those classes on the inner Button a no-op. Matches the split-layout branch
+      // below, which already carries its sizing class on the wrapper.
+      <div className={className} title={recordDisabledReason ?? undefined}>
         <Button
           className={cn(
             "bg-ssw-red text-xl text-ssw-red-foreground hover:bg-ssw-red/90 items-center",
@@ -611,7 +616,12 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   // `missingVideoHost` guard `recordDisabledReason` already uses: once a recording
   // is in progress the video-host connection is no longer the actionable state to
   // surface, so the banner shouldn't reappear if host auth drops mid-session.
-  const showVideoHostWarning = !is360Mode && !isRecording && !isVideoHostConnected;
+  // #1023 review round 4 — folds in !isAuthInfoLoading (previously re-ANDed at the
+  // call site below), matching recordDisabledReason which already folds the same
+  // loading guard into its own definition, so both "is this disabled-reason UI
+  // showable" computations stay consistent.
+  const showVideoHostWarning =
+    !is360Mode && !isRecording && !isVideoHostConnected && !isAuthInfoLoading;
 
   return (
     <>
@@ -656,7 +666,6 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
           )}
         </div>
         {showVideoHostWarning &&
-          !isAuthInfoLoading &&
           (showButtonOnly ? (
             // #1023 review — the sidebar (showButtonOnly) is a ~288px rail; the full
             // icon + two-line + button card below is too heavy there (this repo's own
