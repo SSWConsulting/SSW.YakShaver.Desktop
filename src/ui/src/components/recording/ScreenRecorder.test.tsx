@@ -48,6 +48,10 @@ vi.mock("../../contexts/YouTubeAuthContext", () => ({
       status: state.authStatus,
       userInfo: state.authStatus === AuthStatus.AUTHENTICATED ? { name: "Tester" } : null,
     },
+    // Settled by default so this suite's existing assertions (checking the
+    // disabled-reason messaging renders immediately) are unaffected by the
+    // #1023-review loading gate added to the real YouTubeAuthContext.
+    isLoading: false,
     uploadStatus: state.uploadStatus,
     setUploadResult: vi.fn(),
     setUploadStatus: vi.fn(),
@@ -501,7 +505,8 @@ describe("ScreenRecorder - video host disabled-state messaging (#1022)", () => {
     );
   });
 
-  // #1023 review — the sidebar (the only real production mount point) always
+  // Added during PR #1023 review (still part of the #1022 feature, not a
+  // separate issue) — the sidebar (the only real production mount point) always
   // renders with showButtonOnly, and the non-showButtonOnly render above is not
   // a configuration that occurs in the shipped app. This regression previously let
   // the Badge/banner ship as unreachable dead code (both were gated on

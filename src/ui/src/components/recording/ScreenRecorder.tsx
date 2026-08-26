@@ -59,6 +59,12 @@ interface RecorderControlState {
   // standard YouTube/video-platform auth, so the disabled-reason copy must branch on
   // this to avoid telling a signed-out 360 user to "connect a video host".
   is360Mode: boolean;
+  // #1023 review — true until the async is360Mode/isSignedIn (useCloud360Mode) and
+  // YouTube auth (useYouTubeAuth) checks have resolved at least once. Both start from
+  // a false/not-authenticated default, so without this flag an already-connected user
+  // would see a flash of the wrong disabled-reason tooltip/Badge/banner on every mount
+  // until the IPC calls settle.
+  isAuthInfoLoading: boolean;
 }
 
 interface RecorderControlAvailability {
@@ -132,13 +138,27 @@ function getRecorderControlAvailability(
   // even if those two states are ever decoupled from isRecording in the future.
   // #1023 review — branch the copy on is360Mode: 360's gate is Identity Server
   // sign-in, not the standard video-host auth, so the message must say so.
+  // #1023 review — suppress the reason entirely while auth info is still loading:
+  // is360Mode/isSignedIn/authState resolve asynchronously from a false/unauthenticated
+  // default, so showing a reason before they settle could flash a wrong, actionable-
+  // looking message ("connect a video host") at an already-connected user.
   const recordDisabledReason =
-    missingVideoHost && !controlState.isProcessing && !controlState.isTranscribing
+    missingVideoHost &&
+    !controlState.isProcessing &&
+    !controlState.isTranscribing &&
+    !controlState.isAuthInfoLoading
       ? controlState.is360Mode
         ? IDENTITY_SERVER_DISABLED_REASON
         : VIDEO_HOST_DISABLED_REASON
       : null;
 
+  // #1023 review (nit) — this intentionally stays a distinct, shorter phrase
+  // ("unavailable until a video host is connected") rather than interpolating
+  // recordDisabledReason: the upload button's title is a parenthetical suffix
+  // on "Process YouTube URL", so splicing in the record button's full sentence
+  // ("Recording requires a connected video host.") would read awkwardly there.
+  // Both strings describe the same root cause and are covered by existing tests;
+  // left as-is to avoid a wording/test churn out of proportion to a nit.
   let uploadTitle = PROCESS_YOUTUBE_URL_LABEL;
   if (controlState.isRecording) {
     uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable while recording)`;
@@ -255,7 +275,12 @@ function RecordButton({
 
 export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
   const navigateToWorkflow = useWorkflowNavigation();
-  const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
+  const {
+    authState,
+    isLoading: isYouTubeAuthLoading,
+    setUploadResult,
+    setUploadStatus,
+  } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
   const [isTranscribing, _] = useState(false);
@@ -271,7 +296,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const [duration, setDuration] = useState<number>(0);
   const [approvalMode, setApprovalMode] = useState<ToolApprovalMode>("ask");
   const { saveRecording, checkExistingShave } = useShaveManager();
-  const { is360Mode, isSignedIn } = useCloud360Mode();
+  const { is360Mode, isSignedIn, isLoading: isCloud360Loading } = useCloud360Mode();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
@@ -283,6 +308,12 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const isVideoHostConnected = is360Mode
     ? isSignedIn
     : authState.status === AuthStatus.AUTHENTICATED;
+  // #1023 review — is360Mode/isSignedIn (useCloud360Mode) and authState
+  // (useYouTubeAuth) both resolve asynchronously from a false/unauthenticated
+  // default; while either is still settling, isVideoHostConnected above can't be
+  // trusted yet, so downstream messaging (tooltip/Badge/banner) is suppressed
+  // until both are loaded (see recordDisabledReason and showVideoHostWarning).
+  const isAuthInfoLoading = isCloud360Loading || isYouTubeAuthLoading;
   const controlState = {
     isRecording,
     isTranscribing,
@@ -290,6 +321,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
     isProcessingUrl,
     isVideoHostConnected,
     is360Mode,
+    isAuthInfoLoading,
   } satisfies RecorderControlState;
   // 360 has no YouTube-URL path, so keep a single Record button (no split layout).
   const showYoutubeUrlSplitLayout = !is360Mode && isYoutubeUrlWorkflowEnabled && !isRecording;
@@ -606,8 +638,10 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
               banner below so the state is visible at a glance even once the
               banner has been dismissed-by-familiarity.
               #1023 review — reachable in every mount (incl. the sidebar's
-              showButtonOnly), with compact sizing there so it fits the narrow rail. */}
-          {!is360Mode && (
+              showButtonOnly), with compact sizing there so it fits the narrow rail.
+              Suppressed while auth info is still loading (see isAuthInfoLoading)
+              so it can't flash "not connected" for an already-connected user. */}
+          {!is360Mode && !isAuthInfoLoading && (
             <Badge
               variant={isVideoHostConnected ? "success" : "destructive"}
               className={cn("mt-1", showButtonOnly && "text-[10px] px-1.5 py-0")}
@@ -617,40 +651,64 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             </Badge>
           )}
         </div>
-        {showVideoHostWarning && (
-          // #1022 — a prominent, actionable banner (not just muted text) so
-          // the missing-video-host reason can't be missed, with a direct link
-          // to the Video Host settings tab. Layout mirrors HomeMcpStatusBanner (#869),
-          // compacted to a single column when showButtonOnly (the narrow sidebar rail).
-          // #1023 review — uses `role="status"`/`aria-live="polite"` via an <output>
-          // element rather than `role="alert"`, matching the convention this repo
-          // settled on for persistent/recurring status banners (see SettingsWarningBanner
-          // #954 and StatusDashboard #949): `alert`'s assertive interrupt semantics are
-          // for a one-shot message, not state that's already present at mount and can
-          // flip repeatedly (connect/disconnect) while this component stays mounted.
-          <output
-            aria-live="polite"
-            className={cn(
-              "flex w-full gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3",
-              showButtonOnly
-                ? "flex-col items-start"
-                : "flex-col sm:flex-row sm:items-center justify-between",
-            )}
-          >
-            <div className="flex items-start gap-2 text-yellow-100">
-              <AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-yellow-300" />
-              <span className="text-sm">{VIDEO_HOST_DISABLED_REASON} Connect one to continue.</span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0 self-start"
-              onClick={openVideoHostSettings}
+        {showVideoHostWarning &&
+          !isAuthInfoLoading &&
+          (showButtonOnly ? (
+            // #1023 review — the sidebar (showButtonOnly) is a ~288px rail; the full
+            // icon + two-line + button card below is too heavy there (this repo's own
+            // sidebar precedent, StatusDashboard, uses a compact dot + one-line row for
+            // the same "narrow column" constraint). Keep the warning reachable — it must
+            // not go back to being dead code, per the earlier review round — but as a
+            // single compact line with an inline text link instead of a full alert card.
+            <output
+              aria-live="polite"
+              className="flex w-full items-start gap-1.5 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2 py-1.5 text-yellow-100"
             >
-              Open Video Host Settings
-            </Button>
-          </output>
-        )}
+              <AlertTriangle
+                aria-hidden="true"
+                className="h-3.5 w-3.5 shrink-0 mt-0.5 text-yellow-300"
+              />
+              <span className="text-[11px] leading-tight">
+                {VIDEO_HOST_DISABLED_REASON}{" "}
+                <button
+                  type="button"
+                  onClick={openVideoHostSettings}
+                  className="underline underline-offset-2 hover:text-yellow-50"
+                >
+                  Open Video Host Settings
+                </button>
+              </span>
+            </output>
+          ) : (
+            // #1022 — a prominent, actionable banner (not just muted text) so
+            // the missing-video-host reason can't be missed, with a direct link
+            // to the Video Host settings tab. Layout mirrors HomeMcpStatusBanner (#869).
+            // #1023 review — uses `role="status"`/`aria-live="polite"` via an <output>
+            // element rather than `role="alert"`, matching the convention this repo
+            // settled on for persistent/recurring status banners (see SettingsWarningBanner
+            // #954 and StatusDashboard #949): `alert`'s assertive interrupt semantics are
+            // for a one-shot message, not state that's already present at mount and can
+            // flip repeatedly (connect/disconnect) while this component stays mounted.
+            <output
+              aria-live="polite"
+              className="flex w-full gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 flex-col sm:flex-row sm:items-center justify-between"
+            >
+              <div className="flex items-start gap-2 text-yellow-100">
+                <AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-yellow-300" />
+                <span className="text-sm">
+                  {VIDEO_HOST_DISABLED_REASON} Connect one to continue.
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 self-start"
+                onClick={openVideoHostSettings}
+              >
+                Open Video Host Settings
+              </Button>
+            </output>
+          ))}
         <SourcePickerDialog
           open={pickerOpen}
           onOpenChange={setPickerOpen}

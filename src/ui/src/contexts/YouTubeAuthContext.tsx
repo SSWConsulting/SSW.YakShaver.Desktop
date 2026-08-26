@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { parseWorkflowProgressNeoPayload, parseWorkflowStepPayload } from "@/utils";
+import { STATUS_DASHBOARD_REFRESH_EVENT } from "../components/layout/status-dashboard";
 import { ipcClient } from "../services/ipc-client";
 import { type AuthState, AuthStatus, UploadStatus, type VideoUploadResult } from "../types";
 
@@ -36,7 +37,11 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
   const [authState, setAuthState] = useState<AuthState>({
     status: AuthStatus.NOT_AUTHENTICATED,
   });
-  const [isLoading, setIsLoading] = useState(false);
+  // #1023 review — starts true (not false): the initial checkAuthStatus() call only
+  // begins inside a useEffect below, which runs *after* the first render, so a
+  // `false` default here would let consumers briefly read
+  // "not loading, not authenticated" before the check has even started.
+  const [isLoading, setIsLoading] = useState(true);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>(UploadStatus.IDLE);
   const [uploadResult, setUploadResult] = useState<VideoUploadResult | null>(null);
 
@@ -110,8 +115,22 @@ export const YouTubeAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [checkAuthStatus]);
 
+  // #1023 review — re-check on mount, when the window regains focus, and on
+  // STATUS_DASHBOARD_REFRESH_EVENT (dispatched when the Settings dialog closes,
+  // per SettingsDialog.tsx), mirroring the same pattern useCloud360Mode and
+  // HomeMcpStatusBanner already use. Without this, authState was only ever read
+  // once at mount, so ScreenRecorder's new disabled-reason tooltip/Badge/banner
+  // could keep showing "not connected" after a user connects a video host via
+  // Settings, until the whole app remounts.
   useEffect(() => {
     checkAuthStatus();
+    const onRefresh = () => checkAuthStatus();
+    window.addEventListener("focus", onRefresh);
+    window.addEventListener(STATUS_DASHBOARD_REFRESH_EVENT, onRefresh);
+    return () => {
+      window.removeEventListener("focus", onRefresh);
+      window.removeEventListener(STATUS_DASHBOARD_REFRESH_EVENT, onRefresh);
+    };
   }, [checkAuthStatus]);
 
   // Listen to workflow progress for upload results
