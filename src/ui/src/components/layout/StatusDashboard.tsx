@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useYouTubeAuth } from "@/contexts/YouTubeAuthContext";
 import { type StatusItem, type StatusLevel, useStatusDashboard } from "./status-dashboard";
 
 const DOT_CLASSES: Record<StatusLevel, string> = {
@@ -57,10 +58,17 @@ function StatusRow({ label, item }: StatusRowProps) {
 
 /**
  * #948 — sidebar status dashboard shown between "Projects" and "Settings". Gives
- * an always-visible, at-a-glance signal for the three things that otherwise fail
- * silently until a shave breaks: login status, MCP server connection status, and
- * language model connection status. Updates automatically (mount, window focus,
- * and STATUS_DASHBOARD_REFRESH_EVENT) so it reflects changes made in Settings.
+ * an always-visible, at-a-glance signal for the things that otherwise fail
+ * silently until a shave breaks: login status, video host connection status, MCP
+ * server connection status, and language model connection status. Updates
+ * automatically (mount, window focus, and STATUS_DASHBOARD_REFRESH_EVENT) so it
+ * reflects changes made in Settings.
+ *
+ * The video-host row reads `useYouTubeAuth()` — the same state ScreenRecorder gates the
+ * Record button on — so a greyed-out Record button always has a matching explanation
+ * here (the sidebar renders ScreenRecorder with `showButtonOnly`, which hides its own
+ * "connect a video platform" hint), and the row updates the instant the user connects
+ * or disconnects in Settings instead of waiting for the dialog to close.
  *
  * Address review #949 follow-up — the container is an `<output>` element (implicit
  * `role="status"`) with `aria-live="polite"` so a row flipping after mount (e.g. an MCP server
@@ -70,9 +78,11 @@ function StatusRow({ label, item }: StatusRowProps) {
  * one-shot, attention-demanding message, not a recurring background status card.
  */
 export function StatusDashboard() {
-  const dashboard = useStatusDashboard();
+  const { authState, isLoading: isVideoHostLoading } = useYouTubeAuth();
+  const dashboard = useStatusDashboard(authState.status, isVideoHostLoading);
   const allHealthy =
     dashboard.login.level === "green" &&
+    dashboard.videoHost.level === "green" &&
     dashboard.mcp.level === "green" &&
     dashboard.languageModel.level === "green";
 
@@ -90,6 +100,7 @@ export function StatusDashboard() {
         Status
       </div>
       <StatusRow label="Login" item={dashboard.login} />
+      <StatusRow label="Video host" item={dashboard.videoHost} />
       <StatusRow label="MCP servers" item={dashboard.mcp} />
       <StatusRow label="Language model" item={dashboard.languageModel} />
     </output>

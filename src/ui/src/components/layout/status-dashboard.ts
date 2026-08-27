@@ -1,6 +1,6 @@
 import type { LLMConfigV2, OrchestratorReadiness } from "@shared/types/llm";
 import type { MCPServerConfig } from "@shared/types/mcp";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchBacklogProviderHealth, isBacklogProvider } from "@/components/home/mcp-status";
 import { fetchOrchestratorReadiness } from "@/components/settings/settings-health";
 import { ipcClient } from "@/services/ipc-client";
@@ -8,10 +8,16 @@ import { AuthStatus, type HealthStatusInfo } from "@/types";
 
 /**
  * #948 — a sidebar status dashboard (between "Projects" and "Settings") that
- * surfaces the three things that silently cause a shave to fail: the user isn't
- * logged in, no MCP server is connected, or no language model is configured.
- * Today none of this is visible until a shave fails, so this dashboard gives an
- * always-on, at-a-glance signal instead.
+ * surfaces the things that silently cause a shave to fail: the user isn't logged
+ * in, no video host is connected, no MCP server is connected, or no language
+ * model is configured. Today none of this is visible until a shave fails, so this
+ * dashboard gives an always-on, at-a-glance signal instead.
+ *
+ * The video-host row exists because a missing video host is the one failure the
+ * user hits *before* a shave even starts: ScreenRecorder disables Record until a
+ * video host is connected, and the sidebar renders it with `showButtonOnly`, which
+ * omits ScreenRecorder's own "Please connect a video platform below" hint — so the
+ * button just greys out with no explanation anywhere on screen.
  *
  * `deriveStatusDashboard` is a pure function (unit-testable without IPC);
  * `useStatusDashboard` wires it to the live `ipcClient` reads and keeps it fresh.
@@ -30,6 +36,7 @@ export interface StatusItem {
 
 export interface StatusDashboard {
   login: StatusItem;
+  videoHost: StatusItem;
   mcp: StatusItem;
   languageModel: StatusItem;
 }
@@ -44,6 +51,20 @@ export interface StatusDashboardInputs {
    * Optional/omitted falls back to the same two-state (`isAuthenticated`) behaviour.
    */
   authStatus?: AuthStatus;
+  /**
+   * The video-host (YouTube) connection status, read from `YouTubeAuthContext` — the exact
+   * same state ScreenRecorder gates the Record button on, so the row and the button can
+   * never disagree. Ignored in YakShaver Anywhere (cloud-360) mode, where the "video host"
+   * is Identity Server sign-in instead. Optional/omitted counts as not connected.
+   */
+  videoHostStatus?: AuthStatus;
+  /**
+   * True while that connection check is still in flight (`YouTubeAuthContext.isLoading`).
+   * The context reports NOT_AUTHENTICATED until its first check resolves, so without this a
+   * connected user would see the red "no video host" warning flash on every app launch —
+   * the mirror image of the "never flash a false green" rule the other rows follow.
+   */
+  isVideoHostLoading?: boolean;
   /** Configured MCP servers (`ipcClient.mcp.listServers()`). */
   mcpServers: ReadonlyArray<Pick<MCPServerConfig, "id" | "name" | "enabled">>;
   /** Health by server id; only an explicit `isHealthy === true` counts as connected
@@ -61,7 +82,42 @@ export interface StatusDashboardInputs {
 }
 
 /**
- * Pure mapping from raw config/health reads to the three dashboard rows. Each rule
+ * Mirrors ScreenRecorder's own `isVideoHostConnected` gate exactly, so this row always
+ * explains the state of the Record button rather than guessing at it: in YakShaver
+ * Anywhere (cloud-360) mode the "video host" is Identity Server sign-in; in every other
+ * mode it's the YouTube connection.
+ */
+function deriveVideoHostStatus(inputs: StatusDashboardInputs): StatusItem {
+  if (inputs.llmConfig?.orchestrationBackend === "cloud-360") {
+    if (inputs.isAuthenticated) {
+      return { level: "green", message: "Connected: YakShaver Anywhere." };
+    }
+    if (inputs.authStatus === AuthStatus.AUTHENTICATING) {
+      return { level: "yellow", message: "Signing in…" };
+    }
+    return {
+      level: "red",
+      message: "Sign in to YakShaver Anywhere before you can start recording",
+    };
+  }
+
+  if (inputs.videoHostStatus === AuthStatus.AUTHENTICATED) {
+    return { level: "green", message: "Connected: YouTube." };
+  }
+  if (inputs.videoHostStatus === AuthStatus.AUTHENTICATING) {
+    return { level: "yellow", message: "Connecting…" };
+  }
+  if (inputs.isVideoHostLoading) {
+    return { level: "yellow", message: "Checking connection…" };
+  }
+  return {
+    level: "red",
+    message: "You don't have any video host connected, so you can't start recording",
+  };
+}
+
+/**
+ * Pure mapping from raw config/health reads to the dashboard rows. Each rule
  * only reports what it can positively confirm — an unknown/loading value never
  * flips a row to green, so the dashboard doesn't flash a false "all good".
  */
@@ -124,7 +180,12 @@ export function deriveStatusDashboard(inputs: StatusDashboardInputs): StatusDash
             message: "You don't have any language model connected, so probably the shave will fail",
           };
 
-  return { login, mcp, languageModel: languageModelItem };
+  return {
+    login,
+    videoHost: deriveVideoHostStatus(inputs),
+    mcp,
+    languageModel: languageModelItem,
+  };
 }
 
 const DEFAULT_INPUTS: StatusDashboardInputs = {
@@ -139,11 +200,18 @@ const DEFAULT_INPUTS: StatusDashboardInputs = {
  * Reads the live auth/MCP/LLM state and returns the dashboard status. Re-checks on
  * mount, when the window regains focus, and on STATUS_DASHBOARD_REFRESH_EVENT, so
  * the sidebar stays in sync with changes made in Settings or via sign-in/out.
+ *
+ * `videoHostStatus` is passed in (from `YouTubeAuthContext`) rather than fetched here on
+ * purpose: `ipcClient.youtube.getAuthStatus()` calls the YouTube API to resolve the channel,
+ * which would mean a network round-trip on every window focus, and reading the same context
+ * ScreenRecorder gates Record on keeps the row and the button in lockstep. The IPC-read
+ * inputs are held as raw state so a context change re-derives without re-running any IPC.
  */
-export function useStatusDashboard(): StatusDashboard {
-  const [dashboard, setDashboard] = useState<StatusDashboard>(() =>
-    deriveStatusDashboard(DEFAULT_INPUTS),
-  );
+export function useStatusDashboard(
+  videoHostStatus?: AuthStatus,
+  isVideoHostLoading?: boolean,
+): StatusDashboard {
+  const [inputs, setInputs] = useState<StatusDashboardInputs>(DEFAULT_INPUTS);
 
   // Bumped on every check() call and on unmount, so a check() that resolves after a
   // newer one started (or after unmount) is recognised as stale and its result is
@@ -176,22 +244,20 @@ export function useStatusDashboard(): StatusDashboard {
 
       if (requestIdRef.current !== requestId) return; // superseded or unmounted
 
-      setDashboard(
-        deriveStatusDashboard({
-          isAuthenticated: authState.status === AuthStatus.AUTHENTICATED,
-          authStatus: authState.status,
-          mcpServers,
-          mcpHealthById,
-          llmConfig,
-          orchestratorReadiness,
-        }),
-      );
+      setInputs({
+        isAuthenticated: authState.status === AuthStatus.AUTHENTICATED,
+        authStatus: authState.status,
+        mcpServers,
+        mcpHealthById,
+        llmConfig,
+        orchestratorReadiness,
+      });
     } catch {
       if (requestIdRef.current !== requestId) return; // superseded or unmounted
 
       // Couldn't read state — fall back to the conservative all-warning defaults
       // rather than showing a misleading green.
-      setDashboard(deriveStatusDashboard(DEFAULT_INPUTS));
+      setInputs(DEFAULT_INPUTS);
     }
   }, []);
 
@@ -207,5 +273,8 @@ export function useStatusDashboard(): StatusDashboard {
     };
   }, [check]);
 
-  return dashboard;
+  return useMemo(
+    () => deriveStatusDashboard({ ...inputs, videoHostStatus, isVideoHostLoading }),
+    [inputs, videoHostStatus, isVideoHostLoading],
+  );
 }
