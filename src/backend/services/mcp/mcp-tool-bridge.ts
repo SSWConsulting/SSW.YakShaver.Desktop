@@ -121,7 +121,10 @@ export class McpToolBridge {
           shaveId,
         });
         if (decision.kind !== "approve") {
-          const feedback = decision.kind === "request_changes" ? decision.feedback : undefined;
+          const feedback =
+            decision.kind === "deny_stop" || decision.kind === "request_changes"
+              ? decision.feedback
+              : undefined;
           return {
             ok: false,
             notApproved: true,
