@@ -246,7 +246,7 @@ describe("front-door integration — mcp-serve → BridgeClient → router → M
     expect(requestToolApproval).toHaveBeenCalledWith(
       "GitHub__create_issue",
       { title: "Bug" },
-      expect.objectContaining({}),
+      expect.objectContaining({ message: expect.stringContaining("GitHub__create_issue") }),
     );
     expect(result.isError).toBe(false);
     expect(result.content).toEqual([{ type: "text", text: "Created issue: Bug" }]);
