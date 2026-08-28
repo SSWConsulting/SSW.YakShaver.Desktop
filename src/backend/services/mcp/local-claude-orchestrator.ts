@@ -108,6 +108,15 @@ export interface YakshaverFrontDoorConfig {
 }
 
 /**
+ * The slice of {@link UserInteractionService} `runClaude` needs to make an in-flight run
+ * stoppable by shave id (#988 follow-up to #920) — kept narrow so unit tests can inject a mock
+ * without dragging in Electron/BrowserWindow, same rationale as {@link OrchestratorServerManager}.
+ */
+export interface ShaveRunRegistry {
+  registerShaveRunStopper(shaveId: string, stop: () => void): () => void;
+}
+
+/**
  * The MCPServerManager surface the orchestrator now needs: the prefixed whitelist (authoritative
  * client-side gate) plus an optional tool-collection call to warm the internal clients so built-in
  * tools are reflected in the whitelist.
@@ -139,10 +148,22 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
     private readonly settingsStorage: Pick<UserSettingsStorage, "getSettingsAsync"> | null = null,
     private readonly judgeProvider: OutcomeJudgeProvider | null = null,
     private readonly runTimeoutMs: number = DEFAULT_RUN_TIMEOUT_MS,
+    // #988 follow-up to #920: lets `deny_stop` (raised via the bridge, in the SAME process but a
+    // different call stack than `runClaude`) kill this run's `claude -p` child. Injected as a
+    // narrow interface — like `settingsStorage`/`judgeProvider` above — so the pure argv/config
+    // unit tests never touch the electron-backed `UserInteractionService` singleton unless a test
+    // explicitly injects one.
+    private readonly shaveRunRegistry: ShaveRunRegistry | null = null,
   ) {}
 
   private getSettingsStorage(): Pick<UserSettingsStorage, "getSettingsAsync"> {
     return this.settingsStorage ?? UserSettingsStorage.getInstance();
+  }
+
+  private async getShaveRunRegistry(): Promise<ShaveRunRegistry> {
+    if (this.shaveRunRegistry) return this.shaveRunRegistry;
+    const { UserInteractionService } = await import("../user-interaction/user-interaction-service");
+    return UserInteractionService.getInstance();
   }
 
   /** Verifies the `claude` CLI is reachable; throws a user-actionable error if not. */
@@ -472,6 +493,13 @@ Embed this URL in the task content that you create. Follow user requirements STR
     child.stdin?.write(userPrompt);
     child.stdin?.end();
 
+    // Resolve the shave-run registry BEFORE entering the executor below, so `deny_stop` (raised by
+    // the bridge, in a different call stack) has somewhere to register its kill hook for the
+    // duration of this run — mirrors OpenAI mode's `deny_stop` ending its orchestrator loop
+    // outright (#988 follow-up to #920). No-ops when `options.shaveId` is absent (registry keyed by
+    // shave id — nothing to key a stop request on).
+    const shaveRunRegistry = options.shaveId ? await this.getShaveRunRegistry() : null;
+
     const { finalText, terminationReason } = await new Promise<{
       finalText: string;
       terminationReason: MCPTerminationReason;
@@ -491,6 +519,21 @@ Embed this URL in the task content that you create. Follow user requirements STR
           /* the child may already be gone — best effort */
         }
       };
+
+      // Register this run's kill hook under its shaveId so a `deny_stop` decision raised via the
+      // bridge (McpToolBridge.callTool) can stop THIS run, the same way OpenAI mode's deny_stop
+      // ends its loop. Deregistered in `cleanup()` on every terminal path so a finished run never
+      // leaves a stale (or worse, wrongly-reused) stopper registered.
+      const deregisterRunStopper =
+        shaveRunRegistry && options.shaveId
+          ? shaveRunRegistry.registerShaveRunStopper(options.shaveId, () => {
+              if (settled) return;
+              settled = true;
+              cleanup();
+              killChild();
+              reject(new Error("Claude Code run was stopped by the user (deny_stop)."));
+            })
+          : null;
 
       // A wall-clock guard: `--max-turns` bounds turns, not time, so a tool hung on I/O would hang
       // forever. On timeout, kill the child and reject with an actionable message.
@@ -522,6 +565,7 @@ Embed this URL in the task content that you create. Follow user requirements STR
       const cleanup = () => {
         clearTimeout(timeoutId);
         options.signal?.removeEventListener("abort", onAbort);
+        deregisterRunStopper?.();
       };
       options.signal?.addEventListener("abort", onAbort);
 

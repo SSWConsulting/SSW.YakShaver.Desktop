@@ -17,6 +17,15 @@ export class UserInteractionService {
   private pendingInteractions = new Map<string, (response: unknown) => void>();
   /** Per-shave auto-approve flags, keyed by shave ID. Persists across retries for the same shave. */
   private shaveAutoApproveMap = new Map<string, boolean>();
+  /**
+   * Per-shave run-stop callbacks, keyed by shave ID (#988 follow-up). A local-Claude-backend run
+   * registers its "kill the `claude -p` child" callback here for the duration of the run so a
+   * `deny_stop` decision — raised via the bridge, in a DIFFERENT call stack to the one that
+   * spawned the child — can actually halt the run, the same way OpenAI mode's in-process
+   * `deny_stop` handling ends its orchestrator loop. Not persisted like the auto-approve map: it's
+   * only meaningful while a run is in flight, and is deregistered when the run ends.
+   */
+  private shaveRunStoppers = new Map<string, () => void>();
 
   private constructor() {}
 
@@ -142,6 +151,37 @@ export class UserInteractionService {
     this.pendingInteractions.delete(requestId);
     resolver(responseData);
     return true;
+  }
+
+  /**
+   * Register the "stop this shave's run" callback for the duration of an in-flight local-Claude
+   * run (#988 follow-up to #920). Returns a deregister function the caller MUST invoke when the
+   * run ends (success, error, or timeout) so a finished run's callback is never left registered —
+   * a leaked entry would be both a memory leak and (if ever invoked later) a no-op stop on a dead
+   * process.
+   */
+  public registerShaveRunStopper(shaveId: string, stop: () => void): () => void {
+    this.shaveRunStoppers.set(shaveId, stop);
+    return () => {
+      // Only clear if it's still OUR callback — guards against a concurrent re-register (e.g. an
+      // immediate retry) racing this run's own cleanup and deregistering the new run's stopper.
+      if (this.shaveRunStoppers.get(shaveId) === stop) {
+        this.shaveRunStoppers.delete(shaveId);
+      }
+    };
+  }
+
+  /**
+   * Stop the in-flight local-Claude run for a shave, if one is currently registered. Best-effort:
+   * a shave with no registered run (OpenAI backend, or the run already ended) is a silent no-op —
+   * the structured not-approved tool result is the only signal in that case.
+   */
+  public stopShaveRun(shaveId: string): void {
+    const stop = this.shaveRunStoppers.get(shaveId);
+    if (stop) {
+      this.shaveRunStoppers.delete(shaveId);
+      stop();
+    }
   }
 
   /**

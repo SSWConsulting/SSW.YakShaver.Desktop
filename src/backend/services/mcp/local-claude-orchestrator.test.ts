@@ -414,6 +414,161 @@ describe("LocalClaudeOrchestrator", () => {
     });
   });
 
+  describe("deny_stop run-stopper registration (#988 follow-up to #920)", () => {
+    /** A minimal mock of the ShaveRunRegistry surface (UserInteractionService's slice). */
+    function makeShaveRunRegistry() {
+      const stoppers = new Map<string, () => void>();
+      return {
+        registerShaveRunStopper: vi.fn((shaveId: string, stop: () => void) => {
+          stoppers.set(shaveId, stop);
+          return () => {
+            if (stoppers.get(shaveId) === stop) stoppers.delete(shaveId);
+          };
+        }),
+        // Test helper (not part of the real interface) to simulate the bridge's deny_stop call.
+        trigger: (shaveId: string) => stoppers.get(shaveId)?.(),
+        hasStopper: (shaveId: string) => stoppers.has(shaveId),
+      };
+    }
+
+    /**
+     * Poll (real-timer backed, via vi.waitFor) until the registry's registerShaveRunStopper mock
+     * has been called, rather than guessing a fixed number of event-loop ticks to cover
+     * ensureClaudeAvailable's version-check round trip plus the dynamic getShaveRunRegistry()
+     * import — the exact number of ticks needed is not deterministic (it can vary with what
+     * other in-flight microtasks/timers neighbouring tests leave behind).
+     */
+    async function waitForRegistration(
+      registry: ReturnType<typeof makeShaveRunRegistry>,
+    ): Promise<void> {
+      await vi.waitFor(
+        () => {
+          if (registry.registerShaveRunStopper.mock.calls.length === 0) {
+            throw new Error("registerShaveRunStopper not yet called");
+          }
+        },
+        { timeout: 2000, interval: 5 },
+      );
+    }
+
+    it("registers a run stopper under options.shaveId while the run is in flight", async () => {
+      const registry = makeShaveRunRegistry();
+      const { spawn } = makeSpawner(0, runChild); // no runScript — run stays in flight
+      const orch = new LocalClaudeOrchestrator(
+        "claude",
+        { spawn },
+        makeManager(),
+        frontDoor,
+        makeSettings("yolo"),
+        { generateObject: vi.fn() },
+        undefined,
+        registry,
+      );
+
+      const runPromise = orch.manualLoopAsync("t", undefined, { shaveId: "shave-42" });
+      // Let the version-check child (its own setImmediate-scheduled close), the dynamic
+      // getShaveRunRegistry() import, and the run spawn all flush before asserting.
+      await waitForRegistration(registry);
+
+      expect(registry.registerShaveRunStopper).toHaveBeenCalledWith(
+        "shave-42",
+        expect.any(Function),
+      );
+      expect(registry.hasStopper("shave-42")).toBe(true);
+
+      // Clean up: finish the run so the test doesn't leak a hanging promise/timer.
+      runChild.stdout?.emit(
+        "data",
+        Buffer.from(`${JSON.stringify({ type: "result", subtype: "success", result: "ok" })}
+`),
+      );
+      runChild.emit("close", 0);
+      await runPromise.catch(() => {
+        /* result/judge plumbing isn't under test here */
+      });
+    });
+
+    it("triggering the registered stopper kills the child and rejects the run", async () => {
+      const registry = makeShaveRunRegistry();
+      const { spawn } = makeSpawner(0, runChild); // no runScript — run stays in flight
+      runChild.kill = vi.fn();
+      const orch = new LocalClaudeOrchestrator(
+        "claude",
+        { spawn },
+        makeManager(),
+        frontDoor,
+        makeSettings("yolo"),
+        { generateObject: vi.fn() },
+        undefined,
+        registry,
+      );
+
+      const runPromise = orch.manualLoopAsync("t", undefined, { shaveId: "shave-42" });
+      await waitForRegistration(registry);
+
+      registry.trigger("shave-42");
+
+      await expect(runPromise).rejects.toThrow(/stopped by the user \(deny_stop\)/);
+      expect(runChild.kill).toHaveBeenCalledOnce();
+    });
+
+    it("deregisters the stopper once the run ends normally (no stale entry left behind)", async () => {
+      const registry = makeShaveRunRegistry();
+      const lines = [JSON.stringify({ type: "result", subtype: "success", result: "done" })];
+      const { spawn } = makeSpawner(0, runChild, () => {
+        for (const line of lines)
+          runChild.stdout?.emit(
+            "data",
+            Buffer.from(`${line}
+`),
+          );
+        runChild.emit("close", 0);
+      });
+      const orch = new LocalClaudeOrchestrator(
+        "claude",
+        { spawn },
+        makeManager(),
+        frontDoor,
+        makeSettings("yolo"),
+        { generateObject: vi.fn().mockResolvedValue({ achieved: false, artifacts: [] }) },
+        undefined,
+        registry,
+      );
+
+      await orch.manualLoopAsync("t", undefined, { shaveId: "shave-42" });
+
+      expect(registry.hasStopper("shave-42")).toBe(false);
+    });
+
+    it("does not register a stopper when options.shaveId is absent", async () => {
+      const registry = makeShaveRunRegistry();
+      const lines = [JSON.stringify({ type: "result", subtype: "success", result: "done" })];
+      const { spawn } = makeSpawner(0, runChild, () => {
+        for (const line of lines)
+          runChild.stdout?.emit(
+            "data",
+            Buffer.from(`${line}
+`),
+          );
+        runChild.emit("close", 0);
+      });
+      const orch = new LocalClaudeOrchestrator(
+        "claude",
+        { spawn },
+        makeManager(),
+        frontDoor,
+        makeSettings("yolo"),
+        { generateObject: vi.fn().mockResolvedValue({ achieved: false, artifacts: [] }) },
+        undefined,
+        registry,
+      );
+
+      await orch.manualLoopAsync("t", undefined, {});
+
+      expect(registry.registerShaveRunStopper).not.toHaveBeenCalled();
+    });
+  });
+
   describe("stripFrontDoorPrefix", () => {
     it("strips the mcp__yakshaver__ front-door prefix so the real Server__tool remains", () => {
       expect(stripFrontDoorPrefix(`mcp__${YAKSHAVER_MCP_SERVER_KEY}__GitHub__issue_write`)).toBe(

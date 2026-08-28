@@ -37,6 +37,12 @@ export interface ToolBridgeUserInteraction {
     args: unknown,
     options?: { message?: string; shaveId?: string },
   ): Promise<ToolApprovalDecision>;
+  /**
+   * Stop the in-flight local-Claude run for a shave (#988 follow-up to #920), if one is
+   * registered. Optional so existing test doubles that predate this method keep compiling;
+   * `callTool` treats a missing implementation the same as "no run registered" — a silent no-op.
+   */
+  stopShaveRun?(shaveId: string): void;
 }
 
 /**
@@ -101,6 +107,12 @@ export class McpToolBridge {
       return { ok: false, error: `Unknown tool: ${name}` };
     }
 
+    // approvalMode and the whitelist are read as two separate awaits, and under `wait` the
+    // decision below can block for up to WAIT_MODE_AUTO_APPROVE_DELAY_MS (15s) before either is
+    // acted on again. A mode/whitelist change mid-wait is NOT re-read — this call proceeds
+    // against the snapshot taken here. Accepted staleness window: low-impact (worst case, one call
+    // is gated/ungated one setting-generation late) and pre-existing on the OpenAI path too; now
+    // also reachable end-to-end for Claude Code mode.
     const approvalMode = (await this.settings.getSettingsAsync()).toolApprovalMode;
     if (approvalMode === "ask" || approvalMode === "wait") {
       const whitelist = new Set(await this.manager.getWhitelistWithServerPrefixAsync());
@@ -125,6 +137,20 @@ export class McpToolBridge {
             decision.kind === "deny_stop" || decision.kind === "request_changes"
               ? decision.feedback
               : undefined;
+
+          // deny_stop means "stop the run", not "retry this one call" — OpenAI mode enforces that
+          // by ending its orchestrator loop outright (mcp-orchestrator.ts). The Claude Code backend
+          // has no in-process loop to end here (this call is the bridge's HTTP handler, in a
+          // different process than the `claude -p` child), so ending the RUN means killing that
+          // child. `local-claude-orchestrator.ts` registers a stop callback for the run's shaveId
+          // while it's in flight; trigger it here so Claude can't retry, try another tool, or
+          // report success after the user chose "stop" (#988 follow-up to #920). Best-effort: a
+          // missing shaveId or no registered run (already ended, or OpenAI backend) is a no-op —
+          // the structured not-approved result below is still returned either way.
+          if (decision.kind === "deny_stop" && shaveId) {
+            this.userInteraction.stopShaveRun?.(shaveId);
+          }
+
           return {
             ok: false,
             notApproved: true,

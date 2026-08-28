@@ -47,8 +47,14 @@ function makeSettings(mode: "yolo" | "ask" | "wait"): ToolBridgeSettings {
 /** A stub {@link ToolBridgeUserInteraction} whose decision is scripted per test. */
 function makeUserInteraction(
   decision: ToolApprovalDecision = { kind: "approve" },
-): ToolBridgeUserInteraction & { requestToolApproval: ReturnType<typeof vi.fn> } {
-  return { requestToolApproval: vi.fn().mockResolvedValue(decision) };
+): ToolBridgeUserInteraction & {
+  requestToolApproval: ReturnType<typeof vi.fn>;
+  stopShaveRun: ReturnType<typeof vi.fn> & ((shaveId: string) => void);
+} {
+  return {
+    requestToolApproval: vi.fn().mockResolvedValue(decision),
+    stopShaveRun: vi.fn<(shaveId: string) => void>(),
+  };
 }
 
 describe("McpToolBridge.listTools", () => {
@@ -196,6 +202,80 @@ describe("McpToolBridge.callTool - approval policy enforcement", () => {
       userInteraction,
     );
     const res = await bridge.callTool("GitHub__create_issue", { title: "Bug" });
+
+    expect(executeSpy).not.toHaveBeenCalled();
+    expect(res.ok).toBe(false);
+    if (res.ok) throw new Error("expected a not-approved failure");
+    expect(res.notApproved).toBe(true);
+  });
+
+  it("wait: deny_stop with a shaveId stops the run via userInteraction.stopShaveRun (#988 follow-up to #920)", async () => {
+    const userInteraction = makeUserInteraction({ kind: "deny_stop", feedback: "stop everything" });
+    const bridge = new McpToolBridge(
+      makeManager(makeToolSet({ GitHub__create_issue: executeSpy }), /* whitelist */ []),
+      makeSettings("wait"),
+      userInteraction,
+    );
+    const res = await bridge.callTool(
+      "GitHub__create_issue",
+      { title: "Bug" },
+      undefined,
+      "shave-42",
+    );
+
+    expect(executeSpy).not.toHaveBeenCalled();
+    expect(userInteraction.stopShaveRun).toHaveBeenCalledWith("shave-42");
+    expect(res.ok).toBe(false);
+    if (res.ok) throw new Error("expected a not-approved failure");
+    expect(res.notApproved).toBe(true);
+  });
+
+  it("wait: deny_stop WITHOUT a shaveId does not call stopShaveRun (nothing to key a stop on)", async () => {
+    const userInteraction = makeUserInteraction({ kind: "deny_stop", feedback: "stop" });
+    const bridge = new McpToolBridge(
+      makeManager(makeToolSet({ GitHub__create_issue: executeSpy }), /* whitelist */ []),
+      makeSettings("wait"),
+      userInteraction,
+    );
+    const res = await bridge.callTool("GitHub__create_issue", { title: "Bug" });
+
+    expect(userInteraction.stopShaveRun).not.toHaveBeenCalled();
+    expect(res.ok).toBe(false);
+  });
+
+  it("wait: request_changes does NOT call stopShaveRun (only deny_stop stops the run)", async () => {
+    const userInteraction = makeUserInteraction({
+      kind: "request_changes",
+      feedback: "use a different title",
+    });
+    const bridge = new McpToolBridge(
+      makeManager(makeToolSet({ GitHub__create_issue: executeSpy }), /* whitelist */ []),
+      makeSettings("wait"),
+      userInteraction,
+    );
+    await bridge.callTool("GitHub__create_issue", { title: "Bug" }, undefined, "shave-42");
+
+    expect(userInteraction.stopShaveRun).not.toHaveBeenCalled();
+  });
+
+  it("wait: deny_stop still returns the not-approved result even when stopShaveRun is undefined (optional method)", async () => {
+    const decision: ToolApprovalDecision = { kind: "deny_stop", feedback: "stop" };
+    const userInteraction: ToolBridgeUserInteraction = {
+      requestToolApproval: vi.fn().mockResolvedValue(decision),
+      // stopShaveRun intentionally omitted — older callers/mocks that predate this method.
+    };
+    const bridge = new McpToolBridge(
+      makeManager(makeToolSet({ GitHub__create_issue: executeSpy }), /* whitelist */ []),
+      makeSettings("wait"),
+      userInteraction,
+    );
+
+    const res = await bridge.callTool(
+      "GitHub__create_issue",
+      { title: "Bug" },
+      undefined,
+      "shave-42",
+    );
 
     expect(executeSpy).not.toHaveBeenCalled();
     expect(res.ok).toBe(false);
