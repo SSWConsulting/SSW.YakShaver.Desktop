@@ -659,7 +659,13 @@ async function authorizeWithBackendOnce(
   options: McpOAuthAuthorizeOptions,
 ): Promise<OAuthTokens> {
   const provider = options.provider ?? inferMcpOAuthProvider(serverUrl);
-  const timeoutMs = resolveMcpOAuthTimeoutMs(provider, options.timeoutMs);
+  // The MCP_AUTH_TIMEOUT_MS override is read here rather than at the call site, so every entry
+  // point honours it. It used to be plumbed in by MCPServerClient only, which meant Reauthorize
+  // silently ignored it while Connect respected it.
+  const timeoutMs = resolveMcpOAuthTimeoutMs(
+    provider,
+    options.timeoutMs ?? Number(process.env.MCP_AUTH_TIMEOUT_MS),
+  );
   // One id per attempt, shared by the URL we send out and the waiter, so a failure reported by an
   // earlier tab for this same server is ignored instead of cancelling this attempt.
   const attemptId = randomUUID();

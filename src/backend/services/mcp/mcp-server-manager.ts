@@ -503,6 +503,55 @@ export class MCPServerManager {
   }
 
   /**
+   * Whether a config is one we can sign in to. `connectServerAsync` treats everything else
+   * as "nothing to authorize" — a stdio/in-memory/builtin server is reachable the moment it
+   * is enabled.
+   */
+  private static usesOAuth(config: MCPServerConfig): config is MCPServerConfig & { url: string } {
+    return config.transport === "streamableHttp" && !config.builtin && !!config.url;
+  }
+
+  /** Drops a cached client so the next read rebuilds one with the credential just obtained. */
+  private static async evictCachedClientAsync(serverId: string): Promise<void> {
+    await MCPServerManager.mcpClients
+      .get(serverId)
+      ?.disconnectAsync()
+      .catch(() => undefined);
+    MCPServerManager.mcpClients.delete(serverId);
+  }
+
+  /**
+   * Signs in to an MCP server. This is the ONE place that can open a browser — the action
+   * counterpart to the read-only `checkServerHealthAsync`, mirroring `login()` on
+   * IdentityServerAuthService and `authenticate()` on YouTubeClient. Reached only from the
+   * Connect button, never from a status check, so the app cannot send the user to a sign-in
+   * page on its own.
+   *
+   * A server that needs no sign-in, or already holds a usable token, is a no-op — Connect
+   * stays a single call the UI can make for any transport.
+   */
+  public async connectServerAsync(serverId: string): Promise<void> {
+    const config = await MCPServerManager.resolveServerConfigAsync(serverId);
+    if (!config) {
+      throw new Error(`[MCPServerManager]: Connect - MCP server '${serverId}' not found`);
+    }
+    if (!MCPServerManager.usesOAuth(config)) {
+      return;
+    }
+
+    const tokenStorage = McpOAuthTokenStorage.getInstance();
+    if ((await tokenStorage.getTokensAsync(serverId))?.access_token) {
+      return;
+    }
+
+    // A health check on an unconnected server may have cached an unauthenticated client, and
+    // an auth-failed client is deliberately kept (#982). Without this it would survive the
+    // sign-in and keep answering 401 with the new token sitting unused in storage.
+    await MCPServerManager.evictCachedClientAsync(config.id);
+    await authorizeWithBackend(tokenStorage, expandHomePath(config.url), serverId);
+  }
+
+  /**
    * Re-authorizes an OAuth MCP server in place (#982): drop the dead credential,
    * invalidate any cached client, and rerun the existing backend OAuth flow.
    * Never mutates `enabled` — this is a credential refresh, not a disconnect.
@@ -512,16 +561,12 @@ export class MCPServerManager {
     if (!config) {
       throw new Error(`[MCPServerManager]: Reauthorize - MCP server '${serverId}' not found`);
     }
-    if (config.transport !== "streamableHttp" || config.builtin || !config.url) {
+    if (!MCPServerManager.usesOAuth(config)) {
       throw new Error(`[MCPServerManager]: Reauthorize - server '${serverId}' does not use OAuth`);
     }
     const tokenStorage = McpOAuthTokenStorage.getInstance();
     await tokenStorage.clearTokensAsync(serverId);
-    await MCPServerManager.mcpClients
-      .get(config.id)
-      ?.disconnectAsync()
-      .catch(() => undefined);
-    MCPServerManager.mcpClients.delete(config.id);
+    await MCPServerManager.evictCachedClientAsync(config.id);
     await authorizeWithBackend(tokenStorage, expandHomePath(config.url), serverId);
   }
 

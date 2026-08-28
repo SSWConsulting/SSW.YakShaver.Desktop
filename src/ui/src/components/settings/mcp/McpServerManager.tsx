@@ -297,10 +297,17 @@ export function McpSettingsPanel({
   async function handleOnConnect(serverId: string, configLocal: MCPServerConfig): Promise<void> {
     connectingServerIds.current.add(serverId);
     try {
-      await toggleSettings(serverId, true, configLocal);
+      await ipcClient.mcp.updateServerAsync(serverId, { ...configLocal, enabled: true });
+      // Sign in explicitly (a no-op for a transport that needs no credential) before the
+      // health check reads the result. The check itself never authorizes — that is what put
+      // the app in a browser sign-in loop on every window focus.
+      await ipcClient.mcp.connectAsync(serverId);
     } catch (e) {
-      connectingServerIds.current.delete(serverId);
-      throw e;
+      toast.error(`Failed to connect: ${formatErrorMessage(e)}`);
+    } finally {
+      // Read the outcome either way, so a declined sign-in shows as auth-failed on the card
+      // rather than leaving the row stale.
+      await loadServers({ serverIdToRefresh: serverId });
     }
   }
 

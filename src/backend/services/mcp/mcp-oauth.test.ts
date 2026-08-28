@@ -737,6 +737,12 @@ describe("resolveMcpOAuthTimeoutMs", () => {
   it("honors an explicit timeout for legacy servers", () => {
     expect(resolveMcpOAuthTimeoutMs(undefined, 180_000)).toBe(180_000);
   });
+
+  it("ignores a non-numeric override", () => {
+    // MCP_AUTH_TIMEOUT_MS is read straight from the environment, so a typo must fall back to
+    // the provider default rather than resolving to NaN and expiring instantly.
+    expect(resolveMcpOAuthTimeoutMs("github", Number("not-a-number"))).toBe(5 * 60 * 1000);
+  });
 });
 
 describe("extractUpstreamOAuthErrorCode — pulling the upstream code out of the backend wrapper", () => {
