@@ -267,10 +267,22 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
       console.warn(`[LocalClaudeOrchestrator] ${msg}`);
     }
 
-    // "wait" needs no caveat here (#920): a non-whitelisted MCP tool call is gated by
-    // `McpToolBridge.callTool` in the main process, which raises the same approval dialog+countdown
-    // the OpenAI backend shows and blocks the run until the user responds or the countdown
-    // auto-approves — the same behaviour as the OpenAI path, not a silent widening to YOLO.
+    // "wait" no longer needs a caveat about MCP tools (#920): a non-whitelisted MCP tool call is
+    // gated by `McpToolBridge.callTool` in the main process, which raises the same approval
+    // dialog+countdown the OpenAI backend shows — the same behaviour as the OpenAI path, not a
+    // silent widening to YOLO. A narrower gap remains, though: Claude's OWN built-in tools
+    // (Read/Write/Bash/etc.) still run under `--permission-mode bypassPermissions` at the CLI layer,
+    // since there is no bridge in front of those to defer to — so warn about that residual gap
+    // specifically, rather than the wider (now-fixed) one.
+    if (approvalMode === "wait") {
+      const msg =
+        'Claude Code (local) under "wait" approval mode now prompts for MCP tools (GitHub/Jira/' +
+        "Azure DevOps/etc.), same as OpenAI mode. " +
+        "Claude's own built-in tools (Read/Write/Bash/etc.) are not covered by this prompt and " +
+        "still run without a deny chance.";
+      notices.push(msg);
+      console.warn(`[LocalClaudeOrchestrator] ${msg}`);
+    }
 
     for (const text of notices) {
       onStep?.({ type: "reasoning", reasoning: JSON.stringify({ type: "text", text }) });
