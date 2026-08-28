@@ -160,10 +160,16 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
     return this.settingsStorage ?? UserSettingsStorage.getInstance();
   }
 
+  // Memoizes the dynamic-imported singleton so repeat calls skip the import lookup instead of
+  // relying solely on Node's module cache (cheap, but this mirrors getSettingsStorage() above).
+  private resolvedShaveRunRegistry: ShaveRunRegistry | null = null;
+
   private async getShaveRunRegistry(): Promise<ShaveRunRegistry> {
     if (this.shaveRunRegistry) return this.shaveRunRegistry;
+    if (this.resolvedShaveRunRegistry) return this.resolvedShaveRunRegistry;
     const { UserInteractionService } = await import("../user-interaction/user-interaction-service");
-    return UserInteractionService.getInstance();
+    this.resolvedShaveRunRegistry = UserInteractionService.getInstance();
+    return this.resolvedShaveRunRegistry;
   }
 
   /** Verifies the `claude` CLI is reachable; throws a user-actionable error if not. */
