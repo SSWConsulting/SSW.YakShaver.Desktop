@@ -1,4 +1,5 @@
 import type { MCPTerminationReason } from "../mcp/mcp-orchestrator";
+import { WORKFLOW_STOPPED_BY_USER_MESSAGE } from "./workflow-cancelled-error";
 
 /**
  * Builds the user-facing error shown when the Executing Task stage finished but never actually
@@ -21,7 +22,7 @@ export function formatNoWorkItemError(
     case "max-iterations":
       return "The AI workflow ran out of room before it could finish creating a work item. No issue was created — please try again.";
     case "cancelled":
-      return "You stopped this run before a work item was created.";
+      return WORKFLOW_STOPPED_BY_USER_MESSAGE;
     case "content-filter":
       return "The AI workflow was stopped by a content filter before a work item was created.";
     case "timeout":
