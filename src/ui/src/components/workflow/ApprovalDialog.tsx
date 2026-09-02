@@ -1,5 +1,5 @@
 import type { InteractionRequest, ToolApprovalPayload } from "@shared/types/user-interaction";
-import { CircleStop, Terminal } from "lucide-react";
+import { Terminal } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useState } from "react";
 import { ipcClient } from "../../services/ipc-client";
 import { formatErrorMessage, parseToolName, splitToolName } from "../../utils";
@@ -317,9 +317,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                     Stopping...
                   </span>
                 ) : (
-                  <>
-                    Stop
-                  </>
+                  "Stop"
                 )}
               </Button>
               <AlertDialogCancel

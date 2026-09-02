@@ -3,7 +3,7 @@ import type {
   ProjectSelectionPayload,
   ProjectSelectionResponse,
 } from "@shared/types/user-interaction";
-import { ChevronRight, CircleStop, Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { formatErrorMessage } from "../../utils";
 import { LoadingState } from "../common/LoadingState";
@@ -203,9 +203,7 @@ export function PromptSelectionDialog({
                     Stopping...
                   </>
                 ) : (
-                  <>
-                    Stop
-                  </>
+                  "Stop"
                 )}
               </Button>
               <Button
