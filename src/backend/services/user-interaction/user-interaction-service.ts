@@ -89,6 +89,7 @@ export class UserInteractionService {
 
     if (mode === "yolo" || this.isAutoApproveActive(options?.shaveId)) {
       return {
+        kind: "select",
         projectId: payload.selectedProject.id,
       };
     }

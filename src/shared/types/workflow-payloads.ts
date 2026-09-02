@@ -16,4 +16,6 @@ export interface ExecutingTaskPayload extends VideoProcessingPayload {
   orchestrator?: OrchestratorBackend;
   /** Populated when the stage failed (e.g. the loop never created a backlog item, #833). */
   error?: string;
+  /** True when the stage ended because the user hit Stop, rather than because it failed. */
+  cancelled?: boolean;
 }

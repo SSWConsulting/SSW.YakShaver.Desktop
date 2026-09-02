@@ -1,10 +1,16 @@
 import { WORKFLOW_STAGE_ORDER, type WorkflowState } from "@shared/types/workflow";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, CircleStop, RefreshCw, X } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 import { toast } from "sonner";
 import { ipcClient } from "@/services/ipc-client";
-import { formatErrorMessage, isWorkflowFailed, parseWorkflowProgressNeoPayload } from "@/utils";
+import {
+  findStoppedStage,
+  formatErrorMessage,
+  isWorkflowFailed,
+  parseWorkflowProgressNeoPayload,
+} from "@/utils";
 import { WORKFLOW_CLEAR_EVENT_CHANNEL } from "../../types/index";
+import { LoadingState } from "../common/LoadingState";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { WorkflowStepCard } from "./WorkflowStepCard";
@@ -34,6 +40,7 @@ type WorkflowProgressPanelProps =
 export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode: "live" }) {
   const [liveState, setLiveState] = useState<WorkflowState | null>(null);
   const [liveShaveId, setLiveShaveId] = useState<string | undefined>();
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const isHydrated = props.mode === "hydrated";
   const selectedShaveId = props.mode === "selected" ? props.shaveId : undefined;
@@ -116,6 +123,25 @@ export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode
 
   if (state) {
     const hasFailed = isWorkflowFailed(state);
+    // A run the user stopped themselves is not a failure — it just ended early, and picking it
+    // back up is the likely next move, so it gets its own message and a retry alongside Clear.
+    const stoppedStage = findStoppedStage(state);
+
+    const handleRetryStoppedStage = async () => {
+      if (!stoppedStage || !shaveId) return;
+
+      setIsRetrying(true);
+      try {
+        const result = await ipcClient.workflow.retryFromStage(stoppedStage, shaveId);
+        if (!result?.success) {
+          throw new Error(result?.error || "Retry failed");
+        }
+      } catch (error) {
+        toast.error("Retry failed", { description: formatErrorMessage(error) });
+      } finally {
+        setIsRetrying(false);
+      }
+    };
 
     return (
       <div className="w-[500px] mx-auto my-4">
@@ -133,7 +159,45 @@ export function WorkflowProgressPanel(props: WorkflowProgressPanelProps = { mode
               />
             ))}
 
-            {hasFailed && (
+            {hasFailed && stoppedStage && (
+              <div className="mt-4 flex flex-col gap-3 rounded-lg border border-white/15 bg-white/5 p-3">
+                <div className="flex items-start gap-2 text-sm text-white/80">
+                  <CircleStop className="size-4 mt-0.5 shrink-0 text-danger" />
+                  <span>
+                    You stopped this run at &ldquo;{STEP_LABELS[stoppedStage]}&rdquo;. Retry that
+                    step to pick up from there, or clear this run to start fresh.
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {shaveId && (
+                    <Button
+                      size="sm"
+                      disabled={isRetrying}
+                      onClick={handleRetryStoppedStage}
+                      aria-label={`Retry ${STEP_LABELS[stoppedStage]}`}
+                    >
+                      {isRetrying ? (
+                        <LoadingState inline className="size-3.5" />
+                      ) : (
+                        <RefreshCw className="size-4" />
+                      )}
+                      Retry {STEP_LABELS[stoppedStage]}
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleClear}
+                    aria-label="Clear stopped workflow"
+                  >
+                    <X className="size-4" />
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {hasFailed && !stoppedStage && (
               <div className="mt-4 flex flex-col gap-3 rounded-lg border border-red-500/30 bg-red-500/5 p-3">
                 <div className="flex items-start gap-2 text-sm text-red-400/90">
                   <AlertTriangle className="size-4 mt-0.5 shrink-0" />

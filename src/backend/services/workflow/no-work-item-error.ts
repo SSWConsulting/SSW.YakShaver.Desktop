@@ -21,7 +21,7 @@ export function formatNoWorkItemError(
     case "max-iterations":
       return "The AI workflow ran out of room before it could finish creating a work item. No issue was created — please try again.";
     case "cancelled":
-      return "Task execution was cancelled before a work item was created.";
+      return "You stopped this run before a work item was created.";
     case "content-filter":
       return "The AI workflow was stopped by a content filter before a work item was created.";
     case "timeout":

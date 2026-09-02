@@ -95,7 +95,17 @@ describe("PromptSelectionDialog (#967)", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(onSubmit).toHaveBeenCalledWith({ projectId: "proj-1" });
+    expect(onSubmit).toHaveBeenCalledWith({ kind: "select", projectId: "proj-1" });
+  });
+
+  it("submits a stop decision when the Stop button is clicked", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<PromptSelectionDialog request={makeRequest()} onSubmit={onSubmit} />);
+
+    await user.click(screen.getByRole("button", { name: /Stop/ }));
+
+    expect(onSubmit).toHaveBeenCalledWith({ kind: "stop" });
   });
 
   it("still allows switching to the select view via Change", async () => {
