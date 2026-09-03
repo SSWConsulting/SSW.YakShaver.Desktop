@@ -1,8 +1,11 @@
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { IFileService } from "../file/file-service";
-import { FFmpegService } from "./ffmpeg-service";
+import { FFmpegService, getDefaultFfmpegPath } from "./ffmpeg-service";
 import type { IProcessSpawner } from "./types";
 
 function createMockChildProcess(): ChildProcess {
@@ -287,5 +290,67 @@ describe("FFmpegService", () => {
 
       expect(instance1).toBe(instance2);
     });
+  });
+});
+
+describe("getDefaultFfmpegPath", () => {
+  let resourcesDir: string;
+  const originalPlatform = process.platform;
+  const originalResourcesPath = process.resourcesPath;
+
+  function setPlatform(platform: string): void {
+    Object.defineProperty(process, "platform", { value: platform, configurable: true });
+  }
+
+  function setResourcesPath(value: string | undefined): void {
+    Object.defineProperty(process, "resourcesPath", { value, configurable: true });
+  }
+
+  // On a win32-arm64 dev machine @ffmpeg-installer has no binary to point at and throws, so
+  // the fallback cannot return a path there. Either outcome proves the same thing: the
+  // bundled-resource branch was not taken.
+  function resolvePastBundled(): string {
+    try {
+      return getDefaultFfmpegPath();
+    } catch (error) {
+      return `threw: ${(error as Error).message}`;
+    }
+  }
+
+  beforeEach(() => {
+    resourcesDir = mkdtempSync(join(tmpdir(), "yakshaver-ffmpeg-"));
+  });
+
+  afterEach(() => {
+    setPlatform(originalPlatform);
+    setResourcesPath(originalResourcesPath);
+    rmSync(resourcesDir, { recursive: true, force: true });
+  });
+
+  it("uses the ffmpeg.exe bundled in resources on Windows", () => {
+    const bundled = join(resourcesDir, "ffmpeg.exe");
+    writeFileSync(bundled, "");
+    setPlatform("win32");
+    setResourcesPath(resourcesDir);
+
+    expect(getDefaultFfmpegPath()).toBe(bundled);
+  });
+
+  // Covers `npm run dev` on Windows, where nothing has been packaged into resources yet.
+  it("falls back to @ffmpeg-installer on Windows when no binary is bundled", () => {
+    setPlatform("win32");
+    setResourcesPath(resourcesDir);
+
+    expect(resolvePastBundled()).not.toContain(resourcesDir);
+  });
+
+  // The resources copy is Windows-only, so mac and Linux must ignore it even when a
+  // stray ffmpeg.exe is sitting there.
+  it("ignores the bundled binary on other platforms", () => {
+    writeFileSync(join(resourcesDir, "ffmpeg.exe"), "");
+    setPlatform("darwin");
+    setResourcesPath(resourcesDir);
+
+    expect(resolvePastBundled()).not.toContain(resourcesDir);
   });
 });

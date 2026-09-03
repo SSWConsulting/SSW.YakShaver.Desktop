@@ -1,25 +1,51 @@
-import { dirname } from "node:path";
-import ffmpeg from "@ffmpeg-installer/ffmpeg";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { FileService, type IFileService } from "../file/file-service";
 import { defaultProcessSpawner, type IProcessSpawner } from "../process/process-spawner";
 import type { ConversionProgress } from "./types";
 
-function getDefaultFfmpegPath(): string {
-  let ffmpegPath = ffmpeg.path;
-  if (ffmpegPath.includes("app.asar")) {
-    ffmpegPath = ffmpegPath.replace("app.asar", "app.asar.unpacked");
+// Windows builds ship ffmpeg.exe as a resource (see win.extraResources in
+// electron-builder.config.js) rather than pulling it out of node_modules. @ffmpeg-installer
+// publishes no win32-arm64 package and throws "Unsupported platform/architecture: win32-arm64"
+// the moment it is imported, so importing it at the top of this file would take the whole
+// backend down on ARM. Hence the lazy require below.
+//
+// ponytail: ARM runs the x64 ffmpeg under Windows emulation. It is spawned as a child process,
+// so this works; swap in a native winarm64 build if transcode speed on ARM turns out to matter.
+export function getDefaultFfmpegPath(): string {
+  if (process.platform === "win32" && process.resourcesPath) {
+    const bundled = join(process.resourcesPath, "ffmpeg.exe");
+    if (existsSync(bundled)) {
+      return bundled;
+    }
   }
-  return ffmpegPath;
+
+  // Unpackaged (npm run dev) and every non-Windows platform.
+  const ffmpegPath: string = require("@ffmpeg-installer/ffmpeg").path;
+  return ffmpegPath.includes("app.asar")
+    ? ffmpegPath.replace("app.asar", "app.asar.unpacked")
+    : ffmpegPath;
 }
 
 export class FFmpegService {
   private static instance: FFmpegService;
+  private resolvedFfmpegPath: string | undefined;
 
   constructor(
-    private readonly ffmpegPath: string = getDefaultFfmpegPath(),
+    ffmpegPath?: string,
     private readonly fileSystem: IFileService = new FileService(),
     private readonly processSpawner: IProcessSpawner = defaultProcessSpawner,
-  ) {}
+  ) {
+    this.resolvedFfmpegPath = ffmpegPath;
+  }
+
+  // Resolved on first use rather than in the constructor. getDefaultFfmpegPath() throws when
+  // it cannot find a binary, and a missing ffmpeg should fail the one conversion that needs
+  // it instead of taking the app down at startup. ensureFfmpegExists() reports it properly.
+  private get ffmpegPath(): string {
+    this.resolvedFfmpegPath ??= getDefaultFfmpegPath();
+    return this.resolvedFfmpegPath;
+  }
 
   static getInstance(): FFmpegService {
     FFmpegService.instance ??= new FFmpegService();

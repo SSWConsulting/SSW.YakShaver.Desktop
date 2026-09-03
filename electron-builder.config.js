@@ -13,6 +13,9 @@ module.exports = {
     "!src/backend/**",
     "!**/*.ts",
     "!**/node_modules/**/*.md",
+    // Windows gets ffmpeg via win.extraResources instead, so both the x64 and arm64
+    // payloads share one copy. Mac and Linux keep resolving @ffmpeg-installer normally.
+    "!**/node_modules/@ffmpeg-installer/win32-*/**",
   ],
   extraResources: [
     ".env",
@@ -37,7 +40,18 @@ module.exports = {
     target: [
       {
         target: "nsis",
-        arch: ["x64"],
+        // Both arches in one NSIS installer, which picks the right payload at install
+        // time. electron-updater's findFile() takes the first .exe in latest.yml with no
+        // regard for architecture, so separate installers would hand ARM users the x64 update.
+        arch: ["x64", "arm64"],
+      },
+    ],
+    // @ffmpeg-installer publishes no win32-arm64 package, so ship the x64 binary for both
+    // arches. Windows runs it under emulation on ARM.
+    extraResources: [
+      {
+        from: "node_modules/@ffmpeg-installer/win32-x64/ffmpeg.exe",
+        to: "ffmpeg.exe",
       },
     ],
   },

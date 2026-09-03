@@ -121,7 +121,16 @@ yt-dlp "https://www.youtube.com/watch?v=example"
 2. `npm run make` - this runs `electron-builder`, which outputs to `/build`:
 
 - Final installers/distributables (e.g. the Windows `.exe`, macOS `.dmg`) are written directly in `/build`
-- Unpacked app folders are per-platform subfolders, e.g. `/build/win-unpacked`, `/build/mac` (macOS x64), `/build/mac-arm64`
+- Unpacked app folders are per-platform subfolders, e.g. `/build/win-unpacked` (Windows x64), `/build/win-arm64-unpacked`, `/build/mac` (macOS x64), `/build/mac-arm64`
+
+The Windows build produces a single installer holding both the x64 and arm64 apps, and installs
+whichever matches the machine. That keeps one download link and one auto-update feed, because
+electron-updater picks the first `.exe` in `latest.yml` without checking architecture.
+
+Building for Windows needs `@ffmpeg-installer/win32-x64` on disk, since both Windows payloads
+share that one binary and Windows emulates it on ARM. npm skips that package on an arm64 machine
+(it declares `cpu: ["x64"]`), so `npm run make` for Windows has to run on an x64 host. CI already
+does, on `windows-latest`.
 
 See [RELEASE.md](./RELEASE.md) for how these builds feed into the release process.
 
