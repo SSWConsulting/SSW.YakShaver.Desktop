@@ -10,7 +10,7 @@ permissions:
 
 env:
   APP_NAME: SSW.YakShaver
-  NODE_VERSION: 20
+  NODE_VERSION: 24
 
 concurrency:
   group: pr-pre-release-${{ github.event.pull_request.number || github.ref }}
