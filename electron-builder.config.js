@@ -46,6 +46,22 @@ module.exports = {
     perMachine: false,
     allowToChangeInstallationDirectory: true,
   },
+  // Registers the custom scheme in the macOS bundle's Info.plist (CFBundleURLTypes).
+  //
+  // src/backend/index.ts calls app.setAsDefaultProtocolClient at startup, which is enough on
+  // Windows because it writes the registry. macOS cannot work that way: Electron's docs are
+  // explicit that "you can only register protocols that have been added to your app's info.plist,
+  // which cannot be modified at runtime". Without this key nothing generates that entry, so
+  // yakshaver-desktop:// links were silently dead on every Mac build.
+  //
+  // Both schemes are listed because the second-instance and open-url handlers in
+  // src/backend/index.ts already accept the -dev variant alongside the production one.
+  protocols: [
+    {
+      name: "YakShaver",
+      schemes: ["yakshaver-desktop", "yakshaver-desktop-dev"],
+    },
+  ],
   mac: {
     icon: "src/ui/public/icons/icon.icns",
     target: {
