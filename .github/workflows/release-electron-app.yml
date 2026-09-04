@@ -166,8 +166,8 @@ jobs:
 
           Write-Host "Found installer: $($installer.Name)"
 
-          # Create a copy with fixed name
-          $fixedName = "YakShaver-latest-Setup.exe"
+          # Create a copy named with the release version so it's clear which build is latest
+          $fixedName = "YakShaver-ai-Setup-v$VERSION.exe"
           Copy-Item $installer.FullName $fixedName
 
           # Upload to release
