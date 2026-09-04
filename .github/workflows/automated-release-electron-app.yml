@@ -115,5 +115,10 @@ jobs:
     uses: ./.github/workflows/release-electron-app.yml
     with:
       tag_name: ${{ needs.auto-release.outputs.tag_name }}
-      target: main
+      # The triggering commit, not the branch. `main` is a moving pointer, so a build taking
+      # ten minutes can check out whatever landed meanwhile and ship a commit nobody released.
+      # Build #307 hit exactly that: its workflow file was the npm version, but by the time the
+      # manifest job checked out `main` the pnpm migration had merged and package-lock.json was
+      # gone, so actions/setup-node failed with "Some specified paths were not resolved".
+      target: ${{ github.sha }}
     secrets: inherit

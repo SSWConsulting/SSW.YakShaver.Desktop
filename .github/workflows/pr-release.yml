@@ -219,7 +219,10 @@ jobs:
     if: |
       github.event_name != 'pull_request' ||
       github.event.action != 'closed'
-    runs-on: macos-latest
+    # Pinned for the same reason as the release workflow: code signing fails on the
+    # macos-26-arm64 image with "SecKeychainUnlock: The user name or passphrase you entered is
+    # not correct". See the comment on build-macos-arm64 in release-electron-app.yml.
+    runs-on: macos-15
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
