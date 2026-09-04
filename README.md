@@ -12,7 +12,7 @@ Licensed under [AGPL-3.0-only](./LICENSE).
 
 - [Node.js](https://nodejs.org/en/download) 24+, the version in `.nvmrc`. `engineStrict` is on,
   so an older Node fails the install outright rather than half-working.
-- [pnpm](https://pnpm.io/installation) 11. The exact version is pinned in `packageManager`, and
+- [pnpm](https://pnpm.io/installation) 12. The exact version is pinned in `packageManager`, and
   running `pnpm` switches to it automatically. `corepack enable` is enough to get it.
 
 npm and yarn are deliberately refused by the `engines` field. The lockfile is `pnpm-lock.yaml`,

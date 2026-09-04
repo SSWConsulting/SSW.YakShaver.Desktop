@@ -31,12 +31,12 @@
     "name": "SSW"
   },
   "license": "AGPL-3.0-only",
-  "packageManager": "pnpm@11.25.0",
+  "packageManager": "pnpm@12.3.1",
   "engines": {
     "node": ">=24.0.0",
     "npm": "please-use-pnpm",
     "yarn": "please-use-pnpm",
-    "pnpm": ">=11"
+    "pnpm": ">=12"
   },
   "repository": {
     "type": "git",
