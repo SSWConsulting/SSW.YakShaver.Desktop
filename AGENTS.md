@@ -629,6 +629,30 @@ server instead of re-declaring each upstream server to Claude:
   `scripts/merge-mac-update-manifests.js` to merge and validate the two generated mac manifests.
 - Windows update manifests are separate (`latest.yml` or `beta.{PR}.yml`) and must not be merged with
   macOS manifests.
+- **Automated releases are created as drafts and stay drafts until verified.** `auto-release`
+  creates the release with `--draft`, and the `publish-release` job in `release-electron-app.yml`
+  is the only thing that publishes it. It first asserts five fixed-name assets exist:
+  `YakShaver-latest-Setup.exe`, `YakShaver-latest-arm64.dmg`, `YakShaver-latest-x64.dmg`,
+  `latest.yml` and `latest-mac.yml`. Do not publish a release anywhere else, and do not shorten
+  that list without checking what https://www.yakshaver.ai/install links to. GitHub resolves
+  `/releases/latest/` to the newest non-draft release, so publishing early makes every download
+  link on the site 404 until the build finishes.
+- **Any failure leaves the release a draft.** That is the intended outcome rather than something
+  to work around: the previous release stays `latest`, the site keeps serving the last good
+  build, and the artifacts are still attached for inspection.
+- **Release jobs check out the triggering commit, never a branch.** `auto-release` checks out
+  `${{ github.sha }}`, `gh release create` targets it, and `trigger-build` passes it as `target`.
+  A branch ref moves, so a build taking ten minutes can package whatever merged meanwhile, and
+  the `SHORT_SHA` in the version string can then name a different commit than the one built.
+  Build #307 failed exactly this way.
+- **The macOS arm64 job is pinned to `macos-15`, not `macos-latest`.** Code signing fails on the
+  `macos-26-arm64` image with `SecKeychainUnlock: The user name or passphrase you entered is not
+  correct` while electron-builder sets up its temporary keychain. Build #307 passed on image
+  `20260728.0273` and #308 failed twice on `20260831.0337`, with no config change between them.
+  Keep the pin until that is fixed upstream, and keep `pr-release.yml` in step with it.
+- **electron-builder never publishes the release.** Its GitHub publisher returns an existing
+  draft unmodified (`getOrCreateRelease` in `electron-publish/out/gitHubPublisher.js`), so
+  `releaseType` only affects releases it creates itself. Uploading into a draft is safe.
 
 ## Configuration
 
