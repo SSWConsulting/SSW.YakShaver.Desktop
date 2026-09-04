@@ -3,12 +3,10 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import type { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { formatAndReportError } from "../../utils/error-utils";
 import {
-  authorizeWithBackend,
   inferMcpOAuthProvider,
   isInvalidRefreshTokenError,
   McpTokenRefreshError,
   refreshTokenWithBackendWithRetry,
-  resolveMcpOAuthTimeoutMs,
 } from "./mcp-oauth";
 import { expandHomePath, sanitizeSegment } from "./mcp-utils";
 import type { MCPServerConfig } from "./types";
@@ -24,6 +22,34 @@ function hasConfiguredAuthorizationHeader(headers: Record<string, string> | unde
   return Object.entries(headers ?? {}).some(
     ([name, value]) => name.toLowerCase() === "authorization" && value.trim().length > 0,
   );
+}
+
+/**
+ * Whether reaching this server requires a sign-in the user has to perform. True only for a
+ * known OAuth provider (GitHub / Azure DevOps) that carries no Authorization header of its
+ * own — the same condition under which a failed authorization used to be fatal rather than
+ * fall back to headers. A custom or public HTTP server is left to answer for itself, so an
+ * unauthenticated MCP endpoint still connects.
+ */
+function needsInteractiveSignIn(
+  serverUrl: string,
+  headers: Record<string, string> | undefined,
+): boolean {
+  return (
+    inferMcpOAuthProvider(serverUrl) !== undefined && !hasConfiguredAuthorizationHeader(headers)
+  );
+}
+
+/**
+ * Raised when a server needs a sign-in that has not happened yet. `isAuthError` classifies it
+ * as an auth failure, so a health check renders the existing "Authentication failed →
+ * Reauthorize" affordance instead of the app silently sending the user to a login page.
+ */
+export class McpAuthRequiredError extends Error {
+  constructor(serverName: string) {
+    super(`Not connected to ${serverName}. Reauthorize to sign in.`);
+    this.name = "McpAuthRequiredError";
+  }
 }
 
 export class MCPServerClient {
@@ -123,46 +149,14 @@ export class MCPServerClient {
         }
       }
 
-      // If no valid tokens, trigger backend OAuth flow
-      if (!tokens?.access_token) {
-        try {
-          const configuredAuthTimeoutMs = Number(process.env.MCP_AUTH_TIMEOUT_MS);
-          const provider = inferMcpOAuthProvider(serverUrl);
-          const authTimeoutMs = resolveMcpOAuthTimeoutMs(provider, configuredAuthTimeoutMs);
-          console.log(
-            `[MCPServerClient] Initiating backend OAuth for ${mcpConfig.name} at ${serverUrl} (Timeout: ${authTimeoutMs}ms)`,
-          );
-
-          // This call will delegate discovery and DCR to the backend
-          await authorizeWithBackend(tokenStorage, serverUrl, serverId, {
-            ...(provider ? { provider } : {}),
-            timeoutMs: authTimeoutMs,
-          });
-
-          // After OAuth, get tokens
-          tokens = await tokenStorage.getTokensAsync(serverId);
-          if (!tokens) {
-            console.warn(
-              `[MCPServerClient]: OAuth flow for ${mcpConfig.name} (id: ${serverId}) completed but no tokens were retrieved from storage.`,
-            );
-          }
-        } catch (authError) {
-          console.error(
-            `[MCPServerClient]: OAuth flow failed for ${mcpConfig.name}. Error:`,
-            authError,
-          );
-          const provider = inferMcpOAuthProvider(serverUrl);
-          if (provider && !hasConfiguredAuthorizationHeader(mcpConfig.headers)) {
-            formatAndReportError(authError, "mcp_oauth_authorization", {
-              serverId,
-              provider,
-            });
-            throw authError;
-          }
-          console.warn(
-            `[MCPServerClient]: OAuth is unavailable for ${mcpConfig.name}; trying its configured transport headers instead.`,
-          );
-        }
+      // No usable credential. Building a client is a READ of the connection — it never
+      // acquires one, the way `getAccessToken()` and `isAuthenticated()` never do on the
+      // other auth surfaces. Signing in is `MCPServerManager.connectServerAsync`, reached
+      // only from Connect / Reauthorize. Authorizing here is what let the recurring health
+      // checks (they re-run on every window focus) reopen the provider's sign-in page every
+      // time the user clicked back into the app.
+      if (!tokens?.access_token && needsInteractiveSignIn(serverUrl, mcpConfig.headers)) {
+        throw new McpAuthRequiredError(mcpConfig.name);
       }
 
       // Prepare headers with Bearer token if available
@@ -297,6 +291,9 @@ export class MCPServerClient {
    */
   public static isAuthError(err: unknown): boolean {
     if (!err) return false;
+    // A server we hold no credential for is auth-failed by definition — the fix is the
+    // same Reauthorize the 401 path offers.
+    if (err instanceof McpAuthRequiredError) return true;
     const status =
       typeof err === "object" && err !== null && "status" in err
         ? (err as { status?: unknown }).status

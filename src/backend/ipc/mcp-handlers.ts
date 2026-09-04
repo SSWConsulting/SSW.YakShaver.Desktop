@@ -138,6 +138,16 @@ export class McpIPCHandlers {
       },
     );
 
+    // The only IPC that can open a browser for MCP. Kept separate from the health check so a
+    // status read can never become a sign-in (mirrors YOUTUBE_START_AUTH).
+    ipcMain.handle(
+      IPC_CHANNELS.MCP_CONNECT,
+      async (_event: IpcMainInvokeEvent, serverId: string) => {
+        await this.mcpServerManager.connectServerAsync(serverId);
+        return { success: true };
+      },
+    );
+
     ipcMain.handle(
       IPC_CHANNELS.MCP_REAUTHORIZE,
       async (_event: IpcMainInvokeEvent, serverId: string) => {
