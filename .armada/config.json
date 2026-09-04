@@ -42,7 +42,7 @@
   },
   "commands": {
     "build": "pnpm run build",
-    "test": "pnpm rebuild better-sqlite3 && pnpm exec vitest run --reporter=verbose --exclude 'src/ui/**' && pnpm -C src/ui install && pnpm -C src/ui test",
+    "test": "pnpm rebuild better-sqlite3 electron && pnpm exec vitest run --reporter=verbose --exclude 'src/ui/**' && pnpm -C src/ui install && pnpm -C src/ui test",
     "lint": "pnpm run lint",
     "format": "pnpm run format",
     "run": "pnpm run start",

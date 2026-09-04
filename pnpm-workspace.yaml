@@ -1,11 +1,11 @@
-# Flat node_modules with real directories instead of symlinks into .pnpm. electron-builder
-# cannot resolve pnpm's default isolated layout:
-# https://github.com/electron-userland/electron-builder/issues/7554
-# Three other things also assume a real node_modules/<pkg> directory: scripts/install-yt-dlp.mjs
-# and the CI yt-dlp steps write into node_modules/youtube-dl-exec/bin,
-# src/ui/vitest.config.mts pins ./node_modules/zod, and @ffmpeg-installer locates its platform
-# binary by walking up from its own directory.
-nodeLinker: hoisted
+# Deliberately NOT nodeLinker: hoisted. The flat layout looks like the safer option, and
+# electron-builder issue 7554 still recommends it, but with electron-builder 26 it silently
+# produces a broken app. Its pnpm dependency collector expects the isolated layout and the
+# .pnpm virtual store; give it a physically npm-shaped tree instead and it never walks the
+# nested node_modules directories, so any package present only as a nested second version is
+# dropped from the asar. That shipped an installer that died on launch with
+# "Cannot find module 'agent-base'", 7,900 files short of the npm build, while every CI check
+# stayed green. Leave the default isolated layout alone.
 
 # Fail the install on the wrong Node or package manager rather than half-working.
 engineStrict: true

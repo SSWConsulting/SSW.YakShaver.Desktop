@@ -4,9 +4,7 @@
 # package is not part of that workspace and reports "Already up to date" while installing
 # nothing at all.
 #
-# nodeLinker matches the root for the same reason it is set there, and because
-# vitest.config.mts aliases zod to ./node_modules/zod, which has to be a real directory.
-nodeLinker: hoisted
-
+# The default isolated layout, matching the root. See the root pnpm-workspace.yaml for why
+# nodeLinker: hoisted is not used.
 allowBuilds:
   esbuild: true
