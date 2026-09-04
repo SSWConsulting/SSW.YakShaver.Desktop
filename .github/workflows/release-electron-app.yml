@@ -649,3 +649,49 @@ jobs:
           echo "Published latest-mac.yml lists both arm64 and x64."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The gate that keeps https://www.yakshaver.ai/install working. Its buttons point at
+  # /releases/latest/download/YakShaver-latest-Setup.exe and -arm64.dmg, and GitHub resolves
+  # "latest" to the newest non-draft release. So while this release is still a draft the
+  # previous one stays latest and the links keep serving the last good build; the moment it
+  # is published the links must resolve, which is only true once every job above has uploaded.
+  # Any failure leaves the release a draft: nothing on the site changes, and the artifacts are
+  # still there to inspect.
+  #
+  # Publishing with GITHUB_TOKEN does not trigger the `release: published` handler at the top
+  # of this file, so this cannot start a second build. On the manual path the release is already
+  # published and this is a no-op.
+  publish-release:
+    needs:
+      - check-release
+      - build-windows
+      - verify-macos-update-manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release now that every artifact is up
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ needs.check-release.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Missing version output from 'check-release'." >&2
+            exit 1
+          fi
+
+          # Belt and braces: the site 404s if any of these is missing, so check before
+          # making the release visible rather than after.
+          ASSETS=$(gh release view "$VERSION" --json assets --jq '.assets[].name')
+          for ASSET in YakShaver-latest-Setup.exe YakShaver-latest-arm64.dmg YakShaver-latest-x64.dmg latest.yml latest-mac.yml; do
+            if ! grep -qx -- "$ASSET" <<<"$ASSETS"; then
+              echo "Release $VERSION is missing $ASSET, leaving it as a draft." >&2
+              echo "Assets present:" >&2
+              echo "$ASSETS" >&2
+              exit 1
+            fi
+          done
+
+          gh release edit "$VERSION" --draft=false --latest
+          echo "Published $VERSION"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: SSWConsulting/SSW.YakShaver.Desktop

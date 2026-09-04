@@ -56,7 +56,16 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag_name=${VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Create and publish GitHub Release
+      # Created as a DRAFT on purpose. https://www.yakshaver.ai/install links to
+      # /releases/latest/download/..., and GitHub's "latest" is the newest non-draft,
+      # non-prerelease release. Publishing an empty release here would make every
+      # download link 404 for the ~30 minutes the build takes. The release-electron-app
+      # workflow flips it to published once all the artifacts are up.
+      #
+      # --target is the built SHA, not "main": a draft's tag is only created when the
+      # release is published, so targeting a branch would tag whatever main had moved
+      # on to by then.
+      - name: Create draft GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -66,10 +75,10 @@ jobs:
           gh release create "$TAG_NAME" \
             --title "$VERSION" \
             --generate-notes \
-            --target main \
-            --draft=false
+            --target "${{ github.sha }}" \
+            --draft
 
-          echo "Release created and published"
+          echo "Draft release created"
 
       - name: Extract PR number from commit
         id: pr_number
@@ -105,7 +114,7 @@ jobs:
             **Release Details:**
             - **Version:** ${{ steps.get_version.outputs.version }}
             - **Tag:** ${{ steps.get_version.outputs.tag_name }}
-            - **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag_name }}
+            - **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag_name }} (a draft until every platform artifact is uploaded)
 
             You can monitor the build progress in the [Actions tab](https://github.com/${{ github.repository }}/actions/workflows/automated-release-electron-app.yml).
 
@@ -115,5 +124,5 @@ jobs:
     uses: ./.github/workflows/release-electron-app.yml
     with:
       tag_name: ${{ needs.auto-release.outputs.tag_name }}
-      target: main
+      target: ${{ github.sha }}
     secrets: inherit
