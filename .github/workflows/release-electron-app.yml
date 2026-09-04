@@ -20,7 +20,7 @@ permissions:
 
 env:
   APP_NAME: SSW.YakShaver
-  NODE_VERSION: 20
+  NODE_VERSION: 24
 
 jobs:
   check-release:
