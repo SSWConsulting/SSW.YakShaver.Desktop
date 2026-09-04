@@ -23,6 +23,15 @@ allowBuilds:
   esbuild: true
   protobufjs: true
 
+  # @ffmpeg-installer ships one platform package per OS/arch and only the matching one
+  # installs, so all of them have to be listed. Their install script marks the ffmpeg binary
+  # executable, and the app spawns it as a child process, so skipping it breaks conversion at
+  # runtime on Linux and macOS.
+  "@ffmpeg-installer/darwin-arm64": true
+  "@ffmpeg-installer/darwin-x64": true
+  "@ffmpeg-installer/linux-x64": true
+  "@ffmpeg-installer/win32-x64": true
+
   # electron-rebuild depends on lzma-native, whose install runs node-gyp-build: a prebuilt
   # binary where one exists, a source compile otherwise. There is no win32-arm64 prebuild, so
   # on an ARM dev machine it tries to compile and fails. Nothing we do needs it -
