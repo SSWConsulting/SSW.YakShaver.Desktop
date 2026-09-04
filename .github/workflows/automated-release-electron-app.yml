@@ -30,7 +30,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: main
+          # The triggering commit, so SHORT_SHA below describes the commit being released
+          # rather than whatever reached main by the time this step ran.
+          ref: ${{ github.sha }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -63,10 +65,12 @@ jobs:
           TAG_NAME="${{ steps.get_version.outputs.tag_name }}"
           VERSION="${{ steps.get_version.outputs.version }}"
 
+          # --target takes a commitish. Pinning it to the triggering commit keeps the tag on
+          # the same commit the build jobs package and the one SHORT_SHA in the version names.
           gh release create "$TAG_NAME" \
             --title "$VERSION" \
             --generate-notes \
-            --target main \
+            --target "${{ github.sha }}" \
             --draft=false
 
           echo "Release created and published"
