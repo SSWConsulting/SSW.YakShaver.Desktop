@@ -34,7 +34,15 @@ jobs:
         # The repo's postinstall runs `electron-rebuild -f -w better-sqlite3`, building it
         # for Electron's ABI. vitest runs under Node, so rebuild it for the Node runtime —
         # otherwise the DB-backed tests fail with "Module did not self-register".
-        run: pnpm rebuild better-sqlite3
+        #
+        # electron is rebuilt alongside it because pnpm relinks packages from the store on
+        # rebuild, which throws away files a postinstall created rather than downloaded.
+        # Rebuilding better-sqlite3 alone deletes node_modules/electron/dist and path.txt,
+        # and the tests then fail with "Electron failed to install correctly" because they
+        # require("electron") at import time. Naming electron here re-runs its postinstall.
+        # A plain `pnpm install` does not repair it: the install is already up to date, so
+        # no lifecycle script runs.
+        run: pnpm rebuild better-sqlite3 electron
       - name: Install ffmpeg
         # ffmpeg-service.test spawns the ffmpeg binary, which isn't on the runner by default.
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
