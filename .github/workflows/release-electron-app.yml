@@ -57,7 +57,6 @@ jobs:
 
       - uses: pnpm/setup@v2
         with:
-          version: 11
           runtime: node@24
           cache: true
           cache-dependency-path: pnpm-lock.yaml
@@ -194,7 +193,6 @@ jobs:
 
       - uses: pnpm/setup@v2
         with:
-          version: 11
           runtime: node@24
           cache: true
           cache-dependency-path: pnpm-lock.yaml
@@ -351,7 +349,6 @@ jobs:
 
       - uses: pnpm/setup@v2
         with:
-          version: 11
           runtime: node@24
           cache: true
           cache-dependency-path: pnpm-lock.yaml
@@ -553,7 +550,6 @@ jobs:
 
       - uses: pnpm/setup@v2
         with:
-          version: 11
           runtime: node@24
           cache: true
           cache-dependency-path: pnpm-lock.yaml
