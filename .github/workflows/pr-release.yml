@@ -64,8 +64,12 @@ jobs:
 
           echo "Finding and deleting existing releases for PR #${PR_NUMBER}"
 
-          # Collect both release IDs and tag names BEFORE deleting anything
-          RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | {id: .id, tag: .tag_name}")
+          # Collect both release IDs and tag names BEFORE deleting anything.
+          # `.body // ""` matters: a release with a null body makes contains() throw
+          # ("cannot be applied to: null"), and under `bash -e` that kills the step on its
+          # very first command, so nothing gets cleaned up at all. One such release exists
+          # (v2026.8.21-BUILD.299.969329), which is why stale PR pre-releases accumulated.
+          RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select((.body // \"\") | contains(\"PR #${PR_NUMBER}\")) | {id: .id, tag: .tag_name}")
 
           RELEASE_IDS=$(echo "$RELEASES_DATA" | jq -r '.id')
           TAG_NAMES=$(echo "$RELEASES_DATA" | jq -r '.tag')
@@ -652,8 +656,12 @@ jobs:
 
           echo "Deleting all releases for closed PR #${PR_NUMBER}"
 
-          # Collect both release IDs and tag names BEFORE deleting anything
-          RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.body | contains(\"PR #${PR_NUMBER}\")) | {id: .id, tag: .tag_name}")
+          # Collect both release IDs and tag names BEFORE deleting anything.
+          # `.body // ""` matters: a release with a null body makes contains() throw
+          # ("cannot be applied to: null"), and under `bash -e` that kills the step on its
+          # very first command, so nothing gets cleaned up at all. One such release exists
+          # (v2026.8.21-BUILD.299.969329), which is why stale PR pre-releases accumulated.
+          RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select((.body // \"\") | contains(\"PR #${PR_NUMBER}\")) | {id: .id, tag: .tag_name}")
 
           RELEASE_IDS=$(echo "$RELEASES_DATA" | jq -r '.id')
           TAG_NAMES=$(echo "$RELEASES_DATA" | jq -r '.tag')
