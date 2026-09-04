@@ -91,18 +91,29 @@ export class McpWorkflowAdapter {
    * Marks the Executing Task stage as failed while preserving the drafted result so the user
    * can still see what the model produced. Used when the loop finished but never actually
    * created a backlog item (#833).
+   *
+   * Pass `cancelled` when the loop ended because the user hit Stop in the tool-approval dialog,
+   * so the UI can present it as a deliberate stop instead of a failure.
    */
-  public fail(finalResult: unknown, finalOutput: string | undefined, errorMessage: string) {
+  public fail(
+    finalResult: unknown,
+    finalOutput: string | undefined,
+    errorMessage: string,
+    { cancelled = false }: { cancelled?: boolean } = {},
+  ) {
     if (this.discarded) return;
     // Snapshot the streamed steps + orchestrator badge BEFORE failStage() clobbers the payload:
     // failStage records the error + telemetry but REPLACES the stage payload with just { error }.
     const existing = this.getPayload();
-    this.workflowManager.failStage(WorkflowProgressStage.EXECUTING_TASK, errorMessage);
+    this.workflowManager.failStage(WorkflowProgressStage.EXECUTING_TASK, errorMessage, {
+      cancelled,
+    });
     // Re-attach the snapshotted result afterwards (keeping the failed status and the error) so the
     // user can still see the streamed steps, the orchestrator badge, and what the model produced.
     const payload = {
       ...existing,
       error: errorMessage,
+      ...(cancelled ? { cancelled: true } : {}),
       mcpResult: typeof finalResult === "string" ? finalResult : JSON.stringify(finalResult),
       finalOutput,
     };

@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  CircleStop,
   RefreshCw,
   Sparkles,
   XCircle,
@@ -85,8 +86,29 @@ const STATUS_CONFIG = {
   },
 } as const;
 
-function StatusIcon({ status, className }: { status: WorkflowStep["status"]; className?: string }) {
-  const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
+/**
+ * A stage the user stopped is still "failed" (incomplete, retryable), but it is not a fault —
+ * so it drops the alarming red error treatment for a neutral row with a stop mark.
+ */
+const STOPPED_CONFIG = {
+  icon: CircleStop,
+  iconClass: "text-danger",
+  containerClass: "border-white/15 bg-white/5",
+  textClass: "text-white/90",
+} as const;
+
+function StatusIcon({
+  status,
+  stopped,
+  className,
+}: {
+  status: WorkflowStep["status"];
+  stopped?: boolean;
+  className?: string;
+}) {
+  const config = stopped
+    ? STOPPED_CONFIG
+    : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
 
   if (status === "in_progress") {
     return <LoadingState inline className={cn("size-5", config.iconClass, className)} />;
@@ -194,14 +216,19 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
 
   const errorMessage = isFailed ? extractErrorMessage(parsedPayload) : null;
 
+  // The user stopped this stage themselves (a dialog's Stop button), so its detail reads as a
+  // deliberate stop rather than "an error occurred".
+  const wasStopped = isFailed && isRecord(parsedPayload) && parsedPayload.cancelled === true;
+
   // #974 review: a single shared condition for "there is error detail behind the
   // expand toggle", used by both the expanded CardContent block below and the
   // collapsed-row hint, so the two can never independently drift out of sync.
   const hasErrorDetail =
     isFailed && ((hasStructuredSteps && hasPayload) || (!hasStructuredSteps && !!errorMessage));
 
-  const config =
-    STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
+  const config = wasStopped
+    ? STOPPED_CONFIG
+    : STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
 
   const toggleExpand = () => {
     if (isExpandable) setIsExpanded(!isExpanded);
@@ -250,7 +277,7 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
           aria-expanded={isExpandable ? isExpanded : undefined}
         >
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <StatusIcon status={effectiveStatus} />
+            <StatusIcon status={effectiveStatus} stopped={wasStopped} />
             <span className="flex shrink-0 items-center gap-1">
               <span className={cn("font-medium", config.textClass)}>{label}</span>
               {/* Keep the visual affordance out of the accessible label. */}
@@ -263,7 +290,7 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
             {orchestratorBackend && <OrchestratorBadge backend={orchestratorBackend} />}
             {isFailed && (
               <span className="sr-only">
-                {hasErrorDetail ? "Error. Expand for details." : "Error."}
+                {wasStopped ? "Stopped." : hasErrorDetail ? "Error. Expand for details." : "Error."}
               </span>
             )}
           </div>
@@ -363,7 +390,11 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
       {isExpanded && hasErrorDetail && !hasStructuredSteps && (
         <CardContent className="p-0 pt-2">
           <div className="rounded bg-black/20 p-3 text-sm">
-            <p className="text-red-400">An error occurred. Please check the details below.</p>
+            <p className={wasStopped ? "text-white/80" : "text-red-400"}>
+              {wasStopped
+                ? "You stopped this step. Retry it to pick up from here."
+                : "An error occurred. Please check the details below."}
+            </p>
             <p className="mt-1 text-xs text-white/50 whitespace-pre-wrap break-all">
               {errorMessage}
             </p>

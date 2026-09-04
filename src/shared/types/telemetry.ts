@@ -30,7 +30,7 @@ export interface TelemetryEvent {
 export interface WorkflowStageEvent {
   workflowId: string;
   stage: string;
-  status: "started" | "completed" | "failed" | "skipped";
+  status: "started" | "completed" | "failed" | "skipped" | "cancelled";
   duration?: number;
   error?: string;
 }

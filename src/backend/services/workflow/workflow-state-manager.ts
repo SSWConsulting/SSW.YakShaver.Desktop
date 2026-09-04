@@ -1,5 +1,6 @@
 import { BrowserWindow } from "electron";
 import {
+  type FailedStagePayload,
   ProgressStage,
   WORKFLOW_STAGE_ORDER,
   type WorkflowState,
@@ -233,8 +234,17 @@ export class WorkflowStateManager {
 
   /**
    * Fail a specific stage in the workflow.
+   *
+   * Pass `cancelled` when the user stopped the run themselves (a dialog's Stop button). The stage
+   * still ends as "failed" — it is incomplete and retryable, which is what the UI keys off — but
+   * the payload records that it was deliberate, so the UI can say "you stopped this" instead of
+   * "processing failed", and telemetry logs it as a cancellation rather than an error.
    */
-  public failStage(stageKey: keyof WorkflowState, error: string | Error) {
+  public failStage(
+    stageKey: keyof WorkflowState,
+    error: string | Error,
+    { cancelled = false }: { cancelled?: boolean } = {},
+  ) {
     const errorMessage = formatErrorMessage(error);
     const startTime = this.stageStartTimes.get(stageKey as string);
     const duration = startTime ? Date.now() - startTime : undefined;
@@ -244,26 +254,30 @@ export class WorkflowStateManager {
       status: "failed",
       payload: JSON.stringify({
         error: errorMessage,
-      }),
+        ...(cancelled ? { cancelled: true } : {}),
+      } satisfies FailedStagePayload),
     };
 
     this.telemetryService.trackWorkflowStage({
       workflowId: this.shaveId,
       stage: stageKey as string,
-      status: "failed",
+      status: cancelled ? "cancelled" : "failed",
       duration,
       error: errorMessage,
     });
 
-    this.telemetryService.trackError({
-      error: error instanceof Error ? error : new Error(errorMessage),
-      context: `workflow_stage_${stageKey as string}`,
-      workflowId: this.shaveId,
-      additionalProperties: {
-        stage: stageKey as string,
-        duration: duration?.toString() ?? "unknown",
-      },
-    });
+    // A user-initiated stop is not a fault, so it is never reported as an error.
+    if (!cancelled) {
+      this.telemetryService.trackError({
+        error: error instanceof Error ? error : new Error(errorMessage),
+        context: `workflow_stage_${stageKey as string}`,
+        workflowId: this.shaveId,
+        additionalProperties: {
+          stage: stageKey as string,
+          duration: duration?.toString() ?? "unknown",
+        },
+      });
+    }
 
     this.broadcast();
   }

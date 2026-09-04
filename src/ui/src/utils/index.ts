@@ -123,6 +123,23 @@ export function hasExecutingTaskErrors(state: WorkflowState): boolean {
 }
 
 /**
+ * The stage a user-initiated Stop ended the run on, or null when nothing was stopped.
+ *
+ * A stopped stage is recorded as "failed" (it is incomplete and retryable) with `cancelled: true`
+ * in its payload — see FailedStagePayload — so the UI can tell a deliberate stop apart from a
+ * genuine failure and say so.
+ */
+export function findStoppedStage(state: WorkflowState): keyof WorkflowState | null {
+  return (
+    WORKFLOW_STAGE_ORDER.find((stage) => {
+      const step = state[stage];
+      const payload = parseWorkflowStepPayload(step);
+      return step.status === "failed" && isRecord(payload) && payload.cancelled === true;
+    }) ?? null
+  );
+}
+
+/**
  * A workflow run has failed when any of its stages reports a raw "failed" status,
  * OR when the executing_task stage completed but its payload contains error/denied
  * steps (the effective-failure case WorkflowStepCard already surfaces as red).

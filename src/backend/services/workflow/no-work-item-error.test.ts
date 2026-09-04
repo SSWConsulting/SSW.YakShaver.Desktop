@@ -6,7 +6,7 @@ describe("formatNoWorkItemError — #833 failure copy per termination reason", (
   const cases: Array<[MCPTerminationReason, RegExp]> = [
     ["length", /ran out of room/i],
     ["max-iterations", /ran out of room/i],
-    ["cancelled", /cancelled/i],
+    ["cancelled", /you stopped this run/i],
     ["content-filter", /content filter/i],
     ["timeout", /timed out/i],
     ["stop", /signed out or unavailable/i],

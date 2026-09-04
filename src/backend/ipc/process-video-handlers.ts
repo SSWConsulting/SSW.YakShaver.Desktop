@@ -44,6 +44,7 @@ import {
   applyResolvedTitleToOwnedVideoMetadata,
   applyVideoMetadataPersistence,
 } from "../services/workflow/video-metadata-persistence";
+import { WorkflowCancelledError } from "../services/workflow/workflow-cancelled-error";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
 import {
   type RetryResult,
@@ -148,12 +149,26 @@ export class ProcessVideoIPCHandlers {
 
           const languageModelProvider = await LanguageModelProvider.getInstance();
 
-          const projectDetails =
-            await PromptSelectionService.getInstance().getConfirmedProjectDetails(
+          let projectDetails: Awaited<
+            ReturnType<PromptSelectionService["getConfirmedProjectDetails"]>
+          >;
+          try {
+            projectDetails = await PromptSelectionService.getInstance().getConfirmedProjectDetails(
               languageModelProvider,
               intermediateOutput,
               shaveId,
             );
+          } catch (error) {
+            // The user hit Stop in the prompt-confirmation dialog. End the re-run here with the
+            // stage marked failed (so it doesn't spin forever) and no telemetry error report.
+            if (error instanceof WorkflowCancelledError) {
+              workflowManager.failStage(WorkflowProgressStage.SELECTING_PROMPT, error.message, {
+                cancelled: true,
+              });
+              return { success: false, error: error.message } satisfies RetryResult;
+            }
+            throw error;
+          }
 
           const { desktopAgentProjectPrompt, projectMetaData } =
             this.formatProjectDetails(projectDetails);
@@ -198,7 +213,9 @@ export class ProcessVideoIPCHandlers {
           // #833: only report success if a backlog item was actually created/updated.
           if (!loopResult.backlogActionSucceeded) {
             const failureMessage = formatNoWorkItemError(loopResult.terminationReason);
-            mcpAdapter.fail(mcpResult, finalOutput, failureMessage);
+            mcpAdapter.fail(mcpResult, finalOutput, failureMessage, {
+              cancelled: loopResult.terminationReason === "cancelled",
+            });
             workflowManager.skipStage(WorkflowProgressStage.UPDATING_METADATA);
             return { success: false, error: failureMessage } satisfies RetryResult;
           }
@@ -740,7 +757,10 @@ export class ProcessVideoIPCHandlers {
           const failureMessage = formatNoWorkItemError(loopResult.terminationReason, {
             verificationUnavailable: loopResult.verificationUnavailable,
           });
-          mcpAdapter.fail(mcpResult, finalOutput, failureMessage);
+          // "cancelled" here means the user hit Stop in the tool-approval dialog.
+          mcpAdapter.fail(mcpResult, finalOutput, failureMessage, {
+            cancelled: loopResult.terminationReason === "cancelled",
+          });
           workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
             mcpResult,
             finalOutput,
@@ -902,14 +922,20 @@ export class ProcessVideoIPCHandlers {
       const workflowId = workflowManager.getWorkflowId();
       return { success: true, youtubeResult, mcpResult, workflowId };
     } catch (error) {
-      const errorMessage = formatAndReportError(error, "video_processing");
+      // A user-initiated Stop is an outcome, not a fault: the stage still ends as failed (so the
+      // run visibly stops and stays retryable) but it is flagged as cancelled, which keeps it out
+      // of the error telemetry and lets the UI say the user stopped it.
+      const cancelled = error instanceof WorkflowCancelledError;
+      const errorMessage = cancelled
+        ? error.message
+        : formatAndReportError(error, "video_processing");
       // #306: only mark currentStage as failed if it was genuinely interrupted
       // mid-flight — see shouldFailStageOnUnexpectedError for why a stage that already
       // reached "completed"/"skipped" must not be retroactively re-failed here.
       if (currentStage) {
         const stepState = workflowManager.getStepState(currentStage);
         if (shouldFailStageOnUnexpectedError(stepState.status)) {
-          workflowManager.failStage(currentStage, errorMessage);
+          workflowManager.failStage(currentStage, errorMessage, { cancelled });
         }
       }
       return { success: false, error: errorMessage, workflowId: workflowManager.getWorkflowId() };

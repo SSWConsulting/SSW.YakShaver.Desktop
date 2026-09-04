@@ -1,4 +1,8 @@
-import type { InteractionRequest, ProjectSelectionPayload } from "@shared/types/user-interaction";
+import type {
+  InteractionRequest,
+  ProjectSelectionPayload,
+  ProjectSelectionResponse,
+} from "@shared/types/user-interaction";
 import { ChevronRight, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { formatErrorMessage } from "../../utils";
@@ -32,7 +36,10 @@ export function PromptSelectionDialog({
   const { selectedProject: initialProject, allProjects } = payload;
   const autoApproveAt = request.autoApproveAt;
 
-  const [submitting, setSubmitting] = useState(false);
+  // Which action is in flight, so Stop and Continue each show their own progress label while
+  // the rest of the dialog stays disabled.
+  const [pendingAction, setPendingAction] = useState<"select" | "stop" | null>(null);
+  const submitting = pendingAction !== null;
   const [localError, setLocalError] = useState<string | null>(null);
   const [autoApprovalCountdown, setAutoApprovalCountdown] = useState<number | null>(null);
 
@@ -48,7 +55,7 @@ export function PromptSelectionDialog({
   // Reset internal state when request changes
   useEffect(() => {
     if (!request) return;
-    setSubmitting(false);
+    setPendingAction(null);
     setLocalError(null);
     setAutoApprovalCountdown(null);
     setView("confirm");
@@ -58,17 +65,29 @@ export function PromptSelectionDialog({
 
   const resolveSelection = useCallback(
     async (projectId: string) => {
-      setSubmitting(true);
+      setPendingAction("select");
       setLocalError(null);
       try {
-        await onSubmit({ projectId });
+        await onSubmit({ kind: "select", projectId } satisfies ProjectSelectionResponse);
       } catch (error) {
         setLocalError(formatErrorMessage(error));
-        setSubmitting(false);
+        setPendingAction(null);
       }
     },
     [onSubmit],
   );
+
+  /** Abort the whole run. The backend ends the workflow instead of picking a prompt for us. */
+  const stopWorkflow = useCallback(async () => {
+    setPendingAction("stop");
+    setLocalError(null);
+    try {
+      await onSubmit({ kind: "stop" } satisfies ProjectSelectionResponse);
+    } catch (error) {
+      setLocalError(formatErrorMessage(error));
+      setPendingAction(null);
+    }
+  }, [onSubmit]);
 
   // Auto-approval logic
   useEffect(() => {
@@ -169,6 +188,25 @@ export function PromptSelectionDialog({
 
             <AlertDialogFooter className="mt-4">
               <Button
+                type="button"
+                variant="destructiveOutline"
+                className="sm:mr-auto"
+                disabled={submitting}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void stopWorkflow();
+                }}
+              >
+                {pendingAction === "stop" ? (
+                  <>
+                    <LoadingState inline />
+                    Stopping...
+                  </>
+                ) : (
+                  "Stop"
+                )}
+              </Button>
+              <Button
                 variant="outline"
                 disabled={submitting}
                 onClick={(e) => {
@@ -185,7 +223,7 @@ export function PromptSelectionDialog({
                   void resolveSelection(initialProject.id);
                 }}
               >
-                {submitting ? (
+                {pendingAction === "select" ? (
                   <>
                     <LoadingState inline />
                     Continuing...
@@ -296,7 +334,7 @@ export function PromptSelectionDialog({
                   }
                 }}
               >
-                {submitting ? (
+                {pendingAction === "select" ? (
                   <>
                     <LoadingState inline />
                     Selecting...

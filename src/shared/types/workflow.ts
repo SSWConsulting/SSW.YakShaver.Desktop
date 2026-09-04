@@ -12,6 +12,17 @@ export enum ProgressStage {
 
 export type WorkflowStatus = "not_started" | "in_progress" | "completed" | "failed" | "skipped";
 
+/**
+ * Payload written for a stage that did not finish.
+ *
+ * A stage the user stopped themselves is still "failed" (incomplete and retryable), so
+ * `cancelled` is what tells the UI to present it as a deliberate stop rather than a fault.
+ */
+export interface FailedStagePayload {
+  error?: string;
+  cancelled?: boolean;
+}
+
 export type VideoUploadOrigin = "upload" | "external";
 
 export interface WorkflowStep {

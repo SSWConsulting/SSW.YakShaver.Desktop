@@ -36,9 +36,13 @@ export interface ProjectSelectionPayload {
   }[];
 }
 
-export interface ProjectSelectionResponse {
-  projectId: string;
-}
+/**
+ * What the user did with the project/prompt confirmation dialog.
+ *
+ * `stop` is the dialog's Stop button: the user aborted the whole run rather than picking a
+ * prompt, so the workflow must end instead of silently continuing with the AI's suggestion.
+ */
+export type ProjectSelectionResponse = { kind: "select"; projectId: string } | { kind: "stop" };
 
 // Re-export decision type for convenience
 export type { ToolApprovalDecision };

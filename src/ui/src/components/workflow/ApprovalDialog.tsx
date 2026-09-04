@@ -59,12 +59,22 @@ function getToolPurpose(rawToolName: string): string | null {
   }
 }
 
+type ApprovalAction =
+  | { kind: "approve"; whitelist?: boolean }
+  | { kind: "deny_stop"; feedback?: string }
+  | { kind: "request_changes"; feedback: string };
+
+type ApprovalActionKind = ApprovalAction["kind"];
+
 export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDialogProps) {
   const payload = request.payload as ToolApprovalPayload;
   const { toolName } = payload;
   const autoApproveAt = request.autoApproveAt;
 
-  const [approvalSubmitting, setApprovalSubmitting] = useState(false);
+  // Which action is in flight, so each button shows its own progress label ("Stopping..." vs
+  // "Processing...") while the rest stay disabled.
+  const [pendingAction, setPendingAction] = useState<ApprovalActionKind | null>(null);
+  const approvalSubmitting = pendingAction !== null;
   const [localError, setLocalError] = useState<string | null>(null);
   const [autoApprovalCountdown, setAutoApprovalCountdown] = useState<number | null>(null);
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
@@ -74,21 +84,16 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
 
   // Reset internal state when request changes
   useEffect(() => {
-    setApprovalSubmitting(false);
+    setPendingAction(null);
     setLocalError(null);
     setShowCorrectionForm(false);
     setCorrectionText("");
     setAutoApprovalCountdown(null);
   }, []);
 
-  type ApprovalAction =
-    | { kind: "approve"; whitelist?: boolean }
-    | { kind: "deny_stop"; feedback?: string }
-    | { kind: "request_changes"; feedback: string };
-
   const resolveToolApproval = useCallback(
     async (action: ApprovalAction) => {
-      setApprovalSubmitting(true);
+      setPendingAction(action.kind);
       setLocalError(null);
       try {
         if (action.kind === "approve" && action.whitelist) {
@@ -120,7 +125,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
         await onSubmit(decisionPayload);
       } catch (error) {
         setLocalError(formatErrorMessage(error));
-        setApprovalSubmitting(false); // Only stop loading on error, otherwise allow parent to unmount
+        setPendingAction(null); // Only stop loading on error, otherwise allow parent to unmount
       }
     },
     [toolName, onSubmit],
@@ -203,6 +208,10 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                     <span className="font-medium text-white/90">Review&hellip;</span> &mdash; don't
                     run it yet. Tell YakShaver what to change, or stop this step.
                   </li>
+                  <li>
+                    <span className="font-medium text-white/90">Stop</span> &mdash; abort the whole
+                    run now. Nothing else is created.
+                  </li>
                 </ul>
               </AccordionContent>
             </AccordionItem>
@@ -259,7 +268,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                   });
                 }}
               >
-                {approvalSubmitting ? (
+                {pendingAction === "deny_stop" ? (
                   <span className="flex items-center gap-2">
                     <LoadingState inline />
                     Cancelling...
@@ -280,7 +289,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                   void resolveToolApproval({ kind: "request_changes", feedback: trimmed });
                 }}
               >
-                {approvalSubmitting ? (
+                {pendingAction === "request_changes" ? (
                   <span className="flex items-center gap-2">
                     <LoadingState inline />
                     Sending...
@@ -292,6 +301,25 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
             </>
           ) : (
             <>
+              <Button
+                type="button"
+                variant="destructiveOutline"
+                className="sm:mr-auto"
+                disabled={approvalSubmitting}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void resolveToolApproval({ kind: "deny_stop" });
+                }}
+              >
+                {pendingAction === "deny_stop" ? (
+                  <span className="flex items-center gap-2">
+                    <LoadingState inline />
+                    Stopping...
+                  </span>
+                ) : (
+                  "Stop"
+                )}
+              </Button>
               <AlertDialogCancel
                 disabled={approvalSubmitting}
                 onClick={(event) => {
@@ -310,7 +338,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                   void resolveToolApproval({ kind: "approve", whitelist: true });
                 }}
               >
-                {approvalSubmitting ? (
+                {pendingAction === "approve" ? (
                   <span className="flex items-center gap-2">
                     <LoadingState inline />
                     Saving...
@@ -326,7 +354,7 @@ export function ApprovalDialog({ request, onSubmit, error: pError }: ApprovalDia
                   void resolveToolApproval({ kind: "approve" });
                 }}
               >
-                {approvalSubmitting ? (
+                {pendingAction === "approve" ? (
                   <span className="flex items-center gap-2">
                     <LoadingState inline />
                     Processing...

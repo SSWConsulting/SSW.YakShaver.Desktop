@@ -4,6 +4,7 @@ import type { LanguageModelProvider } from "../mcp/language-model-provider";
 import { PromptManager, type PromptSummary } from "../prompt/prompt-manager";
 import { UserInteractionService } from "../user-interaction/user-interaction-service";
 import { defaultProjectPrompt } from "./prompts";
+import { WorkflowCancelledError } from "./workflow-cancelled-error";
 
 export interface PromptSelectionResult {
   id: string;
@@ -94,6 +95,13 @@ export class PromptSelectionService {
         { shaveId },
       );
 
+      // The user stopped the run from the dialog instead of picking a prompt. This must abort
+      // the workflow, not fall through to the AI's suggestion below — hence a throw rather than
+      // a return, and hence the rethrow in the catch, which otherwise swallows everything.
+      if (userResponse.kind === "stop") {
+        throw new WorkflowCancelledError();
+      }
+
       // Update selected project if user changed it
       if (userResponse.projectId !== selectedProject.id) {
         const newProject = allProjects.find((p) => p.id === userResponse.projectId);
@@ -110,6 +118,9 @@ export class PromptSelectionService {
         }
       }
     } catch (error) {
+      if (error instanceof WorkflowCancelledError) {
+        throw error;
+      }
       console.error("Project selection interaction failed or was cancelled:", error);
     }
 
