@@ -183,7 +183,14 @@ jobs:
 
   build-macos-arm64:
     needs: check-release
-    runs-on: macos-latest
+    # Pinned, not macos-latest. Code signing breaks on the macos-26-arm64 image: electron-builder
+    # creates a temporary keychain, and `security set-key-partition-list` fails there with
+    # "SecKeychainUnlock: The user name or passphrase you entered is not correct", so the build
+    # dies before producing a dmg. Build #307 passed on macos-26-arm64 image 20260728.0273 and
+    # #308 failed twice on 20260831.0337, with no change to the signing config between them, so
+    # the image is the variable. macos-latest also moves without warning, which is how this
+    # arrived. macos-15 is Apple Silicon and matches the era the x64 job is already pinned to.
+    runs-on: macos-15
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
