@@ -30,7 +30,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: main
+          # The triggering commit, so SHORT_SHA below describes the commit being released
+          # rather than whatever reached main by the time this step ran.
+          ref: ${{ github.sha }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -72,6 +74,8 @@ jobs:
           TAG_NAME="${{ steps.get_version.outputs.tag_name }}"
           VERSION="${{ steps.get_version.outputs.version }}"
 
+          # --target takes a commitish. Pinning it to the triggering commit keeps the tag on
+          # the same commit the build jobs package and the one SHORT_SHA in the version names.
           gh release create "$TAG_NAME" \
             --title "$VERSION" \
             --generate-notes \
@@ -114,7 +118,7 @@ jobs:
             **Release Details:**
             - **Version:** ${{ steps.get_version.outputs.version }}
             - **Tag:** ${{ steps.get_version.outputs.tag_name }}
-            - **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag_name }} (a draft until every platform artifact is uploaded)
+            - **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.tag_name }} (a draft until the installers and update manifests the download links depend on are uploaded)
 
             You can monitor the build progress in the [Actions tab](https://github.com/${{ github.repository }}/actions/workflows/automated-release-electron-app.yml).
 
@@ -124,5 +128,10 @@ jobs:
     uses: ./.github/workflows/release-electron-app.yml
     with:
       tag_name: ${{ needs.auto-release.outputs.tag_name }}
+      # The triggering commit, not the branch. `main` is a moving pointer, so a build taking
+      # ten minutes can check out whatever landed meanwhile and ship a commit nobody released.
+      # Build #307 hit exactly that: its workflow file was the npm version, but by the time the
+      # manifest job checked out `main` the pnpm migration had merged and package-lock.json was
+      # gone, so actions/setup-node failed with "Some specified paths were not resolved".
       target: ${{ github.sha }}
     secrets: inherit

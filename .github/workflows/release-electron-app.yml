@@ -183,7 +183,14 @@ jobs:
 
   build-macos-arm64:
     needs: check-release
-    runs-on: macos-latest
+    # Pinned, not macos-latest. Code signing breaks on the macos-26-arm64 image: electron-builder
+    # creates a temporary keychain, and `security set-key-partition-list` fails there with
+    # "SecKeychainUnlock: The user name or passphrase you entered is not correct", so the build
+    # dies before producing a dmg. Build #307 passed on macos-26-arm64 image 20260728.0273 and
+    # #308 failed twice on 20260831.0337, with no change to the signing config between them, so
+    # the image is the variable. macos-latest also moves without warning, which is how this
+    # arrived. macos-15 is Apple Silicon and matches the era the x64 job is already pinned to.
+    runs-on: macos-15
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -654,7 +661,8 @@ jobs:
   # /releases/latest/download/YakShaver-latest-Setup.exe and -arm64.dmg, and GitHub resolves
   # "latest" to the newest non-draft release. So while this release is still a draft the
   # previous one stays latest and the links keep serving the last good build; the moment it
-  # is published the links must resolve, which is only true once every job above has uploaded.
+  # is published those links must resolve, which is only true once the Windows and both macOS
+  # jobs have uploaded their fixed-name assets and the merged update manifest is in place.
   # Any failure leaves the release a draft: nothing on the site changes, and the artifacts are
   # still there to inspect.
   #
@@ -668,7 +676,11 @@ jobs:
       - verify-macos-update-manifest
     runs-on: ubuntu-latest
     steps:
-      - name: Publish the release now that every artifact is up
+      # Deliberately checks the five fixed-name assets the install page and the auto-updater
+      # resolve, not every artifact on the release. The versioned installers, zips and
+      # blockmaps are not asserted here: a missing one is a bad build, but it does not 404 a
+      # download link, and the jobs that produce them already fail loudly on their own.
+      - name: Publish once the install and update assets are present
         run: |
           set -euo pipefail
 

@@ -67,11 +67,16 @@ jobs:
           echo "Finding and deleting existing releases for PR #${PR_NUMBER}"
 
           # Collect both release IDs and tag names BEFORE deleting anything.
-          # `.body // ""` matters: a release with a null body makes contains() throw
-          # ("cannot be applied to: null"), and under `bash -e` that kills the step on its
-          # very first command, so nothing gets cleaned up at all. One such release exists
-          # (v2026.8.21-BUILD.299.969329), which is why stale PR pre-releases accumulated.
-          RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select((.body // \"\") | contains(\"PR #${PR_NUMBER}\")) | {id: .id, tag: .tag_name}")
+          #
+          # Match on the tag, not the body. The tag is `<version>-beta.<PR>.<timestamp>`, so
+          # `-beta.<PR>.` is delimited on both sides and cannot match another PR. The old body
+          # match, contains("PR #<PR>"), had no delimiter after the number: closing PR #104
+          # would have deleted every live pre-release belonging to PR #1040 and #1041.
+          #
+          # Not reading .body also removes the null-body crash for good rather than guarding
+          # against it, and `select(.prerelease)` means a production release can never be
+          # deleted here no matter what its notes happen to contain.
+          RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.prerelease) | select(.tag_name | test(\"-beta[.]${PR_NUMBER}[.]\")) | {id: .id, tag: .tag_name}")
 
           RELEASE_IDS=$(echo "$RELEASES_DATA" | jq -r '.id')
           TAG_NAMES=$(echo "$RELEASES_DATA" | jq -r '.tag')
@@ -219,7 +224,10 @@ jobs:
     if: |
       github.event_name != 'pull_request' ||
       github.event.action != 'closed'
-    runs-on: macos-latest
+    # Pinned for the same reason as the release workflow: code signing fails on the
+    # macos-26-arm64 image with "SecKeychainUnlock: The user name or passphrase you entered is
+    # not correct". See the comment on build-macos-arm64 in release-electron-app.yml.
+    runs-on: macos-15
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -663,11 +671,16 @@ jobs:
           echo "Deleting all releases for closed PR #${PR_NUMBER}"
 
           # Collect both release IDs and tag names BEFORE deleting anything.
-          # `.body // ""` matters: a release with a null body makes contains() throw
-          # ("cannot be applied to: null"), and under `bash -e` that kills the step on its
-          # very first command, so nothing gets cleaned up at all. One such release exists
-          # (v2026.8.21-BUILD.299.969329), which is why stale PR pre-releases accumulated.
-          RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select((.body // \"\") | contains(\"PR #${PR_NUMBER}\")) | {id: .id, tag: .tag_name}")
+          #
+          # Match on the tag, not the body. The tag is `<version>-beta.<PR>.<timestamp>`, so
+          # `-beta.<PR>.` is delimited on both sides and cannot match another PR. The old body
+          # match, contains("PR #<PR>"), had no delimiter after the number: closing PR #104
+          # would have deleted every live pre-release belonging to PR #1040 and #1041.
+          #
+          # Not reading .body also removes the null-body crash for good rather than guarding
+          # against it, and `select(.prerelease)` means a production release can never be
+          # deleted here no matter what its notes happen to contain.
+          RELEASES_DATA=$(gh api --paginate /repos/${{ github.repository }}/releases --jq ".[] | select(.prerelease) | select(.tag_name | test(\"-beta[.]${PR_NUMBER}[.]\")) | {id: .id, tag: .tag_name}")
 
           RELEASE_IDS=$(echo "$RELEASES_DATA" | jq -r '.id')
           TAG_NAMES=$(echo "$RELEASES_DATA" | jq -r '.tag')
