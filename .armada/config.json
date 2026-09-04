@@ -41,11 +41,11 @@
     "closeOnCharter": true
   },
   "commands": {
-    "build": "npm run build",
-    "test": "npm rebuild better-sqlite3 --build-from-source && npx vitest run --reporter=verbose --exclude 'src/ui/**' && npm --prefix src/ui install && npm --prefix src/ui test",
-    "lint": "npm run lint",
-    "format": "npm run format",
-    "run": "npm run start",
-    "web": "cd src/ui && npm run dev"
+    "build": "pnpm run build",
+    "test": "pnpm rebuild better-sqlite3 electron && pnpm exec vitest run --reporter=verbose --exclude 'src/ui/**' && pnpm -C src/ui install && pnpm -C src/ui test",
+    "lint": "pnpm run lint",
+    "format": "pnpm run format",
+    "run": "pnpm run start",
+    "web": "pnpm -C src/ui run dev"
   }
 }

@@ -55,11 +55,12 @@ jobs:
         with:
           ref: ${{ needs.check-release.outputs.target }}
 
-      - uses: actions/setup-node@v6
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+          runtime: node@24
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          install: false
 
       # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
@@ -98,9 +99,9 @@ jobs:
           Add-Content -Path ".env" -Value "`nCOMMIT_HASH=$COMMIT_HASH"
 
       - name: Install dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         env:
-          # Prevent youtube-dl-exec from auto-downloading yt-dlp during npm install, which would hit the GitHub API unauthenticated rate limit
+          # Prevent youtube-dl-exec from auto-downloading yt-dlp during the install, which would hit the GitHub API unauthenticated rate limit
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
       # Manual download is needed because the 'youtube-dl-exec' script hits the GitHub API unauthenticated rate limit (60/hr) when attempting to download the binary
@@ -123,7 +124,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         working-directory: src/ui
 
       - name: Update version for release
@@ -133,11 +134,11 @@ jobs:
           if (-not $version) {
             throw "Missing version output"
           }
-          npm version $version --no-git-tag-version
+          pnpm version $version --no-git-tag-version
           Write-Host "Updated package.json version to $version"
 
       - name: Publish Windows app
-        run: npm run publish -- --win
+        run: pnpm run publish --win
         env:
           NODE_ENV: production
           CI: true
@@ -190,11 +191,12 @@ jobs:
         with:
           ref: ${{ needs.check-release.outputs.target }}
 
-      - uses: actions/setup-node@v6
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+          runtime: node@24
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          install: false
 
       # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
@@ -232,7 +234,7 @@ jobs:
           printf "COMMIT_HASH=%s\n" "$COMMIT_HASH" >> .env
 
       - name: Install dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
@@ -269,7 +271,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         working-directory: src/ui
 
       - name: Update version for release
@@ -279,11 +281,11 @@ jobs:
             echo "Missing version output"
             exit 1
           fi
-          npm version "$VERSION" --no-git-tag-version
+          pnpm version "$VERSION" --no-git-tag-version
           echo "Updated package.json version to $VERSION"
 
       - name: Publish macOS arm64 app
-        run: npm run publish -- --mac --arm64 -c.mac.target.arch=arm64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
+        run: pnpm run publish --mac --arm64 -c.mac.target.arch=arm64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
         env:
           NODE_ENV: production
           CI: true
@@ -345,11 +347,12 @@ jobs:
         with:
           ref: ${{ needs.check-release.outputs.target }}
 
-      - uses: actions/setup-node@v6
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+          runtime: node@24
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          install: false
 
       # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
@@ -387,7 +390,7 @@ jobs:
           printf "COMMIT_HASH=%s\n" "$COMMIT_HASH" >> .env
 
       - name: Install dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
           # Explicitly set arch to x64 to ensure all optional dependencies install x64 binaries
@@ -395,7 +398,7 @@ jobs:
 
       # Explicitly rebuild better-sqlite3 for x64 Electron to guarantee correct native module architecture
       - name: Rebuild native modules for x64
-        run: npx electron-rebuild -f -w better-sqlite3 --arch x64
+        run: pnpm exec electron-rebuild -f -w better-sqlite3 --arch x64
 
       # Manual download is needed because the youtube-dl-exec script hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find the yt-dlp binary.
       - name: Install yt-dlp binary manually
@@ -430,7 +433,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         working-directory: src/ui
 
       - name: Update version for release
@@ -440,11 +443,11 @@ jobs:
             echo "Missing version output"
             exit 1
           fi
-          npm version "$VERSION" --no-git-tag-version
+          pnpm version "$VERSION" --no-git-tag-version
           echo "Updated package.json version to $VERSION"
 
       - name: Publish macOS x64 app
-        run: npm run publish -- --mac --x64 -c.mac.target.arch=x64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
+        run: pnpm run publish --mac --x64 -c.mac.target.arch=x64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
         env:
           NODE_ENV: production
           CI: true
@@ -545,14 +548,15 @@ jobs:
         with:
           ref: ${{ inputs.target || github.event.release.target_commitish }}
 
-      - uses: actions/setup-node@v6
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+          runtime: node@24
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          install: false
 
       - name: Install manifest merge dependencies
-        run: npm ci --ignore-scripts --prefer-offline
+        run: pnpm install --frozen-lockfile --ignore-scripts
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 

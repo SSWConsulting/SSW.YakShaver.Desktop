@@ -11,13 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
+      - uses: pnpm/setup@v2
         with:
-          node-version: 24
+          runtime: node@24
+          cache: false
+          install: false
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       - name: Run Biome format check
-        run: npx biome format .
+        run: pnpm exec biome format .
       - name: Run Biome linter
-        run: npx biome lint . --error-on-warnings
+        run: pnpm exec biome lint . --error-on-warnings
