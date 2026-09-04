@@ -594,3 +594,54 @@ jobs:
             --repo SSWConsulting/SSW.YakShaver.Desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Each macOS job publishes its own single-arch latest-mac.yml on the way past. The trailing
+  # `--publish never` does not stop it, because the npm script already passed `--publish always`
+  # and electron-builder takes the first one. publish-macos-update-manifest is what replaces that
+  # with the merged manifest, so when it does not run the release keeps whichever single-arch
+  # manifest landed last and Apple Silicon clients are quietly offered the x64 build. That is how
+  # build #304 shipped. Fail loudly, and take the misleading manifest down on the way out.
+  verify-macos-update-manifest:
+    needs:
+      - check-release
+      - publish-macos-update-manifest
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify the published manifest covers both architectures
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ needs.check-release.outputs.version }}"
+          MERGE_RESULT="${{ needs.publish-macos-update-manifest.result }}"
+
+          if [[ -z "$VERSION" ]]; then
+            echo "No version from 'check-release', so there is no release to verify." >&2
+            exit 1
+          fi
+
+          if [[ "$MERGE_RESULT" != "success" ]]; then
+            echo "publish-macos-update-manifest did not succeed (result: $MERGE_RESULT)." >&2
+            echo "Deleting latest-mac.yml so macOS clients get no update rather than the wrong one." >&2
+            gh release delete-asset "$VERSION" latest-mac.yml --yes \
+              --repo SSWConsulting/SSW.YakShaver.Desktop \
+              || echo "No latest-mac.yml on the release to delete."
+            exit 1
+          fi
+
+          gh release download "$VERSION" \
+            --pattern latest-mac.yml \
+            --clobber \
+            --repo SSWConsulting/SSW.YakShaver.Desktop
+
+          for ARCH in arm64 x64; do
+            if ! grep -q -- "-${ARCH}-mac.zip" latest-mac.yml; then
+              echo "Published latest-mac.yml has no ${ARCH} entry:" >&2
+              cat latest-mac.yml >&2
+              exit 1
+            fi
+          done
+
+          echo "Published latest-mac.yml lists both arm64 and x64."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -6,6 +6,13 @@ on:
     branches:
       - main
 
+# One release build at a time. Merges land in bursts, dependabot's especially, and two release
+# runs started seconds apart otherwise race each other overwriting the same release assets.
+# Never cancel a run already in flight: it may be part-way through publishing a release.
+concurrency:
+  group: automated-electron-release
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
