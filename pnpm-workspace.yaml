@@ -1,0 +1,55 @@
+# Deliberately NOT nodeLinker: hoisted, but not for the reason you might assume.
+#
+# electron-builder issue 7554 recommends hoisted, and older advice repeats it. Do not switch
+# back on that basis. Two separate things are easy to conflate here:
+#
+# 1. Packaged apps missing transitive dependencies ("Cannot find module 'agent-base'") were
+#    NOT caused by the layout. electron-builder 26.8.1's pnpm collector dropped deduped
+#    transitive dependencies in hoisted AND isolated alike. 26.15.3 fixed it, via
+#    electron-builder commit b348df0. Keep electron-builder at 26.15.3 or newer; that is the
+#    load-bearing part, not this setting.
+# 2. Isolated is kept because it is the topology electron-builder's pnpm collector is written
+#    against, and because it refuses phantom dependencies. It already caught one: the backend
+#    imported @ai-sdk/provider without declaring it, which only ever resolved because npm
+#    hoisted it into place. Hoisting would hide the next one.
+#
+# Nothing in this repo actually needs a flat node_modules. The zod alias in
+# src/ui/vitest.config.mts, @ffmpeg-installer's platform resolution, and the yt-dlp download
+# path were all checked against the isolated layout and work.
+
+# Fail the install on the wrong Node or package manager rather than half-working.
+engineStrict: true
+
+# pnpm blocks dependency install scripts by default, where npm ran them all. Allow the ones
+# that actually produce something we need, so the install does not quietly skip a build step.
+#
+# electron downloads its binary here, and the backend tests require("electron") at import time.
+# better-sqlite3 compiles the native module the app runs on. esbuild fetches its platform
+# binary for vite, vitest and drizzle-kit. electron-winstaller picks a 7z build for packaging.
+allowBuilds:
+  better-sqlite3: true
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  protobufjs: true
+
+  # @ffmpeg-installer ships one platform package per OS/arch and only the matching one
+  # installs, so all of them have to be listed. Their install script marks the ffmpeg binary
+  # executable, and the app spawns it as a child process, so skipping it breaks conversion at
+  # runtime on Linux and macOS.
+  "@ffmpeg-installer/darwin-arm64": true
+  "@ffmpeg-installer/darwin-x64": true
+  "@ffmpeg-installer/linux-x64": true
+  "@ffmpeg-installer/win32-x64": true
+
+  # electron-rebuild depends on lzma-native, whose install runs node-gyp-build: a prebuilt
+  # binary where one exists, a source compile otherwise. There is no win32-arm64 prebuild, so
+  # on an ARM dev machine it tries to compile and fails. Nothing we do needs it -
+  # `electron-rebuild -f -w better-sqlite3` completes with lzma-native unbuilt.
+  lzma-native: false
+
+  # Its preinstall demands a working Python and its postinstall fetches yt-dlp from the GitHub
+  # API, which rate-limits unauthenticated callers at 60/hr. We download the binary ourselves
+  # in scripts/install-yt-dlp.mjs, and CI does it with a token, so neither script is wanted.
+  # Leaving this off is also what removes Python from the local setup requirements.
+  youtube-dl-exec: false

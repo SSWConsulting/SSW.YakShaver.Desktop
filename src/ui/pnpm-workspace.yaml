@@ -1,0 +1,10 @@
+# The renderer installs separately from the backend, as it did under npm, and the
+# ui-component-tests CI job installs only this package. This file marks src/ui as its own
+# pnpm root: without it pnpm walks up, finds the repo-root pnpm-workspace.yaml, decides this
+# package is not part of that workspace and reports "Already up to date" while installing
+# nothing at all.
+#
+# The default isolated layout, matching the root. See the root pnpm-workspace.yaml for why
+# nodeLinker: hoisted is not used.
+allowBuilds:
+  esbuild: true

@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 // This is controlled via the VITE_DEBUG_BUILD env var (set to the string "true").
 // In CI this is set by the GitHub workflow; for local debugging you can enable it by:
 //   - Adding `VITE_DEBUG_BUILD=true` to .env.local in this directory, or
-//   - Running `VITE_DEBUG_BUILD=true npm run build`
+//   - Running `VITE_DEBUG_BUILD=true pnpm run build`
 const isDebugBuild = process.env.VITE_DEBUG_BUILD === "true";
 
 export default defineConfig({
