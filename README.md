@@ -15,8 +15,11 @@ Licensed under [AGPL-3.0-only](./LICENSE).
 - [pnpm](https://pnpm.io/installation) 12. The exact version is pinned in `packageManager`, and
   running `pnpm` switches to it automatically. `corepack enable` is enough to get it.
 
-npm and yarn are deliberately refused by the `engines` field. The lockfile is `pnpm-lock.yaml`,
-and installing with anything else produces a tree the build has never been tested against.
+The lockfile is `pnpm-lock.yaml`, and installing with anything else produces a tree the build has
+never been tested against. `engines` names npm and yarn as unsupported, and `engine-strict=true`
+in `.npmrc` is what turns npm's reaction from a warning it prints and ignores into a failed
+install. pnpm enforces the same thing through `engineStrict` in `pnpm-workspace.yaml`. Yarn reads
+neither setting, so it is declared unsupported rather than actually blocked.
 
 ## Setup
 

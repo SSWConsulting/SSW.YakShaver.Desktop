@@ -1,11 +1,21 @@
-# Deliberately NOT nodeLinker: hoisted. The flat layout looks like the safer option, and
-# electron-builder issue 7554 still recommends it, but with electron-builder 26 it silently
-# produces a broken app. Its pnpm dependency collector expects the isolated layout and the
-# .pnpm virtual store; give it a physically npm-shaped tree instead and it never walks the
-# nested node_modules directories, so any package present only as a nested second version is
-# dropped from the asar. That shipped an installer that died on launch with
-# "Cannot find module 'agent-base'", 7,900 files short of the npm build, while every CI check
-# stayed green. Leave the default isolated layout alone.
+# Deliberately NOT nodeLinker: hoisted, but not for the reason you might assume.
+#
+# electron-builder issue 7554 recommends hoisted, and older advice repeats it. Do not switch
+# back on that basis. Two separate things are easy to conflate here:
+#
+# 1. Packaged apps missing transitive dependencies ("Cannot find module 'agent-base'") were
+#    NOT caused by the layout. electron-builder 26.8.1's pnpm collector dropped deduped
+#    transitive dependencies in hoisted AND isolated alike. 26.15.3 fixed it, via
+#    electron-builder commit b348df0. Keep electron-builder at 26.15.3 or newer; that is the
+#    load-bearing part, not this setting.
+# 2. Isolated is kept because it is the topology electron-builder's pnpm collector is written
+#    against, and because it refuses phantom dependencies. It already caught one: the backend
+#    imported @ai-sdk/provider without declaring it, which only ever resolved because npm
+#    hoisted it into place. Hoisting would hide the next one.
+#
+# Nothing in this repo actually needs a flat node_modules. The zod alias in
+# src/ui/vitest.config.mts, @ffmpeg-installer's platform resolution, and the yt-dlp download
+# path were all checked against the isolated layout and work.
 
 # Fail the install on the wrong Node or package manager rather than half-working.
 engineStrict: true
