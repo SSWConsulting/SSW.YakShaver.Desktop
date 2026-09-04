@@ -37,9 +37,9 @@ If you modify the schema (`schema.ts`), you must generate new migrations:
 If don't specify the name, drizzle will generate some random string as the migration name.
 
 ```bash
-npm run db:generate -- --name=<migration_name>
+pnpm run db:generate --name=<migration_name>
 ```
-(e.g., npm run db:generate -- --name=add_shave_table)
+(e.g., pnpm run db:generate --name=add_shave_table)
 This creates SQL migration files in `src/backend/db/migrations/`.
 
 **Important**: Always commit generated migration files to version control.
@@ -51,7 +51,7 @@ Migrations run automatically when the application starts via the `initDatabase()
 To manually run migrations:
 
 ```bash
-npm run db:migrate
+pnpm run db:migrate
 ```
 
 ### 4. Access Database in Development
@@ -59,7 +59,7 @@ npm run db:migrate
 To view and inspect the database in development or use other tools like DB Broswer
 
 ```bash
-npm run db:studio
+pnpm run db:studio
 ```
 
 This opens the Drizzle Studio UI where you can browse tables, query data, and manage records.
@@ -89,7 +89,7 @@ For production builds, migrations are included in `extraResources` (outside the 
 ### Modifying the Schema
 
 1. Edit `src/backend/db/schema.ts`
-2. Run `npm run db:generate -- --name=<migration_name>`
+2. Run `pnpm run db:generate --name=<migration_name>`
 3. Review the generated migration file in `src/backend/db/migrations/`
 4. Commit both the schema and migration files
 5. Test migrations locally
@@ -108,7 +108,7 @@ export type NewTableRecord = typeof newTable.$inferSelect;
 export type NewTableInsert = typeof newTable.$inferInsert;
 ```
 
-Then run `npm run db:generate -- --name=<migration_name>`.
+Then run `pnpm run db:generate --name=<migration_name>`.
 
 ## Important Notes
 
@@ -123,7 +123,7 @@ The `postinstall` script automatically rebuilds `better-sqlite3` for Electron:
 If you encounter issues with native bindings, run this command manually:
 
 ```bash
-npm run postinstall
+pnpm run postinstall
 ```
 
 ### Migration Path Logic
@@ -142,10 +142,10 @@ The migration path resolution (`getMigrationsPath()` in `migrate.ts`) checks mul
 - Check that `_journal.json` exists in the migrations folder
 
 ### Schema changes not applied
-- Run `npm run db:generate` after modifying `schema.ts`
+- Run `pnpm run db:generate` after modifying `schema.ts`
 - Commit the generated migration files
 - Rebuild and restart the application
 
 ### better-sqlite3 errors
-- Run `npm run postinstall` to rebuild native bindings
+- Run `pnpm run postinstall` to rebuild native bindings
 - Ensure Node.js version is compatible with Electron version

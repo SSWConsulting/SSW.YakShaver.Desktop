@@ -10,7 +10,13 @@ Licensed under [AGPL-3.0-only](./LICENSE).
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/en/download) 20+ (CI uses 20 for release workflows, 22 for test workflows — 20+ covers both)
+- [Node.js](https://nodejs.org/en/download) 24+, the version in `.nvmrc`. `engineStrict` is on,
+  so an older Node fails the install outright rather than half-working.
+- [pnpm](https://pnpm.io/installation) 11. The exact version is pinned in `packageManager`, and
+  running `pnpm` switches to it automatically. `corepack enable` is enough to get it.
+
+npm and yarn are deliberately refused by the `engines` field. The lockfile is `pnpm-lock.yaml`,
+and installing with anything else produces a tree the build has never been tested against.
 
 ## Setup
 
@@ -19,18 +25,18 @@ Licensed under [AGPL-3.0-only](./LICENSE).
 
 ## Run
 In the root folder, run
-1. `npm install -g concurrently`, which will install the [`concurrently` package](https://www.npmjs.com/package/concurrently)
-1. `npm run setup` – install dependencies
-2. `npm run dev` – start the app
+1. `pnpm add -g concurrently`, which will install the [`concurrently` package](https://www.npmjs.com/package/concurrently)
+1. `pnpm run setup` – install dependencies
+2. `pnpm run dev` – start the app
 
-On Windows and macOS, `npm run setup` also installs the standalone `yt-dlp` binary used
+On Windows and macOS, `pnpm run setup` also installs the standalone `yt-dlp` binary used
 for YouTube downloads. This avoids relying on the operating system's Python.
 
 ## Install Python for video downloader (Mac & Windows)
 
 [▶️ Watch the video (01:02)](https://www.youtube.com/watch?v=cW9aLi-8igc)
 
-`npm run setup` installs a standalone `yt-dlp` binary automatically (see [Run](#run)), so most
+`pnpm run setup` installs a standalone `yt-dlp` binary automatically (see [Run](#run)), so most
 users don't need to install Python at all. If you hit an issue with the bundled binary, or you're
 running the video downloader outside the app, you can install Python and `yt-dlp` yourself with
 the commands below.
@@ -117,8 +123,8 @@ yt-dlp "https://www.youtube.com/watch?v=example"
 
 ## Building
 
-1. `npm run setup` – ensure all dependencies are installed
-2. `npm run make` - this runs `electron-builder`, which outputs to `/build`:
+1. `pnpm run setup` – ensure all dependencies are installed
+2. `pnpm run make` - this runs `electron-builder`, which outputs to `/build`:
 
 - Final installers/distributables (e.g. the Windows `.exe`, macOS `.dmg`) are written directly in `/build`
 - Unpacked app folders are per-platform subfolders, e.g. `/build/win-unpacked`, `/build/mac` (macOS x64), `/build/mac-arm64`
@@ -133,7 +139,7 @@ See [RELEASE.md](./RELEASE.md) for how these builds feed into the release proces
 - **macOS**: `~/Library/Application Support/YakShaver/yakshaver-tokens/*.enc`
 - **Linux**: `~/.config/YakShaver/yakshaver-tokens/*.enc`
 
-These paths are for the packaged app (or `npm run start`). Running via `npm run dev` (see [Run](#run)) sets `NODE_ENV=development`, which redirects `userData` to a separate `YakShaverDev` directory (e.g. `%APPDATA%\YakShaverDev\yakshaver-tokens\*.enc` on Windows) so dev sessions don't collide with a real install.
+These paths are for the packaged app (or `pnpm run start`). Running via `pnpm run dev` (see [Run](#run)) sets `NODE_ENV=development`, which redirects `userData` to a separate `YakShaverDev` directory (e.g. `%APPDATA%\YakShaverDev\yakshaver-tokens\*.enc` on Windows) so dev sessions don't collide with a real install.
 
 
 ### Model Settings (User-provided API keys)

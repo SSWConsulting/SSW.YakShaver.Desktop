@@ -35,7 +35,7 @@ Click "Publish release" to trigger the automated build and deployment.
 To build and test the app locally before release:
 
 ```bash
-npm run make
+pnpm run make
 ```
 
 This will build the application and create distributable packages in the `build` directory.

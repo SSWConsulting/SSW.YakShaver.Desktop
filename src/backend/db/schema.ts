@@ -14,7 +14,7 @@ import {
 } from "../types";
 
 /**
- * After modifying this schema, must run: npm run db:generate -- --name=<migration_name> (e.g., --name=add_shave_table)
+ * After modifying this schema, must run: pnpm run db:generate --name=<migration_name> (e.g., --name=add_shave_table)
  * If don't specify the name, drizzle will generate some random string as the migration name.
  * This will generate the migration files in src/backend/db/migrations/
  */

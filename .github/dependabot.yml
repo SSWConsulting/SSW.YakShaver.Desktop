@@ -8,13 +8,19 @@ updates:
     commit-message:
       prefix: "⬆️ github-actions"
 
+  # "npm" is the ecosystem name for the whole JavaScript family, pnpm included; there is no
+  # separate "pnpm" value. The renderer installs from its own lockfile, so it needs its own
+  # entry or its dependencies never get updated.
   - package-ecosystem: "npm"
-    directory: "/"
+    directories:
+      - "/"
+      - "/src/ui"
     schedule:
       interval: "weekly"
     commit-message:
-      prefix: "⬆️ npm"
-      
+      prefix: "⬆️ pnpm"
+
+
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:

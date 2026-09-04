@@ -1,0 +1,12 @@
+# The renderer installs separately from the backend, as it did under npm, and the
+# ui-component-tests CI job installs only this package. This file marks src/ui as its own
+# pnpm root: without it pnpm walks up, finds the repo-root pnpm-workspace.yaml, decides this
+# package is not part of that workspace and reports "Already up to date" while installing
+# nothing at all.
+#
+# nodeLinker matches the root for the same reason it is set there, and because
+# vitest.config.mts aliases zod to ./node_modules/zod, which has to be a real directory.
+nodeLinker: hoisted
+
+allowBuilds:
+  esbuild: true

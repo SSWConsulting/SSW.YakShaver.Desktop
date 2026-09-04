@@ -33,9 +33,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
-      - uses: actions/setup-node@v6
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          version: 11
+          runtime: node@24
+          cache: false
+          install: false
 
       - name: Get PR info
         id: pr_info
@@ -99,11 +102,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
-      - uses: actions/setup-node@v6
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+          version: 11
+          runtime: node@24
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          install: false
 
       # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
@@ -140,9 +145,9 @@ jobs:
           Add-Content -Path ".env" -Value "`nCOMMIT_HASH=$COMMIT_HASH"
 
       - name: Install dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         env:
-          # Prevent youtube-dl-exec from auto-downloading yt-dlp during npm install, which would hit the GitHub API unauthenticated rate limit
+          # Prevent youtube-dl-exec from auto-downloading yt-dlp during the install, which would hit the GitHub API unauthenticated rate limit
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
       # Manual download is needed because the 'youtube-dl-exec' script hits the GitHub API unauthenticated rate limit (60/hr) when attempting to download the binary
@@ -165,7 +170,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         working-directory: src/ui
 
       - name: Update version for pre-release
@@ -175,10 +180,10 @@ jobs:
           if (-not $version) {
             throw "Missing version output"
           }
-          npm version $version --no-git-tag-version
+          pnpm version $version --no-git-tag-version
 
       - name: Publish Windows pre-release
-        run: npm run publish -- --win --publish never
+        run: pnpm run publish --win --publish never
         env:
           NODE_ENV: production
           CI: true
@@ -220,11 +225,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
-      - uses: actions/setup-node@v6
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+          version: 11
+          runtime: node@24
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          install: false
 
       # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
@@ -258,7 +265,7 @@ jobs:
           printf "APPLICATIONINSIGHTS_CONNECTION_STRING=%s\n" "$APPLICATIONINSIGHTS_CONNECTION_STRING" >> .env
 
       - name: Install dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 
@@ -295,7 +302,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         working-directory: src/ui
 
       - name: Update version for pre-release
@@ -305,10 +312,10 @@ jobs:
             echo "Missing version output"
             exit 1
           fi
-          npm version "$VERSION" --no-git-tag-version
+          pnpm version "$VERSION" --no-git-tag-version
 
       - name: Publish macOS pre-release (arm64)
-        run: npm run publish -- --mac --arm64 -c.mac.target.arch=arm64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
+        run: pnpm run publish --mac --arm64 -c.mac.target.arch=arm64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
         env:
           NODE_ENV: production
           CI: true
@@ -319,7 +326,7 @@ jobs:
 
       # Enable only when need code sign and notarization on Pre-release builds
       # - name: Publish macOS pre-release
-      #   run: npm run publish -- --mac
+      #   run: pnpm run publish --mac
       #   env:
       #     NODE_ENV: production
       #     CI: true
@@ -357,11 +364,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
-      - uses: actions/setup-node@v6
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+          version: 11
+          runtime: node@24
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          install: false
 
       # TODO: Remove this step once this PBI is done: https://github.com/SSWConsulting/SSW.YakShaver/issues/3095
       - name: Create .env from secrets
@@ -395,7 +404,7 @@ jobs:
           printf "APPLICATIONINSIGHTS_CONNECTION_STRING=%s\n" "$APPLICATIONINSIGHTS_CONNECTION_STRING" >> .env
 
       - name: Install dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
           # Explicitly set arch to x64 to ensure all optional dependencies install x64 binaries
@@ -403,7 +412,7 @@ jobs:
 
       # Explicitly rebuild better-sqlite3 for x64 Electron to guarantee correct native module architecture
       - name: Rebuild native modules for x64
-        run: npx electron-rebuild -f -w better-sqlite3 --arch x64
+        run: pnpm exec electron-rebuild -f -w better-sqlite3 --arch x64
 
       # Manual download is needed because the youtube-dl-exec script hits the GitHub API unauthenticated rate limit (60/hr) while attempting to find the yt-dlp binary.
       - name: Install yt-dlp binary manually
@@ -438,7 +447,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install UI dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         working-directory: src/ui
 
       - name: Update version for pre-release
@@ -448,10 +457,10 @@ jobs:
             echo "Missing version output"
             exit 1
           fi
-          npm version "$VERSION" --no-git-tag-version
+          pnpm version "$VERSION" --no-git-tag-version
 
       - name: Publish macOS pre-release (x64)
-        run: npm run publish -- --mac --x64 -c.mac.target.arch=x64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
+        run: pnpm run publish --mac --x64 -c.mac.target.arch=x64 -c.mac.artifactName='${productName}-${version}-${arch}-mac.${ext}' --publish never
         env:
           NODE_ENV: production
           CI: true
@@ -523,14 +532,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v6
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+          version: 11
+          runtime: node@24
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          install: false
 
       - name: Install manifest merge dependencies
-        run: npm ci --ignore-scripts --prefer-offline
+        run: pnpm install --frozen-lockfile --ignore-scripts
         env:
           YOUTUBE_DL_SKIP_DOWNLOAD: true
 

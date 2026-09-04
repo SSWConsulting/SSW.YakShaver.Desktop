@@ -180,8 +180,8 @@ All code must pass Biome linting and formatting:
 - **Import organization** is automatic via Biome
 
 ```bash
-npm run lint     # Auto-fix linting issues
-npm run format   # Auto-format code
+pnpm run lint     # Auto-fix linting issues
+pnpm run format   # Auto-format code
 ```
 
 ### Rule 6: Keep AGENTS.md Up to Date
@@ -586,7 +586,7 @@ Button variants: `default`, `destructive`, `outline`, `secondary`, `ghost`, `lin
 ### Adding a Database Table
 
 1. Define schema in `src/backend/db/schema.ts` using Drizzle ORM
-2. Generate migration: `npm run db:generate -- --name=descriptive_name`
+2. Generate migration: `pnpm run db:generate --name=descriptive_name`
 3. Create query service in `src/backend/db/services/`
 4. Migrations auto-run on app startup via `migrate.ts`
 
@@ -670,14 +670,14 @@ Auth browser templates: `src/backend/assets/auth/*.html` (packaged via `extraRes
 ### Development Commands
 
 ```bash
-npm run setup          # Install dependencies (backend + frontend)
-npm run dev            # Start dev mode (Vite on port 3000 + Electron)
-npm run build          # Compile TypeScript backend
-npm run make           # Create distributable packages
-npm run test           # Run Vitest test suite
-npm run lint           # Biome linter (auto-fix)
-npm run format         # Biome formatter (auto-fix)
-npm run db:generate    # Generate Drizzle ORM migrations
+pnpm run setup          # Install dependencies (backend + frontend)
+pnpm run dev            # Start dev mode (Vite on port 3000 + Electron)
+pnpm run build          # Compile TypeScript backend
+pnpm run make           # Create distributable packages
+pnpm run test           # Run Vitest test suite
+pnpm run lint           # Biome linter (auto-fix)
+pnpm run format         # Biome formatter (auto-fix)
+pnpm run db:generate    # Generate Drizzle ORM migrations
 ```
 
 ## Guardrails & Constraints

@@ -15,14 +15,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/setup@v2
         with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: src/ui/package-lock.json
+          version: 11
+          runtime: node@24
+          cache: true
+          cache-dependency-path: src/ui/pnpm-lock.yaml
+          install: false
       - name: Install renderer dependencies
-        run: npm ci --prefer-offline
+        run: pnpm install --frozen-lockfile
         working-directory: src/ui
       - name: Run UI component tests
-        run: npm test
+        run: pnpm test
         working-directory: src/ui

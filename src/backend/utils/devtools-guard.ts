@@ -4,7 +4,7 @@ import { app, BrowserWindow, type BrowserWindowConstructorOptions, type Input } 
  * Whether this process is running as a packaged production build.
  *
  * Prefer this over `NODE_ENV`-based checks: `NODE_ENV` is only set explicitly
- * by the `npm run dev` script (via `cross-env NODE_ENV=development`) and can
+ * by the `pnpm run dev` script (via `cross-env NODE_ENV=development`) and can
  * be left unset, or leak an unexpected value from whatever shell/CI/installer
  * launched the process. `app.isPackaged` is Electron-native and reflects
  * whether the app is actually running from a packaged asar, independent of

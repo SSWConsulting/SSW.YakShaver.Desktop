@@ -1,0 +1,36 @@
+# Flat node_modules with real directories instead of symlinks into .pnpm. electron-builder
+# cannot resolve pnpm's default isolated layout:
+# https://github.com/electron-userland/electron-builder/issues/7554
+# Three other things also assume a real node_modules/<pkg> directory: scripts/install-yt-dlp.mjs
+# and the CI yt-dlp steps write into node_modules/youtube-dl-exec/bin,
+# src/ui/vitest.config.mts pins ./node_modules/zod, and @ffmpeg-installer locates its platform
+# binary by walking up from its own directory.
+nodeLinker: hoisted
+
+# Fail the install on the wrong Node or package manager rather than half-working.
+engineStrict: true
+
+# pnpm blocks dependency install scripts by default, where npm ran them all. Allow the ones
+# that actually produce something we need, so the install does not quietly skip a build step.
+#
+# electron downloads its binary here, and the backend tests require("electron") at import time.
+# better-sqlite3 compiles the native module the app runs on. esbuild fetches its platform
+# binary for vite, vitest and drizzle-kit. electron-winstaller picks a 7z build for packaging.
+allowBuilds:
+  better-sqlite3: true
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  protobufjs: true
+
+  # electron-rebuild depends on lzma-native, whose install runs node-gyp-build: a prebuilt
+  # binary where one exists, a source compile otherwise. There is no win32-arm64 prebuild, so
+  # on an ARM dev machine it tries to compile and fails. Nothing we do needs it -
+  # `electron-rebuild -f -w better-sqlite3` completes with lzma-native unbuilt.
+  lzma-native: false
+
+  # Its preinstall demands a working Python and its postinstall fetches yt-dlp from the GitHub
+  # API, which rate-limits unauthenticated callers at 60/hr. We download the binary ourselves
+  # in scripts/install-yt-dlp.mjs, and CI does it with a token, so neither script is wanted.
+  # Leaving this off is also what removes Python from the local setup requirements.
+  youtube-dl-exec: false

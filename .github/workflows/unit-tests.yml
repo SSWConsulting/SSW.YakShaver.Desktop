@@ -20,19 +20,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/setup@v2
         with:
-          node-version: "24"
-          cache: npm
+          version: 11
+          runtime: node@24
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          install: false
       - name: Install dependencies
         # Full install — the modules under test `require('electron')` at import time,
         # which needs the Electron install to complete (it writes the binary path).
-        run: npm ci --prefer-offline --no-audit
+        run: pnpm install --frozen-lockfile
       - name: Rebuild better-sqlite3 for Node
         # The repo's postinstall runs `electron-rebuild -f -w better-sqlite3`, building it
         # for Electron's ABI. vitest runs under Node, so rebuild it for the Node runtime —
         # otherwise the DB-backed tests fail with "Module did not self-register".
-        run: npm rebuild better-sqlite3 --build-from-source
+        run: pnpm rebuild better-sqlite3
       - name: Install ffmpeg
         # ffmpeg-service.test spawns the ffmpeg binary, which isn't on the runner by default.
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
@@ -40,4 +43,4 @@ jobs:
         # Exclude src/ui — those are renderer tests with their own aliases (@/@shared)
         # and run under src/ui's vitest config (the UI component-tests job), not the
         # node-env root config.
-        run: npx vitest run --reporter=verbose --exclude 'src/ui/**'
+        run: pnpm exec vitest run --reporter=verbose --exclude 'src/ui/**'
