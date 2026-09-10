@@ -68,10 +68,14 @@ export const claimLaunchNonce = async (
         return true;
       }
 
-      // Terminal: the nonce is unknown, expired, or already claimed. No amount of retrying changes
-      // any of those, and the browser has stopped waiting.
+      // Terminal. Either the nonce is unknown, expired or already claimed, or the API predates the
+      // handshake and has no such route: this app can ship ahead of the backend reaching production,
+      // and an unmapped route answers 404 too. Retrying changes none of those, and in the
+      // not-deployed-yet case the browser was never told to expect a claim in the first place.
       if (response.status === 404) {
-        console.info("[LaunchHandshake] Nonce was unknown, expired or already claimed");
+        console.info(
+          "[LaunchHandshake] Claim returned 404. The nonce is unknown, expired or already claimed, or this API has no launch handshake yet.",
+        );
         return false;
       }
 

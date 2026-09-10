@@ -54,7 +54,10 @@ describe("claimLaunchNonce", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer tok");
   });
 
-  it("treats 404 as final, because an expired or already-claimed nonce cannot become valid", async () => {
+  // 404 covers two situations and both are terminal: the nonce really is unknown or spent, or this
+  // app has shipped ahead of the backend and the route does not exist yet. An unmapped ASP.NET route
+  // answers 404, so a version-skew window must not turn into a retry storm on every launch.
+  it("treats 404 as final, whether the nonce is spent or the API has no handshake yet", async () => {
     const fetchMock = vi.fn().mockResolvedValue(respondWith(404));
     vi.stubGlobal("fetch", fetchMock);
 
