@@ -100,23 +100,31 @@ describe("claimLaunchNonce", () => {
     expect(noWait.mock.calls.map(([ms]) => ms)).toEqual([500, 1500, 3000]);
   });
 
-  it("skips an attempt with no token but recovers once one arrives", async () => {
-    const getAccessToken = vi
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce("tok-after-refresh");
+  // The first launch after installing from the Tools page: the app has opened but nobody has signed
+  // in yet. Refusing to claim here would report "not installed" for an app that is on screen, which
+  // is the exact failure this whole handshake exists to prevent.
+  it("claims without a token when the user has not signed in yet", async () => {
+    withToken(null);
+    const fetchMock = vi.fn().mockResolvedValue(respondWith(204));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(claimLaunchNonce(NONCE, { sleep: noWait })).resolves.toBe(true);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0];
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
+
+  it("claims anyway when reading the token throws, rather than losing the launch", async () => {
     vi.mocked(IdentityServerAuthService.getInstance).mockReturnValue({
-      getAccessToken,
+      getAccessToken: vi.fn().mockRejectedValue(new Error("refresh failed, network is down")),
     } as unknown as ReturnType<typeof IdentityServerAuthService.getInstance>);
     const fetchMock = vi.fn().mockResolvedValue(respondWith(204));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(claimLaunchNonce(NONCE, { sleep: noWait })).resolves.toBe(true);
 
-    // The first pass never reached the network, so the token is re-read rather than the null being
-    // cached for the whole call. That is the app-started-before-the-network case.
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(getAccessToken).toHaveBeenCalledTimes(2);
   });
 });
 

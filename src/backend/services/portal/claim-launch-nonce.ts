@@ -45,18 +45,22 @@ export const claimLaunchNonce = async (
       await sleep(RETRY_DELAYS_MS[attempt - 1]);
     }
 
-    // Fetched inside the loop on purpose. If the app launched before the network came up, the first
-    // token refresh can fail; a later attempt gets a fresh chance rather than being stuck with the
-    // null from the first one.
-    const token = await IdentityServerAuthService.getInstance().getAccessToken();
-    if (!token) {
-      continue;
-    }
-
     try {
+      // Sent when we have one, omitted when we do not, and never required. The endpoint is anonymous
+      // precisely because this app is regularly signed out at the moment the OS hands it the deep
+      // link: the commonest route into this feature is installing from the Tools page and launching
+      // for the first time. Refusing to claim without a token would report "not installed" for an app
+      // that had just opened, which is the exact failure the handshake exists to prevent.
+      //
+      // Read inside the loop and inside the try, so a refresh that fails on a network still coming up
+      // costs one attempt rather than the whole call.
+      const token = await IdentityServerAuthService.getInstance()
+        .getAccessToken()
+        .catch(() => null);
+
       const response = await fetch(url, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
 
