@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS } from "../ipc/channels";
 import { MCPServerManager } from "../services/mcp/mcp-server-manager";
 import type { MCPServerConfig } from "../services/mcp/types";
+import { claimLaunchNonce } from "../services/portal/claim-launch-nonce";
 import { McpOAuthTokenStorage } from "../services/storage/mcp-oauth-token-storage";
 import { handleProtocolUrl } from "./protocol-router";
 
@@ -16,6 +17,13 @@ vi.mock("../services/storage/mcp-oauth-token-storage", () => ({
   McpOAuthTokenStorage: {
     getInstance: vi.fn(),
   },
+}));
+
+// Only the network call is faked. isNonceShaped stays real, so these exercise the validation the
+// router actually relies on rather than a copy of it.
+vi.mock("../services/portal/claim-launch-nonce", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/portal/claim-launch-nonce")>()),
+  claimLaunchNonce: vi.fn().mockResolvedValue(true),
 }));
 
 describe("protocol-router", () => {
@@ -162,5 +170,44 @@ describe("protocol-router", () => {
     );
 
     expect(info).toHaveBeenCalledWith(expect.stringContaining("server-1"));
+  });
+
+  // The nonce is what lets the portal stop guessing whether this app opened
+  // (SSWConsulting/SSW.YakShaver#3956). It must be claimed when present and never block the launch
+  // when it is not.
+  describe("/launch", () => {
+    const NONCE = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+
+    it("claims a well-formed nonce", async () => {
+      const handled = await handleProtocolUrl(`yakshaver-desktop://launch?nonce=${NONCE}`);
+
+      expect(handled).toBe(true);
+      expect(claimLaunchNonce).toHaveBeenCalledWith(NONCE);
+    });
+
+    it("still launches when no nonce is present, so an older portal keeps working", async () => {
+      const send = vi.fn();
+
+      const handled = await handleProtocolUrl("yakshaver-desktop://launch", mockWindow(send));
+
+      expect(handled).toBe(true);
+      expect(claimLaunchNonce).not.toHaveBeenCalled();
+      // Absent is normal, not an error. Reporting it would put a scary banner in front of a user
+      // whose app just opened correctly.
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      "not-a-uuid",
+      "../../etc/passwd",
+      "",
+    ])("ignores the malformed nonce %s without blocking the launch", async (nonce) => {
+      const handled = await handleProtocolUrl(
+        `yakshaver-desktop://launch?nonce=${encodeURIComponent(nonce)}`,
+      );
+
+      expect(handled).toBe(true);
+      expect(claimLaunchNonce).not.toHaveBeenCalled();
+    });
   });
 });
