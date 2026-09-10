@@ -5,6 +5,7 @@ import { AUTH_ATTEMPT_PARAM } from "../services/auth/auth-attempt";
 import { IdentityServerAuthService } from "../services/auth/identity-server-auth";
 import type { TokenData } from "../services/auth/types";
 import { MCPServerManager } from "../services/mcp/mcp-server-manager";
+import { claimLaunchNonce, isNonceShaped } from "../services/portal/claim-launch-nonce";
 import { McpOAuthTokenStorage } from "../services/storage/mcp-oauth-token-storage";
 import { YoutubeStorage } from "../services/storage/youtube-storage";
 
@@ -116,8 +117,27 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
   },
 
   // Generic "launch the app" deep link, to Launch app on a web page.
-  "/launch": async () => {
+  "/launch": async (url) => {
     console.log("[ProtocolRouter] Handling launch app request");
+
+    // Claiming the nonce is what tells the portal this launch actually happened, so it can stop
+    // guessing from window focus and stop sending people who already have the app to the download
+    // page (SSWConsulting/SSW.YakShaver#3956).
+    //
+    // Entirely optional. A portal that minted no nonce, or an older one that does not know about
+    // the handshake, sends none and the app still opens exactly as before. The launch must never
+    // depend on the thing that only exists to describe it.
+    const nonce = url.searchParams.get("nonce");
+    if (!nonce) {
+      return;
+    }
+
+    if (!isNonceShaped(nonce)) {
+      console.warn("[ProtocolRouter] Ignoring a malformed launch nonce");
+      return;
+    }
+
+    void claimLaunchNonce(nonce);
   },
 
   // IdentityServer OAuth 2.0 PKCE callback handler
