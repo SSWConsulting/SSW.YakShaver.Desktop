@@ -137,7 +137,7 @@ const routeHandlers: Record<string, ProtocolRouteHandler> = {
       return;
     }
 
-    await claimLaunchNonce(nonce);
+    void claimLaunchNonce(nonce);
   },
 
   // IdentityServer OAuth 2.0 PKCE callback handler
