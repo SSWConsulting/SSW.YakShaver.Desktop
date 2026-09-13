@@ -6,6 +6,7 @@ const storageState = vi.hoisted(() => ({ configs: [] as MCPServerConfig[] }));
 const mocks = vi.hoisted(() => ({
   createClientAsync: vi.fn(),
   clearTokensAsync: vi.fn(),
+  getTokensAsync: vi.fn(),
   authorizeWithBackend: vi.fn(),
 }));
 
@@ -24,6 +25,7 @@ vi.mock("../storage/mcp-oauth-token-storage", () => ({
   McpOAuthTokenStorage: {
     getInstance: () => ({
       clearTokensAsync: mocks.clearTokensAsync,
+      getTokensAsync: mocks.getTokensAsync,
     }),
   },
 }));
@@ -47,6 +49,7 @@ vi.mock("./mcp-server-client", async (importOriginal) => {
   };
 });
 
+import { McpAuthRequiredError } from "./mcp-server-client";
 import { MCPServerManager } from "./mcp-server-manager";
 
 function createServer(name: string): MCPServerConfig {
@@ -160,6 +163,7 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
     ];
     mocks.createClientAsync.mockReset();
     mocks.clearTokensAsync.mockReset();
+    mocks.getTokensAsync.mockReset();
     mocks.authorizeWithBackend.mockReset();
     // Health checks now read/write the shared client cache + in-flight creation
     // map; clear both so cases don't leak state into one another (#982).
@@ -365,6 +369,72 @@ describe("MCPServerManager.checkServerHealthAsync auth classification", () => {
     expect(
       (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.get("srv-1"),
     ).toBe(created);
+  });
+
+  // The sign-in loop. The sidebar dashboard, the Home banner and the Settings health
+  // indicator all re-check MCP health on every window focus. While the check could sign the
+  // user in, every click back into YakShaver reopened the provider's login page and the app
+  // could not be used. Reading a connection must never acquire one.
+  it("never signs in from a health check", async () => {
+    mocks.createClientAsync.mockRejectedValue(new McpAuthRequiredError("auth-test-server"));
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    const result = await manager.checkServerHealthAsync("srv-1");
+
+    expect(mocks.authorizeWithBackend).not.toHaveBeenCalled();
+    // Reported as an auth failure, so the card offers Reauthorize instead of looping.
+    expect(result.isHealthy).toBe(false);
+    expect(result.authFailed).toBe(true);
+  });
+
+  it("signs in from connectServerAsync — the one path that may open a browser", async () => {
+    mocks.getTokensAsync.mockResolvedValue(undefined);
+    mocks.authorizeWithBackend.mockResolvedValue({ access_token: "new-token" });
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    await manager.connectServerAsync("srv-1");
+
+    expect(mocks.authorizeWithBackend).toHaveBeenCalled();
+  });
+
+  it("connect evicts a cached unauthenticated client so the new token is actually used", async () => {
+    // A health check on an unconnected server caches a client with no credential, and an
+    // auth-failed client is deliberately kept (#982). Left in place it would survive the
+    // sign-in and keep answering 401 while the fresh token sat unused in storage.
+    const disconnectAsync = vi.fn().mockResolvedValue(undefined);
+    (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.set("srv-1", {
+      disconnectAsync,
+    });
+    mocks.getTokensAsync.mockResolvedValue(undefined);
+    mocks.authorizeWithBackend.mockResolvedValue({ access_token: "new-token" });
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    await manager.connectServerAsync("srv-1");
+
+    expect(disconnectAsync).toHaveBeenCalled();
+    expect(
+      (MCPServerManager as unknown as { mcpClients: Map<string, unknown> }).mcpClients.has("srv-1"),
+    ).toBe(false);
+  });
+
+  it("connect is a no-op when the server already holds a usable token", async () => {
+    mocks.getTokensAsync.mockResolvedValue({ access_token: "live-token" });
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    await manager.connectServerAsync("srv-1");
+
+    expect(mocks.authorizeWithBackend).not.toHaveBeenCalled();
+  });
+
+  it("connect is a no-op for a transport that needs no sign-in, so Connect stays one call", async () => {
+    storageState.configs = [
+      { id: "stdio-1", name: "local tool", transport: "stdio", command: "npx", enabled: true },
+    ];
+
+    const manager = await MCPServerManager.getInstanceAsync();
+    await expect(manager.connectServerAsync("stdio-1")).resolves.toBeUndefined();
+
+    expect(mocks.authorizeWithBackend).not.toHaveBeenCalled();
   });
 
   it("surfaces a non-empty error string when the probe fails with 401", async () => {
