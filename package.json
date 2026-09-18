@@ -69,7 +69,7 @@
     "isomorphic-fetch": "^3.0.0",
     "json-schema-to-zod": "^2.6.1",
     "openai": "^6.16.0",
-    "openid-client": "^6.8.2",
+    "openid-client": "^6.8.8",
     "tmp": "^0.2.5",
     "youtube-dl-exec": "^3.1.15",
     "zod": "^4.2.1"
