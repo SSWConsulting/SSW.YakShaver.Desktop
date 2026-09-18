@@ -194,8 +194,8 @@ importers:
         specifier: ^0.2.5
         version: 0.2.5
       youtube-dl-exec:
-        specifier: ^3.0.29
-        version: 3.0.29
+        specifier: ^3.1.15
+        version: 3.1.15
       zod:
         specifier: ^4.2.1
         version: 4.2.1
@@ -4102,9 +4102,9 @@ packages:
     resolution: {integrity: sha512-PSkbLUoxOFRzJYjjxHJt9xro7D+iilgMX/C9lawzVuYiIdcihh9DXmVibBe8lmcFrRi/VzlPjBxbN7rH24q8/Q==}
     engines: {node: '>=14.0.0'}
 
-  tinyspawn@1.5.5:
-    resolution: {integrity: sha512-Wq3kFq9V0l//CkvIxEw5kyWIUAW+zfgg2h+FbR/xOeJGR7kp7wKAXbMVXue1P0GaNByRPRQxW670Y3Xzx9bWxA==}
-    engines: {node: '>= 18'}
+  tinyspawn@1.5.10:
+    resolution: {integrity: sha512-bZ5HikC4mL7ZqQHXM0JqrWZBVHC+urj/AX7EZY1vBZZhk8TpUcEqu7bHAqOP8PL4D39WQskPuwPWPApQUp6vew==}
+    engines: {node: '>= 20'}
 
   tmp-promise@3.0.3:
     resolution: {integrity: sha512-RwM7MoPojPxsOBYnyd2hy0bxtIlVrihNs9pj5SUvY8Zz1sQcQG2tG1hSr8PDxfgEB8RNKDhqbIlroIarSNDNsQ==}
@@ -4403,8 +4403,8 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
-  youtube-dl-exec@3.0.29:
-    resolution: {integrity: sha512-RQF1bNPCwBVdxyy3H2qxdejGIodzmQkLQV5OTNu5dPmZxq+kt0q+97kmwOP+ZsFgvNKVNLB3f2Bm9OtYHIlzAA==}
+  youtube-dl-exec@3.1.15:
+    resolution: {integrity: sha512-hUWpBIF6hQMtqEr1icf6PP1bEOIX3xvdhvDMbQqMmj5Vg8pI7DIrGzlPTHUZWtHX/sh7LzOgIzBTXZAztrrskA==}
     engines: {node: '>= 18'}
 
   zod-to-json-schema@3.25.2:
@@ -8451,7 +8451,7 @@ snapshots:
 
   tinyrainbow@3.0.3: {}
 
-  tinyspawn@1.5.5: {}
+  tinyspawn@1.5.10: {}
 
   tmp-promise@3.0.3:
     dependencies:
@@ -8707,13 +8707,13 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  youtube-dl-exec@3.0.29:
+  youtube-dl-exec@3.1.15:
     dependencies:
       binary-version-check: 6.1.0
       dargs: 7.0.0
       debug-logfmt: 1.4.7
       is-unix: 2.0.14
-      tinyspawn: 1.5.5
+      tinyspawn: 1.5.10
 
   zod-to-json-schema@3.25.2(zod@4.2.1):
     dependencies:
