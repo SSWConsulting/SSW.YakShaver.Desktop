@@ -182,6 +182,8 @@ declare global {
           serverId: string,
         ) => Promise<Array<{ name: string; description?: string }>>;
         clearTokensAsync: (serverId: string) => Promise<{ success: boolean }>;
+        /** Signs in to a server — the only MCP call that can open a browser. */
+        connectAsync: (serverId: string) => Promise<{ success: boolean }>;
         reauthorizeAsync: (serverId: string) => Promise<{ success: boolean }>;
       };
       settings: {

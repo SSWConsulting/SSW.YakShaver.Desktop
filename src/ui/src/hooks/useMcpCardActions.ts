@@ -36,10 +36,25 @@ export function useMcpCardActions(
   }
 
   async function handleOnConnect(): Promise<void> {
+    const updatedConfig = { ...configLocal, enabled: true };
     try {
-      await toggleSettings(true);
+      await ipcClient.mcp.updateServerAsync(serverId, updatedConfig);
     } catch (error) {
       toast.error(`Failed to connect: ${formatIpcErrorMessage(error)}`);
+      return;
+    }
+
+    try {
+      // Signing in is an explicit action, so Connect asks for it. Health checks used to
+      // trigger it as a side effect, which sent the user back to the provider's login page
+      // on every window focus while a server sat unconnected.
+      await ipcClient.mcp.connectAsync(serverId);
+    } catch (error) {
+      toast.error(`Failed to connect: ${formatIpcErrorMessage(error)}`);
+    } finally {
+      // Refresh once the sign-in has settled either way: a declined sign-in should land on
+      // the card's "Authentication failed / Reauthorize" state, not on a stale row.
+      onChange?.(updatedConfig);
     }
   }
 

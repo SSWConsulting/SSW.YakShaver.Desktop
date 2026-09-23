@@ -75,6 +75,7 @@ const IPC_CHANNELS = {
   MCP_LIST_SERVER_TOOLS: "mcp:list-server-tools",
   MCP_ADD_TOOL_TO_WHITELIST: "mcp:add-tool-to-whitelist",
   MCP_CLEAR_TOKENS: "mcp:clear-tokens",
+  MCP_CONNECT: "mcp:connect",
   MCP_REAUTHORIZE: "mcp:reauthorize",
 
   // Automated workflow
@@ -317,6 +318,7 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST_SERVER_TOOLS, serverId),
     clearTokensAsync: (serverId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_CLEAR_TOKENS, serverId),
+    connectAsync: (serverId: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_CONNECT, serverId),
     reauthorizeAsync: (serverId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.MCP_REAUTHORIZE, serverId),
   },
