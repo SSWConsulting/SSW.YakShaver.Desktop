@@ -423,6 +423,16 @@ field on `LLMConfigV2` (`src/shared/types/llm.ts`, default `openai`), surfaced i
 `OrchestratorBackendSetting`. Both backends return the same `MCPLoopResult`, whose
 `backlogActionSucceeded` gates COMPLETE vs FAIL.
 
+#### MCP Credentials Without a YakShaver Account
+
+The backend-brokered MCP OAuth (`authorizeWithBackend`) needs an Identity Server sign-in. To keep
+the app usable without a portal account, any HTTP MCP server with a configured `Authorization`
+header skips that OAuth entirely and connects with the header as-is
+(`MCPServerClient.createClientAsync`). The GitHub card exposes this as "Use a personal access token
+instead" (`handleOnConnectWithToken` in `useMcpCardActions`). The token is stored as
+`Authorization: Bearer <pat>` in the encrypted server config. Disconnecting removes it, and
+Reauthorize (which reruns the backend OAuth) is not offered for token-based servers.
+
 #### Video Hosting (local storage is the default)
 
 Recording never waits on a video host. `ingestRecordingAsync`
