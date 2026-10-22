@@ -8,6 +8,7 @@ import {
   findShaveByVideoUrl,
   getAllShaves,
   getShaveById,
+  markInterruptedShavesAsFailed,
   updateShave,
   updateShaveStatus,
 } from "./shave-service";
@@ -155,6 +156,23 @@ describe("ShaveService", () => {
     it("should return undefined when updating non-existent shave", () => {
       const result = updateShave("non-existent-id", { title: "New Title" });
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe("markInterruptedShavesAsFailed (#1062)", () => {
+    it("marks shaves left Pending or Processing by a previous session as Failed", () => {
+      const pending = createShave({ ...testShaveData, shaveStatus: ShaveStatus.Pending });
+      const processing = createShave({ ...testShaveData, shaveStatus: ShaveStatus.Processing });
+      const completed = createShave({ ...testShaveData, shaveStatus: ShaveStatus.Completed });
+      const cancelled = createShave({ ...testShaveData, shaveStatus: ShaveStatus.Cancelled });
+
+      const changed = markInterruptedShavesAsFailed();
+
+      expect(changed).toBe(2);
+      expect(getShaveById(pending.id)?.shaveStatus).toBe(ShaveStatus.Failed);
+      expect(getShaveById(processing.id)?.shaveStatus).toBe(ShaveStatus.Failed);
+      expect(getShaveById(completed.id)?.shaveStatus).toBe(ShaveStatus.Completed);
+      expect(getShaveById(cancelled.id)?.shaveStatus).toBe(ShaveStatus.Cancelled);
     });
   });
 

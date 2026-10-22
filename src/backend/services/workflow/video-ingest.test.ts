@@ -51,6 +51,20 @@ describe("ingestRecordingAsync", () => {
     });
   });
 
+  it("reuses the existing local folder on a retry instead of copying the video again", async () => {
+    const deps = createDeps(false);
+    const sink = createSink();
+
+    const result = await ingestRecordingAsync(FILE_PATH, 42, deps, sink, LOCAL_FOLDER);
+
+    expect(deps.localVideoStorage.saveRecordingAsync).not.toHaveBeenCalled();
+    expect(result.localFolder).toBe(LOCAL_FOLDER);
+    expect(sink.completeStage).toHaveBeenCalledWith(
+      ProgressStage.UPLOADING_VIDEO,
+      expect.objectContaining({ localFolder: LOCAL_FOLDER }),
+    );
+  });
+
   it("uploads to the connected video host and stamps the duration", async () => {
     const deps = createDeps(true);
     const sink = createSink();

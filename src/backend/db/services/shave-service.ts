@@ -1,5 +1,5 @@
-import { desc, eq } from "drizzle-orm";
-import type { ShaveStatus } from "../../types";
+import { desc, eq, inArray } from "drizzle-orm";
+import { ShaveStatus } from "../../types";
 import { getDb } from "../client";
 import { type CreateShaveData, type Shave, shaves, type UpdateShaveData } from "../schema";
 
@@ -46,6 +46,19 @@ export function updateShave(id: string, data: UpdateShaveData): Shave | undefine
  */
 export function updateShaveStatus(id: string, status: ShaveStatus): Shave | undefined {
   return updateShave(id, { shaveStatus: status });
+}
+
+/**
+ * Marks every shave still Pending or Processing as Failed and returns how many changed.
+ * Run at startup: workflows live in memory, so none of them can still be running (#1062).
+ */
+export function markInterruptedShavesAsFailed(): number {
+  const result = getDb()
+    .update(shaves)
+    .set({ shaveStatus: ShaveStatus.Failed })
+    .where(inArray(shaves.shaveStatus, [ShaveStatus.Pending, ShaveStatus.Processing]))
+    .run();
+  return result.changes;
 }
 
 /**

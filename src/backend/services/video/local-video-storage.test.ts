@@ -73,6 +73,14 @@ describe("LocalVideoStorageService", () => {
     expect(await fs.readFile(sourceVideo, "utf8")).toBe("video-bytes");
   });
 
+  it("reports where the copied recording lives so it can be retried later", async () => {
+    const folder = await service.saveRecordingAsync(sourceVideo, RECORDED_AT);
+    const recordingPath = service.getRecordingFilePath(folder, sourceVideo);
+
+    expect(recordingPath).toBe(path.join(folder, "recording.webm"));
+    expect(await fs.readFile(recordingPath, "utf8")).toBe("video-bytes");
+  });
+
   it("does not overwrite a recording made in the same minute", async () => {
     const first = await service.saveRecordingAsync(sourceVideo, RECORDED_AT);
     const second = await service.saveRecordingAsync(sourceVideo, RECORDED_AT);

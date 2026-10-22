@@ -93,11 +93,13 @@ export class LocalVideoStorageService {
       path.join(this.getRootDir(), formatFolderStamp(recordedAt)),
     );
     await fs.mkdir(folder, { recursive: true });
-    await fs.copyFile(
-      videoFilePath,
-      path.join(folder, `${RECORDING_FILE_BASENAME}${path.extname(videoFilePath)}`),
-    );
+    await fs.copyFile(videoFilePath, this.getRecordingFilePath(folder, videoFilePath));
     return folder;
+  }
+
+  /** Where the copy of `sourceVideoFilePath` lives inside a recording folder. */
+  getRecordingFilePath(folder: string, sourceVideoFilePath: string): string {
+    return path.join(folder, `${RECORDING_FILE_BASENAME}${path.extname(sourceVideoFilePath)}`);
   }
 
   async saveTranscriptAsync(folder: string, transcriptText: string): Promise<void> {

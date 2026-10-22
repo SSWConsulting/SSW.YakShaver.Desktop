@@ -4,6 +4,7 @@ import type {
   CreateVideoSourceData,
   Shave,
   UpdateShaveData,
+  VideoFile,
   VideoSource,
 } from "../../db/schema";
 import * as dbShaveService from "../../db/services/shave-service";
@@ -146,6 +147,46 @@ export class ShaveService {
   public updateShaveStatus(id: string, status: ShaveStatus): Shave | undefined {
     try {
       return dbShaveService.updateShaveStatus(id, status);
+    } catch (err) {
+      throw new Error(formatAndReportError(err, "shave_service"));
+    }
+  }
+
+  /** #1062: marks shaves left Pending/Processing by a previous app session as Failed. */
+  public markInterruptedShavesAsFailed(): number {
+    try {
+      return dbShaveService.markInterruptedShavesAsFailed();
+    } catch (err) {
+      throw new Error(formatAndReportError(err, "shave_service"));
+    }
+  }
+
+  /** The shave's recording file (not soft-deleted), if it has one. */
+  public getShaveRecordingFile(shaveId: string): VideoFile | undefined {
+    try {
+      const shave = dbShaveService.getShaveById(shaveId);
+      if (!shave?.videoSourceId) {
+        return undefined;
+      }
+      return dbVideoFileService.getVideoFilesByVideoSourceId(shave.videoSourceId)[0];
+    } catch (err) {
+      throw new Error(formatAndReportError(err, "shave_service"));
+    }
+  }
+
+  /**
+   * #1062: points the shave's recording at a durable copy (the local-storage video host), so it
+   * can be retried after the original temp recording is gone. Returns false when the shave has no
+   * recording file record to update.
+   */
+  public setShaveRecordingPath(shaveId: string, localPath: string): boolean {
+    try {
+      const recording = this.getShaveRecordingFile(shaveId);
+      if (!recording) {
+        return false;
+      }
+      dbVideoFileService.updateVideoFile(recording.id, { localPath });
+      return true;
     } catch (err) {
       throw new Error(formatAndReportError(err, "shave_service"));
     }

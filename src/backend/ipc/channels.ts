@@ -69,6 +69,9 @@ export const IPC_CHANNELS = {
   WORKFLOW_GET_STATE: "workflow:get-state",
   WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
   WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
+  // My Shaves Stop / Retry (#1062): stop a running shave; re-run a shave on the same video.
+  WORKFLOW_STOP: "workflow:stop",
+  WORKFLOW_RESTART: "workflow:restart",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",

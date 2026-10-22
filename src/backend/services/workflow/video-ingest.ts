@@ -49,9 +49,12 @@ export async function ingestRecordingAsync(
   durationSeconds: number | undefined,
   deps: RecordingIngestDeps,
   sink: StageSink,
+  /** Set when retrying a recording that already lives in local storage — no second copy. */
+  existingLocalFolder?: string,
 ): Promise<RecordingIngestResult> {
   if (!(await deps.youtube.isAuthenticated())) {
-    const localFolder = await deps.localVideoStorage.saveRecordingAsync(filePath);
+    const localFolder =
+      existingLocalFolder ?? (await deps.localVideoStorage.saveRecordingAsync(filePath));
     sink.completeStage(
       WorkflowProgressStage.UPLOADING_VIDEO,
       buildLocalSaveStagePayload(filePath, localFolder),

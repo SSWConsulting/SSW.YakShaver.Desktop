@@ -150,6 +150,8 @@ declare global {
           error?: string;
         }>;
         cancelRetry: (shaveId: string) => Promise<{ success: boolean; error?: string }>;
+        stop: (shaveId: string) => Promise<{ success: boolean; error?: string }>;
+        restart: (shaveId: string) => Promise<{ success: boolean; error?: string }>;
       };
       mcp: {
         processMessage: (

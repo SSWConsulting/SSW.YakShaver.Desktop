@@ -11,6 +11,7 @@ import { ProgressStage } from "../../shared/types/workflow";
 const testState = vi.hoisted(() => ({
   saveTranscriptAsync: vi.fn(),
   renameWithTitleAsync: vi.fn(),
+  setShaveRecordingPath: vi.fn(),
   updateShave: vi.fn(),
   updateVideoMetadata: vi.fn(),
   buildMetadata: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock("../services/shave/shave-service", () => ({
   ShaveService: {
     getInstance: () => ({
       updateShave: testState.updateShave,
+      setShaveRecordingPath: testState.setShaveRecordingPath,
       // Already has an embed URL, so the #808 backstop is a no-op and stays out of the way.
       getShaveById: vi.fn(() => ({ videoEmbedUrl: "https://youtube.com/watch?v=abc" })),
       attachVideoSourceToShave: vi.fn(),
@@ -83,6 +85,7 @@ vi.mock("../services/video/local-video-storage", () => ({
     getInstance: () => ({
       saveTranscriptAsync: testState.saveTranscriptAsync,
       renameWithTitleAsync: testState.renameWithTitleAsync,
+      getRecordingFilePath: (folder: string) => `${folder}/recording.webm`,
     }),
   },
 }));
@@ -100,6 +103,7 @@ interface TestableHandler {
     title: string | undefined,
     filePath: string,
     workflowManager: unknown,
+    shaveId?: string,
   ): Promise<string | undefined>;
 }
 
@@ -143,9 +147,15 @@ describe("local storage follow-ups (#1062)", () => {
       "Login fails",
       FILE_PATH,
       workflowManager,
+      "shave-1",
     );
 
     expect(result).toBe(RENAMED);
+    // Retry must find the recording at its new location (#1062).
+    expect(testState.setShaveRecordingPath).toHaveBeenCalledWith(
+      "shave-1",
+      `${RENAMED}/recording.webm`,
+    );
     expect(testState.renameWithTitleAsync).toHaveBeenCalledWith(FOLDER, "Login fails");
     expect(workflowManager.updateStagePayload).toHaveBeenCalledWith(
       ProgressStage.UPLOADING_VIDEO,
