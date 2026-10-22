@@ -61,6 +61,19 @@ export class MCPServerClient {
         return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, true);
       }
 
+      // #1062: the user supplied their own credential (e.g. a GitHub personal access token), so
+      // skip the backend OAuth entirely — it requires a YakShaver sign-in, which a PAT must not.
+      if (hasConfiguredAuthorizationHeader(mcpConfig.headers)) {
+        const client = await experimental_createMCPClient({
+          transport: {
+            type: "http",
+            url: serverUrl,
+            headers: mcpConfig.headers,
+          },
+        });
+        return new MCPServerClient(mcpConfig.id, mcpConfig.name, client, false);
+      }
+
       const serverId = mcpConfig.id;
       const tokenStorage = McpOAuthTokenStorage.getInstance();
 
@@ -152,7 +165,9 @@ export class MCPServerClient {
             authError,
           );
           const provider = inferMcpOAuthProvider(serverUrl);
-          if (provider && !hasConfiguredAuthorizationHeader(mcpConfig.headers)) {
+          // A configured Authorization header never reaches here (it skips OAuth above), so a
+          // known provider has nothing to fall back to.
+          if (provider) {
             formatAndReportError(authError, "mcp_oauth_authorization", {
               serverId,
               provider,

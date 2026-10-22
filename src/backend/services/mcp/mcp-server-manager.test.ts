@@ -97,6 +97,28 @@ describe("MCPServerManager server name uniqueness", () => {
     expect(storageState.configs).toEqual([{ ...GITHUB_PRESET_CONFIG, enabled: true }]);
   });
 
+  it("#1062: stores a GitHub personal access token and forgets it on disconnect", async () => {
+    const manager = await MCPServerManager.getInstanceAsync();
+    const withToken = {
+      ...GITHUB_PRESET_CONFIG,
+      headers: { Authorization: "Bearer github_pat_123" },
+      enabled: true,
+    } satisfies MCPServerConfig;
+
+    await manager.updateServerAsync(PRESET_SERVER_IDS.GITHUB, withToken);
+    expect(storageState.configs[0]).toEqual(withToken);
+
+    await manager.updateServerAsync(PRESET_SERVER_IDS.GITHUB, {
+      ...withToken,
+      headers: undefined,
+      enabled: false,
+    });
+    expect(storageState.configs[0].enabled).toBe(false);
+    expect(
+      storageState.configs[0].transport === "streamableHttp" && storageState.configs[0].headers,
+    ).toBeFalsy();
+  });
+
   it("rejects renaming a server to an existing name", async () => {
     const manager = await MCPServerManager.getInstanceAsync();
     const first = await manager.addServerAsync(createServer("first"));
