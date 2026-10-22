@@ -12,7 +12,7 @@ import { normalizeYouTubeUrl } from "../../../../backend/utils/youtube-url-utils
 import { useAdvancedSettings } from "../../contexts/AdvancedSettingsContext";
 import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
 import { useScreenRecording } from "../../hooks/useScreenRecording";
-import { AuthStatus, ShaveStatus, UploadStatus } from "../../types";
+import { ShaveStatus, UploadStatus } from "../../types";
 import { Cloud360ProjectDialog } from "../cloud360/Cloud360ProjectDialog";
 import { Button } from "../ui/button";
 import {
@@ -46,7 +46,7 @@ interface RecorderControlState {
   isTranscribing: boolean;
   isProcessing: boolean;
   isProcessingUrl: boolean;
-  isVideoHostConnected: boolean;
+  isReadyToRecord: boolean;
 }
 
 interface RecorderControlAvailability {
@@ -96,14 +96,12 @@ function getRecorderControlAvailability(
   const recordDisabled =
     controlState.isProcessing ||
     controlState.isTranscribing ||
-    (!controlState.isRecording && !controlState.isVideoHostConnected);
+    (!controlState.isRecording && !controlState.isReadyToRecord);
   const uploadDisabled = recordDisabled || controlState.isRecording;
 
   let uploadTitle = PROCESS_YOUTUBE_URL_LABEL;
   if (controlState.isRecording) {
     uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable while recording)`;
-  } else if (!controlState.isVideoHostConnected) {
-    uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable until a video host is connected)`;
   } else if (recordDisabled) {
     uploadTitle = `${PROCESS_YOUTUBE_URL_LABEL} (unavailable right now)`;
   }
@@ -192,7 +190,7 @@ function RecordButton({
 
 export function ScreenRecorder({ showButtonOnly = false, className = "" }: ScreenRecorderProps) {
   const navigateToWorkflow = useWorkflowNavigation();
-  const { authState, setUploadResult, setUploadStatus } = useYouTubeAuth();
+  const { setUploadResult, setUploadStatus } = useYouTubeAuth();
   const { isYoutubeUrlWorkflowEnabled } = useAdvancedSettings();
   const { isRecording, isProcessing, start, stop } = useScreenRecording();
   const [isTranscribing, _] = useState(false);
@@ -212,20 +210,17 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
 
-  // In 360 mode the "video host" is Identity Server sign-in (isSignedIn), not the
-  // YouTube/video-platform auth used by the standard flow. Feeding this into the
-  // shared control-availability model keeps Record enable/disable correct for both
-  // modes through one path. Project selection happens *after* Record is clicked
-  // (Cloud360ProjectDialog), so it is intentionally not part of this gate.
-  const isVideoHostConnected = is360Mode
-    ? isSignedIn
-    : authState.status === AuthStatus.AUTHENTICATED;
+  // 360 uploads through the portal, so it needs Identity Server sign-in. The standard flow
+  // never waits on a video host: local storage is the default, and without a connected
+  // platform the recording is saved locally (#1062). Project selection happens *after*
+  // Record is clicked (Cloud360ProjectDialog), so it is intentionally not part of this gate.
+  const isReadyToRecord = is360Mode ? isSignedIn : true;
   const controlState = {
     isRecording,
     isTranscribing,
     isProcessing,
     isProcessingUrl,
-    isVideoHostConnected,
+    isReadyToRecord,
   } satisfies RecorderControlState;
   // 360 has no YouTube-URL path, so keep a single Record button (no split layout).
   const showYoutubeUrlSplitLayout = !is360Mode && isYoutubeUrlWorkflowEnabled && !isRecording;
@@ -528,11 +523,6 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
             </p>
           )}
         </div>
-        {!is360Mode && !isVideoHostConnected && !showButtonOnly && (
-          <p className="text-sm text-muted-foreground text-center">
-            Please connect a video platform below to start recording
-          </p>
-        )}
         <SourcePickerDialog
           open={pickerOpen}
           onOpenChange={setPickerOpen}

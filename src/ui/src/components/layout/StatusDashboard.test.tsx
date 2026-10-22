@@ -70,9 +70,9 @@ describe("StatusDashboard (#948)", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText(/not be synced with the portal/i)).toBeTruthy();
-    expect(
-      screen.getByText("You don't have any video host connected, so you can't start recording"),
-    ).toBeTruthy();
+    // #1062: no connected platform means local storage, which is not a problem to warn about.
+    expect(screen.queryByText(/saved on this computer/i)).toBeNull();
+    expect(screen.queryByText(/can't start recording/i)).toBeNull();
   });
 
   it("shows no warning text for a row once its config is healthy", async () => {
@@ -132,18 +132,18 @@ describe("StatusDashboard (#948)", () => {
     status.mockResolvedValue({ status: "authenticated" });
     listServers.mockResolvedValue([]);
     getConfig.mockResolvedValue(healthyLlm);
-    mockVideoHost("not_authenticated");
+    mockVideoHost("error");
 
     const { rerender } = render(<StatusDashboard />);
-    await waitFor(() => expect(screen.getByText(/you can't start recording/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/youtube connection failed/i)).toBeTruthy());
     const ipcCallsSoFar = listServers.mock.calls.length;
 
-    // Connecting YouTube in Settings updates the context; the row must follow immediately
+    // Reconnecting YouTube in Settings updates the context; the row must follow immediately
     // rather than waiting for the next focus/refresh re-check.
     mockVideoHost("authenticated");
     rerender(<StatusDashboard />);
 
-    await waitFor(() => expect(screen.queryByText(/you can't start recording/i)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/youtube connection failed/i)).toBeNull());
     expect(listServers).toHaveBeenCalledTimes(ipcCallsSoFar);
   });
 
