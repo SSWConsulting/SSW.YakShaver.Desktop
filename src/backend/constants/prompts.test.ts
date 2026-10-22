@@ -5,6 +5,7 @@ import {
   DUPLICATE_DETECTION_RULES,
   ensureDuplicateDetectionRules,
   SHARED_ISSUE_CREATION_RULES,
+  TASK_EXECUTION_PROMPT,
   VIDEO_LINK_EMBEDDING_RULES,
 } from "./prompts";
 
@@ -298,5 +299,26 @@ describe("ensureDuplicateDetectionRules — guarantees the guidance on the final
   it("passes through empty/undefined prompts unchanged (default fallback handles those)", () => {
     expect(ensureDuplicateDetectionRules(undefined)).toBeUndefined();
     expect(ensureDuplicateDetectionRules("")).toBe("");
+  });
+});
+
+// #1062: GitHub's issue_write gained an optional parent_issue_number (minimum 1). The model filled
+// it with a made-up "1", every create failed ("Could not resolve to an Issue with the number of 1"),
+// and it retried the identical call 18 times.
+describe("TASK_EXECUTION_PROMPT — tool arguments (#1062)", () => {
+  it("tells the model to omit optional parameters it has no real value for", () => {
+    expect(TASK_EXECUTION_PROMPT).toContain("Otherwise OMIT it entirely");
+  });
+
+  it("forbids inventing IDs such as a parent issue number", () => {
+    expect(TASK_EXECUTION_PROMPT).toContain(
+      "NEVER invent IDs, numbers, or references (e.g. parent_issue_number",
+    );
+  });
+
+  it("forbids repeating a call with arguments that already failed", () => {
+    expect(TASK_EXECUTION_PROMPT).toContain(
+      "NEVER repeat a call with the same arguments that already failed",
+    );
   });
 });

@@ -24,6 +24,9 @@ import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
 import { orchestratorSystemPrompt } from "./prompts";
 
+// Enough of a failed tool result to diagnose it from the console without flooding the log.
+const TOOL_ERROR_LOG_MAX_CHARS = 500;
+
 // Re-export the shared backlog-orchestrator contract from here so existing importers
 // (and tests) that reference these symbols on the orchestrator module keep working.
 export {
@@ -449,6 +452,13 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
               // Record the call + its result for the end-of-loop outcome judge. `ok` reflects
               // whether the tool itself errored (MCP sets isError on a failed/auth-denied call).
               const toolErrored = (toolOutput as { isError?: boolean }).isError === true;
+              if (toolErrored) {
+                // Without this the console only shows the tool name, so a failing call (e.g. a
+                // rejected argument) can't be diagnosed without digging through the UI (#1062).
+                console.warn(
+                  `Tool ${toolCall.toolName} failed: ${rawOutputText.slice(0, TOOL_ERROR_LOG_MAX_CHARS)}`,
+                );
+              }
               toolActivity.push({
                 toolName: toolCall.toolName,
                 ok: !toolErrored,
