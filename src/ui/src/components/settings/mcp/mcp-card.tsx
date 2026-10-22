@@ -43,7 +43,7 @@ export function McpCard({
   const [showSettings, setShowSettings] = useState(false);
   const [isReauthorizing, setIsReauthorizing] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
-  // Auth-failed servers show Reauthorize in place of Disconnect (#982).
+  // Auth-failed servers also show Reauthorize next to Disconnect (#982, #1062).
   const showReauthorize = Boolean(healthInfo?.authFailed && onReauthorize);
 
   // Latch a stable button for the whole re-auth round-trip so it doesn't
@@ -116,30 +116,32 @@ export function McpCard({
                       Connect
                     </Button>
                   )}
-                  {config.enabled &&
-                    (showReauthorize ? (
-                      <Button
-                        variant="warningOutline"
-                        className="w-28 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleReauthorizeClick();
-                        }}
-                      >
-                        Reauthorize
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="destructiveOutline"
-                        className="w-28 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDisconnect?.();
-                        }}
-                      >
-                        Disconnect
-                      </Button>
-                    ))}
+                  {config.enabled && showReauthorize && (
+                    <Button
+                      variant="warningOutline"
+                      className="w-28 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleReauthorizeClick();
+                      }}
+                    >
+                      Reauthorize
+                    </Button>
+                  )}
+                  {/* #1062: always offer Disconnect — reauthorizing may be impossible (e.g. it
+                      needs a YakShaver sign-in), and the user must still be able to turn it off. */}
+                  {config.enabled && (
+                    <Button
+                      variant="destructiveOutline"
+                      className="w-28 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDisconnect?.();
+                      }}
+                    >
+                      Disconnect
+                    </Button>
+                  )}
                 </>
               )}
             </div>

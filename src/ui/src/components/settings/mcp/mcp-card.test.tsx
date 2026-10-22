@@ -10,19 +10,24 @@ const config = {
   enabled: true,
 };
 
-it("shows Reauthorize (not Disconnect) when authFailed", () => {
+it("shows Reauthorize alongside Disconnect when authFailed (#1062)", () => {
+  // Reauthorizing can be impossible (e.g. it needs a YakShaver sign-in), so the user must
+  // always be able to turn a failing server off instead.
   const onReauthorize = vi.fn();
+  const onDisconnect = vi.fn();
   render(
     <McpCard
       icon={<span />}
       config={config}
       viewMode="detailed"
       healthInfo={{ isHealthy: false, isChecking: false, authFailed: true }}
-      onDisconnect={vi.fn()}
+      onDisconnect={onDisconnect}
       onReauthorize={onReauthorize}
     />,
   );
-  expect(screen.queryByRole("button", { name: /disconnect/i })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /disconnect/i }));
+  expect(onDisconnect).toHaveBeenCalled();
+  // Reauthorize last: while it runs the card latches a single "Reauthorizing…" button (#982).
   fireEvent.click(screen.getByRole("button", { name: /reauthorize/i }));
   expect(onReauthorize).toHaveBeenCalled();
 });
