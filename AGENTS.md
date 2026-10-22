@@ -423,6 +423,24 @@ field on `LLMConfigV2` (`src/shared/types/llm.ts`, default `openai`), surfaced i
 `OrchestratorBackendSetting`. Both backends return the same `MCPLoopResult`, whose
 `backlogActionSucceeded` gates COMPLETE vs FAIL.
 
+#### Shave Status, Stop and Retry
+
+Workflows and their checkpoints live in memory. Success is recorded by the UI
+(`useShaveManager`) from the Executing Task final output. Every bad ending is recorded by the
+backend: `ProcessVideoIPCHandlers.recordOutcomeAsync` sets **Failed**, or **Cancelled** for a user
+stop. At startup, `ShaveService.markInterruptedShavesAsFailed` turns any shave left
+Pending/Processing into Failed, since no run survives a restart.
+
+- **Stop** (`workflow:stop`): each running shave has an `AbortController`. The run ends at the next
+  stage boundary or agent step (`MCPOrchestrator` checks `options.signal` and passes it to the model
+  call). A shave with no live run is simply marked Cancelled.
+- **Retry** (`workflow:restart`): re-runs the whole workflow on the same video and returns as soon as
+  it starts. A recording kept in local storage is re-used in place. Its `video_files.local_path`
+  points at the durable copy and is never treated as a temp file. Otherwise the uploaded YouTube
+  URL is re-processed.
+- Running DB tests locally: `better-sqlite3` is built for Electron's Node ABI, so run them with
+  `ELECTRON_RUN_AS_NODE=1 <electron> node_modules/vitest/vitest.mjs run src/backend/db`.
+
 #### MCP Credentials Without a YakShaver Account
 
 The backend-brokered MCP OAuth (`authorizeWithBackend`) needs an Identity Server sign-in. To keep
