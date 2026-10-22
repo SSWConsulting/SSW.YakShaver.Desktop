@@ -269,14 +269,31 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
       };
     };
 
+    // #1062: the user pressed Stop (My Shaves). Checked before every model turn and tool call.
+    const stopIfRequested = async (): Promise<MCPLoopResult | null> => {
+      if (!options.signal?.aborted) return null;
+      ToolOutputBuffer.getInstance().clear();
+      return finalize("Stopped by the user.", "cancelled", "");
+    };
+
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
-      const llmResponse = await MCPOrchestrator.languageModelProvider
-        .generateTextWithTools(messages, tools)
-        .catch((error) => {
-          console.error("[MCPOrchestrator] Error generating response from LLM:", error);
-          throw error;
-        });
+      const stoppedBeforeTurn = await stopIfRequested();
+      if (stoppedBeforeTurn) return stoppedBeforeTurn;
+
+      let llmResponse: Awaited<ReturnType<LanguageModelProvider["generateTextWithTools"]>>;
+      try {
+        llmResponse = await MCPOrchestrator.languageModelProvider.generateTextWithTools(
+          messages,
+          tools,
+          options.signal,
+        );
+      } catch (error) {
+        const stoppedDuringTurn = await stopIfRequested();
+        if (stoppedDuringTurn) return stoppedDuringTurn;
+        console.error("[MCPOrchestrator] Error generating response from LLM:", error);
+        throw error;
+      }
 
       if (!llmResponse) {
         throw new Error("[MCPOrchestrator]: No response from LLM provider");
@@ -301,6 +318,9 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
           (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
         );
         for (const toolCall of llmResponse.toolCalls) {
+          const stoppedBeforeTool = await stopIfRequested();
+          if (stoppedBeforeTool) return stoppedBeforeTool;
+
           const isWhitelisted = toolWhiteList.has(toolCall.toolName);
           const toolStartTime = Date.now();
 

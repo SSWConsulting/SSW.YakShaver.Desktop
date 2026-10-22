@@ -84,6 +84,8 @@ export class LanguageModelProvider {
   public async generateTextWithTools(
     messages: ModelMessage[],
     tools?: ToolSet,
+    /** Aborts the request when the user stops the run (#1062). */
+    abortSignal?: AbortSignal,
   ): Promise<Awaited<ReturnType<typeof generateText>>> {
     if (!this.languageModel) {
       throw new Error("[LanguageModelProvider]: LLM client not initialized");
@@ -100,6 +102,7 @@ export class LanguageModelProvider {
       model: this.languageModel,
       messages: messages,
       tools: sanitizedTools,
+      abortSignal,
     });
 
     return response;
