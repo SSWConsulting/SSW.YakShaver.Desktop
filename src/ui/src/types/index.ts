@@ -138,6 +138,13 @@ export type UndoEventDetail = {
  */
 export const WORKFLOW_CLEAR_EVENT_CHANNEL = "yakshaver:workflow-clear";
 
+/**
+ * Window event fired after My Shaves stops or retries a shave (#1062). Stopping a shave whose
+ * run is gone changes its status without any workflow progress event, so the list re-fetches
+ * on this too.
+ */
+export const SHAVES_CHANGED_EVENT = "yakshaver:shaves-changed";
+
 /** Fired after LLM/orchestrator settings save so config-derived views re-read without a remount. */
 export const LLM_CONFIG_CHANGED_EVENT = "yakshaver:llm-config-changed";
 

@@ -83,6 +83,19 @@ function RecordIcon({ isRecording, className }: { isRecording: boolean; classNam
 
 const PROCESS_YOUTUBE_URL_LABEL = "Process YouTube URL";
 
+const RECORDING_TITLE_DATE_FORMAT: Intl.DateTimeFormatOptions = {
+  dateStyle: "medium",
+  timeStyle: "short",
+};
+
+/**
+ * #1062: a recognisable placeholder until the work item title replaces it. A run that fails
+ * before then (or is saved locally, with no YouTube title) otherwise stays "Untitled".
+ */
+function buildRecordingTitle(recordedAt: Date = new Date()): string {
+  return `Recording ${recordedAt.toLocaleString(undefined, RECORDING_TITLE_DATE_FORMAT)}`;
+}
+
 function getRecordLabel(controlState: RecorderControlState, showSplitLayout: boolean) {
   if (controlState.isRecording) return showSplitLayout ? "Stop" : "Stop Recording";
   if (controlState.isTranscribing) return "Transcribing...";
@@ -372,7 +385,7 @@ export function ScreenRecorder({ showButtonOnly = false, className = "" }: Scree
       const result = await saveRecording(
         {
           clientOrigin: "YakShaver Desktop",
-          title: "Untitled",
+          title: buildRecordingTitle(),
           shaveStatus: ShaveStatus.Pending,
         },
         {

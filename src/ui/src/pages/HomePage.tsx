@@ -21,7 +21,7 @@ import { createShaveColumns } from "../components/shaves/shave-columns";
 import { Button } from "../components/ui/button";
 import { ScrollArea, ScrollBar } from "../components/ui/scroll-area";
 import { ipcClient } from "../services/ipc-client";
-import type { Shave } from "../types";
+import { SHAVES_CHANGED_EVENT, type Shave } from "../types";
 import { parseWorkflowProgressNeoPayload } from "../utils";
 
 interface LoadShavesOptions {
@@ -100,6 +100,13 @@ export function HomePage() {
       }
       void loadShaves({ showLoadingState: false });
     });
+  }, [loadShaves]);
+
+  // #1062: Stop/Retry in the list change a shave's status; re-fetch so the row follows.
+  useEffect(() => {
+    const reload = () => void loadShaves({ showLoadingState: false });
+    window.addEventListener(SHAVES_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(SHAVES_CHANGED_EVENT, reload);
   }, [loadShaves]);
 
   const projectNames = useMemo(() => {

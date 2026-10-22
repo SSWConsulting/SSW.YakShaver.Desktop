@@ -398,6 +398,18 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     );
   });
 
+  it('names a new recording after when it was made instead of "Untitled" (#1062)', async () => {
+    render(<ScreenRecorder showButtonOnly />);
+
+    await act(async () => state.stopRequestHandler?.());
+    fireEvent.click(await screen.findByTestId("continue-recording"));
+
+    await waitFor(() => expect(state.saveRecording).toHaveBeenCalled());
+    const [shaveData] = state.saveRecording.mock.calls[0];
+    expect(shaveData.title).toMatch(/^Recording \S/);
+    expect(shaveData.title).not.toBe("Untitled");
+  });
+
   it("keeps the Process YouTube link enabled while a URL submit is still pending", async () => {
     let resolveProcessVideoUrl: (() => void) | undefined;
     window.electronAPI.pipelines.processVideoUrl = vi.fn(
