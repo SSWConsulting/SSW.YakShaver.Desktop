@@ -6,6 +6,7 @@ describe("formatNoWorkItemError — #833 failure copy per termination reason", (
   const cases: Array<[MCPTerminationReason, RegExp]> = [
     ["length", /ran out of room/i],
     ["max-iterations", /ran out of room/i],
+    ["repeated-tool-failure", /kept calling a tool that failed with the same error/i],
     ["cancelled", /you stopped this run/i],
     ["content-filter", /content filter/i],
     ["timeout", /timed out/i],

@@ -21,6 +21,8 @@ export function formatNoWorkItemError(
     case "length":
     case "max-iterations":
       return "The AI workflow ran out of room before it could finish creating a work item. No issue was created — please try again.";
+    case "repeated-tool-failure":
+      return "The AI kept calling a tool that failed with the same error, so the run was stopped. No work item was created — expand Executing Task to see the error, then try again.";
     case "cancelled":
       return WORKFLOW_STOPPED_BY_USER_MESSAGE;
     case "content-filter":

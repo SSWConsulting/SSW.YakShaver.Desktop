@@ -26,6 +26,10 @@ import { orchestratorSystemPrompt } from "./prompts";
 
 // Enough of a failed tool result to diagnose it from the console without flooding the log.
 const TOOL_ERROR_LOG_MAX_CHARS = 500;
+// The same tool failing with the same error this many times ends the run (#1062).
+const MAX_IDENTICAL_TOOL_FAILURES = 3;
+const REPEATED_TOOL_FAILURE_NOTE =
+  "NOTE: This tool has already failed with this exact error. Do not repeat it: change the arguments that caused the error (omit optional parameters you have no real value for), use a different approach, or stop and return a failure result.";
 
 // Re-export the shared backlog-orchestrator contract from here so existing importers
 // (and tests) that reference these symbols on the orchestrator module keep working.
@@ -241,6 +245,8 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
     // Records every executed tool call + its result. At the end we judge — from these
     // RESULTS, not the model's narration — whether a backlog item was actually filed (#833).
     const toolActivity: ToolActivity[] = [];
+    // How often each tool has failed with each distinct error (see MAX_IDENTICAL_TOOL_FAILURES).
+    const toolFailureCounts = new Map<string, number>();
 
     // Every loop exit funnels through here so the outcome is judged from the tool RESULTS
     // regardless of WHY the loop ended — an item filed before a cap/limit is still honoured.
@@ -494,8 +500,27 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
                 },
               });
 
+              // #1062: a model can keep repeating a call that fails the same way (e.g. an invented
+              // optional ID) until the iteration cap or timeout. Keyed on tool + error rather than
+              // exact arguments, because it tends to vary other fields (like a comment body).
+              let repeatedFailureNote = "";
+              if (toolErrored) {
+                const failureKey = `${toolCall.toolName}\n${rawOutputText}`;
+                const failures = (toolFailureCounts.get(failureKey) ?? 0) + 1;
+                toolFailureCounts.set(failureKey, failures);
+                if (failures >= MAX_IDENTICAL_TOOL_FAILURES) {
+                  ToolOutputBuffer.getInstance().clear();
+                  return finalize(
+                    `Stopped: ${toolCall.toolName} failed ${failures} times with the same error: ${rawOutputText.slice(0, TOOL_ERROR_LOG_MAX_CHARS)}`,
+                    "repeated-tool-failure",
+                    "",
+                  );
+                }
+                if (failures > 1) repeatedFailureNote = `\n\n${REPEATED_TOOL_FAILURE_NOTE}`;
+              }
+
               // Construct tool result message with buffer reference for tool chaining
-              const toolResultValue = `${rawOutputText}\n\n[Tool Output Reference: ${outputRefId}] - Use this ID to reference the raw output in subsequent tool calls.`;
+              const toolResultValue = `${rawOutputText}${repeatedFailureNote}\n\n[Tool Output Reference: ${outputRefId}] - Use this ID to reference the raw output in subsequent tool calls.`;
 
               const toolMessage: ToolModelMessage = {
                 role: "tool",
