@@ -8,14 +8,17 @@ import { formatAndReportError } from "../../utils/error-utils";
 import type { VideoUploadResult } from "../auth/types";
 import type { YouTubeClient } from "../auth/youtube-client";
 import { ShaveService } from "../shave/shave-service";
+import type { LocalVideoStorageService } from "../video/local-video-storage";
 import type { YouTubeDownloadService } from "../video/youtube-service";
+import { ingestRecordingAsync } from "./video-ingest";
 import type { CheckpointData } from "./workflow-checkpoint-service";
 import type { WorkflowStateManager } from "./workflow-state-manager";
-import { applyUploadStageOutcome } from "./youtube-stage-decisions";
 
 export type VideoProcessingContext = {
   filePath: string;
   youtubeResult: VideoUploadResult;
+  /** #1062: set when the recording was kept locally because no video host is connected. */
+  localFolder?: string;
   shaveId?: string;
   shaveAutoApprove?: boolean;
   /**
@@ -36,6 +39,7 @@ export type RetryResult = {
 
 export interface WorkflowRetryDeps {
   youtube: YouTubeClient;
+  localVideoStorage: LocalVideoStorageService;
   youtubeDownloadService: YouTubeDownloadService;
   processVideoSource: (
     ctx: VideoProcessingContext,
@@ -154,25 +158,26 @@ export class WorkflowRetryService {
         // Duration is optional, continue without it
       }
 
-      const youtubeResult = await this.deps.youtube.uploadVideo(filePath);
-
-      if (youtubeResult.success && youtubeResult.data && duration) {
-        youtubeResult.data.duration = duration;
-      }
-
-      // #672: route the retry upload through the SAME success-gating helper as the
-      // first-run path. uploadVideo() returns { success:false } (without throwing)
-      // for the no-YouTube-channel case, so an unconditional completeStage here
-      // would re-introduce the #672 "green tick with no link" bug on retry.
-      applyUploadStageOutcome(youtubeResult, filePath, workflowManager);
+      // #672/#1062: route the retry through the SAME helper as the first run, so it gets the
+      // same success gating and the same local-storage fallback when no video host is connected.
+      const { youtubeResult, localFolder } = await ingestRecordingAsync(
+        filePath,
+        duration,
+        this.deps,
+        workflowManager,
+      );
       workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
         filePath,
         youtubeResult,
+        localFolder,
       });
 
       this.deps.trackTempFile(filePath, shaveId);
 
-      return this.deps.processVideoSource({ filePath, youtubeResult, shaveId }, workflowManager);
+      return this.deps.processVideoSource(
+        { filePath, youtubeResult, localFolder, shaveId },
+        workflowManager,
+      );
     } catch (error) {
       const errorMessage = formatAndReportError(error, "retry_upload");
       workflowManager.failStage(WorkflowProgressStage.UPLOADING_VIDEO, errorMessage);

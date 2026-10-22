@@ -32,6 +32,7 @@ import { LlmStorage } from "../services/storage/llm-storage";
 import { UserSettingsStorage } from "../services/storage/user-settings-storage";
 import { optimizeTranscript } from "../services/transcript/optimize-transcript-service";
 import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
+import { LocalVideoStorageService } from "../services/video/local-video-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { runManualLoopWithTimeout } from "../services/workflow/executing-task-timeout";
@@ -39,6 +40,10 @@ import { McpWorkflowAdapter } from "../services/workflow/mcp-workflow-adapter";
 import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 import { reconcileWorkItemTitleAsync } from "../services/workflow/title-reconciliation";
+import {
+  buildLocalSaveStagePayload,
+  ingestRecordingAsync,
+} from "../services/workflow/video-ingest";
 import {
   applyPortalVideoFields,
   applyResolvedTitleToOwnedVideoMetadata,
@@ -55,7 +60,6 @@ import {
 } from "../services/workflow/workflow-retry-service";
 import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
 import {
-  applyUploadStageOutcome,
   resolveMetadataStage,
   shouldFailStageOnUnexpectedError,
 } from "../services/workflow/youtube-stage-decisions";
@@ -78,6 +82,7 @@ export const TranscriptSummarySchema = z.object({
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeClient.getInstance();
+  private readonly localVideoStorage = LocalVideoStorageService.getInstance();
   private ffmpegService = FFmpegService.getInstance();
   private readonly metadataBuilder: VideoMetadataBuilder;
   private readonly youtubeDownloadService = YouTubeDownloadService.getInstance();
@@ -92,6 +97,7 @@ export class ProcessVideoIPCHandlers {
     this.metadataBuilder = new VideoMetadataBuilder();
     this.retryService = new WorkflowRetryService({
       youtube: this.youtube,
+      localVideoStorage: this.localVideoStorage,
       youtubeDownloadService: this.youtubeDownloadService,
       processVideoSource: this.processVideoSource.bind(this),
       trackTempFile: this.trackTempFile.bind(this),
@@ -375,28 +381,26 @@ export class ProcessVideoIPCHandlers {
       }
 
       try {
-        const youtubeResult = await this.youtube.uploadVideo(filePath);
-
-        if (youtubeResult.success && youtubeResult.data && duration) {
-          youtubeResult.data.duration = duration;
-        }
-
-        // #672: only show a green tick when the upload actually succeeded. uploadVideo returns
-        // { success:false } (without throwing) when e.g. the Google account has no YouTube
-        // channel — previously that still completed the stage, leaving a green tick and no link.
-        // Mark it failed (so the user sees why) but keep going: the work item is still worth creating.
-        applyUploadStageOutcome(youtubeResult, filePath, workflowManager);
+        // Uploads to the connected video host, or keeps the recording locally when there is none.
+        const { youtubeResult, localFolder } = await ingestRecordingAsync(
+          filePath,
+          duration,
+          { youtube: this.youtube, localVideoStorage: this.localVideoStorage },
+          workflowManager,
+        );
 
         // Update checkpoint with upload result
         workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
           filePath,
           youtubeResult,
+          localFolder,
         });
 
         return await this.processVideoSource(
           {
             filePath,
             youtubeResult,
+            localFolder,
             shaveId: effectiveShaveId,
             shaveAutoApprove,
           },
@@ -475,7 +479,14 @@ export class ProcessVideoIPCHandlers {
   }
 
   private async processVideoSource(
-    { filePath, youtubeResult, shaveId, shaveAutoApprove, customPrompt }: VideoProcessingContext,
+    {
+      filePath,
+      youtubeResult,
+      localFolder: contextLocalFolder,
+      shaveId,
+      shaveAutoApprove,
+      customPrompt,
+    }: VideoProcessingContext,
     workflowManager: WorkflowStateManager,
     startFromStage?: keyof WorkflowState,
   ): Promise<RetryResult> {
@@ -532,6 +543,8 @@ export class ProcessVideoIPCHandlers {
     // otherwise the one the orchestrator reported filing. Restored from the checkpoint so a
     // metadata-only retry — which skips the EXECUTING_TASK block that computes it — still has it.
     let effectiveTitle: string | undefined = checkpoint.effectiveTitle;
+    // #1062: set when no video host is connected; the transcript is saved alongside the recording.
+    let localFolder: string | undefined = contextLocalFolder ?? checkpoint.localFolder;
 
     let currentStage: keyof WorkflowState | null = null;
 
@@ -596,6 +609,7 @@ export class ProcessVideoIPCHandlers {
         }
 
         workflowManager.completeStage(WorkflowProgressStage.TRANSCRIBING, transcriptText);
+        await this.saveLocalTranscriptAsync(localFolder, transcriptText);
         workflowManager.createCheckpoint(WorkflowProgressStage.TRANSCRIBING, {
           transcript,
           transcriptText,
@@ -786,12 +800,20 @@ export class ProcessVideoIPCHandlers {
           })
         ).title;
         this.persistShaveTitle(shaveId, effectiveTitle);
+        localFolder = await this.renameLocalFolderWithTitleAsync(
+          localFolder,
+          effectiveTitle,
+          filePath,
+          workflowManager,
+        );
 
-        // Checkpointed AFTER the read so a retry from a later stage inherits the same title.
+        // Checkpointed AFTER the read so a retry from a later stage inherits the same title
+        // (and the renamed local folder, which overrides the upload stage's copy when merged).
         workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
           mcpResult,
           finalOutput,
           effectiveTitle,
+          localFolder,
         });
 
         // Send to portal if authenticated and project is remote — non-fatal, does not affect workflow stage status
@@ -1010,6 +1032,58 @@ export class ProcessVideoIPCHandlers {
         "[ProcessVideo] Failed to persist the resolved work item title (non-fatal):",
         formatAndReportError(error, "persist_shave_title"),
       );
+    }
+  }
+
+  /** #1062: keeps the transcript next to a locally saved recording. Non-fatal. */
+  private async saveLocalTranscriptAsync(
+    localFolder: string | undefined,
+    transcriptText: string,
+  ): Promise<void> {
+    if (!localFolder) {
+      return;
+    }
+
+    try {
+      await this.localVideoStorage.saveTranscriptAsync(localFolder, transcriptText);
+    } catch (error) {
+      console.warn(
+        "[ProcessVideo] Failed to save the transcript locally (non-fatal):",
+        formatAndReportError(error, "save_local_transcript"),
+      );
+    }
+  }
+
+  /**
+   * #1062: once the work item title is known, renames a locally saved recording's folder to carry
+   * it, and points the "Uploading Video" stage at the new path so Open folder keeps working.
+   * Non-fatal — on failure the folder keeps its date-only name. Returns the folder's current path.
+   */
+  private async renameLocalFolderWithTitleAsync(
+    localFolder: string | undefined,
+    title: string | undefined,
+    filePath: string,
+    workflowManager: WorkflowStateManager,
+  ): Promise<string | undefined> {
+    if (!localFolder || !title) {
+      return localFolder;
+    }
+
+    try {
+      const renamed = await this.localVideoStorage.renameWithTitleAsync(localFolder, title);
+      if (renamed !== localFolder) {
+        workflowManager.updateStagePayload(
+          WorkflowProgressStage.UPLOADING_VIDEO,
+          buildLocalSaveStagePayload(filePath, renamed),
+        );
+      }
+      return renamed;
+    } catch (error) {
+      console.warn(
+        "[ProcessVideo] Failed to rename the local recording folder (non-fatal):",
+        formatAndReportError(error, "rename_local_folder"),
+      );
+      return localFolder;
     }
   }
 

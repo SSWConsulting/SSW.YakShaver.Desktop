@@ -70,8 +70,12 @@ function createMockYoutubeResult(overrides?: Partial<VideoUploadResult>): VideoU
 function createMockDeps(overrides?: Partial<WorkflowRetryDeps>): WorkflowRetryDeps {
   return {
     youtube: {
+      isAuthenticated: vi.fn().mockResolvedValue(true),
       uploadVideo: vi.fn().mockResolvedValue(createMockYoutubeResult()),
     } as unknown as WorkflowRetryDeps["youtube"],
+    localVideoStorage: {
+      saveRecordingAsync: vi.fn().mockResolvedValue("/videos/YakShaver/2026-10-22 0905"),
+    } as unknown as WorkflowRetryDeps["localVideoStorage"],
     youtubeDownloadService: {
       getVideoMetadata: vi.fn().mockResolvedValue(createMockYoutubeResult({ origin: "external" })),
       downloadVideoToFile: vi.fn().mockResolvedValue("/tmp/downloaded.mp4"),
@@ -332,6 +336,25 @@ describe("WorkflowRetryService", () => {
     expect(step.payload).toBeDefined();
     expect(JSON.parse(step.payload as string).error).toBe(
       "Your Google account has no YouTube channel",
+    );
+  });
+
+  it("#1062: keeps the recording locally on retry when no video host is connected", async () => {
+    const manager = setupFailedWorkflow(ProgressStage.UPLOADING_VIDEO);
+    manager.createCheckpoint(ProgressStage.UPLOADING_VIDEO, { filePath: "/tmp/test.mp4" });
+    (deps.getOrCreateWorkflowManager as ReturnType<typeof vi.fn>).mockReturnValue(manager);
+    (deps.youtube.isAuthenticated as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+    await service.retryFromStage(ProgressStage.UPLOADING_VIDEO, SHAVE_ID);
+
+    expect(deps.youtube.uploadVideo).not.toHaveBeenCalled();
+    expect(manager.getStepState(ProgressStage.UPLOADING_VIDEO).status).toBe("completed");
+    expect(deps.processVideoSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        localFolder: "/videos/YakShaver/2026-10-22 0905",
+        youtubeResult: expect.objectContaining({ success: false, origin: "local" }),
+      }),
+      manager,
     );
   });
 

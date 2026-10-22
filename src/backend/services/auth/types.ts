@@ -33,7 +33,8 @@ export interface AuthState {
   error?: string;
 }
 
-export type VideoUploadOrigin = "upload" | "external";
+// "local": no video host connected, so the recording was kept on disk instead (#1062).
+export type VideoUploadOrigin = "upload" | "external" | "local";
 
 export interface VideoUploadResult {
   success: boolean;
