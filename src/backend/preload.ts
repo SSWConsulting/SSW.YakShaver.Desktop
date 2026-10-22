@@ -120,6 +120,8 @@ const IPC_CHANNELS = {
   // App Control
   APP_RESTART: "app:restart",
   APP_OPEN_EXTERNAL: "app:open-external",
+  APP_GET_LOCAL_VIDEO_DIR: "app:get-local-video-dir",
+  APP_OPEN_LOCAL_VIDEO_FOLDER: "app:open-local-video-folder",
 
   // Protocol
   PROTOCOL_ERROR: "protocol:error",
@@ -367,6 +369,9 @@ const electronAPI = {
   app: {
     restart: () => ipcRenderer.invoke(IPC_CHANNELS.APP_RESTART),
     openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, url),
+    getLocalVideoDir: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_LOCAL_VIDEO_DIR),
+    openLocalVideoFolder: (folder?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_LOCAL_VIDEO_FOLDER, folder),
     onProtocolError: (callback: (message: string) => void) =>
       onIpcEvent<string>(IPC_CHANNELS.PROTOCOL_ERROR, callback),
   },

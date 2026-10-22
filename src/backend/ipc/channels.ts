@@ -104,6 +104,9 @@ export const IPC_CHANNELS = {
   // App Control
   APP_RESTART: "app:restart",
   APP_OPEN_EXTERNAL: "app:open-external",
+  // Local storage, the default video host (#1062)
+  APP_GET_LOCAL_VIDEO_DIR: "app:get-local-video-dir",
+  APP_OPEN_LOCAL_VIDEO_FOLDER: "app:open-local-video-folder",
 
   // Protocol
   PROTOCOL_ERROR: "protocol:error",
