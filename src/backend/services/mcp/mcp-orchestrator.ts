@@ -202,8 +202,9 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
       throw new Error("[MCPOrchestrator]: MCP server manager not initialized");
     }
 
-    // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsWithServerPrefixAsync();
+    // Get tools and apply the server filter if provided — only the project's selected servers are
+    // connected, so an unrelated (e.g. unauthenticated) server can't stall or prompt during a run.
+    const tools = await serverManager.collectToolsForSelectedServersAsync(options.serverFilter);
 
     let systemPrompt = orchestratorSystemPrompt;
 
