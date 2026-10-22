@@ -1,6 +1,7 @@
 import { Youtube } from "lucide-react";
 import { YouTubeConnection } from "../../auth/YouTubeConnection";
 import { SettingsPageHeader } from "../SettingsPageHeader";
+import { LocalStorageHostCard } from "./LocalStorageHostCard";
 
 interface VideoHostSettingsPanelProps {
   isActive: boolean;
@@ -16,10 +17,11 @@ export function VideoHostSettingsPanel({ isActive }: VideoHostSettingsPanelProps
       <SettingsPageHeader
         icon={Youtube}
         title="Video Host"
-        description="Choose a platform to host your videos."
+        description="Videos are saved locally by default. Connect a platform to upload them instead."
       />
 
       <div className="grid gap-4">
+        <LocalStorageHostCard buttonSize="lg" />
         <YouTubeConnection buttonSize="lg" />
       </div>
     </div>

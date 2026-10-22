@@ -28,8 +28,8 @@ export const STEPS: readonly OnboardingStep[] = [
     id: 1,
     icon: monitorPlay,
     title: "Video Hosting",
-    description: "Choose a platform to host your videos.",
-    sidebarDescription: "Authorise YakShaver to publish videos for you.",
+    description: "Videos are saved locally by default. Connect a platform to upload them instead.",
+    sidebarDescription: "Optional: let YakShaver publish videos for you.",
     navSteps: [1],
   },
   {
