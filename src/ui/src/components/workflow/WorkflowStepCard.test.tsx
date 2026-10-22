@@ -4,11 +4,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowStepCard } from "./WorkflowStepCard";
 
-const { retryFromStage } = vi.hoisted(() => ({ retryFromStage: vi.fn() }));
+const { retryFromStage, openLocalVideoFolder } = vi.hoisted(() => ({
+  retryFromStage: vi.fn(),
+  openLocalVideoFolder: vi.fn(),
+}));
 
 vi.mock("@/services/ipc-client", () => ({
   ipcClient: {
     workflow: { retryFromStage },
+    app: { openLocalVideoFolder },
   },
 }));
 
@@ -280,5 +284,49 @@ describe("WorkflowStepCard retry-with-custom-prompt (#698)", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(retryFromStage).toHaveBeenCalledWith("executing_task", "shave-1", undefined);
+  });
+});
+
+describe("WorkflowStepCard local save (#1062)", () => {
+  const LOCAL_FOLDER = "C:/Users/me/Videos/YakShaver/2026-10-22 0905";
+
+  function makeLocalSaveStep(): WorkflowStep {
+    return {
+      stage: ProgressStage.UPLOADING_VIDEO,
+      status: "completed",
+      payload: JSON.stringify({
+        filePath: "/tmp/rec.webm",
+        sourceOrigin: "local",
+        localFolder: LOCAL_FOLDER,
+        uploadResult: { success: false, origin: "local" },
+      }),
+    };
+  }
+
+  beforeEach(() => {
+    openLocalVideoFolder.mockReset().mockResolvedValue({ success: true });
+  });
+
+  it("shows a visible warning (not a green tick or an error) when the recording was saved locally", () => {
+    render(<WorkflowStepCard step={makeLocalSaveStep()} label="Uploading Video" shaveId="s-1" />);
+
+    expect(
+      screen.getByText("No video host connected. Recording and transcript saved locally."),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".text-amber-400")).not.toBeNull();
+    expect(document.querySelector(".text-green-400")).toBeNull();
+    expect(document.querySelector(".text-red-400")).toBeNull();
+    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+  });
+
+  it("reveals the folder and opens it when expanded", async () => {
+    const user = userEvent.setup();
+    render(<WorkflowStepCard step={makeLocalSaveStep()} label="Uploading Video" shaveId="s-1" />);
+
+    await user.click(screen.getByRole("button", { name: /uploading video/i }));
+    expect(screen.getByText(LOCAL_FOLDER)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /open folder/i }));
+    expect(openLocalVideoFolder).toHaveBeenCalledWith(LOCAL_FOLDER);
   });
 });

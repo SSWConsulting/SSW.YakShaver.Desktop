@@ -1,6 +1,7 @@
 import type { WorkflowState, WorkflowStep } from "@shared/types/workflow";
 import type { OrchestratorBackend } from "@shared/types/workflow-payloads";
 import {
+  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -97,18 +98,39 @@ const STOPPED_CONFIG = {
   textClass: "text-white/90",
 } as const;
 
+/**
+ * #1062: no video host is connected, so the recording was saved locally instead of uploaded.
+ * The stage did its job (the workflow carries on), but the user should notice there's no video
+ * link — so it's a warning, not a green tick and not a red error.
+ */
+const LOCAL_SAVE_CONFIG = {
+  icon: AlertTriangle,
+  iconClass: "text-amber-400",
+  containerClass: "border-amber-500/30 bg-amber-500/5",
+  textClass: "text-white/90",
+} as const;
+
+function getLocalSaveFolder(stage: string, parsed: unknown): string | null {
+  if (stage !== "uploading_video" || !isRecord(parsed)) return null;
+  return typeof parsed.localFolder === "string" ? parsed.localFolder : null;
+}
+
 function StatusIcon({
   status,
   stopped,
+  savedLocally,
   className,
 }: {
   status: WorkflowStep["status"];
   stopped?: boolean;
+  savedLocally?: boolean;
   className?: string;
 }) {
   const config = stopped
     ? STOPPED_CONFIG
-    : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
+    : savedLocally
+      ? LOCAL_SAVE_CONFIG
+      : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
 
   if (status === "in_progress") {
     return <LoadingState inline className={cn("size-5", config.iconClass, className)} />;
@@ -226,9 +248,14 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
   const hasErrorDetail =
     isFailed && ((hasStructuredSteps && hasPayload) || (!hasStructuredSteps && !!errorMessage));
 
+  const localSaveFolder =
+    effectiveStatus === "completed" ? getLocalSaveFolder(step.stage, parsedPayload) : null;
+
   const config = wasStopped
     ? STOPPED_CONFIG
-    : STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
+    : localSaveFolder
+      ? LOCAL_SAVE_CONFIG
+      : STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.not_started;
 
   const toggleExpand = () => {
     if (isExpandable) setIsExpanded(!isExpanded);
@@ -277,7 +304,11 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
           aria-expanded={isExpandable ? isExpanded : undefined}
         >
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <StatusIcon status={effectiveStatus} stopped={wasStopped} />
+            <StatusIcon
+              status={effectiveStatus}
+              stopped={wasStopped}
+              savedLocally={!!localSaveFolder}
+            />
             <span className="flex shrink-0 items-center gap-1">
               <span className={cn("font-medium", config.textClass)}>{label}</span>
               {/* Keep the visual affordance out of the accessible label. */}
@@ -336,6 +367,13 @@ export function WorkflowStepCard({ step, label, shaveId }: WorkflowStepCardProps
           </Button>
         )}
       </div>
+
+      {/* #1062: always visible (not behind the expand toggle) so the missing video link is noticed. */}
+      {localSaveFolder && (
+        <p className="mt-1 pl-8 text-sm text-amber-300/90">
+          No video host connected. Recording and transcript saved locally.
+        </p>
+      )}
 
       {/* #698: optional custom prompt for retrying the Executing Task stage after a failure
           (e.g. a timeout) — lets the user steer the retry instead of repeating the exact same
