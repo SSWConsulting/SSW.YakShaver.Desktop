@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ModelMessage, ToolExecutionOptions, ToolModelMessage, UserModelMessage } from "ai";
 import type { ZodType } from "zod";
-import { VIDEO_LINK_EMBEDDING_RULES } from "../../constants/prompts";
-import { getDurationParts } from "../../utils/duration-utils";
 import { formatAndReportError } from "../../utils/error-utils";
 import {
   isBacklogItemMutationTool,
@@ -22,7 +20,14 @@ import {
 } from "./backlog-orchestrator";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
-import { orchestratorSystemPrompt } from "./prompts";
+import { appendVideoInfoToSystemPrompt, orchestratorSystemPrompt } from "./prompts";
+
+// Enough of a failed tool result to diagnose it from the console without flooding the log.
+const TOOL_ERROR_LOG_MAX_CHARS = 500;
+// The same tool failing with the same error this many times ends the run (#1062).
+const MAX_IDENTICAL_TOOL_FAILURES = 3;
+const REPEATED_TOOL_FAILURE_NOTE =
+  "NOTE: This tool has already failed with this exact error. Do not repeat it: change the arguments that caused the error (omit optional parameters you have no real value for), use a different approach, or stop and return a failure result.";
 
 // Re-export the shared backlog-orchestrator contract from here so existing importers
 // (and tests) that reference these symbols on the orchestrator module keep working.
@@ -202,8 +207,9 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
       throw new Error("[MCPOrchestrator]: MCP server manager not initialized");
     }
 
-    // Get tools and apply the server filter if provided
-    const tools = await serverManager.collectToolsWithServerPrefixAsync();
+    // Get tools and apply the server filter if provided — only the project's selected servers are
+    // connected, so an unrelated (e.g. unauthenticated) server can't stall or prompt during a run.
+    const tools = await serverManager.collectToolsForSelectedServersAsync(options.serverFilter);
 
     let systemPrompt = orchestratorSystemPrompt;
 
@@ -215,7 +221,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
       ? `\n---\nProject Prompt:\n${options.desktopAgentProjectPrompt}`
       : "";
 
-    systemPrompt = this.appendVideoInfoToSystemPrompt(
+    systemPrompt = appendVideoInfoToSystemPrompt(
       systemPrompt,
       videoUploadResult,
       options.videoFilePath,
@@ -237,6 +243,8 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
     // Records every executed tool call + its result. At the end we judge — from these
     // RESULTS, not the model's narration — whether a backlog item was actually filed (#833).
     const toolActivity: ToolActivity[] = [];
+    // How often each tool has failed with each distinct error (see MAX_IDENTICAL_TOOL_FAILURES).
+    const toolFailureCounts = new Map<string, number>();
 
     // Every loop exit funnels through here so the outcome is judged from the tool RESULTS
     // regardless of WHY the loop ended — an item filed before a cap/limit is still honoured.
@@ -259,14 +267,31 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
       };
     };
 
+    // #1062: the user pressed Stop (My Shaves). Checked before every model turn and tool call.
+    const stopIfRequested = async (): Promise<MCPLoopResult | null> => {
+      if (!options.signal?.aborted) return null;
+      ToolOutputBuffer.getInstance().clear();
+      return finalize("Stopped by the user.", "cancelled", "");
+    };
+
     // the orchestrator loop
     for (let i = 0; i < (options.maxToolIterations || 20); i++) {
-      const llmResponse = await MCPOrchestrator.languageModelProvider
-        .generateTextWithTools(messages, tools)
-        .catch((error) => {
-          console.error("[MCPOrchestrator] Error generating response from LLM:", error);
-          throw error;
-        });
+      const stoppedBeforeTurn = await stopIfRequested();
+      if (stoppedBeforeTurn) return stoppedBeforeTurn;
+
+      let llmResponse: Awaited<ReturnType<LanguageModelProvider["generateTextWithTools"]>>;
+      try {
+        llmResponse = await MCPOrchestrator.languageModelProvider.generateTextWithTools(
+          messages,
+          tools,
+          options.signal,
+        );
+      } catch (error) {
+        const stoppedDuringTurn = await stopIfRequested();
+        if (stoppedDuringTurn) return stoppedDuringTurn;
+        console.error("[MCPOrchestrator] Error generating response from LLM:", error);
+        throw error;
+      }
 
       if (!llmResponse) {
         throw new Error("[MCPOrchestrator]: No response from LLM provider");
@@ -291,6 +316,9 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
           (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
         );
         for (const toolCall of llmResponse.toolCalls) {
+          const stoppedBeforeTool = await stopIfRequested();
+          if (stoppedBeforeTool) return stoppedBeforeTool;
+
           const isWhitelisted = toolWhiteList.has(toolCall.toolName);
           const toolStartTime = Date.now();
 
@@ -448,6 +476,13 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
               // Record the call + its result for the end-of-loop outcome judge. `ok` reflects
               // whether the tool itself errored (MCP sets isError on a failed/auth-denied call).
               const toolErrored = (toolOutput as { isError?: boolean }).isError === true;
+              if (toolErrored) {
+                // Without this the console only shows the tool name, so a failing call (e.g. a
+                // rejected argument) can't be diagnosed without digging through the UI (#1062).
+                console.warn(
+                  `Tool ${toolCall.toolName} failed: ${rawOutputText.slice(0, TOOL_ERROR_LOG_MAX_CHARS)}`,
+                );
+              }
               toolActivity.push({
                 toolName: toolCall.toolName,
                 ok: !toolErrored,
@@ -483,8 +518,27 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
                 },
               });
 
+              // #1062: a model can keep repeating a call that fails the same way (e.g. an invented
+              // optional ID) until the iteration cap or timeout. Keyed on tool + error rather than
+              // exact arguments, because it tends to vary other fields (like a comment body).
+              let repeatedFailureNote = "";
+              if (toolErrored) {
+                const failureKey = `${toolCall.toolName}\n${rawOutputText}`;
+                const failures = (toolFailureCounts.get(failureKey) ?? 0) + 1;
+                toolFailureCounts.set(failureKey, failures);
+                if (failures >= MAX_IDENTICAL_TOOL_FAILURES) {
+                  ToolOutputBuffer.getInstance().clear();
+                  return finalize(
+                    `Stopped: ${toolCall.toolName} failed ${failures} times with the same error: ${rawOutputText.slice(0, TOOL_ERROR_LOG_MAX_CHARS)}`,
+                    "repeated-tool-failure",
+                    "",
+                  );
+                }
+                if (failures > 1) repeatedFailureNote = `\n\n${REPEATED_TOOL_FAILURE_NOTE}`;
+              }
+
               // Construct tool result message with buffer reference for tool chaining
-              const toolResultValue = `${rawOutputText}\n\n[Tool Output Reference: ${outputRefId}] - Use this ID to reference the raw output in subsequent tool calls.`;
+              const toolResultValue = `${rawOutputText}${repeatedFailureNote}\n\n[Tool Output Reference: ${outputRefId}] - Use this ID to reference the raw output in subsequent tool calls.`;
 
               const toolMessage: ToolModelMessage = {
                 role: "tool",
@@ -637,41 +691,5 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
 
   public cancelAllPendingApprovals(reason = "Session cancelled"): void {
     UserInteractionService.getInstance().cancelAllPending(reason);
-  }
-
-  private appendVideoInfoToSystemPrompt(
-    systemPrompt: string,
-    videoUploadResult?: VideoUploadResult,
-    videoFilePath?: string,
-  ): string {
-    const videoUrl = videoUploadResult?.data?.url;
-    const duration = videoUploadResult?.data?.duration;
-    if (videoUrl) {
-      const isValidDuration = typeof duration === "number" && duration > 0;
-      const videoEmbeddingRules = systemPrompt.includes(VIDEO_LINK_EMBEDDING_RULES)
-        ? ""
-        : `\n${VIDEO_LINK_EMBEDDING_RULES}`;
-
-      if (isValidDuration) {
-        const outputDuration = getDurationParts(duration);
-        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
-Video duration:
-- totalSeconds: ${outputDuration.totalSeconds}
-- hours: ${outputDuration.hours}
-- minutes: ${outputDuration.minutes}
-- seconds: ${outputDuration.seconds}
-${videoEmbeddingRules}`;
-      } else {
-        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
-${videoEmbeddingRules}`;
-      }
-    }
-
-    // If a video file path is provided, add it to the system prompt for screenshot capture
-    if (videoFilePath) {
-      systemPrompt += `\n\nVideo file available for screenshot capture: ${videoFilePath}.`;
-    }
-
-    return systemPrompt;
   }
 }

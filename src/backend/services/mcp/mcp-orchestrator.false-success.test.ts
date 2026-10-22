@@ -59,7 +59,7 @@ function makeOrchestrator(
   (MCPOrchestrator as any).languageModelProvider = { generateTextWithTools, generateObject };
   // biome-ignore lint/suspicious/noExplicitAny: injecting stubs into private statics for test
   (MCPOrchestrator as any).mcpServerManager = {
-    collectToolsWithServerPrefixAsync: vi.fn().mockResolvedValue(tools),
+    collectToolsForSelectedServersAsync: vi.fn().mockResolvedValue(tools),
     getWhitelistWithServerPrefixAsync: vi.fn().mockResolvedValue(whitelist),
   };
 

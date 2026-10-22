@@ -189,6 +189,14 @@ QUALITY STANDARDS:
 - Structure your responses clearly and logically
 
 
+TOOL ARGUMENTS:
+
+- Only set an OPTIONAL tool parameter when the user's request or an earlier tool result gives you its real value. Otherwise OMIT it entirely.
+- NEVER invent IDs, numbers, or references (e.g. parent_issue_number, milestone, project, assignee IDs). Linking to a parent issue or epic requires one the user named or a tool returned.
+- When a tool call fails, read the error and change the arguments that caused it (for example, drop an invalid optional parameter). NEVER repeat a call with the same arguments that already failed.
+- If the same tool keeps failing after you have changed its arguments, stop and return a failure result explaining the error instead of retrying.
+
+
 GOAL COMPLETION:
 
 - Only consider a goal complete when you've provided comprehensive, useful information

@@ -6,6 +6,13 @@ import type {
   MCPLoopResult,
 } from "../mcp/backlog-orchestrator";
 
+const CANCELLED_RESULT = {
+  text: "",
+  backlogActionSucceeded: false,
+  artifacts: [],
+  terminationReason: "cancelled",
+} satisfies MCPLoopResult;
+
 /**
  * Runs the Executing Task loop with a wall-clock timeout (#698). Neither orchestrator backend
  * guarantees it returns in bounded time on its own: the in-process OpenAI/Azure loop
@@ -42,17 +49,25 @@ export async function runManualLoopWithTimeout(
   onTimeout?: () => void,
 ): Promise<MCPLoopResult> {
   const controller = new AbortController();
+  // #1062: the caller's signal is the user's Stop; the backend sees either Stop or the timeout.
+  const stopSignal = options?.signal;
+  const signal = stopSignal ? AbortSignal.any([controller.signal, stopSignal]) : controller.signal;
 
   try {
     return await withTimeout(
       orchestrator.manualLoopAsync(videoTranscription, videoUploadResult, {
         ...options,
-        signal: controller.signal,
+        signal,
       }),
       timeoutMs,
       "Executing Task",
     );
   } catch (error) {
+    // A backend that honours the signal by rejecting (LocalClaudeOrchestrator kills its child)
+    // ends a user-stopped run with an error; report it as the cancellation it is.
+    if (stopSignal?.aborted) {
+      return CANCELLED_RESULT;
+    }
     if (!(error instanceof Error) || !/^Timeout waiting for/.test(error.message)) {
       throw error;
     }

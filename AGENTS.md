@@ -106,7 +106,7 @@ SSW.YakShaver.Desktop/
 │   │   │   ├── recording/             # Screen capture (singleton + EventEmitter)
 │   │   │   ├── storage/               # Encrypted credential storage (BaseSecureStorage)
 │   │   │   ├── telemetry/             # Application Insights telemetry service
-│   │   │   ├── video/                 # Video metadata & YouTube service
+│   │   │   ├── video/                 # Video metadata, YouTube service, local video storage
 │   │   │   └── workflow/              # Workflow state tracking
 │   │   ├── events/                    # Service events -> IPC bridge
 │   │   ├── types/                     # Backend type definitions
@@ -423,6 +423,53 @@ field on `LLMConfigV2` (`src/shared/types/llm.ts`, default `openai`), surfaced i
 `OrchestratorBackendSetting`. Both backends return the same `MCPLoopResult`, whose
 `backlogActionSucceeded` gates COMPLETE vs FAIL.
 
+#### Shave Status, Stop and Retry
+
+Workflows and their checkpoints live in memory. Success is recorded by the UI
+(`useShaveManager`) from the Executing Task final output. Every bad ending is recorded by the
+backend: `ProcessVideoIPCHandlers.recordOutcomeAsync` sets **Failed**, or **Cancelled** for a user
+stop. At startup, `ShaveService.markInterruptedShavesAsFailed` turns any shave left
+Pending/Processing into Failed, since no run survives a restart.
+
+- **Stop** (`workflow:stop`): each running shave has an `AbortController`. The run ends at the next
+  stage boundary or agent step (`MCPOrchestrator` checks `options.signal` and passes it to the model
+  call). A shave with no live run is simply marked Cancelled.
+- **Retry** (`workflow:restart`): re-runs the whole workflow on the same video and returns as soon as
+  it starts. A recording kept in local storage is re-used in place. Its `video_files.local_path`
+  points at the durable copy and is never treated as a temp file. Otherwise the uploaded YouTube
+  URL is re-processed.
+- Running DB tests locally: `better-sqlite3` is built for Electron's Node ABI, so run them with
+  `ELECTRON_RUN_AS_NODE=1 <electron> node_modules/vitest/vitest.mjs run src/backend/db`.
+
+#### MCP Credentials Without a YakShaver Account
+
+The backend-brokered MCP OAuth (`authorizeWithBackend`) needs an Identity Server sign-in. To keep
+the app usable without a portal account, any HTTP MCP server with a configured `Authorization`
+header skips that OAuth entirely and connects with the header as-is
+(`MCPServerClient.createClientAsync`). The GitHub card exposes this as "Use a personal access token
+instead" (`handleOnConnectWithToken` in `useMcpCardActions`). The token is stored as
+`Authorization: Bearer <pat>` in the encrypted server config. Disconnecting removes it, and
+Reauthorize (which reruns the backend OAuth) is not offered for token-based servers.
+
+#### Video Hosting (local storage is the default)
+
+Recording never waits on a video host. `ingestRecordingAsync`
+(`src/backend/services/workflow/video-ingest.ts`), shared by the first run and the upload retry,
+uploads to YouTube when it is connected. Otherwise `LocalVideoStorageService`
+(`src/backend/services/video/local-video-storage.ts`) copies the recording to
+`<Videos>/YakShaver/<YYYY-MM-DD HHmm>/`, and the transcript is written beside it after TRANSCRIBING.
+The folder is renamed to `<stamp> - <work item title>` once the title is reconciled. Both follow-ups
+are best-effort.
+
+A local save completes UPLOADING_VIDEO with `{ localFolder, uploadResult: { success: false,
+origin: "local" } }`. Because the result is not a success, every URL-dependent step (video link in
+the work item, portal video fields, UPDATING_METADATA) skips itself exactly as it does for a failed
+upload. The UI shows the stage as an amber warning with an Open folder action, not as an error.
+`app:get-local-video-dir` and `app:open-local-video-folder` (the latter refuses paths outside the
+root) back that action and the Local storage card in Settings → Video Host. In YakShaver Anywhere
+(cloud-360) mode the recording goes through the portal instead, and Record still requires
+Identity Server sign-in.
+
 #### Work Item Title Reconciliation (who owns the title)
 
 Once a work item exists, the platform hosting it owns its title — not the workflow. After a
@@ -689,6 +736,7 @@ APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=.
 Encrypted tokens: `yakshaver-tokens/*.enc`
 CLI bridge handshake (PLAINTEXT, deliberate exception): `yakshaver-tokens/cli-bridge.json` — see "Security & Privacy"
 Database: `database.sqlite` (dev: `./data/database.sqlite`)
+Local recordings (default video host): `<OS Videos folder>/YakShaver/<YYYY-MM-DD HHmm - title>/` (`recording.*` + `transcript.txt`)
 Auth browser templates: `src/backend/assets/auth/*.html` (packaged via `extraResources`)
 
 ### Development Commands

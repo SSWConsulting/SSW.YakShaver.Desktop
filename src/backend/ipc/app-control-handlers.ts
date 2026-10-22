@@ -1,4 +1,6 @@
+import { promises as fs } from "node:fs";
 import { app, ipcMain, shell } from "electron";
+import { LocalVideoStorageService } from "../services/video/local-video-storage";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 
@@ -30,6 +32,32 @@ export class AppControlIPCHandlers {
         return { success: true };
       } catch (error) {
         console.error("Failed to open external url:", error);
+        return { success: false, error: formatAndReportError(error, "app_control") };
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.APP_GET_LOCAL_VIDEO_DIR, async () => {
+      try {
+        return { success: true, data: LocalVideoStorageService.getInstance().getRootDir() };
+      } catch (error) {
+        return { success: false, error: formatAndReportError(error, "app_control") };
+      }
+    });
+
+    // Opens the local recordings folder, or one recording's folder inside it. Anything outside
+    // that root is refused so the renderer can't use this to open arbitrary paths.
+    ipcMain.handle(IPC_CHANNELS.APP_OPEN_LOCAL_VIDEO_FOLDER, async (_, folder?: string) => {
+      try {
+        const storage = LocalVideoStorageService.getInstance();
+        const target = folder ?? storage.getRootDir();
+        if (!storage.isWithinRootDir(target)) {
+          return { success: false, error: "Folder is outside the local recordings folder" };
+        }
+        await fs.mkdir(target, { recursive: true });
+        // shell.openPath resolves to an error message (empty on success) rather than rejecting.
+        const openError = await shell.openPath(target);
+        return openError ? { success: false, error: openError } : { success: true };
+      } catch (error) {
         return { success: false, error: formatAndReportError(error, "app_control") };
       }
     });

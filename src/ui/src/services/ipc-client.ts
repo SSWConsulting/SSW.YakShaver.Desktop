@@ -150,6 +150,8 @@ declare global {
           error?: string;
         }>;
         cancelRetry: (shaveId: string) => Promise<{ success: boolean; error?: string }>;
+        stop: (shaveId: string) => Promise<{ success: boolean; error?: string }>;
+        restart: (shaveId: string) => Promise<{ success: boolean; error?: string }>;
       };
       mcp: {
         processMessage: (
@@ -227,6 +229,8 @@ declare global {
       app: {
         restart: () => Promise<{ success: boolean; error?: string }>;
         openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+        getLocalVideoDir: () => Promise<{ success: boolean; data?: string; error?: string }>;
+        openLocalVideoFolder: (folder?: string) => Promise<{ success: boolean; error?: string }>;
         onProtocolError: (callback: (message: string) => void) => () => void;
       };
       portal: {

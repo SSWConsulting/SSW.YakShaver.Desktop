@@ -124,7 +124,7 @@ vi.mock("./VideoPreviewModal", () => ({
 // accessible name plus aria-describedby for the unavailable-state explanation.
 const processYoutubeLink = () => {
   const wrapper = screen.queryByTitle(
-    /^Process YouTube URL($| \(unavailable (while recording|until a video host is connected|right now)\))/,
+    /^Process YouTube URL($| \(unavailable (while recording|right now)\))/,
   );
   return wrapper?.querySelector("button") ?? null;
 };
@@ -132,9 +132,7 @@ const processYoutubeLink = () => {
 // processYoutubeLink above) rather than on the <button>.
 const processYoutubeLinkTooltip = () =>
   screen
-    .queryByTitle(
-      /^Process YouTube URL($| \(unavailable (while recording|until a video host is connected|right now)\))/,
-    )
+    .queryByTitle(/^Process YouTube URL($| \(unavailable (while recording|right now)\))/)
     ?.getAttribute("title") ?? null;
 const processYoutubeLinkDescription = () => {
   const button = processYoutubeLink();
@@ -213,21 +211,22 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
     expect(screen.getByRole("button", { name: /Stop Recording/i })).toBeEnabled();
   });
 
-  it("disables the Process YouTube link with a video-host-specific title when no host is connected (#947)", async () => {
-    // The video-host auth gate is a distinct shared disable cause from
-    // active recording. Drive it via
-    // AuthStatus.NOT_AUTHENTICATED (the real enum member — not an ad hoc
-    // string) — no recording in progress — so
-    // no recording in progress, so only the video-host auth sub-cause applies.
-    // Unlike transient processing/transcribing, connecting a video host
-    // requires user action, so it gets its own copy rather than the generic
-    // "unavailable right now".
+  it("keeps Record and the Process YouTube link available when no video host is connected (#1062)", async () => {
+    // Local storage is the default video host, so a missing YouTube connection
+    // must not block recording (the recording is saved locally instead).
     state.authStatus = AuthStatus.NOT_AUTHENTICATED;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
-    expectProcessYoutubeLinkUnavailable(
-      "Process YouTube URL (unavailable until a video host is connected)",
-    );
+    expect(processYoutubeLink()).not.toHaveAttribute("aria-disabled", "true");
+    expect(processYoutubeLinkTooltip()).toBe("Process YouTube URL");
+    expect(screen.getByRole("button", { name: /^Record$/ })).toBeEnabled();
+  });
+
+  it("does not ask the user to connect a video platform before recording (#1062)", async () => {
+    state.authStatus = AuthStatus.NOT_AUTHENTICATED;
+    render(<ScreenRecorder />);
+    await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
+    expect(screen.queryByText(/connect a video platform/i)).not.toBeInTheDocument();
   });
 
   it("disables the Process YouTube link with the generic title when disabled via the plain isDisabled cause (#947)", async () => {
@@ -251,14 +250,12 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
   });
 
   it("keeps the unavailable Process YouTube link focusable but blocks activation", async () => {
-    state.authStatus = AuthStatus.NOT_AUTHENTICATED;
+    state.isProcessing = true;
     render(<ScreenRecorder showButtonOnly />);
     await waitFor(() => expect(processYoutubeLink()).toBeInTheDocument());
     const button = processYoutubeLink();
 
-    expectProcessYoutubeLinkUnavailable(
-      "Process YouTube URL (unavailable until a video host is connected)",
-    );
+    expectProcessYoutubeLinkUnavailable("Process YouTube URL (unavailable right now)");
     fireEvent.click(button as HTMLElement);
 
     expect(screen.queryByLabelText("YouTube URL")).not.toBeInTheDocument();
@@ -399,6 +396,18 @@ describe("ScreenRecorder - Process YouTube link visibility (#946)", () => {
       undefined,
       false,
     );
+  });
+
+  it('names a new recording after when it was made instead of "Untitled" (#1062)', async () => {
+    render(<ScreenRecorder showButtonOnly />);
+
+    await act(async () => state.stopRequestHandler?.());
+    fireEvent.click(await screen.findByTestId("continue-recording"));
+
+    await waitFor(() => expect(state.saveRecording).toHaveBeenCalled());
+    const [shaveData] = state.saveRecording.mock.calls[0];
+    expect(shaveData.title).toMatch(/^Recording \S/);
+    expect(shaveData.title).not.toBe("Untitled");
   });
 
   it("keeps the Process YouTube link enabled while a URL submit is still pending", async () => {

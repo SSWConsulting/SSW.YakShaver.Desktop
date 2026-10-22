@@ -343,8 +343,14 @@ export class MCPServerManager {
     const merged = mergedRecord as unknown as MCPServerConfig;
 
     MCPServerManager.validateServerConfig(merged);
+    // Only a rename can introduce a clash. Checking an unchanged name would lock out a server
+    // saved before a same-named preset was added (e.g. a user's own "Jira"), so it could never
+    // even be disconnected (#1062).
     const allConfigs = MCPServerManager.mergeWithInternalServers(storedConfigs);
-    if (hasDuplicateServerName(allConfigs, merged.name, existing.id)) {
+    if (
+      merged.name !== existing.name &&
+      hasDuplicateServerName(allConfigs, merged.name, existing.id)
+    ) {
       throw new Error(`Server with name '${merged.name}' already exists`);
     }
 

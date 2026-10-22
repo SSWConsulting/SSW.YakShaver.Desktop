@@ -36,6 +36,7 @@ import { CountdownWindow } from "./services/recording/countdown-window";
 import { RecordingService } from "./services/recording/recording-service";
 import { ScreenFrameWindow } from "./services/recording/screen-frame-window";
 import { HotkeyManager } from "./services/settings/hotkey-manager";
+import { ShaveService } from "./services/shave/shave-service";
 import { removeLegacyGitHubToken } from "./services/storage/legacy-github-token-cleanup";
 import { UserSettingsStorage } from "./services/storage/user-settings-storage";
 import { TelemetryService } from "./services/telemetry/telemetry-service";
@@ -443,6 +444,17 @@ app.whenReady().then(async () => {
       "Database Initialization Failed",
       `Failed to initialize the database. The app will continue but data may not be saved.\n\nError: ${error instanceof Error ? error.message : String(error)}`,
     );
+  }
+
+  // #1062: workflows live in memory, so any shave still "Processing" was cut off when the app
+  // last closed. Mark it Failed so My Shaves stops showing it as running and it can be retried.
+  try {
+    const interrupted = ShaveService.getInstance().markInterruptedShavesAsFailed();
+    if (interrupted > 0) {
+      console.log(`[Startup] Marked ${interrupted} interrupted shave(s) as Failed.`);
+    }
+  } catch (error) {
+    console.warn("[Startup] Failed to reconcile interrupted shaves:", error);
   }
 
   session.defaultSession.setPermissionCheckHandler(() => true);

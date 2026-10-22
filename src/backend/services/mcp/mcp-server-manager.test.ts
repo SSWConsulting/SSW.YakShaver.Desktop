@@ -97,6 +97,46 @@ describe("MCPServerManager server name uniqueness", () => {
     expect(storageState.configs).toEqual([{ ...GITHUB_PRESET_CONFIG, enabled: true }]);
   });
 
+  it("#1062: stores a GitHub personal access token and forgets it on disconnect", async () => {
+    const manager = await MCPServerManager.getInstanceAsync();
+    const withToken = {
+      ...GITHUB_PRESET_CONFIG,
+      headers: { Authorization: "Bearer github_pat_123" },
+      enabled: true,
+    } satisfies MCPServerConfig;
+
+    await manager.updateServerAsync(PRESET_SERVER_IDS.GITHUB, withToken);
+    expect(storageState.configs[0]).toEqual(withToken);
+
+    await manager.updateServerAsync(PRESET_SERVER_IDS.GITHUB, {
+      ...withToken,
+      headers: undefined,
+      enabled: false,
+    });
+    expect(storageState.configs[0].enabled).toBe(false);
+    expect(
+      storageState.configs[0].transport === "streamableHttp" && storageState.configs[0].headers,
+    ).toBeFalsy();
+  });
+
+  it("#1062: still updates a server saved before a preset with the same name existed", async () => {
+    // A user-added "Jira" predates the Jira preset; disconnecting it must not fail with
+    // "Server with name 'Jira' already exists" just because the (unconnected) preset is listed.
+    const legacyJira = {
+      id: "19af7b23-6149-46cd-9a0d-9d21316f64da",
+      name: "Jira",
+      transport: "streamableHttp",
+      url: "https://mcp.atlassian.com/v1/mcp",
+      enabled: true,
+    } satisfies MCPServerConfig;
+    storageState.configs = [legacyJira];
+    const manager = await MCPServerManager.getInstanceAsync();
+
+    await manager.updateServerAsync(legacyJira.id, { ...legacyJira, enabled: false });
+
+    expect(storageState.configs[0].enabled).toBe(false);
+  });
+
   it("rejects renaming a server to an existing name", async () => {
     const manager = await MCPServerManager.getInstanceAsync();
     const first = await manager.addServerAsync(createServer("first"));

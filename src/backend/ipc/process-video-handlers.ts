@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { type IpcMainInvokeEvent, ipcMain } from "electron";
 import tmp from "tmp";
 import { z } from "zod";
@@ -32,6 +33,7 @@ import { LlmStorage } from "../services/storage/llm-storage";
 import { UserSettingsStorage } from "../services/storage/user-settings-storage";
 import { optimizeTranscript } from "../services/transcript/optimize-transcript-service";
 import { UserInteractionService } from "../services/user-interaction/user-interaction-service";
+import { LocalVideoStorageService } from "../services/video/local-video-storage";
 import { VideoMetadataBuilder } from "../services/video/video-metadata-builder";
 import { YouTubeDownloadService } from "../services/video/youtube-service";
 import { runManualLoopWithTimeout } from "../services/workflow/executing-task-timeout";
@@ -40,11 +42,18 @@ import { formatNoWorkItemError } from "../services/workflow/no-work-item-error";
 import { PromptSelectionService } from "../services/workflow/prompt-selection-service";
 import { reconcileWorkItemTitleAsync } from "../services/workflow/title-reconciliation";
 import {
+  buildLocalSaveStagePayload,
+  ingestRecordingAsync,
+} from "../services/workflow/video-ingest";
+import {
   applyPortalVideoFields,
   applyResolvedTitleToOwnedVideoMetadata,
   applyVideoMetadataPersistence,
 } from "../services/workflow/video-metadata-persistence";
-import { WorkflowCancelledError } from "../services/workflow/workflow-cancelled-error";
+import {
+  WORKFLOW_STOPPED_BY_USER_MESSAGE,
+  WorkflowCancelledError,
+} from "../services/workflow/workflow-cancelled-error";
 import type { CheckpointData } from "../services/workflow/workflow-checkpoint-service";
 import {
   type RetryResult,
@@ -55,10 +64,10 @@ import {
 } from "../services/workflow/workflow-retry-service";
 import { WorkflowStateManager } from "../services/workflow/workflow-state-manager";
 import {
-  applyUploadStageOutcome,
   resolveMetadataStage,
   shouldFailStageOnUnexpectedError,
 } from "../services/workflow/youtube-stage-decisions";
+import { ShaveStatus } from "../types";
 import { formatAndReportError } from "../utils/error-utils";
 import { IPC_CHANNELS } from "./channels";
 import { runCloud360Path, shouldUseCloud360 } from "./process-video-cloud360";
@@ -78,6 +87,7 @@ export const TranscriptSummarySchema = z.object({
 
 export class ProcessVideoIPCHandlers {
   private readonly youtube = YouTubeClient.getInstance();
+  private readonly localVideoStorage = LocalVideoStorageService.getInstance();
   private ffmpegService = FFmpegService.getInstance();
   private readonly metadataBuilder: VideoMetadataBuilder;
   private readonly youtubeDownloadService = YouTubeDownloadService.getInstance();
@@ -87,11 +97,14 @@ export class ProcessVideoIPCHandlers {
   private readonly retryService: WorkflowRetryService;
   private activeRetries: Set<string> = new Set();
   private activeWorkflows: Set<string> = new Set();
+  // #1062: one per running shave, so Stop in My Shaves can reach the run.
+  private stopControllers: Map<string, AbortController> = new Map();
 
   constructor() {
     this.metadataBuilder = new VideoMetadataBuilder();
     this.retryService = new WorkflowRetryService({
       youtube: this.youtube,
+      localVideoStorage: this.localVideoStorage,
       youtubeDownloadService: this.youtubeDownloadService,
       processVideoSource: this.processVideoSource.bind(this),
       trackTempFile: this.trackTempFile.bind(this),
@@ -118,7 +131,12 @@ export class ProcessVideoIPCHandlers {
         if (await shouldUseCloud360()) {
           return await runCloud360Path(filePath, shaveId, projectId, durationSeconds);
         }
-        return await this.processFileVideo(filePath, shaveId, shaveAutoApprove);
+        if (shaveId && this.isRunning(shaveId)) {
+          return { success: false, error: "A workflow is already in progress for this shave." };
+        }
+        return await this.recordOutcomeAsync(shaveId, () =>
+          this.processFileVideo(filePath, shaveId, shaveAutoApprove),
+        );
       },
     );
 
@@ -128,10 +146,44 @@ export class ProcessVideoIPCHandlers {
         if (!url) {
           throw new Error("video-process-handler: Video URL is required");
         }
+        if (shaveId && this.isRunning(shaveId)) {
+          return { success: false, error: "A workflow is already in progress for this shave." };
+        }
 
-        return await this.processUrlVideo(url, shaveId);
+        return await this.recordOutcomeAsync(shaveId, () => this.processUrlVideo(url, shaveId));
       },
     );
+
+    // #1062: Stop from My Shaves. A live run ends at its next safe point; a shave whose run is
+    // gone (e.g. the app restarted mid-run) is simply recorded as stopped.
+    ipcMain.handle(IPC_CHANNELS.WORKFLOW_STOP, async (_event, shaveId?: string) => {
+      if (!shaveId) {
+        return { success: false, error: "Shave ID is required" };
+      }
+      try {
+        const controller = this.stopControllers.get(shaveId);
+        if (controller) {
+          controller.abort();
+        } else {
+          ShaveService.getInstance().updateShaveStatus(shaveId, ShaveStatus.Cancelled);
+        }
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: formatAndReportError(error, "workflow_stop") };
+      }
+    });
+
+    // #1062: Retry from My Shaves — re-run the whole workflow on the same video.
+    ipcMain.handle(IPC_CHANNELS.WORKFLOW_RESTART, async (_event, shaveId?: string) => {
+      if (!shaveId) {
+        return { success: false, error: "Shave ID is required" };
+      }
+      try {
+        return this.restartShave(shaveId);
+      } catch (error) {
+        return { success: false, error: formatAndReportError(error, "workflow_restart") };
+      }
+    });
 
     // Re-execute: user-initiated re-run from SELECTING_PROMPT with modified input after a successful workflow.
     // Different from WORKFLOW_RETRY_FROM_STAGE which resumes from a failed checkpoint.
@@ -266,18 +318,22 @@ export class ProcessVideoIPCHandlers {
           return { success: false, error: "A retry is already in progress for this workflow." };
         }
 
-        if (shaveId) this.activeRetries.add(shaveId);
+        if (shaveId) {
+          this.activeRetries.add(shaveId);
+          this.stopControllers.set(shaveId, new AbortController());
+        }
         try {
-          return await this.retryService.retryFromStage(
-            stage,
-            shaveId,
-            customPrompt?.trim() || undefined,
+          return await this.recordOutcomeAsync(shaveId, () =>
+            this.retryService.retryFromStage(stage, shaveId, customPrompt?.trim() || undefined),
           );
         } catch (error) {
           const errorMessage = formatAndReportError(error, "retry_from_stage");
           return { success: false, error: errorMessage };
         } finally {
-          if (shaveId) this.activeRetries.delete(shaveId);
+          if (shaveId) {
+            this.activeRetries.delete(shaveId);
+            this.stopControllers.delete(shaveId);
+          }
         }
       },
     );
@@ -338,7 +394,20 @@ export class ProcessVideoIPCHandlers {
     });
   }
 
-  private async processFileVideo(filePath: string, shaveId?: string, shaveAutoApprove?: boolean) {
+  private async processFileVideo(
+    filePath: string,
+    shaveId?: string,
+    shaveAutoApprove?: boolean,
+    {
+      existingLocalFolder,
+    }: {
+      /**
+       * #1062: retrying a recording kept in local storage. It's the user's copy, not a temp file,
+       * so it is never cleaned up, and the upload stage reuses its folder instead of copying it.
+       */
+      existingLocalFolder?: string;
+    } = {},
+  ) {
     // check file exists
     if (!fs.existsSync(filePath)) {
       throw new Error("video-process-handler: Video file does not exist");
@@ -351,12 +420,15 @@ export class ProcessVideoIPCHandlers {
     }
 
     this.activeWorkflows.add(effectiveShaveId);
+    this.stopControllers.set(effectiveShaveId, new AbortController());
     try {
       const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
       this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
 
       this.lastVideoFilePath = filePath;
-      this.trackTempFile(filePath, effectiveShaveId);
+      if (!existingLocalFolder) {
+        this.trackTempFile(filePath, effectiveShaveId);
+      }
 
       workflowManager.startStage(WorkflowProgressStage.UPLOADING_VIDEO);
       workflowManager.skipStage(WorkflowProgressStage.DOWNLOADING_VIDEO);
@@ -375,28 +447,30 @@ export class ProcessVideoIPCHandlers {
       }
 
       try {
-        const youtubeResult = await this.youtube.uploadVideo(filePath);
-
-        if (youtubeResult.success && youtubeResult.data && duration) {
-          youtubeResult.data.duration = duration;
+        // Uploads to the connected video host, or keeps the recording locally when there is none.
+        const { youtubeResult, localFolder } = await ingestRecordingAsync(
+          filePath,
+          duration,
+          { youtube: this.youtube, localVideoStorage: this.localVideoStorage },
+          workflowManager,
+          existingLocalFolder,
+        );
+        if (localFolder && shaveId) {
+          this.persistLocalRecordingPath(shaveId, localFolder, filePath);
         }
-
-        // #672: only show a green tick when the upload actually succeeded. uploadVideo returns
-        // { success:false } (without throwing) when e.g. the Google account has no YouTube
-        // channel — previously that still completed the stage, leaving a green tick and no link.
-        // Mark it failed (so the user sees why) but keep going: the work item is still worth creating.
-        applyUploadStageOutcome(youtubeResult, filePath, workflowManager);
 
         // Update checkpoint with upload result
         workflowManager.createCheckpoint(WorkflowProgressStage.UPLOADING_VIDEO, {
           filePath,
           youtubeResult,
+          localFolder,
         });
 
         return await this.processVideoSource(
           {
             filePath,
             youtubeResult,
+            localFolder,
             shaveId: effectiveShaveId,
             shaveAutoApprove,
           },
@@ -409,6 +483,7 @@ export class ProcessVideoIPCHandlers {
       }
     } finally {
       this.activeWorkflows.delete(effectiveShaveId);
+      this.stopControllers.delete(effectiveShaveId);
     }
   }
 
@@ -420,6 +495,7 @@ export class ProcessVideoIPCHandlers {
     }
 
     this.activeWorkflows.add(effectiveShaveId);
+    this.stopControllers.set(effectiveShaveId, new AbortController());
     try {
       const workflowManager = this.getOrCreateWorkflowManager(effectiveShaveId);
       this.workflowManagers.set(workflowManager.getWorkflowId(), workflowManager);
@@ -471,11 +547,19 @@ export class ProcessVideoIPCHandlers {
       }
     } finally {
       this.activeWorkflows.delete(effectiveShaveId);
+      this.stopControllers.delete(effectiveShaveId);
     }
   }
 
   private async processVideoSource(
-    { filePath, youtubeResult, shaveId, shaveAutoApprove, customPrompt }: VideoProcessingContext,
+    {
+      filePath,
+      youtubeResult,
+      localFolder: contextLocalFolder,
+      shaveId,
+      shaveAutoApprove,
+      customPrompt,
+    }: VideoProcessingContext,
     workflowManager: WorkflowStateManager,
     startFromStage?: keyof WorkflowState,
   ): Promise<RetryResult> {
@@ -486,8 +570,16 @@ export class ProcessVideoIPCHandlers {
 
     const startIdx = startFromStage ? Math.max(0, WORKFLOW_STAGE_ORDER.indexOf(startFromStage)) : 0;
 
-    const shouldRunStage = (stage: keyof WorkflowState) =>
-      WORKFLOW_STAGE_ORDER.indexOf(stage) >= startIdx;
+    const stopSignal = shaveId ? this.stopControllers.get(shaveId)?.signal : undefined;
+    const shouldRunStage = (stage: keyof WorkflowState) => {
+      if (WORKFLOW_STAGE_ORDER.indexOf(stage) < startIdx) return false;
+      // #1062: the user pressed Stop — end before this stage, marking it as stopped.
+      if (stopSignal?.aborted) {
+        workflowManager.failStage(stage, WORKFLOW_STOPPED_BY_USER_MESSAGE, { cancelled: true });
+        throw new WorkflowCancelledError();
+      }
+      return true;
+    };
 
     // Resolve merged checkpoint data for skipped stages' outputs
     const checkpoint: CheckpointData =
@@ -532,6 +624,8 @@ export class ProcessVideoIPCHandlers {
     // otherwise the one the orchestrator reported filing. Restored from the checkpoint so a
     // metadata-only retry — which skips the EXECUTING_TASK block that computes it — still has it.
     let effectiveTitle: string | undefined = checkpoint.effectiveTitle;
+    // #1062: set when no video host is connected; the transcript is saved alongside the recording.
+    let localFolder: string | undefined = contextLocalFolder ?? checkpoint.localFolder;
 
     let currentStage: keyof WorkflowState | null = null;
 
@@ -596,6 +690,7 @@ export class ProcessVideoIPCHandlers {
         }
 
         workflowManager.completeStage(WorkflowProgressStage.TRANSCRIBING, transcriptText);
+        await this.saveLocalTranscriptAsync(localFolder, transcriptText);
         workflowManager.createCheckpoint(WorkflowProgressStage.TRANSCRIBING, {
           transcript,
           transcriptText,
@@ -742,6 +837,7 @@ export class ProcessVideoIPCHandlers {
             serverFilter,
             shaveId,
             onStep: mcpAdapter.onStep,
+            signal: stopSignal,
           },
           executingTaskTimeoutMs,
           () => mcpAdapter.discard(),
@@ -786,12 +882,21 @@ export class ProcessVideoIPCHandlers {
           })
         ).title;
         this.persistShaveTitle(shaveId, effectiveTitle);
+        localFolder = await this.renameLocalFolderWithTitleAsync(
+          localFolder,
+          effectiveTitle,
+          filePath,
+          workflowManager,
+          shaveId,
+        );
 
-        // Checkpointed AFTER the read so a retry from a later stage inherits the same title.
+        // Checkpointed AFTER the read so a retry from a later stage inherits the same title
+        // (and the renamed local folder, which overrides the upload stage's copy when merged).
         workflowManager.createCheckpoint(WorkflowProgressStage.EXECUTING_TASK, {
           mcpResult,
           finalOutput,
           effectiveTitle,
+          localFolder,
         });
 
         // Send to portal if authenticated and project is remote — non-fatal, does not affect workflow stage status
@@ -1013,6 +1118,171 @@ export class ProcessVideoIPCHandlers {
     }
   }
 
+  private isRunning(shaveId: string): boolean {
+    return this.activeWorkflows.has(shaveId) || this.activeRetries.has(shaveId);
+  }
+
+  /**
+   * #1062: the backend owns how a run ENDS badly. The UI only learns a final status from the
+   * Executing Task output, so a run that failed earlier (no speech, no work item, a stop, …) used
+   * to stay "Processing" forever. Success is still recorded by the UI from the final output.
+   */
+  private async recordOutcomeAsync<T extends { success: boolean; error?: string }>(
+    shaveId: string | undefined,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      const result = await run();
+      if (shaveId && !result.success) {
+        this.markShaveEnded(shaveId, result.error);
+      }
+      return result;
+    } catch (error) {
+      if (shaveId) {
+        this.markShaveEnded(shaveId, error instanceof Error ? error.message : undefined);
+      }
+      throw error;
+    }
+  }
+
+  private markShaveEnded(shaveId: string, error: string | undefined): void {
+    try {
+      const shaveService = ShaveService.getInstance();
+      const shave = shaveService.getShaveById(shaveId);
+      // A run that already produced a work item keeps the status the UI recorded for it.
+      if (!shave || shave.shaveStatus === ShaveStatus.Completed) {
+        return;
+      }
+      const cancelled = error === WORKFLOW_STOPPED_BY_USER_MESSAGE;
+      shaveService.updateShaveStatus(
+        shaveId,
+        cancelled ? ShaveStatus.Cancelled : ShaveStatus.Failed,
+      );
+    } catch (statusError) {
+      console.warn(
+        "[ProcessVideo] Failed to record the shave's final status (non-fatal):",
+        formatAndReportError(statusError, "record_shave_outcome"),
+      );
+    }
+  }
+
+  /** #1062: lets Retry find a locally kept recording after its temp file is gone. Non-fatal. */
+  private persistLocalRecordingPath(shaveId: string, localFolder: string, filePath: string): void {
+    try {
+      ShaveService.getInstance().setShaveRecordingPath(
+        shaveId,
+        this.localVideoStorage.getRecordingFilePath(localFolder, filePath),
+      );
+    } catch (error) {
+      console.warn(
+        "[ProcessVideo] Failed to record the local recording path (non-fatal):",
+        formatAndReportError(error, "persist_local_recording_path"),
+      );
+    }
+  }
+
+  /**
+   * #1062: Retry from My Shaves re-runs the whole workflow on the same video — the locally kept
+   * recording when there is one, otherwise the uploaded YouTube video.
+   */
+  private restartShave(shaveId: string): RetryResult {
+    if (this.isRunning(shaveId)) {
+      return { success: false, error: "This shave is still processing." };
+    }
+
+    const shaveService = ShaveService.getInstance();
+    const shave = shaveService.getShaveById(shaveId);
+    if (!shave) {
+      return { success: false, error: "Shave not found." };
+    }
+
+    const recordingPath = shaveService.getShaveRecordingFile(shaveId)?.localPath;
+    const videoUrl = shave.videoEmbedUrl;
+    let run: (() => Promise<RetryResult>) | undefined;
+    if (recordingPath && fs.existsSync(recordingPath)) {
+      const isLocalCopy = this.localVideoStorage.isWithinRootDir(recordingPath);
+      run = () =>
+        this.processFileVideo(recordingPath, shaveId, undefined, {
+          existingLocalFolder: isLocalCopy ? path.dirname(recordingPath) : undefined,
+        });
+    } else if (videoUrl) {
+      run = () => this.processUrlVideo(videoUrl, shaveId);
+    }
+    if (!run) {
+      return {
+        success: false,
+        error: "The original recording is no longer available, so this shave can't be retried.",
+      };
+    }
+
+    shaveService.updateShaveStatus(shaveId, ShaveStatus.Processing);
+    // File runs normally get a fresh shave id; this one reuses it, so drop the previous run.
+    this.getOrCreateWorkflowManager(shaveId).reset({ silent: true });
+
+    // Started, not awaited: the caller only needs to know the retry began (progress is broadcast
+    // as usual). recordOutcomeAsync records a failure on the shave before rethrowing it here.
+    this.recordOutcomeAsync(shaveId, run).catch((error) => {
+      console.error("[ProcessVideo] Retried shave failed:", formatAndReportError(error, "restart"));
+    });
+    return { success: true };
+  }
+
+  /** #1062: keeps the transcript next to a locally saved recording. Non-fatal. */
+  private async saveLocalTranscriptAsync(
+    localFolder: string | undefined,
+    transcriptText: string,
+  ): Promise<void> {
+    if (!localFolder) {
+      return;
+    }
+
+    try {
+      await this.localVideoStorage.saveTranscriptAsync(localFolder, transcriptText);
+    } catch (error) {
+      console.warn(
+        "[ProcessVideo] Failed to save the transcript locally (non-fatal):",
+        formatAndReportError(error, "save_local_transcript"),
+      );
+    }
+  }
+
+  /**
+   * #1062: once the work item title is known, renames a locally saved recording's folder to carry
+   * it, and points the "Uploading Video" stage at the new path so Open folder keeps working.
+   * Non-fatal — on failure the folder keeps its date-only name. Returns the folder's current path.
+   */
+  private async renameLocalFolderWithTitleAsync(
+    localFolder: string | undefined,
+    title: string | undefined,
+    filePath: string,
+    workflowManager: WorkflowStateManager,
+    shaveId?: string,
+  ): Promise<string | undefined> {
+    if (!localFolder || !title) {
+      return localFolder;
+    }
+
+    try {
+      const renamed = await this.localVideoStorage.renameWithTitleAsync(localFolder, title);
+      if (renamed !== localFolder) {
+        workflowManager.updateStagePayload(
+          WorkflowProgressStage.UPLOADING_VIDEO,
+          buildLocalSaveStagePayload(filePath, renamed),
+        );
+        if (shaveId) {
+          this.persistLocalRecordingPath(shaveId, renamed, filePath);
+        }
+      }
+      return renamed;
+    } catch (error) {
+      console.warn(
+        "[ProcessVideo] Failed to rename the local recording folder (non-fatal):",
+        formatAndReportError(error, "rename_local_folder"),
+      );
+      return localFolder;
+    }
+  }
+
   /**
    * Selects the orchestrator backend for the backlog-creation step from the persisted LLM config.
    * `local-claude` drives the step with a headless `claude -p`; anything else (including a config
@@ -1216,7 +1486,12 @@ export class ProcessVideoIPCHandlers {
       // Mark video files as deleted in database only when files are actually cleaned up
       try {
         const shaveService = ShaveService.getInstance();
-        shaveService.markShaveVideoFilesAsDeleted(shaveId);
+        // #1062: only when the shave's own recording was one of the deleted temp files — a
+        // recording kept in local storage is the user's copy and must stay retryable.
+        const recordingPath = shaveService.getShaveRecordingFile(shaveId)?.localPath;
+        if (recordingPath && files.includes(recordingPath)) {
+          shaveService.markShaveVideoFilesAsDeleted(shaveId);
+        }
       } catch (dbError) {
         console.warn("[ProcessVideo] Failed to mark video files as deleted", dbError);
       }

@@ -9,8 +9,6 @@ import {
   CLI_BRIDGE_TOKEN_ENV,
 } from "../../../shared/cli-bridge/protocol";
 import type { ToolApprovalMode } from "../../../shared/types/user-settings";
-import { VIDEO_LINK_EMBEDDING_RULES } from "../../constants/prompts";
-import { getDurationParts } from "../../utils/duration-utils";
 import type { VideoUploadResult } from "../auth/types";
 import type { IProcessSpawner } from "../process/process-spawner";
 import { UserSettingsStorage } from "../storage/user-settings-storage";
@@ -25,7 +23,7 @@ import {
 } from "./backlog-orchestrator";
 import { LanguageModelProvider } from "./language-model-provider";
 import { MCPServerManager } from "./mcp-server-manager";
-import { orchestratorSystemPrompt } from "./prompts";
+import { appendVideoInfoToSystemPrompt, orchestratorSystemPrompt } from "./prompts";
 
 /** Default safety cap on tool iterations when the caller doesn't supply one (mirrors the OpenAI loop). */
 const DEFAULT_MAX_TOOL_ITERATIONS = 20;
@@ -301,33 +299,7 @@ export class LocalClaudeOrchestrator implements IBacklogOrchestrator {
       ? `\n---\nProject Prompt:\n${desktopAgentProjectPrompt}`
       : "";
 
-    const videoUrl = videoUploadResult?.data?.url;
-    const duration = videoUploadResult?.data?.duration;
-    if (videoUrl) {
-      const isValidDuration = typeof duration === "number" && duration > 0;
-      const videoEmbeddingRules = systemPrompt.includes(VIDEO_LINK_EMBEDDING_RULES)
-        ? ""
-        : `\n${VIDEO_LINK_EMBEDDING_RULES}`;
-      if (isValidDuration) {
-        const outputDuration = getDurationParts(duration);
-        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
-Video duration:
-- totalSeconds: ${outputDuration.totalSeconds}
-- hours: ${outputDuration.hours}
-- minutes: ${outputDuration.minutes}
-- seconds: ${outputDuration.seconds}
-${videoEmbeddingRules}`;
-      } else {
-        systemPrompt += `\n\nThis is the uploaded video URL: ${videoUrl}.
-${videoEmbeddingRules}`;
-      }
-    }
-
-    if (videoFilePath) {
-      systemPrompt += `\n\nVideo file available for screenshot capture: ${videoFilePath}.`;
-    }
-
-    return systemPrompt;
+    return appendVideoInfoToSystemPrompt(systemPrompt, videoUploadResult, videoFilePath);
   }
 
   /**

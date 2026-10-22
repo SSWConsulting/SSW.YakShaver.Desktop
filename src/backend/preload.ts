@@ -85,6 +85,9 @@ const IPC_CHANNELS = {
   WORKFLOW_GET_STATE: "workflow:get-state",
   WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
   WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
+  // My Shaves Stop / Retry (#1062): stop a running shave; re-run a shave on the same video.
+  WORKFLOW_STOP: "workflow:stop",
+  WORKFLOW_RESTART: "workflow:restart",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
@@ -120,6 +123,8 @@ const IPC_CHANNELS = {
   // App Control
   APP_RESTART: "app:restart",
   APP_OPEN_EXTERNAL: "app:open-external",
+  APP_GET_LOCAL_VIDEO_DIR: "app:get-local-video-dir",
+  APP_OPEN_LOCAL_VIDEO_FOLDER: "app:open-local-video-folder",
 
   // Protocol
   PROTOCOL_ERROR: "protocol:error",
@@ -266,6 +271,8 @@ const electronAPI = {
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_GET_RETRY_STATUS, shaveId),
     cancelRetry: (shaveId: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_CANCEL_RETRY, shaveId),
+    stop: (shaveId: string) => ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_STOP, shaveId),
+    restart: (shaveId: string) => ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RESTART, shaveId),
   },
   cloud360: {
     listProjects: () => ipcRenderer.invoke(IPC_CHANNELS.CLOUD360_LIST_PROJECTS),
@@ -367,6 +374,9 @@ const electronAPI = {
   app: {
     restart: () => ipcRenderer.invoke(IPC_CHANNELS.APP_RESTART),
     openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_EXTERNAL, url),
+    getLocalVideoDir: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_LOCAL_VIDEO_DIR),
+    openLocalVideoFolder: (folder?: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_LOCAL_VIDEO_FOLDER, folder),
     onProtocolError: (callback: (message: string) => void) =>
       onIpcEvent<string>(IPC_CHANNELS.PROTOCOL_ERROR, callback),
   },

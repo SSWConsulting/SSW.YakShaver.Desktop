@@ -184,6 +184,25 @@ describe("MCPServerClient.createClientAsync — recoverable OAuth (#771)", () =>
     });
   });
 
+  it("#1062: uses a configured Authorization header (e.g. a GitHub PAT) without starting OAuth", async () => {
+    // A personal access token must work without a YakShaver sign-in, so the backend OAuth
+    // (which requires one) is never attempted when the user supplied their own credential.
+    const patServer = {
+      ...SERVER_CONFIG,
+      url: "https://api.githubcopilot.com/mcp/",
+      headers: { Authorization: "Bearer github_pat_123" },
+    } satisfies MCPServerConfig;
+
+    const client = await MCPServerClient.createClientAsync(patServer);
+
+    expect(mocks.authorize).not.toHaveBeenCalled();
+    expect(mocks.refreshWithRetry).not.toHaveBeenCalled();
+    expect(client.builtin).toBe(false);
+    expect(mocks.createMcpClient).toHaveBeenCalledWith({
+      transport: { type: "http", url: patServer.url, headers: patServer.headers },
+    });
+  });
+
   it("falls back to explicit headers when a custom HTTP server does not support OAuth", async () => {
     const headerAuthenticatedServer = {
       ...SERVER_CONFIG,

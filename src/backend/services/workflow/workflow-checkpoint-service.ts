@@ -12,6 +12,8 @@ export interface CheckpointData {
   // UPLOADING_VIDEO
   filePath?: string;
   youtubeResult?: VideoUploadResult;
+  /** #1062: where the recording was kept when no video host is connected. */
+  localFolder?: string;
 
   // DOWNLOADING_VIDEO
   downloadUrl?: string;

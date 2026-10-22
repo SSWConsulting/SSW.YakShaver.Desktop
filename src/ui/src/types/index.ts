@@ -30,7 +30,8 @@ export interface YouTubeConfig {
   clientSecret: string;
 }
 
-export type VideoUploadOrigin = "upload" | "external";
+// "local": no video host connected, so the recording was kept on disk instead (#1062).
+export type VideoUploadOrigin = "upload" | "external" | "local";
 
 export interface VideoUploadResult {
   success: boolean;
@@ -136,6 +137,13 @@ export type UndoEventDetail = {
  * panels reset together rather than leaving an orphaned Final Result card behind.
  */
 export const WORKFLOW_CLEAR_EVENT_CHANNEL = "yakshaver:workflow-clear";
+
+/**
+ * Window event fired after My Shaves stops or retries a shave (#1062). Stopping a shave whose
+ * run is gone changes its status without any workflow progress event, so the list re-fetches
+ * on this too.
+ */
+export const SHAVES_CHANGED_EVENT = "yakshaver:shaves-changed";
 
 /** Fired after LLM/orchestrator settings save so config-derived views re-read without a remount. */
 export const LLM_CONFIG_CHANGED_EVENT = "yakshaver:llm-config-changed";

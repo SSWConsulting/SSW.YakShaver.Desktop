@@ -69,6 +69,9 @@ export const IPC_CHANNELS = {
   WORKFLOW_GET_STATE: "workflow:get-state",
   WORKFLOW_GET_RETRY_STATUS: "workflow:get-retry-status",
   WORKFLOW_CANCEL_RETRY: "workflow:cancel-retry",
+  // My Shaves Stop / Retry (#1062): stop a running shave; re-run a shave on the same video.
+  WORKFLOW_STOP: "workflow:stop",
+  WORKFLOW_RESTART: "workflow:restart",
 
   // Video upload with recorded file
   UPLOAD_RECORDED_VIDEO: "upload-recorded-video",
@@ -104,6 +107,9 @@ export const IPC_CHANNELS = {
   // App Control
   APP_RESTART: "app:restart",
   APP_OPEN_EXTERNAL: "app:open-external",
+  // Local storage, the default video host (#1062)
+  APP_GET_LOCAL_VIDEO_DIR: "app:get-local-video-dir",
+  APP_OPEN_LOCAL_VIDEO_FOLDER: "app:open-local-video-folder",
 
   // Protocol
   PROTOCOL_ERROR: "protocol:error",

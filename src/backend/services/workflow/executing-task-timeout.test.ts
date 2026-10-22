@@ -146,4 +146,46 @@ describe("runManualLoopWithTimeout — #698 wall-clock guard on the Executing Ta
 
     expect(onTimeout).not.toHaveBeenCalled();
   });
+
+  it("#1062: forwards the user's Stop to the orchestrator", async () => {
+    const stop = new AbortController();
+    let seenSignal: AbortSignal | undefined;
+    const orchestrator: IBacklogOrchestrator = {
+      manualLoopAsync: vi.fn().mockImplementation(async (_t, _v, options) => {
+        seenSignal = options?.signal;
+        return {
+          text: "",
+          backlogActionSucceeded: false,
+          artifacts: [],
+          terminationReason: "stop",
+        };
+      }),
+    };
+
+    await runManualLoopWithTimeout(orchestrator, "t", undefined, { signal: stop.signal }, 60_000);
+    stop.abort();
+
+    expect(seenSignal?.aborted).toBe(true);
+  });
+
+  it("#1062: reports a Stop that made the backend reject as 'cancelled', not an error", async () => {
+    const stop = new AbortController();
+    const orchestrator: IBacklogOrchestrator = {
+      manualLoopAsync: vi.fn().mockImplementation(async () => {
+        stop.abort();
+        throw new Error("claude child killed");
+      }),
+    };
+
+    const result = await runManualLoopWithTimeout(
+      orchestrator,
+      "t",
+      undefined,
+      { signal: stop.signal },
+      60_000,
+    );
+
+    expect(result.terminationReason).toBe("cancelled");
+    expect(result.backlogActionSucceeded).toBe(false);
+  });
 });

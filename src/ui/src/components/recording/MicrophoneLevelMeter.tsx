@@ -21,7 +21,10 @@ export function MicrophoneLevelMeter({ level, className }: MicrophoneLevelMeterP
   return (
     <div className={cn("flex items-center gap-2 px-1", className)}>
       <Mic className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <meter
+      {/* biome-ignore lint/a11y/useSemanticElements: Chromium never renders children of a native
+          <meter>, so the coloured fill below would stay 0×0 and the meter would look dead. */}
+      <div
+        role="meter"
         className="relative flex-1 h-2 rounded-full bg-white/10 overflow-hidden"
         aria-label="Microphone input level"
         aria-valuenow={Math.round(clampedLevel * 100)}
@@ -29,13 +32,14 @@ export function MicrophoneLevelMeter({ level, className }: MicrophoneLevelMeterP
         aria-valuemax={100}
       >
         <div
+          data-slot="meter-fill"
           className={cn(
             "absolute inset-y-0 left-0 rounded-full transition-all duration-75",
             barColor,
           )}
           style={{ width: `${clampedLevel * 100}%` }}
         />
-      </meter>
+      </div>
     </div>
   );
 }

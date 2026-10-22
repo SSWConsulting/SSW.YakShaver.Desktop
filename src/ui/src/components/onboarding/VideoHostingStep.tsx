@@ -1,20 +1,24 @@
 import { useEffect } from "react";
 import { YouTubeConnection } from "@/components/auth/YouTubeConnection";
+import { LocalStorageHostCard } from "@/components/settings/video-host/LocalStorageHostCard";
 import type { StepHandlers } from "@/types/onboarding";
-import { useYouTubeAuth } from "../../contexts/YouTubeAuthContext";
-import { AuthStatus } from "../../types";
 
 interface VideoHostingStepProps {
   onRegisterHandlers: (handlers: StepHandlers) => void;
 }
 
+// #1062: connecting a video platform is optional — recordings are saved locally by default.
+const ALWAYS_READY: StepHandlers = { isReady: true, validate: () => true };
+
 export function VideoHostingStep({ onRegisterHandlers }: VideoHostingStepProps) {
-  const { authState } = useYouTubeAuth();
-  const isConnected = authState.status === AuthStatus.AUTHENTICATED;
-
   useEffect(() => {
-    onRegisterHandlers({ isReady: isConnected, validate: () => isConnected });
-  }, [isConnected, onRegisterHandlers]);
+    onRegisterHandlers(ALWAYS_READY);
+  }, [onRegisterHandlers]);
 
-  return <YouTubeConnection buttonSize="lg" />;
+  return (
+    <div className="grid gap-4">
+      <LocalStorageHostCard buttonSize="lg" />
+      <YouTubeConnection buttonSize="lg" />
+    </div>
+  );
 }

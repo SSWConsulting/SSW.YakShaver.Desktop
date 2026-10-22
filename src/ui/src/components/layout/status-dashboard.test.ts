@@ -213,24 +213,25 @@ describe("deriveStatusDashboard (#948)", () => {
       expect(result.videoHost.message).toMatch(/youtube/i);
     });
 
-    it("is red and explains the disabled Record button when no video host is connected", () => {
+    it("reports local storage (the default host, #1062) when no video host is connected", () => {
       const result = deriveStatusDashboard(
         inputs({ videoHostStatus: AuthStatus.NOT_AUTHENTICATED }),
       );
-      expect(result.videoHost.level).toBe("red");
+      expect(result.videoHost.level).toBe("green");
       expect(result.videoHost.message).toBe(
-        "You don't have any video host connected, so you can't start recording",
+        "Local storage: recordings are saved on this computer.",
       );
     });
 
-    it("is red when the video host auth errored", () => {
+    it("warns (but does not block) when the video host auth errored", () => {
       const result = deriveStatusDashboard(inputs({ videoHostStatus: AuthStatus.ERROR }));
-      expect(result.videoHost.level).toBe("red");
+      expect(result.videoHost.level).toBe("yellow");
+      expect(result.videoHost.message).toMatch(/saved on this computer/i);
     });
 
-    it("does NOT report green while the video host status is still unknown/loading", () => {
+    it("treats an omitted video host status as local storage", () => {
       const result = deriveStatusDashboard(inputs({ videoHostStatus: undefined }));
-      expect(result.videoHost.level).toBe("red");
+      expect(result.videoHost.message).toMatch(/local storage/i);
     });
 
     it("holds a neutral 'checking' state instead of flashing red while the first check runs", () => {
@@ -300,7 +301,7 @@ describe("deriveStatusDashboard (#948)", () => {
       llmConfig: null,
     });
     expect(result.login.level).toBe("yellow");
-    expect(result.videoHost.level).toBe("red");
+    expect(result.videoHost.level).toBe("green");
     expect(result.mcp.level).toBe("red");
     expect(result.languageModel.level).toBe("red");
   });

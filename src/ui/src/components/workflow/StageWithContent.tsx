@@ -1,7 +1,10 @@
-import { AlertTriangle, Check, ChevronRight, Play, Wrench, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, FolderOpen, Play, Wrench, X } from "lucide-react";
 import type React from "react";
+import { toast } from "sonner";
+import { ipcClient } from "@/services/ipc-client";
 import { type MCPStep, MCPStepType, type MetadataPreview, type VideoChapter } from "../../types";
-import { deepParseJson, formatToolName, isErrorStep } from "../../utils";
+import { deepParseJson, formatErrorMessage, formatToolName, isErrorStep } from "../../utils";
+import { Button } from "../ui/button";
 import { ReasoningStep } from "./ReasoningStep";
 
 interface StageWithContentProps {
@@ -50,6 +53,32 @@ function VideoUrlContent({ url }: { url: string }) {
     >
       {url}
     </a>
+  );
+}
+
+/** #1062: where a recording was saved when no video host is connected, with a way to open it. */
+function LocalSaveContent({ folder }: { folder: string }) {
+  const handleOpenFolder = async () => {
+    try {
+      const result = await ipcClient.app.openLocalVideoFolder(folder);
+      if (!result.success) throw new Error(result.error);
+    } catch (error) {
+      toast.error(`Failed to open folder: ${formatErrorMessage(error)}`);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <p className="text-white/70">
+        Connect a video host in Settings to upload future recordings. This recording and its
+        transcript are in:
+      </p>
+      <p className="break-all text-white/90">{folder}</p>
+      <Button size="sm" variant="outline" onClick={handleOpenFolder} className="self-start">
+        <FolderOpen className="size-4" />
+        Open folder
+      </Button>
+    </div>
   );
 }
 
@@ -204,6 +233,10 @@ function ToolCallStep({ toolName, args }: { toolName?: string; args?: unknown })
 export function StageWithContent({ stage, payload }: StageWithContentProps) {
   // If no payload or empty object, nothing to render
   if (!payload) return null;
+
+  if (stage === "uploading_video" && isRecord(payload) && typeof payload.localFolder === "string") {
+    return <LocalSaveContent folder={payload.localFolder} />;
+  }
 
   if (stage === "uploading_video" || stage === "downloading_video") {
     const url = getVideoUrl(payload);

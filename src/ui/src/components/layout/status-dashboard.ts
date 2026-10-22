@@ -13,11 +13,10 @@ import { AuthStatus, type HealthStatusInfo } from "@/types";
  * model is configured. Today none of this is visible until a shave fails, so this
  * dashboard gives an always-on, at-a-glance signal instead.
  *
- * The video-host row exists because a missing video host is the one failure the
- * user hits *before* a shave even starts: ScreenRecorder disables Record until a
- * video host is connected, and the sidebar renders it with `showButtonOnly`, which
- * omits ScreenRecorder's own "Please connect a video platform below" hint — so the
- * button just greys out with no explanation anywhere on screen.
+ * The video-host row shows where recordings go: the connected platform, or local
+ * storage (the default since #1062). In YakShaver Anywhere mode Record still waits
+ * on sign-in, and the sidebar renders ScreenRecorder with `showButtonOnly`, so this
+ * row is the only on-screen explanation when the button is greyed out.
  *
  * `deriveStatusDashboard` is a pure function (unit-testable without IPC);
  * `useStatusDashboard` wires it to the live `ipcClient` reads and keeps it fresh.
@@ -82,10 +81,9 @@ export interface StatusDashboardInputs {
 }
 
 /**
- * Mirrors ScreenRecorder's own `isVideoHostConnected` gate exactly, so this row always
- * explains the state of the Record button rather than guessing at it: in YakShaver
- * Anywhere (cloud-360) mode the "video host" is Identity Server sign-in; in every other
- * mode it's the YouTube connection.
+ * In YakShaver Anywhere (cloud-360) mode the "video host" is Identity Server sign-in, which
+ * mirrors ScreenRecorder's `isReadyToRecord` gate. In every other mode it's the YouTube
+ * connection, falling back to local storage when none is connected.
  */
 function deriveVideoHostStatus(inputs: StatusDashboardInputs): StatusItem {
   if (inputs.llmConfig?.orchestrationBackend === "cloud-360") {
@@ -110,10 +108,14 @@ function deriveVideoHostStatus(inputs: StatusDashboardInputs): StatusItem {
   if (inputs.isVideoHostLoading) {
     return { level: "yellow", message: "Checking connection…" };
   }
-  return {
-    level: "red",
-    message: "You don't have any video host connected, so you can't start recording",
-  };
+  // #1062: local storage is the default video host, so no connected platform is a valid setup.
+  if (inputs.videoHostStatus === AuthStatus.ERROR) {
+    return {
+      level: "yellow",
+      message: "YouTube connection failed. Recordings are saved on this computer.",
+    };
+  }
+  return { level: "green", message: "Local storage: recordings are saved on this computer." };
 }
 
 /**
