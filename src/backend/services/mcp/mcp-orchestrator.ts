@@ -290,6 +290,9 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
         const toolWhiteList = new Set(
           (await MCPOrchestrator.mcpServerManager?.getWhitelistWithServerPrefixAsync()) ?? [],
         );
+        // Every tool call in this batch needs its result before any user message, or the AI SDK
+        // rejects the history (MissingToolResultsError), so corrections are appended afterwards.
+        const correctionMessages: UserModelMessage[] = [];
         for (const toolCall of llmResponse.toolCalls) {
           const isWhitelisted = toolWhiteList.has(toolCall.toolName);
           const toolStartTime = Date.now();
@@ -391,12 +394,12 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
               };
 
               // LLM ignores the retry feedback in the tool result, so we need to add a user message as well
-              const userMessage: UserModelMessage = {
+              correctionMessages.push({
                 role: "user",
                 content: retryFeedback.message,
-              };
+              });
 
-              messages.push(toolMessage, userMessage);
+              messages.push(toolMessage);
               continue;
             }
           }
@@ -536,8 +539,23 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
             console.warn(
               `[MCPOrchestrator] Tool '${toolCall.toolName}' not found or has no execute method`,
             );
+            messages.push({
+              role: "tool",
+              content: [
+                {
+                  type: "tool-result",
+                  toolName: toolCall.toolName,
+                  toolCallId: toolCall.toolCallId,
+                  output: {
+                    type: "error-text",
+                    value: `Tool '${toolCall.toolName}' is not available.`,
+                  },
+                },
+              ],
+            });
           }
         }
+        messages.push(...correctionMessages);
       } else if (llmResponse.finishReason === "stop") {
         console.log("Final message history by stop:");
         console.log(llmResponse.text);
