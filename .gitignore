@@ -121,3 +121,12 @@ tmpclaude*
 # ARMADA logbook — machine/content-specific artifacts (config stays committed)
 .armada/logbook/bin/
 .armada/logbook/cache/
+
+# Local media (screenshots, narrated walkthroughs) - never committed
+.narrate/
+docs/*.mp4
+docs/*.vtt
+docs/*.scene.json
+docs/*.tasks.md
+docs/screenshots/
+docs/ux-review/

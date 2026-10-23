@@ -36,7 +36,7 @@ YakShaver is a desktop AI agent with the following capabilities:
 | Layer              | Technology                      | Version                |
 | ------------------ | ------------------------------- | ---------------------- |
 | Runtime            | Electron                        | 39.x                   |
-| Language           | TypeScript                      | 5.6 (strict mode)      |
+| Language           | TypeScript                      | 7 (strict mode)        |
 | Frontend           | React                           | 19                     |
 | Build (Frontend)   | Vite                            | 5                      |
 | Styling            | Tailwind CSS                    | v4 (OKLCH color space) |
