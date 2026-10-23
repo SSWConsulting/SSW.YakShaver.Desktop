@@ -77,6 +77,8 @@ export class LanguageModelProvider {
     const { text } = await generateText({
       model: this.languageModel,
       messages: messages,
+      // Callers put app-authored system prompts in `messages`; AI SDK 7 rejects those by default.
+      allowSystemInMessages: true,
     });
     return text;
   }
@@ -99,6 +101,7 @@ export class LanguageModelProvider {
     const response = await generateText({
       model: this.languageModel,
       messages: messages,
+      allowSystemInMessages: true,
       tools: sanitizedTools,
     });
 

@@ -431,7 +431,7 @@ export class MCPOrchestrator implements IBacklogOrchestrator {
 
               const toolOutput = await toolToCall.execute(resolvedInput, {
                 toolCallId: toolCall.toolCallId,
-              } as ToolExecutionOptions);
+              } as ToolExecutionOptions<unknown>);
 
               const rawOutputText =
                 toolOutput.content
